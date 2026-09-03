@@ -20,7 +20,7 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::ProtocolVersion,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
 };
@@ -62,6 +62,28 @@ pub struct ValidatorGenesisConfig {
 }
 
 impl ValidatorGenesisConfig {
+    /// A copy of this config, key pairs included. The key pair types do not
+    /// implement `Clone`, which is why this is not a `Clone` implementation
+    /// and why the name says what it copies.
+    pub fn copy_with_private_keys(&self) -> Self {
+        Self {
+            authority_key_pair: self.authority_key_pair.copy(),
+            protocol_key_pair: self.protocol_key_pair.copy(),
+            account_key_pair: self.account_key_pair.clone(),
+            network_key_pair: self.network_key_pair.copy(),
+            network_address: self.network_address.clone(),
+            p2p_address: self.p2p_address.clone(),
+            p2p_listen_address: self.p2p_listen_address,
+            metrics_address: self.metrics_address,
+            admin_interface_address: self.admin_interface_address,
+            gas_price: self.gas_price,
+            commission_rate: self.commission_rate,
+            primary_address: self.primary_address.clone(),
+            stake: self.stake,
+            name: self.name.clone(),
+        }
+    }
+
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
         let authority_key: AuthorityPublicKeyBytes = self.authority_key_pair.public().into();
         let account_key = PublicKey::from(&self.account_key_pair);
@@ -103,7 +125,7 @@ impl ValidatorGenesisConfig {
 #[derive(Default)]
 pub struct ValidatorGenesisConfigBuilder {
     authority_key_pair: Option<AuthorityKeyPair>,
-    account_key_pair: Option<AccountKeyPair>,
+    account_private_key: Option<AccountPrivateKey>,
     ip: Option<String>,
     gas_price: Option<u64>,
     /// If set, the validator will use deterministic addresses based on the port
@@ -125,8 +147,8 @@ impl ValidatorGenesisConfigBuilder {
         self
     }
 
-    pub fn with_account_key_pair(mut self, key_pair: AccountKeyPair) -> Self {
-        self.account_key_pair = Some(key_pair);
+    pub fn with_account_private_key(mut self, private_key: AccountPrivateKey) -> Self {
+        self.account_private_key = Some(private_key);
         self
     }
 
@@ -165,8 +187,8 @@ impl ValidatorGenesisConfigBuilder {
         let authority_key_pair = self
             .authority_key_pair
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
-        let account_key_pair = self
-            .account_key_pair
+        let account_private_key = self
+            .account_private_key
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
         let gas_price = self.gas_price.unwrap_or(DEFAULT_VALIDATOR_GAS_PRICE);
 
@@ -217,7 +239,7 @@ impl ValidatorGenesisConfigBuilder {
         ValidatorGenesisConfig {
             authority_key_pair,
             protocol_key_pair,
-            account_key_pair: account_key_pair.into(),
+            account_key_pair: account_private_key.into(),
             network_key_pair,
             network_address,
             p2p_address,
@@ -242,6 +264,13 @@ impl ValidatorGenesisConfigBuilder {
 pub struct GenesisConfig {
     pub ssfn_config_info: Option<Vec<SsfnGenesisConfig>>,
     pub validator_config_info: Option<Vec<ValidatorGenesisConfig>>,
+    /// The key pairs and addresses of the network's fullnode. Unlike the
+    /// validators, a fullnode is not part of the genesis committee. The entry
+    /// exists so that its config is the same on every run. The derivation
+    /// reads only the key pairs and the addresses. The validator fields,
+    /// such as the stake and the gas price, are ignored.
+    #[serde(default)]
+    pub fullnode_config_info: Option<ValidatorGenesisConfig>,
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
 }
@@ -257,7 +286,7 @@ impl GenesisConfig {
     pub fn generate_accounts<R: rand::RngCore + rand::CryptoRng>(
         &self,
         mut rng: R,
-    ) -> Result<(Vec<AccountKeyPair>, Vec<TokenAllocation>)> {
+    ) -> Result<(Vec<AccountPrivateKey>, Vec<TokenAllocation>)> {
         let mut addresses = Vec::new();
         let mut allocations = Vec::new();
 
@@ -268,8 +297,8 @@ impl GenesisConfig {
             let address = if let Some(address) = account.address {
                 address
             } else {
-                let (address, keypair) = get_key_pair_from_rng(&mut rng);
-                keys.push(keypair);
+                let (address, key) = get_key_pair_from_rng(&mut rng);
+                keys.push(key);
                 address
             };
 
@@ -312,7 +341,7 @@ fn default_ed25519_key_pair() -> NetworkKeyPair {
 }
 
 fn default_iota_key_pair() -> SimpleKeypair {
-    SimpleKeypair::from(AccountKeyPair::random())
+    SimpleKeypair::from(AccountPrivateKey::random())
 }
 
 // Serde adapter storing the keypair as base64 `flag || privkey`, the on-disk
@@ -480,6 +509,7 @@ impl GenesisConfig {
         GenesisConfig {
             ssfn_config_info: None,
             validator_config_info: Some(validator_config_info),
+            fullnode_config_info: None,
             parameters,
             accounts: account_configs,
         }
@@ -492,7 +522,7 @@ impl GenesisConfig {
     pub fn benchmark_gas_keys(n: usize) -> Vec<SimpleKeypair> {
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         (0..n)
-            .map(|_| SimpleKeypair::from(AccountKeyPair::random_with(&mut rng)))
+            .map(|_| SimpleKeypair::from(AccountPrivateKey::random_with(&mut rng)))
             .collect()
     }
 

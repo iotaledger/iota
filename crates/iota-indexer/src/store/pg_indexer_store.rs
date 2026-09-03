@@ -63,7 +63,7 @@ use crate::{
         event_struct_name, event_struct_package, events, feature_flags, objects,
         objects_backward_history, objects_version, optimistic_transactions, packages,
         protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
-        tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds,
+        tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects, tx_kinds,
         tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
     store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
@@ -342,7 +342,7 @@ impl PgIndexerStore {
             .map(|(indexed_object, tx_digest)| {
                 (
                     StoredObject::from(indexed_object),
-                    tx_digest.into_inner().to_vec(),
+                    tx_digest.into_bytes().to_vec(),
                 )
             })
             .unzip();
@@ -406,7 +406,7 @@ impl PgIndexerStore {
                 (
                     removed_object.object_id().as_bytes().to_vec(),
                     removed_object.version() as i64,
-                    removed_object.transaction_digest.into_inner().to_vec(),
+                    removed_object.transaction_digest.into_bytes().to_vec(),
                 )
             })
             .multiunzip();
@@ -605,7 +605,7 @@ impl PgIndexerStore {
         // If the first checkpoint has sequence number 0, we need to persist the digest
         // as chain identifier.
         if first_checkpoint.sequence_number == 0 {
-            let checkpoint_digest = first_checkpoint.checkpoint_digest.into_inner().to_vec();
+            let checkpoint_digest = first_checkpoint.checkpoint_digest.into_bytes().to_vec();
             self.persist_protocol_configs_and_feature_flags(checkpoint_digest.clone())?;
             self.persist_chain_identifier(StoredChainIdentifier { checkpoint_digest })?;
         }
@@ -734,15 +734,15 @@ impl PgIndexerStore {
             |conn| {
                 for tx_order_chunk in tx_order.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
                     // Upsert: on conflict (row already inserted by optimistic path),
-                    // set `chk_tx_sequence_number` so checkpoint data is available
+                    // set `tx_sequence_number` so checkpoint data is available
                     // immediately.
                     on_conflict_do_update_with_condition!(
                         tx_global_order::table,
                         tx_order_chunk,
                         tx_global_order::tx_digest,
-                        tx_global_order::chk_tx_sequence_number
-                            .eq(excluded(tx_global_order::chk_tx_sequence_number)),
-                        tx_global_order::chk_tx_sequence_number.is_null(),
+                        tx_global_order::tx_sequence_number
+                            .eq(excluded(tx_global_order::tx_sequence_number)),
+                        tx_global_order::tx_sequence_number.is_null(),
                         conn
                     );
                 }
@@ -987,7 +987,6 @@ impl PgIndexerStore {
         let pkgs: Vec<_> = splits.iter().flat_map(|ix| ix.tx_pkgs.clone()).collect();
         let mods: Vec<_> = splits.iter().flat_map(|ix| ix.tx_mods.clone()).collect();
         let funs: Vec<_> = splits.iter().flat_map(|ix| ix.tx_funs.clone()).collect();
-        let digests: Vec<_> = splits.iter().flat_map(|ix| ix.tx_digests.clone()).collect();
         let kinds: Vec<_> = splits.iter().flat_map(|ix| ix.tx_kinds.clone()).collect();
 
         let futures = [
@@ -1022,9 +1021,6 @@ impl PgIndexerStore {
             }),
             self.spawn_blocking_task(move |this| {
                 persist_chunk_into_table!(tx_calls_fun::table, funs, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_digests::table, digests, &this.blocking_cp)
             }),
             self.spawn_blocking_task(move |this| {
                 persist_chunk_into_table!(tx_kinds::table, kinds, &this.blocking_cp)
@@ -1157,7 +1153,7 @@ impl PgIndexerStore {
     }
 
     /// Prunes tx_global_order table by transaction range using
-    /// chk_tx_sequence_number
+    /// tx_sequence_number
     fn prune_tx_global_order(
         &self,
         conn: &mut PgConnection,
@@ -1166,7 +1162,7 @@ impl PgIndexerStore {
     ) -> Result<(), IndexerError> {
         diesel::delete(
             tx_global_order::table
-                .filter(tx_global_order::chk_tx_sequence_number.between(min_tx, max_tx)),
+                .filter(tx_global_order::tx_sequence_number.between(min_tx, max_tx)),
         )
         .execute(conn)
         .map_err(IndexerError::from)
@@ -1327,15 +1323,6 @@ impl PgIndexerStore {
                             "Failed to prune tx_calls_fun table"
                         );
                     }
-                    PrunableTable::TxDigests => {
-                        prune_tx_or_event_indice_table!(
-                            tx_digests,
-                            conn,
-                            min_tx,
-                            max_tx,
-                            "Failed to prune tx_digests table"
-                        );
-                    }
                     PrunableTable::TxKinds => {
                         prune_tx_or_event_indice_table!(
                             tx_kinds,
@@ -1376,7 +1363,7 @@ impl PgIndexerStore {
             |conn| {
                 let sql = r#"
                     WITH ids_to_delete AS (
-                         SELECT global_sequence_number, optimistic_sequence_number
+                         SELECT optimistic_sequence_number
                          FROM optimistic_transactions
                          WHERE global_sequence_number BETWEEN $1 AND $2
                          ORDER BY global_sequence_number, optimistic_sequence_number
@@ -1385,8 +1372,7 @@ impl PgIndexerStore {
                      )
                      DELETE FROM optimistic_transactions otx
                      USING ids_to_delete
-                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
-                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
+                     WHERE otx.optimistic_sequence_number = ids_to_delete.optimistic_sequence_number
                 "#;
                 diesel::sql_query(sql)
                     .bind::<diesel::sql_types::BigInt, _>(start as i64)

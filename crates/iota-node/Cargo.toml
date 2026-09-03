@@ -52,6 +52,7 @@ iota-multiaddr.workspace = true
 iota-names.workspace = true
 iota-network.workspace = true
 iota-network-stack.workspace = true
+iota-node-transaction-builder.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-snapshot.workspace = true
@@ -62,6 +63,9 @@ move-vm-profiler.workspace = true
 prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
+
+[dev-dependencies]
+serde_yaml.workspace = true
 
 [build-dependencies]
 rustc_version_runtime = "0.3"

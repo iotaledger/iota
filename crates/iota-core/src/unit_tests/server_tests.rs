@@ -18,7 +18,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
+        AccountPrivateKey, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
         IotaAuthoritySignature, get_authority_key_pair, get_key_pair,
     },
     error::IotaError,
@@ -36,7 +36,7 @@ use tokio_stream::StreamExt;
 use super::*;
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ExecutionEnv,
         authority_test_utils::init_certified_transaction,
         authority_tests::{init_state_with_ids_and_object_basics, init_state_with_object_id},
         test_authority_builder::TestAuthorityBuilder,
@@ -293,7 +293,7 @@ async fn test_get_checkpoint_happy_path() {
 async fn build_shared_object_transaction(
     state: &AuthorityState,
     sender: Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: ObjectId,
     pkg_ref: iota_sdk_types::ObjectReference,
 ) -> TransactionEnvelope {
@@ -408,7 +408,7 @@ async fn setup_v2_transfer_tx() -> (
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -516,7 +516,7 @@ async fn test_v2_submit_tx_invalid_signature() {
     });
 
     let sender = Address::random();
-    let wrong_key = AccountKeyPair::random();
+    let wrong_key = AccountPrivateKey::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -581,7 +581,7 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -640,7 +640,7 @@ async fn test_v2_submit_tx_already_executed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -678,7 +678,7 @@ async fn test_v2_submit_tx_already_executed() {
 
     // Execute the transaction first.
     let cert = init_certified_transaction(tx.clone(), &authority_state);
-    let (effects, _) = authority_state.execute_for_test(&cert);
+    let (effects, _) = authority_state.execute_for_test(&cert, ExecutionEnv::new());
 
     // Re-submit via V2 streaming endpoint.
     let response = validator_service
@@ -708,7 +708,7 @@ async fn test_v2_submit_tx_refuses_contradicting_previously_signed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -752,7 +752,7 @@ async fn test_v2_submit_tx_refuses_contradicting_previously_signed() {
         1,
     );
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
 
@@ -802,7 +802,7 @@ async fn test_v2_submit_tx_multiple_transactions() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id1 = ObjectId::random();
     let gas_id2 = ObjectId::random();
 
@@ -853,7 +853,7 @@ async fn test_v2_submit_tx_invalid_transaction() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
 
     let authority_state = TestAuthorityBuilder::new()
@@ -917,7 +917,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
 
     let authority_state = TestAuthorityBuilder::new()
@@ -975,7 +975,7 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id1 = ObjectId::random();
     let gas_id2 = ObjectId::random();
 
@@ -1050,7 +1050,7 @@ async fn test_v2_submit_tx_oversized_transaction() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
 
     let authority_state = TestAuthorityBuilder::new()
@@ -1173,7 +1173,7 @@ async fn test_v2_get_tx_status_already_executed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1212,7 +1212,7 @@ async fn test_v2_get_tx_status_already_executed() {
 
     // Execute the transaction first.
     let cert = init_certified_transaction(tx, &authority_state);
-    let (effects, _) = authority_state.execute_for_test(&cert);
+    let (effects, _) = authority_state.execute_for_test(&cert, ExecutionEnv::new());
 
     // Query status — should return Executed immediately.
     let response = validator_service
@@ -1248,7 +1248,7 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1287,7 +1287,7 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
 
     // Execute first.
     let cert = init_certified_transaction(tx, &authority_state);
-    authority_state.execute_for_test(&cert);
+    authority_state.execute_for_test(&cert, ExecutionEnv::new());
 
     // Query with include_details = true.
     let response = validator_service
@@ -1321,7 +1321,7 @@ async fn test_v2_get_tx_status_refuses_contradicting_previously_signed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1365,7 +1365,7 @@ async fn test_v2_get_tx_status_refuses_contradicting_previously_signed() {
         1,
     );
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
 
@@ -1417,7 +1417,7 @@ async fn test_v2_get_tx_status_allows_matching_previously_signed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1474,7 +1474,7 @@ async fn test_v2_get_tx_status_allows_matching_previously_signed() {
         1,
     );
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
     authority_state
@@ -1501,7 +1501,7 @@ async fn test_v2_get_tx_status_multiple_queries() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id1 = ObjectId::random();
     let gas_id1 = ObjectId::random();
     let object_id2 = ObjectId::random();
@@ -1561,8 +1561,8 @@ async fn test_v2_get_tx_status_multiple_queries() {
 
     let cert1 = init_certified_transaction(tx1, &authority_state);
     let cert2 = init_certified_transaction(tx2, &authority_state);
-    authority_state.execute_for_test(&cert1);
-    authority_state.execute_for_test(&cert2);
+    authority_state.execute_for_test(&cert1, ExecutionEnv::new());
+    authority_state.execute_for_test(&cert2, ExecutionEnv::new());
 
     // Query both with different include_details settings.
     let response = validator_service

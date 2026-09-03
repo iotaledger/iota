@@ -13,8 +13,8 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
 use iota_sdk_types::{
-    ObjectId, Owner, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
-    Version, checkpoint::CheckpointContents,
+    ObjectId, OwnedObjectReference, Owner, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version, checkpoint::CheckpointContents,
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -448,15 +448,23 @@ impl PrimaryWorker {
         let changed_objects = fx
             .all_changed_objects()
             .into_iter()
-            .map(|(object_ref, _owner, _write_kind)| object_ref.object_id)
+            .map(
+                |(
+                    OwnedObjectReference {
+                        reference: object_ref,
+                        owner: _owner,
+                    },
+                    _write_kind,
+                )| object_ref.object_id,
+            )
             .collect::<Vec<_>>();
 
         // Wrapped or deleted objects
         let wrapped_or_deleted_objects = fx
             .all_tombstones()
             .into_iter()
-            .chain(fx.created_then_wrapped_objects())
             .map(|(object_id, _)| object_id)
+            .chain(fx.created_then_wrapped_objects())
             .collect::<Vec<_>>();
 
         // Payers
@@ -469,10 +477,18 @@ impl PrimaryWorker {
         let recipients = fx
             .all_changed_objects()
             .into_iter()
-            .filter_map(|(_object_ref, owner, _write_kind)| match owner {
-                Owner::Address(address) => Some(address),
-                _ => None,
-            })
+            .filter_map(
+                |(
+                    OwnedObjectReference {
+                        reference: _object_ref,
+                        owner,
+                    },
+                    _write_kind,
+                )| match owner {
+                    Owner::Address(address) => Some(address),
+                    _ => None,
+                },
+            )
             .unique()
             .collect::<Vec<_>>();
 
@@ -595,7 +611,7 @@ impl PrimaryWorker {
             let superseded_ids: HashSet<ObjectId> = effects
                 .mutated()
                 .into_iter()
-                .map(|(r, _)| r.object_id)
+                .map(|mutated| mutated.reference.object_id)
                 .chain(
                     effects
                         .all_removed_objects()
@@ -621,10 +637,10 @@ impl PrimaryWorker {
             // 2. Created objects did not exist before this transaction. Use lamport version
             //    - 1 so the version is monotonic with other backward-history rows for the
             //    same object.
-            for (r, _) in effects.created() {
+            for created in effects.created() {
                 result.push(StoredBackwardHistoryObject::from_empty(
-                    r.object_id,
-                    r.version.as_u64() as i64 - 1,
+                    created.reference.object_id,
+                    created.reference.version.as_u64() as i64 - 1,
                     ObjectStatus::NotYetCreated,
                     checkpoint_seq,
                 ));
@@ -632,7 +648,10 @@ impl PrimaryWorker {
 
             // 3. Unwrapped and unwrapped-then-deleted objects were previously wrapped — no
             //    data available. Use lamport version - 1 as approximation.
-            let unwrapped_refs = effects.unwrapped().into_iter().map(|(r, _)| r);
+            let unwrapped_refs = effects
+                .unwrapped()
+                .into_iter()
+                .map(|unwrapped| unwrapped.reference);
             let unwrapped_then_deleted_refs = effects.unwrapped_then_deleted().into_iter();
             for r in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
                 result.push(StoredBackwardHistoryObject::from_empty(

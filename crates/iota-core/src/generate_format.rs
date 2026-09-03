@@ -199,9 +199,9 @@ fn get_registry() -> Result<Registry> {
     )
     .signing_digest();
 
-    let sig1: SimpleSignature = kp1.sign(&*digest);
-    let sig2: SimpleSignature = kp2.sign(&*digest);
-    let sig3: SimpleSignature = kp3.sign(&*digest);
+    let sig1: SimpleSignature = kp1.sign(&digest);
+    let sig2: SimpleSignature = kp2.sign(&digest);
+    let sig3: SimpleSignature = kp3.sign(&digest);
 
     let multi_sig = MultisigAggregatedSignature::new(
         vec![
@@ -277,7 +277,7 @@ fn get_registry() -> Result<Registry> {
         package_id: ObjectId::random(),
         module: Identifier::from_static("foo"),
         sender: Address::ZERO,
-        type_: struct_tag.clone(),
+        struct_tag: struct_tag.clone(),
         contents: vec![0],
     };
     tracer.trace_value(&mut samples, &event).unwrap();
@@ -461,7 +461,7 @@ fn get_registry() -> Result<Registry> {
         package_id: ObjectId::ZERO,
         module: Identifier::from_static("foo"),
         sender: Address::ZERO,
-        type_: struct_tag.clone(),
+        struct_tag: struct_tag.clone(),
         contents: vec![0],
     }]);
     tracer.trace_value(&mut samples, &sample_events).unwrap();

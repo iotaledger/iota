@@ -203,7 +203,7 @@ impl NameRegistration {
             .await
     }
 
-    pub(crate) async fn version(&self) -> UInt53 {
+    pub(crate) async fn version(&self) -> Result<UInt53> {
         ObjectImpl(&self.super_.super_).version().await
     }
 
@@ -224,7 +224,7 @@ impl NameRegistration {
     }
 
     /// The owner type of this object: Immutable, Shared, Parent, Address
-    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
+    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Result<Option<ObjectOwner>> {
         ObjectImpl(&self.super_.super_).owner(ctx).await
     }
 
@@ -607,7 +607,7 @@ impl NameRegistration {
         owner: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, NameRegistration>, Error> {
-        let type_ = NameRegistration::type_(config.package_address.into());
+        let type_ = NameRegistration::struct_tag(config.package_address.into());
 
         let filter = ObjectFilter {
             type_: Some(type_.clone().into()),
@@ -634,8 +634,8 @@ impl NameRegistration {
 
     /// Return the type representing a `NameRegistration` on chain. This
     /// can change from chain to chain (mainnet, testnet, devnet etc).
-    pub(crate) fn type_(package: IotaAddress) -> StructTag {
-        iota_names::NameRegistration::type_(package.into())
+    pub(crate) fn struct_tag(package: IotaAddress) -> StructTag {
+        iota_names::NameRegistration::struct_tag(package.into())
     }
 
     // Because the type of the NameRegistration object is not constant,

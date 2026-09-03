@@ -19,10 +19,7 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::{
-    Client as GrpcClient,
-    read_mask_fields::{ObjectField, OwnedObjectReadMask},
-};
+use iota_grpc_client::{Client as GrpcClient, read_mask_fields::ObjectField};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -52,7 +49,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
+use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
@@ -1011,7 +1008,7 @@ impl IotaClientCommands {
                 }
 
                 let grpc_client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+                let mut builder = grpc_client.transaction_builder(sender);
                 builder.upgrade_package(
                     package_id,
                     package_data,
@@ -1135,7 +1132,7 @@ impl IotaClientCommands {
                 );
 
                 let grpc_client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+                let mut builder = grpc_client.transaction_builder(sender);
                 let upgrade_cap = builder.publish_package(package_data).result();
                 builder.transfer_objects(sender, [upgrade_cap]);
                 let tx_kind = builder.finish_kind().await?;
@@ -1362,7 +1359,7 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&object_id).await?;
                 let to = get_identity_address(Some(to), context).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.transfer_objects(to, [object_id]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -1412,7 +1409,7 @@ impl IotaClientCommands {
                     .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.pay(input_coins.clone(), recipients.into_iter().zip(amounts));
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -1458,7 +1455,7 @@ impl IotaClientCommands {
                 let signer =
                     get_identity_address(processing.sender.map(Into::into), context).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.pay_iota(recipients.into_iter().zip(amounts.iter().copied()));
                 let tx_kind = builder.finish_kind().await?;
 
@@ -1515,7 +1512,7 @@ impl IotaClientCommands {
                 let recipient = get_identity_address(Some(recipient), context).await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.transfer_objects(recipient, [unresolved::Argument::Gas]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &input_coins).await?;
@@ -1661,13 +1658,7 @@ impl IotaClientCommands {
                 let client = context.get_grpc_client().await?;
                 // Two coins are enough to tell a lone coin from several
                 let iota_coins = client
-                    .get_coins(
-                        signer,
-                        StructTag::new_gas(),
-                        Some(2),
-                        None,
-                        OwnedObjectReadMask::default(),
-                    )
+                    .get_coins(signer, StructTag::new_gas(), Some(2), None)
                     .await?
                     .into_inner();
 
@@ -1677,7 +1668,7 @@ impl IotaClientCommands {
                     && iota_coins.next_page_token.is_none()
                     && iota_coins.items[0].id() == &coin_id;
 
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 let (coin, coin_type) = if split_from_gas {
                     (
                         builder.apply_argument(unresolved::Argument::Gas),
@@ -1734,7 +1725,7 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&primary_coin).await?;
                 let client = context.get_grpc_client().await?;
 
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.merge_coins(primary_coin, [coin_to_merge]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -2857,7 +2848,7 @@ pub struct ObjectOutput {
 
 impl From<&IotaObjectData> for ObjectOutput {
     fn from(obj: &IotaObjectData) -> Self {
-        let obj_type = match obj.type_.as_ref() {
+        let obj_type = match obj.object_type.as_ref() {
             Some(x) => x.to_string(),
             None => "unknown".to_string(),
         };
@@ -2905,7 +2896,7 @@ impl ObjectsOutput {
     fn from(obj: IotaObjectResponse) -> Result<Self, anyhow::Error> {
         let obj = obj.into_object()?;
         // this replicates the object type display as in the iota explorer
-        let object_type = match obj.type_ {
+        let object_type = match obj.object_type {
             Some(iota_types::base_types::ObjectType::Struct(x)) => {
                 let address = x.address().to_string();
                 // check if the address has length of 64 characters
@@ -3332,7 +3323,7 @@ async fn grpc_coin(
         .await?
         .ok_or_else(|| anyhow!("Coin {coin_id} does not exist"))?;
     let coin_type = object
-        .coin_type_opt()
+        .opt_coin_type()
         .ok_or_else(|| anyhow!("Object {coin_id} is not a coin"))?
         .clone();
 

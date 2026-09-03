@@ -316,6 +316,10 @@ impl GrpcReader {
         self.server_version.clone()
     }
 
+    pub fn state_reader(&self) -> Arc<dyn iota_node_storage::GrpcStateReader> {
+        self.state_reader.clone()
+    }
+
     pub fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
         self.state_reader.get_chain_identifier().map_err(Into::into)
     }
@@ -1248,8 +1252,8 @@ impl GrpcReader {
             // Get input objects only if requested
             let input_objects = if fields.include_input_objects || include_derived_changes {
                 let mut objects = Vec::new();
-                for (object_id, version) in effects.modified_at_versions() {
-                    objects.push(require_object(&object_id, version)?);
+                for modified in effects.modified_at_versions() {
+                    objects.push(require_object(&modified.object_id, modified.version)?);
                 }
                 Some(objects)
             } else {
@@ -1259,12 +1263,13 @@ impl GrpcReader {
             // Get output objects only if requested
             let output_objects = if fields.include_output_objects || include_derived_changes {
                 let mut objects = Vec::new();
-                for (object_ref, _owner) in effects
+                for written in effects
                     .created()
                     .into_iter()
                     .chain(effects.mutated())
                     .chain(effects.unwrapped())
                 {
+                    let object_ref = written.reference;
                     objects.push(require_object(&object_ref.object_id, object_ref.version)?);
                 }
                 Some(objects)
@@ -1394,15 +1399,18 @@ impl Merge<CheckpointTransactionWithContext>
         if mask.subtree(Self::BALANCE_CHANGES_FIELD.name).is_some() {
             self.balance_changes = Some(
                 iota_grpc_types::v1::transaction::BalanceChanges::default().with_balance_changes(
-                    crate::changes::derive_balance_changes(
-                        &source.transaction.effects,
-                        &source.transaction.input_objects,
-                        &source.transaction.output_objects,
-                        None,
-                    )?
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
+                    source
+                        .transaction
+                        .effects
+                        .as_v1()
+                        .balance_changes(
+                            source.transaction.input_objects.iter().map(|o| &**o),
+                            source.transaction.output_objects.iter().map(|o| &**o),
+                            None,
+                        )?
+                        .into_iter()
+                        .map(crate::changes::balance_change_to_proto)
+                        .collect(),
                 ),
             );
         }
@@ -1414,15 +1422,18 @@ impl Merge<CheckpointTransactionWithContext>
             let sender = source.transaction.transaction.transaction().sender();
             self.object_changes = Some(
                 iota_grpc_types::v1::transaction::ObjectChanges::default().with_object_changes(
-                    crate::changes::derive_object_changes(
-                        sender,
-                        &source.transaction.effects,
-                        &source.transaction.input_objects,
-                        &source.transaction.output_objects,
-                    )?
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
+                    source
+                        .transaction
+                        .effects
+                        .as_v1()
+                        .object_changes(
+                            sender,
+                            source.transaction.input_objects.iter().map(|o| &**o),
+                            source.transaction.output_objects.iter().map(|o| &**o),
+                        )?
+                        .into_iter()
+                        .map(crate::changes::object_change_to_proto)
+                        .collect(),
                 ),
             );
         }

@@ -155,7 +155,7 @@ mod checked {
         let mut argument_updates = Mode::empty_arguments();
         let results = match command {
             Command::MakeMoveVector(cmd) if cmd.elements.is_empty() => {
-                let Some(tag) = cmd.type_ else {
+                let Some(tag) = cmd.type_tag else {
                     invariant_violation!(
                         "input checker ensures if elements are empty, there is a type specified"
                     );
@@ -190,7 +190,7 @@ mod checked {
                 let mut res = vec![];
                 leb128::write::unsigned(&mut res, args.len() as u64).unwrap();
                 let mut arg_iter = args.into_iter().enumerate();
-                let (mut used_in_non_entry_move_call, elem_ty) = match cmd.type_ {
+                let (mut used_in_non_entry_move_call, elem_ty) = match cmd.type_tag {
                     Some(tag) => {
                         let elem_ty = context.load_type(&tag).map_err(|e| {
                             if context.protocol_config.convert_type_argument_error() {

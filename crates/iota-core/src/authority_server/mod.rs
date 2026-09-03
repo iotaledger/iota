@@ -14,7 +14,6 @@ mod test_server;
 use std::{
     net::{IpAddr, SocketAddr},
     sync::Arc,
-    time::SystemTime,
 };
 
 use iota_network::tonic;
@@ -163,9 +162,9 @@ impl ValidatorService {
         }
     }
 
-    async fn check_traffic(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
+    fn check_traffic(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
         if let Some(traffic_controller) = &self.traffic_controller {
-            if !traffic_controller.check(&client, &None).await {
+            if !traffic_controller.check(&client, &None) {
                 // Entity in blocklist
                 Err(tonic::Status::from_error(IotaError::TooManyRequests.into()))
             } else {
@@ -176,24 +175,10 @@ impl ValidatorService {
         }
     }
 
-    fn extract_client_ip_and_request<DomainReq, ProtoReq>(
-        &self,
-        request: tonic::Request<ProtoReq>,
-    ) -> Result<(DomainReq, Option<IpAddr>), tonic::Status>
-    where
-        ProtoReq: TryInto<DomainReq>,
-        ProtoReq::Error: std::fmt::Display,
-    {
-        let ip = self
-            .client_id_source
+    fn extract_client_ip<ProtoReq>(&self, request: &tonic::Request<ProtoReq>) -> Option<IpAddr> {
+        self.client_id_source
             .as_ref()
-            .and_then(|source| self.get_client_ip_addr(&request, source));
-        // TODO(#11095): move deserialization off the critical path (spawn_blocking).
-        let domain_req = request
-            .into_inner()
-            .try_into()
-            .map_err(|e| tonic::Status::internal(format!("request conversion failed: {e}")))?;
-        Ok((domain_req, ip))
+            .and_then(|source| self.get_client_ip_addr(request, source))
     }
 
     fn tally_traffic<T>(
@@ -214,8 +199,8 @@ impl ValidatorService {
         unwrapped
     }
 
-    /// Extracts the domain request from a proto request and checks traffic
-    /// control. Shared pre-processing for both unary and streaming handlers.
+    /// Checks traffic control, then extracts the domain request from a proto
+    /// request. Shared pre-processing for both unary and streaming handlers.
     async fn pre_handle<ProtoReq, DomainReq>(
         &self,
         request: tonic::Request<ProtoReq>,
@@ -224,8 +209,15 @@ impl ValidatorService {
         ProtoReq: TryInto<DomainReq>,
         ProtoReq::Error: std::fmt::Display,
     {
-        let (domain_req, ip) = self.extract_client_ip_and_request(request)?;
-        self.check_traffic(ip).await?;
+        let ip = self.extract_client_ip(&request);
+        self.check_traffic(ip)?;
+        // TODO(#11095): move deserialization off the critical path (spawn_blocking).
+        let domain_req = request.into_inner().try_into().map_err(|e| {
+            // A request that does not convert still costs the node work, so it
+            // charges the spam policy like any other request.
+            record_tally(self.traffic_controller.as_ref(), ip, Weight::one(), None);
+            tonic::Status::internal(format!("request conversion failed: {e}"))
+        })?;
         Ok((domain_req, ip))
     }
 
@@ -360,7 +352,6 @@ fn record_tally(
             (error_weight, error_type)
         }),
         spam_weight,
-        timestamp: SystemTime::now(),
     });
 }
 
@@ -374,10 +365,10 @@ macro_rules! handle_with_decoration {
             return $self.$func_name($request).await.map(|(result, _)| result);
         }
 
-        let client = $self.get_client_ip_addr(&$request, $self.client_id_source.as_ref().unwrap());
+        let client = $self.extract_client_ip(&$request);
 
         // check if either IP is blocked, in which case return early
-        $self.check_traffic(client.clone()).await?;
+        $self.check_traffic(client.clone())?;
 
         // handle traffic tallying
         let wrapped_response = $self.$func_name($request).await;

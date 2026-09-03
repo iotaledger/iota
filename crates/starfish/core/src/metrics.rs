@@ -15,7 +15,7 @@ use prometheus_filtered::{
 
 use crate::{
     network::metrics::NetworkMetrics,
-    quantile_gauge::{QuantileGauge, QuantileGaugeVec},
+    quantile_gauge::{PeakGauge, QuantileGauge, QuantileGaugeVec},
 };
 
 // starts from 1μs, 50μs, 100μs...
@@ -214,6 +214,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_add_blocks_batch_size: SumCount,
     pub(crate) core_add_block_headers_batch_size: SumCount,
     pub(crate) core_lock_dequeued: IntCounter,
+    pub(crate) core_thread_command_queue_peak: PeakGauge,
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
     pub(crate) accepted_transactions_source: IntCounterVec,
@@ -235,6 +236,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_skipped_transactions: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
+    pub(crate) cordial_knowledge_missing_authors: IntGauge,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
@@ -325,6 +327,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) dropped_far_future_headers_total: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
+    pub(crate) block_stream_resets: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
     pub(crate) commit_sync_inflight_fetches: IntGaugeVec,
@@ -353,6 +356,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
     pub(crate) equivocations_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_by_authority: IntGaugeVec,
+    pub(crate) invalid_bundle_parts_by_peer: IntGaugeVec,
     pub(crate) strong_vote_extra_wait_seconds: Histogram,
     pub(crate) strong_vote_missing_authorities: Histogram,
     pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
@@ -567,6 +571,13 @@ impl NodeMetrics {
                 "Number of dequeued core requests",
                 registry,
             ).unwrap(),
+            core_thread_command_queue_peak: PeakGauge::register(
+                "core_thread_command_queue_peak",
+                "The highest number of commands queued for the core thread over the last two minutes",
+                module_path!(),
+                registry,
+                MetricLevel::Warn,
+            ),
             core_lock_enqueued: register_int_counter_with_registry!(
                 "core_lock_enqueued",
                 "Number of enqueued core requests",
@@ -773,6 +784,12 @@ impl NodeMetrics {
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
+            cordial_knowledge_missing_authors: register_int_gauge_with_registry!(
+                "cordial_knowledge_missing_authors",
+                "Authors whose blocks are currently missing and whose headers peers are asked to push",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
             synchronizer_requested_block_headers_by_peer: register_int_counter_vec_with_registry!(
                 "synchronizer_requested_block_headers_by_peer",
                 "Number of requested block headers per peer authority via the synchronizer and also by block authority",
@@ -944,7 +961,8 @@ impl NodeMetrics {
                 "decided_leaders_total",
                 "Total number of (direct or indirect, skip or commit) decided leaders per authority",
                 &["authority", "commit_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             last_committed_authority_round: register_int_gauge_vec_with_registry!(
                 "last_committed_authority_round",
@@ -1189,6 +1207,12 @@ impl NodeMetrics {
                 &["authority", "status"],
                 registry,
             ).unwrap(),
+            block_stream_resets: register_int_counter_vec_with_registry!(
+                "block_stream_resets",
+                "The number of block stream subscriptions reset after fast sync, per peer",
+                &["authority"],
+                registry,
+            ).unwrap(),
             subscribed_to: register_int_gauge_vec_with_registry!(
                 "subscribed_to",
                 "Peers that this authority subscribed to for block streams.",
@@ -1407,6 +1431,13 @@ impl NodeMetrics {
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
+            invalid_bundle_parts_by_peer: register_int_gauge_vec_with_registry!(
+                "invalid_bundle_parts_by_peer",
+                "Invalid relayed bundle parts per peer (source: persisted or in_memory)",
+                &["peer", "source"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
             strong_vote_extra_wait_seconds: register_histogram_with_registry!(
                 "strong_vote_extra_wait_seconds",
                 "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened. Observed only when consensus_starfish_speed is enabled.",
@@ -1477,7 +1508,7 @@ impl NodeMetrics {
             ).unwrap(),
             shard_reconstructor_dropped_shards: register_int_counter_vec_with_registry!(
                 "shard_reconstructor_dropped_shards",
-                "Number of shards dropped by the reconstructor's admission rules, by reason: the relaying peer already contributed a shard in the slot, or the slot already holds the maximum number of accumulators",
+                "Number of shards dropped by the reconstructor's admission rules, by reason: the relaying peer already contributed a shard in the slot, the slot already holds the maximum number of accumulators, the slot is already resolved, or the peer's retained-shard budget evicted its oldest shard",
                 &["reason"],
                 registry;
                 MetricLevel::Warn,

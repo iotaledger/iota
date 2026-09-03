@@ -7,22 +7,40 @@ use std::{sync::Arc, time::Duration};
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use parking_lot::{Mutex, RwLock};
+use prometheus_filtered::IntCounter;
 use starfish_config::AuthorityIndex;
 use tokio::{
+    sync::watch,
     task::JoinHandle,
     time::{sleep, timeout},
 };
 use tracing::{debug, error, info};
 
 use crate::{
-    Round,
-    block_header::BlockHeaderAPI as _,
     context::Context,
     dag_state::DagState,
     encoder::create_encoder,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
 };
+
+/// Returns whether the reset channel closed; otherwise records the reset and
+/// clears the retry count.
+fn observe_reset(
+    changed: Result<(), watch::error::RecvError>,
+    resets: &IntCounter,
+    retries: &mut i64,
+    peer: AuthorityIndex,
+    peer_hostname: &str,
+) -> bool {
+    if changed.is_err() {
+        return true;
+    }
+    debug!("Resetting block stream subscription to peer {peer} {peer_hostname}");
+    resets.inc();
+    *retries = 0;
+    false
+}
 
 /// Subscriber manages the block stream subscriptions to other peers, taking
 /// care of retrying when subscription streams break. Blocks returned from the
@@ -34,6 +52,7 @@ pub(crate) struct Subscriber<C: NetworkClient, S: NetworkService> {
     network_client: Arc<C>,
     authority_service: Arc<S>,
     dag_state: Arc<RwLock<DagState>>,
+    block_stream_reset_sender: watch::Sender<()>,
     subscriptions: Arc<Mutex<Box<[Option<JoinHandle<()>>]>>>,
 }
 
@@ -43,6 +62,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         network_client: Arc<C>,
         authority_service: Arc<S>,
         dag_state: Arc<RwLock<DagState>>,
+        block_stream_reset_sender: watch::Sender<()>,
     ) -> Self {
         // Drop label combos left over from previous epochs whose hostnames
         // are no longer in the current committee — otherwise IntGaugeVec
@@ -56,6 +76,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             network_client,
             authority_service,
             dag_state,
+            block_stream_reset_sender,
             subscriptions: Arc::new(Mutex::new(subscriptions.into_boxed_slice())),
         }
     }
@@ -68,10 +89,8 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let context = self.context.clone();
         let network_client = self.network_client.clone();
         let authority_service = self.authority_service.clone();
-        let last_received = {
-            let dag_state = self.dag_state.read();
-            dag_state.get_last_block_header_for_authority(peer).round()
-        };
+        let dag_state = self.dag_state.clone();
+        let block_stream_reset_receiver = self.block_stream_reset_sender.subscribe();
 
         let mut subscriptions = self.subscriptions.lock();
         self.unsubscribe_locked(peer, &mut subscriptions[peer.value()]);
@@ -79,8 +98,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             context,
             network_client,
             authority_service,
+            dag_state,
             peer,
-            last_received,
+            block_stream_reset_receiver,
         )));
     }
 
@@ -119,8 +139,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         context: Arc<Context>,
         network_client: Arc<C>,
         authority_service: Arc<S>,
+        dag_state: Arc<RwLock<DagState>>,
         peer: AuthorityIndex,
-        last_received: Round,
+        mut block_stream_reset_receiver: watch::Receiver<()>,
     ) {
         const IMMEDIATE_RETRIES: i64 = 3;
         // When not immediately retrying, limit retry delay between 100ms and 10s.
@@ -130,6 +151,11 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let peer_hostname = &context.committee.authority(peer).hostname;
         let mut retries: i64 = 0;
         let mut delay = INITIAL_RETRY_INTERVAL;
+        let block_stream_resets = context
+            .metrics
+            .node_metrics
+            .block_stream_resets
+            .with_label_values(&[peer_hostname]);
 
         let mut encoder = create_encoder(&context);
 
@@ -148,7 +174,17 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                     peer_hostname,
                     delay.as_secs_f32(),
                 );
-                sleep(delay).await;
+                tokio::select! {
+                    biased;
+                    reset = block_stream_reset_receiver.changed() => {
+                            if observe_reset(reset, &block_stream_resets, &mut retries, peer, peer_hostname)
+                            {
+                                return;
+                            }
+                        continue 'subscription;
+                    }
+                    _ = sleep(delay) => {}
+                }
                 // Update delay for the next retry.
                 delay = delay
                     .mul_f32(RETRY_INTERVAL_MULTIPLIER)
@@ -162,10 +198,21 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             }
             retries += 1;
 
+            let last_received = dag_state.read().resume_round_for_authority(peer);
             // Wrap subscribe_block_bundles in a timeout and increment metric on timeout
             let subscribe_future =
                 network_client.subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL);
-            let subscribe_result = timeout(MAX_RETRY_INTERVAL * 5, subscribe_future).await;
+            let subscribe_result = tokio::select! {
+                biased;
+                reset = block_stream_reset_receiver.changed() => {
+                        if observe_reset(reset, &block_stream_resets, &mut retries, peer, peer_hostname)
+                        {
+                            return;
+                        }
+                    continue 'subscription;
+                }
+                result = timeout(MAX_RETRY_INTERVAL * 5, subscribe_future) => result,
+            };
             let mut block_bundles = match subscribe_result {
                 Ok(inner_result) => match inner_result {
                     Ok(blocks) => {
@@ -219,7 +266,20 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                 .set(1);
 
             'stream: loop {
-                match block_bundles.next().await {
+                // Observe a reset only between bundles: wrapping the handler
+                // below in this select would cancel it mid-bundle.
+                let next_block = tokio::select! {
+                    biased;
+                    reset = block_stream_reset_receiver.changed() => {
+                            if observe_reset(reset, &block_stream_resets, &mut retries, peer, peer_hostname)
+                            {
+                                return;
+                            }
+                        continue 'subscription;
+                    }
+                    block = block_bundles.next() => block,
+                };
+                match next_block {
                     Some(block) => {
                         context
                             .metrics
@@ -271,19 +331,53 @@ mod test {
 
     use super::*;
     use crate::{
-        block_header::BlockRef,
-        commit::CommitRange,
-        error::ConsensusResult,
+        Round,
+        block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader, VerifiedBlockHeader},
+        commit::{CommitDigest, CommitRange, TrustedCommit},
+        dag_state::DataSource,
+        error::{ConsensusError, ConsensusResult},
         network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
         transaction_ref::TransactionRef,
     };
 
-    struct SubscriberTestClient {}
+    /// How the fake peer answers subscriptions.
+    enum StreamMode {
+        /// Ten bundles, one per millisecond.
+        Paced,
+        /// Never yields, so the subscriber stays parked on the stream.
+        Pending,
+        /// Ten bundles at once on the first subscription, then never yields, so
+        /// a reconnect cannot add to the handled count.
+        BufferedOnce,
+        /// Fails the first `n` subscribe calls, then never yields.
+        FailThenPending(usize),
+    }
+
+    struct SubscriberTestClient {
+        last_received_rounds: Mutex<Vec<Round>>,
+        subscription_attempts_sender: watch::Sender<usize>,
+        stream_mode: StreamMode,
+    }
 
     impl SubscriberTestClient {
-        fn new() -> Self {
-            Self {}
+        fn new(stream_mode: StreamMode) -> Self {
+            let (subscription_attempts_sender, _) = watch::channel(0);
+            Self {
+                last_received_rounds: Mutex::new(Vec::new()),
+                subscription_attempts_sender,
+                stream_mode,
+            }
+        }
+
+        fn last_received_rounds(&self) -> Vec<Round> {
+            self.last_received_rounds.lock().clone()
+        }
+    }
+
+    fn test_bundle() -> SerializedBlockBundle {
+        SerializedBlockBundle {
+            serialized_block_bundle: Bytes::from(vec![1u8; 8]),
         }
     }
 
@@ -292,18 +386,35 @@ mod test {
         async fn subscribe_block_bundles(
             &self,
             _peer: AuthorityIndex,
-            _last_received: Round,
+            last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
-            let block_stream = stream::unfold((), |_| async {
-                sleep(Duration::from_millis(1)).await;
-                let block = SerializedBlockBundle {
-                    serialized_block_bundle: Bytes::from(vec![1u8; 8]),
-                };
-                Some((block, ()))
-            })
-            .take(10);
-            Ok(Box::pin(block_stream))
+            let attempts = {
+                let mut last_received_rounds = self.last_received_rounds.lock();
+                last_received_rounds.push(last_received);
+                last_received_rounds.len()
+            };
+            self.subscription_attempts_sender.send_replace(attempts);
+            match self.stream_mode {
+                StreamMode::FailThenPending(failures) if attempts <= failures => Err(
+                    ConsensusError::NetworkRequest("injected failure".to_owned()),
+                ),
+                StreamMode::Pending | StreamMode::FailThenPending(_) => {
+                    Ok(Box::pin(stream::pending()))
+                }
+                StreamMode::Paced => {
+                    let block_stream = stream::unfold((), |_| async {
+                        sleep(Duration::from_millis(1)).await;
+                        Some((test_bundle(), ()))
+                    })
+                    .take(10);
+                    Ok(Box::pin(block_stream))
+                }
+                StreamMode::BufferedOnce if attempts == 1 => Ok(Box::pin(stream::iter(
+                    std::iter::repeat_with(test_bundle).take(10),
+                ))),
+                StreamMode::BufferedOnce => Ok(Box::pin(stream::pending())),
+            }
         }
 
         async fn fetch_transactions(
@@ -348,34 +459,89 @@ mod test {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
             unimplemented!("Unimplemented")
         }
     }
 
-    #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn subscriber_retries() {
+    async fn wait_for_subscription_attempts(
+        network_client: &SubscriberTestClient,
+        expected: usize,
+    ) {
+        let mut attempts = network_client.subscription_attempts_sender.subscribe();
+        timeout(
+            Duration::from_secs(5),
+            attempts.wait_for(|attempts| *attempts >= expected),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("subscriber did not make {expected} subscription attempts"))
+        .expect("the sender outlives the test");
+    }
+
+    struct Fixture {
+        context: Arc<Context>,
+        network_client: Arc<SubscriberTestClient>,
+        authority_service: Arc<Mutex<TestService>>,
+        dag_state: Arc<RwLock<DagState>>,
+        reset_sender: watch::Sender<()>,
+        subscriber: Subscriber<SubscriberTestClient, Mutex<TestService>>,
+        peer: AuthorityIndex,
+    }
+
+    /// Wires a subscriber against `service` and `mode`, stopping short of
+    /// subscribing so a test can seed `dag_state` first.
+    fn fixture(context: Arc<Context>, service: TestService, mode: StreamMode) -> Fixture {
         telemetry_subscribers::init_for_testing();
-        let (context, _keys) = Context::new_for_test(4);
-        let context = Arc::new(context);
-        let authority_service = Arc::new(Mutex::new(TestService::new()));
-        let network_client = Arc::new(SubscriberTestClient::new());
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let network_client = Arc::new(SubscriberTestClient::new(mode));
+        let authority_service = Arc::new(Mutex::new(service));
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let (reset_sender, _) = watch::channel(());
         let subscriber = Subscriber::new(
             context.clone(),
-            network_client,
+            network_client.clone(),
             authority_service.clone(),
-            dag_state,
+            dag_state.clone(),
+            reset_sender.clone(),
         );
-
         let peer = context.committee.to_authority_index(2).unwrap();
-        subscriber.subscribe(peer);
+        Fixture {
+            context,
+            network_client,
+            authority_service,
+            dag_state,
+            reset_sender,
+            subscriber,
+            peer,
+        }
+    }
+
+    fn test_context(committee_size: usize) -> Arc<Context> {
+        let (context, _keys) = Context::new_for_test(committee_size);
+        Arc::new(context)
+    }
+
+    fn header_for(peer: AuthorityIndex, round: Round) -> VerifiedBlockHeader {
+        VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, peer.value() as u8).build())
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_retries() {
+        let f = fixture(test_context(4), TestService::new(), StreamMode::Paced);
+        f.subscriber.subscribe(f.peer);
+        wait_for_subscription_attempts(&f.network_client, 1).await;
+
+        f.dag_state
+            .write()
+            .accept_block_headers(vec![header_for(f.peer, 7)], DataSource::BlockBundleStream);
+        wait_for_subscription_attempts(&f.network_client, 2).await;
 
         // Wait for enough block bundles received.
         for _ in 0..10 {
             sleep(Duration::from_secs(1)).await;
-            let service = authority_service.lock();
+            let service = f.authority_service.lock();
             if service.handle_subscribed_block_bundle.len() >= 100 {
                 break;
             }
@@ -383,16 +549,140 @@ mod test {
 
         // Even if the stream ends after 10 blocks, the subscriber should retry and get
         // enough blocks eventually.
-        let service = authority_service.lock();
+        let service = f.authority_service.lock();
         assert!(service.handle_subscribed_block_bundle.len() >= 100);
         for (p, block) in service.handle_subscribed_block_bundle.iter() {
-            assert_eq!(*p, peer);
-            assert_eq!(
-                *block,
-                SerializedBlockBundle {
-                    serialized_block_bundle: Bytes::from(vec![1u8; 8]),
-                }
-            );
+            assert_eq!(*p, f.peer);
+            assert_eq!(*block, test_bundle());
         }
+        let rounds = f.network_client.last_received_rounds();
+        assert!(
+            rounds.len() > 1 && rounds[1..].iter().all(|round| *round == 7),
+            "reconnects should resume from the peer's latest header: {rounds:?}"
+        );
+        drop(service);
+        f.subscriber.stop();
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_resets_stream_with_latest_cursor() {
+        let f = fixture(test_context(4), TestService::new(), StreamMode::Pending);
+        f.subscriber.subscribe(f.peer);
+        wait_for_subscription_attempts(&f.network_client, 1).await;
+
+        f.dag_state
+            .write()
+            .accept_block_headers(vec![header_for(f.peer, 11)], DataSource::BlockBundleStream);
+        f.reset_sender.send_replace(());
+
+        wait_for_subscription_attempts(&f.network_client, 2).await;
+        assert_eq!(f.network_client.last_received_rounds(), vec![0, 11]);
+        f.subscriber.stop();
+    }
+
+    /// A reset observed mid-bundle must not cancel the handler that is running.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_finishes_bundle_handler_before_reset() {
+        let (service, gate) = TestService::with_bundle_handler_gate();
+        let f = fixture(test_context(4), service, StreamMode::Paced);
+        f.subscriber.subscribe(f.peer);
+        gate.started.notified().await;
+
+        f.reset_sender.send_replace(());
+        sleep(Duration::from_secs(1)).await;
+        assert_eq!(
+            f.network_client.last_received_rounds().len(),
+            1,
+            "a reset must not reconnect while the bundle handler is still running"
+        );
+
+        gate.release.notify_one();
+        wait_for_subscription_attempts(&f.network_client, 2).await;
+        f.subscriber.stop();
+    }
+
+    /// A reset while the subscriber is waiting out a retry backoff reconnects
+    /// straight away instead of sitting out the rest of the delay.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_reset_short_circuits_retry_backoff() {
+        // Four failed attempts put the next one into the delayed-retry branch.
+        let f = fixture(
+            test_context(4),
+            TestService::new(),
+            StreamMode::FailThenPending(4),
+        );
+        f.subscriber.subscribe(f.peer);
+        wait_for_subscription_attempts(&f.network_client, 4).await;
+        // Let the subscriber reach the backoff sleep before resetting it.
+        sleep(Duration::from_millis(1)).await;
+
+        let before_reset = tokio::time::Instant::now();
+        f.reset_sender.send_replace(());
+        wait_for_subscription_attempts(&f.network_client, 5).await;
+
+        let waited = before_reset.elapsed();
+        assert!(
+            waited < Duration::from_millis(50),
+            "reset should not wait out the backoff, waited {waited:?}"
+        );
+        f.subscriber.stop();
+    }
+
+    /// Bundles already buffered on the stream are dropped by a reset rather
+    /// than handled against the reinitialized state.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_discards_buffered_bundles_on_reset() {
+        let (service, gate) = TestService::with_bundle_handler_gate();
+        let f = fixture(test_context(4), service, StreamMode::BufferedOnce);
+        f.subscriber.subscribe(f.peer);
+        // The first bundle is in the handler, the other nine sit buffered.
+        gate.started.notified().await;
+
+        f.reset_sender.send_replace(());
+        gate.release.notify_one();
+        wait_for_subscription_attempts(&f.network_client, 2).await;
+
+        assert_eq!(
+            f.authority_service
+                .lock()
+                .handle_subscribed_block_bundle
+                .len(),
+            1,
+            "buffered bundles should be discarded by the reset"
+        );
+        f.subscriber.stop();
+    }
+
+    /// The subscription cursor never drops below the GC round: blocks at or
+    /// below it can no longer be sequenced, so replaying them is wasted work.
+    /// Above the GC round the peer's own latest header still wins.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_does_not_resume_below_gc_round() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.protocol_config.set_gc_depth_for_testing(5);
+        let f = fixture(Arc::new(context), TestService::new(), StreamMode::Pending);
+        // A commit led at round 30 with gc_depth 5 puts the GC round at 20.
+        f.dag_state
+            .write()
+            .set_last_commit(TrustedCommit::new_for_test(
+                &f.context,
+                1,
+                CommitDigest::MIN,
+                f.context.clock.timestamp_utc_ms(),
+                BlockRef::new(30, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                vec![],
+                vec![],
+            ));
+        f.subscriber.subscribe(f.peer);
+        wait_for_subscription_attempts(&f.network_client, 1).await;
+
+        f.dag_state
+            .write()
+            .accept_block_headers(vec![header_for(f.peer, 25)], DataSource::BlockBundleStream);
+        f.reset_sender.send_replace(());
+        wait_for_subscription_attempts(&f.network_client, 2).await;
+
+        assert_eq!(f.network_client.last_received_rounds(), vec![20, 25]);
+        f.subscriber.stop();
     }
 }

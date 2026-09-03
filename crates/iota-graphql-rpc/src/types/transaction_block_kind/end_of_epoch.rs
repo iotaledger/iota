@@ -44,6 +44,20 @@ pub(crate) struct EndOfEpochTransaction {
 pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpochTransaction),
     ChangeEpochV2(ChangeEpochTransactionV2),
+    TransactionDenyRulesCreate(TransactionDenyRulesCreateTransaction),
+}
+
+/// System transaction that creates and shares the transaction deny rules
+/// object.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct TransactionDenyRulesCreateTransaction;
+
+#[Object]
+impl TransactionDenyRulesCreateTransaction {
+    /// A workaround to define an empty variant of a GraphQL union.
+    async fn dummy(&self) -> Option<bool> {
+        None
+    }
 }
 
 // System transaction for advancing the epoch.
@@ -211,8 +225,8 @@ impl ChangeEpochTransaction {
     }
 
     /// The protocol version in effect in the new epoch.
-    async fn protocol_version(&self) -> UInt53 {
-        self.native.protocol_version.into()
+    async fn protocol_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native.protocol_version).extend()
     }
 
     /// The total amount of gas charged for storage during the previous epoch
@@ -315,8 +329,8 @@ impl ChangeEpochTransactionV2 {
     }
 
     /// The protocol version in effect in the new epoch.
-    async fn protocol_version(&self) -> UInt53 {
-        self.protocol_version.as_u64().into()
+    async fn protocol_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.protocol_version.as_u64()).extend()
     }
 
     /// The total amount of gas charged for storage during the previous epoch
@@ -446,6 +460,9 @@ impl EndOfEpochTransactionKind {
                 ce,
                 checkpoint_viewed_at,
             )),
+            N::TransactionDenyRulesCreate => {
+                K::TransactionDenyRulesCreate(TransactionDenyRulesCreateTransaction)
+            }
             _ => unimplemented!(
                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
             ),

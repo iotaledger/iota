@@ -5,10 +5,9 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Transaction,
-    gas::GasCostSummary,
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag, Transaction,
+    TypeTag, gas::GasCostSummary,
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
@@ -16,7 +15,7 @@ use iota_test_transaction_builder::{
 };
 use iota_types::{
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
-    gas_coin::GAS,
+    effects::TransactionEffectsAPI,
     transaction::CallArg,
 };
 use serde::{Deserialize, Serialize};
@@ -76,7 +75,7 @@ async fn split_n_tx(
     sender: Address,
 ) -> Transaction {
     let split_amounts = vec![10u64; n as usize];
-    let type_args = vec![GAS::type_tag()];
+    let type_args = vec![TypeTag::from(StructTag::new_gas())];
 
     TestTransactionBuilder::new(sender, gas, gas_price)
         .move_call(
@@ -144,7 +143,7 @@ async fn create_txes(test_cluster: &TestCluster) -> BTreeMap<CommonTransactionCo
     // Merge Two Coins
     //
     let c1 = gas_objects.pop().unwrap();
-    let type_args = vec![GAS::type_tag()];
+    let type_args = vec![TypeTag::from(StructTag::new_gas())];
 
     let merge_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
         .move_call(
@@ -232,8 +231,6 @@ async fn run_actual_costs()
         let gas_used = test_cluster
             .sign_and_execute_transaction(&tx)
             .await
-            .effects
-            .unwrap()
             .gas_cost_summary()
             .clone();
 

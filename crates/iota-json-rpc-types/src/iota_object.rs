@@ -171,7 +171,7 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
             object_id,
             version,
             digest,
-            type_,
+            object_type,
             owner,
             previous_transaction,
             ..
@@ -181,7 +181,7 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
             object_id,
             version,
             digest,
-            type_: type_.ok_or_else(|| anyhow!("Object type not found for object."))?,
+            object_type: object_type.ok_or_else(|| anyhow!("Object type not found for object."))?,
             owner: owner.ok_or_else(|| anyhow!("Owner not found for object."))?,
             previous_transaction: previous_transaction
                 .ok_or_else(|| anyhow!("Transaction digest not found for object."))?,
@@ -215,7 +215,7 @@ pub struct IotaObjectData {
     #[schemars(with = "Option<String>")]
     #[serde_as(as = "Option<DisplayFromStr>")]
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub type_: Option<ObjectType>,
+    pub object_type: Option<ObjectType>,
     // Default to be None because otherwise it will be repeated for the getOwnedObjects endpoint
     /// The owner of this object. Default to be None unless
     /// IotaObjectDataOptions.showOwner is set to true
@@ -278,7 +278,7 @@ impl IotaObjectData {
             version,
             digest,
         } = object_ref;
-        let type_ = if *show_type {
+        let object_type = if *show_type {
             Some(Into::<ObjectType>::into(&obj))
         } else {
             None
@@ -321,7 +321,7 @@ impl IotaObjectData {
             object_id,
             version,
             digest,
-            type_,
+            object_type,
             owner: if *show_owner { Some(obj.owner) } else { None },
             storage_rebate: if *show_storage_rebate {
                 Some(obj.storage_rebate)
@@ -344,14 +344,14 @@ impl IotaObjectData {
     }
 
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
-        self.type_
+        self.object_type
             .as_ref()
             .ok_or_else(|| anyhow!("type is missing for object {}", self.object_id))
             .cloned()
     }
 
     pub fn is_gas_coin(&self) -> bool {
-        match self.type_.as_ref() {
+        match self.object_type.as_ref() {
             Some(ObjectType::Struct(ty)) if ty.is_gas_coin() => true,
             Some(_) => false,
             None => false,
@@ -361,8 +361,8 @@ impl IotaObjectData {
 
 impl Display for IotaObjectData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let type_ = if let Some(type_) = &self.type_ {
-            type_.to_string()
+        let object_type = if let Some(tag) = &self.object_type {
+            tag.to_string()
         } else {
             "Unknown Type".into()
         };
@@ -370,7 +370,11 @@ impl Display for IotaObjectData {
         writeln!(
             writer,
             "{}",
-            format!("----- {type_} ({}[{}]) -----", self.object_id, self.version).bold()
+            format!(
+                "----- {object_type} ({}[{}]) -----",
+                self.object_id, self.version
+            )
+            .bold()
         )?;
         if let Some(owner) = self.owner {
             writeln!(writer, "{}: {owner}", "Owner".bold().bright_black())?;
@@ -415,14 +419,17 @@ impl TryFrom<&IotaObjectData> for GasCoin {
             .ok_or_else(|| anyhow!("Expect object content to not be empty"))?
         {
             IotaParsedData::MoveObject(o) => {
-                if o.type_.is_gas_coin() {
+                if o.struct_tag.is_gas_coin() {
                     return GasCoin::try_from(&o.fields);
                 }
             }
             IotaParsedData::Package(_) => {}
         }
 
-        bail!("Gas object type is not a gas coin: {:?}", object.type_)
+        bail!(
+            "Gas object type is not a gas coin: {:?}",
+            object.object_type
+        )
     }
 }
 
@@ -430,7 +437,11 @@ impl TryFrom<&IotaMoveStruct> for GasCoin {
     type Error = anyhow::Error;
     fn try_from(move_struct: &IotaMoveStruct) -> Result<Self, Self::Error> {
         match move_struct {
-            IotaMoveStruct::WithFields(fields) | IotaMoveStruct::WithTypes { type_: _, fields } => {
+            IotaMoveStruct::WithFields(fields)
+            | IotaMoveStruct::WithTypes {
+                struct_tag: _,
+                fields,
+            } => {
                 if let Some(IotaMoveValue::String(balance)) = fields.get("balance") {
                     if let Ok(balance) = balance.parse::<u64>() {
                         if let Some(IotaMoveValue::UID { id }) = fields.get("id") {
@@ -560,7 +571,7 @@ impl TryFrom<(ObjectInfo, IotaObjectDataOptions)> for IotaObjectResponse {
             object_id: object_info.object_id,
             version: object_info.version,
             digest: object_info.digest,
-            type_: show_type.then_some(object_info.type_),
+            object_type: show_type.then_some(object_info.object_type),
             owner: show_owner.then_some(object_info.owner),
             previous_transaction: show_previous_transaction
                 .then_some(object_info.previous_transaction),
@@ -605,7 +616,7 @@ impl TryInto<Object> for IotaObjectData {
         let data = match self.bcs {
             Some(IotaRawData::MoveObject(o)) => ObjectData::Struct({
                 MoveStruct::new_from_execution(
-                    o.type_().clone(),
+                    o.struct_tag().clone(),
                     o.version.into(),
                     o.bcs_bytes,
                     &protocol_config,
@@ -706,7 +717,7 @@ pub trait IotaData: Sized {
     fn try_as_move(&self) -> Option<&Self::ObjectType>;
     fn try_into_move(self) -> Option<Self::ObjectType>;
     fn try_as_package(&self) -> Option<&Self::PackageType>;
-    fn type_(&self) -> Option<&StructTag>;
+    fn struct_tag(&self) -> Option<&StructTag>;
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
@@ -750,9 +761,9 @@ impl IotaData for IotaRawData {
         }
     }
 
-    fn type_(&self) -> Option<&StructTag> {
+    fn struct_tag(&self) -> Option<&StructTag> {
         match self {
-            Self::MoveObject(o) => Some(&o.type_),
+            Self::MoveObject(o) => Some(&o.struct_tag),
             Self::Package(_) => None,
         }
     }
@@ -827,9 +838,9 @@ impl IotaData for IotaParsedData {
         }
     }
 
-    fn type_(&self) -> Option<&StructTag> {
+    fn struct_tag(&self) -> Option<&StructTag> {
         match self {
-            Self::MoveObject(o) => Some(&o.type_),
+            Self::MoveObject(o) => Some(&o.struct_tag),
             Self::Package(_) => None,
         }
     }
@@ -840,7 +851,7 @@ impl Display for IotaParsedData {
         let mut writer = String::new();
         match self {
             IotaParsedData::MoveObject(o) => {
-                writeln!(writer, "{}: {}", "type".bold().bright_black(), o.type_)?;
+                writeln!(writer, "{}: {}", "type".bold().bright_black(), o.struct_tag)?;
                 write!(writer, "{}", o.fields)?;
             }
             IotaParsedData::Package(p) => {
@@ -891,7 +902,7 @@ pub trait IotaMoveObject: Sized {
         Self::try_from_layout(o, layout)
     }
 
-    fn type_(&self) -> &StructTag;
+    fn struct_tag(&self) -> &StructTag;
 }
 
 #[serde_as]
@@ -901,7 +912,7 @@ pub struct IotaParsedMoveObject {
     #[serde(rename = "type")]
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
-    pub type_: StructTag,
+    pub struct_tag: StructTag,
     pub fields: IotaMoveStruct,
 }
 
@@ -913,22 +924,26 @@ impl IotaMoveObject for IotaParsedMoveObject {
         let move_struct = object.to_move_struct(&layout)?.into();
 
         Ok(
-            if let IotaMoveStruct::WithTypes { type_, fields } = move_struct {
+            if let IotaMoveStruct::WithTypes {
+                struct_tag: tag,
+                fields,
+            } = move_struct
+            {
                 IotaParsedMoveObject {
-                    type_,
+                    struct_tag: tag,
                     fields: IotaMoveStruct::WithFields(fields),
                 }
             } else {
                 IotaParsedMoveObject {
-                    type_: object.struct_tag().clone(),
+                    struct_tag: object.struct_tag().clone(),
                     fields: move_struct,
                 }
             },
         )
     }
 
-    fn type_(&self) -> &StructTag {
-        &self.type_
+    fn struct_tag(&self) -> &StructTag {
+        &self.struct_tag
     }
 }
 
@@ -955,14 +970,14 @@ pub fn type_and_fields_from_move_event_data(
 ) -> IotaResult<(StructTag, serde_json::Value)> {
     match event_data.into() {
         IotaMoveValue::Struct(move_struct) => match &move_struct {
-            IotaMoveStruct::WithTypes { type_, .. } => {
-                Ok((type_.clone(), move_struct.clone().to_json_value()))
-            }
+            IotaMoveStruct::WithTypes {
+                struct_tag: tag, ..
+            } => Ok((tag.clone(), move_struct.clone().to_json_value())),
             _ => Err(IotaError::ObjectDeserialization {
                 error: "Found non-type IotaMoveStruct in MoveValue event".to_string(),
             }),
         },
-        IotaMoveValue::Variant(v) => Ok((v.type_.clone(), v.to_json_value())),
+        IotaMoveValue::Variant(v) => Ok((v.struct_tag.clone(), v.to_json_value())),
         IotaMoveValue::Vector(_)
         | IotaMoveValue::Number(_)
         | IotaMoveValue::Bool(_)
@@ -982,7 +997,7 @@ pub struct IotaRawMoveObject {
     #[serde(rename = "type")]
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
-    pub type_: StructTag,
+    pub struct_tag: StructTag,
     pub version: SequenceNumberU64,
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
@@ -992,7 +1007,7 @@ pub struct IotaRawMoveObject {
 impl From<MoveStruct> for IotaRawMoveObject {
     fn from(o: MoveStruct) -> Self {
         Self {
-            type_: o.struct_tag().clone(),
+            struct_tag: o.struct_tag().clone(),
             version: o.version().into(),
             bcs_bytes: o.into_contents(),
         }
@@ -1005,14 +1020,14 @@ impl IotaMoveObject for IotaRawMoveObject {
         _layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            type_: object.struct_tag().clone(),
+            struct_tag: object.struct_tag().clone(),
             version: object.version().into(),
             bcs_bytes: object.into_contents(),
         })
     }
 
-    fn type_(&self) -> &StructTag {
-        &self.type_
+    fn struct_tag(&self) -> &StructTag {
+        &self.struct_tag
     }
 }
 
@@ -1369,7 +1384,7 @@ impl IotaObjectDataFilter {
             IotaObjectDataFilter::MatchAny(filters) => filters.iter().any(|f| f.matches(object)),
             IotaObjectDataFilter::MatchNone(filters) => !filters.iter().any(|f| f.matches(object)),
             IotaObjectDataFilter::StructType(s) => {
-                let obj_tag: StructTag = match &object.type_ {
+                let obj_tag: StructTag = match &object.object_type {
                     ObjectType::Package => return false,
                     ObjectType::Struct(s) => s.clone().into(),
                 };
@@ -1384,11 +1399,11 @@ impl IotaObjectDataFilter {
                 }
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectId::from(s.address()) == package
+                matches!(&object.object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == package
                         && s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectId::from(s.address()) == p)
+                matches!(&object.object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
                 matches!(object.owner, Owner::Address(addr) if &addr == a)

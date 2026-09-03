@@ -20,16 +20,14 @@ use fastcrypto::{
     traits::Authenticator,
 };
 use iota_core::authority_client::validator::ValidatorAPI;
-use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-};
+use iota_json_rpc_types::{DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
-    ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
-    Transaction, TransactionEffects, TypeTag, UserSignature,
+    ObjectReference, OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
+    SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind,
     crypto::{Intent, SimpleSignature},
 };
 use iota_test_transaction_builder::publish_package;
@@ -42,7 +40,6 @@ use iota_types::{
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
-    storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
         TransactionEnvelope,
@@ -114,7 +111,7 @@ async fn test_abstract_account_creation_and_issue_tx(pcool: bool) -> Result<(), 
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
@@ -407,7 +404,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -430,7 +427,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -531,7 +528,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -554,7 +551,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -656,7 +653,7 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -758,7 +755,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -781,7 +778,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -1403,9 +1400,10 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     let conflict_coin_ref = effects_cert
         .all_changed_objects()
         .iter()
-        .find(|obj| obj.0.object_id == conflict_coin_ref.object_id)
+        .find(|(changed, _)| changed.reference.object_id == conflict_coin_ref.object_id)
         .expect("Expected to find the updated conflict coin object")
-        .0;
+        .0
+        .reference;
 
     // Step 3: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
@@ -1465,7 +1463,7 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
@@ -1572,7 +1570,7 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
@@ -1819,7 +1817,7 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
@@ -1928,7 +1926,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
         "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
     );
     assert_eq!(
-        effects_cert.data().gas_object().0.object_id,
+        effects_cert.data().gas_object().reference.object_id,
         sponsor_gas.object_id,
         "Expected the sponsor's gas coin to be used for the failed TX"
     );
@@ -2151,8 +2149,13 @@ impl TestEnvironment {
                 .effects
                 .all_changed_objects()
                 .iter()
-                .map(|e| (e.0.reference, e.0.owner, e.1))
-                .collect::<Vec<(ObjectReference, Owner, WriteKind)>>(),
+                .map(|(changed, kind)| {
+                    (
+                        OwnedObjectReference::new(changed.reference, changed.owner),
+                        *kind,
+                    )
+                })
+                .collect::<Vec<_>>(),
         ));
         self.aa_create_transaction = Some(transaction);
 
@@ -2860,18 +2863,9 @@ impl TestEnvironment {
         &self,
         tx: TransactionEnvelope,
     ) -> anyhow::Result<()> {
-        let transaction_response = self.test_cluster.execute_transaction(tx).await;
-
-        // Check correctness
-        let IotaTransactionBlockResponse {
-            confirmed_local_execution,
-            errors,
-            ..
-        } = transaction_response;
-
-        // The transaction must be successful
-        assert!(confirmed_local_execution.unwrap());
-        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        // `execute_transaction` panics unless execution succeeded on the
+        // fullnode.
+        self.test_cluster.execute_transaction(tx).await;
         Ok(())
     }
 
@@ -2908,14 +2902,14 @@ fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 }
 
 fn abstract_account_from_all_changed_objects(
-    all_changed_objects: &[(ObjectReference, Owner, WriteKind)],
+    all_changed_objects: &[(OwnedObjectReference, WriteKind)],
 ) -> ObjectReference {
     // Extract the only created shared object which is the abstract account
     all_changed_objects
         .iter()
-        .find_map(|change| match change {
-            (_, Owner::Shared(_), WriteKind::Create) => Some(change.0),
-            _ => None,
+        .find_map(|(changed, kind)| {
+            matches!((changed.owner, kind), (Owner::Shared(_), WriteKind::Create))
+                .then_some(changed.reference)
         })
         .expect("Expected a shared object in the transaction response")
 }

@@ -13,7 +13,7 @@ use iota_types::{
     base_types::{AuthorityName, ExecutionDigests, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
         AuthoritySignature, Signer,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
@@ -28,7 +28,10 @@ use move_core_types::account_address::AccountAddress;
 use tokio::time::timeout;
 use tracing::{info, warn};
 
-use crate::{authority::AuthorityState, global_state_hasher::GlobalStateHasher};
+use crate::{
+    authority::{AuthorityState, ExecutionEnv},
+    global_state_hasher::GlobalStateHasher,
+};
 
 const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -63,7 +66,8 @@ pub async fn send_and_confirm_transaction(
     let state_acc =
         GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
-    let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate)?;
+    let (result, _execution_error_opt) =
+        authority.try_execute_for_test(&certificate, ExecutionEnv::new())?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
     let effects_acc = state_acc.accumulate_effects(&[result.inner().data().clone()]);
     state.union(&effects_acc);
@@ -71,7 +75,7 @@ pub async fn send_and_confirm_transaction(
     assert_eq!(state_after.digest(), state.digest());
 
     if let Some(fullnode) = fullnode {
-        fullnode.try_execute_for_test(&certificate)?;
+        fullnode.try_execute_for_test(&certificate, ExecutionEnv::new())?;
     }
     Ok((certificate.into_inner(), result.into_inner()))
 }
@@ -169,7 +173,7 @@ pub fn make_transfer_iota_transaction(
     recipient: Address,
     amount: Option<u64>,
     sender: Address,
-    keypair: &AccountKeyPair,
+    private_key: &AccountPrivateKey,
     gas_price: u64,
 ) -> TransactionEnvelope {
     let tx = Transaction::new_transfer_iota(
@@ -180,7 +184,7 @@ pub fn make_transfer_iota_transaction(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    to_sender_signed_transaction(tx, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_pay_iota_transaction(
@@ -189,7 +193,7 @@ pub fn make_pay_iota_transaction(
     recipients: Vec<Address>,
     amounts: Vec<u64>,
     sender: Address,
-    keypair: &AccountKeyPair,
+    private_key: &AccountPrivateKey,
     gas_price: u64,
     gas_budget: u64,
 ) -> TransactionEnvelope {
@@ -197,14 +201,14 @@ pub fn make_pay_iota_transaction(
         sender, coins, recipients, amounts, gas_object, gas_budget, gas_price,
     )
     .unwrap();
-    to_sender_signed_transaction(tx, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_transfer_object_transaction(
     object_ref: ObjectReference,
     gas_object: ObjectReference,
     sender: Address,
-    keypair: &AccountKeyPair,
+    private_key: &AccountPrivateKey,
     recipient: Address,
     gas_price: u64,
 ) -> TransactionEnvelope {
@@ -216,12 +220,12 @@ pub fn make_transfer_object_transaction(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
         gas_price,
     );
-    to_sender_signed_transaction(tx, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_transfer_object_move_transaction(
     src: Address,
-    keypair: &AccountKeyPair,
+    private_key: &AccountPrivateKey,
     dest: Address,
     object_ref: ObjectReference,
     framework_obj_id: ObjectId,
@@ -247,7 +251,7 @@ pub fn make_transfer_object_move_transaction(
             gas_price,
         )
         .unwrap(),
-        keypair,
+        private_key,
     )
 }
 
@@ -255,7 +259,7 @@ pub fn make_transfer_object_move_transaction(
 pub fn make_dummy_tx(
     receiver: Address,
     sender: Address,
-    sender_sec: &AccountKeyPair,
+    sender_sec: &AccountPrivateKey,
 ) -> TransactionEnvelope {
     TransactionEnvelope::from_data_and_signer(
         Transaction::new_transfer(

@@ -165,7 +165,7 @@ struct MakeMoveVecTransaction {
     /// If the elements are not objects, or the vector is empty, a type must be
     /// supplied.
     #[graphql(name = "type")]
-    type_: Option<MoveType>,
+    move_type: Option<MoveType>,
 
     /// The values to pack into the vector, all of the same type.
     elements: Vec<TransactionArgument>,
@@ -237,7 +237,8 @@ impl ProgrammableTransactionBlock {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let input = TransactionInput::from(self.native.inputs[c.ix].clone(), c.c);
+            let input =
+                TransactionInput::try_from(self.native.inputs[c.ix].clone(), c.c).extend()?;
             connection.edges.push(Edge::new(c.encode_cursor(), input));
         }
 
@@ -326,11 +327,11 @@ impl MoveCallTransaction {
 }
 
 impl TransactionInput {
-    fn from(argument: NativeCallArg, checkpoint_viewed_at: u64) -> Self {
+    fn try_from(argument: NativeCallArg, checkpoint_viewed_at: u64) -> Result<Self, Error> {
         use NativeCallArg as N;
         use TransactionInput as I;
 
-        match argument {
+        Ok(match argument {
             N::Pure(bytes) => I::Pure(Pure {
                 bytes: Base64::from(bytes),
             }),
@@ -348,7 +349,7 @@ impl TransactionInput {
                 mutable,
             }) => I::SharedInput(SharedInput {
                 address: id.into(),
-                initial_shared_version: initial_shared_version.as_u64().into(),
+                initial_shared_version: initial_shared_version.as_u64().try_into()?,
                 mutable,
             }),
 
@@ -360,7 +361,7 @@ impl TransactionInput {
             }),
 
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
-        }
+        })
     }
 }
 
@@ -406,7 +407,7 @@ impl ProgrammableTransaction {
                     .collect(),
             }),
             N::MakeMoveVector(cmd) => P::MakeMoveVec(MakeMoveVecTransaction {
-                type_: cmd.type_.map(Into::into),
+                move_type: cmd.type_tag.map(Into::into),
                 elements: cmd
                     .elements
                     .into_iter()

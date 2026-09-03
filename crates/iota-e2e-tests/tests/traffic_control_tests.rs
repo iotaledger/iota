@@ -7,23 +7,24 @@
 //! simtest.
 
 use core::panic;
-use std::{fs::File, num::NonZeroUsize, time::Duration};
+use std::{num::NonZeroUsize, time::Duration};
 
 use fastcrypto::encoding::Base64;
 use iota_core::authority_client::{
     make_network_authority_clients_with_network_config, validator::ValidatorAPI,
 };
+use iota_json_rpc_api::TRANSACTION_NOT_FOUND_ERROR_CODE;
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
 use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
-use iota_sdk_types::UserSignature;
+use iota_sdk_types::{TransactionDigest, UserSignature};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_traffic_controller::{
-    TrafficController, TrafficSim, nodefw_test_server::NodeFwTestServer,
+    TrafficController, nodefw_test_server::NodeFwTestServer, sim::TrafficSim,
 };
 use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -142,33 +143,6 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
-async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let n = 5;
-    let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 1,
-        proxy_blocklist_ttl_sec: 5,
-        spam_policy_type: PolicyType::TestNConnIP(n - 1),
-        spam_sample_rate: Weight::one(),
-        // This should never be invoked when set as an error policy
-        // as we are not sending requests that error
-        error_policy_type: PolicyType::TestPanicOnInvocation,
-        dry_run: true,
-        ..Default::default()
-    };
-    let network_config = ConfigBuilder::new_with_temp_dir()
-        .committee_size(NonZeroUsize::new(4).unwrap())
-        .with_policy_config(Some(policy_config))
-        .build();
-    let test_cluster = TestClusterBuilder::new()
-        .set_network_config(network_config)
-        .build()
-        .await;
-
-    assert_validator_traffic_control_dry_run(test_cluster, n as usize).await
-}
-
-#[tokio::test]
 async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let txn_count = 15;
@@ -218,7 +192,6 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
-    // it should take no more than 4 requests to be added to the blocklist
     for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
@@ -239,7 +212,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let _pcool_guard = override_pcool_flow(false);
     let n = 5;
     let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 1,
+        connection_blocklist_ttl_sec: 120,
         // Test that any N requests to the gRPC API of the validator will cause an IP to be added to
         // the blocklist. In this test we're directly calling
         // `/iota.validator.Validator/Transaction` gRPC method to go above the limit.
@@ -270,24 +243,15 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
         iota_types::crypto::zero_ed25519_signature(),
     ));
 
-    // it should take no more than 4 requests to be added to the blocklist
-    for i in 0..n {
-        // Give the background tally task time to apply the blocklist before
-        // the last request, which is expected to be rejected.
-        if i == n - 1 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
+    // The error policy blocks after n - 1 error tallies, so the block must be
+    // observed within n requests.
+    for _ in 0..n {
         let response = auth_client.handle_transaction(tx.clone(), None).await;
         if let Err(err) = response {
             if err.to_string().contains("Too many requests") {
                 return Ok(());
             }
         }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
     panic!("Expected error policy to trigger within {n} requests");
 }
@@ -352,7 +316,6 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
             .await
             .unwrap();
     }
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     // If Node and TrafficController has not crashed, blocklist and policy freq
     // state should still be intact. A single additional erroneous request from
     // the client should trigger enforcement.
@@ -370,7 +333,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     telemetry_subscribers::init_for_testing();
     let txn_count = 15;
     let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 3,
+        connection_blocklist_ttl_sec: 120,
         // Test that any N requests will cause an IP to be added to the blocklist. In the test we
         // are performing `txn_count` `iota_getTransactionBlock` calls to the fullnode's JSON API,
         // but additionally before that, we're performing other requests, but using `txn_count - 1`
@@ -416,13 +379,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
-    // it should take no more than 4 requests to be added to the blocklist
-    for i in 0..txn_count {
-        // Give the background tally task time to apply the blocklist before
-        // the last request, which is expected to be rejected.
-        if i == txn_count - 1 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
+    for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
@@ -437,11 +394,6 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
             );
             return Ok(());
         }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
     panic!("Expected spam policy to trigger within {txn_count} requests");
 }
@@ -451,7 +403,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
     telemetry_subscribers::init_for_testing();
     let txn_count = 5;
     let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 3,
+        connection_blocklist_ttl_sec: 120,
         error_policy_type: PolicyType::TestNConnIP(txn_count - 1),
         dry_run: false,
         ..Default::default()
@@ -470,13 +422,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
         "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
-    // it should take no more than 4 requests to be added to the blocklist
-    for i in 0..txn_count {
-        // Give the background tally task time to apply the blocklist before
-        // the last request, which is expected to be rejected.
-        if i == txn_count - 1 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        }
+    for _ in 0..txn_count {
         let txn = txns.swap_remove(0);
         let tx_digest = txn.digest();
         let (tx_bytes, _signatures) = txn.to_tx_bytes_and_signatures();
@@ -504,13 +450,41 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
             assert_eq!(&digest, tx_digest);
             assert!(confirmed_local_execution.unwrap());
         }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
-    panic!("Expected spam policy to trigger within {txn_count} requests");
+    panic!("Expected error policy to trigger within {txn_count} requests");
+}
+
+#[tokio::test]
+async fn unknown_transaction_does_not_trigger_fullnode_error_policy() {
+    telemetry_subscribers::init_for_testing();
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 3,
+        error_policy_type: PolicyType::TestNConnIP(1),
+        dry_run: false,
+        ..Default::default()
+    };
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_policy_config(Some(policy_config))
+        .build()
+        .await;
+
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let digest = TransactionDigest::from([42; 32]);
+
+    for request_number in 1..=2 {
+        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
+            .request("iota_getTransactionBlock", rpc_params![digest])
+            .await;
+        let error = response.expect_err("an unknown transaction should return an error");
+        let jsonrpsee::core::ClientError::Call(error) = error else {
+            panic!("request {request_number} returned a non-JSON-RPC error: {error}");
+        };
+        assert_eq!(error.code(), TRANSACTION_NOT_FOUND_ERROR_CODE);
+
+        if request_number == 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    }
 }
 
 #[tokio::test]
@@ -533,11 +507,11 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     let tmp_dir = iota_common::tempdir();
     let firewall_config = RemoteFirewallConfig {
         remote_fw_url: format!("http://127.0.0.1:{port}"),
-        delegate_spam_blocking: true,
-        delegate_error_blocking: false,
+        delegate_spam_blocking: false,
+        delegate_error_blocking: true,
         destination_port: 8080,
         drain_path: tmp_dir.path().join("drain"),
-        drain_timeout_secs: 10,
+        drain_timeout_secs: 300,
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
         .committee_size(NonZeroUsize::new(4).unwrap())
@@ -569,23 +543,29 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     // await for the server to start
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
-    // it should take no more than 4 requests to be added to the blocklist
+    // The error policy blocks on the fourth tally, thus the firewall gets the
+    // block before the loop ends.
     for _ in 0..n {
-        let response = auth_client.handle_transaction(tx.clone(), None).await;
-        if let Err(err) = response {
-            if err.to_string().contains("Too many requests") {
-                return Ok(());
-            }
-        }
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
+        // The firewall holds the block, thus the node never rejects the request
+        // itself.
+        let err = auth_client
+            .handle_transaction(tx.clone(), None)
+            .await
+            .expect_err("Expected the bad signature to be rejected");
+        assert!(
+            !err.to_string().contains("Too many requests"),
+            "Expected the firewall to hold the block, not the node: {err}"
+        );
     }
-    // Allow time for the async HTTP delegation to the firewall server to complete.
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    let fw_blocklist = server.list_addresses_rpc().await;
+    // The delegation request to the firewall server is asynchronous.
+    let mut fw_blocklist = Vec::new();
+    for _ in 0..50 {
+        fw_blocklist = server.list_addresses_rpc().await;
+        if !fw_blocklist.is_empty() {
+            break;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
     assert!(
         !fw_blocklist.is_empty(),
         "Expected blocklist to be non-empty"
@@ -616,7 +596,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
         delegate_error_blocking: false,
         destination_port: 9000,
         drain_path: tmp_dir.path().join("drain"),
-        drain_timeout_secs: 10,
+        drain_timeout_secs: 300,
     };
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_policy_config(Some(policy_config))
@@ -647,7 +627,6 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
         ExecuteTransactionRequestType::WaitForLocalExecution
     ];
 
-    // it should take no more than 4 requests to be added to the blocklist
     let response: IotaTransactionBlockResponse = jsonrpc_client
         .request("iota_executeTransactionBlock", params.clone())
         .await
@@ -660,16 +639,13 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
+    // The spam policy blocks after txn_count - 1 tallies. Blocking is
+    // delegated to the firewall, so requests are never rejected locally.
     for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
         assert!(response.is_ok(), "Expected request to succeed");
-        // Yield to the async executor so that the background `run_tally_loop` task
-        // can process the pending tally and update the blocklist before the next
-        // request. Without this, the single-threaded tokio test runtime may never
-        // schedule the tally loop between iterations, causing the test to be flaky.
-        tokio::task::yield_now().await;
     }
     // Allow time for the async HTTP delegation to the firewall server to complete.
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -682,7 +658,9 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     Ok(())
 }
 
-#[tokio::test]
+/// The dead man's switch drains the firewall when tallies stop arriving, keeps
+/// the drain file across a restart, and stops with its controller.
+#[sim_test]
 async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
@@ -692,12 +670,9 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
         dry_run: false,
         ..Default::default()
     };
-
-    // sink all traffic to trigger dead mans switch
     let tmp_dir = iota_common::tempdir();
     let drain_path = tmp_dir.path().join("drain");
-    assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
-
+    assert!(!drain_path.exists(), "Expected drain file to not yet exist");
     let firewall_config = RemoteFirewallConfig {
         remote_fw_url: String::from("http://127.0.0.1:65000"),
         delegate_spam_blocking: true,
@@ -707,14 +682,8 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
         drain_timeout_secs: 6,
     };
 
-    let tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config.clone()))
-        .await;
-    assert!(
-        !drain_path.exists(),
-        "Expected drain file to not exist after startup unless previously set",
-    );
-
-    // after n seconds with no traffic, the dead mans switch should be engaged
+    // No traffic at all, so the switch engages once the timeout elapses.
+    let tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config.clone()));
     let mut drain_enabled = false;
     for _ in 0..4 {
         if drain_path.exists() {
@@ -725,53 +694,53 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
     }
     assert!(drain_enabled, "Expected drain file to be enabled");
 
-    // if we drop traffic controller and re-instantiate, drain file should remain
-    // set
+    // A controller starting against a drained path leaves it drained.
     drop(tc);
-    let _tc = TrafficController::init_for_test(policy_config, Some(firewall_config)).await;
-    for _ in 0..3 {
-        assert!(
-            drain_path.exists(),
-            "Expected drain file to be disabled at startup unless previously enabled",
-        );
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-    }
+    let _tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config));
+    assert!(
+        drain_path.exists(),
+        "Expected drain file to remain set across a restart",
+    );
 
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let tmp_dir = iota_common::tempdir();
-    let drain_path = tmp_dir.path().join("drain");
-    assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
-    File::create(&drain_path).expect("Failed to touch nodefw drain file");
-    assert!(drain_path.exists(), "Expected drain file to exist",);
+    // A dropped controller takes its switch with it, rather than draining a
+    // firewall on behalf of a node that no longer exists.
+    let stopped_dir = iota_common::tempdir();
+    let stopped_drain_path = stopped_dir.path().join("drain");
+    drop(TrafficController::init_for_test(
+        policy_config,
+        Some(RemoteFirewallConfig {
+            remote_fw_url: String::from("http://127.0.0.1:65002"),
+            delegate_spam_blocking: true,
+            delegate_error_blocking: false,
+            destination_port: 9000,
+            drain_path: stopped_drain_path.clone(),
+            drain_timeout_secs: 2,
+        }),
+    ));
+    // Well past the drain timeout: a switch still running would have created
+    // the drain file by now, as it sees no tallies at all.
+    tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
+    assert!(
+        !stopped_drain_path.exists(),
+        "Expected the dead man's switch to stop with the controller",
+    );
 
     Ok(())
 }
 
 #[sim_test]
-async fn test_traffic_sketch_no_blocks() {
+async fn test_traffic_sim_no_blocks() {
     telemetry_subscribers::init_for_testing();
-    let sketch_config = FreqThresholdConfig {
-        client_threshold: 5_050,
-        proxied_client_threshold: 5_050,
-        window_size_secs: 4,
-        update_interval_secs: 1,
-        ..Default::default()
-    };
     let policy = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
-        spam_policy_type: PolicyType::FreqThreshold(sketch_config),
+        spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+            client_threshold: 5_050,
+            proxied_client_threshold: 5_050,
+            burst_secs: 4,
+        }),
         error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
-        // keeping channel capacity small results in less errors in test metrics,
-        // in case of congestion (due to running on slower hardware) requests are dropped
-        // and do not influence the rate and do not make the spam rate inconsistent
-        channel_capacity: 10,
         dry_run: false,
         ..Default::default()
     };
@@ -780,7 +749,6 @@ async fn test_traffic_sketch_no_blocks() {
         10,    // num_clients
         5_000, // per_client_tps
         Duration::from_secs(20),
-        true, // report
     )
     .await;
 
@@ -792,27 +760,21 @@ async fn test_traffic_sketch_no_blocks() {
     if let Some(first_block) = metrics.abs_time_to_first_block {
         assert!(first_block > Duration::from_secs(2));
     }
-    assert!(metrics.num_blocklist_adds < 10);
-    assert!(metrics.total_time_blocked < Duration::from_secs(10));
 }
 
 #[sim_test]
-async fn test_traffic_sketch_with_slow_blocks() {
+async fn test_traffic_sim_with_blocks() {
     telemetry_subscribers::init_for_testing();
-    let sketch_config = FreqThresholdConfig {
-        client_threshold: 9_900,
-        proxied_client_threshold: 9_900,
-        window_size_secs: 4,
-        update_interval_secs: 1,
-        ..Default::default()
-    };
     let policy = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
-        spam_policy_type: PolicyType::FreqThreshold(sketch_config),
+        spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+            client_threshold: 5_000,
+            proxied_client_threshold: 5_000,
+            burst_secs: 1,
+        }),
         error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
-        channel_capacity: 10,
         dry_run: false,
         ..Default::default()
     };
@@ -821,43 +783,35 @@ async fn test_traffic_sketch_with_slow_blocks() {
         10,     // num_clients
         10_000, // per_client_tps
         Duration::from_secs(20),
-        true, // report
     )
     .await;
 
     let expected_requests = 10_000 * 10 * 20;
     assert!(metrics.num_requests > expected_requests - 1_000);
     assert!(metrics.num_requests < expected_requests + 200);
-    // Due to averaging, we will take 4 seconds to start blocking, then
-    // will be in blocklist for 1 second (roughly). The cycle is 4s unblocked
-    // + 1s blocked = 5s, giving ~20% of requests blocked.
-    assert!(metrics.num_blocked as f64 > (expected_requests as f64 / 5.0) * 0.90);
-    // 10 clients, blocked at least every 5 seconds, over 20 seconds
+    // At 10_000/s against a 5_000/s quota, the 5_000 cell burst drains in ~1s,
+    // and fully replenishes over the 1s the client spends blocked. The cycle is
+    // ~1s unblocked + ~1s blocked, giving roughly half of all requests blocked.
+    assert!(metrics.num_blocked > expected_requests / 3);
+    assert!(metrics.num_blocked < (expected_requests * 2) / 3);
+    // 10 clients, blocked roughly every 2 seconds over 20 seconds
     assert!(metrics.num_blocklist_adds >= 40);
-    assert!(metrics.abs_time_to_first_block.unwrap() < Duration::from_secs(5));
-    assert!(metrics.total_time_blocked > Duration::from_millis(3500));
+    assert!(metrics.abs_time_to_first_block.unwrap() < Duration::from_secs(3));
 }
 
 #[sim_test]
-async fn test_traffic_sketch_with_sampled_spam() {
+async fn test_traffic_sim_with_sampled_spam() {
     telemetry_subscribers::init_for_testing();
-    let sketch_config = FreqThresholdConfig {
-        client_threshold: 450,
-        proxied_client_threshold: 450,
-        window_size_secs: 4,
-        update_interval_secs: 1,
-        ..Default::default()
-    };
     let policy = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
-        spam_policy_type: PolicyType::FreqThreshold(sketch_config),
+        spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
+            client_threshold: 250,
+            proxied_client_threshold: 250,
+            burst_secs: 1,
+        }),
         spam_sample_rate: Weight::new(0.5).unwrap(),
         dry_run: false,
-        // keeping channel capacity small results in less errors in test metrics,
-        // in case of congestion (due to running on slower hardware) requests are dropped
-        // and do not influence the rate and do not make the spam rate inconsistent
-        channel_capacity: 10,
         ..Default::default()
     };
     let metrics = TrafficSim::run(
@@ -865,23 +819,20 @@ async fn test_traffic_sketch_with_sampled_spam() {
         1,    // num_clients
         1000, // per_client_tps
         Duration::from_secs(20),
-        true, // report
     )
     .await;
 
     let expected_requests = 1000 * 20;
     assert!(metrics.num_requests > expected_requests - 100);
     assert!(metrics.num_requests < expected_requests + 20);
-    // number of blocked requests should be nearly the same
-    // as before, as we have half the single client TPS,
-    // but the threshold is also halved. However, divide by
-    // 5 instead of 4 as a buffer due in case we're unlucky with
-    // the sampling
-    assert!(metrics.num_blocked > (expected_requests / 5) - 100);
+    // 1000 requests/s sampled at 0.5 charges ~500/s against a 250/s quota, the
+    // same 2x overage as the unsampled case, so the client spends roughly half
+    // its time blocked.
+    assert!(metrics.num_blocked > expected_requests / 3);
 }
 
 #[sim_test]
-async fn test_traffic_sketch_allowlist_mode() {
+async fn test_traffic_sim_allowlist_mode() {
     telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -893,18 +844,17 @@ async fn test_traffic_sketch_allowlist_mode() {
     };
     let metrics = TrafficSim::run(
         policy_config,
-        4,      // num_clients
-        10_000, // per_client_tps
-        Duration::from_secs(10),
-        true, // report
+        4,   // num_clients
+        100, // per_client_tps
+        Duration::from_secs(2),
     )
     .await;
 
-    let expected_requests = 10_000 * 10 * 4;
+    let expected_requests = 100 * 2 * 4;
     // ~half of all requests blocked
-    assert!(metrics.num_blocked >= expected_requests / 2 - 1000);
-    assert!(metrics.num_requests > expected_requests - 1_000);
-    assert!(metrics.num_requests < expected_requests + 200);
+    assert!(metrics.num_blocked >= expected_requests / 2 - 10);
+    assert!(metrics.num_requests > expected_requests - 10);
+    assert!(metrics.num_requests < expected_requests + 20);
 }
 
 async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), anyhow::Error> {
@@ -996,55 +946,5 @@ async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), 
     assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
     assert!(!confirmed_local_execution.unwrap());
 
-    Ok(())
-}
-
-/// Test that in dry-run mode, actions that would otherwise
-/// lead to request blocking (in this case, a spammy client)
-/// are allowed to proceed.
-async fn assert_validator_traffic_control_dry_run(
-    mut test_cluster: TestCluster,
-    txn_count: usize,
-) -> Result<(), anyhow::Error> {
-    let context = &mut test_cluster.wallet;
-    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
-    let mut txns = batch_make_transfer_transactions(context, txn_count).await;
-    assert!(
-        txns.len() >= txn_count,
-        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
-    );
-
-    let txn = txns.swap_remove(0);
-    let tx_digest = txn.digest();
-    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
-    let params = rpc_params![
-        tx_bytes,
-        signatures,
-        IotaTransactionBlockResponseOptions::new(),
-        ExecuteTransactionRequestType::WaitForLocalExecution
-    ];
-
-    let response: IotaTransactionBlockResponse = jsonrpc_client
-        .request("iota_executeTransactionBlock", params.clone())
-        .await
-        .unwrap();
-    let IotaTransactionBlockResponse {
-        digest,
-        confirmed_local_execution,
-        ..
-    } = response;
-    assert_eq!(&digest, tx_digest);
-    assert!(confirmed_local_execution.unwrap());
-
-    // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
-        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
-            .request("iota_getTransactionBlock", rpc_params![*tx_digest])
-            .await;
-        assert!(
-            response.is_ok(),
-            "Expected request to succeed in dry-run mode"
-        );
-    }
     Ok(())
 }

@@ -981,7 +981,7 @@ mod checked {
 
             let user_events = user_events
                 .into_iter()
-                .map(|(module_id, tag, contents)| {
+                .map(|(module_id, struct_tag, contents)| {
                     let package_id = ObjectId::new(module_id.address().into_bytes());
                     let module = identifier_core_to_sdk(module_id.name());
                     let sender = ref_context.borrow().sender();
@@ -989,7 +989,7 @@ mod checked {
                         package_id,
                         module,
                         sender,
-                        type_: tag,
+                        struct_tag,
                         contents,
                     }
                 })
@@ -1721,7 +1721,7 @@ mod checked {
                     continue;
                 }
 
-                let module = package.get_module(&identifier_core_to_sdk(module_id.name()));
+                let module = package.module(&identifier_core_to_sdk(module_id.name()));
 
                 if module.is_some() {
                     return module;

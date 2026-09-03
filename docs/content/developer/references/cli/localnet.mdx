@@ -54,6 +54,8 @@ iota-localnet start [OPTIONS]
 | `--committee-size <N>` | Number of validators in the network (default: `1`). |
 | `--no-full-node` | Start the network without a fullnode. |
 | `--disable-fullnode-pruning` | Keep the fullnode's full history instead of pruning old object versions and checkpoints. Cannot be combined with `--no-full-node`. |
+| `--node-config-override <[SCOPE:]PATH=VALUE>` | Override a node config field for this run. Repeatable; later overrides win. See [Node config overrides](#node-config-overrides). |
+| `--write-config <DIR>` | Write the node config of every node this run would start to `DIR`, then exit without starting the network. See [Node config files](#node-config-files). |
 | `--local-migration-snapshots <PATH>...` | Paths to local migration snapshot files. |
 | `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
 | `--delegator <ADDRESS>` | Specify the delegator address. |
@@ -69,10 +71,11 @@ The metrics, admin interface, p2p, network and primary addresses are on `127.0.0
 | `9123` | Faucet (`--with-faucet`). |
 | `9124` | Indexer (`--with-indexer`). |
 | `9125` | GraphQL (`--with-graphql`). |
+| `9126` | GraphQL metrics (change it with `--graphql-metrics-address`). |
 | `9184` | Fullnode metrics. |
 | `9185` | Fullnode admin interface. |
 | `9186` | Fullnode p2p (UDP). |
-| `50051` | Fullnode gRPC API (`--with-grpc`). |
+| `50051` | Fullnode gRPC API (`--node-config-override fullnode:enable-grpc-api=true`). |
 
 Each validator owns a block of ten ports starting at `9200 + 10 * i`: validator 0 owns `9200`-`9209`, validator 1 owns `9210`-`9219`, and so on. Only the first five of a block are used; the other five are reserved so future endpoints don't shift the layout.
 
@@ -86,8 +89,68 @@ Each validator owns a block of ten ports starting at `9200 + 10 * i`: validator 
 | `9205 + 10 * i` to `9209 + 10 * i` | Reserved. |
 
 The default committee of 1 therefore owns `9200`-`9209`, and `--committee-size 4` owns `9200`-`9239`.
-A node fails to start if one of its ports is already taken, for instance by a second local network.
 The admin interface addresses can be changed with `iota-localnet genesis --admin-interface-address`.
+
+`start` checks every port it is about to bind before it launches anything, so a port already taken — by a second local network, say — is reported up front:
+
+```
+port 9202 (validator-0 metrics-address) is already in use
+  override it with --node-config-override validator-0:metrics-address=127.0.0.1:<port>
+```
+
+A port the run itself would bind twice — a `--with-faucet` port that is also the fullnode's JSON-RPC port, say — is reported the same way.
+For a validator's `network-address`, `primary-address` and the port of its `p2p-config.listen-address`, the report names a new genesis instead of suggesting an override.
+The admin interface ports are not checked: a local network runs its nodes in-process, which starts no admin interface.
+
+### Node config overrides
+
+`--node-config-override [SCOPE:]PATH=VALUE` sets a field of the node configs `start` generates, for that run only.
+The flag is repeatable and later overrides win per field.
+
+| Part | Meaning |
+|--------|-------------|
+| `SCOPE` | Which nodes the override reaches: `all` (the default), `fullnode`, `validator` (every validator), or `validator-<N>` (the validator at index `N`). |
+| `PATH` | A dot-separated path of field names as they appear in the node config YAML, for instance `authority-store-pruning-config.num-epochs-to-retain`. |
+| `VALUE` | YAML. An empty value or `null` clears the field, a mapping merges with the section, a list replaces it. Quote a value that would otherwise parse as structure, such as `'[::1]:9000'`. |
+
+```sh
+iota-localnet start --force-regenesis \
+  --node-config-override 'fullnode:authority-store-pruning-config.num-epochs-to-retain=5' \
+  --node-config-override 'validator-0:metrics-address=127.0.0.1:19202'
+```
+
+Every run that has overrides logs, per node, the fields it ended up with. The command above logs:
+
+```
+applied 1 override to validator-0: metrics-address
+applied 1 override to fullnode: authority-store-pruning-config.num-epochs-to-retain
+```
+
+The following are rejected:
+
+- A validator's `network-address`, `p2p-config.external-address` (its `p2p-address` in the committee) and `primary-address`. These sit in the committee metadata inside `genesis.blob`, so overriding one at start would leave the validator unreachable at the address its peers dial. Re-run `iota-localnet genesis` to change them. On a fullnode, which is not a committee member, `network-address` and `p2p-config.external-address` are ordinary config and stay overridable; `primary-address` is not a node config field on any node.
+- Adding or removing `consensus-config`, which is what makes a node a validator.
+- The key pair fields, `genesis` and `migration-tx-data-path`.
+- A field inside a section the generated config switched off with an explicit `null`, such as `policy-config.dry-run` while `policy-config` is `null`. Set the whole section instead, for example `policy-config={dry-run: false}`.
+
+`metrics-address`, `admin-interface-address`, `json-rpc-address`, the gRPC settings and the database paths are freely overridable. `fullnode:enable-grpc-api=true` on its own serves the API at the default `0.0.0.0:50051`; add `fullnode:grpc-api-config={address: <HOST:PORT>}` to serve it elsewhere. Enabling the API on a validator is rejected, because a validator never starts the gRPC server.
+
+A field set inside a section the config leaves at its default starts from that section's own per-field defaults, which for `policy-config` are not the traffic control policy the node config defaults to. Set the whole section when the rest of it matters.
+
+### Node config files {#node-config-files}
+
+`iota-localnet start` derives the config of every node it starts from `network.yaml` in the config directory, which holds the key pairs, addresses and genesis parameters of the network — not the node configs themselves. Two runs against the same config directory therefore start the same nodes, with the same databases.
+
+`--write-config <DIR>` writes those derived configs to `DIR` as YAML files and exits without starting anything. The files are the ones the run would have used, `--node-config-override` and the indexer and GraphQL wiring included, and each one starts under `iota-node --config-path`:
+
+```shell
+iota-localnet start --write-config ./node-configs
+iota-node --config-path ./node-configs/fullnode.yaml
+```
+
+The fullnode is written as `fullnode.yaml` and each validator as `validator-<index>.yaml`, for example `validator-0.yaml`. Nothing reads these files back: editing one does not change what `iota-localnet start` runs, so pass `--node-config-override` for that. They contain the nodes' key pairs, as `network.yaml` already does.
+
+A config directory created by an older version of `iota-localnet` is rejected, since its `network.yaml` holds node configs rather than the state they are derived from. Re-create it with `iota-localnet genesis --force`.
 
 :::info Indexer options
 
@@ -97,6 +160,7 @@ When built with the `indexer` feature, additional options are available:
 |--------|-------------|
 | `--with-indexer[=HOST:PORT]` | Start an indexer (default: `0.0.0.0:9124`). Requires Postgres. |
 | `--with-graphql[=HOST:PORT]` | Start a GraphQL server (default: `0.0.0.0:9125`). Automatically enables indexer. |
+| `--graphql-metrics-address <HOST:PORT>` | Bind the GraphQL metrics endpoint elsewhere (default: `127.0.0.1:9126`). |
 | `--pg-port <PORT>` | Postgres port (default: `5432`). |
 | `--pg-host <HOST>` | Postgres hostname (default: `localhost`). |
 | `--pg-db-name <NAME>` | Postgres database name (default: `iota_indexer`). |
@@ -145,6 +209,8 @@ iota-localnet start --force-regenesis --with-faucet --epoch-duration-ms 30000 --
 
 Use `iota-localnet genesis` to generate a genesis configuration for a local network. The resulting config can then
 be used with `iota-localnet start --network.config <DIR>` to start a persisted network.
+
+It writes the genesis blob, the network state every node config is derived from (`network.yaml`), the client config and the keystore. It does not write the node config files of a local network; `iota-localnet start --write-config <DIR>` does, see [Node config files](#node-config-files). A genesis config passed with `--from-config` names the validators of a deployment, and a run that is given one also writes a config file per validator, and per state sync fullnode it names.
 
 ### Usage
 

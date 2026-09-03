@@ -281,26 +281,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    objects_snapshot (object_id) {
-        object_id -> Bytea,
-        object_version -> Int8,
-        object_status -> Int2,
-        object_digest -> Nullable<Bytea>,
-        checkpoint_sequence_number -> Int8,
-        owner_type -> Nullable<Int2>,
-        owner_id -> Nullable<Bytea>,
-        object_type -> Nullable<Text>,
-        object_type_package -> Nullable<Bytea>,
-        object_type_module -> Nullable<Text>,
-        object_type_name -> Nullable<Text>,
-        serialized_object -> Nullable<Bytea>,
-        coin_type -> Nullable<Text>,
-        coin_balance -> Nullable<Int8>,
-        df_kind -> Nullable<Int2>,
-    }
-}
-
-diesel::table! {
     objects_version (object_id, object_version) {
         object_id -> Bytea,
         object_version -> Int8,
@@ -309,7 +289,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    optimistic_transactions (global_sequence_number, optimistic_sequence_number) {
+    optimistic_transactions (optimistic_sequence_number) {
         global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         transaction_digest -> Bytea,
@@ -412,18 +392,10 @@ diesel::table! {
 }
 
 diesel::table! {
-    tx_digests (tx_digest) {
-        tx_digest -> Bytea,
-        tx_sequence_number -> Int8,
-    }
-}
-
-diesel::table! {
     tx_global_order (tx_digest) {
         tx_digest -> Bytea,
-        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
-        chk_tx_sequence_number -> Nullable<Int8>,
+        tx_sequence_number -> Nullable<Int8>,
     }
 }
 
@@ -505,7 +477,6 @@ macro_rules! for_all_tables {
             move_calls,
             objects,
             objects_backward_history,
-            objects_snapshot,
             objects_version,
             optimistic_transactions,
             packages,
@@ -517,7 +488,6 @@ macro_rules! for_all_tables {
             tx_calls_pkg,
             tx_changed_objects,
             tx_count_metrics,
-            tx_digests,
             tx_global_order,
             tx_input_objects,
             tx_kinds,

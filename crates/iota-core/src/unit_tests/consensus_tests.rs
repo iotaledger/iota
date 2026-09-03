@@ -14,7 +14,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::ExecutionDigests,
-    crypto::deterministic_random_account_key,
+    crypto::deterministic_random_account_private_key,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSignatureMessage,
         CheckpointSummaryExt, SignedCheckpointSummary,
@@ -33,7 +33,10 @@ use tokio::time::sleep;
 
 use super::*;
 use crate::{
-    authority::{AuthorityState, authority_tests::init_state_with_objects},
+    authority::{
+        AuthorityState, ExecutionEnv, authority_tests::init_state_with_objects,
+        shared_object_version_manager::AssignedTxAndVersions,
+    },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
     execution_scheduler::ExecutionSchedulerAPI,
@@ -46,7 +49,7 @@ pub fn test_gas_objects() -> Vec<Object> {
         static GAS_OBJECTS: Vec<Object> = (0..4)
             .map(|_| {
                 let gas_object_id = ObjectId::random();
-                let (owner, _) = deterministic_random_account_key();
+                let (owner, _) = deterministic_random_account_private_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
             .collect();
@@ -61,7 +64,7 @@ pub async fn test_certificates(
     shared_object: Object,
 ) -> Vec<CertifiedTransaction> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
-    let (sender, keypair) = deterministic_random_account_key();
+    let (sender, sender_key) = deterministic_random_account_private_key();
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
@@ -97,7 +100,7 @@ pub async fn test_certificates(
         .unwrap();
 
         let transaction = epoch_store
-            .verify_transaction(to_sender_signed_transaction(tx, &keypair))
+            .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
             .unwrap();
 
         // Submit the transaction and assemble a certificate.
@@ -147,6 +150,7 @@ pub fn make_consensus_adapter_for_test(
 
             let checkpoint_service = Arc::new(CheckpointServiceNoop {});
             let mut transactions = Vec::new();
+            let mut assigned_versions = Vec::new();
             let mut executed_via_checkpoint = 0;
 
             for tx in sequenced_transactions {
@@ -161,34 +165,32 @@ pub fn make_consensus_adapter_for_test(
                             .expect("Should not fail");
                         executed_via_checkpoint += 1;
                     } else {
-                        transactions.extend(
-                            epoch_store
-                                .process_consensus_transactions_for_tests(
-                                    vec![tx],
-                                    &checkpoint_service,
-                                    self.state.get_object_cache_reader().as_ref(),
-                                    self.state.get_transaction_cache_reader().as_ref(),
-                                    &self.state.metrics,
-                                    true,
-                                    self.state.as_ref(),
-                                )
-                                .await?,
-                        );
-                    }
-                } else {
-                    transactions.extend(
-                        epoch_store
+                        let (txns, versions) = epoch_store
                             .process_consensus_transactions_for_tests(
                                 vec![tx],
                                 &checkpoint_service,
                                 self.state.get_object_cache_reader().as_ref(),
-                                self.state.get_transaction_cache_reader().as_ref(),
                                 &self.state.metrics,
                                 true,
                                 self.state.as_ref(),
                             )
-                            .await?,
-                    );
+                            .await?;
+                        transactions.extend(txns);
+                        assigned_versions.extend(versions.0);
+                    }
+                } else {
+                    let (txns, versions) = epoch_store
+                        .process_consensus_transactions_for_tests(
+                            vec![tx],
+                            &checkpoint_service,
+                            self.state.get_object_cache_reader().as_ref(),
+                            &self.state.metrics,
+                            true,
+                            self.state.as_ref(),
+                        )
+                        .await?;
+                    transactions.extend(txns);
+                    assigned_versions.extend(versions.0);
                 }
             }
 
@@ -197,6 +199,20 @@ pub fn make_consensus_adapter_for_test(
                 self.process_via_checkpoint.len(),
                 "Some transactions were not executed via checkpoint"
             );
+
+            let assigned_versions = AssignedTxAndVersions::new(assigned_versions).into_map();
+            let transactions: Vec<_> = transactions
+                .into_iter()
+                .map(|tx| {
+                    let key = tx.key();
+                    (
+                        tx,
+                        ExecutionEnv::new().with_assigned_versions(
+                            assigned_versions.get(&key).cloned().unwrap_or_default(),
+                        ),
+                    )
+                })
+                .collect();
 
             if self.execute {
                 self.state

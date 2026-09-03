@@ -300,7 +300,7 @@ mod tests {
     use iota_types::{
         base_types::AuthorityName,
         committee::{CommitteeTrait, StakeUnit},
-        crypto::{AccountKeyPair, get_account_key_pair},
+        crypto::{AccountPrivateKey, get_account_private_key},
         effects::TransactionEffectsAPI,
         error::IotaError,
         executable_transaction::VerifiedExecutableTransaction,
@@ -324,7 +324,7 @@ mod tests {
     };
 
     use crate::{
-        authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
+        authority::{AuthorityState, ExecutionEnv, test_authority_builder::TestAuthorityBuilder},
         authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
         authority_client::{
             validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
@@ -406,7 +406,7 @@ mod tests {
                 &VerifiedExecutableTransaction::new_from_certificate(
                     VerifiedCertificate::new_unchecked(request.certificate),
                 ),
-                None,
+                ExecutionEnv::new(),
                 &epoch_store,
             )?;
             let events = if effects.events_digest().is_some() {
@@ -475,12 +475,12 @@ mod tests {
     #[sim_test]
     async fn test_validator_tx_finalizer_basic_flow() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, sender_key) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
-        let signed_tx = create_tx(&clients, &states[0], sender, &keypair, gas_object_id).await;
+        let signed_tx = create_tx(&clients, &states[0], sender, &sender_key, gas_object_id).await;
         let tx_digest = *signed_tx.digest();
         let cache_read = states[0].get_transaction_cache_reader().clone();
         let epoch_store = states[0].epoch_store_for_testing();
@@ -506,12 +506,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_validator_tx_finalizer_new_epoch() {
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, sender_key) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
-        let signed_tx = create_tx(&clients, &states[0], sender, &keypair, gas_object_id).await;
+        let signed_tx = create_tx(&clients, &states[0], sender, &sender_key, gas_object_id).await;
         let tx_digest = *signed_tx.digest();
         let epoch_store = states[0].epoch_store_for_testing();
         let cache_read = states[0].get_transaction_cache_reader().clone();
@@ -539,7 +539,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validator_tx_finalizer_auth_agg_reconfig() {
-        let (sender, _) = get_account_key_pair();
+        let (sender, _) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let (states, auth_agg, _clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
@@ -558,12 +558,12 @@ mod tests {
     #[tokio::test]
     async fn test_validator_tx_finalizer_already_executed() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, sender_key) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
-        let signed_tx = create_tx(&clients, &states[0], sender, &keypair, gas_object_id).await;
+        let signed_tx = create_tx(&clients, &states[0], sender, &sender_key, gas_object_id).await;
         let tx_digest = *signed_tx.digest();
         let cache_read = states[0].get_transaction_cache_reader().clone();
         let epoch_store = states[0].epoch_store_for_testing();
@@ -597,12 +597,12 @@ mod tests {
     #[tokio::test]
     async fn test_validator_tx_finalizer_timeout() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, sender_key) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
-        let signed_tx = create_tx(&clients, &states[0], sender, &keypair, gas_object_id).await;
+        let signed_tx = create_tx(&clients, &states[0], sender, &sender_key, gas_object_id).await;
         let tx_digest = *signed_tx.digest();
         let cache_read = states[0].get_transaction_cache_reader().clone();
         let epoch_store = states[0].epoch_store_for_testing();
@@ -718,7 +718,7 @@ mod tests {
         clients: &BTreeMap<AuthorityName, MockAuthorityClient>,
         state: &Arc<AuthorityState>,
         sender: Address,
-        keypair: &AccountKeyPair,
+        private_key: &AccountPrivateKey,
         gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
         let gas_object_ref = state.get_object(&gas_object_id).unwrap().object_ref();
@@ -729,7 +729,7 @@ mod tests {
         )
         .transfer_iota(None, sender)
         .build();
-        let tx = to_sender_signed_transaction(tx_data, keypair);
+        let tx = to_sender_signed_transaction(tx_data, private_key);
         let response = clients
             .get(&state.name)
             .unwrap()

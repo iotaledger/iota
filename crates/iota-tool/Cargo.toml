@@ -15,7 +15,7 @@ workspace = true
 [dependencies]
 # external dependencies
 anemo.workspace = true
-anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
+anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "68adc31d4ea1f4573f08c2c75317fcb205b823de" }
 anyhow.workspace = true
 camino.workspace = true
 clap.workspace = true
@@ -28,7 +28,6 @@ hex.workspace = true
 indicatif.workspace = true
 inquire = "0.6.0"
 itertools.workspace = true
-num_cpus.workspace = true
 ron = "0.8.0"
 serde.workspace = true
 strum.workspace = true

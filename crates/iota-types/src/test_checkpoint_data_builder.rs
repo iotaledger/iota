@@ -19,7 +19,6 @@ use crate::{
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExtForTesting},
     event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    gas_coin::GAS,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
     },
@@ -167,7 +166,7 @@ impl TestCheckpointDataBuilder {
             object_idx,
             Owner::Shared(Version::MIN_VALID_INCL),
             GAS_VALUE_FOR_TESTING,
-            GAS::type_tag(),
+            TypeTag::from(StructTag::new_gas()),
         )
     }
 
@@ -181,7 +180,12 @@ impl TestCheckpointDataBuilder {
             .as_ref()
             .unwrap()
             .sender_idx;
-        self.create_coin_object(object_idx, sender_idx, balance, GAS::type_tag())
+        self.create_coin_object(
+            object_idx,
+            sender_idx,
+            balance,
+            TypeTag::from(StructTag::new_gas()),
+        )
     }
 
     /// Create a new coin object in the transaction.
@@ -291,7 +295,7 @@ impl TestCheckpointDataBuilder {
             .get(&object_id)
             .cloned()
             .expect("Mutating an object that does not exist");
-        let coin_type = object.coin_type_opt().cloned().unwrap();
+        let coin_type = object.opt_coin_type().cloned().unwrap();
         // Withdraw balance from coin object.
         let move_object = object.data.as_opt_mut_struct().unwrap();
         let old_balance = move_object.get_coin_value_unchecked();
@@ -577,7 +581,7 @@ impl TestCheckpointDataBuilder {
                 package_id: ObjectId::SYSTEM,
                 module: Identifier::from_static("iota_system_state_inner"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
-                type_: StructTag::new_system_epoch_info_event(),
+                struct_tag: StructTag::new_system_epoch_info_event(),
                 contents: bcs::to_bytes(&system_epoch_info_event).unwrap(),
             }])
         } else {
@@ -778,8 +782,8 @@ mod tests {
             tx.effects
                 .created()
                 .iter()
-                .any(|(object_ref, owner)| object_ref.object_id == created_obj_id
-                    && owner.address_or_object().unwrap()
+                .any(|created| created.reference.object_id == created_obj_id
+                    && created.owner.address_or_object().unwrap()
                         == &TestCheckpointDataBuilder::derive_address(0))
         );
     }
@@ -807,7 +811,7 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|(object_ref, _)| object_ref.object_id == obj_id)
+                .any(|changed| changed.reference.object_id == obj_id)
         );
     }
 
@@ -878,7 +882,7 @@ mod tests {
             tx.effects
                 .unwrapped()
                 .iter()
-                .any(|(object_ref, _owner)| object_ref.object_id == obj_id)
+                .any(|changed| changed.reference.object_id == obj_id)
         );
     }
 
@@ -905,8 +909,8 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|(object_ref, owner)| object_ref.object_id == obj_id
-                    && owner.address_or_object().unwrap()
+                .any(|changed| changed.reference.object_id == obj_id
+                    && changed.owner.address_or_object().unwrap()
                         == &TestCheckpointDataBuilder::derive_address(1))
         );
     }
@@ -1004,12 +1008,12 @@ mod tests {
 
         // Verify the original coin now has 90 balance after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
-            && obj.coin_type_opt() == Some(&type_tag)
+            && obj.opt_coin_type() == Some(&type_tag)
             && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out coin has 10 balance, with the same type tag.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
-            && obj.coin_type_opt() == Some(&type_tag)
+            && obj.opt_coin_type() == Some(&type_tag)
             && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 10));
     }
 
@@ -1021,7 +1025,7 @@ mod tests {
                 package_id: ObjectId::ZERO,
                 module: Identifier::from_static("test"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
-                type_: StructTag::new_gas(),
+                struct_tag: StructTag::new_gas(),
                 contents: vec![],
             }])
             .finish_transaction()

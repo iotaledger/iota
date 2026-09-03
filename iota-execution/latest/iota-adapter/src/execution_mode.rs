@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Argument, TypeTag};
+use iota_sdk_types::{Argument, StructTag, TypeTag};
 use iota_types::{
     error::ExecutionError, execution::ExecutionResult, invariant_violation, transfer::Receiving,
 };
@@ -352,7 +352,7 @@ fn value_to_bytes_and_tag(
             };
             let value_type = resolver.get_type_tag(ty)?;
             (
-                Receiving::type_tag(value_type),
+                StructTag::new_transfer_receiving(value_type).into(),
                 Receiving::new(*id, *seqno).to_bcs_bytes(),
             )
         }

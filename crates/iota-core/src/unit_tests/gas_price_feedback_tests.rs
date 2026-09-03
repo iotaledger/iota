@@ -14,9 +14,8 @@ use iota_sdk_types::{
     VersionAssignment,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
-    executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionAPI, TransactionEnvelope, VerifiedCertificate},
@@ -26,11 +25,12 @@ use rand::seq::SliceRandom;
 
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ExecutionEnv,
         authority_tests::{
             certify_transaction, send_and_confirm_transaction_, send_batch_consensus_no_execution,
         },
         move_integration_tests::build_and_publish_test_package,
+        shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
         test_authority_builder::TestAuthorityBuilder,
         transaction_deferral::DeferralKey,
     },
@@ -65,7 +65,7 @@ struct GasPriceFeedbackTester {
     authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
     sender: Address,
-    sender_key: AccountKeyPair,
+    sender_key: AccountPrivateKey,
     gas_object_ids: Vec<ObjectId>,
     package: ObjectReference,
     shared_counter_1: ObjectReference,
@@ -86,7 +86,7 @@ impl GasPriceFeedbackTester {
         enable_gas_price_feedback_mechanism: bool,
         num_gas_objects: usize,
     ) -> Self {
-        let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
@@ -176,7 +176,7 @@ impl GasPriceFeedbackTester {
         package_id: &ObjectId,
         gas_object_id: &ObjectId,
         sender: &Address,
-        sender_key: &AccountKeyPair,
+        sender_key: &AccountPrivateKey,
     ) -> ObjectReference {
         let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -215,7 +215,7 @@ impl GasPriceFeedbackTester {
         );
         assert_eq!(effects.created().len(), 1);
 
-        effects.created()[0].0
+        effects.created()[0].reference
     }
 
     /// Build and sign a programmable transaction.
@@ -252,19 +252,34 @@ impl GasPriceFeedbackTester {
     async fn send_certificates_to_consensus_for_scheduling(
         &self,
         certificates: &[VerifiedCertificate],
-    ) -> Vec<VerifiedExecutableTransaction> {
+    ) -> (Vec<Schedulable>, AssignedTxAndVersions) {
         send_batch_consensus_no_execution(&self.authority_state, certificates, false).await
     }
 
     /// Enqueue scheduled transactions and execute them to effects.
     async fn enqueue_and_execute_scheduled_transactions(
         &self,
-        transactions: Vec<VerifiedExecutableTransaction>,
+        transactions: Vec<Schedulable>,
+        assigned_versions: AssignedTxAndVersions,
     ) -> Vec<TransactionEffects> {
         let transaction_digests = transactions
             .iter()
-            .map(|tx| *tx.digest())
+            .map(|tx| *tx.as_tx().unwrap().digest())
             .collect::<Vec<_>>();
+
+        let assigned_versions = assigned_versions.into_map();
+        let transactions: Vec<_> = transactions
+            .into_iter()
+            .map(|tx| {
+                let key = tx.key();
+                (
+                    tx,
+                    ExecutionEnv::new().with_assigned_versions(
+                        assigned_versions.get(&key).cloned().unwrap_or_default(),
+                    ),
+                )
+            })
+            .collect();
 
         self.authority_state.execution_scheduler().enqueue(
             transactions,
@@ -456,7 +471,7 @@ async fn per_object_congestion_control_mode_is_none() {
     certificates.shuffle(&mut rand::thread_rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
     assert_eq!(
@@ -465,7 +480,12 @@ async fn per_object_congestion_control_mode_is_none() {
         certificates.len() + 1,
     );
     assert!(matches!(
-        scheduled_transactions[0].data().transaction().kind(),
+        scheduled_transactions[0]
+            .as_tx()
+            .unwrap()
+            .data()
+            .transaction()
+            .kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
 
@@ -479,7 +499,7 @@ async fn per_object_congestion_control_mode_is_none() {
     );
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len(),
@@ -529,7 +549,7 @@ async fn max_execution_duration_per_commit_is_none() {
     certificates.shuffle(&mut rand::thread_rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
     assert_eq!(
@@ -538,7 +558,12 @@ async fn max_execution_duration_per_commit_is_none() {
         certificates.len() + 1,
     );
     assert!(matches!(
-        scheduled_transactions[0].data().transaction().kind(),
+        scheduled_transactions[0]
+            .as_tx()
+            .unwrap()
+            .data()
+            .transaction()
+            .kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
 
@@ -552,7 +577,7 @@ async fn max_execution_duration_per_commit_is_none() {
     );
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len(),
@@ -620,7 +645,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         .await;
     certificates.push(tester.certify_transaction(transaction).await);
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
     assert_eq!(
@@ -638,17 +663,26 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             .is_empty()
     );
 
-    let expected_suggested_gas_price_2 =
-        scheduled_transactions[2].data().transaction().gas_price() + 1;
+    let expected_suggested_gas_price_2 = scheduled_transactions[2]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .gas_price()
+        + 1;
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction().kind()
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) = scheduled_transactions[0]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let canceled_transactions = vec![
             CanceledTransaction {
-                digest: *scheduled_transactions[1].digest(),
+                digest: *scheduled_transactions[1].as_tx().unwrap().digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
@@ -667,7 +701,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                 ],
             },
             CanceledTransaction {
-                digest: *scheduled_transactions[3].digest(),
+                digest: *scheduled_transactions[3].as_tx().unwrap().digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
                         tester.shared_counter_1.object_id,
@@ -697,7 +731,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     }
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len(),
@@ -846,7 +880,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     certificates.shuffle(&mut rand::thread_rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
     assert_eq!(
@@ -865,12 +899,16 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     );
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction().kind()
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) = scheduled_transactions[0]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let canceled_transactions = vec![CanceledTransaction {
-            digest: *scheduled_transactions[2].digest(),
+            digest: *scheduled_transactions[2].as_tx().unwrap().digest(),
             version_assignments: vec![
                 VersionAssignment::new(
                     tester.shared_counter_1.object_id,
@@ -894,16 +932,26 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
 
     // Confirm that gas price order of scheduled transactions is descending
     assert_eq!(
-        scheduled_transactions[1].data().transaction().gas_price(),
+        scheduled_transactions[1]
+            .as_tx()
+            .unwrap()
+            .data()
+            .transaction()
+            .gas_price(),
         REFERENCE_GAS_PRICE_FOR_TESTS + 1
     );
     assert_eq!(
-        scheduled_transactions[2].data().transaction().gas_price(),
+        scheduled_transactions[2]
+            .as_tx()
+            .unwrap()
+            .data()
+            .transaction()
+            .gas_price(),
         REFERENCE_GAS_PRICE_FOR_TESTS
     );
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len(),
@@ -995,7 +1043,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     certificates.shuffle(&mut rand::thread_rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
     assert_eq!(
@@ -1016,12 +1064,16 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     let expected_suggested_gas_price = tester.protocol_config.max_gas_price();
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction().kind()
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) = scheduled_transactions[0]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let canceled_transactions = vec![CanceledTransaction {
-            digest: *scheduled_transactions[2].digest(),
+            digest: *scheduled_transactions[2].as_tx().unwrap().digest(),
             version_assignments: vec![
                 VersionAssignment::new(
                     tester.shared_counter_1.object_id,
@@ -1046,7 +1098,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     }
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len(),
@@ -1159,7 +1211,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     certificates.shuffle(&mut rand::thread_rng());
     assert_eq!(certificates.len(), num_gas_objects);
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
     assert_eq!(
@@ -1169,8 +1221,12 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     );
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction().kind()
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) = scheduled_transactions[0]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         assert_eq!(
@@ -1184,7 +1240,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     }
     // The second scheduled transaction should be one paying higher gas price
     assert_eq!(
-        scheduled_transactions[1].digest(),
+        scheduled_transactions[1].as_tx().unwrap().digest(),
         should_schedule_certificate_1.digest()
     );
 
@@ -1205,7 +1261,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     );
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len() as u64,
@@ -1238,7 +1294,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     certificates.shuffle(&mut rand::thread_rng());
     assert_eq!(certificates.len(), 1);
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&certificates)
         .await;
     assert_eq!(
@@ -1252,12 +1308,16 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     let expected_suggested_gas_price = should_schedule_certificate_1.gas_price() + 1;
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction().kind()
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) = scheduled_transactions[0]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let canceled_transactions = vec![CanceledTransaction {
-            digest: *scheduled_transactions[2].digest(),
+            digest: *scheduled_transactions[2].as_tx().unwrap().digest(),
             version_assignments: vec![
                 VersionAssignment::new(
                     tester.shared_counter_1.object_id,
@@ -1282,17 +1342,17 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     }
     // The second scheduled transaction should be one paying higher gas price
     assert_eq!(
-        scheduled_transactions[1].digest(),
+        scheduled_transactions[1].as_tx().unwrap().digest(),
         should_schedule_certificate_2.digest()
     );
     // The third scheduled transaction should be the canceled transaction
     assert_eq!(
-        scheduled_transactions[2].digest(),
+        scheduled_transactions[2].as_tx().unwrap().digest(),
         should_defer_certificate.digest()
     );
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len(),
@@ -1378,7 +1438,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     let mut shuffled_certificates = certificates.clone();
     shuffled_certificates.shuffle(&mut rand::thread_rng());
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&shuffled_certificates)
         .await;
     assert_eq!(
@@ -1434,8 +1494,12 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
         expected_suggested_gas_price_for_object_1.max(expected_suggested_gas_price_for_object_2);
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction().kind()
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) = scheduled_transactions[0]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let canceled_transactions = vec![
@@ -1566,7 +1630,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     }
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len(),
@@ -1696,7 +1760,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     let mut shuffled_certificates = certificates.clone();
     shuffled_certificates.shuffle(&mut rand::thread_rng());
 
-    let scheduled_transactions = tester
+    let (scheduled_transactions, assigned_versions) = tester
         .send_certificates_to_consensus_for_scheduling(&shuffled_certificates)
         .await;
     assert_eq!(
@@ -1758,8 +1822,12 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     );
 
     // The first scheduled transaction should be `ConsensusCommitPrologueV1`
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) =
-        scheduled_transactions[0].data().transaction().kind()
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_tx) = scheduled_transactions[0]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         let canceled_transactions = vec![
@@ -1890,7 +1958,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     }
 
     let effects_vec = tester
-        .enqueue_and_execute_scheduled_transactions(scheduled_transactions)
+        .enqueue_and_execute_scheduled_transactions(scheduled_transactions, assigned_versions)
         .await;
     assert_eq!(
         effects_vec.len(),

@@ -5,10 +5,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, ObjectId, SenderSignedTransaction, SharedObjectReference,
+    ExecutionError, ExecutionStatus, ObjectId, RandomnessRound, SharedObjectReference,
     TransactionDigest, TransactionEffects, Version, VersionAssignment,
 };
 use iota_types::{
+    base_types::EpochId,
     effects::TransactionEffectsAPI,
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
@@ -22,13 +23,146 @@ use tracing::trace;
 use crate::{
     authority::{
         AuthorityPerEpochStore, authority_per_epoch_store::CancelConsensusTransactionReason,
+        epoch_start_configuration::EpochStartConfigTrait,
     },
     execution_cache::ObjectCacheRead,
 };
 
 pub struct SharedObjVerManager {}
 
-pub type AssignedTxAndVersions = Vec<(TransactionKey, Vec<VersionAssignment>)>;
+pub type AssignedVersions = Vec<VersionAssignment>;
+
+#[derive(Default, Debug)]
+pub struct AssignedTxAndVersions(pub Vec<(TransactionKey, AssignedVersions)>);
+
+impl AssignedTxAndVersions {
+    pub fn new(assigned_versions: Vec<(TransactionKey, AssignedVersions)>) -> Self {
+        Self(assigned_versions)
+    }
+
+    pub fn into_map(self) -> HashMap<TransactionKey, AssignedVersions> {
+        self.0.into_iter().collect()
+    }
+}
+
+/// A wrapper around things that can be scheduled for execution by the
+/// assigning of shared object versions.
+#[derive(Clone)]
+pub enum Schedulable<T = VerifiedExecutableTransaction> {
+    Transaction(T),
+    RandomnessStateUpdate(EpochId, RandomnessRound),
+}
+
+impl From<VerifiedExecutableTransaction> for Schedulable<VerifiedExecutableTransaction> {
+    fn from(tx: VerifiedExecutableTransaction) -> Self {
+        Schedulable::Transaction(tx)
+    }
+}
+
+// AsTx is like Deref, in that it allows us to use either refs or values in
+// Schedulable. Deref does not work because it conflicts with the impl of Deref
+// for VerifiedExecutableTransaction.
+pub trait AsTx {
+    fn as_tx(&self) -> &VerifiedExecutableTransaction;
+}
+
+impl AsTx for VerifiedExecutableTransaction {
+    fn as_tx(&self) -> &VerifiedExecutableTransaction {
+        self
+    }
+}
+
+impl AsTx for &'_ VerifiedExecutableTransaction {
+    fn as_tx(&self) -> &VerifiedExecutableTransaction {
+        self
+    }
+}
+
+impl Schedulable<&'_ VerifiedExecutableTransaction> {
+    // Cannot use the blanket ToOwned trait impl because it just calls clone.
+    pub fn to_owned_schedulable(&self) -> Schedulable<VerifiedExecutableTransaction> {
+        match self {
+            Schedulable::Transaction(tx) => Schedulable::Transaction((*tx).clone()),
+            Schedulable::RandomnessStateUpdate(epoch, round) => {
+                Schedulable::RandomnessStateUpdate(*epoch, *round)
+            }
+        }
+    }
+}
+
+impl<T> Schedulable<T> {
+    pub fn as_tx(&self) -> Option<&VerifiedExecutableTransaction>
+    where
+        T: AsTx,
+    {
+        match self {
+            Schedulable::Transaction(tx) => Some(tx.as_tx()),
+            Schedulable::RandomnessStateUpdate(_, _) => None,
+        }
+    }
+
+    pub fn shared_input_objects(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> Vec<SharedObjectReference>
+    where
+        T: AsTx,
+    {
+        match self {
+            Schedulable::Transaction(tx) => tx.as_tx().shared_input_objects(),
+            Schedulable::RandomnessStateUpdate(_, _) => vec![SharedObjectReference::new(
+                ObjectId::RANDOMNESS_STATE,
+                epoch_store
+                    .epoch_start_config()
+                    .randomness_obj_initial_shared_version(),
+                true,
+            )],
+        }
+    }
+
+    pub fn contains_shared_object(&self) -> bool
+    where
+        T: AsTx,
+    {
+        match self {
+            Schedulable::Transaction(tx) => tx.as_tx().contains_shared_object(),
+            Schedulable::RandomnessStateUpdate(_, _) => true,
+        }
+    }
+
+    pub fn non_shared_input_object_keys(&self) -> Vec<ObjectKey>
+    where
+        T: AsTx,
+    {
+        match self {
+            Schedulable::Transaction(tx) => transaction_non_shared_input_object_keys(tx.as_tx())
+                .expect("Transaction input should have been verified"),
+            Schedulable::RandomnessStateUpdate(_, _) => vec![],
+        }
+    }
+
+    pub fn receiving_object_keys(&self) -> Vec<ObjectKey>
+    where
+        T: AsTx,
+    {
+        match self {
+            Schedulable::Transaction(tx) => transaction_receiving_object_keys(tx.as_tx()),
+            Schedulable::RandomnessStateUpdate(_, _) => vec![],
+        }
+    }
+
+    pub fn key(&self) -> TransactionKey
+    where
+        T: AsTx,
+    {
+        match self {
+            Schedulable::Transaction(tx) => tx.as_tx().key(),
+            Schedulable::RandomnessStateUpdate(epoch, round) => {
+                TransactionKey::RandomnessRound(*epoch, *round)
+            }
+        }
+    }
+}
 
 #[must_use]
 #[derive(Default)]
@@ -38,42 +172,52 @@ pub struct ConsensusSharedObjVerAssignment {
 }
 
 impl SharedObjVerManager {
-    pub fn assign_versions_from_consensus<'a>(
+    pub fn assign_versions_from_consensus<'a, T>(
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
-        transactions: impl Iterator<Item = &'a VerifiedExecutableTransaction> + Clone,
+        assignables: impl Iterator<Item = &'a Schedulable<T>> + Clone,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
-    ) -> IotaResult<ConsensusSharedObjVerAssignment> {
+    ) -> IotaResult<ConsensusSharedObjVerAssignment>
+    where
+        T: AsTx + 'a,
+    {
         let mut shared_input_next_versions = get_or_init_versions(
-            transactions.clone().map(|tx| tx.data()),
+            assignables
+                .clone()
+                .flat_map(|a| a.shared_input_objects(epoch_store)),
             epoch_store,
             cache_reader,
         )?;
         let mut assigned_versions = Vec::new();
-        for transaction in transactions {
-            if !transaction.contains_shared_object() {
+        for assignable in assignables {
+            if !assignable.contains_shared_object() {
                 // A transaction without shared inputs has no version
                 // assignments, except when it is cancelled (execution-worker
                 // congestion): the cancellation version is then carried on
                 // its gas object.
-                if !cancelled_txns.contains_key(transaction.digest()) {
+                let cancelled = assignable
+                    .key()
+                    .as_digest()
+                    .is_some_and(|digest| cancelled_txns.contains_key(digest));
+                if !cancelled {
                     continue;
                 }
             }
             let tx_assigned_versions = Self::assign_versions_for_transaction(
-                transaction,
+                epoch_store,
+                assignable,
                 &mut shared_input_next_versions,
                 cancelled_txns,
                 epoch_store
                     .protocol_config()
                     .congestion_control_gas_price_feedback_mechanism(),
             );
-            assigned_versions.push((transaction.key(), tx_assigned_versions));
+            assigned_versions.push((assignable.key(), tx_assigned_versions));
         }
 
         Ok(ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
-            assigned_versions,
+            assigned_versions: AssignedTxAndVersions::new(assigned_versions),
         })
     }
 
@@ -91,7 +235,9 @@ impl SharedObjVerManager {
         // done before we mutate it the first time, otherwise we would be initializing
         // it with the wrong version.
         let _ = get_or_init_versions(
-            transactions_and_effects.iter().map(|(tx, _)| tx.data()),
+            transactions_and_effects
+                .iter()
+                .flat_map(|(tx, _)| tx.shared_input_objects()),
             epoch_store,
             cache_reader,
         );
@@ -101,9 +247,9 @@ impl SharedObjVerManager {
             let mut tx_assigned_versions: Vec<_> = effects
                 .input_shared_objects()
                 .into_iter()
-                .map(|iso| {
-                    let (object_id, version) = iso.id_and_version();
-                    VersionAssignment::new(object_id, version)
+                .map(|shared| {
+                    let reference = shared.object_reference();
+                    VersionAssignment::new(reference.object_id, reference.version)
                 })
                 .collect();
             // A cancelled transaction without shared inputs carries the
@@ -125,23 +271,26 @@ impl SharedObjVerManager {
             trace!(
                 ?tx_key,
                 ?tx_assigned_versions,
-                "locking shared objects from effects"
+                "assigned shared object versions from effects"
             );
             assigned_versions.push((tx_key, tx_assigned_versions));
         }
-        assigned_versions
+        AssignedTxAndVersions::new(assigned_versions)
     }
 
     pub fn assign_versions_for_transaction(
-        transaction: &VerifiedExecutableTransaction,
+        epoch_store: &AuthorityPerEpochStore,
+        assignable: &Schedulable<impl AsTx>,
         shared_input_next_versions: &mut HashMap<ObjectId, Version>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         enable_gas_price_feedback: bool,
-    ) -> Vec<VersionAssignment> {
-        let tx_digest = transaction.digest();
+    ) -> AssignedVersions {
+        let tx_key = assignable.key();
 
         // Check if the transaction is cancelled due to congestion.
-        let cancellation_info = cancelled_txns.get(tx_digest);
+        let cancellation_info = tx_key
+            .as_digest()
+            .and_then(|tx_digest| cancelled_txns.get(tx_digest));
         let congested_objects_info: Option<HashSet<_>> =
             if let Some(CancelConsensusTransactionReason::Congested {
                 congested_objects,
@@ -155,14 +304,13 @@ impl SharedObjVerManager {
         let txn_cancelled = cancellation_info.is_some();
 
         // Make an iterator to update the locks of the transaction's shared objects.
-        let shared_input_objects = transaction.shared_input_objects();
+        let shared_input_objects = assignable.shared_input_objects(epoch_store);
 
-        let mut input_object_keys = transaction_non_shared_input_object_keys(transaction)
-            .expect("Transaction input should have been verified");
+        let mut input_object_keys = assignable.non_shared_input_object_keys();
         let mut assigned_versions = Vec::with_capacity(shared_input_objects.len());
         let mut is_mutable_input = Vec::with_capacity(shared_input_objects.len());
         // Record receiving object versions towards the shared version computation.
-        let receiving_object_keys = transaction_receiving_object_keys(transaction);
+        let receiving_object_keys = assignable.receiving_object_keys();
         input_object_keys.extend(receiving_object_keys);
 
         if txn_cancelled {
@@ -234,7 +382,9 @@ impl SharedObjVerManager {
                             mechanism, so a suggested gas price must be present",
                     ))
                     .unwrap();
-                let gas_object_id = transaction
+                let gas_object_id = assignable
+                    .as_tx()
+                    .expect("only a transaction can be cancelled without shared inputs")
                     .transaction()
                     .gas()
                     .first()
@@ -293,7 +443,7 @@ impl SharedObjVerManager {
         }
 
         trace!(
-            ?tx_digest,
+            ?tx_key,
             ?assigned_versions,
             ?next_version,
             ?txn_cancelled,
@@ -326,17 +476,13 @@ pub(crate) fn gas_object_cancellation_version_from_effects(
     }
 }
 
-fn get_or_init_versions<'a>(
-    transactions: impl Iterator<Item = &'a SenderSignedTransaction>,
+fn get_or_init_versions(
+    shared_input_objects: impl Iterator<Item = SharedObjectReference>,
     epoch_store: &AuthorityPerEpochStore,
     cache_reader: &dyn ObjectCacheRead,
 ) -> IotaResult<HashMap<ObjectId, Version>> {
-    let mut shared_input_objects: Vec<_> = transactions
-        .flat_map(|tx| {
-            tx.shared_input_objects()
-                .into_iter()
-                .map(|so| (so.object_id, so.initial_shared_version))
-        })
+    let mut shared_input_objects: Vec<_> = shared_input_objects
+        .map(|so| (so.object_id, so.initial_shared_version))
         .collect();
 
     shared_input_objects.sort();
@@ -350,7 +496,8 @@ mod tests {
     use std::collections::{BTreeMap, HashMap};
 
     use iota_sdk_types::{
-        Address, ObjectDigest, ObjectReference, RandomnessRound, SenderSignedTransaction,
+        Address, MoveAuthenticatorV1, ObjectDigest, ObjectReference, RandomnessRound,
+        SenderSignedTransaction, UserSignature,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
@@ -390,13 +537,17 @@ mod tests {
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 11),
         ];
         let epoch_store = authority.epoch_store_for_testing();
+        let assignables = transactions
+            .iter()
+            .map(Schedulable::Transaction)
+            .collect::<Vec<_>>();
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            transactions.iter(),
+            assignables.iter(),
             &BTreeMap::new(),
         )
         .unwrap();
@@ -418,7 +569,7 @@ mod tests {
         // will use the same version number. In the following case, transactions[2] has
         // the same assignment as transactions[1] for this reason.
         assert_eq!(
-            assigned_versions,
+            assigned_versions.0,
             vec![
                 (
                     transactions[0].key(),
@@ -472,13 +623,17 @@ mod tests {
                 5,
             ),
         ];
+        let assignables = transactions
+            .iter()
+            .map(Schedulable::Transaction)
+            .collect::<Vec<_>>();
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            transactions.iter(),
+            assignables.iter(),
             &BTreeMap::new(),
         )
         .unwrap();
@@ -496,7 +651,7 @@ mod tests {
             HashMap::from([(ObjectId::RANDOMNESS_STATE, next_randomness_obj_version)])
         );
         assert_eq!(
-            assigned_versions,
+            assigned_versions.0,
             vec![
                 (
                     transactions[0].key(),
@@ -518,6 +673,80 @@ mod tests {
                     transactions[2].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
+                ),
+            ]
+        );
+    }
+
+    /// A `Schedulable::RandomnessStateUpdate`, for which no transaction exists
+    /// yet, must be assigned the current randomness object version under its
+    /// `TransactionKey::RandomnessRound`, and — because its shared input is
+    /// mutable — bump the version that subsequent randomness-using
+    /// transactions are assigned.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_with_randomness_schedulable() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let randomness_obj_version = epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version();
+        let round = RandomnessRound::new(1);
+        let transactions = [
+            generate_shared_objs_tx_with_gas_version(
+                &[(ObjectId::RANDOMNESS_STATE, randomness_obj_version, false)],
+                3,
+            ),
+            generate_shared_objs_tx_with_gas_version(
+                &[(ObjectId::RANDOMNESS_STATE, randomness_obj_version, false)],
+                5,
+            ),
+        ];
+        let mut assignables: Vec<Schedulable<&VerifiedExecutableTransaction>> =
+            vec![Schedulable::RandomnessStateUpdate(
+                epoch_store.epoch(),
+                round,
+            )];
+        assignables.extend(transactions.iter().map(Schedulable::Transaction));
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        let next_randomness_obj_version = randomness_obj_version.next().unwrap();
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(ObjectId::RANDOMNESS_STATE, next_randomness_obj_version)])
+        );
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        randomness_obj_version
+                    )]
+                ),
+                (
+                    transactions[0].key(),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
+                ),
+                (
+                    transactions[1].key(),
                     vec![VersionAssignment::new(
                         ObjectId::RANDOMNESS_STATE,
                         next_randomness_obj_version
@@ -626,13 +855,17 @@ mod tests {
         .collect();
 
         // Run version assignment logic.
+        let assignables = transactions
+            .iter()
+            .map(Schedulable::Transaction)
+            .collect::<Vec<_>>();
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            transactions.iter(),
+            assignables.iter(),
             &cancelled_txns,
         )
         .unwrap();
@@ -650,7 +883,7 @@ mod tests {
 
         // Check that the version assignment for each transaction is correct.
         assert_eq!(
-            assigned_versions,
+            assigned_versions.0,
             vec![
                 (
                     transactions[0].key(),
@@ -694,6 +927,114 @@ mod tests {
                         ),
                         VersionAssignment::new(id2, Version::CANCELED_READ)
                     ]
+                ),
+            ]
+        );
+    }
+
+    /// A `Schedulable::RandomnessStateUpdate` and a congestion-cancelled
+    /// transaction in the same batch — the shape of a real commit — must not
+    /// disturb each other's version accounting: the update takes the current
+    /// randomness object version and bumps it once; the cancelled transaction
+    /// gets its special versions without bumping anything (neither the
+    /// congested object nor the randomness object it reads); a trailing reader
+    /// sees the bumped randomness version. The existing tests cover each half
+    /// only in isolation.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_with_randomness_schedulable_and_cancellation() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let randomness_obj_version = epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version();
+        let round = RandomnessRound::new(1);
+
+        let cancelled_tx = generate_shared_objs_tx_with_gas_version(
+            &[
+                (id, init_shared_version, true),
+                (ObjectId::RANDOMNESS_STATE, randomness_obj_version, false),
+            ],
+            5,
+        );
+        let reader = generate_shared_objs_tx_with_gas_version(
+            &[(ObjectId::RANDOMNESS_STATE, randomness_obj_version, false)],
+            3,
+        );
+        let suggested_gas_price = 1_000;
+        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
+            *cancelled_tx.digest(),
+            CancelConsensusTransactionReason::Congested {
+                congested_objects: vec![id],
+                suggested_gas_price: Some(suggested_gas_price),
+            },
+        )]
+        .into_iter()
+        .collect();
+
+        let mut assignables: Vec<Schedulable<&VerifiedExecutableTransaction>> =
+            vec![Schedulable::RandomnessStateUpdate(
+                epoch_store.epoch(),
+                round,
+            )];
+        assignables.push(Schedulable::Transaction(&cancelled_tx));
+        assignables.push(Schedulable::Transaction(&reader));
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &cancelled_txns,
+        )
+        .unwrap();
+
+        let next_randomness_obj_version = randomness_obj_version.next().unwrap();
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([
+                // The cancelled transaction must not have bumped it.
+                (id, init_shared_version),
+                (ObjectId::RANDOMNESS_STATE, next_randomness_obj_version),
+            ])
+        );
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        randomness_obj_version
+                    )]
+                ),
+                (
+                    cancelled_tx.key(),
+                    vec![
+                        VersionAssignment::new(
+                            id,
+                            Version::new_congested_with_suggested_gas_price(suggested_gas_price)
+                                .unwrap(),
+                        ),
+                        VersionAssignment::new(ObjectId::RANDOMNESS_STATE, Version::CANCELED_READ),
+                    ]
+                ),
+                (
+                    reader.key(),
+                    vec![VersionAssignment::new(
+                        ObjectId::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
                 ),
             ]
         );
@@ -746,7 +1087,7 @@ mod tests {
             init_shared_version
         );
         assert_eq!(
-            assigned_versions,
+            assigned_versions.0,
             vec![
                 (
                     transactions[0].key(),
@@ -770,8 +1111,8 @@ mod tests {
 
     // A transaction without shared inputs that is cancelled for congestion
     // carries its cancellation version on the gas object. All three assignment
-    // paths must agree on that assignment: consensus processing (the
-    // assigned-versions table), the per-transaction assignment used for the
+    // paths must agree on that assignment: consensus processing, the
+    // per-transaction assignment used for the
     // consensus commit prologue, and the reconstruction from the effects'
     // execution status used by checkpoint replay.
     #[tokio::test]
@@ -809,12 +1150,12 @@ mod tests {
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            [&transaction].into_iter(),
+            [Schedulable::Transaction(&transaction)].iter(),
             &cancelled_txns,
         )
         .unwrap();
         assert_eq!(
-            assigned_versions,
+            assigned_versions.0,
             vec![(transaction.key(), expected_assignment.clone())]
         );
         // The gas object must not leak into the shared object version
@@ -824,7 +1165,8 @@ mod tests {
         // The per-transaction assignment recorded in the consensus commit
         // prologue.
         let prologue_assignment = SharedObjVerManager::assign_versions_for_transaction(
-            &transaction,
+            &epoch_store,
+            &Schedulable::Transaction(&transaction),
             &mut HashMap::new(),
             &cancelled_txns,
             true,
@@ -847,7 +1189,7 @@ mod tests {
             authority.get_object_cache_reader().as_ref(),
         );
         assert_eq!(
-            replay_assignment,
+            replay_assignment.0,
             vec![(transaction.key(), expected_assignment)]
         );
 
@@ -858,11 +1200,281 @@ mod tests {
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            [&not_cancelled].into_iter(),
+            [Schedulable::Transaction(&not_cancelled)].iter(),
             &cancelled_txns,
         )
         .unwrap();
-        assert!(assigned_versions.is_empty());
+        assert!(assigned_versions.0.is_empty());
+    }
+
+    /// Shared objects read by a transaction's `MoveAuthenticator`s are shared
+    /// inputs of that transaction even though they are absent from its own
+    /// inputs, so they must be assigned versions too — and a transaction whose
+    /// only shared input comes from an authenticator must not be skipped as
+    /// having no shared objects. Assigning from `TransactionData` instead of
+    /// the envelope would leave such inputs unassigned, and execution — which
+    /// reads the full set — would panic in `get_input_object_keys`.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_with_move_authenticator() {
+        let body_object = Object::shared_for_testing();
+        let authenticated_object = Object::shared_for_testing();
+        let body_id = body_object.id();
+        let authenticated_id = authenticated_object.id();
+        let body_init_version = body_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authenticated_init_version = authenticated_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(&[body_object.clone(), authenticated_object.clone()])
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let authenticate_shared_object = || {
+            MoveAuthenticatorV1::new_with_shared_account_object(
+                vec![],
+                vec![],
+                SharedObjectReference::new(authenticated_id, authenticated_init_version, false),
+            )
+        };
+        let transactions = [
+            // Shared input in the body plus one authenticated by the signature.
+            generate_tx_with_authenticator(
+                &[(body_id, body_init_version, true)],
+                authenticate_shared_object(),
+                3,
+            ),
+            // No shared input of its own: only the authenticated object.
+            generate_tx_with_authenticator(&[], authenticate_shared_object(), 5),
+        ];
+        let assignables = transactions
+            .iter()
+            .map(Schedulable::Transaction)
+            .collect::<Vec<_>>();
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    transactions[0].key(),
+                    vec![
+                        VersionAssignment::new(body_id, body_init_version),
+                        VersionAssignment::new(authenticated_id, authenticated_init_version),
+                    ]
+                ),
+                (
+                    transactions[1].key(),
+                    vec![VersionAssignment::new(
+                        authenticated_id,
+                        authenticated_init_version
+                    )]
+                ),
+            ]
+        );
+        // The body object is a mutable input, so it advances to the lamport
+        // version of the first transaction (its gas object is at version 3);
+        // the authenticated object is read-only and stays put.
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([
+                (body_id, Version::from_u64(4)),
+                (authenticated_id, authenticated_init_version),
+            ])
+        );
+    }
+
+    /// A `MoveAuthenticator`'s owned inputs count towards the transaction's
+    /// lamport version, since the transaction reads them like any other input.
+    /// Computing it from the transaction body alone would under-count and
+    /// assign shared objects a version below one their execution already
+    /// wrote.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_with_owned_authenticator_input() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        // The authenticated object is owned and at a version far above the gas
+        // object's, so it alone decides the lamport version.
+        let authenticated_version = Version::from_u64(100);
+        let authenticator = MoveAuthenticatorV1::new_with_immutable_account_object(
+            vec![],
+            vec![],
+            ObjectReference::new(
+                ObjectId::random(),
+                authenticated_version,
+                ObjectDigest::random(),
+            ),
+        );
+        let transaction =
+            generate_tx_with_authenticator(&[(id, init_shared_version, true)], authenticator, 3);
+        let assignables = [Schedulable::Transaction(&transaction)];
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            assigned_versions.0,
+            vec![(
+                transaction.key(),
+                vec![VersionAssignment::new(id, init_shared_version)]
+            )]
+        );
+        // Without the authenticator's owned input the lamport version would be
+        // 4 (from the gas object at version 3).
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(id, authenticated_version.next().unwrap())])
+        );
+    }
+
+    /// When the transaction body and its `MoveAuthenticator` both reference a
+    /// shared object, the mutability flags are unioned: a read-only reference
+    /// in the body plus a mutable one in the authenticator makes the input
+    /// mutable, so its version must advance for later transactions. Taking the
+    /// flag from the body alone would leave the version behind while execution
+    /// writes the object.
+    #[tokio::test]
+    async fn test_assign_versions_from_consensus_unions_authenticator_mutability() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        // The mutable reference is a call argument: authenticating a mutable
+        // shared object is rejected outright by `validity_check`, so that is
+        // the only shape in which an authenticator can read one mutably. The
+        // authenticated object is owned and at a version below the gas
+        // object's, keeping it out of the lamport computation.
+        let authenticator = MoveAuthenticatorV1::new_with_immutable_account_object(
+            vec![CallArg::Shared(SharedObjectReference::new(
+                id,
+                init_shared_version,
+                true,
+            ))],
+            vec![],
+            ObjectReference::new(
+                ObjectId::random(),
+                Version::from_u64(1),
+                ObjectDigest::random(),
+            ),
+        );
+        // The body reads the very same object read-only.
+        let transaction =
+            generate_tx_with_authenticator(&[(id, init_shared_version, false)], authenticator, 3);
+        let reader =
+            generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, false)], 5);
+        let assignables = [
+            Schedulable::Transaction(&transaction),
+            Schedulable::Transaction(&reader),
+        ];
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            assignables.iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        // Treated as a mutable input, so the object advances to the lamport
+        // version of the first transaction and the reader sees the new one.
+        assert_eq!(
+            assigned_versions.0,
+            vec![
+                (
+                    transaction.key(),
+                    vec![VersionAssignment::new(id, init_shared_version)]
+                ),
+                (
+                    reader.key(),
+                    vec![VersionAssignment::new(id, Version::from_u64(4))]
+                ),
+            ]
+        );
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(id, Version::from_u64(4))])
+        );
+    }
+
+    /// Like `generate_shared_objs_tx_with_gas_version`, but the transaction is
+    /// signed by the given `MoveAuthenticator`.
+    fn generate_tx_with_authenticator(
+        shared_objects: &[(ObjectId, Version, bool)],
+        authenticator: MoveAuthenticatorV1,
+        gas_object_version: u64,
+    ) -> VerifiedExecutableTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        for (shared_object_id, shared_object_init_version, shared_object_mutable) in shared_objects
+        {
+            builder
+                .obj(CallArg::Shared(SharedObjectReference::new(
+                    *shared_object_id,
+                    *shared_object_init_version,
+                    *shared_object_mutable,
+                )))
+                .unwrap();
+        }
+        let tx_data = TestTransactionBuilder::new(
+            Address::ZERO,
+            ObjectReference::new(
+                ObjectId::random(),
+                Version::from_u64(gas_object_version),
+                ObjectDigest::random(),
+            ),
+            0,
+        )
+        .programmable(builder.finish())
+        .build();
+        let tx = SenderSignedTransaction::new(
+            tx_data,
+            vec![UserSignature::MoveAuthenticator(authenticator.into())],
+        );
+        VerifiedExecutableTransaction::new_unchecked(ExecutableTransaction::new_from_data_and_sig(
+            tx,
+            CertificateProof::new_system(0),
+        ))
     }
 
     /// Generate a transaction that uses shared objects as specified in the

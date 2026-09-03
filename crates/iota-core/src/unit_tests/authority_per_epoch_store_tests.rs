@@ -4,21 +4,24 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
     base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
-    deny_rule_governance::DenyRuleSet, messages_consensus::TransactionDenyRuleProposal,
+    messages_consensus::TransactionDenyRuleProposal,
 };
 use tokio::time::timeout;
-use typed_store::rocks::DBBatch;
+use typed_store::{Map, rocks::DBBatch};
 
 use crate::authority::{
+    AuthorityState,
     authority_per_epoch_store::{
-        AuthorityPerEpochStore, consensus_quarantine::ConsensusCommitOutput,
+        AuthorityPerEpochStore, compute_deny_rule_update_chunks,
+        consensus_quarantine::ConsensusCommitOutput,
     },
     test_authority_builder::TestAuthorityBuilder,
 };
@@ -443,6 +446,34 @@ fn rules_denying_address(address: Address) -> DenyRuleSet {
 /// `process_consensus_transaction` will use: buffer it in
 /// `ConsensusCommitOutput` and flush via `write_to_batch`. See
 /// `flush_overload_notification`.
+/// Reopens `store` with the deny-rules object present, as the epoch after its
+/// creation starts. The caller keeps a protocol config override alive for it.
+fn reopen_with_deny_rules_object(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+    initial_shared_version: Version,
+) -> Arc<AuthorityPerEpochStore> {
+    let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
+    epoch_start_configuration
+        .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
+    store.release_db_handles();
+    AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        epoch_start_configuration,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap()
+}
+
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
     let mut output = ConsensusCommitOutput::new(0);
     output.record_deny_rule_proposal(proposal.clone());
@@ -555,6 +586,87 @@ fn compute_active_transaction_deny_rules_applies_stake_thresholds() {
     assert!(!active.user_transaction_disabled);
     assert!(!active.package_publish_disabled);
     assert!(!active.package_upgrade_disabled);
+}
+
+/// The enforcement union keeps every mirrored on-chain entry and switch
+/// active regardless of the proposal-derived aggregate, so rules carry
+/// across the epoch boundary before supporters re-announce.
+#[test]
+fn union_deny_rule_sets_keeps_mirrored_state_active() {
+    use crate::authority::authority_per_epoch_store::union_deny_rule_sets;
+
+    // Every list gets a mirrored-only, an aggregate-only, and a shared entry.
+    // Each side contributes three of the six switches.
+    let shared = Address::new([1u8; 32]);
+    let mirrored = DenyRuleSet {
+        denied_addresses: [shared, Address::new([2u8; 32])].into(),
+        denied_objects: [ObjectId::new([3u8; 32])].into(),
+        denied_packages: [ObjectId::new([4u8; 32])].into(),
+        package_publish_disabled: true,
+        shared_object_disabled: true,
+        receiving_objects_disabled: true,
+        ..Default::default()
+    };
+    let aggregate = DenyRuleSet {
+        denied_addresses: [shared, Address::new([5u8; 32])].into(),
+        denied_objects: [ObjectId::new([6u8; 32])].into(),
+        denied_packages: [ObjectId::new([7u8; 32])].into(),
+        package_upgrade_disabled: true,
+        user_transaction_disabled: true,
+        move_authenticator_disabled: true,
+        ..Default::default()
+    };
+
+    let active = union_deny_rule_sets(aggregate, &mirrored);
+    assert_eq!(
+        active.denied_addresses,
+        [shared, Address::new([2u8; 32]), Address::new([5u8; 32])].into()
+    );
+    assert_eq!(
+        active.denied_objects,
+        [ObjectId::new([3u8; 32]), ObjectId::new([6u8; 32])].into()
+    );
+    assert_eq!(
+        active.denied_packages,
+        [ObjectId::new([4u8; 32]), ObjectId::new([7u8; 32])].into()
+    );
+    assert!(active.package_publish_disabled);
+    assert!(active.package_upgrade_disabled);
+    assert!(active.shared_object_disabled);
+    assert!(active.user_transaction_disabled);
+    assert!(active.receiving_objects_disabled);
+    assert!(active.move_authenticator_disabled);
+
+    // An empty aggregate changes nothing. A fresh epoch starts this way.
+    // This also pins the switches the mirror leaves off.
+    let active = union_deny_rule_sets(DenyRuleSet::default(), &mirrored);
+    assert_eq!(active, mirrored);
+}
+
+/// `announced_deny_rule_stake` sums the committee stake behind recorded
+/// proposals: empty proposals count as announcements, non-members weigh 0.
+#[tokio::test]
+async fn announced_deny_rule_stake_counts_recorded_proposals() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+
+    assert_eq!(store.announced_deny_rule_stake(), 0);
+
+    // A non-member's recorded proposal contributes no stake.
+    flush_deny_rule_proposal(
+        &store,
+        deny_proposal(AuthorityName::ZERO, 1, DenyRuleSet::default()),
+    );
+    assert_eq!(store.announced_deny_rule_stake(), 0);
+
+    // An empty proposal is an announcement: the single-validator test
+    // committee holds all stake.
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, DenyRuleSet::default()));
+    assert_eq!(
+        store.announced_deny_rule_stake(),
+        store.committee().total_votes()
+    );
 }
 
 /// A proposal replaces the recorded one from the same authority only when its
@@ -743,4 +855,964 @@ async fn restart_seed_restores_persisted_deny_rules() {
     let active = reopened.get_active_transaction_deny_rules();
     assert!(active.denied_addresses.contains(&address));
     assert!(active.user_transaction_disabled);
+}
+
+/// `compute_deny_rule_update_chunks` decision table: no diff yields no
+/// chunks; additions and switch activations apply while removals are still
+/// locked; entry removals and switch deactivations wait for the unlock.
+#[test]
+fn deny_rule_update_chunks_respect_removal_grace() {
+    let staying = Address::new([1u8; 32]);
+    let leaving = Address::new([2u8; 32]);
+    let arriving = Address::new([3u8; 32]);
+    let mirror = DenyRuleSet {
+        denied_addresses: [staying, leaving].into(),
+        user_transaction_disabled: true,
+        ..Default::default()
+    };
+    let aggregate = DenyRuleSet {
+        denied_addresses: [staying, arriving].into(),
+        shared_object_disabled: true,
+        ..Default::default()
+    };
+    let version = Version::from_u64(5);
+
+    // Object already up to date: nothing to inject, in either grace state.
+    for unlocked in [false, true] {
+        let (chunks, target) =
+            compute_deny_rule_update_chunks(&mirror, &mirror, unlocked, 1000, 7, 42, version);
+        assert!(chunks.is_empty());
+        assert_eq!(target, mirror);
+    }
+
+    // Removals locked: the arriving address and the newly active switch go
+    // out, but the leaving address stays and the mirrored switch stays on.
+    let (chunks, target) =
+        compute_deny_rule_update_chunks(&aggregate, &mirror, false, 1000, 7, 42, version);
+    assert_eq!(chunks.len(), 1);
+    let chunk = &chunks[0];
+    assert_eq!(chunk.epoch, 7);
+    assert_eq!(chunk.round, 42);
+    assert_eq!(chunk.deny_rules_obj_initial_shared_version, version);
+    assert_eq!(chunk.added_addresses, [arriving].into());
+    assert!(chunk.removed_addresses.is_empty());
+    assert!(chunk.shared_object_disabled);
+    assert!(chunk.user_transaction_disabled);
+    assert_eq!(target.denied_addresses, [staying, leaving, arriving].into());
+    assert!(target.shared_object_disabled);
+    assert!(target.user_transaction_disabled);
+
+    // Removals unlocked: the full diff applies and the object reaches the
+    // aggregate exactly.
+    let (chunks, target) =
+        compute_deny_rule_update_chunks(&aggregate, &mirror, true, 1000, 7, 42, version);
+    assert_eq!(chunks.len(), 1);
+    let chunk = &chunks[0];
+    assert_eq!(chunk.added_addresses, [arriving].into());
+    assert_eq!(chunk.removed_addresses, [leaving].into());
+    assert!(chunk.shared_object_disabled);
+    assert!(!chunk.user_transaction_disabled);
+    assert_eq!(target, aggregate);
+
+    // A switch deactivation alone is also held back until the unlock.
+    let switch_off = DenyRuleSet {
+        denied_addresses: mirror.denied_addresses.clone(),
+        ..Default::default()
+    };
+    let (chunks, target) =
+        compute_deny_rule_update_chunks(&switch_off, &mirror, false, 1000, 7, 42, version);
+    assert!(chunks.is_empty());
+    assert_eq!(target, mirror);
+    let (chunks, _) =
+        compute_deny_rule_update_chunks(&switch_off, &mirror, true, 1000, 7, 42, version);
+    assert_eq!(chunks.len(), 1);
+    assert!(!chunks[0].user_transaction_disabled);
+}
+
+/// A delta larger than the per-transaction limit splits into disjoint chunks
+/// that reassemble to the full diff, each within the limit and carrying the
+/// same switch states — and the split is deterministic.
+#[test]
+fn deny_rule_update_chunks_split_deterministically() {
+    let mirror = DenyRuleSet {
+        denied_packages: (0..2u8).map(|i| ObjectId::new([100 + i; 32])).collect(),
+        ..Default::default()
+    };
+    let aggregate = DenyRuleSet {
+        denied_addresses: (0..5u8).map(|i| Address::new([i; 32])).collect(),
+        denied_objects: (0..3u8).map(|i| ObjectId::new([50 + i; 32])).collect(),
+        user_transaction_disabled: true,
+        ..Default::default()
+    };
+    let version = Version::from_u64(5);
+
+    // 5 added addresses + 3 added objects + 2 removed packages = 10 entries.
+    let (chunks, target) =
+        compute_deny_rule_update_chunks(&aggregate, &mirror, true, 3, 7, 42, version);
+    assert_eq!(chunks.len(), 4);
+    assert_eq!(target, aggregate);
+
+    let mut added_addresses = std::collections::BTreeSet::new();
+    let mut added_objects = std::collections::BTreeSet::new();
+    let mut removed_packages = std::collections::BTreeSet::new();
+    for chunk in &chunks {
+        let entries = chunk.added_addresses.len()
+            + chunk.removed_addresses.len()
+            + chunk.added_objects.len()
+            + chunk.removed_objects.len()
+            + chunk.added_packages.len()
+            + chunk.removed_packages.len();
+        assert!(entries <= 3);
+        // Disjointness: no entry may appear in two chunks.
+        for key in &chunk.added_addresses {
+            assert!(added_addresses.insert(*key));
+        }
+        for key in &chunk.added_objects {
+            assert!(added_objects.insert(*key));
+        }
+        for key in &chunk.removed_packages {
+            assert!(removed_packages.insert(*key));
+        }
+        assert!(chunk.removed_addresses.is_empty());
+        assert!(chunk.removed_objects.is_empty());
+        assert!(chunk.added_packages.is_empty());
+        // Every chunk carries the absolute switch states and target object.
+        assert!(chunk.user_transaction_disabled);
+        assert_eq!(chunk.epoch, 7);
+        assert_eq!(chunk.round, 42);
+        assert_eq!(chunk.deny_rules_obj_initial_shared_version, version);
+    }
+    assert_eq!(added_addresses, aggregate.denied_addresses);
+    assert_eq!(added_objects, aggregate.denied_objects);
+    assert_eq!(removed_packages, mirror.denied_packages);
+
+    // Same inputs, same chunks.
+    let (again, _) = compute_deny_rule_update_chunks(&aggregate, &mirror, true, 3, 7, 42, version);
+    assert_eq!(chunks, again);
+
+    // A zero limit is clamped to one entry per transaction.
+    let (chunks, _) = compute_deny_rule_update_chunks(&aggregate, &mirror, true, 0, 7, 42, version);
+    assert_eq!(chunks.len(), 10);
+}
+
+/// A mid-epoch restart resumes from the persisted mirror row — written
+/// atomically with each injecting commit — not from the epoch-start seed,
+/// which is stale once injections have advanced the object.
+#[tokio::test]
+async fn restart_recovers_the_deny_rule_mirror() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let address = Address::new([7u8; 32]);
+
+    // Fresh epoch: no persisted row, the mirror starts from the seed.
+    assert_eq!(
+        *store.get_mirrored_transaction_deny_rules(),
+        DenyRuleSet::default()
+    );
+
+    // An injecting commit persists the advanced mirror with its results.
+    let mirror = rules_denying_address(address);
+    let mut output = ConsensusCommitOutput::default();
+    output.record_deny_rule_mirror(mirror.clone());
+    output.set_default_commit_stats_for_testing();
+    let mut batch = store.db_batch_for_test();
+    output.write_to_batch(&store, &mut batch).unwrap();
+    batch.write().unwrap();
+
+    // Reopen over the same epoch DB, as a restart does.
+    store.release_db_handles();
+    let reopened = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        (*store.epoch_start_configuration).clone(),
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+
+    assert_eq!(*reopened.get_mirrored_transaction_deny_rules(), mirror);
+    // The recovered mirror flows back into enforcement.
+    assert!(
+        reopened
+            .get_active_transaction_deny_rules()
+            .denied_addresses
+            .contains(&address)
+    );
+}
+
+/// Injection at the commit boundary: with the flag on and the object present,
+/// a recorded proposal makes the next commit inject a
+/// `TransactionDenyRulesUpdate`, advance the mirror in lockstep, and go quiet
+/// once the object is up to date. Without the object nothing is injected.
+#[tokio::test]
+async fn commit_injects_deny_rule_updates_and_advances_mirror() {
+    use std::collections::VecDeque;
+
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::TransactionKind;
+    use iota_types::transaction::TransactionAPI;
+
+    use crate::consensus_handler::ConsensusCommitInfo;
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_deny_rule_governance_for_testing(true);
+    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config.clone())
+        .build()
+        .await;
+    // The builder's config override drops when `build` returns; keep one
+    // alive for the reopened epoch store below.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+    let address = Address::new([1u8; 32]);
+
+    // The object does not exist this epoch: nothing to update.
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
+        .unwrap();
+    assert!(transactions.is_empty());
+    assert!(roots.is_empty());
+
+    // Reopen with the object present at the epoch boundary, as the epoch
+    // after its creation starts.
+    let initial_shared_version = Version::from_u64(3);
+    let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
+    epoch_start_configuration
+        .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
+    store.release_db_handles();
+    let store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        epoch_start_configuration,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
+
+    // The single validator holds all stake and the grace floor is 0, so the
+    // first commit injects the full aggregate.
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
+        .unwrap();
+    assert_eq!(transactions.len(), 1);
+    let TransactionKind::TransactionDenyRulesUpdate(update) =
+        transactions[0].as_tx().unwrap().data().transaction().kind()
+    else {
+        panic!("expected a deny-rules update transaction");
+    };
+    assert_eq!(update.added_addresses, [address].into());
+    assert_eq!(
+        update.deny_rules_obj_initial_shared_version,
+        initial_shared_version
+    );
+    assert_eq!(
+        *store.get_mirrored_transaction_deny_rules(),
+        rules_denying_address(address)
+    );
+    // Nothing else in a commit can depend on the deny-rules object, so the
+    // update only reaches a checkpoint if it is a root of its own.
+    assert_eq!(
+        roots,
+        [transactions[0].key()].into_iter().collect(),
+        "the injected update must be registered as a checkpoint root"
+    );
+
+    // The advanced mirror is persisted with the same commit output.
+    output.set_default_commit_stats_for_testing();
+    let mut batch = store.db_batch_for_test();
+    output.write_to_batch(&store, &mut batch).unwrap();
+    batch.write().unwrap();
+
+    // The next commit finds the object up to date and injects nothing.
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
+        .unwrap();
+    assert!(transactions.is_empty());
+    assert!(roots.is_empty());
+
+    // Withdrawing the proposal makes a later, proposal-free commit inject
+    // the removal; the mirror and the enforced active set must drop the
+    // entry in that same commit, not at the next proposal-driven recompute.
+    flush_deny_rule_proposal(&store, deny_proposal(me, 2, DenyRuleSet::default()));
+    assert!(
+        store
+            .get_active_transaction_deny_rules()
+            .denied_addresses
+            .contains(&address)
+    );
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
+        .unwrap();
+    assert_eq!(transactions.len(), 1);
+    let TransactionKind::TransactionDenyRulesUpdate(update) =
+        transactions[0].as_tx().unwrap().data().transaction().kind()
+    else {
+        panic!("expected a deny-rules update transaction");
+    };
+    assert_eq!(update.removed_addresses, [address].into());
+    assert_eq!(
+        *store.get_mirrored_transaction_deny_rules(),
+        DenyRuleSet::default()
+    );
+    assert_eq!(
+        *store.get_active_transaction_deny_rules(),
+        DenyRuleSet::default()
+    );
+    assert_eq!(roots, [transactions[0].key()].into_iter().collect());
+}
+
+/// `process_consensus_transactions` builds the commit queue with two
+/// `push_front`s, the deny-rule update first and the consensus commit prologue
+/// after it, so the prologue stays the first transaction of every commit.
+#[tokio::test]
+async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
+    use std::num::NonZeroUsize;
+
+    use iota_network::randomness;
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::TransactionKind;
+    use iota_swarm_config::network_config_builder::ConfigBuilder;
+    use iota_types::transaction::TransactionAPI;
+
+    use crate::{
+        checkpoints::CheckpointServiceNoop,
+        epoch::randomness::RandomnessManager,
+        mock_consensus::{ConsensusMode, MockConsensusClient},
+    };
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_deny_rule_governance_for_testing(true);
+    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+    // The validator's own key is needed below: the reopened store gets its own
+    // randomness manager, and one is built from the committee member's key.
+    let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(1).unwrap())
+        .build();
+    let validator = &network_config.validator_configs[0];
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config.clone())
+        .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
+        .build()
+        .await;
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+    let store = reopen_with_deny_rules_object(&authority_state, &store, Version::from_u64(3));
+    // The commit boundary insists on a randomness manager; one whose DKG never
+    // completes keeps randomness out of the commit.
+    let randomness_manager = RandomnessManager::try_new(
+        Arc::downgrade(&store),
+        Box::new(MockConsensusClient::new(
+            Arc::downgrade(&authority_state),
+            ConsensusMode::Noop,
+        )),
+        randomness::Handle::new_stub(),
+        validator.authority_key_pair(),
+    )
+    .await
+    .unwrap();
+    store
+        .set_randomness_manager(randomness_manager)
+        .await
+        .unwrap();
+    flush_deny_rule_proposal(
+        &store,
+        deny_proposal(me, 1, rules_denying_address(Address::new([1u8; 32]))),
+    );
+
+    let (scheduled, _assigned_versions) = store
+        .process_consensus_transactions_for_tests(
+            vec![],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority_state.get_object_cache_reader().as_ref(),
+            &authority_state.metrics,
+            false,
+            &authority_state,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(scheduled.len(), 2);
+    let kind = |i: usize| {
+        scheduled[i]
+            .as_tx()
+            .expect("the commit queue holds transactions only")
+            .data()
+            .transaction()
+            .kind()
+            .clone()
+    };
+    assert!(matches!(
+        kind(0),
+        TransactionKind::ConsensusCommitPrologueV1(_)
+    ));
+    assert!(matches!(
+        kind(1),
+        TransactionKind::TransactionDenyRulesUpdate(_)
+    ));
+}
+
+/// A commit processed after `close_all_tx` ignores every chunk: nothing is
+/// scheduled or rooted, the mirror is held back, and the unchanged mirror
+/// re-derives the identical delta for the next derivation.
+#[tokio::test]
+async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
+    use std::collections::VecDeque;
+
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+    use crate::consensus_handler::ConsensusCommitInfo;
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_deny_rule_governance_for_testing(true);
+    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config.clone())
+        .build()
+        .await;
+    // The builder's config override drops when `build` returns; keep one
+    // alive for the reopened epoch store below.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+    let address = Address::new([1u8; 32]);
+
+    let initial_shared_version = Version::from_u64(3);
+    let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
+    epoch_start_configuration
+        .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
+    store.release_db_handles();
+    let store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        epoch_start_configuration,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
+
+    // The epoch is closing: no transaction is accepted any more.
+    store.get_reconfig_state_write_lock_guard().close_all_tx();
+
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
+        .unwrap();
+    assert!(transactions.is_empty());
+    assert!(roots.is_empty());
+    assert_eq!(
+        *store.get_mirrored_transaction_deny_rules(),
+        DenyRuleSet::default(),
+        "an ignored chunk must hold the mirror back"
+    );
+
+    // The held-back mirror re-derives the identical delta.
+    let mirror = store.get_mirrored_transaction_deny_rules();
+    let (chunks, target) = compute_deny_rule_update_chunks(
+        &rules_denying_address(address),
+        &mirror,
+        true,
+        1000,
+        store.epoch(),
+        1,
+        initial_shared_version,
+    );
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].added_addresses, [address].into());
+    assert_eq!(target, rules_denying_address(address));
+}
+
+/// Every chunk of a split delta becomes its own checkpoint root: a chunk that
+/// executes but reaches no checkpoint would leave the object behind on every
+/// node that follows checkpoints rather than consensus.
+#[tokio::test]
+async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
+    use std::collections::{BTreeSet, VecDeque};
+
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+    use crate::consensus_handler::ConsensusCommitInfo;
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_deny_rule_governance_for_testing(true);
+    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    // One entry per transaction, so the four denied addresses below split
+    // across four chunks.
+    protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1);
+    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config.clone())
+        .build()
+        .await;
+    let store = authority_state.epoch_store_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
+    let me = store.name;
+    let rules = DenyRuleSet {
+        denied_addresses: (0..4u8).map(|i| Address::new([i; 32])).collect(),
+        ..Default::default()
+    };
+
+    let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
+    epoch_start_configuration
+        .set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
+    store.release_db_handles();
+    let store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        epoch_start_configuration,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules));
+
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(
+            &mut output,
+            &mut transactions,
+            &mut roots,
+            &ConsensusCommitInfo::new_for_test(1, 0, false),
+        )
+        .unwrap();
+
+    assert_eq!(transactions.len(), 4);
+    let injected: BTreeSet<_> = transactions.iter().map(|tx| tx.key()).collect();
+    assert_eq!(roots, injected);
+}
+
+/// The guard only compares on a node that kept a mirror through the closing
+/// epoch: matching states pass, and a node outside the closing committee is
+/// exempt even when its seed lags the object.
+#[tokio::test]
+async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    // Close the epoch so the comparisons below run rather than being exempt.
+    store.get_reconfig_state_write_lock_guard().close_all_tx();
+    let walked = rules_denying_address(Address::new([9u8; 32]));
+
+    // Matching states (both default) pass for a committee member, as does a
+    // configuration without the object.
+    let mut matching = (*store.epoch_start_configuration).clone();
+    matching.set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
+    // `debug_fatal!` aborts test configurations, so returning is the assertion.
+    authority_state.check_transaction_deny_rules_consistency(&store, &matching);
+    authority_state
+        .check_transaction_deny_rules_consistency(&store, &store.epoch_start_configuration);
+
+    // A node that was not in the closing epoch's committee has no mirror to
+    // compare: reopen the store under a foreign committee and diverge the
+    // walked state — the guard must not fire.
+    let mut diverged = (*store.epoch_start_configuration).clone();
+    diverged.set_transaction_deny_rules_for_testing(Version::from_u64(3), walked);
+    // The simple test committee is seeded like the test authority's own keys,
+    // so drop this node's name explicitly to get a committee it is not in.
+    let (simple_committee, _keys) = Committee::new_simple_test_committee();
+    let foreign_committee = Committee::new_for_testing_with_normalized_voting_power(
+        0,
+        simple_committee
+            .members()
+            .filter(|(name, _)| *name != store.name)
+            .map(|(name, stake)| (*name, *stake))
+            .collect(),
+    );
+    store.release_db_handles();
+    let fullnode_store = AuthorityPerEpochStore::new(
+        store.name,
+        std::sync::Arc::new(foreign_committee),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        (*store.epoch_start_configuration).clone(),
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    assert!(authority_state.is_fullnode(&fullnode_store));
+    authority_state.check_transaction_deny_rules_consistency(&fullnode_store, &diverged);
+}
+
+/// With the object present, a fresh epoch persists the mirror seed row
+/// immediately, so a row absent although commits have flushed is a lost
+/// row: the store refuses to open rather than start from the stale seed.
+#[tokio::test]
+#[should_panic(expected = "deny_rule_mirror row is missing")]
+async fn lost_mirror_row_after_flushed_commits_fails_the_reopen() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let mut with_object = (*store.epoch_start_configuration).clone();
+    with_object
+        .set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
+
+    // Fresh epoch with the object: the constructor writes the seed row.
+    store.release_db_handles();
+    let store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        with_object.clone(),
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    let tables = store.tables().unwrap();
+    assert!(tables.deny_rule_mirror.get(&()).unwrap().is_some());
+
+    // Flush a commit, then lose the row.
+    flush_deny_rule_proposal(&store, deny_proposal(store.name, 1, DenyRuleSet::default()));
+    tables.deny_rule_mirror.remove(&()).unwrap();
+    drop(tables);
+    store.release_db_handles();
+    let _ = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        with_object,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    );
+}
+
+/// A validator that crosses the boundary by executing synced checkpoints
+/// never closes the epoch in its own consensus. Its mirror legitimately
+/// lags the object and the re-seed repairs it. The guard must not report
+/// that lag as a divergence.
+#[tokio::test]
+async fn deny_rule_mirror_guard_exempts_an_epoch_consensus_did_not_close() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    // The reconfig state stays at its default: the epoch was never closed.
+    let mut diverged = (*store.epoch_start_configuration).clone();
+    diverged.set_transaction_deny_rules_for_testing(
+        Version::from_u64(3),
+        rules_denying_address(Address::new([9u8; 32])),
+    );
+    // `debug_fatal!` aborts test configurations, so returning is the assertion.
+    authority_state.check_transaction_deny_rules_consistency(&store, &diverged);
+    assert_eq!(store.metrics.deny_rule_mirror_divergence.get(), 0);
+}
+
+/// A diverged mirror is reported: `debug_fatal!` aborts test configurations,
+/// so a divergence introduced by a bug fails the suite. The epoch is closed
+/// first so the comparison runs.
+#[tokio::test]
+#[should_panic(expected = "diverged from the mirrored state")]
+async fn deny_rule_mirror_guard_reports_divergence() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    store.get_reconfig_state_write_lock_guard().close_all_tx();
+    let mut diverged = (*store.epoch_start_configuration).clone();
+    diverged.set_transaction_deny_rules_for_testing(
+        Version::from_u64(3),
+        rules_denying_address(Address::new([9u8; 32])),
+    );
+    authority_state.check_transaction_deny_rules_consistency(&store, &diverged);
+}
+
+/// Objects cannot be deleted, so a walk finding no object after the closing
+/// epoch had one means the local store lost it. Unlike a readable divergence
+/// there is nothing to re-seed from, so this fail-stops in every build.
+#[tokio::test]
+#[should_panic(expected = "missing from the state walked")]
+async fn deny_rule_mirror_guard_fails_on_a_missing_object() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let next_without_object = (*store.epoch_start_configuration).clone();
+    let mut with_object = (*store.epoch_start_configuration).clone();
+    with_object
+        .set_transaction_deny_rules_for_testing(Version::from_u64(3), DenyRuleSet::default());
+    store.release_db_handles();
+    let closing_store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        with_object,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    authority_state.check_transaction_deny_rules_consistency(&closing_store, &next_without_object);
+}
+
+/// Failure effects for a `TransactionDenyRulesUpdate` fire the report;
+/// success effects and other transaction kinds do not. Identification is by
+/// kind, so a fresh authority — a restart — reports a failure it never
+/// scheduled; a tracking-set refactor would break this test. The effects
+/// arrive with an expected digest here, as they do while executing a certified
+/// checkpoint, so the report counts and logs without asserting.
+#[tokio::test]
+async fn failed_deny_rule_update_execution_is_reported() {
+    use std::collections::BTreeSet;
+
+    use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionDenyRulesUpdate};
+    use iota_types::{
+        effects::TestEffectsBuilder, executable_transaction::VerifiedExecutableTransaction,
+        transaction::VerifiedTransaction,
+    };
+
+    let update_transaction = || {
+        VerifiedExecutableTransaction::new_system(
+            VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+                epoch: 0,
+                round: 1,
+                added_addresses: [Address::new([7u8; 32])].into(),
+                removed_addresses: BTreeSet::new(),
+                added_objects: BTreeSet::new(),
+                removed_objects: BTreeSet::new(),
+                added_packages: BTreeSet::new(),
+                removed_packages: BTreeSet::new(),
+                package_publish_disabled: false,
+                package_upgrade_disabled: false,
+                shared_object_disabled: false,
+                user_transaction_disabled: false,
+                receiving_objects_disabled: false,
+                move_authenticator_disabled: false,
+                deny_rules_obj_initial_shared_version: Version::from_u64(1),
+            }),
+            0,
+        )
+    };
+    let failure = || ExecutionStatus::Failure {
+        error: ExecutionError::InsufficientGas,
+        command: None,
+    };
+    let update_effects = |transaction: &VerifiedExecutableTransaction, status: ExecutionStatus| {
+        TestEffectsBuilder::new(transaction.data())
+            .with_shared_input_versions(
+                [(
+                    iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
+                    Version::from_u64(1),
+                )]
+                .into(),
+            )
+            .with_status(status)
+            .build()
+    };
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let failures = || store.metrics.deny_rule_update_execution_failures.get();
+
+    let update = update_transaction();
+    let effects = update_effects(&update, ExecutionStatus::Success);
+    authority_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects,
+        Some(effects.digest()),
+        &store,
+    );
+    assert_eq!(failures(), 0);
+
+    let effects = update_effects(&update, failure());
+    authority_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects,
+        Some(effects.digest()),
+        &store,
+    );
+    assert_eq!(failures(), 1);
+
+    let genesis = VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_genesis_transaction(Vec::new(), Vec::new()),
+        0,
+    );
+    let genesis_effects = TestEffectsBuilder::new(genesis.data())
+        .with_status(failure())
+        .build();
+    authority_state.report_failed_deny_rule_update_execution(
+        &genesis,
+        &genesis_effects,
+        Some(genesis_effects.digest()),
+        &store,
+    );
+    assert_eq!(failures(), 1);
+
+    let restarted_state = TestAuthorityBuilder::new().build().await;
+    let restarted_store = restarted_state.epoch_store_for_testing();
+    let update = update_transaction();
+    let effects = update_effects(&update, failure());
+    restarted_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects,
+        Some(effects.digest()),
+        &restarted_store,
+    );
+    assert_eq!(
+        restarted_store
+            .metrics
+            .deny_rule_update_execution_failures
+            .get(),
+        1
+    );
+}
+
+/// Effects the node derived itself carry no expected digest, and a failure in
+/// them is this node's own broken invariant: the report asserts. Only the
+/// simulator can observe a `debug_fatal!` instead of aborting on it, so the
+/// live path is covered here rather than in the plain unit test above.
+#[cfg(msim)]
+#[iota_macros::sim_test]
+async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
+    use std::{
+        collections::BTreeSet,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    use iota_common::register_debug_fatal_handler;
+    use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionDenyRulesUpdate};
+    use iota_types::{
+        effects::TestEffectsBuilder, executable_transaction::VerifiedExecutableTransaction,
+        transaction::VerifiedTransaction,
+    };
+
+    let asserted = Arc::new(AtomicUsize::new(0));
+    register_debug_fatal_handler!("TransactionDenyRulesUpdate failed execution", {
+        let asserted = asserted.clone();
+        move || {
+            asserted.fetch_add(1, Ordering::SeqCst);
+        }
+    });
+
+    let update = VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+            epoch: 0,
+            round: 1,
+            added_addresses: [Address::new([7u8; 32])].into(),
+            removed_addresses: BTreeSet::new(),
+            added_objects: BTreeSet::new(),
+            removed_objects: BTreeSet::new(),
+            added_packages: BTreeSet::new(),
+            removed_packages: BTreeSet::new(),
+            package_publish_disabled: false,
+            package_upgrade_disabled: false,
+            shared_object_disabled: false,
+            user_transaction_disabled: false,
+            receiving_objects_disabled: false,
+            move_authenticator_disabled: false,
+            deny_rules_obj_initial_shared_version: Version::from_u64(1),
+        }),
+        0,
+    );
+    let effects = |status| {
+        TestEffectsBuilder::new(update.data())
+            .with_shared_input_versions(
+                [(
+                    iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
+                    Version::from_u64(1),
+                )]
+                .into(),
+            )
+            .with_status(status)
+            .build()
+    };
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+
+    authority_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects(ExecutionStatus::Success),
+        None,
+        &store,
+    );
+    assert_eq!(asserted.load(Ordering::SeqCst), 0);
+    assert_eq!(store.metrics.deny_rule_update_execution_failures.get(), 0);
+
+    authority_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects(ExecutionStatus::Failure {
+            error: ExecutionError::InsufficientGas,
+            command: None,
+        }),
+        None,
+        &store,
+    );
+    assert_eq!(asserted.load(Ordering::SeqCst), 1);
+    assert_eq!(store.metrics.deny_rule_update_execution_failures.get(), 1);
 }

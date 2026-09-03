@@ -168,7 +168,7 @@ pub struct ObjectInfo {
     pub object_id: ObjectId,
     pub version: Version,
     pub digest: ObjectDigest,
-    pub type_: ObjectType,
+    pub object_type: ObjectType,
     pub owner: Owner,
     pub previous_transaction: TransactionDigest,
 }
@@ -179,7 +179,7 @@ impl ObjectInfo {
             object_id: oref.object_id,
             version: oref.version,
             digest: oref.digest,
-            type_: o.into(),
+            object_type: o.into(),
             owner: o.owner,
             previous_transaction: o.previous_transaction,
         }
@@ -190,7 +190,7 @@ impl ObjectInfo {
             object_id: object.id(),
             version: object.version(),
             digest: object.digest(),
-            type_: object.into(),
+            object_type: object.into(),
             owner: object.owner,
             previous_transaction: object.previous_transaction,
         }
@@ -469,7 +469,7 @@ impl TxContext {
     ) -> Self {
         Self {
             sender: AccountAddress::new(sender.into_bytes()),
-            digest: digest.into_inner().to_vec(),
+            digest: digest.into_bytes().to_vec(),
             epoch: *epoch_id,
             epoch_timestamp_ms,
             ids_created: 0,

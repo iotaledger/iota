@@ -619,8 +619,7 @@ pub(crate) async fn backfill_checkpoint_summaries(
         &RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
 
     let highest_synced = checkpoint_store
-        .get_highest_synced_checkpoint()?
-        .map(|c| c.sequence_number)
+        .get_highest_synced_checkpoint_seq_number()?
         .ok_or_else(|| {
             anyhow!("checkpoint store at {node_db_path:?} is empty; restore the node first")
         })?;
@@ -804,7 +803,7 @@ pub async fn download_formal_snapshot(
     epoch: EpochId,
     genesis: &Path,
     snapshot_store_config: ObjectStoreConfig,
-    num_parallel_downloads: usize,
+    num_parallel_downloads: NonZeroUsize,
     verify: SnapshotVerifyMode,
     skip_grpc_indexes: bool,
     disable_progress_bar: bool,
@@ -853,7 +852,7 @@ pub async fn download_formal_snapshot(
         epoch,
         &snapshot_store_config,
         &local_store_config,
-        NonZeroUsize::new(num_parallel_downloads).unwrap(),
+        num_parallel_downloads,
         m.clone(),
         false, // skip_reset_local_store
     )
@@ -928,7 +927,7 @@ pub async fn download_formal_snapshot(
 
     // TODO if verify is false, we should skip generating these and
     // not pass in a channel to the reader
-    let (sender, mut receiver) = mpsc::channel(num_parallel_downloads);
+    let (sender, mut receiver) = mpsc::channel(num_parallel_downloads.get());
     let grpc_indexes_clone = grpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {

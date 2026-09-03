@@ -3,9 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::effects::InputSharedObject as NativeInputSharedObject;
+use iota_sdk_types::InputSharedObject;
 
-use crate::types::{iota_address::IotaAddress, object_read::ObjectRead, uint53::UInt53};
+use crate::{
+    error::Error,
+    types::{iota_address::IotaAddress, object_read::ObjectRead, uint53::UInt53},
+};
 
 /// Details pertaining to shared objects that are referenced by but not changed
 /// by a transaction. This information is considered part of the effects,
@@ -53,43 +56,42 @@ pub(crate) struct SharedObjectCancelled {
     version: UInt53,
 }
 
-/// Error for converting from an `InputSharedObject`.
-pub(crate) struct SharedObjectChanged;
-
 impl UnchangedSharedObject {
+    /// Returns `Ok(None)` if the input shared object was mutated by the
+    /// transaction, as only unchanged shared objects are represented here.
     pub fn try_from(
-        input: NativeInputSharedObject,
+        input: InputSharedObject,
         checkpoint_viewed_at: u64,
-    ) -> Result<Self, SharedObjectChanged> {
-        use NativeInputSharedObject as I;
+    ) -> Result<Option<Self>, Error> {
+        use InputSharedObject as I;
         use UnchangedSharedObject as U;
 
-        match input {
-            I::Mutate(_) => Err(SharedObjectChanged),
+        Ok(match input {
+            I::Mutate(_) => None,
 
-            I::ReadOnly(oref) => Ok(U::Read(SharedObjectRead {
+            I::ReadOnly(oref) => Some(U::Read(SharedObjectRead {
                 read: ObjectRead {
                     native: oref,
                     checkpoint_viewed_at,
                 },
             })),
 
-            I::ReadDeleted(id, v) => Ok(U::Delete(SharedObjectDelete {
-                address: id.into(),
-                version: v.as_u64().into(),
+            I::ReadDeleted(object) => Some(U::Delete(SharedObjectDelete {
+                address: object.object_id.into(),
+                version: object.version.as_u64().try_into()?,
                 mutable: false,
             })),
 
-            I::MutateDeleted(id, v) => Ok(U::Delete(SharedObjectDelete {
-                address: id.into(),
-                version: v.as_u64().into(),
+            I::MutateDeleted(object) => Some(U::Delete(SharedObjectDelete {
+                address: object.object_id.into(),
+                version: object.version.as_u64().try_into()?,
                 mutable: true,
             })),
 
-            I::Cancelled(id, v) => Ok(U::Cancelled(SharedObjectCancelled {
-                address: id.into(),
-                version: v.as_u64().into(),
+            I::Canceled(object) => Some(U::Cancelled(SharedObjectCancelled {
+                address: object.object_id.into(),
+                version: object.version.as_u64().try_into()?,
             })),
-        }
+        })
     }
 }

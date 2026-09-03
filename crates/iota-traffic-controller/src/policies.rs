@@ -3,242 +3,96 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Per-client rate limiting for the traffic controller: one GCRA cell
+//! (`governor`) per client IP, held in a capacity-bounded LRU cache.
+
 use std::{
-    cmp::Reverse,
-    collections::{BinaryHeap, HashMap, VecDeque},
-    fmt::Debug,
-    hash::Hash,
     net::IpAddr,
+    num::{NonZeroU32, NonZeroUsize},
     sync::Arc,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
-use count_min_sketch::CountMinSketch32;
-use iota_metrics::spawn_monitored_task;
-use iota_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType, Weight};
-use parking_lot::RwLock;
-use tracing::{info, trace};
+use arc_swap::ArcSwap;
+use governor::{
+    Quota, RateLimiter,
+    clock::MonotonicClock,
+    middleware::NoOpMiddleware,
+    state::{InMemoryState, direct::NotKeyed},
+};
+use iota_common::fatal;
+use iota_types::traffic_control::{FreqThresholdConfig, PolicyType, Weight};
+use lru::LruCache;
+use parking_lot::Mutex;
+use prometheus_filtered::IntCounter;
+use tracing::warn;
 
-const HIGHEST_RATES_CAPACITY: usize = 20;
+/// Reset period for the exact-count test policies when the blocklist TTL is
+/// zero, long enough that no count recovers over the lifetime of a test.
+const EXACT_COUNT_FALLBACK_RESET_PERIOD: Duration = Duration::from_secs(60 * 60);
 
-/// The type of request client.
-#[derive(Hash, Eq, PartialEq, Debug)]
-enum ClientType {
-    Direct,
-    ThroughFullnode,
+/// Largest usable client threshold: a sustained rate above one tally per
+/// nanosecond produces a zero replenish interval, which would silently disable
+/// the limiter. Clamped to this at startup, and rejected by the admin API.
+pub(super) const MAX_CLIENT_THRESHOLD: u64 = 1_000_000_000;
+
+/// Upper bound on client IPs tracked per limiter.
+const MAX_TRACKED_CLIENTS: usize = 100_000;
+
+/// GCRA cell for a single client IP. Uses `std::time::Instant` rather than
+/// `governor`'s default TSC-backed clock so that the deterministic simulator,
+/// which virtualizes `clock_gettime`, also controls rate limiter time.
+type ClientRateLimiter =
+    RateLimiter<NotKeyed, InMemoryState, MonotonicClock, NoOpMiddleware<Instant>>;
+
+/// Sustained `threshold` tallies per second, tolerating `threshold *
+/// burst_secs` back to back.
+fn sustained_quota(threshold: u64, burst_secs: u64) -> Quota {
+    let burst = threshold.saturating_mul(burst_secs);
+    if burst > u32::MAX as u64 {
+        warn!(
+            "freq-threshold burst {burst} exceeds {} cells, clamping",
+            u32::MAX
+        );
+    }
+    Quota::per_second(clamp_to_cells(threshold)).allow_burst(clamp_to_cells(burst))
 }
 
-#[derive(Hash, Eq, PartialEq, Debug)]
-struct SketchKey {
-    salt: u64,
-    ip_addr: IpAddr,
-    client_type: ClientType,
+/// The `threshold`-th tally in a row breaches and earlier ones pass, with the
+/// full count recovering over `reset_period`.
+fn exact_count_quota(threshold: u64, reset_period: Duration) -> Quota {
+    let burst = clamp_to_cells(threshold.saturating_sub(1));
+    Quota::with_period((reset_period / burst.get()).max(Duration::from_nanos(1)))
+        .expect("replenish period is non-zero")
+        .allow_burst(burst)
 }
 
-struct HighestRates {
-    direct: BinaryHeap<Reverse<(u64, IpAddr)>>,
-    proxied: BinaryHeap<Reverse<(u64, IpAddr)>>,
-    capacity: usize,
-}
-
-pub struct TrafficSketch {
-    /// Circular buffer Count Min Sketches representing a sliding window
-    /// of traffic data. Note that the 32 in CountMinSketch32 represents
-    /// the number of bits used to represent the count in the sketch. Since
-    /// we only count on a sketch for a window of `update_interval`, we only
-    /// need enough precision to represent the max expected unique IP addresses
-    /// we may see in that window. For a 10 second period, we might
-    /// conservatively expect 100,000, which can be represented in 17 bits,
-    /// but not 16. We can potentially lower the memory consumption by using
-    /// CountMinSketch16, which will reliably support up to ~65,000 unique
-    /// IP addresses in the window.
-    sketches: VecDeque<CountMinSketch32<SketchKey>>,
-    window_size: Duration,
-    update_interval: Duration,
-    last_reset_time: Instant,
-    current_sketch_index: usize,
-    /// Used for metrics collection and logging purposes,
-    /// as CountMinSketch does not provide this directly.
-    /// Note that this is an imperfect metric, since we preserve
-    /// the highest N rates (by unique IP) that we have seen,
-    /// but update rates (down or up) as they change so that
-    /// the metric is not monotonic and reflects recent traffic.
-    /// However, this should only lead to inaccuracy edge cases
-    /// with very low traffic.
-    highest_rates: HighestRates,
-}
-
-impl TrafficSketch {
-    pub fn new(
-        window_size: Duration,
-        update_interval: Duration,
-        sketch_capacity: usize,
-        sketch_probability: f64,
-        sketch_tolerance: f64,
-        highest_rates_capacity: usize,
-    ) -> Self {
-        // intentionally round down via integer division. We can't have a partial sketch
-        let num_sketches = window_size.as_secs() / update_interval.as_secs();
-        let new_window_size = Duration::from_secs(num_sketches * update_interval.as_secs());
-        if new_window_size != window_size {
-            info!(
-                "Rounding traffic sketch window size down to {} seconds to make it an integer multiple of update interval {} seconds.",
-                new_window_size.as_secs(),
-                update_interval.as_secs(),
-            );
-        }
-        let window_size = new_window_size;
-
-        assert!(
-            window_size < Duration::from_secs(600),
-            "window_size too large. Max 600 seconds"
-        );
-        assert!(
-            update_interval < window_size,
-            "Update interval may not be larger than window size"
-        );
-        assert!(
-            update_interval >= Duration::from_secs(1),
-            "Update interval too short, must be at least 1 second"
-        );
-        assert!(
-            num_sketches <= 10,
-            "Given parameters require too many sketches to be stored. Reduce window size or increase update interval."
-        );
-        let mem_estimate = (num_sketches as usize)
-            * CountMinSketch32::<IpAddr>::estimate_memory(
-                sketch_capacity,
-                sketch_probability,
-                sketch_tolerance,
-            )
-            .expect("Failed to estimate memory for CountMinSketch32");
-        assert!(
-            mem_estimate < 128_000_000,
-            "Memory estimate for traffic sketch exceeds 128MB. Reduce window size or increase update interval."
-        );
-
-        let mut sketches = VecDeque::with_capacity(num_sketches as usize);
-        for _ in 0..num_sketches {
-            sketches.push_back(
-                CountMinSketch32::<SketchKey>::new(
-                    sketch_capacity,
-                    sketch_probability,
-                    sketch_tolerance,
-                )
-                .expect("Failed to create CountMinSketch32"),
-            );
-        }
-        Self {
-            sketches,
-            window_size,
-            update_interval,
-            last_reset_time: Instant::now(),
-            current_sketch_index: 0,
-            highest_rates: HighestRates {
-                direct: BinaryHeap::with_capacity(highest_rates_capacity),
-                proxied: BinaryHeap::with_capacity(highest_rates_capacity),
-                capacity: highest_rates_capacity,
-            },
-        }
-    }
-
-    fn increment_count(&mut self, key: &SketchKey) {
-        // reset all expired intervals
-        let current_time = Instant::now();
-        let mut elapsed = current_time.duration_since(self.last_reset_time);
-        while elapsed >= self.update_interval {
-            self.rotate_window();
-            elapsed -= self.update_interval;
-        }
-        // Increment in the current active sketch
-        self.sketches[self.current_sketch_index].increment(key);
-    }
-
-    fn get_request_rate(&mut self, key: &SketchKey) -> f64 {
-        let count: u32 = self
-            .sketches
-            .iter()
-            .map(|sketch| sketch.estimate(key))
-            .sum();
-        let rate = count as f64 / self.window_size.as_secs() as f64;
-        self.update_highest_rates(key, rate);
-        rate
-    }
-
-    fn update_highest_rates(&mut self, key: &SketchKey, rate: f64) {
-        match key.client_type {
-            ClientType::Direct => {
-                Self::update_highest_rate(
-                    &mut self.highest_rates.direct,
-                    key.ip_addr,
-                    rate,
-                    self.highest_rates.capacity,
-                );
-            }
-            ClientType::ThroughFullnode => {
-                Self::update_highest_rate(
-                    &mut self.highest_rates.proxied,
-                    key.ip_addr,
-                    rate,
-                    self.highest_rates.capacity,
-                );
-            }
-        }
-    }
-
-    fn update_highest_rate(
-        rate_heap: &mut BinaryHeap<Reverse<(u64, IpAddr)>>,
-        ip_addr: IpAddr,
-        rate: f64,
-        capacity: usize,
-    ) {
-        // Remove previous instance of this IPAddr so that we
-        // can update with new rate
-        rate_heap.retain(|&Reverse((_, key))| key != ip_addr);
-
-        let rate = rate as u64;
-        if rate_heap.len() < capacity {
-            rate_heap.push(Reverse((rate, ip_addr)));
-        } else if let Some(&Reverse((smallest_score, _))) = rate_heap.peek() {
-            if rate > smallest_score {
-                rate_heap.pop();
-                rate_heap.push(Reverse((rate, ip_addr)));
-            }
-        }
-    }
-
-    pub fn highest_direct_rate(&self) -> Option<(u64, IpAddr)> {
-        self.highest_rates
-            .direct
-            .iter()
-            .map(|Reverse(v)| v)
-            .max_by(|a, b| a.0.partial_cmp(&b.0).expect("Failed to compare rates"))
-            .copied()
-    }
-
-    pub fn highest_proxied_rate(&self) -> Option<(u64, IpAddr)> {
-        self.highest_rates
-            .proxied
-            .iter()
-            .map(|Reverse(v)| v)
-            .max_by(|a, b| a.0.partial_cmp(&b.0).expect("Failed to compare rates"))
-            .copied()
-    }
-
-    fn rotate_window(&mut self) {
-        self.current_sketch_index = (self.current_sketch_index + 1) % self.sketches.len();
-        self.sketches[self.current_sketch_index].clear();
-        self.last_reset_time = Instant::now();
+/// Counts recover over twice the blocklist TTL.
+fn exact_count_reset_period(connection_blocklist_ttl_sec: u64) -> Duration {
+    match connection_blocklist_ttl_sec.saturating_mul(2) {
+        0 => EXACT_COUNT_FALLBACK_RESET_PERIOD,
+        secs => Duration::from_secs(secs),
     }
 }
 
-#[derive(Clone, Debug)]
+fn clamp_threshold(threshold: u64, name: &str) -> u64 {
+    if threshold > MAX_CLIENT_THRESHOLD {
+        warn!("freq-threshold {name} {threshold} exceeds {MAX_CLIENT_THRESHOLD}, clamping");
+        return MAX_CLIENT_THRESHOLD;
+    }
+    threshold
+}
+
+fn clamp_to_cells(value: u64) -> NonZeroU32 {
+    NonZeroU32::new(value.clamp(1, u32::MAX as u64) as u32).expect("clamped value is non-zero")
+}
+
+#[derive(Debug)]
 pub struct TrafficTally {
     pub direct: Option<IpAddr>,
     pub through_fullnode: Option<IpAddr>,
     pub error_info: Option<(Weight, String)>,
     pub spam_weight: Weight,
-    pub timestamp: SystemTime,
 }
 
 impl TrafficTally {
@@ -253,454 +107,521 @@ impl TrafficTally {
             through_fullnode,
             error_info,
             spam_weight,
-            timestamp: SystemTime::now(),
         }
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct PolicyResponse {
+#[derive(Debug, Default)]
+pub(super) struct PolicyResponse {
     pub block_client: Option<IpAddr>,
     pub block_proxied_client: Option<IpAddr>,
 }
 
-pub trait Policy {
-    // returns, e.g. (true, false) if connection_ip should be added to blocklist
-    // and proxy_ip should not
-    fn handle_tally(&mut self, tally: TrafficTally) -> PolicyResponse;
-    fn policy_config(&self) -> &PolicyConfig;
+/// How a threshold maps to a quota.
+#[derive(Clone, Copy)]
+enum QuotaKind {
+    Sustained { burst_secs: u64 },
+    ExactCount { reset_period: Duration },
 }
 
-// Nonserializable representation, also note that inner types are
-// not object safe, so we can't use a trait object instead
-pub enum TrafficControlPolicy {
-    FreqThreshold(FreqThresholdPolicy),
-    NoOp(NoOpPolicy),
-    // Test policies below this point
-    TestNConnIP(TestNConnIPPolicy),
-    TestPanicOnInvocation(TestPanicOnInvocationPolicy),
+impl QuotaKind {
+    fn limiter(&self, threshold: u64, evictions: &IntCounter) -> Limiter {
+        let quota = match self {
+            Self::Sustained { burst_secs } if threshold >= 1 => {
+                sustained_quota(threshold, *burst_secs)
+            }
+            Self::ExactCount { reset_period } if threshold >= 2 => {
+                exact_count_quota(threshold, *reset_period)
+            }
+            // Too low for any burst quota: block on the first tally.
+            _ => return Limiter::BlockAll,
+        };
+        Limiter::Cells(ClientCells::new(quota, evictions.clone()))
+    }
 }
 
-impl Policy for TrafficControlPolicy {
-    fn handle_tally(&mut self, tally: TrafficTally) -> PolicyResponse {
+/// Rate limiter for direct or proxied clients.
+enum Limiter {
+    /// Every tally blocks its client; the operator killswitch.
+    BlockAll,
+    Cells(ClientCells),
+}
+
+impl Limiter {
+    fn breaches(&self, client: IpAddr) -> bool {
         match self {
-            TrafficControlPolicy::NoOp(policy) => policy.handle_tally(tally),
-            TrafficControlPolicy::FreqThreshold(policy) => policy.handle_tally(tally),
-            TrafficControlPolicy::TestNConnIP(policy) => policy.handle_tally(tally),
-            TrafficControlPolicy::TestPanicOnInvocation(policy) => policy.handle_tally(tally),
+            Self::BlockAll => true,
+            Self::Cells(cells) => cells.breaches(client),
+        }
+    }
+}
+
+/// Per-client GCRA cells in an LRU cache bounded at [`MAX_TRACKED_CLIENTS`].
+struct ClientCells {
+    quota: Quota,
+    cells: Mutex<LruCache<IpAddr, ClientRateLimiter>>,
+    evictions: IntCounter,
+}
+
+impl ClientCells {
+    fn new(quota: Quota, evictions: IntCounter) -> Self {
+        Self {
+            quota,
+            cells: Mutex::new(LruCache::new(
+                NonZeroUsize::new(MAX_TRACKED_CLIENTS).expect("capacity is non-zero"),
+            )),
+            evictions,
         }
     }
 
-    fn policy_config(&self) -> &PolicyConfig {
-        match self {
-            TrafficControlPolicy::NoOp(policy) => policy.policy_config(),
-            TrafficControlPolicy::FreqThreshold(policy) => policy.policy_config(),
-            TrafficControlPolicy::TestNConnIP(policy) => policy.policy_config(),
-            TrafficControlPolicy::TestPanicOnInvocation(policy) => policy.policy_config(),
+    fn breaches(&self, client: IpAddr) -> bool {
+        let mut cells = self.cells.lock();
+        if let Some(cell) = cells.get_mut(&client) {
+            return cell.check().is_err();
+        }
+        let cell = RateLimiter::direct_with_clock(self.quota, &MonotonicClock);
+        let breached = cell.check().is_err();
+        // `push` returns the entry it displaced; at capacity that is another
+        // client's state, which counts as an eviction.
+        if let Some((evicted, _)) = cells.push(client, cell) {
+            debug_assert_ne!(evicted, client);
+            self.evictions.inc();
+        }
+        breached
+    }
+}
+
+/// The direct-client threshold and its limiter, swapped as one unit on
+/// reconfiguration.
+struct DirectLimiter {
+    threshold: u64,
+    limiter: Limiter,
+}
+
+impl DirectLimiter {
+    fn new(quota_kind: QuotaKind, threshold: u64, evictions: &IntCounter) -> Self {
+        Self {
+            threshold,
+            limiter: quota_kind.limiter(threshold, evictions),
         }
     }
 }
+
+/// Rate limits direct clients, and proxied clients when the policy configures a
+/// separate threshold for them.
+struct RateLimitPolicy {
+    quota_kind: QuotaKind,
+    direct: ArcSwap<DirectLimiter>,
+    proxied: Option<Limiter>,
+    evictions: IntCounter,
+}
+
+impl RateLimitPolicy {
+    fn new(
+        quota_kind: QuotaKind,
+        direct_threshold: u64,
+        proxied_threshold: Option<u64>,
+        evictions: IntCounter,
+    ) -> Self {
+        Self {
+            direct: ArcSwap::from_pointee(DirectLimiter::new(
+                quota_kind,
+                direct_threshold,
+                &evictions,
+            )),
+            proxied: proxied_threshold.map(|threshold| quota_kind.limiter(threshold, &evictions)),
+            quota_kind,
+            evictions,
+        }
+    }
+
+    fn charge(&self, tally: &TrafficTally) -> PolicyResponse {
+        let direct = self.direct.load();
+        PolicyResponse {
+            block_client: tally
+                .direct
+                .filter(|client| direct.limiter.breaches(*client)),
+            block_proxied_client: tally.through_fullnode.filter(|client| {
+                self.proxied
+                    .as_ref()
+                    .is_some_and(|limiter| limiter.breaches(*client))
+            }),
+        }
+    }
+
+    fn set_direct_threshold(&self, threshold: u64) {
+        // Re-asserting the current threshold keeps every client's state.
+        if self.direct.load().threshold == threshold {
+            return;
+        }
+        self.direct.store(Arc::new(DirectLimiter::new(
+            self.quota_kind,
+            threshold,
+            &self.evictions,
+        )));
+    }
+}
+
+enum Policy {
+    NoOp,
+    Limit(RateLimitPolicy),
+    PanicOnInvocation,
+}
+
+/// The spam or error policy a traffic controller charges its tallies against.
+pub(super) struct TrafficControlPolicy(Policy);
 
 impl TrafficControlPolicy {
-    pub async fn from_spam_config(policy_config: PolicyConfig) -> Self {
-        Self::from_config(policy_config.clone().spam_policy_type, policy_config).await
-    }
-    pub async fn from_error_config(policy_config: PolicyConfig) -> Self {
-        Self::from_config(policy_config.clone().error_policy_type, policy_config).await
-    }
-    pub async fn from_config(policy_type: PolicyType, policy_config: PolicyConfig) -> Self {
-        match policy_type {
-            PolicyType::NoOp => Self::NoOp(NoOpPolicy::new(policy_config)),
-            PolicyType::FreqThreshold(freq_threshold_config) => Self::FreqThreshold(
-                FreqThresholdPolicy::new(policy_config, freq_threshold_config),
-            ),
-            PolicyType::TestNConnIP(n) => {
-                Self::TestNConnIP(TestNConnIPPolicy::new(policy_config, n).await)
-            }
-            PolicyType::TestPanicOnInvocation => {
-                Self::TestPanicOnInvocation(TestPanicOnInvocationPolicy::new(policy_config))
-            }
-        }
-    }
-}
-
-////////////// *** Policy definitions *** //////////////
-
-pub struct FreqThresholdPolicy {
-    pub config: PolicyConfig,
-    pub client_threshold: u64,
-    pub proxied_client_threshold: u64,
-    sketch: TrafficSketch,
-    /// Unique salt to be added to all keys in the sketch. This
-    /// ensures that false positives are not correlated across
-    /// all nodes at the same time. For IOTA validators for example,
-    /// this means that false positives should not prevent the network
-    /// from achieving quorum.
-    salt: u64,
-}
-
-impl FreqThresholdPolicy {
-    pub fn new(
-        config: PolicyConfig,
-        FreqThresholdConfig {
-            client_threshold,
-            proxied_client_threshold,
-            window_size_secs,
-            update_interval_secs,
-            sketch_capacity,
-            sketch_probability,
-            sketch_tolerance,
-        }: FreqThresholdConfig,
+    pub(super) fn from_policy_type(
+        policy_type: &PolicyType,
+        connection_blocklist_ttl_sec: u64,
+        evictions: IntCounter,
     ) -> Self {
-        let sketch = TrafficSketch::new(
-            Duration::from_secs(window_size_secs),
-            Duration::from_secs(update_interval_secs),
-            sketch_capacity,
-            sketch_probability,
-            sketch_tolerance,
-            HIGHEST_RATES_CAPACITY,
-        );
-        Self {
-            config,
-            sketch,
-            client_threshold,
-            proxied_client_threshold,
-            salt: rand::random(),
-        }
-    }
-
-    pub fn highest_direct_rate(&self) -> Option<(u64, IpAddr)> {
-        self.sketch.highest_direct_rate()
-    }
-
-    pub fn highest_proxied_rate(&self) -> Option<(u64, IpAddr)> {
-        self.sketch.highest_proxied_rate()
-    }
-
-    pub fn handle_tally(&mut self, tally: TrafficTally) -> PolicyResponse {
-        let block_client = if let Some(source) = tally.direct {
-            let key = SketchKey {
-                salt: self.salt,
-                ip_addr: source,
-                client_type: ClientType::Direct,
-            };
-            self.sketch.increment_count(&key);
-            let req_rate = self.sketch.get_request_rate(&key);
-            trace!(
-                "FreqThresholdPolicy handling tally -- req_rate: {:?}, client_threshold: {:?}, client: {:?}",
-                req_rate, self.client_threshold, source,
-            );
-            if req_rate >= self.client_threshold as f64 {
-                Some(source)
-            } else {
-                None
+        Self(match policy_type {
+            PolicyType::NoOp => Policy::NoOp,
+            PolicyType::FreqThreshold(FreqThresholdConfig {
+                client_threshold,
+                proxied_client_threshold,
+                burst_secs,
+            }) => {
+                if *burst_secs == 0 {
+                    fatal!("freq-threshold burst-secs must be more than zero");
+                }
+                Policy::Limit(RateLimitPolicy::new(
+                    QuotaKind::Sustained {
+                        burst_secs: *burst_secs,
+                    },
+                    clamp_threshold(*client_threshold, "client-threshold"),
+                    Some(clamp_threshold(
+                        *proxied_client_threshold,
+                        "proxied-client-threshold",
+                    )),
+                    evictions,
+                ))
             }
-        } else {
-            None
-        };
-        let block_proxied_client = if let Some(source) = tally.through_fullnode {
-            let key = SketchKey {
-                salt: self.salt,
-                ip_addr: source,
-                client_type: ClientType::ThroughFullnode,
-            };
-            self.sketch.increment_count(&key);
-            if self.sketch.get_request_rate(&key) >= self.proxied_client_threshold as f64 {
-                Some(source)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-        PolicyResponse {
-            block_client,
-            block_proxied_client,
+            // The exact-count test policy only ever blocks the direct client.
+            PolicyType::TestNConnIP(threshold) => Policy::Limit(RateLimitPolicy::new(
+                QuotaKind::ExactCount {
+                    reset_period: exact_count_reset_period(connection_blocklist_ttl_sec),
+                },
+                *threshold,
+                None,
+                evictions,
+            )),
+            PolicyType::TestPanicOnInvocation => Policy::PanicOnInvocation,
+        })
+    }
+
+    /// Charges the tally against the policy, returning which clients breached
+    /// their quota.
+    pub(super) fn charge(&self, tally: &TrafficTally) -> PolicyResponse {
+        match &self.0 {
+            Policy::NoOp => PolicyResponse::default(),
+            Policy::Limit(policy) => policy.charge(tally),
+            Policy::PanicOnInvocation => panic!("Tally for this policy should never be invoked"),
         }
     }
 
-    fn policy_config(&self) -> &PolicyConfig {
-        &self.config
-    }
-}
-
-////////////// *** Test policies below this point *** //////////////
-
-#[derive(Clone)]
-pub struct NoOpPolicy {
-    config: PolicyConfig,
-}
-
-impl NoOpPolicy {
-    pub fn new(config: PolicyConfig) -> Self {
-        Self { config }
-    }
-
-    fn handle_tally(&mut self, _tally: TrafficTally) -> PolicyResponse {
-        PolicyResponse::default()
-    }
-
-    fn policy_config(&self) -> &PolicyConfig {
-        &self.config
-    }
-}
-
-#[derive(Clone)]
-pub struct TestNConnIPPolicy {
-    pub threshold: u64,
-    pub config: PolicyConfig,
-    frequencies: Arc<RwLock<HashMap<IpAddr, u64>>>,
-}
-
-impl TestNConnIPPolicy {
-    pub async fn new(config: PolicyConfig, threshold: u64) -> Self {
-        let frequencies = Arc::new(RwLock::new(HashMap::new()));
-        let frequencies_clone = frequencies.clone();
-        spawn_monitored_task!(run_clear_frequencies(
-            frequencies_clone,
-            config.connection_blocklist_ttl_sec * 2,
-        ));
-        Self {
-            config,
-            frequencies,
-            threshold,
+    /// Direct-client threshold, or `None` for policies that do not rate limit.
+    pub(super) fn client_threshold(&self) -> Option<u64> {
+        match &self.0 {
+            Policy::Limit(policy) => Some(policy.direct.load().threshold),
+            _ => None,
         }
     }
 
-    fn handle_tally(&mut self, tally: TrafficTally) -> PolicyResponse {
-        let client = if let Some(client) = tally.direct {
-            client
-        } else {
-            return PolicyResponse::default();
-        };
-
-        // increment the count for the IP
-        let mut frequencies = self.frequencies.write();
-        let count = frequencies.entry(client).or_insert(0);
-        *count += 1;
-        PolicyResponse {
-            block_client: if *count >= self.threshold {
-                Some(client)
-            } else {
-                None
-            },
-            block_proxied_client: None,
+    /// Replaces the direct-client threshold, discarding every tracked client's
+    /// limiter state; re-asserting the current threshold keeps it.
+    pub(super) fn set_client_threshold(&self, threshold: u64) {
+        if let Policy::Limit(policy) = &self.0 {
+            policy.set_direct_threshold(threshold);
         }
-    }
-
-    fn policy_config(&self) -> &PolicyConfig {
-        &self.config
-    }
-}
-
-async fn run_clear_frequencies(frequencies: Arc<RwLock<HashMap<IpAddr, u64>>>, window_secs: u64) {
-    loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(window_secs)).await;
-        frequencies.write().clear();
-    }
-}
-
-#[derive(Clone)]
-pub struct TestPanicOnInvocationPolicy {
-    config: PolicyConfig,
-}
-
-impl TestPanicOnInvocationPolicy {
-    pub fn new(config: PolicyConfig) -> Self {
-        Self { config }
-    }
-
-    fn handle_tally(&mut self, _: TrafficTally) -> PolicyResponse {
-        panic!("Tally for this policy should never be invoked")
-    }
-
-    fn policy_config(&self) -> &PolicyConfig {
-        &self.config
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr, Ipv4Addr};
+    use std::net::Ipv4Addr;
 
     use iota_macros::sim_test;
-    use iota_types::traffic_control::{
-        DEFAULT_SKETCH_CAPACITY, DEFAULT_SKETCH_PROBABILITY, DEFAULT_SKETCH_TOLERANCE,
-    };
 
     use super::*;
 
-    #[sim_test]
-    async fn test_freq_threshold_policy() {
-        // Create freq policy that will block on average frequency 2 requests per second
-        // for proxied connections and 4 requests per second for direct connections
-        // as observed over a 5 second window.
-        let mut policy = FreqThresholdPolicy::new(
-            PolicyConfig::default(),
-            FreqThresholdConfig {
-                client_threshold: 5,
-                proxied_client_threshold: 2,
-                window_size_secs: 5,
-                update_interval_secs: 1,
-                ..Default::default()
-            },
+    fn direct_tally(client: IpAddr) -> TrafficTally {
+        TrafficTally::new(Some(client), None, None, Weight::one())
+    }
+
+    fn evictions() -> IntCounter {
+        IntCounter::new("rate_limiter_evictions", "Number of evicted client states")
+            .expect("valid metric")
+    }
+
+    fn freq_threshold(
+        client_threshold: u64,
+        proxied_client_threshold: u64,
+        burst_secs: u64,
+    ) -> TrafficControlPolicy {
+        TrafficControlPolicy::from_policy_type(
+            &PolicyType::FreqThreshold(FreqThresholdConfig {
+                client_threshold,
+                proxied_client_threshold,
+                burst_secs,
+            }),
+            0,
+            evictions(),
+        )
+    }
+
+    fn exact_count(threshold: u64, connection_blocklist_ttl_sec: u64) -> TrafficControlPolicy {
+        TrafficControlPolicy::from_policy_type(
+            &PolicyType::TestNConnIP(threshold),
+            connection_blocklist_ttl_sec,
+            evictions(),
+        )
+    }
+
+    #[test]
+    fn test_exact_count_reset_period() {
+        // A zero blocklist TTL leaves counts in place for the lifetime of the
+        // policy.
+        assert_eq!(
+            exact_count_reset_period(0),
+            EXACT_COUNT_FALLBACK_RESET_PERIOD
         );
-        // alice and bob connection from different IPs through the
-        // same fullnode, thus have the same connection IP on
-        // validator, but different proxy IPs
-        let alice = TrafficTally {
-            direct: Some(IpAddr::V4(Ipv4Addr::new(8, 7, 6, 5))),
-            through_fullnode: Some(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4))),
-            error_info: None,
-            spam_weight: Weight::one(),
-            timestamp: SystemTime::now(),
-        };
-        let bob = TrafficTally {
-            direct: Some(IpAddr::V4(Ipv4Addr::new(8, 7, 6, 5))),
-            through_fullnode: Some(IpAddr::V4(Ipv4Addr::new(4, 3, 2, 1))),
-            error_info: None,
-            spam_weight: Weight::one(),
-            timestamp: SystemTime::now(),
-        };
-        let charlie = TrafficTally {
-            direct: Some(IpAddr::V4(Ipv4Addr::new(8, 7, 6, 5))),
-            through_fullnode: Some(IpAddr::V4(Ipv4Addr::new(5, 6, 7, 8))),
-            error_info: None,
-            spam_weight: Weight::one(),
-            timestamp: SystemTime::now(),
-        };
-
-        // initial 2 tallies for alice, should not block
-        for _ in 0..2 {
-            let response = policy.handle_tally(alice.clone());
-            assert_eq!(response.block_proxied_client, None);
-            assert_eq!(response.block_client, None);
-        }
-
-        let (direct_rate, direct_ip_addr) = policy.highest_direct_rate().unwrap();
-        let (proxied_rate, proxied_ip_addr) = policy.highest_proxied_rate().unwrap();
-        assert_eq!(direct_ip_addr, alice.direct.unwrap());
-        assert!(direct_rate < 1);
-        assert_eq!(proxied_ip_addr, alice.through_fullnode.unwrap());
-        assert!(proxied_rate < 1);
-
-        // meanwhile bob spams 10 requests at once and is blocked
-        for _ in 0..9 {
-            let response = policy.handle_tally(bob.clone());
-            assert_eq!(response.block_client, None);
-            assert_eq!(response.block_proxied_client, None);
-        }
-        let response = policy.handle_tally(bob.clone());
-        assert_eq!(response.block_client, None);
-        assert_eq!(response.block_proxied_client, bob.through_fullnode);
-
-        // highest rates should now show bob
-        let (direct_rate, direct_ip_addr) = policy.highest_direct_rate().unwrap();
-        let (proxied_rate, proxied_ip_addr) = policy.highest_proxied_rate().unwrap();
-        assert_eq!(direct_ip_addr, bob.direct.unwrap());
-        assert_eq!(direct_rate, 2);
-        assert_eq!(proxied_ip_addr, bob.through_fullnode.unwrap());
-        assert_eq!(proxied_rate, 2);
-
-        // 2 more tallies, so far we are above 2 tallies
-        // per second, but over the average window of 5 seconds
-        // we are still below the threshold. Should not block
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        for _ in 0..2 {
-            let response = policy.handle_tally(alice.clone());
-            assert_eq!(response.block_client, None);
-            assert_eq!(response.block_proxied_client, None);
-        }
-        // bob is no longer blocked, as we moved past the bursty traffic
-        // in the sliding window
-        let _ = policy.handle_tally(bob.clone());
-        let response = policy.handle_tally(bob.clone());
-        assert_eq!(response.block_client, None);
-        assert_eq!(response.block_proxied_client, bob.through_fullnode);
-
-        let (direct_rate, direct_ip_addr) = policy.highest_direct_rate().unwrap();
-        let (proxied_rate, proxied_ip_addr) = policy.highest_proxied_rate().unwrap();
-        // direct rate increased due to alice going through same fullnode
-        assert_eq!(direct_ip_addr, alice.direct.unwrap());
-        assert_eq!(direct_rate, 3);
-        // highest rate should now have been updated given that Bob's rate
-        // recently decreased
-        assert_eq!(proxied_ip_addr, bob.through_fullnode.unwrap());
-        assert_eq!(proxied_rate, 2);
-
-        // close to threshold for alice, but still below
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        for i in 0..5 {
-            let response = policy.handle_tally(alice.clone());
-            assert_eq!(response.block_client, None, "Blocked at i = {i}");
-            assert_eq!(response.block_proxied_client, None);
-        }
-
-        // should block alice now
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        let response = policy.handle_tally(alice.clone());
-        assert_eq!(response.block_client, None);
-        assert_eq!(response.block_proxied_client, alice.through_fullnode);
-
-        let (direct_rate, direct_ip_addr) = policy.highest_direct_rate().unwrap();
-        let (proxied_rate, proxied_ip_addr) = policy.highest_proxied_rate().unwrap();
-        assert_eq!(direct_ip_addr, alice.direct.unwrap());
-        assert_eq!(direct_rate, 4);
-        assert_eq!(proxied_ip_addr, bob.through_fullnode.unwrap());
-        assert_eq!(proxied_rate, 2);
-
-        // spam through charlie to block connection
-        for i in 0..2 {
-            let response = policy.handle_tally(charlie.clone());
-            assert_eq!(response.block_client, None, "Blocked at i = {i}");
-            assert_eq!(response.block_proxied_client, None);
-        }
-        // Now we block connection IP
-        let response = policy.handle_tally(charlie.clone());
-        assert_eq!(response.block_proxied_client, None);
-        assert_eq!(response.block_client, charlie.direct);
-
-        // Ensure that if we wait another second, we are no longer blocked
-        // as the bursty first second has finally rotated out of the sliding
-        // window
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        for i in 0..3 {
-            let response = policy.handle_tally(charlie.clone());
-            assert_eq!(response.block_client, None, "Blocked at i = {i}");
-            assert_eq!(response.block_proxied_client, None);
-        }
-
-        // check that we revert back to previous highest rates when rates decrease
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        // alice and bob rates are now decreased after 5 seconds of break, but charlie's
-        // has not since they have not yet sent a new request
-        let _ = policy.handle_tally(alice.clone());
-        let _ = policy.handle_tally(bob.clone());
-        let (direct_rate, direct_ip_addr) = policy.highest_direct_rate().unwrap();
-        let (proxied_rate, proxied_ip_addr) = policy.highest_proxied_rate().unwrap();
-        assert_eq!(direct_ip_addr, alice.direct.unwrap());
-        assert_eq!(direct_rate, 0);
-        assert_eq!(proxied_ip_addr, charlie.through_fullnode.unwrap());
-        assert_eq!(proxied_rate, 1);
     }
 
     #[sim_test]
-    async fn test_traffic_sketch_mem_estimate() {
-        // Test for getting a rough estimate of memory usage for the traffic sketch
-        // given certain parameters. Parameters below are the default.
-        // With default parameters, memory estimate is 113 MB.
-        let window_size = Duration::from_secs(30);
-        let update_interval = Duration::from_secs(5);
-        let mem_estimate = CountMinSketch32::<IpAddr>::estimate_memory(
-            DEFAULT_SKETCH_CAPACITY,
-            DEFAULT_SKETCH_PROBABILITY,
-            DEFAULT_SKETCH_TOLERANCE,
-        )
-        .unwrap()
-            * (window_size.as_secs() / update_interval.as_secs()) as usize;
-        assert!(
-            mem_estimate < 128_000_000,
-            "Memory estimate {mem_estimate} for traffic sketch exceeds 128MB."
+    async fn test_exact_counts_recover_after_the_reset_period() {
+        // A one second blocklist TTL resets counts over two seconds.
+        let policy = exact_count(2, 1);
+        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client)
         );
+
+        // Halfway through the reset period the count has not recovered yet.
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client)
+        );
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
+    }
+
+    // The breach must be observable with no waiting.
+    #[test]
+    fn test_exact_count_blocks_on_nth_tally() {
+        let threshold = 5;
+        let policy = exact_count(threshold, 60);
+        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        for i in 1..threshold {
+            assert_eq!(
+                policy.charge(&direct_tally(client)).block_client,
+                None,
+                "blocked early after {i} tallies"
+            );
+        }
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client),
+            "tally {threshold} did not block"
+        );
+    }
+
+    #[test]
+    fn test_freq_threshold_blocks_once_burst_is_exhausted() {
+        // Sustained 2/s tolerating a 5 second burst, so the 11th back to back
+        // tally is the first to breach, for both the direct and the proxied client.
+        let policy = freq_threshold(2, 2, 5);
+        let direct = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        let proxied = IpAddr::V4(Ipv4Addr::new(192, 168, 0, 1));
+        let tally = TrafficTally::new(Some(direct), Some(proxied), None, Weight::one());
+        for i in 1..=10 {
+            let response = policy.charge(&tally);
+            assert_eq!(response.block_client, None, "blocked early after {i}");
+            assert_eq!(response.block_proxied_client, None);
+        }
+        let response = policy.charge(&tally);
+        assert_eq!(response.block_client, Some(direct));
+        assert_eq!(response.block_proxied_client, Some(proxied));
+    }
+
+    #[test]
+    fn test_direct_and_proxied_thresholds_are_independent() {
+        // The direct quota is 2 per second with a 5 second burst. The proxied
+        // quota is 1000 per second. Only the direct client breaches at tally 11.
+        let policy = freq_threshold(2, 1000, 5);
+        let direct = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        let proxied = IpAddr::V4(Ipv4Addr::new(192, 168, 0, 1));
+        let tally = TrafficTally::new(Some(direct), Some(proxied), None, Weight::one());
+        for _ in 0..10 {
+            policy.charge(&tally);
+        }
+        let response = policy.charge(&tally);
+        assert_eq!(response.block_client, Some(direct));
+        assert_eq!(response.block_proxied_client, None);
+    }
+
+    #[sim_test]
+    async fn test_client_recovers_as_the_quota_replenishes() {
+        // Sustained 2/s with a 5 second burst: 10 tallies exhaust the burst,
+        // and one cell replenishes every 500ms, so timing is tolerant to well
+        // under half a second of sleep overshoot on real tokio.
+        let policy = freq_threshold(2, 2, 5);
+        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        for _ in 0..10 {
+            policy.charge(&direct_tally(client));
+        }
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        // Two cells have replenished, so two more tallies pass.
+        for i in 0..2 {
+            assert_eq!(
+                policy.charge(&direct_tally(client)).block_client,
+                None,
+                "blocked after {i} replenished tallies"
+            );
+        }
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client)
+        );
+    }
+
+    #[test]
+    fn test_clients_are_limited_independently() {
+        let policy = freq_threshold(1, 1, 1);
+        let noisy = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        let quiet = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2));
+        for _ in 0..5 {
+            policy.charge(&direct_tally(noisy));
+        }
+        assert_eq!(
+            policy.charge(&direct_tally(noisy)).block_client,
+            Some(noisy)
+        );
+        assert_eq!(policy.charge(&direct_tally(quiet)).block_client, None);
+    }
+
+    #[test]
+    fn test_reconfigured_threshold_takes_effect() {
+        let policy = freq_threshold(1_000, 1_000, 5);
+        assert_eq!(policy.client_threshold(), Some(1_000));
+
+        // Accumulate state under the old threshold.
+        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        for _ in 0..10 {
+            assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
+        }
+
+        policy.set_client_threshold(2);
+        assert_eq!(policy.client_threshold(), Some(2));
+
+        // The new quota tolerates a fresh burst of 2 * 5, so the old state is
+        // gone along with the old limiter.
+        for i in 1..=10 {
+            assert_eq!(
+                policy.charge(&direct_tally(client)).block_client,
+                None,
+                "blocked early after {i} tallies"
+            );
+        }
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client)
+        );
+
+        // Re-asserting the same threshold keeps the exhausted state.
+        policy.set_client_threshold(2);
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client)
+        );
+
+        // Zero blocks every client, and a permissive threshold restores
+        // service.
+        policy.set_client_threshold(0);
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client)
+        );
+        policy.set_client_threshold(1_000);
+        assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
+
+        // An exact-count policy below a threshold of two blocks on the first
+        // tally, whether configured at startup or afterwards.
+        for threshold in [0, 1] {
+            assert_eq!(
+                exact_count(threshold, 60)
+                    .charge(&direct_tally(client))
+                    .block_client,
+                Some(client),
+                "threshold {threshold} did not block on the first tally"
+            );
+            let policy = exact_count(5, 60);
+            policy.set_client_threshold(threshold);
+            assert_eq!(
+                policy.charge(&direct_tally(client)).block_client,
+                Some(client),
+                "threshold {threshold} did not block on the first tally after reconfiguration"
+            );
+        }
+    }
+
+    #[test]
+    fn test_overlarge_thresholds_are_clamped() {
+        let policy = freq_threshold(2_000_000_000, 2_000_000_000, 5);
+        assert_eq!(policy.client_threshold(), Some(MAX_CLIENT_THRESHOLD));
+    }
+
+    #[test]
+    fn test_non_limiting_policies_ignore_threshold_updates() {
+        let policy = TrafficControlPolicy::from_policy_type(&PolicyType::NoOp, 0, evictions());
+        assert_eq!(policy.client_threshold(), None);
+        policy.set_client_threshold(10);
+        assert_eq!(policy.client_threshold(), None);
+    }
+
+    #[test]
+    fn test_cell_cache_is_bounded() {
+        let evictions = evictions();
+        let policy = TrafficControlPolicy::from_policy_type(
+            &PolicyType::TestNConnIP(2),
+            60,
+            evictions.clone(),
+        );
+        let evicted = IpAddr::V4(Ipv4Addr::from(0x0A00_0000));
+        assert_eq!(policy.charge(&direct_tally(evicted)).block_client, None);
+
+        // Flood enough distinct clients to fill the cache exactly.
+        for i in 1..MAX_TRACKED_CLIENTS as u32 {
+            policy.charge(&direct_tally(IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + i))));
+        }
+        assert_eq!(evictions.get(), 0);
+
+        // One client past capacity pushes the first one out.
+        let cached = IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + MAX_TRACKED_CLIENTS as u32));
+        policy.charge(&direct_tally(cached));
+        assert_eq!(evictions.get(), 1);
+
+        // The evicted client's count was reset along with its cell, so its
+        // next tally counts as its first again; a still-cached client keeps
+        // its count and blocks on its second.
+        assert_eq!(policy.charge(&direct_tally(evicted)).block_client, None);
+        assert_eq!(
+            policy.charge(&direct_tally(cached)).block_client,
+            Some(cached)
+        );
+        // Re-admitting the evicted client displaced another; the cached one
+        // displaced nothing.
+        assert_eq!(evictions.get(), 2);
+
+        // The counter outlives the limiter that a threshold change rebuilds.
+        policy.set_client_threshold(3);
+        assert_eq!(evictions.get(), 2);
     }
 }

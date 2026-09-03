@@ -9,7 +9,9 @@ use std::{
 
 use iota_core::{
     authority::{
-        AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+        AuthorityState, ExecutionEnv,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::{AssignedTxAndVersions, AssignedVersions, Schedulable},
         test_authority_builder::TestAuthorityBuilder,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
@@ -17,6 +19,7 @@ use iota_core::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
@@ -26,7 +29,7 @@ use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
-    crypto::{AccountKeyPair, AuthoritySignature, Signer},
+    crypto::{AccountPrivateKey, AuthoritySignature, Signer},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     executable_transaction::VerifiedExecutableTransaction,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
@@ -112,20 +115,20 @@ impl SingleValidator {
         &self,
         publish_data: PublishData,
         sender: Address,
-        keypair: &AccountKeyPair,
+        private_key: &AccountPrivateKey,
         gas: ObjectReference,
     ) -> (ObjectReference, ObjectReference) {
         let tx_builder = TestTransactionBuilder::new(sender, gas, DEFAULT_VALIDATOR_GAS_PRICE)
             .publish_with_data(publish_data);
-        let transaction = tx_builder.build_and_sign(keypair);
+        let transaction = tx_builder.build_and_sign(private_key);
         let effects = self.execute_raw_transaction(transaction).await;
         let package = effects
             .all_changed_objects()
             .into_iter()
-            .filter_map(|(oref, owner, _)| owner.is_immutable().then_some(oref))
+            .filter_map(|(changed, _)| changed.owner.is_immutable().then_some(changed.reference))
             .next()
             .unwrap();
-        let updated_gas = effects.gas_object().0;
+        let updated_gas = effects.gas_object().reference;
         (package, updated_gas)
     }
 
@@ -139,7 +142,7 @@ impl SingleValidator {
         );
         let effects = self
             .get_validator()
-            .try_execute_immediately(&executable, None, &self.epoch_store)
+            .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap()
             .0;
         assert!(effects.status().is_success());
@@ -162,6 +165,7 @@ impl SingleValidator {
     pub async fn execute_certificate(
         &self,
         cert: CertifiedTransaction,
+        assigned_versions: &AssignedVersions,
         component: Component,
     ) -> TransactionEffects {
         let effects = match component {
@@ -170,7 +174,11 @@ impl SingleValidator {
                     VerifiedCertificate::new_unchecked(cert),
                 );
                 self.get_validator()
-                    .try_execute_immediately(&cert, None, &self.epoch_store)
+                    .try_execute_immediately(
+                        &cert,
+                        ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+                        &self.epoch_store,
+                    )
                     .unwrap()
                     .0
             }
@@ -180,8 +188,14 @@ impl SingleValidator {
                     // For shared objects transactions, `execute_certificate` won't enqueue it
                     // because it expects consensus to do so. However we don't
                     // have consensus, hence the manual enqueue.
-                    self.get_validator()
-                        .enqueue_certificates_for_execution(vec![cert.clone()], &self.epoch_store);
+                    self.get_validator().execution_scheduler().enqueue(
+                        vec![(
+                            VerifiedExecutableTransaction::new_from_certificate(cert.clone())
+                                .into(),
+                            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+                        )],
+                        &self.epoch_store,
+                    );
                 }
                 self.get_validator()
                     .wait_for_certificate_execution(&cert, &self.epoch_store)
@@ -209,10 +223,11 @@ impl SingleValidator {
         &self,
         store: InMemoryObjectStore,
         transaction: CertifiedTransaction,
+        assigned_versions: &AssignedVersions,
     ) -> TransactionEffects {
         let input_objects = transaction.transaction().input_objects().unwrap();
         let objects = store
-            .read_objects_for_execution(&self.epoch_store, &transaction.key(), &input_objects)
+            .read_objects_for_execution(&transaction.key(), assigned_versions, &input_objects)
             .unwrap();
 
         let executable = VerifiedExecutableTransaction::new_from_certificate(
@@ -316,7 +331,7 @@ impl SingleValidator {
     pub(crate) async fn assigned_shared_object_versions(
         &self,
         transactions: &[CertifiedTransaction],
-    ) {
+    ) -> AssignedTxAndVersions {
         let transactions: Vec<_> = transactions
             .iter()
             .map(|tx| {
@@ -325,12 +340,13 @@ impl SingleValidator {
                 )
             })
             .collect();
+        let assignables: Vec<_> = transactions.iter().map(Schedulable::Transaction).collect();
         self.epoch_store
             .assign_shared_object_versions_idempotent(
                 self.get_validator().get_object_cache_reader().as_ref(),
-                &transactions,
+                assignables.iter(),
             )
-            .unwrap();
+            .unwrap()
     }
 }
 

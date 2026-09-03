@@ -15,7 +15,8 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
-    TransactionEventsDigest, crypto::SimpleSignature, gas::GasCostSummary,
+    TransactionDenyRulesUpdate, TransactionEventsDigest, crypto::SimpleSignature,
+    gas::GasCostSummary,
 };
 use roaring::RoaringBitmap;
 
@@ -24,8 +25,8 @@ use crate::{
     base_types::random_object_ref,
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaSignature, PublicKey, VerificationObligation,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
+        IotaAuthoritySignature, PublicKey, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
@@ -46,8 +47,8 @@ fn test_signed_values() {
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
     let (_a3, sec3): (_, AuthorityKeyPair) = get_key_pair();
-    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
-    let sender_sec2 = AccountKeyPair::random();
+    let (a_sender, sender_sec): (_, AccountPrivateKey) = get_key_pair();
+    let sender_sec2 = AccountPrivateKey::random();
 
     authorities.insert(
         // address
@@ -140,7 +141,7 @@ fn test_certificates() {
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
     let (_a3, sec3): (_, AuthorityKeyPair) = get_key_pair();
-    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
+    let (a_sender, sender_sec): (_, AccountPrivateKey) = get_key_pair();
 
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     authorities.insert(
@@ -497,7 +498,7 @@ fn test_digest_caching() {
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
 
     let sa1 = Address::random();
-    let (sa2, ssec2): (_, AccountKeyPair) = get_key_pair();
+    let (sa2, ssec2): (_, AccountPrivateKey) = get_key_pair();
 
     authorities.insert(sec1.public().into(), 1);
     authorities.insert(sec2.public().into(), 0);
@@ -580,8 +581,8 @@ fn test_digest_caching() {
 fn test_user_signature_committed_in_transactions() {
     // TODO: refactor this test to not reuse the same keys for user and authority
     // signing
-    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
-    let (a_sender2, sender_sec2): (_, AccountKeyPair) = get_key_pair();
+    let (a_sender, sender_sec): (_, AccountPrivateKey) = get_key_pair();
+    let (a_sender2, sender_sec2): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_price = 10;
     let tx = Transaction::new_transfer(
@@ -631,8 +632,8 @@ fn test_user_signature_committed_in_signed_transactions() {
     // TODO: refactor this test to not reuse the same keys for user and authority
     // signing
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
-    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
-    let (a_sender2, sender_sec2): (_, AccountKeyPair) = get_key_pair();
+    let (a_sender, sender_sec): (_, AccountPrivateKey) = get_key_pair();
+    let (a_sender2, sender_sec2): (_, AccountPrivateKey) = get_key_pair();
 
     let epoch = 0;
     let gas_price = 10;
@@ -716,8 +717,8 @@ fn signature_from_signer(
     intent: Intent,
     signer: &impl Signer<SimpleSignature>,
 ) -> SimpleSignature {
-    let intent_msg = IntentMessage::new(intent, tx);
-    SimpleSignature::new_secure(&intent_msg, signer)
+    let digest = IntentMessage::new(intent, tx).signing_digest();
+    signer.sign(&digest)
 }
 
 #[test]
@@ -1082,6 +1083,82 @@ fn test_consensus_commit_prologue_v1_transaction() {
     assert_eq!(tx.data().transaction().input_objects().unwrap().len(), 1);
 }
 
+fn transaction_deny_rules_update_kind() -> TransactionKind {
+    TransactionKind::TransactionDenyRulesUpdate(TransactionDenyRulesUpdate {
+        epoch: 1,
+        round: 42,
+        added_addresses: Default::default(),
+        removed_addresses: Default::default(),
+        added_objects: Default::default(),
+        removed_objects: Default::default(),
+        added_packages: Default::default(),
+        removed_packages: Default::default(),
+        package_publish_disabled: false,
+        package_upgrade_disabled: false,
+        shared_object_disabled: false,
+        user_transaction_disabled: false,
+        receiving_objects_disabled: false,
+        move_authenticator_disabled: false,
+        deny_rules_obj_initial_shared_version: Version::INITIAL_SHARED_VERSION,
+    })
+}
+
+#[test]
+fn test_transaction_deny_rules_update_transaction() {
+    let kind = transaction_deny_rules_update_kind();
+    assert_eq!(
+        kind.shared_input_objects().collect::<Vec<_>>(),
+        [SharedObjectReference::new(
+            ObjectId::TRANSACTION_DENY_RULES,
+            Version::INITIAL_SHARED_VERSION,
+            true,
+        )],
+    );
+    let data = Transaction::new_system_transaction(kind);
+    assert!(data.is_system_tx());
+    assert_eq!(data.input_objects().unwrap().len(), 1);
+
+    let create = EndOfEpochTransactionKind::TransactionDenyRulesCreate;
+    assert!(create.input_objects().is_empty());
+    assert!(
+        Transaction::new_system_transaction(TransactionKind::EndOfEpoch(vec![create]))
+            .is_system_tx()
+    );
+}
+
+/// Both deny rules kinds are unsupported while the flag is off, and even with
+/// it on they are system transactions that users cannot submit.
+#[test]
+fn test_transaction_deny_rules_kinds_rejected_from_users() {
+    let flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
+    let mut flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
+    flag_on.set_deny_rule_governance_for_testing(true);
+    flag_on.set_deny_rule_governance_on_chain_for_testing(true);
+
+    let create =
+        TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::TransactionDenyRulesCreate]);
+    for kind in [transaction_deny_rules_update_kind(), create] {
+        assert!(matches!(
+            kind.validity_check(&flag_off),
+            Err(UserInputError::Unsupported(_))
+        ));
+        kind.validity_check(&flag_on).unwrap();
+
+        let user_submission =
+            SenderSignedTransaction::new(Transaction::new_system_transaction(kind), vec![]);
+        let context = TxValidityCheckContext {
+            config: &flag_on,
+            epoch: 1,
+        };
+        assert!(matches!(
+            user_submission.validity_check(&context),
+            Err(IotaError::UserInput {
+                error: UserInputError::Unsupported(message)
+            }) if message == "SenderSignedTransaction must not contain system transaction"
+        ));
+    }
+}
+
 #[test]
 fn test_move_input_objects() {
     let package = ObjectId::random();
@@ -1258,11 +1335,11 @@ fn test_certificate_digest() {
     let (committee, key_pairs) = Committee::new_simple_test_committee();
 
     let receiver = Address::random();
-    let (sender1, sender1_sec): (_, AccountKeyPair) = get_key_pair();
-    let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
+    let (sender1, sender1_sec): (_, AccountPrivateKey) = get_key_pair();
+    let (sender2, sender2_sec): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_price = 10;
-    let make_tx = |sender, sender_sec: AccountKeyPair| {
+    let make_tx = |sender, sender_sec: AccountPrivateKey| {
         TransactionEnvelope::from_data_and_signer(
             Transaction::new_transfer(
                 receiver,

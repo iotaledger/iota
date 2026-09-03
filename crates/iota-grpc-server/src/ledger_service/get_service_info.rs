@@ -50,7 +50,7 @@ pub fn get_service_info(
 
     if read_mask.contains(GetServiceInfoResponse::CHAIN_ID_FIELD.name) {
         message = message.with_chain_id(iota_sdk_types::Digest::new(
-            service.chain_id.digest().into_inner(),
+            service.chain_id.digest().into_bytes(),
         ));
     }
 

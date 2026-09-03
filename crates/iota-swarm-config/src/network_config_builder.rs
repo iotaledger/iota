@@ -21,7 +21,7 @@ use iota_sdk_types::Address;
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, ProtocolVersion},
-    crypto::{AccountKeyPair, PublicKey, get_key_pair_from_rng},
+    crypto::{AccountPrivateKey, PublicKey, get_key_pair_from_rng},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
@@ -43,11 +43,11 @@ const DETERMINISTIC_PORTS_PER_VALIDATOR: u16 = 10;
 pub enum CommitteeConfig {
     Size(NonZeroUsize),
     Validators(Vec<ValidatorGenesisConfig>),
-    AccountKeys(Vec<AccountKeyPair>),
+    AccountKeys(Vec<AccountPrivateKey>),
     /// Indicates that a committee should be deterministically generated, using
     /// the provided rng as a source of randomness as well as generating
     /// deterministic network port information.
-    Deterministic((NonZeroUsize, Option<Vec<AccountKeyPair>>)),
+    Deterministic((NonZeroUsize, Option<Vec<AccountPrivateKey>>)),
 }
 
 fn place_on_deterministic_ports(
@@ -174,7 +174,7 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn deterministic_committee_validators(mut self, keys: Vec<AccountKeyPair>) -> Self {
+    pub fn deterministic_committee_validators(mut self, keys: Vec<AccountPrivateKey>) -> Self {
         self.committee = CommitteeConfig::Deterministic((
             NonZeroUsize::new(keys.len()).expect("Validator keys should be non empty"),
             Some(keys),
@@ -182,7 +182,7 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_validator_account_keys(mut self, keys: Vec<AccountKeyPair>) -> Self {
+    pub fn with_validator_account_keys(mut self, keys: Vec<AccountPrivateKey>) -> Self {
         self.committee = CommitteeConfig::AccountKeys(keys);
         self
     }
@@ -392,6 +392,17 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
     // TODO right now we always randomize ports, we may want to have a default port
     // configuration
     pub fn build(self) -> NetworkConfig {
+        self.build_with_genesis_config().0
+    }
+
+    /// Build the network config, and return the genesis config it was built
+    /// from with `validator_config_info` filled in with the validator entries
+    /// it used.
+    ///
+    /// A caller that persists the returned genesis config can derive the same
+    /// validator node configs again, without building the genesis a second
+    /// time.
+    pub fn build_with_genesis_config(self) -> (NetworkConfig, GenesisConfig) {
         let committee = self.committee;
 
         let mut rng = self.rng.unwrap();
@@ -430,7 +441,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     .map(|(i, (account_key, authority_key))| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
                             .with_authority_key_pair(authority_key)
-                            .with_account_key_pair(account_key);
+                            .with_account_private_key(account_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
                         }
@@ -454,7 +465,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                     let port_offset = 8000 + i * 10;
                     let mut builder = ValidatorGenesisConfigBuilder::new()
                         .with_ip("127.0.0.1".to_owned())
-                        .with_account_key_pair(key)
+                        .with_account_private_key(key)
                         .with_deterministic_ports(port_offset as u16);
                     if let Some(rgp) = self.reference_gas_price {
                         builder = builder.with_gas_price(rgp);
@@ -465,9 +476,22 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             }
         };
 
-        let genesis_config = self
+        let mut validators = validators;
+        if let Some(admin_interface_address) = self.admin_interface_address {
+            for validator in &mut validators {
+                validator.admin_interface_address = admin_interface_address;
+            }
+        }
+
+        let mut genesis_config = self
             .genesis_config
             .unwrap_or_else(GenesisConfig::for_local_testing);
+        genesis_config.validator_config_info = Some(
+            validators
+                .iter()
+                .map(ValidatorGenesisConfig::copy_with_private_keys)
+                .collect(),
+        );
 
         let (account_keys, allocations) = genesis_config.generate_accounts(&mut rng).unwrap();
 
@@ -501,7 +525,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
         let genesis = {
             let mut builder = iota_genesis_builder::Builder::new()
-                .with_parameters(genesis_config.parameters)
+                .with_parameters(genesis_config.parameters.clone())
                 .add_objects(self.additional_objects);
 
             for (i, validator) in validators.iter().enumerate() {
@@ -526,7 +550,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         let validator_configs = validators
             .into_iter()
             .enumerate()
-            .map(|(idx, mut validator)| {
+            .map(|(idx, validator)| {
                 let mut builder = ValidatorConfigBuilder::new()
                     .with_config_directory(self.config_directory.clone())
                     .with_policy_config(self.policy_config.clone())
@@ -581,9 +605,6 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                         builder = builder.with_unpruned_checkpoints();
                     }
                 }
-                if let Some(admin_interface_address) = self.admin_interface_address {
-                    validator.admin_interface_address = admin_interface_address;
-                }
                 if self.empty_validator_genesis {
                     builder.build_without_genesis(validator)
                 } else {
@@ -591,11 +612,14 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 }
             })
             .collect();
-        NetworkConfig {
-            validator_configs,
-            genesis,
-            account_keys,
-        }
+        (
+            NetworkConfig {
+                validator_configs,
+                genesis,
+                account_keys,
+            },
+            genesis_config,
+        )
     }
 }
 

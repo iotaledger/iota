@@ -17,7 +17,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::AccountKeyPair,
+    crypto::AccountPrivateKey,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
@@ -33,7 +33,7 @@ use iota_types::{
 
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ExecutionEnv,
         auth_unit_test_utils::{
             publish_package_on_single_authority, upgrade_package_on_single_authority,
         },
@@ -77,7 +77,7 @@ async fn reload_state_with_new_deny_config(
         .await
 }
 
-type Account = (Address, AccountKeyPair, Vec<ObjectReference>);
+type Account = (Address, AccountPrivateKey, Vec<ObjectReference>);
 
 fn get_accounts_and_coins(
     network_config: &NetworkConfig,
@@ -254,10 +254,10 @@ async fn test_package_publish_disabled() {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/object_basics");
-    let (sender, keypair, gas_object) = (accounts[0].0, &accounts[0].1, accounts[0].2[0]);
+    let (sender, key, gas_object) = (accounts[0].0, &accounts[0].1, accounts[0].2[0]);
     let tx = TestTransactionBuilder::new(sender, gas_object, rgp)
         .publish(path)
-        .build_and_sign(keypair);
+        .build_and_sign(key);
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
     let result = state.handle_transaction(&epoch_store, tx).await;
@@ -462,7 +462,7 @@ async fn test_certificate_deny() {
         CertifiedTransaction::new(tx.into_message(), vec![signature], epoch_store.committee())
             .unwrap(),
     );
-    let (effects, _) = state.execute_for_test(&cert);
+    let (effects, _) = state.execute_for_test(&cert, ExecutionEnv::new());
     assert!(matches!(
         effects.status(),
         &ExecutionStatus::Failure {

@@ -14,8 +14,8 @@ use starfish_config::AuthorityIndex;
 use super::{Store, WriteBatch};
 use crate::{
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, Slot, TransactionsCommitment,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, Round,
+        Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
@@ -34,7 +34,7 @@ pub(crate) struct MemStore {
 
 struct Inner {
     transactions_by_tx_refs:
-        BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), VerifiedTransactions>,
+        BTreeMap<(Round, AuthorityIndex, TransactionsCommitment), CommitmentVerifiedTransactions>,
     block_headers: BTreeMap<(Round, AuthorityIndex, BlockHeaderDigest), VerifiedBlockHeader>,
     digests_by_authorities: BTreeSet<(AuthorityIndex, Round, BlockHeaderDigest)>,
     transaction_commitments_by_authorities:
@@ -149,7 +149,7 @@ impl Store for MemStore {
     fn read_verified_transactions(
         &self,
         refs: &[GenericTransactionRef],
-    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+    ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>> {
         if !check_ref_consistency(refs) {
             return Err(ConsensusError::InconsistentTransactionRefVariants);
         }

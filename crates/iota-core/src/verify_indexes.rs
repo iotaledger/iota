@@ -38,7 +38,7 @@ pub fn verify_indexes(store: &dyn GlobalStateHashStore, indexes: Arc<IndexStore>
         owner_index.insert(owner_index_key, object_info);
 
         // Coin Index Calculation
-        if let Some(type_tag) = object.coin_type_opt() {
+        if let Some(type_tag) = object.opt_coin_type() {
             let info =
                 CoinInfo::from_object(object).expect("already checked that this is a coin type");
             let key = (owner, type_tag.to_string(), object.id());

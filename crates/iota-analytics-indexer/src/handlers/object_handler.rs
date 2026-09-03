@@ -175,9 +175,10 @@ impl ObjectHandler {
         };
         let (struct_tag, iota_move_struct) = if let Some(move_struct) = move_struct {
             match move_struct.into() {
-                IotaMoveStruct::WithTypes { type_, fields } => {
-                    (Some(type_), Some(IotaMoveStruct::WithFields(fields)))
-                }
+                IotaMoveStruct::WithTypes {
+                    struct_tag: tag,
+                    fields,
+                } => (Some(tag), Some(IotaMoveStruct::WithFields(fields))),
                 fields => (object.struct_tag(), Some(fields)),
             }
         } else {
@@ -202,8 +203,8 @@ impl ObjectHandler {
             previous_transaction: object.previous_transaction.to_base58(),
             storage_rebate: Some(object.storage_rebate),
             bcs: Some(object.to_base64()),
-            coin_type: object.coin_type_opt().map(|t| t.to_string()),
-            coin_balance: if object.coin_type_opt().is_some() {
+            coin_type: object.opt_coin_type().map(|t| t.to_string()),
+            coin_balance: if object.opt_coin_type().is_some() {
                 Some(object.get_coin_value_unchecked())
             } else {
                 None

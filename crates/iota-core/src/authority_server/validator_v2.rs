@@ -25,15 +25,13 @@ use iota_types::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-/// Maximum number of transactions allowed in a single `submit_tx` request.
-/// Sized so that per-item traffic tallies from a single max-batch request
-/// stay well under `PolicyConfig::channel_capacity` (default 100), leaving
-/// room for concurrent requests before the tally channel overflows.
+/// Maximum number of transactions allowed in a single `submit_tx` request,
+/// bounding the traffic tallies and execution work one request can create.
 const MAX_TRANSACTIONS_PER_SUBMIT: usize = 32;
 
 /// Maximum number of queries allowed in a single `get_tx_status` request.
-/// Sized to match `MAX_TRANSACTIONS_PER_SUBMIT` for the same tally-channel
-/// reason.
+/// Matches `MAX_TRANSACTIONS_PER_SUBMIT` so one status poll can cover a full
+/// submit batch.
 const MAX_QUERIES_PER_GET_TX_STATUS: usize = 32;
 
 /// Timeout for waiting on transaction execution in `get_tx_status`.
@@ -786,8 +784,8 @@ impl ValidatorV2 for ValidatorService {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId};
-    use iota_types::deny_rule_governance::{DenyRuleConfig, DenyRuleSet};
+    use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
+    use iota_types::deny_rule_governance::DenyRuleConfig;
 
     use super::DenyRuleUnion;
 

@@ -727,7 +727,7 @@ impl AuthorityStore {
         let mut hasher = Sha3_256::default();
         let mut batch = perpetual_db.objects.batch();
         for live_object in live_objects {
-            hasher.update(live_object.object_reference().digest.inner());
+            hasher.update(live_object.object_reference().digest.bytes());
             let LiveObject {
                 object,
                 previous_transaction_checkpoint,
@@ -1179,13 +1179,13 @@ impl AuthorityStore {
         let all_new_object_keys = effects
             .all_changed_objects()
             .into_iter()
-            .map(|(object_ref, _, _)| ObjectKey(object_ref.object_id, object_ref.version));
+            .map(|(changed, _)| ObjectKey(changed.reference.object_id, changed.reference.version));
         write_batch.delete_batch(&self.perpetual_tables.objects, all_new_object_keys.clone())?;
 
         let modified_object_keys = effects
             .modified_at_versions()
             .into_iter()
-            .map(|(id, version)| ObjectKey(id, version));
+            .map(|modified| ObjectKey(modified.object_id, modified.version));
 
         macro_rules! get_objects_and_locks {
             ($object_keys: expr) => {
@@ -1628,9 +1628,10 @@ impl AuthorityStore {
 
         let mut object_keys_to_prune = vec![];
         for effects in &transaction_effects {
-            for (object_id, seq_number) in effects.modified_at_versions() {
-                info!("Pruning object {} version {:?}", object_id, seq_number);
-                object_keys_to_prune.push(ObjectKey(object_id, seq_number));
+            for modified in effects.modified_at_versions() {
+                let (object_id, version) = (modified.object_id, modified.version);
+                info!("Pruning object {object_id} version {version:?}");
+                object_keys_to_prune.push(ObjectKey(object_id, version));
             }
         }
 

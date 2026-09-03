@@ -70,8 +70,9 @@ pub struct DynamicFieldInfo {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldName {
+    #[serde(rename = "type")]
     #[serde_as(as = "Readable<IotaTypeTag, _>")]
-    pub type_: TypeTag,
+    pub type_tag: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to
     // BCS.
@@ -81,7 +82,7 @@ pub struct DynamicFieldName {
 
 impl Display for DynamicFieldName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.type_, self.value)
+        write!(f, "{}: {}", self.type_tag, self.value)
     }
 }
 
@@ -282,6 +283,9 @@ where
 /// must implement `MoveTypeTagTrait` which has an associated function that
 /// returns the Move type tag. Note that this function returns the Field object
 /// itself, not the value in the field.
+///
+/// Returns [`IotaError::DynamicFieldNotExists`] if no such field exists on the
+/// parent, so callers can tell a missing field apart from a failed read.
 pub fn get_dynamic_field_object_from_store<K>(
     object_store: &dyn ObjectStore,
     parent_id: ObjectId,
@@ -293,9 +297,8 @@ where
     let id = derive_dynamic_field_id(parent_id, &K::get_type_tag(), &bcs::to_bytes(key).unwrap())
         .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?;
     let object = object_store.try_get_object(&id)?.ok_or_else(|| {
-        IotaError::DynamicFieldRead(format!(
-            "Dynamic field with key={key:?} and ID={id} not found on parent {parent_id}"
-        ))
+        let key = format!("{key:?}");
+        IotaError::DynamicFieldNotExists { parent_id, id, key }
     })?;
     Ok(object)
 }
@@ -321,4 +324,38 @@ where
     Ok(bcs::from_bytes::<Field<K, V>>(move_object.contents())
         .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?
         .value)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    #[test]
+    fn missing_dynamic_field_returns_dynamic_field_not_exists() {
+        let parent_id = ObjectId::random();
+        let key = 42u64;
+        let mut store: BTreeMap<ObjectId, Object> = BTreeMap::new();
+
+        let err = get_dynamic_field_object_from_store(&store, parent_id, &key).unwrap_err();
+        match err {
+            IotaError::DynamicFieldNotExists {
+                parent_id: err_parent_id,
+                id,
+                key: err_key,
+            } => {
+                assert_eq!(err_parent_id, parent_id);
+                assert_eq!(err_key, format!("{key:?}"));
+
+                // The same lookup succeeds once the field object is in the
+                // store, so the error above really means "not present" rather
+                // than e.g. a wrong ID derivation.
+                store.insert(id, Object::with_id_owner_for_testing(id, Address::random()));
+                let object = get_dynamic_field_object_from_store(&store, parent_id, &key).unwrap();
+                assert_eq!(object.id(), id);
+            }
+            other => panic!("expected DynamicFieldNotExists, got: {other:?}"),
+        }
+    }
 }

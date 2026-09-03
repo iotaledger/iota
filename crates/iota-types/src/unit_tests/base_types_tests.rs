@@ -12,7 +12,7 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_crypto::ToFromBytes as _;
+use iota_sdk_crypto::{Signer as _, ToFromBytes as _};
 use iota_sdk_types::{
     Address, Digest, Owner, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
@@ -23,14 +23,14 @@ use super::*;
 use crate::{
     base_types::TypeTag,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature,
+        AccountPrivateKey, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         bcs_signable_test::{Bar, Foo},
         get_key_pair,
     },
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
     object::Object,
+    signature::{AuthenticatorTrait, VerifyParams},
 };
 
 #[test]
@@ -48,38 +48,40 @@ fn test_bcs_enum() {
 
 #[test]
 fn test_signatures() {
-    let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
+    let (addr1, sec1): (_, AccountPrivateKey) = get_key_pair();
     let addr2 = Address::random();
 
     let foo = IntentMessage::new(Intent::iota_transaction(), Foo("hello".into()));
     let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
-    let s = SimpleSignature::new_secure(&foo, &sec1);
-    assert!(s.verify_secure(&foo, addr1).is_ok());
-    assert!(s.verify_secure(&foo, addr2).is_err());
-    assert!(s.verify_secure(&foox, addr1).is_err());
+    let aux = VerifyParams::default();
+    let s: SimpleSignature = sec1.sign(&foo.signing_digest());
+    assert!(s.verify_claims(&foo, addr1, &aux).is_ok());
+    assert!(s.verify_claims(&foo, addr2, &aux).is_err());
+    assert!(s.verify_claims(&foox, addr1, &aux).is_err());
     assert!(
-        s.verify_secure(
+        s.verify_claims(
             &IntentMessage::new(
                 Intent::iota_app(IntentScope::SenderSignedTransaction),
                 Foo("hello".into())
             ),
             addr1,
+            &aux,
         )
         .is_err()
     );
 
     // The struct type is different, but the serialization is the same.
-    assert!(s.verify_secure(&bar, addr1).is_ok());
+    assert!(s.verify_claims(&bar, addr1, &aux).is_ok());
 }
 
 #[test]
 fn test_signatures_serde() {
-    let sec1 = AccountKeyPair::random();
+    let sec1 = AccountPrivateKey::random();
     let foo = Foo("hello".into());
-    let s =
-        SimpleSignature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
+    let s: SimpleSignature =
+        sec1.sign(&IntentMessage::new(Intent::iota_transaction(), foo).signing_digest());
 
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");
@@ -287,7 +289,7 @@ fn test_transaction_digest_serde_not_human_readable() {
     let bcs_serialized = bcs::to_bytes(&digest).unwrap();
     // bincode use 8 bytes for BYTES len and bcs use 1 byte
     assert_eq!(serialized[8..], bcs_serialized[1..]);
-    assert_eq!(digest.inner(), &serialized[8..]);
+    assert_eq!(digest.bytes(), &serialized[8..]);
     let deserialized: TransactionDigest = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, digest);
 }
@@ -297,7 +299,7 @@ fn test_transaction_digest_serde_human_readable() {
     let digest = TransactionDigest::random();
     let serialized = serde_json::to_string(&digest).unwrap();
     assert_eq!(
-        format!("\"{}\"", Base58::encode(digest.inner())),
+        format!("\"{}\"", Base58::encode(digest.bytes())),
         serialized
     );
     let deserialized: TransactionDigest = serde_json::from_str(&serialized).unwrap();
@@ -378,14 +380,14 @@ const SAMPLE_ADDRESS_VEC: [u8; 32] = [
 ];
 
 // Derive a sample address and public key tuple from private key bytes.
-fn derive_sample_address() -> (Address, AccountKeyPair) {
-    let key_pair = AccountKeyPair::from_bytes([
+fn derive_sample_address() -> (Address, AccountPrivateKey) {
+    let key = AccountPrivateKey::from_bytes([
         10, 112, 5, 142, 174, 127, 187, 146, 251, 68, 22, 191, 128, 68, 84, 13, 102, 71, 77, 57,
         92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214,
     ])
     .unwrap();
-    let address = key_pair.public_key().derive_address();
-    (address, key_pair)
+    let address = key.public_key().derive_address();
+    (address, key)
 }
 
 // Required to capture address derivation algorithm updates that break some

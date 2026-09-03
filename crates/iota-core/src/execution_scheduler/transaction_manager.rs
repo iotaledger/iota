@@ -9,12 +9,10 @@ use std::{
     time::Duration,
 };
 
-use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_common::{debug_fatal, fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{
-    ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, Version,
-};
+use iota_sdk_types::{ObjectId, SenderSignedTransaction, TransactionDigest, Version};
 use iota_types::{
     committee::EpochId,
     error::{IotaError, IotaResult},
@@ -22,7 +20,7 @@ use iota_types::{
     fp_bail, fp_ensure,
     message_envelope::Message,
     storage::InputKey,
-    transaction::{SenderSignedTransactionAPI, TransactionAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI, TransactionKey},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -31,9 +29,15 @@ use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{error, info, instrument, trace, warn};
 
 use crate::{
-    authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::{
+        AuthorityMetrics, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::Schedulable,
+    },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
-    execution_scheduler::{ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats},
+    execution_scheduler::{
+        ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
+        executed_in_current_epoch,
+    },
 };
 
 #[cfg(test)]
@@ -226,6 +230,10 @@ struct Inner {
     /// Transactions that have all input objects available, but have not
     /// finished execution.
     executing_transactions: HashSet<TransactionDigest>,
+
+    /// Pseudo-transactions which have been scheduled, but for which we do not
+    /// have a digest or transaction yet.
+    pending_transaction_keys: HashMap<TransactionKey, ExecutionEnv>,
 }
 
 impl Inner {
@@ -237,6 +245,7 @@ impl Inner {
             available_objects_cache: AvailableObjectsCache::new(metrics),
             pending_transactions: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
             executing_transactions: HashSet::with_capacity(MIN_HASHMAP_CAPACITY),
+            pending_transaction_keys: HashMap::with_capacity(MIN_HASHMAP_CAPACITY),
         }
     }
 
@@ -337,12 +346,53 @@ impl TransactionManager {
         }
     }
 
-    fn enqueue_impl(
+    pub(crate) fn notify_transaction_key(
         &self,
-        transactions: Vec<(
-            VerifiedExecutableTransaction,
-            Option<TransactionEffectsDigest>,
-        )>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        key: TransactionKey,
+        digest: TransactionDigest,
+    ) {
+        if matches!(key, TransactionKey::Digest(_)) {
+            debug_fatal!("useless notify_transaction_key");
+            return;
+        }
+
+        let transactions = {
+            let reconfig_lock = self.inner.read();
+            let mut inner = reconfig_lock.write();
+            if let Some(env) = inner.pending_transaction_keys.remove(&key) {
+                // we were waiting on the key, so load the transaction
+                // Unlike the enqueue path above, both callers here hand over a
+                // digest whose transaction they have just written: local randomness
+                // generation persists it before inserting the key, and
+                // `commit_transaction` writes the outputs before notifying.
+                let transaction = self
+                    .transaction_cache_read
+                    .get_transaction_block(&digest)
+                    .expect("tx must exist")
+                    .as_ref()
+                    .clone();
+                let transaction =
+                    VerifiedExecutableTransaction::new_system(transaction, epoch_store.epoch());
+                // The parked env holds the only copy of that key's assigned versions.
+                debug_assert_eq!(
+                    transaction.key(),
+                    key,
+                    "notify_transaction_key called with a digest naming another transaction"
+                );
+                Some(vec![(transaction, env)])
+            } else {
+                None
+            }
+        };
+        if let Some(transactions) = transactions {
+            self.enqueue_transactions(transactions, epoch_store);
+        }
+    }
+
+    fn enqueue_transactions_impl(
+        &self,
+        transactions: Vec<(VerifiedExecutableTransaction, ExecutionEnv)>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
         let reconfig_lock = self.inner.read();
@@ -384,30 +434,16 @@ impl TransactionManager {
 
             transactions
                 .into_iter()
-                .filter_map(|(tx, fx_digest)| {
+                .map(|(tx, execution_env)| {
                     // Check availability of all transaction associated input objects(transaction +
                     // authenticators).
                     let input_object_kinds =
                         tx.input_objects().expect("input_objects() cannot fail");
-                    let mut input_object_keys =
-                        match epoch_store.get_input_object_keys(&tx.key(), &input_object_kinds) {
-                            Ok(keys) => keys,
-                            Err(e) => {
-                                // Because we do not hold the transaction lock during enqueue, it is
-                                // possible that the transaction was executed and the shared version
-                                // assignments deleted since the earlier check. This is a rare race
-                                // condition, and it is better to handle it ad-hoc here than to hold
-                                // tx locks for every transaction for the duration of this function
-                                // in order to remove the race.
-                                if self
-                                    .transaction_cache_read
-                                    .is_tx_already_executed(tx.digest())
-                                {
-                                    return None;
-                                }
-                                fatal!("Failed to get input object keys: {:?}", e);
-                            }
-                        };
+                    let mut input_object_keys = epoch_store.get_input_object_keys(
+                        &tx.key(),
+                        &input_object_kinds,
+                        &execution_env.assigned_versions,
+                    );
 
                     if input_object_kinds.len() != input_object_keys.len() {
                         let mut seen = HashSet::with_capacity(input_object_kinds.len());
@@ -439,7 +475,7 @@ impl TransactionManager {
                         }
                     }
 
-                    Some((tx, fx_digest, input_object_keys))
+                    (tx, execution_env, input_object_keys)
                 })
                 .collect()
         };
@@ -521,10 +557,10 @@ impl TransactionManager {
         let mut pending = Vec::new();
         let pending_transaction_enqueue_time = Instant::now();
 
-        for (transaction, expected_effects_digest, input_object_keys) in transactions {
+        for (transaction, execution_env, input_object_keys) in transactions {
             pending.push(PendingTransaction {
                 transaction,
-                expected_effects_digest,
+                execution_env,
                 waiting_input_objects: input_object_keys,
                 stats: PendingTransactionStats {
                     #[cfg(test)]
@@ -844,6 +880,15 @@ impl TransactionManager {
         Ok(())
     }
 
+    /// Number of schedulables parked under their transaction key, waiting for
+    /// `notify_transaction_key`. Not counted by `inflight_queue_len`.
+    #[cfg(test)]
+    fn num_pending_transaction_keys_for_testing(&self) -> usize {
+        let reconfig_lock = self.inner.read();
+        let inner = reconfig_lock.read();
+        inner.pending_transaction_keys.len()
+    }
+
     // Verify TM has no pending item for tests.
     #[cfg(test)]
     fn check_empty_for_testing(&self) {
@@ -869,19 +914,99 @@ impl TransactionManager {
             "Executing transactions: {:?}",
             inner.executing_transactions
         );
+        assert!(
+            inner.pending_transaction_keys.is_empty(),
+            "Pending transaction keys: {:?}",
+            inner.pending_transaction_keys.keys().collect::<Vec<_>>()
+        );
     }
 }
 
 impl ExecutionSchedulerAPI for TransactionManager {
-    fn enqueue_impl(
+    fn enqueue(
         &self,
-        transactions: Vec<(
-            VerifiedExecutableTransaction,
-            Option<TransactionEffectsDigest>,
-        )>,
+        transactions: Vec<(Schedulable, ExecutionEnv)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        TransactionManager::enqueue_impl(self, transactions, epoch_store)
+        // schedule all transactions immediately
+        let mut txns = Vec::with_capacity(transactions.len());
+        let mut rest = Vec::new();
+
+        for (schedulable, env) in transactions {
+            if let Schedulable::Transaction(tx) = schedulable {
+                txns.push((tx, env));
+            } else {
+                rest.push((schedulable, env));
+            }
+        }
+
+        self.enqueue_transactions(txns, epoch_store);
+
+        // Every consensus commit and every owned-only certificate reaches this
+        // point, and almost none of them carry a schedulable without a
+        // transaction; returning here spares them three uncontended lock
+        // acquisitions for an empty batch.
+        if rest.is_empty() {
+            return;
+        }
+
+        let executable = {
+            let reconfig_lock = self.inner.read();
+
+            let mut executable = Vec::with_capacity(rest.len());
+            let mut inner = reconfig_lock.write();
+            for (schedulable, env) in rest {
+                debug_assert!(!matches!(schedulable, Schedulable::Transaction(_)));
+                let key = schedulable.key();
+
+                let Ok(digest) = epoch_store.tx_key_to_digest(&key) else {
+                    warn!("Epoch ended, not enqueueing any more transactions");
+                    return;
+                };
+
+                if let Some(digest) = digest {
+                    // Both writers of the key store the transaction before the key, so
+                    // a resolved key naming a transaction that is neither in the store
+                    // nor executed means that order broke. Skipping keeps the node
+                    // running, but it drops the env holding the key's assigned
+                    // versions, and the checkpoint builder then waits on that root
+                    // forever.
+                    let Some(transaction) =
+                        self.transaction_cache_read.get_transaction_block(&digest)
+                    else {
+                        if !executed_in_current_epoch(
+                            self.transaction_cache_read.as_ref(),
+                            epoch_store,
+                            &digest,
+                        ) {
+                            debug_fatal!(
+                                "transaction {digest} named by a resolved key is neither \
+                                 stored nor executed"
+                            );
+                        }
+                        continue;
+                    };
+                    let transaction = transaction.as_ref().clone();
+                    executable.push((
+                        VerifiedExecutableTransaction::new_system(transaction, epoch_store.epoch()),
+                        env,
+                    ));
+                } else {
+                    inner.pending_transaction_keys.insert(key, env);
+                }
+            }
+            executable
+        };
+
+        self.enqueue_transactions(executable, epoch_store);
+    }
+
+    fn enqueue_transactions(
+        &self,
+        transactions: Vec<(VerifiedExecutableTransaction, ExecutionEnv)>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        TransactionManager::enqueue_transactions_impl(self, transactions, epoch_store)
     }
 
     fn check_execution_overload(

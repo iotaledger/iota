@@ -78,6 +78,9 @@ impl MisbehaviorMonitor {
             MisbehaviorObservations::V1(o) => {
                 VersionedMisbehaviorReport::new_v1(self.authority, generation, o.clone())
             }
+            MisbehaviorObservations::V2(o) => {
+                VersionedMisbehaviorReport::new_v2(self.authority, generation, o.clone())
+            }
         }
     }
 

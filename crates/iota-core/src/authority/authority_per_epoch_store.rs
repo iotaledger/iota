@@ -31,9 +31,9 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, CanceledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    SenderSignedTransaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionKind, UserSignature, Version, VersionAssignment,
+    Address, CanceledTransaction, CheckpointTimestamp, DenyRuleSet, ObjectId, ObjectReference,
+    RandomnessRound, SenderSignedTransaction, TransactionDenyRulesUpdate, TransactionDigest,
+    TransactionEffects, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
@@ -41,7 +41,6 @@ use iota_types::{
     base_types::{AuthorityName, CommitRound, ConciseableName, EpochId},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
-    deny_rule_governance::DenyRuleSet,
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::{
@@ -104,7 +103,8 @@ use crate::{
         epoch_start_configuration::EpochStartConfiguration,
         shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
         shared_object_version_manager::{
-            AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
+            AssignedTxAndVersions, AssignedVersions, ConsensusSharedObjVerAssignment, Schedulable,
+            SharedObjVerManager,
         },
         suggested_gas_price_calculator::SuggestedGasPriceCalculator,
     },
@@ -125,7 +125,7 @@ use crate::{
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
+    execution_cache::{ObjectCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
@@ -729,12 +729,22 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
-    /// The active deny rule set: the stake-weighted aggregate of the recorded
-    /// deny rule proposals. Recomputed via
-    /// `store_active_transaction_deny_rules` in
-    /// `ConsensusOutputQuarantine::push_consensus_output` and seeded from the
-    /// `deny_rule_proposals` table on construction.
+    /// The active deny rule set: the union of the mirrored on-chain state
+    /// and the stake-weighted aggregate of the recorded deny rule proposals.
+    /// Recomputed via `store_active_transaction_deny_rules` in
+    /// `ConsensusOutputQuarantine::push_consensus_output`; seeded on
+    /// construction from the epoch-start object state and the
+    /// `deny_rule_proposals` table, so enforcement carries across the epoch
+    /// boundary before any announcement of the new epoch lands.
     active_transaction_deny_rules: ArcSwap<DenyRuleSet>,
+
+    /// The state the scheduled deny-rule updates bring the
+    /// `TransactionDenyRules` object to, and the base of the injection diff:
+    /// seeded from the object at epoch start, advanced when a commit
+    /// schedules updates — the only commit-deterministic point; execution
+    /// completion is not and must not feed back in. A failed update leaves
+    /// the object behind until the epoch boundary re-seeds the mirror.
+    mirrored_transaction_deny_rules: ArcSwap<DenyRuleSet>,
 
     /// Pre-consensus soft locks for owned objects (P-COOL flow).
     ///
@@ -917,6 +927,11 @@ pub struct AuthorityEpochTables {
     /// via TransactionDenyRuleProposal consensus transactions. A newer
     /// generation overwrites an older one from the same authority.
     deny_rule_proposals: DBMap<AuthorityName, TransactionDenyRuleProposal>,
+
+    /// The mirrored deny-rule state as of the last flushed commit, written
+    /// in the flush batch so a restart resumes there and replays the rest.
+    /// Present from epoch-store construction whenever the object exists.
+    deny_rule_mirror: DBMap<(), DenyRuleSet>,
 
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
@@ -1257,7 +1272,7 @@ impl AuthorityPerEpochStore {
             protocol_config.additional_multisig_checks(),
         );
 
-        let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
+        let consensus_output_cache = ConsensusOutputCache::new(&tables);
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1278,9 +1293,12 @@ impl AuthorityPerEpochStore {
                 .safe_iter()
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .expect("AuthorityEpochTables should contain valid deny rule proposals");
-        let active_transaction_deny_rules = ArcSwap::from_pointee(
+        let deny_rule_mirror = Self::initial_deny_rule_mirror(&tables, &epoch_start_configuration)?;
+        let active_transaction_deny_rules = ArcSwap::from_pointee(union_deny_rule_sets(
             Self::compute_active_transaction_deny_rules(&cached_deny_rule_proposals, &committee),
-        );
+            &deny_rule_mirror,
+        ));
+        let mirrored_transaction_deny_rules = ArcSwap::from_pointee(deny_rule_mirror);
 
         let committee_size = committee.num_members();
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
@@ -1329,6 +1347,7 @@ impl AuthorityPerEpochStore {
             signed_effects_digests_cache,
             dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
             active_transaction_deny_rules,
+            mirrored_transaction_deny_rules,
             soft_locks: OnceCell::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
@@ -1663,36 +1682,44 @@ impl AuthorityPerEpochStore {
             .insert(tx_digest, cert_sig)?)
     }
 
+    /// Record that a transaction has been executed in the current epoch.
+    /// Used by checkpoint builder to cull dependencies from previous epochs.
     #[instrument(level = "trace", skip_all)]
-    pub fn insert_tx_key_and_digest(
-        &self,
-        tx_key: &TransactionKey,
-        tx_digest: &TransactionDigest,
-    ) -> IotaResult {
-        let _metrics_scope = iota_metrics::monitored_scope("AuthorityPerEpochStore::insert_tx_key");
-        let tables = self.tables()?;
-
+    pub fn insert_executed_in_epoch(&self, tx_digest: &TransactionDigest) {
         self.consensus_output_cache
             .insert_executed_in_epoch(*tx_digest);
+    }
 
-        if !matches!(tx_key, TransactionKey::Digest(_)) {
-            tables.transaction_key_to_digest.insert(tx_key, tx_digest)?;
-            self.executed_digests_notify_read.notify(tx_key, tx_digest);
+    /// Record a mapping from a transaction key (such as
+    /// TransactionKey::RandomnessRound) to its digest.
+    pub(crate) fn insert_tx_key(
+        &self,
+        tx_key: TransactionKey,
+        tx_digest: TransactionDigest,
+    ) -> IotaResult {
+        let _metrics_scope = iota_metrics::monitored_scope("AuthorityPerEpochStore::insert_tx_key");
+
+        if matches!(tx_key, TransactionKey::Digest(_)) {
+            debug_fatal!("useless to insert a digest key");
+            return Ok(());
         }
 
+        let tables = self.tables()?;
+        tables
+            .transaction_key_to_digest
+            .insert(&tx_key, &tx_digest)?;
+        self.executed_digests_notify_read
+            .notify(&tx_key, &tx_digest);
         Ok(())
     }
 
-    pub(crate) fn remove_shared_version_assignments(
-        &self,
-        keys: impl IntoIterator<Item = TransactionKey>,
-    ) {
-        self.consensus_output_cache
-            .remove_shared_object_assignments(keys);
-    }
-
-    pub fn num_shared_version_assignments(&self) -> usize {
-        self.consensus_output_cache.num_shared_version_assignments()
+    pub fn tx_key_to_digest(&self, key: &TransactionKey) -> IotaResult<Option<TransactionDigest>> {
+        let tables = self.tables()?;
+        if let TransactionKey::Digest(digest) = key {
+            Ok(Some(*digest))
+        } else {
+            Ok(tables.transaction_key_to_digest.get(key).expect("db error"))
+        }
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
@@ -1805,31 +1832,23 @@ impl AuthorityPerEpochStore {
         Ok(self.tables()?.transaction_cert_signatures.get(tx_digest)?)
     }
 
-    /// Resolves InputObjectKinds into InputKeys, by consulting the shared
-    /// object version assignment table.
+    /// Resolves InputObjectKinds into InputKeys. `assigned_versions` is used to
+    /// map shared inputs to specific object versions.
     pub(crate) fn get_input_object_keys(
         &self,
         key: &TransactionKey,
         objects: &[InputObjectKind],
-    ) -> IotaResult<BTreeSet<InputKey>> {
-        let assigned_shared_versions =
-            once_cell::unsync::OnceCell::<Option<HashMap<ObjectId, Version>>>::new();
+        assigned_versions: &AssignedVersions,
+    ) -> BTreeSet<InputKey> {
+        let assigned_shared_versions: BTreeMap<ObjectId, Version> = assigned_versions
+            .iter()
+            .map(|assignment| (assignment.object_id, assignment.version))
+            .collect();
         objects
             .iter()
             .map(|kind| {
-                Ok(match kind {
+                match kind {
                     InputObjectKind::SharedMoveObject { id, .. } => {
-                        let assigned_shared_versions = assigned_shared_versions
-                            .get_or_init(|| {
-                                self.get_assigned_shared_object_versions(key)
-                                    .map(|versions| versions.into_iter().map(|v| (v.object_id, v.version)).collect())
-                            })
-                            .as_ref()
-                            // Shared version assignments could have been deleted if the tx just
-                            // finished executing concurrently.
-                            .ok_or(IotaError::GenericAuthority {
-                                error: "no assigned shared versions".to_string(),
-                            })?;
                         // If we found assigned versions, but they are missing the assignment for
                         // this object, it indicates a serious inconsistency!
                         let Some(version) = assigned_shared_versions.get(id) else {
@@ -1848,7 +1867,7 @@ impl AuthorityPerEpochStore {
                         id: objref.object_id,
                         version: objref.version,
                     },
-                })
+                }
             })
             .collect()
     }
@@ -2003,17 +2022,6 @@ impl AuthorityPerEpochStore {
             .unwrap()
     }
 
-    pub fn set_shared_object_versions_for_testing(
-        &self,
-        tx_digest: &TransactionDigest,
-        assigned_versions: &[VersionAssignment],
-    ) -> IotaResult {
-        self.consensus_output_cache
-            .set_shared_object_versions_for_testing(tx_digest, assigned_versions);
-
-        Ok(())
-    }
-
     pub fn insert_finalized_transactions(
         &self,
         digests: &[TransactionDigest],
@@ -2166,19 +2174,6 @@ impl AuthorityPerEpochStore {
         Ok(ret)
     }
 
-    pub fn get_assigned_shared_object_versions(
-        &self,
-        key: &TransactionKey,
-    ) -> Option<Vec<VersionAssignment>> {
-        self.consensus_output_cache
-            .get_assigned_shared_object_versions(key)
-    }
-
-    fn set_assigned_shared_object_versions(&self, versions: AssignedTxAndVersions) {
-        self.consensus_output_cache
-            .insert_shared_object_assignments(&versions);
-    }
-
     /// Given list of transactions, assign versions for all shared objects used
     /// in them. We start with the current next_shared_object_versions table
     /// for each object, and build up the versions based on the dependencies
@@ -2187,20 +2182,18 @@ impl AuthorityPerEpochStore {
     /// idempotent. We should call this function when we are assigning shared
     /// object versions outside of consensus and do not want to taint the
     /// next_shared_object_versions table.
-    pub fn assign_shared_object_versions_idempotent(
+    pub fn assign_shared_object_versions_idempotent<'a>(
         &self,
         cache_reader: &dyn ObjectCacheRead,
-        transactions: &[VerifiedExecutableTransaction],
-    ) -> IotaResult {
-        let assigned_versions = SharedObjVerManager::assign_versions_from_consensus(
+        assignables: impl Iterator<Item = &'a Schedulable<&'a VerifiedExecutableTransaction>> + Clone,
+    ) -> IotaResult<AssignedTxAndVersions> {
+        Ok(SharedObjVerManager::assign_versions_from_consensus(
             self,
             cache_reader,
-            transactions.iter(),
+            assignables,
             &BTreeMap::new(),
         )?
-        .assigned_versions;
-        self.set_assigned_shared_object_versions(assigned_versions);
-        Ok(())
+        .assigned_versions)
     }
 
     fn load_deferred_transactions_for_randomness(
@@ -2465,14 +2458,14 @@ impl AuthorityPerEpochStore {
         transaction: &VerifiedExecutableTransaction,
         effects: &TransactionEffects,
         cache_reader: &dyn ObjectCacheRead,
-    ) -> IotaResult {
-        let versions = SharedObjVerManager::assign_versions_from_effects(
+    ) -> IotaResult<AssignedVersions> {
+        let assigned_versions = SharedObjVerManager::assign_versions_from_effects(
             &[(transaction, effects)],
             self,
             cache_reader,
         );
-        self.set_assigned_shared_object_versions(versions);
-        Ok(())
+        let (_, assigned_versions) = assigned_versions.0.into_iter().next().unwrap();
+        Ok(assigned_versions)
     }
 
     /// Insert transactions that will be submitted to consensus into
@@ -2800,7 +2793,7 @@ impl AuthorityPerEpochStore {
 
     // Converts transaction keys to digests, waiting for digests to become available
     // for any non-digest keys.
-    pub async fn notify_read_executed_digests(
+    pub async fn notify_read_tx_key_to_digest(
         &self,
         keys: &[TransactionKey],
     ) -> IotaResult<Vec<TransactionDigest>> {
@@ -3063,6 +3056,31 @@ impl AuthorityPerEpochStore {
             .remove(authority)
     }
 
+    /// The total stake of committee members with a recorded deny rule
+    /// proposal this epoch, empty proposals included. Every committee member
+    /// announces its configuration each epoch, so this converges towards the
+    /// full committee stake as announcements arrive.
+    pub fn announced_deny_rule_stake(&self) -> StakeUnit {
+        Self::announced_stake(
+            &self
+                .consensus_quarantine
+                .read()
+                .current_deny_rule_proposals(),
+            self.committee(),
+        )
+    }
+
+    /// The total committee stake behind the given proposals.
+    fn announced_stake(
+        proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+        committee: &Committee,
+    ) -> StakeUnit {
+        proposals
+            .keys()
+            .map(|authority| committee.weight(authority))
+            .sum()
+    }
+
     /// Whether `proposal` is newer than the recorded proposal (if any) from
     /// the same authority and should therefore be recorded.
     pub fn should_record_deny_rule_proposal(&self, proposal: &TransactionDenyRuleProposal) -> bool {
@@ -3073,9 +3091,51 @@ impl AuthorityPerEpochStore {
             .is_some_and(|generation| generation >= proposal.generation)
     }
 
-    /// Returns the active deny rule set derived from the recorded proposals.
+    /// Returns the active deny rule set: the union of the mirrored on-chain
+    /// state and the aggregate of the recorded proposals.
     pub fn get_active_transaction_deny_rules(&self) -> Arc<DenyRuleSet> {
         self.active_transaction_deny_rules.load_full()
+    }
+
+    /// Returns the state the scheduled deny-rule updates bring the
+    /// `TransactionDenyRules` object to.
+    pub fn get_mirrored_transaction_deny_rules(&self) -> Arc<DenyRuleSet> {
+        self.mirrored_transaction_deny_rules.load_full()
+    }
+
+    /// Test access to the epoch metrics.
+    #[cfg(any(test, msim))]
+    pub fn metrics_for_testing(&self) -> &Arc<EpochMetrics> {
+        &self.metrics
+    }
+
+    /// The mirrored deny-rule state to start from when the epoch store
+    /// opens: a persisted row (mid-epoch restart) wins over the epoch-start
+    /// seed. A fresh epoch persists the seed immediately when the object
+    /// exists, so a row absent although commits have flushed is a lost row,
+    /// and the node fails rather than derive updates its peers do not.
+    fn initial_deny_rule_mirror(
+        tables: &AuthorityEpochTables,
+        epoch_start_configuration: &EpochStartConfiguration,
+    ) -> IotaResult<DenyRuleSet> {
+        if let Some(row) = tables.deny_rule_mirror.get(&())? {
+            return Ok(row);
+        }
+        let Some(seed) = epoch_start_configuration.transaction_deny_rules_state() else {
+            return Ok(DenyRuleSet::default());
+        };
+        if tables
+            .last_consensus_stats
+            .get(&LAST_CONSENSUS_STATS_ADDR)?
+            .is_some()
+        {
+            fatal!(
+                "deny_rule_mirror row is missing although commits have flushed — the epoch \
+                 database is corrupted; restore or state-sync before rejoining"
+            );
+        }
+        tables.deny_rule_mirror.insert(&(), seed)?;
+        Ok(seed.clone())
     }
 
     /// Recomputes the active deny rule set from the current proposals and
@@ -3095,7 +3155,10 @@ impl AuthorityPerEpochStore {
         &self,
         proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
     ) -> bool {
-        let rules = Self::compute_active_transaction_deny_rules(proposals, self.committee());
+        let rules = union_deny_rule_sets(
+            Self::compute_active_transaction_deny_rules(proposals, self.committee()),
+            &self.mirrored_transaction_deny_rules.load(),
+        );
         if **self.active_transaction_deny_rules.load() == rules {
             return false;
         }
@@ -3265,12 +3328,14 @@ impl AuthorityPerEpochStore {
             .apply_cached_deny_rule_proposal_for_test(proposal);
     }
 
-    fn process_user_signatures<'a>(
-        &self,
-        transactions: impl Iterator<Item = &'a VerifiedExecutableTransaction>,
-    ) {
+    fn process_user_signatures<'a>(&self, transactions: impl Iterator<Item = &'a Schedulable>) {
         let sigs: Vec<_> = transactions
-            .map(|transaction| (*transaction.digest(), transaction.signatures().to_vec()))
+            .filter_map(|schedulable| match schedulable {
+                Schedulable::Transaction(transaction) => {
+                    Some((*transaction.digest(), transaction.signatures().to_vec()))
+                }
+                Schedulable::RandomnessStateUpdate(_, _) => None,
+            })
             .collect();
 
         let mut user_sigs = self
@@ -3599,11 +3664,10 @@ impl AuthorityPerEpochStore {
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
-        tx_reader: &dyn TransactionCacheRead,
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
         authority_state: &AuthorityState,
-    ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
+    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
         // Split transactions into different types for processing.
         let verified_transactions: Vec<_> = transactions
             .into_iter()
@@ -3977,11 +4041,12 @@ impl AuthorityPerEpochStore {
 
         let (
             verified_non_randomness_transactions,
-            mut verified_randomness_transactions,
+            verified_randomness_transactions,
             notifications,
             lock,
             final_round,
             consensus_commit_prologue_root,
+            assigned_versions,
         ) = self
             .process_consensus_transactions(
                 &mut output,
@@ -4048,24 +4113,10 @@ impl AuthorityPerEpochStore {
             non_randomness_roots.extend(roots.into_iter());
 
             if let Some(randomness_round) = randomness_round {
-                let key = TransactionKey::RandomnessRound(self.epoch(), randomness_round);
-
-                // During crash recovery, the randomness update transaction may already have
-                // been created and executed before the crash. If it is
-                // available locally, we need to ensure it is executed.
-                if let Some(digest) = self.tables()?.transaction_key_to_digest.get(&key)? {
-                    if let Some(tx) = tx_reader.get_transaction_block(&digest) {
-                        info!(
-                            "Randomness update transaction {:?} already exists, scheduling for execution",
-                            digest
-                        );
-                        let tx =
-                            VerifiedExecutableTransaction::new_system((*tx).clone(), self.epoch());
-                        verified_randomness_transactions.push(tx);
-                    }
-                }
-
-                randomness_roots.insert(key);
+                randomness_roots.insert(TransactionKey::RandomnessRound(
+                    self.epoch(),
+                    randomness_round,
+                ));
             }
 
             // Determine whether to write pending checkpoint for user tx with randomness.
@@ -4180,15 +4231,129 @@ impl AuthorityPerEpochStore {
             self.record_end_of_message_quorum_time_metric();
         }
 
-        Ok([
+        let all_txns = [
             verified_non_randomness_transactions,
             verified_randomness_transactions,
         ]
-        .concat())
+        .concat();
+
+        Ok((all_txns, assigned_versions))
     }
 
     fn calculate_pending_checkpoint_height(&self, consensus_round: u64) -> u64 {
         consensus_round * 2
+    }
+
+    /// Injects `TransactionDenyRulesUpdate` system transactions bringing the
+    /// on-chain object to the current proposal aggregate, chunked and gated
+    /// by `compute_deny_rule_update_chunks`. Advances the mirrored state to
+    /// the injected target in the same commit output that persists it. Each
+    /// scheduled update becomes a checkpoint root: nothing else in the commit
+    /// can depend on the object, so an unrooted update would never be
+    /// checkpointed.
+    pub(crate) fn add_deny_rule_update_transactions(
+        &self,
+        output: &mut ConsensusCommitOutput,
+        transactions: &mut VecDeque<Schedulable>,
+        roots: &mut BTreeSet<TransactionKey>,
+        consensus_commit_info: &ConsensusCommitInfo,
+    ) -> IotaResult<()> {
+        if !self.protocol_config().deny_rule_governance_on_chain() {
+            return Ok(());
+        }
+        // Mirroring starts the epoch after the object is created: without the
+        // object there is nothing to update.
+        let Some(initial_shared_version) = self
+            .epoch_start_config()
+            .transaction_deny_rules_obj_initial_shared_version()
+        else {
+            return Ok(());
+        };
+
+        // The aggregate from every recorded proposal, this commit's included.
+        let mut proposals = self
+            .consensus_quarantine
+            .read()
+            .current_deny_rule_proposals();
+        proposals.extend(
+            output
+                .deny_rule_proposals()
+                .iter()
+                .map(|(authority, proposal)| (*authority, proposal.clone())),
+        );
+        // No proposals means an empty aggregate and zero announced stake.
+        // The diff can produce no chunk from that.
+        if proposals.is_empty() {
+            return Ok(());
+        }
+        let aggregate = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
+        let mirror = self.mirrored_transaction_deny_rules.load_full();
+
+        // Removals wait for enough of the committee to re-announce, so entries
+        // do not drop out while announcements are still arriving.
+        let announced_stake = Self::announced_stake(&proposals, self.committee());
+        let removals_unlocked = announced_stake >= self.committee().quorum_threshold()
+            && consensus_commit_info.round
+                >= self.protocol_config().deny_rule_removal_grace_round_floor();
+        self.metrics
+            .deny_rule_removals_unlocked
+            .set(removals_unlocked as i64);
+
+        let (chunks, target) = compute_deny_rule_update_chunks(
+            &aggregate,
+            &mirror,
+            removals_unlocked,
+            self.protocol_config().deny_rule_update_max_entries_per_tx() as usize,
+            self.epoch(),
+            consensus_commit_info.round,
+            initial_shared_version,
+        );
+        if chunks.is_empty() {
+            return Ok(());
+        }
+        let chunk_count = chunks.len();
+
+        let mut all_scheduled = true;
+        for chunk in chunks {
+            let transaction = VerifiedExecutableTransaction::new_system(
+                VerifiedTransaction::new_transaction_deny_rules_update(chunk),
+                self.epoch(),
+            );
+            match self.process_consensus_system_transaction(&transaction) {
+                ConsensusTransactionResult::Scheduled {
+                    transaction,
+                    start_time: _,
+                } => {
+                    roots.insert(transaction.key());
+                    transactions.push_front(Schedulable::Transaction(transaction));
+                }
+                ConsensusTransactionResult::IgnoredSystem => {
+                    all_scheduled = false;
+                }
+                _ => unreachable!(
+                    "process_consensus_system_transaction returned unexpected ConsensusTransactionResult."
+                ),
+            }
+            output.record_consensus_message_processed(SequencedConsensusTransactionKey::System(
+                *transaction.digest(),
+            ));
+        }
+        // Holding the mirror back when a chunk was skipped (epoch closing) makes
+        // the next commit re-derive the same delta; re-application is a no-op.
+        if all_scheduled {
+            self.metrics.deny_rule_updates_injected.inc();
+            self.metrics
+                .deny_rule_update_transactions_injected
+                .inc_by(chunk_count as u64);
+            output.record_deny_rule_mirror(target.clone());
+            self.mirrored_transaction_deny_rules.store(Arc::new(target));
+            // The recompute in `push_consensus_output` only runs for commits
+            // that record proposals, so a removal unlocking on a proposal-free
+            // commit would otherwise stay enforced after the object dropped it.
+            self.store_active_transaction_deny_rules(&proposals);
+        }
+
+        Ok(())
     }
 
     // Adds the consensus commit prologue transaction to the beginning of input
@@ -4198,7 +4363,7 @@ impl AuthorityPerEpochStore {
     fn add_consensus_commit_prologue_transaction(
         &self,
         output: &mut ConsensusCommitOutput,
-        transactions: &mut VecDeque<VerifiedExecutableTransaction>,
+        transactions: &mut VecDeque<Schedulable>,
         consensus_commit_info: &ConsensusCommitInfo,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
     ) -> IotaResult<Option<TransactionKey>> {
@@ -4212,10 +4377,12 @@ impl AuthorityPerEpochStore {
 
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
-            match cancelled_txns.get(txn.digest()) {
+            let key = txn.key();
+            match key.as_digest().and_then(|d| cancelled_txns.get(d)) {
                 Some(CancelConsensusTransactionReason::Congested { .. })
                 | Some(CancelConsensusTransactionReason::DkgFailed) => {
                     let version_assignments = SharedObjVerManager::assign_versions_for_transaction(
+                        self,
                         txn,
                         &mut shared_input_next_version,
                         cancelled_txns,
@@ -4223,7 +4390,7 @@ impl AuthorityPerEpochStore {
                             .congestion_control_gas_price_feedback_mechanism(),
                     );
                     cancelled_transactions.push(CanceledTransaction {
-                        digest: *txn.digest(),
+                        digest: *key.unwrap_digest(),
                         version_assignments,
                     });
                 }
@@ -4247,7 +4414,7 @@ impl AuthorityPerEpochStore {
                 transaction,
                 start_time: _,
             } => {
-                transactions.push_front(transaction.clone());
+                transactions.push_front(Schedulable::Transaction(transaction.clone()));
                 Some(transaction.key())
             }
             ConsensusTransactionResult::IgnoredSystem => None,
@@ -4262,43 +4429,22 @@ impl AuthorityPerEpochStore {
         Ok(consensus_commit_prologue_root)
     }
 
-    // Assigns shared object versions to transactions and updates the shared object
-    // version state. Shared object versions in cancelled transactions are
-    // assigned to special versions that will cause the transactions to be
+    // Assigns shared object versions to transactions and updates the next shared
+    // object version state. Shared object versions in cancelled transactions
+    // are assigned to special versions that will cause the transactions to be
     // cancelled in execution engine.
     fn process_consensus_transaction_shared_object_versions(
         &self,
         cache_reader: &dyn ObjectCacheRead,
-        non_randomness_transactions: &[VerifiedExecutableTransaction],
-        randomness_transactions: &[VerifiedExecutableTransaction],
-        randomness_round: Option<RandomnessRound>,
+        non_randomness_transactions: &[Schedulable],
+        randomness_transactions: &[Schedulable],
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         output: &mut ConsensusCommitOutput,
-    ) -> IotaResult {
-        // If randomness_round is set, we know that eventually there will be a
-        // randomness state update transaction. We create a placeholder
-        // transaction so that the SharedObjVerManager can update the version of
-        // the randomness state object and use that version for randomness transactions.
-        let randomness_state_update = randomness_round.map(|round| {
-            VerifiedExecutableTransaction::new_system(
-                VerifiedTransaction::new_randomness_state_update(
-                    self.epoch(),
-                    round,
-                    // This is placeholder bytes, since this transaction does not exist yet.
-                    vec![],
-                    self.epoch_start_config()
-                        .randomness_obj_initial_shared_version(),
-                ),
-                self.epoch(),
-            )
-        });
+    ) -> IotaResult<AssignedTxAndVersions> {
         let all_certs = non_randomness_transactions
             .iter()
-            // randomness_state_update must be before randomness_transactions to make sure the
-            // version of the randomness state object is updated before it is used in
-            // randomness transactions.
-            .chain(randomness_state_update.iter())
             .chain(randomness_transactions.iter());
+
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
@@ -4309,11 +4455,8 @@ impl AuthorityPerEpochStore {
             cancelled_txns,
         )?;
 
-        self.consensus_output_cache
-            .insert_shared_object_assignments(&assigned_versions);
-
         output.set_next_shared_object_versions(shared_input_next_versions);
-        Ok(())
+        Ok(assigned_versions)
     }
 
     pub fn get_highest_pending_checkpoint_height(&self) -> CheckpointHeight {
@@ -4332,17 +4475,15 @@ impl AuthorityPerEpochStore {
         transactions: Vec<SequencedConsensusTransaction>,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
-        tx_reader: &dyn TransactionCacheRead,
         authority_metrics: &Arc<AuthorityMetrics>,
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
-    ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
+    ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
         self.process_consensus_transactions_and_commit_boundary(
             transactions,
             &ExecutionIndicesWithStats::default(),
             checkpoint_service,
             cache_reader,
-            tx_reader,
             &ConsensusCommitInfo::new_for_test(
                 self.get_highest_pending_checkpoint_height() / 2 + 1,
                 0,
@@ -4358,13 +4499,17 @@ impl AuthorityPerEpochStore {
         self: &Arc<Self>,
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
-    ) -> IotaResult {
+    ) -> IotaResult<AssignedTxAndVersions> {
         let mut output = ConsensusCommitOutput::new(0);
-        self.process_consensus_transaction_shared_object_versions(
+        let transactions: Vec<_> = transactions
+            .iter()
+            .cloned()
+            .map(Schedulable::Transaction)
+            .collect();
+        let assigned_versions = self.process_consensus_transaction_shared_object_versions(
             cache_reader,
-            transactions,
+            &transactions,
             &[],
-            None,
             &BTreeMap::new(),
             &mut output,
         )?;
@@ -4372,7 +4517,7 @@ impl AuthorityPerEpochStore {
         output.set_default_commit_stats_for_testing();
         output.write_to_batch(self, &mut batch)?;
         batch.write()?;
-        Ok(())
+        Ok(assigned_versions)
     }
 
     fn process_notifications(
@@ -4422,12 +4567,13 @@ impl AuthorityPerEpochStore {
             SharedObjectCongestionTracker,
         >,
     ) -> IotaResult<(
-        Vec<VerifiedExecutableTransaction>, // non-randomness transactions to schedule
-        Vec<VerifiedExecutableTransaction>, // randomness transactions to schedule
+        Vec<Schedulable>,                      // non-randomness transactions to schedule
+        Vec<Schedulable>,                      // randomness transactions to schedule
         Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
         Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool,                   // true if final round
         Option<TransactionKey>, // consensus commit prologue root
+        AssignedTxAndVersions,
     )> {
         if randomness_round.is_some() {
             assert!(!dkg_failed); // invariant check
@@ -4612,11 +4758,20 @@ impl AuthorityPerEpochStore {
         sequenced_non_randomness.sort_by_key(|(_, start_time)| *start_time);
         let mut verified_non_randomness_transactions: VecDeque<_> = sequenced_non_randomness
             .into_iter()
-            .map(|(tx, _)| tx)
+            .map(|(tx, _)| Schedulable::Transaction(tx))
             .collect();
         sequenced_randomness.sort_by_key(|(_, start_time)| *start_time);
-        let verified_randomness_transactions: VecDeque<_> =
-            sequenced_randomness.into_iter().map(|(tx, _)| tx).collect();
+        let mut verified_randomness_transactions: VecDeque<_> = sequenced_randomness
+            .into_iter()
+            .map(|(tx, _)| Schedulable::Transaction(tx))
+            .collect();
+
+        // Front of the queue: the update must be assigned the randomness object's
+        // version before the transactions below that read it.
+        if let Some(round) = randomness_round {
+            verified_randomness_transactions
+                .push_front(Schedulable::RandomnessStateUpdate(self.epoch(), round));
+        }
         let commit_has_deferred_txns = !deferred_txns.is_empty();
         let mut total_deferred_txns = 0;
         {
@@ -4719,6 +4874,15 @@ impl AuthorityPerEpochStore {
             }
         }
 
+        // Inject deny-rule updates before the prologue is prepended, so the
+        // prologue stays the first transaction of the commit.
+        self.add_deny_rule_update_transactions(
+            output,
+            &mut verified_non_randomness_transactions,
+            non_randomness_roots,
+            consensus_commit_info,
+        )?;
+
         // Add the consensus commit prologue transaction to the beginning of
         // `verified_non_randomness_transactions`.
         let consensus_commit_prologue_root = self.add_consensus_commit_prologue_transaction(
@@ -4732,11 +4896,10 @@ impl AuthorityPerEpochStore {
             verified_non_randomness_transactions.into();
         let verified_randomness_transactions: Vec<_> = verified_randomness_transactions.into();
 
-        self.process_consensus_transaction_shared_object_versions(
+        let assigned_tx_and_versions = self.process_consensus_transaction_shared_object_versions(
             cache_reader,
             &verified_non_randomness_transactions,
             &verified_randomness_transactions,
-            randomness_round,
             &cancelled_txns,
             output,
         )?;
@@ -4754,6 +4917,7 @@ impl AuthorityPerEpochStore {
             lock,
             final_round,
             consensus_commit_prologue_root,
+            assigned_tx_and_versions,
         ))
     }
 
@@ -5849,4 +6013,207 @@ impl From<LockDetails> for LockDetailsWrapper {
         // always use latest version.
         LockDetailsWrapper::V1(details)
     }
+}
+
+/// The union of two deny rule sets: an entry or switch is active when it is
+/// active in either. Enforcement combines the mirrored on-chain state with
+/// the current epoch's aggregate this way, so on-chain rules keep applying
+/// before their supporters have re-announced.
+pub(crate) fn union_deny_rule_sets(mut rules: DenyRuleSet, other: &DenyRuleSet) -> DenyRuleSet {
+    rules
+        .denied_addresses
+        .extend(other.denied_addresses.iter().copied());
+    rules
+        .denied_objects
+        .extend(other.denied_objects.iter().copied());
+    rules
+        .denied_packages
+        .extend(other.denied_packages.iter().copied());
+    rules.package_publish_disabled |= other.package_publish_disabled;
+    rules.package_upgrade_disabled |= other.package_upgrade_disabled;
+    rules.shared_object_disabled |= other.shared_object_disabled;
+    rules.user_transaction_disabled |= other.user_transaction_disabled;
+    rules.receiving_objects_disabled |= other.receiving_objects_disabled;
+    rules.move_authenticator_disabled |= other.move_authenticator_disabled;
+    rules
+}
+
+/// Computes the `TransactionDenyRulesUpdate` transactions that bring the
+/// on-chain object from `mirror` to `aggregate`: additions and switch
+/// activations always, removals and switch deactivations only when
+/// `removals_unlocked`. A delta larger than `max_entries_per_tx` is split into
+/// disjoint chunks of the sorted delta, each carrying the absolute switch
+/// states. Returns the chunks (empty when the object is up to date) and the
+/// state the object holds once they have executed — the next mirror. Pure, so
+/// every validator derives the same transactions at the same commit.
+pub(crate) fn compute_deny_rule_update_chunks(
+    aggregate: &DenyRuleSet,
+    mirror: &DenyRuleSet,
+    removals_unlocked: bool,
+    max_entries_per_tx: usize,
+    epoch: EpochId,
+    round: u64,
+    deny_rules_obj_initial_shared_version: Version,
+) -> (Vec<TransactionDenyRulesUpdate>, DenyRuleSet) {
+    let switch = |aggregate_switch: bool, mirror_switch: bool| {
+        if removals_unlocked {
+            aggregate_switch
+        } else {
+            aggregate_switch || mirror_switch
+        }
+    };
+    let mut delta = TransactionDenyRulesUpdate {
+        epoch,
+        round,
+        added_addresses: aggregate
+            .denied_addresses
+            .difference(&mirror.denied_addresses)
+            .copied()
+            .collect(),
+        removed_addresses: BTreeSet::new(),
+        added_objects: aggregate
+            .denied_objects
+            .difference(&mirror.denied_objects)
+            .copied()
+            .collect(),
+        removed_objects: BTreeSet::new(),
+        added_packages: aggregate
+            .denied_packages
+            .difference(&mirror.denied_packages)
+            .copied()
+            .collect(),
+        removed_packages: BTreeSet::new(),
+        package_publish_disabled: switch(
+            aggregate.package_publish_disabled,
+            mirror.package_publish_disabled,
+        ),
+        package_upgrade_disabled: switch(
+            aggregate.package_upgrade_disabled,
+            mirror.package_upgrade_disabled,
+        ),
+        shared_object_disabled: switch(
+            aggregate.shared_object_disabled,
+            mirror.shared_object_disabled,
+        ),
+        user_transaction_disabled: switch(
+            aggregate.user_transaction_disabled,
+            mirror.user_transaction_disabled,
+        ),
+        receiving_objects_disabled: switch(
+            aggregate.receiving_objects_disabled,
+            mirror.receiving_objects_disabled,
+        ),
+        move_authenticator_disabled: switch(
+            aggregate.move_authenticator_disabled,
+            mirror.move_authenticator_disabled,
+        ),
+        deny_rules_obj_initial_shared_version,
+    };
+    if removals_unlocked {
+        delta.removed_addresses = mirror
+            .denied_addresses
+            .difference(&aggregate.denied_addresses)
+            .copied()
+            .collect();
+        delta.removed_objects = mirror
+            .denied_objects
+            .difference(&aggregate.denied_objects)
+            .copied()
+            .collect();
+        delta.removed_packages = mirror
+            .denied_packages
+            .difference(&aggregate.denied_packages)
+            .copied()
+            .collect();
+    }
+
+    // The object state once the delta has executed.
+    let target = DenyRuleSet {
+        denied_addresses: mirror
+            .denied_addresses
+            .union(&delta.added_addresses)
+            .filter(|key| !delta.removed_addresses.contains(key))
+            .copied()
+            .collect(),
+        denied_objects: mirror
+            .denied_objects
+            .union(&delta.added_objects)
+            .filter(|key| !delta.removed_objects.contains(key))
+            .copied()
+            .collect(),
+        denied_packages: mirror
+            .denied_packages
+            .union(&delta.added_packages)
+            .filter(|key| !delta.removed_packages.contains(key))
+            .copied()
+            .collect(),
+        package_publish_disabled: delta.package_publish_disabled,
+        package_upgrade_disabled: delta.package_upgrade_disabled,
+        shared_object_disabled: delta.shared_object_disabled,
+        user_transaction_disabled: delta.user_transaction_disabled,
+        receiving_objects_disabled: delta.receiving_objects_disabled,
+        move_authenticator_disabled: delta.move_authenticator_disabled,
+    };
+
+    let switches_changed = delta.package_publish_disabled != mirror.package_publish_disabled
+        || delta.package_upgrade_disabled != mirror.package_upgrade_disabled
+        || delta.shared_object_disabled != mirror.shared_object_disabled
+        || delta.user_transaction_disabled != mirror.user_transaction_disabled
+        || delta.receiving_objects_disabled != mirror.receiving_objects_disabled
+        || delta.move_authenticator_disabled != mirror.move_authenticator_disabled;
+    let entry_count = delta.added_addresses.len()
+        + delta.removed_addresses.len()
+        + delta.added_objects.len()
+        + delta.removed_objects.len()
+        + delta.added_packages.len()
+        + delta.removed_packages.len();
+    if entry_count == 0 && !switches_changed {
+        return (Vec::new(), target);
+    }
+
+    // Deterministic chunking: cut each (already sorted) delta set into runs,
+    // filling one chunk to the limit before starting the next.
+    let max_entries_per_tx = max_entries_per_tx.max(1);
+    let chunk_count = entry_count.div_ceil(max_entries_per_tx).max(1);
+    let empty = TransactionDenyRulesUpdate {
+        added_addresses: BTreeSet::new(),
+        removed_addresses: BTreeSet::new(),
+        added_objects: BTreeSet::new(),
+        removed_objects: BTreeSet::new(),
+        added_packages: BTreeSet::new(),
+        removed_packages: BTreeSet::new(),
+        ..delta
+    };
+    let mut chunks = vec![empty; chunk_count];
+    let mut slot = 0;
+    {
+        let mut fill =
+            |set: BTreeSet<Address>,
+             select: fn(&mut TransactionDenyRulesUpdate) -> &mut BTreeSet<Address>| {
+                for key in set {
+                    select(&mut chunks[slot / max_entries_per_tx]).insert(key);
+                    slot += 1;
+                }
+            };
+        fill(delta.added_addresses, |chunk| &mut chunk.added_addresses);
+        fill(delta.removed_addresses, |chunk| {
+            &mut chunk.removed_addresses
+        });
+    }
+    {
+        let mut fill =
+            |set: BTreeSet<ObjectId>,
+             select: fn(&mut TransactionDenyRulesUpdate) -> &mut BTreeSet<ObjectId>| {
+                for key in set {
+                    select(&mut chunks[slot / max_entries_per_tx]).insert(key);
+                    slot += 1;
+                }
+            };
+        fill(delta.added_objects, |chunk| &mut chunk.added_objects);
+        fill(delta.removed_objects, |chunk| &mut chunk.removed_objects);
+        fill(delta.added_packages, |chunk| &mut chunk.added_packages);
+        fill(delta.removed_packages, |chunk| &mut chunk.removed_packages);
+    }
+
+    (chunks, target)
 }

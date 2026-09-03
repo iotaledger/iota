@@ -12,7 +12,7 @@ use std::{
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::Object as ObjectInner;
 use iota_sdk_types::{
-    Address, MoveObjectType, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    Address, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
     TransactionDigest, TypeTag, Version, move_package::MovePackage,
 };
 use move_binary_format::CompiledModule;
@@ -24,11 +24,11 @@ use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor}
 use crate::{
     balance::Balance,
     coin::{Coin, CoinMetadata, TreasuryCap},
-    crypto::deterministic_random_account_key,
+    crypto::deterministic_random_account_private_key,
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
-    gas_coin::{GAS, GasCoin},
+    gas_coin::GasCoin,
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
     move_package::MovePackageExt,
@@ -310,7 +310,10 @@ impl MoveStructExt for MoveStruct {
     /// purposes
     fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
         let balances = self.get_coin_balances(layout_resolver)?;
-        Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
+        Ok(balances
+            .get(&TypeTag::from(StructTag::new_gas()))
+            .copied()
+            .unwrap_or(0))
     }
 
     /// Get the total balances for all `Coin<T>` embedded in `self`.
@@ -319,7 +322,7 @@ impl MoveStructExt for MoveStruct {
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
-        if let Some(type_tag) = self.object_type().coin_type_opt() {
+        if let Some(type_tag) = self.object_type().opt_coin_type() {
             let balance = self.get_coin_value_unchecked();
             Ok(if balance > 0 {
                 BTreeMap::from([(type_tag.clone(), balance)])
@@ -484,10 +487,6 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    pub fn type_(&self) -> Option<&MoveObjectType> {
-        self.data.opt_object_type()
-    }
-
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().is_coin()
@@ -735,7 +734,7 @@ impl Object {
     /// Generate a new gas coin object with default balance and random owner.
     pub fn new_gas_for_testing() -> Self {
         let gas_object_id = ObjectId::random();
-        let (owner, _) = deterministic_random_account_key();
+        let (owner, _) = deterministic_random_account_private_key();
         Object::with_id_owner_for_testing(gas_object_id, owner)
     }
 }
@@ -746,7 +745,7 @@ pub fn generate_test_gas_objects() -> Vec<Object> {
         static GAS_OBJECTS: Vec<Object> = (0..50)
             .map(|_| {
                 let gas_object_id = ObjectId::random();
-                let (owner, _) = deterministic_random_account_key();
+                let (owner, _) = deterministic_random_account_private_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
             .collect();

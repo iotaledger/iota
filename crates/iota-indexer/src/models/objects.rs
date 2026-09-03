@@ -77,28 +77,27 @@ impl TryFrom<IndexedObject> for StoredCheckpointedObject {
         })? as i64;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_opt()
+            .opt_coin_type()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unchecked())
         } else {
             None
         };
+        let object_type = object.data.opt_object_type();
 
         Ok(Self {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
             object_status: ObjectStatus::Active as i16,
-            object_digest: Some(object.digest().into_inner().to_vec()),
+            object_digest: Some(object.digest().into_bytes().to_vec()),
             checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
-            object_type: object
-                .type_()
-                .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
-            object_type_module: object.type_().map(|t| t.module().to_string()),
-            object_type_name: object.type_().map(|t| t.name().to_string()),
+            object_type: object_type.map(|t| t.to_canonical_string(/* with_prefix */ true)),
+            object_type_package: object_type.map(|t| t.address().as_bytes().to_vec()),
+            object_type_module: object_type.map(|t| t.module().to_string()),
+            object_type_name: object_type.map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
             coin_type,
             coin_balance: coin_balance.map(|b| b as i64),
@@ -267,28 +266,27 @@ impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
         })? as i64;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_opt()
+            .opt_coin_type()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unchecked())
         } else {
             None
         };
+        let object_type = object.data.opt_object_type();
 
         Ok(Self {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
             object_status: ObjectStatus::Active as i16,
-            object_digest: Some(object.digest().into_inner().to_vec()),
+            object_digest: Some(object.digest().into_bytes().to_vec()),
             superseded_at_checkpoint: checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
-            object_type: object
-                .type_()
-                .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
-            object_type_module: object.type_().map(|t| t.module().to_string()),
-            object_type_name: object.type_().map(|t| t.name().to_string()),
+            object_type: object_type.map(|t| t.to_canonical_string(/* with_prefix */ true)),
+            object_type_package: object_type.map(|t| t.address().as_bytes().to_vec()),
+            object_type_module: object_type.map(|t| t.module().to_string()),
+            object_type_name: object_type.map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
             coin_type,
             coin_balance: coin_balance.map(|b| b as i64),
@@ -350,25 +348,24 @@ impl From<IndexedObject> for StoredObject {
         } = o;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_opt()
+            .opt_coin_type()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unchecked())
         } else {
             None
         };
+        let object_type = object.data.opt_object_type();
         Self {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
-            object_digest: object.digest().into_inner().to_vec(),
+            object_digest: object.digest().into_bytes().to_vec(),
             owner_type: owner_type as i16,
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
-            object_type: object
-                .type_()
-                .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
-            object_type_module: object.type_().map(|t| t.module().to_string()),
-            object_type_name: object.type_().map(|t| t.name().to_string()),
+            object_type: object_type.map(|t| t.to_canonical_string(/* with_prefix */ true)),
+            object_type_package: object_type.map(|t| t.address().as_bytes().to_vec()),
+            object_type_module: object_type.map(|t| t.module().to_string()),
+            object_type_name: object_type.map(|t| t.name().to_string()),
             serialized_object: bcs::to_bytes(&object).unwrap(),
             coin_type,
             coin_balance: coin_balance.map(|b| b as i64),

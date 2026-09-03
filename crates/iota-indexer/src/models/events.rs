@@ -50,7 +50,7 @@ impl From<IndexedEvent> for StoredEvent {
         Self {
             tx_sequence_number: event.tx_sequence_number as i64,
             event_sequence_number: event.event_sequence_number as i64,
-            transaction_digest: event.transaction_digest.into_inner().to_vec(),
+            transaction_digest: event.transaction_digest.into_bytes().to_vec(),
             senders: event
                 .senders
                 .into_iter()
@@ -99,9 +99,9 @@ impl StoredEvent {
             }
         };
 
-        let type_ = parse_iota_struct_tag(&self.event_type)?;
+        let tag = parse_iota_struct_tag(&self.event_type)?;
         let move_type_layout = package_resolver
-            .type_layout(type_.clone().into())
+            .type_layout(tag.clone().into())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
@@ -126,7 +126,7 @@ impl StoredEvent {
             package_id,
             transaction_module: Identifier::from_str(&self.module)?,
             sender,
-            type_,
+            struct_tag: tag,
             bcs: BcsEvent::new(self.bcs),
             parsed_json,
             timestamp_ms: Some(self.timestamp_ms as u64),
@@ -147,7 +147,7 @@ mod tests {
             package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
             sender: Address::random(),
-            type_: StructTag::new(
+            struct_tag: StructTag::new(
                 Address::FRAMEWORK,
                 Identifier::from_static("test"),
                 Identifier::from_static("test"),

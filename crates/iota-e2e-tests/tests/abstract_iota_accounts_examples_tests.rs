@@ -36,9 +36,9 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, SignatureScheme, Transaction,
-    TransactionEffects, TypeTag, UserSignature, crypto::Intent,
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference,
+    OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
+    Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -46,7 +46,6 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
         TransactionEnvelope,
@@ -824,7 +823,7 @@ async fn run_dynamic_multisig_account(env: &TestEnvironment) -> PackageResult {
         .await;
     let aa_pt = simple_sender_clock_ptb();
     let aa_tx_data = tx_data_from_pt(env, aa_pt, aa_sender, gas).await;
-    let aa_tx_digest = aa_tx_data.digest().into_inner();
+    let aa_tx_digest = aa_tx_data.digest().into_bytes();
 
     // From the owner (the only member), propose the transaction. The proposer
     // is automatically recorded as the first approver in `Transactions::add`,
@@ -975,9 +974,9 @@ async fn run_onesig(env: &TestEnvironment) -> PackageResult {
     let tx3 = tx_data_from_pt(env, simple_sender_clock_ptb(), aa_sender, gas3).await;
 
     let leaves: Vec<Vec<u8>> = vec![
-        tx1.digest().into_inner().to_vec(),
-        tx2.digest().into_inner().to_vec(),
-        tx3.digest().into_inner().to_vec(),
+        tx1.digest().into_bytes().to_vec(),
+        tx2.digest().into_bytes().to_vec(),
+        tx3.digest().into_bytes().to_vec(),
     ];
 
     let (merkle_root, proofs) = build_sorted_keccak_merkle_tree(&leaves);
@@ -1138,7 +1137,7 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         .await;
     let pt = simple_sender_clock_ptb();
     let tx_data = tx_data_from_pt(env, pt, aa_sender, gas).await;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     let signature_full = env
         .test_cluster
         .wallet
@@ -1572,7 +1571,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         rgp,
         sponsor_addr,
     );
-    let tx_digest = tx.digest().into_inner();
+    let tx_digest = tx.digest().into_bytes();
     let signature = env.sign_digest_raw(&tx_digest);
 
     let sender_auth = match make_move_authenticator(
@@ -1702,7 +1701,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         rgp,
         sponsor_addr,
     );
-    let tx_digest = tx.digest().into_inner();
+    let tx_digest = tx.digest().into_bytes();
 
     // Sender: standard `UserSignature::Simple` (ed25519 over the
     // intent-wrapped Transaction) — NOT a `MoveAuthenticator`. So
@@ -1726,7 +1725,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     let sender_auth_digest = sender_auth.auth_digest();
     let mut sponsor_msg = Vec::with_capacity(32 + 32);
     sponsor_msg.extend_from_slice(&tx_digest);
-    sponsor_msg.extend_from_slice(sender_auth_digest.as_bytes());
+    sponsor_msg.extend_from_slice(sender_auth_digest.bytes());
 
     // Sign the constructed message with the owner's ed25519 key. `sign_hashed`
     // here just performs standard `Ed25519::sign(msg)` over the raw bytes — no
@@ -1888,9 +1887,18 @@ async fn run_account_for_benchmarks(
     let bench_refs: Vec<ObjectReference> = bench_effects
         .all_changed_objects()
         .into_iter()
-        .filter_map(|(oref, owner, kind)| {
-            (matches!(kind, WriteKind::Create) && matches!(owner, Owner::Immutable)).then_some(oref)
-        })
+        .filter_map(
+            |(
+                OwnedObjectReference {
+                    reference: oref,
+                    owner,
+                },
+                kind,
+            )| {
+                (matches!(kind, WriteKind::Create) && matches!(owner, Owner::Immutable))
+                    .then_some(oref)
+            },
+        )
         .collect();
     assert_eq!(
         bench_refs.len(),
@@ -1915,7 +1923,7 @@ async fn run_account_for_benchmarks(
             .await;
         let pt = simple_sender_clock_ptb();
         let tx_data = tx_data_from_pt(env, pt, aa_sender, gas).await;
-        let tx_digest = tx_data.digest().into_inner();
+        let tx_digest = tx_data.digest().into_bytes();
         // The on-chain authenticator passes `signature` straight to
         // `ed25519_verify`, so we send the raw 64-byte ed25519 signature.
         let signature = env.sign_digest_raw(&tx_digest);
@@ -2098,11 +2106,19 @@ fn first_created_shared(effects: &TransactionEffects) -> anyhow::Result<ObjectRe
     effects
         .all_changed_objects()
         .into_iter()
-        .find_map(|(oref, owner, kind)| {
-            matches!(kind, WriteKind::Create)
-                .then(|| matches!(owner, Owner::Shared(_)).then_some(oref))
-                .flatten()
-        })
+        .find_map(
+            |(
+                OwnedObjectReference {
+                    reference: oref,
+                    owner,
+                },
+                kind,
+            )| {
+                matches!(kind, WriteKind::Create)
+                    .then(|| matches!(owner, Owner::Shared(_)).then_some(oref))
+                    .flatten()
+            },
+        )
         .ok_or_else(|| anyhow::anyhow!("no created shared object in effects"))
 }
 
@@ -2225,7 +2241,7 @@ async fn run_simple_auth_ed25519(
 
     let pt = simple_sender_clock_ptb();
     let tx_data = tx_data_from_pt(env, pt, aa_sender, gas).await;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     let signature = env.sign_digest_raw(&tx_digest);
 
     let extra_args = match args {

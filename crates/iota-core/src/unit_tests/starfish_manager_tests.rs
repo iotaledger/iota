@@ -176,7 +176,6 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
         checkpoint_service_for_testing(state.clone()),
         state.execution_scheduler().clone(),
         state.get_object_cache_reader().clone(),
-        state.get_transaction_cache_reader().clone(),
         Arc::new(ArcSwap::default()),
         consensus_committee.clone(),
         metrics,

@@ -16,6 +16,7 @@ use std::{path::Path, sync::Arc};
 use iota_core::authority::{
     AuthorityState, authority_per_epoch_store::TxLockGuard,
     authority_test_utils::send_and_confirm_transaction_with_execution_error,
+    shared_object_version_manager::AssignedVersions,
 };
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::EventFilter;
@@ -74,6 +75,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
     async fn read_input_objects(
         &self,
         transaction: TransactionEnvelope,
+        assigned_versions: AssignedVersions,
     ) -> IotaResult<InputObjects>;
 
     fn prepare_txn(
@@ -89,7 +91,12 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         duration: std::time::Duration,
     ) -> anyhow::Result<TransactionEffects>;
 
-    async fn advance_epoch(&mut self) -> anyhow::Result<()>;
+    /// Returns the effects of the end-of-epoch transaction when the executor
+    /// exposes them (the simulator does, the validator setup does not).
+    async fn advance_epoch(
+        &mut self,
+        create_deny_rules_object: bool,
+    ) -> anyhow::Result<Option<TransactionEffects>>;
 
     async fn request_gas(
         &mut self,
@@ -133,6 +140,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
     async fn read_input_objects(
         &self,
         transaction: TransactionEnvelope,
+        assigned_versions: AssignedVersions,
     ) -> IotaResult<InputObjects> {
         let tx = VerifiedExecutableTransaction::new_unchecked(
             ExecutableTransaction::new_from_data_and_sig(
@@ -143,7 +151,12 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
         let epoch_store = self.validator.load_epoch_store_one_call_per_task().clone();
         self.validator
-            .read_objects_for_execution(&TxLockGuard::guard_for_tests(), &tx, &epoch_store)
+            .read_objects_for_execution(
+                &TxLockGuard::guard_for_tests(),
+                &tx,
+                assigned_versions,
+                &epoch_store,
+            )
             .map(|(tx_input_objects, _)| tx_input_objects)
     }
 
@@ -206,10 +219,17 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         unimplemented!("advance_clock not supported")
     }
 
-    async fn advance_epoch(&mut self) -> anyhow::Result<()> {
+    async fn advance_epoch(
+        &mut self,
+        create_deny_rules_object: bool,
+    ) -> anyhow::Result<Option<TransactionEffects>> {
+        anyhow::ensure!(
+            !create_deny_rules_object,
+            "--create-deny-rules-object is only supported in simulator mode"
+        );
         self.validator.reconfigure_for_testing().await;
         self.fullnode.reconfigure_for_testing().await;
-        Ok(())
+        Ok(None)
     }
 
     async fn request_gas(
@@ -400,6 +420,7 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
     async fn read_input_objects(
         &self,
         _transaction: TransactionEnvelope,
+        _assigned_versions: AssignedVersions,
     ) -> IotaResult<InputObjects> {
         unimplemented!("read_input_objects not supported in simulator mode")
     }
@@ -442,9 +463,14 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         Ok(Simulacrum::advance_clock(self, duration))
     }
 
-    async fn advance_epoch(&mut self) -> anyhow::Result<()> {
-        Simulacrum::advance_epoch(self);
-        Ok(())
+    async fn advance_epoch(
+        &mut self,
+        create_deny_rules_object: bool,
+    ) -> anyhow::Result<Option<TransactionEffects>> {
+        Ok(Some(Simulacrum::advance_epoch(
+            self,
+            create_deny_rules_object,
+        )))
     }
 
     async fn request_gas(

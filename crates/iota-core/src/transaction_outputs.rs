@@ -54,7 +54,11 @@ impl TransactionOutputs {
 
         // Get the actual set of objects that have been received -- any received
         // object will show up in the modified-at set.
-        let modified_at: HashSet<_> = effects.modified_at_versions().into_iter().collect();
+        let modified_at: HashSet<_> = effects
+            .modified_at_versions()
+            .into_iter()
+            .map(|modified| (modified.object_id, modified.version))
+            .collect();
         let possible_to_receive = transaction.transaction().receiving_objects();
         let received_objects = possible_to_receive
             .into_iter()

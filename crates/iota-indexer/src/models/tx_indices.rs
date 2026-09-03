@@ -6,8 +6,8 @@ use diesel::prelude::*;
 
 use crate::{
     schema::{
-        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_input_objects,
-        tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
+        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_input_objects, tx_kinds,
+        tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
     },
     types::TxIndex,
 };
@@ -88,13 +88,6 @@ pub struct StoredTxFun {
     pub module: String,
     pub func: String,
     pub sender: Vec<u8>,
-}
-
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = tx_digests)]
-pub struct StoredTxDigest {
-    pub tx_digest: Vec<u8>,
-    pub tx_sequence_number: i64,
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
@@ -196,18 +189,12 @@ impl From<TxIndex> for TxIndexSplit {
             })
             .collect();
 
-        let stored_tx_digest = StoredTxDigest {
-            tx_digest: value.transaction_digest.into_inner().to_vec(),
-            tx_sequence_number,
-        };
-
         let tx_kind = StoredTxKind {
             tx_kind: value.tx_kind as i16,
             tx_sequence_number,
         };
 
         let tx_senders = vec![tx_sender];
-        let tx_digests = vec![stored_tx_digest];
         let tx_kinds = vec![tx_kind];
         Self {
             tx_senders,
@@ -218,7 +205,6 @@ impl From<TxIndex> for TxIndexSplit {
             tx_pkgs,
             tx_mods,
             tx_funs,
-            tx_digests,
             tx_kinds,
         }
     }
@@ -233,6 +219,5 @@ pub(crate) struct TxIndexSplit {
     pub(crate) tx_pkgs: Vec<StoredTxPkg>,
     pub(crate) tx_mods: Vec<StoredTxMod>,
     pub(crate) tx_funs: Vec<StoredTxFun>,
-    pub(crate) tx_digests: Vec<StoredTxDigest>,
     pub(crate) tx_kinds: Vec<StoredTxKind>,
 }

@@ -71,8 +71,10 @@ fi
 if [[ ! -f "${IOTA_RUN_PATH}/fullnode.yaml" ]]; then
     echo "Generating fullnode.yaml at ${IOTA_RUN_PATH}/fullnode.yaml"
     cp crates/iota-config/data/fullnode-template.yaml ${IOTA_RUN_PATH}/fullnode.yaml
-    sed -i "s|genesis.blob|${IOTA_RUN_PATH}/genesis.blob|g" ${IOTA_RUN_PATH}/fullnode.yaml
-    sed -i "s|iotadb|${IOTA_RUN_PATH}/iotadb|g" ${IOTA_RUN_PATH}/fullnode.yaml
+    # Replace the template's config values wholesale, so the rewrite does not
+    # depend on the exact paths the template ships with.
+    sed -i "s|genesis-file-location:.*|genesis-file-location: \"${IOTA_RUN_PATH}/genesis.blob\"|" ${IOTA_RUN_PATH}/fullnode.yaml
+    sed -i "s|^db-path:.*|db-path: \"${IOTA_RUN_PATH}/iotadb\"|" ${IOTA_RUN_PATH}/fullnode.yaml
 
     if [[ $NETWORK != "devnet" ]]; then
         cat >> "${IOTA_RUN_PATH}/fullnode.yaml" <<- EOM

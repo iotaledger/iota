@@ -41,9 +41,7 @@ use iota_types::{
         CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
         FullCheckpointContents, VerifiedCheckpoint,
     },
-    transaction::{
-        SenderSignedTransactionAPI, TransactionAPI, TransactionKey, VerifiedTransaction,
-    },
+    transaction::{SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction},
 };
 use parking_lot::Mutex;
 use tap::{TapFallible, TapOptional};
@@ -51,7 +49,7 @@ use tracing::{debug, info, instrument};
 
 use crate::{
     authority::{
-        AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+        AuthorityState, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
         backpressure::BackpressureManager,
         shared_object_version_manager::gas_object_cancellation_version_from_effects,
     },
@@ -416,29 +414,6 @@ impl CheckpointExecutor {
             &ckpt_state.data.checkpoint_contents,
         );
 
-        if self.state.is_fullnode(&self.epoch_store) {
-            let epoch = ckpt_state.data.checkpoint.epoch;
-            // Remove version assignments on fullnodes after checkpoint execution.
-            // On validators, version assignments are removed when consensus output is
-            // committed. We cannot remove here on validators because checkpoint
-            // execution can run ahead of consensus, which would then re-insert
-            // version assignments.
-            self.epoch_store.remove_shared_version_assignments(
-                randomness_rounds
-                    .iter()
-                    .map(|round| TransactionKey::RandomnessRound(epoch, *round)),
-            );
-
-            self.epoch_store.remove_shared_version_assignments(
-                ckpt_state
-                    .data
-                    .tx_digests
-                    .iter()
-                    .copied()
-                    .map(TransactionKey::Digest),
-            );
-        }
-
         // Once the checkpoint is finalized, we know that any randomness contained in
         // this checkpoint has been successfully included in a checkpoint
         // certified by quorum of validators. (RandomnessManager/
@@ -600,7 +575,7 @@ impl CheckpointExecutor {
     ) -> CheckpointExecutionState {
         let sequence_number = ckpt_state.data.checkpoint.sequence_number;
 
-        let unexecuted_tx_digests = {
+        let (unexecuted_tx_digests, unexecuted_expected_fx_digests) = {
             let _scope = iota_metrics::monitored_scope("CheckpointExecutor::execute_transactions");
             self.schedule_transaction_execution(&ckpt_state, &tx_data)
         };
@@ -608,12 +583,32 @@ impl CheckpointExecutor {
         finish_stage!(pipeline_handle, ExecuteTransactions);
 
         {
-            self.transaction_cache_reader
+            let actual_fx_digests = self
+                .transaction_cache_reader
                 .notify_read_executed_effects_digests(
                     "CheckpointExecutor::notify_read_executed_effects_digests",
                     &unexecuted_tx_digests,
                 )
                 .await;
+
+            // A transaction scheduled here can also be scheduled from consensus,
+            // and whichever enqueue arrives second is dropped along with its
+            // environment — so the expected digest passed above may never have
+            // reached execution. Compare here, where the checkpoint's digests are
+            // known, so a fork is caught regardless of which enqueue won.
+            for (tx_digest, expected, actual) in itertools::izip!(
+                unexecuted_tx_digests.iter(),
+                unexecuted_expected_fx_digests.iter(),
+                actual_fx_digests.iter()
+            ) {
+                assert_not_forked(
+                    &ckpt_state.data.checkpoint,
+                    tx_digest,
+                    expected,
+                    actual,
+                    &*self.transaction_cache_reader,
+                );
+            }
         }
 
         finish_stage!(pipeline_handle, WaitForTransactions);
@@ -878,13 +873,15 @@ impl CheckpointExecutor {
         }
     }
 
-    // Schedule all unexecuted transactions in the checkpoint for execution
+    /// Enqueues the checkpoint's not-yet-executed transactions, and returns
+    /// their digests together with the effects digest the checkpoint expects
+    /// for each, so the caller can check for a fork once they execute.
     #[instrument(level = "info", skip_all)]
     fn schedule_transaction_execution(
         &self,
         ckpt_state: &CheckpointExecutionState,
         tx_data: &CheckpointTransactionData,
-    ) -> Vec<TransactionDigest> {
+    ) -> (Vec<TransactionDigest>, Vec<TransactionEffectsDigest>) {
         // Which transactions have already been executed must be read here, in
         // the ordered pipeline stage, and not when the checkpoint data is
         // loaded: execution progresses in between, and a stale answer would
@@ -894,58 +891,65 @@ impl CheckpointExecutor {
             .multi_get_executed_effects_digests(&ckpt_state.data.tx_digests);
 
         // Find unexecuted transactions and their expected effects digests
-        let (unexecuted_tx_digests, unexecuted_txns, unexecuted_effects): (Vec<_>, Vec<_>, Vec<_>) =
-            itertools::multiunzip(
-                itertools::izip!(
-                    tx_data.transactions.iter(),
-                    ckpt_state.data.tx_digests.iter(),
-                    ckpt_state.data.fx_digests.iter(),
-                    tx_data.effects.iter(),
-                    executed_fx_digests.iter()
-                )
-                .filter_map(
-                    |(txn, tx_digest, expected_fx_digest, effects, executed_fx_digest)| {
-                        if let Some(executed_fx_digest) = executed_fx_digest {
-                            assert_not_forked(
-                                &ckpt_state.data.checkpoint,
-                                tx_digest,
-                                expected_fx_digest,
-                                executed_fx_digest,
-                                &*self.transaction_cache_reader,
-                            );
-                            None
-                        } else if txn.transaction().is_end_of_epoch_tx() {
-                            None
+        let (unexecuted_tx_digests, unexecuted_expected_fx_digests, unexecuted_txns): (
+            Vec<_>,
+            Vec<_>,
+            Vec<_>,
+        ) = itertools::multiunzip(
+            itertools::izip!(
+                tx_data.transactions.iter(),
+                ckpt_state.data.tx_digests.iter(),
+                ckpt_state.data.fx_digests.iter(),
+                tx_data.effects.iter(),
+                executed_fx_digests.iter()
+            )
+            .filter_map(
+                |(txn, tx_digest, expected_fx_digest, effects, executed_fx_digest)| {
+                    if let Some(executed_fx_digest) = executed_fx_digest {
+                        assert_not_forked(
+                            &ckpt_state.data.checkpoint,
+                            tx_digest,
+                            expected_fx_digest,
+                            executed_fx_digest,
+                            &*self.transaction_cache_reader,
+                        );
+                        None
+                    } else if txn.transaction().is_end_of_epoch_tx() {
+                        None
+                    } else {
+                        // A transaction without shared inputs normally needs no version
+                        // assignments, but one cancelled for congestion carries its
+                        // cancellation version on the gas object, which re-execution
+                        // must reproduce.
+                        let assigned_versions = if txn.contains_shared_object()
+                            || gas_object_cancellation_version_from_effects(effects).is_some()
+                        {
+                            self.epoch_store
+                                .acquire_shared_version_assignments_from_effects(
+                                    txn,
+                                    effects,
+                                    &*self.object_cache_reader,
+                                )
+                                .expect("failed to acquire shared version assignments")
                         } else {
-                            Some((tx_digest, (txn.clone(), *expected_fx_digest), effects))
-                        }
-                    },
-                ),
-            );
+                            Default::default()
+                        };
 
-        for ((tx, _), effects) in itertools::izip!(unexecuted_txns.iter(), unexecuted_effects) {
-            // A transaction without shared inputs normally needs no version
-            // assignments, but one cancelled for congestion carries its
-            // cancellation version on the gas object, which re-execution
-            // must reproduce.
-            if tx.contains_shared_object()
-                || gas_object_cancellation_version_from_effects(effects).is_some()
-            {
-                self.epoch_store
-                    .acquire_shared_version_assignments_from_effects(
-                        tx,
-                        effects,
-                        &*self.object_cache_reader,
-                    )
-                    .expect("failed to acquire shared version assignments");
-            }
-        }
+                        let env = ExecutionEnv::new()
+                            .with_assigned_versions(assigned_versions)
+                            .with_expected_effects_digest(*expected_fx_digest);
+
+                        Some((tx_digest, *expected_fx_digest, (txn.clone(), env)))
+                    }
+                },
+            ),
+        );
 
         // Enqueue unexecuted transactions with their expected effects digests
         self.execution_scheduler
-            .enqueue_with_expected_effects_digest(unexecuted_txns, &self.epoch_store);
+            .enqueue_transactions(unexecuted_txns, &self.epoch_store);
 
-        unexecuted_tx_digests
+        (unexecuted_tx_digests, unexecuted_expected_fx_digests)
     }
 
     // Execute the change epoch txn
@@ -980,7 +984,8 @@ impl CheckpointExecutor {
         //         );
         //     }
 
-        self.epoch_store
+        let assigned_versions = self
+            .epoch_store
             .acquire_shared_version_assignments_from_effects(
                 change_epoch_tx,
                 change_epoch_fx,
@@ -989,15 +994,21 @@ impl CheckpointExecutor {
             .expect("Acquiring shared version assignments for change_epoch tx cannot fail");
 
         info!(
-            "scheduling change epoch txn with digest: {:?}, expected effects digest: {:?}",
+            "scheduling change epoch txn with digest: {:?}, expected effects digest: {:?}, \
+            assigned versions: {:?}",
             change_epoch_tx.digest(),
-            change_epoch_fx.digest()
+            change_epoch_fx.digest(),
+            assigned_versions
         );
-        self.execution_scheduler
-            .enqueue_with_expected_effects_digest(
-                vec![(change_epoch_tx.clone(), change_epoch_fx.digest())],
-                &self.epoch_store,
-            );
+        self.execution_scheduler.enqueue_transactions(
+            vec![(
+                change_epoch_tx.clone(),
+                ExecutionEnv::new()
+                    .with_assigned_versions(assigned_versions)
+                    .with_expected_effects_digest(change_epoch_fx.digest()),
+            )],
+            &self.epoch_store,
+        );
 
         self.transaction_cache_reader
             .notify_read_executed_effects_digests(

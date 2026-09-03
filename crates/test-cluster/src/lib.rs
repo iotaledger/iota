@@ -23,9 +23,10 @@ use iota_config::{
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
+use iota_grpc_client::read_mask_fields::TransactionField;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
@@ -41,8 +42,8 @@ use iota_sdk::{
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Transaction, TransactionDigest, TransactionEffects,
-    TransactionEvents,
+    Address, ExecutionStatus, ObjectId, ObjectReference, Transaction, TransactionDigest,
+    TransactionEffects, TransactionEvents,
 };
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
@@ -58,7 +59,8 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
@@ -81,6 +83,10 @@ use tokio::{
 use tracing::{error, info};
 
 const NUM_VALIDATOR: usize = 4;
+
+/// How long the fullnode's gRPC API is asked to wait for an executed
+/// transaction to be included in a checkpoint before returning.
+const CHECKPOINT_INCLUSION_TIMEOUT_MS: u64 = 60_000;
 
 pub struct FullNodeHandle {
     pub iota_node: IotaNodeHandle,
@@ -631,35 +637,47 @@ impl TestCluster {
         self.wallet.sign_transaction(tx)
     }
 
-    pub async fn sign_and_execute_transaction(
-        &self,
-        tx: &Transaction,
-    ) -> IotaTransactionBlockResponse {
+    pub async fn sign_and_execute_transaction(&self, tx: &Transaction) -> TransactionEffects {
         let tx = self.wallet.sign_transaction(tx);
         self.execute_transaction(tx).await
     }
 
-    /// Execute a transaction on the network and wait for it to be executed on
-    /// the rpc fullnode. Also expects the effects status to be
-    /// ExecutionStatus::Success. This function is recommended for
-    /// transaction execution since it most resembles the production path.
-    pub async fn execute_transaction(
-        &self,
-        tx: TransactionEnvelope,
-    ) -> IotaTransactionBlockResponse {
-        self.wallet.execute_transaction_must_succeed(tx).await
+    /// Execute a transaction via the fullnode's gRPC API and wait for it to be
+    /// included in a checkpoint executed by the fullnode, so subsequent reads
+    /// on the fullnode observe its outputs. Also expects the effects status to
+    /// be `ExecutionStatus::Success`.
+    pub async fn execute_transaction(&self, tx: TransactionEnvelope) -> TransactionEffects {
+        let executed = self
+            .grpc_client()
+            .execute_transaction(
+                tx.into(),
+                CHECKPOINT_INCLUSION_TIMEOUT_MS,
+                TransactionField::EFFECTS_BCS,
+            )
+            .await
+            .unwrap_or_else(|e| panic!("Transaction submission failed: {e}"))
+            .into_inner();
+        let effects = executed
+            .effects()
+            .expect("effects are requested in the read mask")
+            .effects()
+            .expect("effects BCS should deserialize");
+        assert!(
+            matches!(effects.status(), ExecutionStatus::Success),
+            "Transaction failed: {effects:?}"
+        );
+        effects
     }
 
-    /// Different from `execute_transaction` which returns RPC effects types,
-    /// this function returns raw effects, events and extra objects returned
-    /// by the validators, aggregated manually (without authority
-    /// aggregator). It also does not check whether the transaction is
-    /// executed successfully. In order to keep the fullnode up-to-date so
-    /// that latter queries can read consistent results, it calls
-    /// execute_transaction_may_fail again which goes through fullnode. This
-    /// is less efficient and verbose, but can be used if more details are
-    /// needed from the execution results, and if the transaction is
-    /// expected to fail.
+    /// Different from `execute_transaction`, this function returns raw
+    /// effects, events and extra objects returned by the validators,
+    /// aggregated manually (without authority aggregator). It also does not
+    /// check whether the transaction is executed successfully. In order to
+    /// keep the fullnode up-to-date so that latter queries can read consistent
+    /// results, it executes the transaction again through the fullnode's gRPC
+    /// API. This is less efficient and verbose, but can be used if more
+    /// details are needed from the execution results, and if the transaction
+    /// is expected to fail.
     pub async fn execute_transaction_return_raw_effects(
         &self,
         tx: TransactionEnvelope,
@@ -670,7 +688,14 @@ impl TestCluster {
         let results = self
             .submit_transaction_to_validators(tx.clone(), &self.get_validator_pubkeys())
             .await?;
-        self.wallet.execute_transaction_may_fail(tx).await.unwrap();
+        self.grpc_client()
+            .execute_transaction(
+                tx.into(),
+                CHECKPOINT_INCLUSION_TIMEOUT_MS,
+                TransactionField::EFFECTS_BCS,
+            )
+            .await
+            .unwrap();
         Ok(results)
     }
 
@@ -878,13 +903,8 @@ impl TestCluster {
             .await
             .transfer_iota(Some(amount), receiver)
             .build();
-        let effects = self
-            .sign_and_execute_transaction(&tx)
-            .await
-            .effects
-            .unwrap();
-        assert_eq!(&IotaExecutionStatus::Success, effects.status());
-        effects.created().first().unwrap().object_id()
+        let effects = self.sign_and_execute_transaction(&tx).await;
+        effects.created().first().unwrap().reference.object_id
     }
 
     /// Wait to catch up to the given checkpoint sequence
@@ -1338,7 +1358,7 @@ impl TestClusterBuilder {
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
         // `NetworkConfig` can be used to configure and build the cluster.
         let faucet = self.network_config.is_none().then(|| {
-            let (faucet_address, faucet_keypair): (Address, AccountKeyPair) = get_key_pair();
+            let (faucet_address, faucet_key): (Address, AccountPrivateKey) = get_key_pair();
             let accounts = &mut self.get_or_init_genesis_config().accounts;
             accounts.push(AccountConfig {
                 address: Some(faucet_address),
@@ -1346,7 +1366,7 @@ impl TestClusterBuilder {
             });
             Faucet {
                 address: faucet_address,
-                keypair: Arc::new(tokio::sync::Mutex::new(SimpleKeypair::from(faucet_keypair))),
+                keypair: Arc::new(tokio::sync::Mutex::new(SimpleKeypair::from(faucet_key))),
             }
         });
 
@@ -1484,15 +1504,20 @@ impl TestClusterBuilder {
         let wallet_path = dir.join(IOTA_CLIENT_CONFIG);
         let keystore_path = dir.join(IOTA_KEYSTORE_FILENAME);
 
-        let network_config = swarm.config();
-        // Create light config to save
-        let account_keys = network_config.account_keys.to_vec();
-        let network_config_light = NetworkConfigLight::new(
-            network_config.validator_configs.clone(),
-            account_keys,
-            &network_config.genesis,
-        );
-        network_config_light.save(network_path)?;
+        // A config directory the swarm was started from already holds the
+        // network config its node configs were derived from. Only the tool
+        // that wrote that config reads it back.
+        if !network_path.exists() {
+            let network_config = swarm.config();
+            // Create light config to save
+            let account_keys = network_config.account_keys.to_vec();
+            let network_config_light = NetworkConfigLight::new(
+                network_config.validator_configs.clone(),
+                account_keys,
+                &network_config.genesis,
+            );
+            network_config_light.save(network_path)?;
+        }
 
         let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         for key in &swarm.config().account_keys {
