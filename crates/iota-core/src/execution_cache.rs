@@ -618,6 +618,14 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
+    /// The epoch in which `version` of `object_id` stopped being the current
+    /// version, or `None` if it never did or the entry has been pruned.
+    fn try_get_object_superseded_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<EpochId>>;
+
     // Marker methods
 
     /// Get the marker at a specific version

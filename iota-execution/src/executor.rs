@@ -10,8 +10,9 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
     },
+    attestation::AttestationVerdictContext,
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
@@ -101,11 +102,7 @@ pub trait Executor {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -113,6 +110,10 @@ pub trait Executor {
         transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
         auth_context_data: AuthContextData,
+        // Present for attested transactions. When the authenticator function
+        // aborts at execution, authentication is re-run at the attestor's
+        // recorded versions to decide whether the attestation was honest.
+        attestation_verdict_context: Option<AttestationVerdictContext<'_>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (

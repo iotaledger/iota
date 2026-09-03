@@ -63,10 +63,12 @@ use iota_types::committee::CommitteeTrait;
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution,
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
+        validate_account_object,
     },
-    attestation::Attestation,
+    attestation::{Attestation, AttestationVerdictContext, AttestedObjectVersionReader},
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -78,11 +80,10 @@ use iota_types::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEffectsExt, TransactionEvents, VerifiedSignedTransactionEffects,
     },
-    error::{ExecutionError, IotaError, IotaResult, UserInputError},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
-    fp_ensure,
     gas::IotaGasStatus,
     gas_coin::{SIMULATION_GAS_COIN_VALUE, mock_simulation_gas_coin},
     inner_temporary_store::{
@@ -221,8 +222,24 @@ mod batch_verification_tests;
 mod coin_deny_list_tests;
 
 #[cfg(test)]
+#[path = "unit_tests/move_authenticator_attestation_tests.rs"]
+mod move_authenticator_attestation_tests;
+
+#[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
+
+#[cfg(test)]
+#[path = "unit_tests/abstract_account_test_utils.rs"]
+pub mod abstract_account_test_utils;
+
+#[cfg(test)]
+#[path = "unit_tests/attestation_test_utils.rs"]
+pub mod attestation_test_utils;
+
+#[cfg(test)]
+#[path = "unit_tests/attestation_verdict_tests.rs"]
+mod attestation_verdict_tests;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod authority_test_utils;
@@ -912,9 +929,6 @@ pub struct AuthorityState {
     pub traffic_controller: Option<Arc<TrafficController>>,
 }
 
-/// The authority state encapsulates all state, drives execution, and ensures
-/// safety.
-///
 /// Outputs of the shared transaction validation pipeline used by both
 /// `handle_transaction_validation_checks` and `attest_transaction`.
 struct ValidationOutputs<'a> {
@@ -925,6 +939,9 @@ struct ValidationOutputs<'a> {
     per_authenticator_checked_inputs: Vec<(CheckedInputObjects, AuthenticatorFunctionRef)>,
 }
 
+/// The authority state encapsulates all state, drives execution, and ensures
+/// safety.
+///
 /// Note the authority operations can be accessed through a read ref (&) and do
 /// not require &mut. Internally a database is synchronized through a mutex
 /// lock.
@@ -1168,112 +1185,137 @@ impl AuthorityState {
         let tx_digest = *transaction.digest();
 
         // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
-        // source of truth for the input versions the attestor observed.
-        let (inner_temp_store, effects, authentication_failed) = if move_authenticators.is_empty() {
-            // No Move authentication, execute directly.
-            let (inner_temp_store, _, effects, _) =
-                epoch_store.executor().execute_transaction_to_effects(
-                    backing_store.as_ref(),
-                    protocol_config,
-                    self.metrics.limits_metrics.clone(),
-                    false, // expensive_checks
-                    self.config.certificate_deny_config.certificate_deny_set(),
-                    &epoch_id,
-                    epoch_start_timestamp,
-                    tx_checked_input_objects,
-                    gas_data,
-                    gas_status,
-                    kind,
-                    signer,
-                    tx_digest,
-                    &mut None,
-                );
-            // This branch has no Move authentication, so it can never fail auth.
-            (inner_temp_store, effects, false)
-        } else {
-            // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
-            // run auth + execution in one pass.
+        // source of truth for the input versions the attestor observed. The account
+        // objects are read outside the store, so their observed versions are captured
+        // separately.
+        let (inner_temp_store, effects, authentication_failed, account_object_refs) =
+            if move_authenticators.is_empty() {
+                // No Move authentication, execute directly.
+                let (inner_temp_store, _, effects, _) =
+                    epoch_store.executor().execute_transaction_to_effects(
+                        backing_store.as_ref(),
+                        protocol_config,
+                        self.metrics.limits_metrics.clone(),
+                        false, // expensive_checks
+                        self.config.certificate_deny_config.certificate_deny_set(),
+                        &epoch_id,
+                        epoch_start_timestamp,
+                        tx_checked_input_objects,
+                        gas_data,
+                        gas_status,
+                        kind,
+                        signer,
+                        tx_digest,
+                        &mut None,
+                    );
+                // This branch has no Move authentication, so it can never fail auth.
+                (inner_temp_store, effects, false, Vec::new())
+            } else {
+                // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
+                // run auth + execution in one pass.
 
-            let funcs_for_exec = move_authenticators
-                .iter()
-                .zip(per_authenticator_inputs)
-                .map(|(ma, (_, account_object))| {
-                    let (id, seq, digest) = ma.object_to_authenticate_components()?;
-                    let signer_addr = ma.address();
-                    self.check_move_account_for_validation(
-                        id,
-                        seq,
-                        digest,
-                        account_object,
-                        &signer_addr,
+                let (account_object_refs, funcs_for_exec): (Vec<_>, Vec<_>) = move_authenticators
+                    .iter()
+                    .zip(per_authenticator_inputs)
+                    .map(|(ma, (_, account_object))| {
+                        // Immutable accounts cannot drift, so they are not recorded.
+                        let account_object_ref = account_object
+                            .as_object()
+                            .filter(|object| !object.is_immutable())
+                            .map(|object| object.object_ref());
+                        let (id, seq, digest) = ma.object_to_authenticate_components()?;
+                        let signer_addr = ma.address();
+                        self.check_move_account_for_validation(
+                            id,
+                            seq,
+                            digest,
+                            account_object,
+                            &signer_addr,
+                        )
+                        .map(|function_ref| (account_object_ref, function_ref))
+                    })
+                    .collect::<IotaResult<Vec<_>>>()?
+                    .into_iter()
+                    .unzip();
+                let account_object_refs: Vec<_> =
+                    account_object_refs.into_iter().flatten().collect();
+
+                // Union the checked transaction + authenticator input objects for
+                // execution. Borrow the checked inputs here before they are consumed
+                // by `authenticators_for_exec` below.
+                let checked_for_union: Vec<&CheckedInputObjects> =
+                    std::iter::once(&tx_checked_input_objects)
+                        .chain(per_authenticator_checked_inputs.iter().map(|(c, _)| c))
+                        .collect();
+                let auth_and_tx_checked =
+                    iota_transaction_checks::aggregate_authenticator_input_objects(
+                        &checked_for_union,
+                    )?;
+
+                let authenticators_for_exec = move_authenticators
+                    .into_iter()
+                    .zip(funcs_for_exec)
+                    .zip(per_authenticator_checked_inputs)
+                    .map(
+                        |((ma, function_ref), (input_objects, _))| MoveAuthenticatorForExecution {
+                            authenticator: ma.to_owned(),
+                            function_ref,
+                            input_objects,
+                        },
                     )
-                })
-                .collect::<IotaResult<Vec<_>>>()?;
+                    .collect::<Vec<_>>();
 
-            // Union the checked transaction + authenticator input objects for
-            // execution. Borrow the checked inputs here before they are consumed
-            // by `authenticators_for_exec` below.
-            let checked_for_union: Vec<&CheckedInputObjects> =
-                std::iter::once(&tx_checked_input_objects)
-                    .chain(per_authenticator_checked_inputs.iter().map(|(c, _)| c))
-                    .collect();
-            let auth_and_tx_checked =
-                iota_transaction_checks::aggregate_authenticator_input_objects(&checked_for_union)?;
+                let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+                    extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                        authenticators_for_exec
+                            .iter()
+                            .find(|a| a.authenticator.address() == address)
+                            .map(|a| a.function_ref.authenticator_function_ref.clone())
+                    });
 
-            let authenticators_for_exec = move_authenticators
-                .into_iter()
-                .zip(funcs_for_exec)
-                .zip(per_authenticator_checked_inputs)
-                .map(|((ma, func_ref), (checked_inputs, _))| {
-                    (ma.to_owned(), func_ref, checked_inputs)
-                })
-                .collect::<Vec<_>>();
+                let (sender_auth_digest, sponsor_auth_digest) =
+                    transaction.data().compute_auth_digests()?;
 
-            let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
-                extract_auth_fun_refs(signer, gas_data.owner, |address| {
-                    authenticators_for_exec
-                        .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
-                });
+                // Serialize the TransactionData for the auth context before decomposing.
+                let tx_data_bytes =
+                    bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
 
-            let (sender_auth_digest, sponsor_auth_digest) =
-                transaction.data().compute_auth_digests()?;
+                let auth_context_data = AuthContextData {
+                    transaction_data_bytes: tx_data_bytes,
+                    sender_auth_digest,
+                    sponsor_auth_digest,
+                    sender_authenticator_function_ref,
+                    sponsor_authenticator_function_ref,
+                };
 
-            // Serialize the TransactionData for the auth context before decomposing.
-            let tx_data_bytes =
-                bcs::to_bytes(tx).expect("TransactionData serialization cannot fail");
-
-            let auth_context_data = AuthContextData {
-                transaction_data_bytes: tx_data_bytes,
-                sender_auth_digest,
-                sponsor_auth_digest,
-                sender_authenticator_function_ref,
-                sponsor_authenticator_function_ref,
+                let (inner_temp_store, _, effects, _, authentication_failed) = epoch_store
+                    .executor()
+                    .authenticate_then_execute_transaction_to_effects(
+                        backing_store.as_ref(),
+                        protocol_config,
+                        self.metrics.limits_metrics.clone(),
+                        false, // expensive_checks
+                        self.config.certificate_deny_config.certificate_deny_set(),
+                        &epoch_id,
+                        epoch_start_timestamp,
+                        gas_data,
+                        gas_status,
+                        MoveAuthenticatorsForExecution::Resolved(authenticators_for_exec),
+                        auth_and_tx_checked,
+                        kind,
+                        signer,
+                        tx_digest,
+                        auth_context_data,
+                        None,
+                        &mut None,
+                    );
+                (
+                    inner_temp_store,
+                    effects,
+                    authentication_failed,
+                    account_object_refs,
+                )
             };
-
-            let (inner_temp_store, _, effects, _, authentication_failed) = epoch_store
-                .executor()
-                .authenticate_then_execute_transaction_to_effects(
-                    backing_store.as_ref(),
-                    protocol_config,
-                    self.metrics.limits_metrics.clone(),
-                    false, // expensive_checks
-                    self.config.certificate_deny_config.certificate_deny_set(),
-                    &epoch_id,
-                    epoch_start_timestamp,
-                    gas_data,
-                    gas_status,
-                    authenticators_for_exec,
-                    auth_and_tx_checked,
-                    kind,
-                    signer,
-                    tx_digest,
-                    auth_context_data,
-                    &mut None,
-                );
-            (inner_temp_store, effects, authentication_failed)
-        };
 
         // Refuse to attest a transaction when its Move authentication did not succeed.
         // Any other failure (out-of-gas or a Move abort in the transaction body) is the
@@ -1296,43 +1338,8 @@ impl AuthorityState {
             .checked_div(tx.gas_price())
             .unwrap_or(0);
 
-        // `object_versions` is the evidence base for malicious-attestor detection. We
-        // pull `input_objects` (resolved tx + authenticator inputs) and
-        // `loaded_runtime_objects` (dynamic fields / children) from the
-        // execution's temporary store. Both record the pre-execution read version, and
-        // the two maps are disjoint by `ObjectId`.
-
-        // We then drop owned, gas, and receiving objects (pinned by
-        // `TransactionData`) and immutable objects / packages (frozen).
-        let tx_pinned_ids: HashSet<ObjectId> = tx
-            .input_objects()?
-            .into_iter()
-            .filter_map(|kind| match kind {
-                InputObjectKind::ImmOrOwnedMoveObject(oref) => Some(oref.object_id),
-                InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
-            })
-            .chain(tx.gas().iter().map(|oref| oref.object_id))
-            .chain(
-                tx.receiving_objects()
-                    .into_iter()
-                    .map(|oref| oref.object_id),
-            )
-            .collect();
-
-        let object_versions: Vec<ObjectReference> = inner_temp_store
-            .input_objects
-            .values()
-            .filter(|obj| !obj.is_immutable())
-            .map(|obj| obj.object_ref())
-            .chain(
-                inner_temp_store
-                    .loaded_runtime_objects
-                    .iter()
-                    .filter(|(_, meta)| !matches!(meta.owner, Owner::Immutable))
-                    .map(|(id, meta)| ObjectReference::new(*id, meta.version, meta.digest)),
-            )
-            .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
-            .collect();
+        let object_versions =
+            attestable_object_versions(tx, &inner_temp_store, account_object_refs)?;
 
         Ok((
             AttestationData::V1 {
@@ -1716,8 +1723,10 @@ impl AuthorityState {
         certificate: &VerifiedCertificate,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
-        let executable: VerifiedExecutableAttestedTransaction =
-            VerifiedExecutableTransaction::new_from_certificate(certificate.clone()).into();
+        let executable = VerifiedExecutableAttestedTransaction::new(
+            VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
+            None,
+        );
         let (effects, execution_error_opt) =
             self.try_execute_immediately(&executable, None, &epoch_store)?;
         let signed_effects = self.sign_effects(effects, &epoch_store)?;
@@ -1960,6 +1969,7 @@ impl AuthorityState {
             transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
+            epoch_store.protocol_config().enable_validator_attestation(),
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -2133,44 +2143,29 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            let per_authenticator_inputs = move_authenticators
-                .iter()
-                .zip(per_authenticator_inputs)
-                .map(
-                    |(move_authenticator, (authenticator_input_objects, account_object))| {
-                        // Check basic `object_to_authenticate` preconditions and get its
-                        // components.
-                        let (
-                            auth_account_object_id,
-                            auth_account_object_seq_number,
-                            auth_account_object_digest,
-                        ) = move_authenticator
-                            .object_to_authenticate_components()
-                            .expect("the object to authenticate is validated before consensus and cannot be invalid during execution");
-
-                        let signer = move_authenticator.address();
-
-                        let authenticator_function_ref_for_execution = self
-                            .check_move_account_for_execution(
-                                auth_account_object_id,
-                                auth_account_object_seq_number,
-                                auth_account_object_digest,
-                                account_object,
-                                &signer,
-                            );
-
-                        (
-                            authenticator_input_objects,
-                            authenticator_function_ref_for_execution,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
-            let per_authenticator_input_objects = per_authenticator_inputs
-                .iter()
-                .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
-                .collect::<Vec<_>>();
+            // Resolve each authenticator's account function ref.
+            let (per_authenticator_input_objects, resolutions): (Vec<_>, Vec<_>) =
+                move_authenticators
+                    .iter()
+                    .zip(per_authenticator_inputs)
+                    .map(
+                        |(move_authenticator, (authenticator_input_objects, account_object))| {
+                            let function_ref = move_authenticator
+                                .object_to_authenticate_components()
+                                .map_err(IotaError::from)
+                                .and_then(|(id, seq_number, digest)| {
+                                    self.check_move_account_for_execution(
+                                        id,
+                                        seq_number,
+                                        digest,
+                                        account_object,
+                                        &move_authenticator.address(),
+                                    )
+                                });
+                            (authenticator_input_objects, function_ref)
+                        },
+                    )
+                    .unzip();
 
             // Serialize the TransactionData for the auth context.
             let tx_data_bytes =
@@ -2179,7 +2174,8 @@ impl AuthorityState {
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
 
-            // Check the `MoveAuthenticator` input objects.
+            // Check the `MoveAuthenticator` input objects. These are needed to build the
+            // effect whether or not authentication ultimately runs.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
             // `max_auth_gas` is used here as a Move authenticator gas budget until it is
             // not a part of the transaction data.
@@ -2197,6 +2193,38 @@ impl AuthorityState {
                 reference_gas_price,
             )?;
 
+            let owned_object_refs = authenticator_and_tx_checked_input_objects
+                .inner()
+                .filter_owned_objects();
+            self.check_owned_locks(&owned_object_refs)?;
+
+            // Turn the per-authenticator resolution results into the
+            // authenticators to hand to execution.
+            let mut pre_authentication_error = None;
+            let mut function_refs = Vec::with_capacity(resolutions.len());
+            for function_ref in resolutions {
+                match function_ref {
+                    Ok(function_ref) => function_refs.push(Some(function_ref)),
+                    Err(error) if protocol_config.enable_validator_attestation() => {
+                        // The account's authenticator function could not be
+                        // resolved. Execution decides who is charged, so the
+                        // kind must not prejudge the attestation.
+                        if pre_authentication_error.is_none() {
+                            pre_authentication_error = Some(ExecutionError::new_with_source(
+                                ExecutionErrorKind::FunctionNotFound,
+                                error,
+                            ));
+                        }
+                        function_refs.push(None);
+                    }
+                    Err(error) => {
+                        // Without the attestation flow these structural checks are
+                        // re-validated before execution and cannot fail here.
+                        panic!("move account checks cannot fail during execution: {error:?}");
+                    }
+                }
+            }
+
             debug_assert_eq!(
                 move_authenticators.len(),
                 per_authenticator_checked_input_objects.len(),
@@ -2205,33 +2233,24 @@ impl AuthorityState {
 
             let move_authenticators = move_authenticators
                 .into_iter()
-                .zip(per_authenticator_inputs)
+                .zip(function_refs)
                 .zip(per_authenticator_checked_input_objects)
-                .map(
-                    |(
-                        (move_authenticator, (_, authenticator_function_ref_for_execution)),
-                        authenticator_checked_input_objects,
-                    )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref_for_execution,
-                            authenticator_checked_input_objects,
-                        )
-                    },
-                )
+                .map(|((move_authenticator, function_ref), input_objects)| {
+                    MoveAuthenticatorForExecution {
+                        authenticator: move_authenticator.to_owned(),
+                        function_ref,
+                        input_objects,
+                    }
+                })
                 .collect::<Vec<_>>();
-
-            let owned_object_refs = authenticator_and_tx_checked_input_objects
-                .inner()
-                .filter_owned_objects();
-            self.check_owned_locks(&owned_object_refs)?;
 
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .and_then(|a| a.function_ref.as_ref())
+                        .map(|f| f.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -2241,6 +2260,44 @@ impl AuthorityState {
                 sender_authenticator_function_ref,
                 sponsor_authenticator_function_ref,
             };
+
+            let move_authenticators = match pre_authentication_error {
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
+                    authenticators: move_authenticators,
+                    error,
+                },
+                None => MoveAuthenticatorsForExecution::Resolved(
+                    move_authenticators
+                        .into_iter()
+                        .map(|authenticator| {
+                            let function_ref = authenticator.function_ref.expect(
+                                "no pre-authentication error, so every function ref resolved",
+                            );
+                            MoveAuthenticatorForExecution {
+                                authenticator: authenticator.authenticator,
+                                function_ref,
+                                input_objects: authenticator.input_objects,
+                            }
+                        })
+                        .collect(),
+                ),
+            };
+
+            // Only attested transactions can have their Move-authentication
+            // failure attributed, and only they carry recorded versions to judge.
+            let attested_object_versions =
+                transaction.attestation().map(|_| AttestedObjectVersions {
+                    object_cache: self.get_object_cache_reader().as_ref(),
+                    current_epoch: epoch_id,
+                });
+            let attestation_verdict_context = transaction
+                .attestation()
+                .zip(attested_object_versions.as_ref())
+                .map(|(attestation, version_reader)| AttestationVerdictContext {
+                    object_versions: attestation.object_versions(),
+                    computation_units: attestation.computation_units(),
+                    version_reader,
+                });
 
             let (
                 inner_temp_store,
@@ -2268,6 +2325,7 @@ impl AuthorityState {
                     signer,
                     tx_digest,
                     auth_context_data,
+                    attestation_verdict_context,
                     &mut None,
                 );
             (inner_temp_store, gas_status, effects, execution_error_opt)
@@ -2300,7 +2358,7 @@ impl AuthorityState {
     )> {
         let lock = RwLock::new(epoch_store.epoch());
         let execution_guard = lock.try_read().unwrap();
-        let attested: VerifiedExecutableAttestedTransaction = transaction.clone().into();
+        let attested = VerifiedExecutableAttestedTransaction::new(transaction.clone(), None);
 
         self.execute_transaction(
             &execution_guard,
@@ -3549,6 +3607,7 @@ impl AuthorityState {
             indexes.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
+            epoch_store.protocol_config().enable_validator_attestation(),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
             archive_readers,
@@ -3932,6 +3991,12 @@ impl AuthorityState {
             .await?;
         assert_eq!(new_epoch_store.epoch(), new_epoch);
         self.transaction_manager.reconfigure(new_epoch);
+        self.pruner.update_for_epoch(
+            new_epoch_store.committee().authority_exists(&self.name),
+            new_epoch_store
+                .protocol_config()
+                .enable_validator_attestation(),
+        );
         *execution_lock = new_epoch;
         // drop execution_lock after epoch store was updated
         // see also assert in AuthorityState::process_transaction
@@ -5739,7 +5804,7 @@ impl AuthorityState {
         let (input_objects, _) =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
-        let attested_tx: VerifiedExecutableAttestedTransaction = executable_tx.clone().into();
+        let attested_tx = VerifiedExecutableAttestedTransaction::new(executable_tx.clone(), None);
         let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
             &execution_guard,
             &attested_tx,
@@ -5877,7 +5942,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
-    ) -> AuthenticatorFunctionRefForExecution {
+    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         self.check_move_account(
             auth_account_object_id,
             auth_account_object_seq_number,
@@ -5886,7 +5951,6 @@ impl AuthorityState {
             signer,
             true,
         )
-        .expect("move account checks cannot fail during execution")
     }
 
     /// Resolves the account's `AuthenticatorFunctionRef` on the validation
@@ -5926,61 +5990,13 @@ impl AuthorityState {
         is_execution: bool,
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         let auth_account_object_seq_number = match (&account_object.object, is_execution) {
-            // In any case, if the account object is loaded, we can check its version and digest.
-            // Then we return the version of the account object to be used for reading the
-            // authenticator function ref dynamic field.
-            (ObjectReadResultKind::Object(object), _) => {
-                let account_object_addr = Address::from(auth_account_object_id);
-                fp_ensure!(
-                    signer == &account_object_addr,
-                    UserInputError::IncorrectUserSignature {
-                        error: format!("Move authenticator is trying to unlock {account_object_addr:?}, but given signer address is {signer:?}")
-                    }
-                    .into()
-                );
-
-                fp_ensure!(
-                    object.is_shared() || object.is_immutable(),
-                    UserInputError::AccountObjectNotSupported {
-                        object_id: auth_account_object_id
-                    }
-                    .into()
-                );
-
-                let auth_account_object_seq_number =
-                    if let Some(auth_account_object_seq_number) = auth_account_object_seq_number {
-                        let account_object_version = object.version();
-
-                        fp_ensure!(
-                            account_object_version == auth_account_object_seq_number,
-                            UserInputError::AccountObjectVersionMismatch {
-                                object_id: auth_account_object_id,
-                                expected_version: auth_account_object_seq_number,
-                                actual_version: account_object_version,
-                            }
-                            .into()
-                        );
-
-                        auth_account_object_seq_number
-                    } else {
-                        object.version()
-                    };
-
-                if let Some(auth_account_object_digest) = auth_account_object_digest {
-                    let expected_digest = object.digest();
-                    fp_ensure!(
-                        expected_digest == auth_account_object_digest,
-                        UserInputError::InvalidAccountObjectDigest {
-                            object_id: auth_account_object_id,
-                            expected_digest,
-                            actual_digest: auth_account_object_digest,
-                        }
-                        .into()
-                    );
-                }
-
-                Ok(auth_account_object_seq_number)
-            }
+            (ObjectReadResultKind::Object(object), _) => validate_account_object(
+                auth_account_object_id,
+                auth_account_object_seq_number,
+                auth_account_object_digest,
+                signer,
+                object,
+            ),
             // If the account object is not loaded because it was deleted, we return the error in
             // the case in which we are not executing the transaction right after.
             (ObjectReadResultKind::DeletedSharedObject(version, digest), false) => {
@@ -6164,6 +6180,20 @@ impl AuthorityState {
             &tx.receiving_objects(),
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
+        )?;
+        Ok(())
+    }
+
+    pub(crate) fn check_transaction_inputs_exist(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch: EpochId,
+    ) -> IotaResult<()> {
+        self.input_loader.read_objects_for_signing(
+            Some(transaction.digest()),
+            &transaction.collect_all_input_object_kind_for_reading()?,
+            &[],
+            epoch,
         )?;
         Ok(())
     }
@@ -6852,6 +6882,64 @@ impl NodeStateDump {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
     }
+}
+
+/// Judges the object versions recorded in an attestation, so that a
+/// Move-authentication failure can be attributed to the issuer or the attestor.
+struct AttestedObjectVersions<'a> {
+    object_cache: &'a dyn ObjectCacheRead,
+    current_epoch: EpochId,
+}
+
+impl AttestedObjectVersionReader for AttestedObjectVersions<'_> {
+    fn superseded_in_current_epoch(&self, object_id: &ObjectId, version: Version) -> bool {
+        matches!(
+            self.object_cache
+                .try_get_object_superseded_in_epoch(object_id, version),
+            Ok(Some(epoch)) if epoch == self.current_epoch
+        )
+    }
+}
+
+/// Versions of the objects an attestation records to be used as the evidence
+/// base for detecting a false attestation. `account_object_refs` carries the
+/// Move-authenticator account objects, which are read outside the temporary
+/// store.
+fn attestable_object_versions(
+    tx: &TransactionData,
+    inner_temp_store: &InnerTemporaryStore,
+    account_object_refs: Vec<ObjectReference>,
+) -> IotaResult<Vec<ObjectReference>> {
+    let tx_pinned_ids: HashSet<ObjectId> = tx
+        .input_objects()?
+        .into_iter()
+        .filter_map(|kind| match kind {
+            InputObjectKind::ImmOrOwnedMoveObject(oref) => Some(oref.object_id),
+            InputObjectKind::MovePackage(_) | InputObjectKind::SharedMoveObject { .. } => None,
+        })
+        .chain(tx.gas().iter().map(|oref| oref.object_id))
+        .chain(
+            tx.receiving_objects()
+                .into_iter()
+                .map(|oref| oref.object_id),
+        )
+        .collect();
+
+    Ok(inner_temp_store
+        .input_objects
+        .values()
+        .filter(|obj| !obj.is_immutable())
+        .map(|obj| obj.object_ref())
+        .chain(
+            inner_temp_store
+                .loaded_runtime_objects
+                .iter()
+                .filter(|(_, meta)| !matches!(meta.owner, Owner::Immutable))
+                .map(|(id, meta)| ObjectReference::new(*id, meta.version, meta.digest)),
+        )
+        .chain(account_object_refs)
+        .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
+        .collect())
 }
 
 /// Returns the [`MoveAuthenticator`]s to execute during the pre-consensus

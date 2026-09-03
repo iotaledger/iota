@@ -2,17 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TypeTag,
+    Address, Identifier, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag, Version,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     account_abstraction::account::AuthenticatorFunctionRefV1Key,
     dynamic_field::{self, Field},
-    error::{IotaError, UserInputError, UserInputResult},
+    error::{ExecutionError, IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
+    move_authenticator::MoveAuthenticator,
     object::Object,
+    transaction::CheckedInputObjects,
 };
 
 pub const AUTHENTICATOR_FUNCTION_MODULE_NAME: Identifier =
@@ -113,6 +115,90 @@ impl AuthenticatorFunctionRefForExecution {
             },
         }
     }
+}
+
+/// A `MoveAuthenticator` with the inputs and account resolution it executes
+/// with. `FunctionRef` is `Option`al only inside
+/// [`MoveAuthenticatorsForExecution::ResolutionFailed`].
+pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefForExecution> {
+    pub authenticator: MoveAuthenticator,
+    pub function_ref: FunctionRef,
+    pub input_objects: CheckedInputObjects,
+}
+
+impl From<MoveAuthenticatorForExecution>
+    for MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>
+{
+    fn from(authenticator: MoveAuthenticatorForExecution) -> Self {
+        Self {
+            authenticator: authenticator.authenticator,
+            function_ref: Some(authenticator.function_ref),
+            input_objects: authenticator.input_objects,
+        }
+    }
+}
+
+/// The Move authenticators a transaction executes with: either every
+/// authenticator's function ref resolved, or resolution failed before
+/// execution and the failure travels with the authenticators so an
+/// attestation can still be judged at the recorded versions.
+pub enum MoveAuthenticatorsForExecution {
+    Resolved(Vec<MoveAuthenticatorForExecution>),
+    ResolutionFailed {
+        authenticators:
+            Vec<MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>>,
+        error: ExecutionError,
+    },
+}
+
+/// Checks that a loaded account object can authenticate `signer` and returns
+/// the account version at which the authenticator function ref field is
+/// resolved.
+pub fn validate_account_object(
+    account_object_id: ObjectId,
+    pinned_version: Option<Version>,
+    pinned_digest: Option<ObjectDigest>,
+    signer: &Address,
+    account_object: &Object,
+) -> UserInputResult<Version> {
+    let account_object_addr = Address::from(account_object_id);
+    if signer != &account_object_addr {
+        return Err(UserInputError::IncorrectUserSignature {
+            error: format!(
+                "Move authenticator is trying to unlock {account_object_addr:?}, but given signer address is {signer:?}"
+            ),
+        });
+    }
+
+    if !(account_object.is_shared() || account_object.is_immutable()) {
+        return Err(UserInputError::AccountObjectNotSupported {
+            object_id: account_object_id,
+        });
+    }
+
+    let account_object_version = account_object.version();
+    if let Some(pinned_version) = pinned_version {
+        if account_object_version != pinned_version {
+            return Err(UserInputError::AccountObjectVersionMismatch {
+                object_id: account_object_id,
+                expected_version: pinned_version,
+                actual_version: account_object_version,
+            });
+        }
+    }
+
+    if let Some(pinned_digest) = pinned_digest {
+        let expected_digest = account_object.digest();
+        if expected_digest != pinned_digest {
+            return Err(UserInputError::InvalidAccountObjectDigest {
+                object_id: account_object_id,
+                expected_digest,
+                actual_digest: pinned_digest,
+            });
+        }
+    }
+
+    Ok(account_object_version)
 }
 
 /// Derive the id of the dynamic field on the account object that holds its

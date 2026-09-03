@@ -34,6 +34,7 @@ use crate::{
     },
     consensus_handler::VerifiedSequencedConsensusTransaction,
     post_consensus_validation,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 // Test that a v1 regulated coin can be created and all the necessary objects
@@ -454,7 +455,11 @@ async fn test_execution_fails_spending_denied_coin_under_attestation() {
     let (effects, execution_error) = env
         .env
         .authority
-        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .try_execute_immediately(
+            &VerifiedExecutableAttestedTransaction::new(executable, None),
+            None,
+            &epoch_store,
+        )
         .unwrap();
 
     let ExecutionStatus::Failure { error, .. } = effects.status() else {

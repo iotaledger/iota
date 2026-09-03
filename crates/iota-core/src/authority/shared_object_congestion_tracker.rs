@@ -813,7 +813,7 @@ pub mod shared_object_test_utils {
             ),
             0,
         );
-        tx.into()
+        VerifiedExecutableAttestedTransaction::new(tx, None)
     }
 
     pub(crate) fn initialize_tracker_and_compute_tx_start_time(

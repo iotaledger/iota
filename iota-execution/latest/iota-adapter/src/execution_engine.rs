@@ -19,16 +19,22 @@ mod checked {
     use iota_sdk_types::{
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
-        ObjectId, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference,
-        SystemPackage, TransactionDigest, TransactionKind, Version, gas::GasCostSummary,
+        ObjectId, ObjectReference, ProgrammableTransaction, RandomnessStateUpdate,
+        SharedObjectReference, SystemPackage, TransactionDigest, TransactionKind, Version,
+        gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefV1, MoveAuthenticatorForExecution,
+            MoveAuthenticatorsForExecution,
+            authenticator_function_ref_v1_from_dynamic_field_object,
+            derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
+            validate_account_object,
         },
+        attestation::AttestationVerdictContext,
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
         base_types::TxContext,
@@ -49,7 +55,10 @@ mod checked {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, DenyListResult, Storage},
-        transaction::{CallArg, CheckedInputObjects, InputObjects, TransactionKindExt},
+        transaction::{
+            CallArg, CheckedInputObjects, InputObjects, ObjectReadResult, ObjectReadResultKind,
+            TransactionKindExt,
+        },
     };
     use move_binary_format::CompiledModule;
     use move_trace_format::format::MoveTraceBuilder;
@@ -302,17 +311,15 @@ mod checked {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
+        // The attestor's recorded object versions, for attested transactions.
+        attestation_verdict_context: Option<AttestationVerdictContext<'_>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -362,6 +369,7 @@ mod checked {
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
         let rgp = gas_status.reference_gas_price();
+        let gas_budget = gas_data.budget;
         let mut gas_charger = GasCharger::new(
             transaction_digest,
             gas_data.objects,
@@ -383,72 +391,118 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // Prepare the authenticators for execution.
-        // Store the loaded object metadata in the `TemporaryStore` before the
-        // authenticators are executed.
-        // The temporary store must contain all the required information at this
-        // point.
-        let authenticators = authenticators
-            .into_iter()
-            .map(
-                |(
-                    authenticator,
-                    authenticator_function_ref_for_execution,
-                    authenticator_input_objects,
-                )| {
-                    let AuthenticatorFunctionRefForExecution {
-                        authenticator_function_ref,
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    } = authenticator_function_ref_for_execution;
-
-                    // Save the loaded object metadata, i.e., the field object containing the
-                    // AuthenticatorFunctionRef, in the temporary store.
-                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    )]));
-
-                    (
-                        authenticator,
-                        authenticator_function_ref,
-                        authenticator_input_objects,
-                    )
-                },
-            )
-            .collect::<Vec<_>>();
-
         // Authentication execution.
         // It does not alter the state, if not for command execution gas charging, and
         // produces no effects other than possible errors.
 
-        // Run each authenticator in sequence; the first failure aborts the chain.
-        let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                match authenticator_function_ref {
-                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                        authenticate_transaction_inner(
-                            &mut temporary_store,
-                            protocol_config,
-                            metrics.clone(),
-                            &mut gas_charger,
-                            authenticator,
-                            authenticator_function_ref_v1,
-                            &authenticator_input_objects.into_inner(),
-                            transaction_kind.clone(),
-                            transaction_digest,
-                            auth_context_data.clone(),
-                            tx_ctx.clone(),
-                            trace_builder_opt,
-                            move_vm,
-                        )
-                    }
+        // Run each authenticator in sequence; the first failure aborts the
+        // chain. The authenticators are only borrowed, so a failure can be
+        // judged at the versions the attestor recorded without cloning the
+        // input objects up front. A resolution failure skips the run and
+        // carries its error instead.
+        let (authenticators, authentication_execution_result) = match authenticators {
+            MoveAuthenticatorsForExecution::Resolved(authenticators) => {
+                // Store each loaded function-ref field object's metadata
+                // in the `TemporaryStore` before any authenticator runs.
+                for authenticator in &authenticators {
+                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                        authenticator.function_ref.loaded_object_id,
+                        authenticator.function_ref.loaded_object_metadata.clone(),
+                    )]));
                 }
-            },
-        );
+                let result =
+                    authenticators.iter().try_for_each(|authenticator| {
+                        match &authenticator.function_ref.authenticator_function_ref {
+                            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                                authenticate_transaction_inner(
+                                    &mut temporary_store,
+                                    protocol_config,
+                                    metrics.clone(),
+                                    &mut gas_charger,
+                                    authenticator.authenticator.clone(),
+                                    authenticator_function_ref_v1.clone(),
+                                    authenticator.input_objects.inner(),
+                                    transaction_kind.clone(),
+                                    transaction_digest,
+                                    auth_context_data.clone(),
+                                    tx_ctx.clone(),
+                                    trace_builder_opt,
+                                    move_vm,
+                                )
+                            }
+                        }
+                    });
+                let result = report_authentication_error(result, protocol_config);
+                (authenticators.into_iter().map(Into::into).collect(), result)
+            }
+            MoveAuthenticatorsForExecution::ResolutionFailed {
+                authenticators,
+                error,
+            } => (
+                authenticators,
+                report_authentication_error(Err(error), protocol_config),
+            ),
+        };
 
-        let authentication_execution_result =
-            report_authentication_error(authentication_execution_result, protocol_config);
+        // Judge a failed attested authentication: re-run at the recorded
+        // versions unless the attestation is already refuted.
+        let authentication_execution_result = match (
+            authentication_execution_result,
+            &attestation_verdict_context,
+        ) {
+            (Err(error), Some(verdict_context)) => {
+                let executed_versions: BTreeMap<ObjectId, Version> = authenticators
+                    .iter()
+                    .flat_map(|authenticator| {
+                        authenticator
+                            .input_objects
+                            .inner()
+                            .iter()
+                            .map(|object| (object.id(), object.version()))
+                            .chain(authenticator.function_ref.as_ref().map(|function_ref| {
+                                (
+                                    function_ref.loaded_object_id,
+                                    function_ref.loaded_object_metadata.version,
+                                )
+                            }))
+                    })
+                    .collect();
+
+                let attestation_unrefuted = verdict_context
+                    .should_reauthenticate(&executed_versions)
+                    && reauthenticate_at_attested_versions(
+                        store,
+                        protocol_config,
+                        metrics.clone(),
+                        epoch_id,
+                        epoch_timestamp_ms,
+                        transaction_signer,
+                        sponsor,
+                        gas_price,
+                        rgp,
+                        gas_budget,
+                        verdict_context.computation_units,
+                        authenticators,
+                        verdict_context.object_versions,
+                        &transaction_kind,
+                        transaction_digest,
+                        &auth_context_data,
+                        move_vm,
+                    );
+                if attestation_unrefuted {
+                    // The failure stays the issuer's.
+                    Err(error)
+                } else {
+                    // The attestor is charged; the issuer's error is kept as
+                    // the cause.
+                    Err(ExecutionError::new_with_source(
+                        ExecutionErrorKind::InvalidAttestation,
+                        error,
+                    ))
+                }
+            }
+            (result, _) => result,
+        };
 
         // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986
         // Capture whether authentication failed before the result is moved into the
@@ -491,6 +545,235 @@ mod checked {
             execution_result,
             authentication_failed,
         )
+    }
+
+    /// Re-runs Move authentication at the object versions an attestor
+    /// recorded.
+    fn reauthenticate_at_attested_versions(
+        store: &dyn BackingStore,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        transaction_signer: Address,
+        sponsor: Option<Address>,
+        gas_price: u64,
+        reference_gas_price: u64,
+        gas_budget: u64,
+        attested_computation_units: u64,
+        authenticators: Vec<
+            MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>,
+        >,
+        attested_object_versions: &[ObjectReference],
+        transaction_kind: &TransactionKind,
+        transaction_digest: TransactionDigest,
+        auth_context_data: &AuthContextData,
+        move_vm: &Arc<MoveVM>,
+    ) -> bool {
+        let attested_versions: BTreeMap<ObjectId, &ObjectReference> = attested_object_versions
+            .iter()
+            .map(|object_ref| (*object_ref.object_id(), object_ref))
+            .collect();
+
+        // The re-run is metered on its own charger, capped by the attestor's
+        // claimed computation units: exceeding them refutes the attestation by
+        // its own claim, and the cost never reaches the transaction's gas or
+        // effects.
+        let attested_budget = attested_computation_units.saturating_mul(gas_price);
+        let Ok(gas_status) = IotaGasStatus::new(
+            attested_budget,
+            gas_price,
+            reference_gas_price,
+            protocol_config,
+        ) else {
+            return false;
+        };
+        let mut gas_charger =
+            GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
+
+        // Resolve every authenticator at the recorded versions first, so the
+        // rebuilt auth context carries the same function refs the re-run
+        // executes.
+        let mut resolved = Vec::with_capacity(authenticators.len());
+        for authenticator in authenticators {
+            let MoveAuthenticatorForExecution {
+                authenticator,
+                function_ref: _,
+                input_objects,
+            } = authenticator;
+            let input_objects = input_objects.into_inner();
+            let Some(reloaded_input_objects) = reload_input_objects_at_attested_versions(
+                &input_objects,
+                &attested_versions,
+                store,
+            ) else {
+                return true;
+            };
+
+            let Ok((account_id, pinned_version, pinned_digest)) =
+                authenticator.object_to_authenticate_components()
+            else {
+                return false;
+            };
+
+            // The function ref is resolved from the recorded state, anchored
+            // at the account exactly like execution resolves it: deriving the
+            // field from the account version means a recorded account/field
+            // pair that never coexisted cannot be judged at.
+            let Some(account_object) = reloaded_input_objects
+                .iter()
+                .find(|object| object.id() == account_id)
+                .and_then(|object| object.as_object())
+            else {
+                return false;
+            };
+            let Ok(account_version) = validate_account_object(
+                account_id,
+                pinned_version,
+                pinned_digest,
+                &authenticator.address(),
+                account_object,
+            ) else {
+                return false;
+            };
+            let Ok(field_object_id) =
+                derive_authenticator_function_ref_v1_dynamic_field_id(account_id)
+            else {
+                return false;
+            };
+            let field_object =
+                match store.read_child_object(&account_id, &field_object_id, account_version) {
+                    Ok(Some(field_object)) => field_object,
+                    // The structural failure reproduces at the recorded state.
+                    Ok(None) => return false,
+                    Err(_) => return true,
+                };
+            let function_ref_for_execution =
+                match authenticator_function_ref_v1_from_dynamic_field_object(
+                    account_id,
+                    &field_object,
+                ) {
+                    Ok(resolved) => resolved,
+                    Err(_) => return false,
+                };
+
+            resolved.push((
+                authenticator,
+                function_ref_for_execution,
+                reloaded_input_objects,
+            ));
+        }
+
+        // Rebuild the auth context with the function refs resolved at the
+        // recorded versions.
+        let gas_owner = sponsor.unwrap_or(transaction_signer);
+        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+            extract_auth_fun_refs(transaction_signer, gas_owner, |address| {
+                resolved
+                    .iter()
+                    .find(|(authenticator, _, _)| authenticator.address() == address)
+                    .map(|(_, function_ref, _)| function_ref.authenticator_function_ref.clone())
+            });
+        let mut auth_context_data = auth_context_data.clone();
+        auth_context_data.sender_authenticator_function_ref = sender_authenticator_function_ref;
+        auth_context_data.sponsor_authenticator_function_ref = sponsor_authenticator_function_ref;
+
+        for (authenticator, function_ref_for_execution, reloaded_input_objects) in resolved {
+            let AuthenticatorFunctionRefForExecution {
+                authenticator_function_ref,
+                loaded_object_id,
+                loaded_object_metadata,
+            } = function_ref_for_execution;
+
+            let mut temporary_store = TemporaryStore::new(
+                store,
+                reloaded_input_objects.clone(),
+                Vec::new(),
+                transaction_digest,
+                protocol_config,
+                *epoch_id,
+            );
+            temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                loaded_object_id,
+                loaded_object_metadata,
+            )]));
+
+            let tx_ctx = Rc::new(RefCell::new(TxContext::new_from_components(
+                &transaction_signer,
+                &transaction_digest,
+                epoch_id,
+                epoch_timestamp_ms,
+                reference_gas_price,
+                gas_price,
+                gas_budget,
+                sponsor,
+                protocol_config,
+            )));
+
+            let result = match authenticator_function_ref {
+                AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                    authenticate_transaction_inner(
+                        &mut temporary_store,
+                        protocol_config,
+                        metrics.clone(),
+                        &mut gas_charger,
+                        authenticator,
+                        authenticator_function_ref_v1,
+                        &reloaded_input_objects,
+                        transaction_kind.clone(),
+                        transaction_digest,
+                        auth_context_data.clone(),
+                        tx_ctx,
+                        &mut None,
+                        move_vm,
+                    )
+                }
+            };
+
+            match result {
+                Ok(_) => {}
+                Err(error) if is_authentication_rejection(error.kind()) => return false,
+                Err(_) => return true,
+            }
+        }
+
+        true
+    }
+
+    fn is_authentication_rejection(kind: &ExecutionErrorKind) -> bool {
+        !matches!(
+            kind,
+            ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
+        )
+    }
+
+    /// Rebuilds the input objects for authentication at the versions the
+    /// attestor recorded, reusing the executed object when the recorded
+    /// version is the one execution loaded.
+    ///
+    /// Returns `None` when a recorded version cannot be loaded; the drift
+    /// check only lets retained versions through, so that is a broken
+    /// invariant rather than evidence against the attestor.
+    fn reload_input_objects_at_attested_versions(
+        input_objects: &InputObjects,
+        attested_versions: &BTreeMap<ObjectId, &ObjectReference>,
+        store: &dyn BackingStore,
+    ) -> Option<InputObjects> {
+        let mut reloaded = Vec::with_capacity(input_objects.len());
+        for object_read_result in input_objects.iter() {
+            let object_id = object_read_result.id();
+            match attested_versions.get(&object_id) {
+                Some(object_ref) if object_ref.version() != object_read_result.version() => {
+                    let object = store.get_object_by_key(&object_id, object_ref.version())?;
+                    reloaded.push(ObjectReadResult::new(
+                        object_read_result.input_object_kind,
+                        ObjectReadResultKind::Object(object),
+                    ));
+                }
+                _ => reloaded.push(object_read_result.clone()),
+            }
+        }
+        Some(InputObjects::new(reloaded))
     }
 
     /// This function checks the authentication of a transaction without
