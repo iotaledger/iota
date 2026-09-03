@@ -74,12 +74,16 @@ impl ProgressLogger {
             return;
         }
         if !self.announced {
-            info!(
-                "{}: starting, ~{} {} to go",
-                self.pass,
-                format_count(self.total),
-                self.step
-            );
+            if self.total == 0 {
+                info!("{}: starting, {} count unknown", self.pass, self.step);
+            } else {
+                info!(
+                    "{}: starting, ~{} {} to go",
+                    self.pass,
+                    format_count(self.total),
+                    self.step
+                );
+            }
             self.announced = true;
         }
         self.done += rows;
@@ -105,8 +109,8 @@ impl ProgressLogger {
 
     fn write_line(&mut self) {
         let elapsed = self.started.elapsed();
-        let fraction = if self.total == 0 {
-            1.0
+        let fraction = if self.total <= self.done {
+            0.0
         } else {
             (self.done as f64 / self.total as f64).min(1.0)
         };
@@ -137,13 +141,25 @@ pub(crate) fn progress_line(
     total: u64,
     elapsed: Duration,
 ) -> String {
-    let rate = progress_rate(done, elapsed);
+    let rate = format_count(progress_rate(done, elapsed) as u64);
+    // A pass reports a percentage only against a total it can still believe.
+    // These totals come from RocksDB's key estimate, which subtracts
+    // tombstones from the SST metadata and so under-reports a heavily pruned
+    // table by any margin at all — one testnet table estimated 193.2k rows
+    // and delivered over 100M. Once the scan has passed the estimate, the
+    // estimate says nothing about what is left, and a percentage computed
+    // from it would sit at 100% for the rest of the run.
+    if total <= done {
+        return format!(
+            "{pass}: {} {unit} scanned ({rate} {unit}/s), total unknown",
+            format_count(done),
+        );
+    }
     format!(
-        "{pass}: ~{:.1}% done, {}/~{} {unit} scanned ({} {unit}/s), ETA ~{}",
+        "{pass}: ~{:.1}% done, {}/~{} {unit} scanned ({rate} {unit}/s), ETA ~{}",
         fraction_done * 100.0,
         format_count(done),
         format_count(total),
-        format_count(rate as u64),
         eta_display(elapsed, fraction_done),
     )
 }
@@ -209,6 +225,41 @@ mod tests {
             "Indexing live object set: ~2.9% done, 26.3M/~803.0M objects scanned \
              (125.2k objects/s), ETA ~1h 57m"
         );
+    }
+
+    /// A pass whose total the store could not estimate reports what it has
+    /// done, and does not dress `0` up as a finished pass.
+    #[test]
+    fn an_unknown_total_is_not_reported_as_complete() {
+        let line = progress_line(
+            "ledger backlog migration",
+            "transactions",
+            0.0,
+            9_100_000,
+            0,
+            Duration::from_secs(125),
+        );
+        assert_eq!(
+            line,
+            "ledger backlog migration: 9.1M transactions scanned (72.8k transactions/s), \
+             total unknown"
+        );
+        assert!(!line.contains('%'), "{line}");
+        assert!(!line.contains("ETA"), "{line}");
+
+        // A tombstone-heavy table estimated 193.2k rows and delivered over
+        // 100M of them, so an estimate the scan has overtaken is dropped too.
+        let line = progress_line(
+            "ledger backlog migration",
+            "effects",
+            1.0,
+            104_000_000,
+            193_200,
+            Duration::from_secs(1432),
+        );
+        assert!(!line.contains('%'), "{line}");
+        assert!(!line.contains("ETA"), "{line}");
+        assert!(line.contains("104.0M effects scanned"), "{line}");
     }
 
     /// Nothing done yet says so rather than extrapolating from no data.
