@@ -205,7 +205,7 @@ impl TransactionBuilder {
             function_ident,
             type_args,
             json_args.into_iter().map(Into::into).collect(),
-            true,
+            false,
         )
         .map_err(|err| {
             let package_id = &package.id;
