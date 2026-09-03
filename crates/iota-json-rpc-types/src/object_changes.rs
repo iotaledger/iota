@@ -345,3 +345,94 @@ impl Display for ObjectChange {
         }
     }
 }
+
+impl From<iota_sdk_types::ObjectChange> for ObjectChange {
+    fn from(change: iota_sdk_types::ObjectChange) -> Self {
+        use iota_sdk_types::ObjectChange as Derived;
+        match change {
+            Derived::Published {
+                package_id,
+                version,
+                digest,
+                modules,
+            } => Self::Published {
+                package_id,
+                version,
+                digest,
+                modules,
+            },
+            Derived::Mutated {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                previous_version,
+                digest,
+            } => Self::Mutated {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                previous_version,
+                digest,
+            },
+            Derived::Deleted {
+                sender,
+                object_type,
+                object_id,
+                version,
+            } => Self::Deleted {
+                sender,
+                object_type,
+                object_id,
+                version,
+            },
+            Derived::Wrapped {
+                sender,
+                object_type,
+                object_id,
+                version,
+            } => Self::Wrapped {
+                sender,
+                object_type,
+                object_id,
+                version,
+            },
+            Derived::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => Self::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            },
+            Derived::Created {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => Self::Created {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            },
+            _ => {
+                unimplemented!("a new ObjectChange enum variant was added and needs to be handled")
+            }
+        }
+    }
+}
