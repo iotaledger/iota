@@ -687,6 +687,14 @@ struct FeatureFlags {
     // attestation verification.
     #[serde(skip_serializing_if = "is_false")]
     enable_external_attestation: bool,
+
+    // If true, attestations may carry the gas vector (`AttestationData::V2`:
+    // cpu_time, moved_bytes, write_bytes) computed from the attestor's
+    // dry-run resource profile, and post-consensus validation accepts that
+    // variant. Gated because old nodes cannot BCS-decode an unknown enum
+    // variant. Requires `enable_validator_attestation`.
+    #[serde(skip_serializing_if = "is_false")]
+    attestation_gas_vector: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2263,6 +2271,15 @@ impl ProtocolConfig {
     /// Effective only with its prerequisite `enable_validator_attestation`.
     pub fn enable_external_attestation(&self) -> bool {
         self.feature_flags.enable_external_attestation && self.enable_validator_attestation()
+    }
+
+    pub fn attestation_gas_vector(&self) -> bool {
+        let res = self.feature_flags.attestation_gas_vector;
+        assert!(
+            !res || self.enable_validator_attestation(),
+            "attestation_gas_vector requires enable_validator_attestation to be set"
+        );
+        res
     }
 
     /// The gas-vector coefficients, or `None` if this protocol version has
@@ -3999,6 +4016,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
+    }
+
+    pub fn set_attestation_gas_vector_for_testing(&mut self, val: bool) {
+        self.feature_flags.attestation_gas_vector = val;
     }
 
     pub fn set_gas_vector_coefficients_for_testing(&mut self, table: GasVectorCoefficientsV1) {
