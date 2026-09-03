@@ -37,7 +37,6 @@ BASE_PREDICTORS = [
     "interp_instruction_count",
     "interp_stack_size_flow",
     "interp_stack_height_flow",
-    "values_constructed",
     # Peak bytes held (operand stack, locals, object runtime): growing a
     # transaction's working set costs CPU time — page faults on fresh memory,
     # cache misses in a growing structure — that per-operation counts do not
