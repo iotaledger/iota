@@ -11,6 +11,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData, storage::CacheCheckpointResults,
     transaction::TransactionAPI,
 };
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 use tracing::debug;
 
 /// Holds verified checkpoint results between state sync downloading them and
@@ -23,6 +24,9 @@ use tracing::debug;
 pub struct CheckpointResultsCache {
     inner: Mutex<Inner>,
     budget_bytes: usize,
+    /// Published so operators can see the cache fill while a node is behind
+    /// and drain to zero once it has caught up.
+    retained_bytes_gauge: IntGauge,
 }
 
 struct Inner {
@@ -32,13 +36,20 @@ struct Inner {
 }
 
 impl CheckpointResultsCache {
-    pub fn new(budget_bytes: usize) -> Self {
+    pub fn new(budget_bytes: usize, registry: &Registry) -> Self {
         Self {
             inner: Mutex::new(Inner {
                 results: BTreeMap::new(),
                 retained_bytes: 0,
             }),
             budget_bytes,
+            retained_bytes_gauge: register_int_gauge_with_registry!(
+                "checkpoint_results_cache_retained_bytes",
+                "Approximate memory held in checkpoint results downloaded but not yet committed",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
         }
     }
 
@@ -47,6 +58,7 @@ impl CheckpointResultsCache {
         let mut inner = self.inner.lock().expect("results cache mutex poisoned");
         let data = inner.results.remove(&sequence_number)?;
         inner.retained_bytes = inner.retained_bytes.saturating_sub(estimate_bytes(&data));
+        self.retained_bytes_gauge.set(inner.retained_bytes as i64);
         Some(data)
     }
 
@@ -64,6 +76,7 @@ impl CheckpointResultsCache {
             entry.remove();
             inner.retained_bytes = inner.retained_bytes.saturating_sub(bytes);
         }
+        self.retained_bytes_gauge.set(inner.retained_bytes as i64);
     }
 
     pub fn retained_bytes(&self) -> usize {
@@ -89,6 +102,7 @@ impl CacheCheckpointResults for CheckpointResultsCache {
         }
         inner.retained_bytes += bytes;
         inner.results.insert(sequence_number, checkpoint);
+        self.retained_bytes_gauge.set(inner.retained_bytes as i64);
         true
     }
 }
