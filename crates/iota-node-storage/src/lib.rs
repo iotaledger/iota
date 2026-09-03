@@ -85,8 +85,7 @@ pub trait GrpcIndexes: Send + Sync {
     /// `object_type`.
     ///
     /// Each item includes an [`OwnedObjectCursor`] for seek-based pagination.
-    /// The `cursor` is **exclusive**: only items strictly after the cursor
-    /// position are returned, even when the cursor's row no longer exists.
+    /// The `cursor` is **exclusive**.
     fn account_owned_objects_info_iter(
         &self,
         owner: Address,
@@ -96,8 +95,7 @@ pub trait GrpcIndexes: Send + Sync {
 
     /// Iterate over the dynamic fields of `parent`.
     ///
-    /// The `cursor` is **exclusive**: only fields strictly after the cursor
-    /// position are returned, even when the cursor's row no longer exists.
+    /// The `cursor` is **exclusive**.
     /// Only the `DynamicFieldKey` is returned; field metadata is loaded on
     /// demand from the object store.
     fn dynamic_field_iter(
@@ -111,9 +109,7 @@ pub trait GrpcIndexes: Send + Sync {
 
     /// Iterate over all versions of a package by its original package ID.
     ///
-    /// The `cursor` is **exclusive**: only versions strictly after the
-    /// cursor position are returned. Version keys are append-only, so a
-    /// cursor row never vanishes between pages.
+    /// The `cursor` is **exclusive**.
     fn package_versions_iter(
         &self,
         original_package_id: ObjectId,
