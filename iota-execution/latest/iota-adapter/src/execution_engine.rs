@@ -400,18 +400,18 @@ mod checked {
         // judged at the versions the attestor recorded without cloning the
         // input objects up front. A resolution failure skips the run and
         // carries its error instead.
-        let (authenticators, authentication_execution_result, is_structural_failure) =
-            match authenticators {
-                MoveAuthenticatorsForExecution::Resolved(authenticators) => {
-                    // Store each loaded function-ref field object's metadata
-                    // in the `TemporaryStore` before any authenticator runs.
-                    for authenticator in &authenticators {
-                        temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                            authenticator.function_ref.loaded_object_id,
-                            authenticator.function_ref.loaded_object_metadata.clone(),
-                        )]));
-                    }
-                    let result = authenticators.iter().try_for_each(|authenticator| {
+        let (authenticators, authentication_execution_result) = match authenticators {
+            MoveAuthenticatorsForExecution::Resolved(authenticators) => {
+                // Store each loaded function-ref field object's metadata
+                // in the `TemporaryStore` before any authenticator runs.
+                for authenticator in &authenticators {
+                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                        authenticator.function_ref.loaded_object_id,
+                        authenticator.function_ref.loaded_object_metadata.clone(),
+                    )]));
+                }
+                let result =
+                    authenticators.iter().try_for_each(|authenticator| {
                         match &authenticator.function_ref.authenticator_function_ref {
                             AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
                                 authenticate_transaction_inner(
@@ -432,18 +432,17 @@ mod checked {
                             }
                         }
                     });
-                    let result = report_authentication_error(result, protocol_config);
-                    (
-                        authenticators.into_iter().map(Into::into).collect(),
-                        result,
-                        false,
-                    )
-                }
-                MoveAuthenticatorsForExecution::ResolutionFailed {
-                    authenticators,
-                    error,
-                } => (authenticators, Err(error), true),
-            };
+                let result = report_authentication_error(result, protocol_config);
+                (authenticators.into_iter().map(Into::into).collect(), result)
+            }
+            MoveAuthenticatorsForExecution::ResolutionFailed {
+                authenticators,
+                error,
+            } => (
+                authenticators,
+                report_authentication_error(Err(error), protocol_config),
+            ),
+        };
 
         // Judge a failed attested authentication: re-run at the recorded
         // versions unless the attestation is already refuted.
@@ -490,17 +489,16 @@ mod checked {
                         &auth_context_data,
                         move_vm,
                     );
-                match (attestation_unrefuted, is_structural_failure) {
-                    // Unrefuted: the failure stays the issuer's. A structural
-                    // error is reported like a run-time authentication error.
-                    (true, true) => report_authentication_error(Err(error), protocol_config),
-                    (true, false) => Err(error),
-                    // Refuted: the attestor is charged. The structural error
-                    // already carries `InvalidAttestation` and its cause.
-                    (false, true) => Err(error),
-                    (false, false) => Err(ExecutionError::from_kind(
+                if attestation_unrefuted {
+                    // The failure stays the issuer's.
+                    Err(error)
+                } else {
+                    // The attestor is charged; the issuer's error is kept as
+                    // the cause.
+                    Err(ExecutionError::new_with_source(
                         ExecutionErrorKind::InvalidAttestation,
-                    )),
+                        error,
+                    ))
                 }
             }
             (result, _) => result,

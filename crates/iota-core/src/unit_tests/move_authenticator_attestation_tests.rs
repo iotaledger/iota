@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Direct-execution tests for the attestation misbehavior routing: a
-//! Move-authentication failure that reaches execution must resolve to an
-//! `InvalidAttestation` failure effect instead of panicking the validator, and
-//! the object versions the attestor recorded decide who is charged for it.
+//! Move-authentication failure that reaches execution must resolve to a
+//! failure effect instead of panicking the validator, and the object versions
+//! the attestor recorded decide who is charged for it.
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, Command, ExecutionError, ExecutionStatus, ObjectId};
@@ -33,15 +33,16 @@ use crate::{
 /// abstract account — here an immutable object with no
 /// authenticator-function-ref field — fails authentication structurally at
 /// execution (`MoveAuthenticatorNotFound`). Under the attestation flow this
-/// must resolve to an `InvalidAttestation` failure effect (issuer charged gas,
-/// validator does not panic) rather than the previous `.expect()` halt,
-/// generalizing iota#12375.
+/// must resolve to a failure effect (issuer charged gas, validator does not
+/// panic) rather than the previous `.expect()` halt, generalizing iota#12375.
+/// With no attestation to judge, the failure is the issuer's and is reported
+/// as a Move authentication error whose cause is the unresolved function.
 ///
 /// The transaction is executed directly, bypassing the attestor's own
 /// authentication check, to reproduce a transaction that reached execution
 /// despite failing authentication.
 #[tokio::test]
-async fn structural_move_auth_failure_resolves_to_invalid_attestation() {
+async fn structural_move_auth_failure_resolves_to_failure_effect() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
@@ -109,8 +110,12 @@ async fn structural_move_auth_failure_resolves_to_invalid_attestation() {
         panic!("expected an execution failure, got {:?}", effects.status());
     };
     assert!(
-        matches!(error, ExecutionError::InvalidAttestation),
-        "a structural Move-authentication failure must resolve to InvalidAttestation, got {error:?}"
+        matches!(
+            error,
+            ExecutionError::MoveAuthenticationError { error }
+                if matches!(**error, ExecutionError::FunctionNotFound)
+        ),
+        "an unattested structural Move-authentication failure must be the issuer's, got {error:?}"
     );
     assert!(
         effects.gas_cost_summary().gas_used() > 0,

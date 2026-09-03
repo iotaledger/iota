@@ -2206,9 +2206,12 @@ impl AuthorityState {
                 match function_ref {
                     Ok(function_ref) => function_refs.push(Some(function_ref)),
                     Err(error) if protocol_config.enable_validator_attestation() => {
+                        // The account's authenticator function could not be
+                        // resolved. Execution decides who is charged, so the
+                        // kind must not prejudge the attestation.
                         if pre_authentication_error.is_none() {
                             pre_authentication_error = Some(ExecutionError::new_with_source(
-                                ExecutionErrorKind::InvalidAttestation,
+                                ExecutionErrorKind::FunctionNotFound,
                                 error,
                             ));
                         }

@@ -123,10 +123,11 @@ impl AttestationVerdictContext<'_> {
             if attested == executed {
                 continue;
             }
-            // Refuted without a re-run: a version ahead of execution is
-            // causally impossible for an honest dry-run — a false record,
-            // judged without a store lookup; a version superseded before this
-            // epoch is outside the freshness bound.
+            // Refuted without a re-run. A recorded version ahead of the
+            // executed one cannot come from an honest dry run, so it is judged
+            // without a store lookup. A recorded version superseded before this
+            // epoch was never live this epoch, so an honest dry run could not
+            // have seen it.
             if attested > executed
                 || !self
                     .version_reader
