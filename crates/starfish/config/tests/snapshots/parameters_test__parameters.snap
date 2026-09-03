@@ -56,6 +56,7 @@ enable_block_stream_reset_on_fast_sync_exit: true
 enable_commit_sync_peer_selection_by_commit_votes: true
 enable_starfish_speed_adaptive_acknowledgments: true
 enable_peer_responsiveness_ranking: true
+enable_bounded_header_advertisement: true
 dag_visualizer_port: ~
 solid_commit_lag_threshold: 500
 shard_budget_per_authority: 1000

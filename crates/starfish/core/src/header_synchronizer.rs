@@ -68,8 +68,9 @@ const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 
 /// The maximum number of authorities from which we will try to periodically
 /// fetch block header at the same moment. The guard will protect that we will
-/// not ask from more than this number of authorities at the same time.
-const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER: usize = 3;
+/// not ask from more than this number of authorities at the same time. Cordial
+/// knowledge shares it to bound the peers asked to push one author's headers.
+pub(crate) const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER: usize = 3;
 
 /// The maximum number of authorities from which the live synchronizer will try
 /// to fetch block headers at the same moment. This is lower than the periodic
