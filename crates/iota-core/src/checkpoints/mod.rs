@@ -1029,6 +1029,33 @@ impl CheckpointStore {
         )
     }
 
+    /// Brings the synced watermark back to the executed one, and answers the
+    /// sequence number it now names.
+    ///
+    /// For a caller that has removed the data behind the checkpoints between
+    /// the two, so that state sync fetches them again rather than the
+    /// checkpoint executor reading what is no longer there. Copies the row
+    /// rather than resolving it, so it holds whether or not either watermark
+    /// still names a checkpoint this store can look up by digest.
+    ///
+    /// Does nothing when execution has already caught up, which is every node
+    /// that is not behind.
+    pub fn rewind_highest_synced_to_executed(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        let Some(executed) = self.get_watermark(CheckpointWatermark::HighestExecuted)? else {
+            return Ok(None);
+        };
+        let synced = self.get_watermark_seq_number(CheckpointWatermark::HighestSynced)?;
+        if synced.is_none_or(|synced| synced <= executed.0) {
+            return Ok(synced);
+        }
+        self.tables
+            .watermarks
+            .insert(&CheckpointWatermark::HighestSynced, &executed)?;
+        Ok(Some(executed.0))
+    }
+
     /// Sets highest executed checkpoint to any value.
     ///
     /// WARNING: This method is very subtle and can corrupt the database if used

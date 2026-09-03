@@ -143,8 +143,7 @@ struct LedgerBacklogMigration {
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     historic_ledger: Arc<HistoricLedger>,
     checkpoint_store: Arc<CheckpointStore>,
-    /// The epoch the node is starting in, and the epoch a row whose own epoch
-    /// nothing on disk records is filed under.
+    /// The epoch the node is starting in.
     epoch: EpochId,
     /// The oldest epoch this node's retention still keeps. Rows below it are
     /// deleted rather than moved, since the next reconfiguration would drop
@@ -245,6 +244,7 @@ impl LedgerBacklogMigration {
     fn run(&self) -> IotaResult<()> {
         let mut counts = self.drain_ledger()?;
         counts.add(&self.drain_checkpoints()?);
+        self.rewind_synced_watermark()?;
         // Silent on a database with nothing to move: this stays in the startup
         // path long after every database has been migrated.
         if counts.moved > 0 || counts.expired > 0 {
@@ -401,17 +401,58 @@ impl LedgerBacklogMigration {
     /// That keeps it for a whole retention window instead of risking an expiry
     /// that is due already, which is the same choice the object backlog sweep
     /// makes for the versions it cannot place.
-    fn transaction_epoch(&self, digest: &TransactionDigest) -> IotaResult<EpochId> {
+    /// Brings the synced watermark back to the executed one, so state sync
+    /// fetches again whatever the migration dropped.
+    ///
+    /// The migration keeps only rows it can attribute to an epoch, which means
+    /// only rows this node has executed. A node whose state sync has run ahead
+    /// of execution loses the transactions staged for the checkpoints in
+    /// between, and the checkpoint executor reads those by digest and panics
+    /// when one is missing. Leaving the synced watermark where it was would
+    /// walk straight into that: the executor takes its work from
+    /// `notify_read_synced_checkpoint`, so moving the watermark back to the
+    /// executed checkpoint makes it wait for state sync rather than read what
+    /// is no longer there.
+    ///
+    /// Nothing is lost by it. The checkpoints between the two watermarks are
+    /// fetched from peers again and land in the bucket of the epoch that
+    /// executes them, which is where they belonged in the first place.
+    fn rewind_synced_watermark(&self) -> IotaResult<()> {
+        let before = self
+            .checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()?;
+        let after = self.checkpoint_store.rewind_highest_synced_to_executed()?;
+        if before != after {
+            info!(
+                from = before,
+                to = after,
+                "rewinding the synced watermark to the executed checkpoint so state sync \
+                 fetches the checkpoints the migration could not attribute"
+            );
+        }
+        Ok(())
+    }
+
+    /// The epoch that executed `digest`, or `None` when this node has no
+    /// record of executing it.
+    ///
+    /// Both lookups are execution records, so a transaction state sync staged
+    /// but execution has not reached yet answers `None`. Such a row cannot be
+    /// filed: it belongs to the epoch of the checkpoint that will execute it,
+    /// which is ahead of this node and which nothing on disk here names. It is
+    /// dropped instead, and [`Self::rewind_synced_watermark`] has state sync
+    /// fetch it again.
+    fn transaction_epoch(&self, digest: &TransactionDigest) -> IotaResult<Option<EpochId>> {
         let tables = &self.perpetual_tables;
         if let Some((epoch, _)) = tables.executed_transactions_to_checkpoint.get(digest)? {
-            return Ok(epoch);
+            return Ok(Some(epoch));
         }
         if let Some(effects_digest) = tables.executed_effects.get(digest)? {
             if let Some(effects) = tables.effects.get(&effects_digest)? {
-                return Ok(effects.epoch());
+                return Ok(Some(effects.epoch()));
             }
         }
-        Ok(self.epoch)
+        Ok(None)
     }
 
     /// Reads up to [`Self::keys_per_slice`] rows of `flat` above
@@ -421,7 +462,7 @@ impl LedgerBacklogMigration {
         &self,
         flat: &DBMap<K, V>,
         resume_above: Option<K>,
-        epoch_of: impl Fn(&K, &V) -> IotaResult<EpochId>,
+        epoch_of: impl Fn(&K, &V) -> IotaResult<Option<EpochId>>,
     ) -> IotaResult<Slice<K, V>>
     where
         K: Serialize + DeserializeOwned + Copy,
@@ -443,10 +484,13 @@ impl LedgerBacklogMigration {
             let epoch = epoch_of(&key, &value)?;
             slice.keys.push(key);
             slice.watermark = Some(key);
-            if epoch < self.floor {
-                slice.expired.push((key, value));
-            } else {
-                slice.by_epoch.entry(epoch).or_default().push((key, value));
+            // No epoch means no execution record, so the row is above what this
+            // node has executed and is dropped rather than guessed at.
+            match epoch {
+                Some(epoch) if epoch >= self.floor => {
+                    slice.by_epoch.entry(epoch).or_default().push((key, value));
+                }
+                _ => slice.expired.push((key, value)),
             }
         }
         Ok(slice)
@@ -546,7 +590,7 @@ impl LedgerBacklogMigration {
         // themselves. It is the epoch the execution record keyed by
         // transaction digest resolves to as well, which is what keeps a
         // transaction's effects in the bucket that record names.
-        let slice = self.read_slice(flat, from, |_, effects| Ok(effects.epoch()))?;
+        let slice = self.read_slice(flat, from, |_, effects| Ok(Some(effects.epoch())))?;
         let progress = slice.progress(Progress::Effects, Progress::TransactionCheckpoints(None));
         self.move_ledger_slice(flat, slice, |bucket| &bucket.effects, |row| row, progress)
     }
@@ -558,7 +602,7 @@ impl LedgerBacklogMigration {
         use LedgerBacklogMigrationProgress as Progress;
 
         let flat = &self.perpetual_tables.executed_transactions_to_checkpoint;
-        let slice = self.read_slice(flat, from, |_, (epoch, _)| Ok(*epoch))?;
+        let slice = self.read_slice(flat, from, |_, (epoch, _)| Ok(Some(*epoch)))?;
         let progress = slice.progress(Progress::TransactionCheckpoints, Progress::Done);
         // The bucket's epoch is the epoch of the finalizing checkpoint, so the
         // row there holds only the sequence number.
@@ -594,7 +638,7 @@ impl LedgerBacklogMigration {
 
         let tables = &self.checkpoint_store.tables;
         let flat = &tables.checkpoint_by_digest;
-        let slice = self.read_slice(flat, from, |_, summary| Ok(summary.inner().epoch))?;
+        let slice = self.read_slice(flat, from, |_, summary| Ok(Some(summary.inner().epoch)))?;
         let progress = slice.progress(Progress::Summaries, Progress::ContentsWithoutSummary(None));
 
         let mut batch = flat.batch();
@@ -695,7 +739,7 @@ impl LedgerBacklogMigration {
 
         let tables = &self.checkpoint_store.tables;
         let flat = &tables.checkpoint_content;
-        let slice = self.read_slice(flat, from, |_, _| Ok(self.epoch))?;
+        let slice = self.read_slice(flat, from, |_, _| Ok(Some(self.epoch)))?;
         let progress = slice.progress(Progress::ContentsWithoutSummary, Progress::Done);
 
         let mut batch = flat.batch();
