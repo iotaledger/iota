@@ -851,16 +851,17 @@ impl<K, V> DBMap<K, V> {
     /// at the position `lower` gives within the prefix rather than at the
     /// first key under the prefix.
     ///
-    /// The bound value is **not** a full key — it is the remainder of the key
-    /// that follows `prefix` (typically the trailing field(s) of a tuple
-    /// key). Both `prefix` and the bound value are serialized with
-    /// `be_fix_int_ser` and concatenated, mirroring how a composite key is
-    /// encoded. `Included` starts the scan at `prefix ++ lower`, `Excluded`
-    /// strictly after that position (also when no such key exists), and
-    /// `Unbounded` at the first key under the prefix. The scan bounds never
-    /// leave the prefix — excluding the maximum remainder yields an empty
-    /// scan, not the next prefix's keys — so a paginated scan can resume from
-    /// a cursor without an artificial maximum key for the upper bound.
+    /// The bound value is **not** a full key — it is the entire remainder of
+    /// the key that follows `prefix` (all the trailing fields of a tuple key,
+    /// not a partial suffix). Both `prefix` and the bound value are
+    /// serialized with `be_fix_int_ser` and concatenated, mirroring how a
+    /// composite key is encoded. `Included` starts the scan at
+    /// `prefix ++ lower`, `Excluded` strictly after that position (also when
+    /// no such key exists), and `Unbounded` at the first key under the
+    /// prefix. The scan bounds never leave the prefix — excluding the
+    /// maximum remainder yields an empty scan, not the next prefix's keys —
+    /// so a paginated scan can resume from a cursor without an artificial
+    /// maximum key for the upper bound.
     pub fn safe_iter_with_prefix_from<P, C>(
         &self,
         prefix: &P,

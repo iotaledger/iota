@@ -1082,6 +1082,75 @@ async fn test_safe_iter_with_prefix_from() {
 }
 
 #[tokio::test]
+async fn test_safe_iter_with_prefix_from_multi_field() {
+    // The bound is the *entire* remainder after the prefix, i.e. both
+    // trailing fields here — not just the one nearest the prefix.
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u8, u64, u8), String> = open_map(tmp_dir.path(), None);
+    for (a, b, c) in [
+        (1u8, 2u64, 0u8),
+        (1, 2, u8::MAX),
+        (1, 3, 0),
+        (1, u64::MAX, u8::MAX),
+        (2, 0, 0),
+    ] {
+        db.insert(&(a, b, c), &format!("{a}-{b}-{c}")).unwrap();
+    }
+    let keys = |lower: Bound<&(u64, u8)>| -> Vec<(u8, u64, u8)> {
+        db.safe_iter_with_prefix_from(&1u8, lower)
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+
+    // A carry within the tail (`(2, 0xFF)` rolls over to `(3, 0)`) drops every
+    // `(1, 2, _)` entry, not just the one at the excluded value.
+    assert_eq!(
+        keys(Bound::Excluded(&(2u64, u8::MAX))),
+        [(1, 3, 0), (1, u64::MAX, u8::MAX)],
+    );
+    assert_eq!(
+        keys(Bound::Excluded(&(2u64, 0u8))),
+        [(1, 2, u8::MAX), (1, 3, 0), (1, u64::MAX, u8::MAX)],
+    );
+    // The all-0xFF tail is the true end of the prefix's key space; excluding
+    // it must not spill into prefix 2.
+    assert!(keys(Bound::Excluded(&(u64::MAX, u8::MAX))).is_empty());
+    assert_eq!(
+        keys(Bound::Included(&(3u64, 0u8))),
+        [(1, 3, 0), (1, u64::MAX, u8::MAX)],
+    );
+    assert_eq!(
+        keys(Bound::Unbounded),
+        [
+            (1, 2, 0),
+            (1, 2, u8::MAX),
+            (1, 3, 0),
+            (1, u64::MAX, u8::MAX)
+        ],
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_from_unsized_tail() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u8, String), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u8, "a"), (1, "b"), (1, "c"), (2, "a")] {
+        db.insert(&(a, b.to_string()), &format!("{a}-{b}")).unwrap();
+    }
+    let keys = |lower: Bound<&str>| -> Vec<(u8, String)> {
+        db.safe_iter_with_prefix_from(&1u8, lower)
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+
+    assert_eq!(keys(Bound::Excluded("b")), [(1, "c".to_string())]);
+    assert_eq!(
+        keys(Bound::Included("b")),
+        [(1, "b".to_string()), (1, "c".to_string())],
+    );
+}
+
+#[tokio::test]
 async fn test_safe_range_iter_reversed_inclusive_ranges() {
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<u32, String> = open_map(tmp_dir.path(), None);
