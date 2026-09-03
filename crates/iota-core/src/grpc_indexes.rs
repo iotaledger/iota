@@ -830,10 +830,7 @@ impl IndexStoreTables {
     {
         let iter = self
             .dynamic_field
-            .safe_iter_with_prefix_from(
-                &parent,
-                cursor.as_ref().map_or(Bound::Unbounded, Bound::Excluded),
-            )
+            .safe_iter_with_prefix_after(&parent, cursor.as_ref())
             .map(|r| r.map(|(key, ())| key));
         Ok(iter)
     }
@@ -853,10 +850,9 @@ impl IndexStoreTables {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        Ok(self.package_version.safe_iter_with_prefix_from(
-            &original_package_id,
-            cursor.as_ref().map_or(Bound::Unbounded, Bound::Excluded),
-        ))
+        Ok(self
+            .package_version
+            .safe_iter_with_prefix_after(&original_package_id, cursor.as_ref()))
     }
 }
 
