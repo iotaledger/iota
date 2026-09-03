@@ -66,11 +66,6 @@ where
 
     /// Iterates over the keys within `range`, honoring the range's own bound
     /// inclusivity (e.g. `lo..hi` excludes `hi`, `lo..=hi` includes it).
-    ///
-    /// An `Excluded` lower bound is realized as the byte-level successor of
-    /// the key's serialization, which is exact for the prefix-free fixint
-    /// encoding used for keys; a key whose serialization were a strict prefix
-    /// of another key's would be excluded together with the bound.
     fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)>;
 
     /// Reverse counterpart of [`Self::safe_range_iter`]: yields exactly the
