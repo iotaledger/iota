@@ -300,6 +300,19 @@ fn executed_transactions(node: &test_cluster::FullNodeHandle) -> u64 {
     })
 }
 
+/// Bytes the node is holding in downloaded-but-not-committed checkpoint
+/// results, or `None` on a node configured to re-execute, which keeps none.
+fn retained_results_bytes(node: &test_cluster::FullNodeHandle) -> Option<i64> {
+    node.iota_node.with(|n| {
+        n.registry_service()
+            .gather_all()
+            .iter()
+            .find(|family| family.name() == "checkpoint_results_cache_retained_bytes")
+            .and_then(|family| family.get_metric().first())
+            .map(|metric| metric.get_gauge().value() as i64)
+    })
+}
+
 /// Syncs a fullnode whose only source is a checkpoint archive, and reports how
 /// many of the archive's transactions its execution driver ran.
 ///
@@ -423,6 +436,14 @@ async fn sync_archive_only_fullnode(
         .iter()
         .filter(|c| c.checkpoint_summary.end_of_epoch_data.is_some())
         .count();
+    // Every result is either committed or dropped as the executor passes it,
+    // so a node that has caught up holds none.
+    if let Some(retained) = retained_results_bytes(&node) {
+        assert_eq!(
+            retained, 0,
+            "checkpoint results were still held after reaching the archive's last checkpoint"
+        );
+    }
     let executed = executed_transactions(&node);
     println!(
         "archive-only node (re_execute={re_execute}) reached checkpoint {target}: executed \

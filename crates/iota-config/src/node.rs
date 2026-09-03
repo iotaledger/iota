@@ -1313,9 +1313,14 @@ pub struct MetricsConfig {
     pub groups: Option<MetricGroups>,
 }
 
-/// Default budget for retained checkpoint results, matching the limit the
-/// archive reader already applies to checkpoints it is downloading.
-pub const DEFAULT_CHECKPOINT_RESULTS_CACHE_SIZE_BYTES: usize = 256 * 1024 * 1024;
+/// Default budget for retained checkpoint results.
+///
+/// Only occupied while the node is behind and reading from the archive; a
+/// caught-up node holds nothing. Covers roughly 85,000 checkpoints at mainnet
+/// object density, so it is the binding constraint on how far ahead of
+/// execution the faster path reaches — see
+/// `max_checkpoints_ahead_of_execution`.
+pub const DEFAULT_CHECKPOINT_RESULTS_CACHE_SIZE_BYTES: usize = 8 * 1024 * 1024 * 1024;
 
 fn default_checkpoint_archive_download_concurrency() -> NonZeroUsize {
     NonZeroUsize::new(10).unwrap()

@@ -691,6 +691,7 @@ impl IotaNode {
             .map(|archive| {
                 Arc::new(CheckpointResultsCache::new(
                     archive.results_cache_size_bytes,
+                    &prometheus_registry,
                 ))
             });
 

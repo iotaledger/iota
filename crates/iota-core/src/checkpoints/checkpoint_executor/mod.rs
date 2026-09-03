@@ -1166,6 +1166,14 @@ impl CheckpointExecutor {
         }
         fail_point!("highest-executed-checkpoint");
 
+        // Results for checkpoints at or below the watermark can never be
+        // needed again: the executor consumes them in order and never revisits
+        // a checkpoint. Without this, results for a checkpoint that took
+        // another path would be retained for the process's lifetime.
+        if let Some(cache) = &self.checkpoint_results_cache {
+            cache.forget_below(seq + 1);
+        }
+
         self.checkpoint_store
             .update_highest_executed_checkpoint(checkpoint)
             .unwrap();
