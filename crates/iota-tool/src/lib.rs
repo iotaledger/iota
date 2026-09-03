@@ -959,6 +959,10 @@ pub async fn download_formal_snapshot(
 
         Ok::<(), anyhow::Error>(())
     });
+    // The partial hashes must be drained before the completion signal is
+    // awaited: the reader's accumulation tasks block on this bounded channel
+    // and only signal completion after the last of them, so awaiting
+    // completion first would deadlock the restore.
     let mut root_global_state_hash = GlobalStateHash::default();
     let mut num_live_objects = 0;
     while let Some((partial_hash, num_objects)) = receiver.recv().await {

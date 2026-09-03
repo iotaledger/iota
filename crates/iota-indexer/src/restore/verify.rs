@@ -53,6 +53,10 @@ pub(crate) async fn verify_state_hash(
     accumulation_done_rx: oneshot::Receiver<()>,
     verified_epoch_info: &VerifiedEpochInfo,
 ) -> IndexerResult<u64> {
+    // The partial hashes must be drained before the completion signal is
+    // awaited: the reader's accumulation tasks block on the bounded channel
+    // and only signal completion after the last of them, so awaiting
+    // completion first would deadlock the restore.
     let (root_state_hash, num_objects) = accumulate_state_hash(state_hash_rx).await;
     // A dropped completion sender means the restore failed before every
     // partial hash was sent — the accumulated hash is incomplete, and

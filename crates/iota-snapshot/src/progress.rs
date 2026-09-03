@@ -23,9 +23,10 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, ensure};
 use backoff::future::retry;
 use bytes::Bytes;
+use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::{StreamExt, TryStreamExt};
 use indicatif::{
     FormattedDuration, HumanBytes, HumanCount, HumanDuration, MultiProgress, ProgressBar,
@@ -421,7 +422,9 @@ impl DownloadProgressBar {
 
 /// Download `src` from `store` with retries, recording received chunks on
 /// `progress` as they arrive. A failed attempt's bytes are rolled back so the
-/// retry doesn't count them twice.
+/// retry doesn't count them twice. An empty response counts as a failed
+/// attempt: no snapshot file is legitimately empty, and a store may serve one
+/// transiently.
 pub async fn get_with_progress<S: ObjectStoreGetExt>(
     store: &S,
     src: &Path,
@@ -435,6 +438,10 @@ pub async fn get_with_progress<S: ObjectStoreGetExt>(
                 progress.add_bytes(n);
             })
             .await
+            .and_then(|bytes| {
+                ensure!(!bytes.is_empty(), "Downloaded empty file {src}");
+                Ok(bytes)
+            })
             .map_err(|e| {
                 progress.remove_bytes(attempt_bytes.load(Ordering::Relaxed));
                 error!("Failed to read file {src} from object store with error: {e:?}");
@@ -462,24 +469,29 @@ pub async fn get_single_file_with_progress<S: ObjectStoreGetExt>(
     Ok(bytes)
 }
 
-/// Copy every path in `paths` from `src_store` to `dest_store` in parallel,
-/// recording downloaded chunks and each completed file on `progress` and
-/// failing on the first copy that fails.
+/// Copy every `(path, sha3_digest)` in `files` from `src_store` to
+/// `dest_store` in parallel, recording downloaded chunks and each completed
+/// file on `progress` and failing on the first copy that fails. A download
+/// whose bytes don't hash to its manifest digest — a truncated file, say — is
+/// rejected instead of being written to `dest_store`.
 pub async fn copy_files_with_progress<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
-    paths: &[Path],
+    files: &[(Path, [u8; 32])],
     src_store: &S,
     dest_store: &D,
     concurrency: usize,
     progress: &DownloadProgressBar,
 ) -> Result<()> {
-    futures::stream::iter(paths)
-        .map(|path| async move {
+    futures::stream::iter(files)
+        .map(|(path, sha3_digest)| async move {
             let bytes = get_with_progress(src_store, path, progress)
                 .await
                 .with_context(|| format!("Failed to download {path}"))?;
-            if bytes.is_empty() {
-                return Err(anyhow!("Downloaded empty file {path}"));
-            }
+            let computed = Sha3_256::digest(&bytes).digest;
+            ensure!(
+                computed == *sha3_digest,
+                "Downloaded {path} does not match the manifest checksum: computed {computed:?}, \
+                 expected {sha3_digest:?}"
+            );
             put(dest_store, path, bytes)
                 .await
                 .with_context(|| format!("Failed to write {path}"))?;
@@ -508,6 +520,7 @@ mod tests {
     use anyhow::Result;
     use async_trait::async_trait;
     use bytes::Bytes;
+    use fastcrypto::hash::{HashFunction, Sha3_256};
     use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, TermLike};
     use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
     use iota_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
@@ -521,6 +534,11 @@ mod tests {
 
     fn hidden_multi_progress() -> MultiProgress {
         MultiProgress::with_draw_target(ProgressDrawTarget::hidden())
+    }
+
+    /// The manifest digest of a file with contents `bytes`.
+    fn sha3(bytes: &[u8]) -> [u8; 32] {
+        Sha3_256::digest(bytes).digest
     }
 
     /// A terminal that accepts every write, so that bars added to the
@@ -706,11 +724,14 @@ mod tests {
         src_store
             .put_bytes(&Path::from("b"), Bytes::from_static(b"123"))
             .await?;
-        let paths = [Path::from("a"), Path::from("b")];
+        let files = [
+            (Path::from("a"), sha3(b"12345")),
+            (Path::from("b"), sha3(b"123")),
+        ];
 
         let progress =
             DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 2, Some(8));
-        copy_files_with_progress(&paths, &src_store, &dest_store, 2, &progress).await?;
+        copy_files_with_progress(&files, &src_store, &dest_store, 2, &progress).await?;
         assert_eq!(progress.bar().length(), Some(8));
         assert_eq!(progress.bar().position(), 8);
         assert_eq!(progress.bar().message(), "2/2 files");
@@ -721,26 +742,49 @@ mod tests {
         Ok(())
     }
 
+    /// An empty response is retried like a failed attempt instead of failing
+    /// the whole copy, since a store may serve one transiently.
     #[tokio::test]
-    async fn test_copy_files_with_progress_rejects_empty_file() -> anyhow::Result<()> {
+    async fn test_copy_files_with_progress_retries_empty_download() -> anyhow::Result<()> {
+        let src_store = FlakyStore {
+            first_response: Some(Bytes::new()),
+            payload: Bytes::from_static(b"12345"),
+            failed_once: AtomicBool::new(false),
+        };
+        let dest_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let files = [(Path::from("a.ref"), sha3(b"12345"))];
+
+        let progress =
+            DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 1, Some(5));
+        copy_files_with_progress(&files, &src_store, &dest_store, 1, &progress).await?;
+        assert_eq!(
+            dest_store.get_bytes(&Path::from("a.ref")).await?.to_vec(),
+            b"12345"
+        );
+        assert_eq!(progress.bar().position(), 5);
+        Ok(())
+    }
+
+    /// A download whose bytes don't hash to the manifest digest — a truncated
+    /// file, say — is rejected and never written to the destination.
+    #[tokio::test]
+    async fn test_copy_files_with_progress_rejects_checksum_mismatch() -> anyhow::Result<()> {
         let src_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let dest_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         src_store
-            .put_bytes(&Path::from("empty.ref"), Bytes::new())
+            .put_bytes(&Path::from("a.ref"), Bytes::from_static(b"123"))
             .await?;
-        let paths = [Path::from("empty.ref")];
+        let files = [(Path::from("a.ref"), sha3(b"12345"))];
 
         let progress = DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 1, None);
-        let error = copy_files_with_progress(&paths, &src_store, &dest_store, 1, &progress)
+        let error = copy_files_with_progress(&files, &src_store, &dest_store, 1, &progress)
             .await
             .unwrap_err();
-        assert!(format!("{error:#}").contains("Downloaded empty file empty.ref"));
         assert!(
-            dest_store
-                .get_bytes(&Path::from("empty.ref"))
-                .await
-                .is_err()
+            format!("{error:#}").contains("does not match the manifest checksum"),
+            "{error:#}"
         );
+        assert!(dest_store.get_bytes(&Path::from("a.ref")).await.is_err());
         Ok(())
     }
 
@@ -754,19 +798,24 @@ mod tests {
         src_store
             .put_bytes(&Path::from("b"), Bytes::from_static(b"123"))
             .await?;
-        let paths = [Path::from("a"), Path::from("b")];
+        let files = [
+            (Path::from("a"), sha3(b"12345")),
+            (Path::from("b"), sha3(b"123")),
+        ];
 
         // An unknown total byte size means the bar counts files instead.
         let progress = DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 2, None);
-        copy_files_with_progress(&paths, &src_store, &dest_store, 2, &progress).await?;
+        copy_files_with_progress(&files, &src_store, &dest_store, 2, &progress).await?;
         assert_eq!(progress.bar().length(), Some(2));
         assert_eq!(progress.bar().position(), 2);
         Ok(())
     }
 
-    /// Store whose first download attempt emits a partial chunk and then
-    /// fails; every later attempt succeeds.
+    /// Store whose first download attempt goes wrong — it returns
+    /// `first_response` as is, or emits a partial chunk and then fails when
+    /// that is `None` — and whose every later attempt returns `payload`.
     struct FlakyStore {
+        first_response: Option<Bytes>,
         payload: Bytes,
         failed_once: AtomicBool,
     }
@@ -789,8 +838,12 @@ mod tests {
             on_bytes: &(dyn Fn(u64) + Send + Sync),
         ) -> Result<Bytes> {
             if !self.failed_once.swap(true, Ordering::Relaxed) {
-                on_bytes(3);
-                anyhow::bail!("transient failure after a partial chunk");
+                let Some(first_response) = &self.first_response else {
+                    on_bytes(3);
+                    anyhow::bail!("transient failure after a partial chunk");
+                };
+                on_bytes(first_response.len() as u64);
+                return Ok(first_response.clone());
             }
             on_bytes(self.payload.len() as u64);
             Ok(self.payload.clone())
@@ -810,6 +863,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_with_progress_rolls_back_failed_attempt() -> Result<()> {
         let store = FlakyStore {
+            first_response: None,
             payload: Bytes::from_static(b"12345"),
             failed_once: AtomicBool::new(false),
         };

@@ -65,6 +65,11 @@ pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
 /// once every partition has been sent — so the receiving side can tell a
 /// finished accumulation apart from one whose sender was dropped by a failed
 /// restore.
+///
+/// The receiving side must drain `partials` until the channel closes before
+/// awaiting `completion`: the accumulation tasks block on the bounded
+/// `partials` channel, and `completion` is only sent after the last of them,
+/// so awaiting it first deadlocks the restore.
 pub struct StateAccumulatorSender {
     pub partials: mpsc::Sender<(GlobalStateHash, u64)>,
     pub completion: oneshot::Sender<()>,
@@ -202,13 +207,18 @@ impl StateSnapshotReaderV1 {
     /// [`Self::sync_live_objects`] downloads onto the same bar.
     async fn download_reference_files(&self) -> Result<Arc<DownloadProgressBar>> {
         let epoch_dir_path = self.epoch_dir();
-        let ref_file_paths: Vec<Path> = self
+        // Each reference file is paired with its manifest digest, which the
+        // download checks the received bytes against.
+        let ref_files: Vec<(Path, [u8; 32])> = self
             .ref_files
             .values()
             .flat_map(|entry| {
-                entry
-                    .values()
-                    .map(|file_metadata| file_metadata.file_path(&epoch_dir_path))
+                entry.values().map(|file_metadata| {
+                    (
+                        file_metadata.file_path(&epoch_dir_path),
+                        file_metadata.sha3_digest,
+                    )
+                })
             })
             .collect();
 
@@ -221,15 +231,12 @@ impl StateSnapshotReaderV1 {
             while let Some(Ok(meta)) = list_stream.next().await {
                 existing_files.insert(meta.location);
             }
-            let mut missing_files = Vec::new();
-            for file in &ref_file_paths {
-                if !existing_files.contains(file) {
-                    missing_files.push(file.clone());
-                }
-            }
-            missing_files
+            ref_files
+                .into_iter()
+                .filter(|(file, _)| !existing_files.contains(file))
+                .collect()
         } else {
-            ref_file_paths
+            ref_files
         };
 
         let object_file_paths: Vec<Path> = self
@@ -246,7 +253,7 @@ impl StateSnapshotReaderV1 {
             &self.remote_object_store,
             files_to_download
                 .iter()
-                .cloned()
+                .map(|(path, _)| path.clone())
                 .chain(object_file_paths)
                 .collect(),
             self.concurrency.get(),
@@ -472,18 +479,26 @@ impl StateSnapshotReaderV1 {
 
         // Downloads all object files from remote in parallel and inserts the objects
         // into the database of choice
-        self.sync_live_objects(
-            database,
-            abort_registration,
-            sha3_digests,
-            download_progress,
-        )
-        .await?;
+        let sync_result = self
+            .sync_live_objects(
+                database,
+                abort_registration,
+                sha3_digests,
+                download_progress,
+            )
+            .await;
 
         if let Some(handle) = accum_handle {
-            handle.await?;
+            if sync_result.is_err() {
+                // Nobody is left to consume the partial hashes once the
+                // restore has failed; stop the accumulation rather than leave
+                // it running detached after this returns.
+                handle.abort();
+            } else {
+                handle.await?;
+            }
         }
-        Ok(())
+        sync_result
     }
 
     /// Spawns accumulation tasks to accumulate the sha3 digests of all objects
@@ -558,10 +573,10 @@ impl StateSnapshotReaderV1 {
                             let mut partial_acc = GlobalStateHash::default();
                             let num_objects = obj_digests.len();
                             partial_acc.insert_all(obj_digests);
-                            sender_clone
-                                .send((partial_acc, num_objects as u64))
-                                .await
-                                .expect("Unable to send accumulator from snapshot reader");
+                            // The receiver is only dropped once the caller
+                            // has given up on the restore, so a failed send
+                            // has nothing left to report to.
+                            let _ = sender_clone.send((partial_acc, num_objects as u64)).await;
                         })
                     })
                     .boxed()
