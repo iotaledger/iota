@@ -870,7 +870,6 @@ impl AuthorityMetrics {
             "stack_size_high_water_mark",
             profile.stack_size_high_water_mark,
         );
-        observe("stack_size_total_pushed", profile.stack_size_total_pushed);
         observe(
             "stack_height_high_water_mark",
             profile.stack_height_high_water_mark,

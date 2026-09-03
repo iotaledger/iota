@@ -124,7 +124,6 @@ pub struct GasStatus {
     package_bytes_loaded: u64,
     event_count: u64,
     event_bytes: u64,
-    values_constructed: u64,
     hash_input_bytes: u64,
 }
 
@@ -188,7 +187,6 @@ impl GasStatus {
             package_bytes_loaded: 0,
             event_count: 0,
             event_bytes: 0,
-            values_constructed: 0,
             hash_input_bytes: 0,
         }
     }
@@ -241,7 +239,6 @@ impl GasStatus {
             package_bytes_loaded: 0,
             event_count: 0,
             event_bytes: 0,
-            values_constructed: 0,
             hash_input_bytes: 0,
         }
     }
@@ -567,13 +564,6 @@ impl GasStatus {
         self.decrease_locals_size(dropped_size);
     }
 
-    /// Record one container value (struct or vector) constructed, or one
-    /// element appended to a vector, by bytecode — each is a heap allocation
-    /// the instruction count alone does not price. Profile-only.
-    pub fn record_value_constructed(&mut self) {
-        self.values_constructed = self.values_constructed.saturating_add(1);
-    }
-
     /// Record the distinct non-system packages fetched for this transaction,
     /// for the read-I/O component of [`ResourceProfile`].
     pub fn record_package_loads(&mut self, count: u64, bytes: u64) {
@@ -701,7 +691,6 @@ impl GasStatus {
             package_publish_gas: self.publish_gas_deducted,
             computation_gas_used: self.gas_used_pre_gas_price(),
             stack_size_high_water_mark: self.profile_stack_size_peak,
-            stack_size_total_pushed: self.stack_size_high_water_mark,
             stack_height_high_water_mark: self.stack_height_high_water_mark,
             locals_size_high_water_mark: self.locals_size_high_water_mark,
             object_runtime_cached_bytes: self.object_runtime_cached_bytes,
@@ -716,7 +705,6 @@ impl GasStatus {
             deleted_object_count: 0,
             event_count: self.event_count,
             event_bytes: self.event_bytes,
-            values_constructed: self.values_constructed,
             hash_input_bytes: self.hash_input_bytes,
         }
     }
@@ -927,15 +915,13 @@ mod tests {
     fn operand_stack_peak_applies_decreases() {
         let mut status = GasStatus::new_unmetered();
         // Push 100, pop 60, push 30, pop 70: the running size is
-        // 100 → 40 → 70 → 0, so the true peak is 100 and the total pushed is
-        // 130.
+        // 100 → 40 → 70 → 0, so the true peak is 100.
         status.charge(1, 1, 0, 100, 0).unwrap();
         status.charge(1, 0, 1, 0, 60).unwrap();
         status.charge(1, 1, 0, 30, 0).unwrap();
         status.charge(1, 0, 1, 0, 70).unwrap();
         let profile = status.resource_profile();
         assert_eq!(profile.stack_size_high_water_mark, 100);
-        assert_eq!(profile.stack_size_total_pushed, 130);
 
         // A later spike above the previous peak raises it.
         status.charge(1, 1, 0, 200, 0).unwrap();
@@ -1011,18 +997,6 @@ mod tests {
         let profile = status.resource_profile();
         assert_eq!(profile.packages_loaded, 2);
         assert_eq!(profile.package_bytes_loaded, 5_000);
-    }
-
-    #[test]
-    fn value_construction_is_counted_without_charging() {
-        let cost_table = initial_cost_schedule_v1();
-        let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
-        let before = status.gas_used_pre_gas_price();
-        for _ in 0..3 {
-            status.record_value_constructed();
-        }
-        assert_eq!(status.gas_used_pre_gas_price(), before);
-        assert_eq!(status.resource_profile().values_constructed, 3);
     }
 
     #[test]
