@@ -12,6 +12,10 @@ use std::{
 
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
+use iota_grpc_types::v1::{
+    state_service::state_service_client::StateServiceClient,
+    types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
+};
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, MoveStruct, ObjectId, Owner, StructTag,
@@ -30,6 +34,7 @@ use iota_types::{
     storage::error::Result as StorageResult,
     transaction::VerifiedTransaction,
 };
+use tonic::transport::Channel;
 
 // ---------------------------------------------------------------------------
 // Stream invariant helpers
@@ -426,22 +431,24 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>>
     {
         // Find the start index: if a cursor is provided, seek strictly past
-        // its position (the cursor is exclusive).
+        // its position (the cursor is exclusive) within this owner's rows —
+        // in the real index the owner is the leading key component.
         let start = if let Some(c) = cursor {
             self.owned_objects
                 .iter()
-                .position(|(_, oc)| {
-                    (
-                        oc.object_type_identifier,
-                        oc.object_type_params,
-                        oc.inverted_balance,
-                        oc.object_id,
-                    ) > (
-                        c.object_type_identifier,
-                        c.object_type_params,
-                        c.inverted_balance,
-                        c.object_id,
-                    )
+                .position(|(info, oc)| {
+                    info.owner == owner
+                        && (
+                            oc.object_type_identifier,
+                            oc.object_type_params,
+                            oc.inverted_balance,
+                            oc.object_id,
+                        ) > (
+                            c.object_type_identifier,
+                            c.object_type_params,
+                            c.inverted_balance,
+                            c.object_id,
+                        )
                 })
                 .unwrap_or(self.owned_objects.len())
         } else {
@@ -573,4 +580,28 @@ pub async fn start_test_server_with_traffic_controller(
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await
+}
+
+// ---------------------------------------------------------------------------
+// Client helpers
+// ---------------------------------------------------------------------------
+
+/// Convert an [`Address`] to its gRPC proto message.
+pub fn owner_proto(addr: Address) -> ProtoAddress {
+    ProtoAddress::default().with_address(addr.into_bytes().to_vec())
+}
+
+/// Convert an [`ObjectId`] to its gRPC proto message.
+pub fn object_id_proto(id: ObjectId) -> ProtoObjectId {
+    ProtoObjectId::default().with_object_id(id.into_bytes().to_vec())
+}
+
+/// Connect a state-service client to the test server.
+pub async fn connect_state_client(handle: &GrpcServerHandle) -> StateServiceClient<Channel> {
+    let channel = Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    StateServiceClient::new(channel)
 }
