@@ -345,7 +345,7 @@ impl PeerResponsiveness {
         // Exploration round: ignore ranking entirely. This is the floor that
         // keeps every peer reachable early and prevents any peer from
         // monopolizing the head of the list across rounds.
-        if rng.gen::<f64>() < EXPLORE_PROBABILITY {
+        if self.should_explore(rng) {
             candidates.shuffle(rng);
             return;
         }
@@ -397,6 +397,66 @@ impl PeerResponsiveness {
             .collect();
 
         Self::reorder_by_latency(candidates, &stats, rng);
+    }
+
+    /// Returns whether this selection should explore instead of using ranking.
+    pub(crate) fn should_explore<R: Rng>(&self, rng: &mut R) -> bool {
+        rng.gen::<f64>() < EXPLORE_PROBABILITY
+    }
+
+    /// Returns the uniquely fastest peer measured delivering `author`'s
+    /// headers.
+    pub(crate) fn fastest_peer_for_header_delivery(
+        &self,
+        author: AuthorityIndex,
+        candidates: &[AuthorityIndex],
+    ) -> Option<(AuthorityIndex, f64)> {
+        let latencies = self.header_delivery_latencies(author, candidates);
+        let fastest_latency = latencies.iter().flatten().copied().min_by(f64::total_cmp)?;
+        let mut fastest = candidates
+            .iter()
+            .copied()
+            .zip(latencies)
+            .filter(|(_, latency)| {
+                latency.is_some_and(|latency| latency.total_cmp(&fastest_latency).is_eq())
+            })
+            .map(|(peer, _)| peer);
+        let peer = fastest.next()?;
+        fastest.next().is_none().then_some((peer, fastest_latency))
+    }
+
+    /// Returns the slowest peer, treating an unmeasured peer as slower.
+    pub(crate) fn slowest_peer_for_header_delivery(
+        &self,
+        author: AuthorityIndex,
+        candidates: &[AuthorityIndex],
+    ) -> Option<(AuthorityIndex, Option<f64>)> {
+        candidates
+            .iter()
+            .copied()
+            .zip(self.header_delivery_latencies(author, candidates))
+            .max_by(|(left_peer, left_latency), (right_peer, right_latency)| {
+                left_latency
+                    .unwrap_or(f64::INFINITY)
+                    .total_cmp(&right_latency.unwrap_or(f64::INFINITY))
+                    .then_with(|| left_peer.cmp(right_peer))
+            })
+    }
+
+    fn header_delivery_latencies(
+        &self,
+        author: AuthorityIndex,
+        candidates: &[AuthorityIndex],
+    ) -> Vec<Option<f64>> {
+        let table = self.streaming_headers.lock();
+        candidates
+            .iter()
+            .map(|peer| {
+                table
+                    .get(peer.value())
+                    .and_then(|row| row.get(author.value()).copied().flatten())
+            })
+            .collect()
     }
 
     /// Writes the ranked order back into `candidates` from per-candidate
@@ -574,6 +634,44 @@ mod tests {
             *counts.entry(c[0]).or_insert(0) += 1;
         }
         counts
+    }
+
+    fn record_streaming_header_delivery(
+        pr: &PeerResponsiveness,
+        peer: AuthorityIndex,
+        author: AuthorityIndex,
+        latency_ms: u64,
+    ) {
+        pr.record_streaming_header_deliveries(peer, latency_ms, [(author, 1, 0)]);
+    }
+
+    #[test]
+    fn fastest_header_delivery_peer_is_reported() {
+        let pr = responsiveness(6);
+        let author = idx(5);
+        record_streaming_header_delivery(&pr, idx(1), author, 10);
+        for peer in [2u8, 3, 4] {
+            record_streaming_header_delivery(&pr, idx(peer), author, 1_000);
+        }
+        let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
+        assert_eq!(
+            pr.fastest_peer_for_header_delivery(author, &candidates),
+            Some((idx(1), 10.0))
+        );
+    }
+
+    #[test]
+    fn unmeasured_selected_peer_is_replaced_first() {
+        let pr = responsiveness(5);
+        let author = idx(4);
+        record_streaming_header_delivery(&pr, idx(1), author, 10);
+        record_streaming_header_delivery(&pr, idx(2), author, 1_000);
+        let candidates = vec![idx(1), idx(2), idx(3)];
+
+        assert_eq!(
+            pr.slowest_peer_for_header_delivery(author, &candidates),
+            Some((idx(3), None))
+        );
     }
 
     #[test]
