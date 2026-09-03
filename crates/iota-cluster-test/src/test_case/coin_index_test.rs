@@ -586,8 +586,7 @@ async fn publish_managed_coin_package(
     let upgrade_cap = builder.publish_package(package_data).result();
     builder.transfer_objects(sender, [upgrade_cap]);
     // A single explicit gas coin keeps the sender's coin count unchanged for
-    // the assertions below; automatic selection would pin every IOTA coin as
-    // gas and smash them into one.
+    // the assertions below.
     builder.gas([select_gas_coin(&grpc_client, sender).await]);
     let data = builder.finish().await?;
     let response = ctx.sign_and_execute(data, "publish ft package").await;
