@@ -19,10 +19,7 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::{
-    Client as GrpcClient,
-    read_mask_fields::{ObjectField, OwnedObjectReadMask},
-};
+use iota_grpc_client::{Client as GrpcClient, read_mask_fields::ObjectField};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -1661,13 +1658,7 @@ impl IotaClientCommands {
                 let client = context.get_grpc_client().await?;
                 // Two coins are enough to tell a lone coin from several
                 let iota_coins = client
-                    .get_coins(
-                        signer,
-                        StructTag::new_gas(),
-                        Some(2),
-                        None,
-                        OwnedObjectReadMask::default(),
-                    )
+                    .get_coins(signer, StructTag::new_gas(), Some(2), None)
                     .await?
                     .into_inner();
 
