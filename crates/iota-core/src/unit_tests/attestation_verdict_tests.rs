@@ -4,11 +4,13 @@
 //! Tests for the verdict reached when an attested transaction's Move
 //! authenticator *function* aborts at execution.
 //!
-//! The issuer is charged only when authentication provably succeeds at the
-//! versions the attestor recorded; every other outcome is charged to the
-//! attestor as `InvalidAttestation`. Both cases need the account's key to be
-//! rotated after the transaction is built, so that the same transaction
-//! authenticates differently at two versions of the same account.
+//! The attestor is charged only when the attestation is refuted: authentication
+//! failed at exactly the recorded state, a recorded version is ahead of the
+//! executed one or was not superseded this epoch, or the re-run rejects. Every
+//! other outcome leaves the failure with the issuer. Each test rotates the
+//! account after the transaction is built - its key or its authenticator
+//! function - so the same transaction authenticates differently at two versions
+//! of the same account.
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{ExecutionError, ExecutionStatus};
