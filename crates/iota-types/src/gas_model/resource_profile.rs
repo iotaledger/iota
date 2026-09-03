@@ -37,12 +37,6 @@ pub struct ResourceProfile {
     pub interp_instruction_count: u64,
     pub interp_stack_size_flow: u64,
     pub interp_stack_height_flow: u64,
-    /// Container values constructed by bytecode — structs and vectors packed,
-    /// container-typed constants loaded — plus elements appended to vectors.
-    /// Each is a heap allocation, a cost the instruction count alone does
-    /// not carry: a transaction building many small values runs far slower
-    /// per instruction than arithmetic does. Deterministic (bytecode events).
-    pub values_constructed: u64,
     /// Abstract size of the arguments passed to hashing natives
     /// (`0x1::hash`, `0x2::hash`, `0x2::hmac`) — the bytes those natives
     /// stream. Feeds the memory-bandwidth dimension's per-transaction moved-bytes sum;
@@ -93,10 +87,6 @@ pub struct ResourceProfile {
     /// increases and decreases are applied, so this is the peak resident
     /// size, not the total bytes ever pushed.
     pub stack_size_high_water_mark: u64,
-    /// Total abstract bytes ever pushed onto the operand stack (decreases not
-    /// applied). This matches the quantity the gas tiers escalate on, and is
-    /// the flow counterpart of the peak above.
-    pub stack_size_total_pushed: u64,
     /// High-water mark of the operand stack's height (slot count).
     pub stack_height_high_water_mark: u64,
     /// High-water mark of the abstract size of values held in frame locals.
