@@ -1067,7 +1067,7 @@ async fn test_safe_iter_with_prefix_from() {
         got,
     );
 
-    // An exclusive bound resumes strictly after the cursor — also when the
+    // An exclusive bound resumes strictly after the cursor, also when the
     // cursor's row does not exist.
     assert_eq!(keys(Bound::Excluded(&2)), [(1, 3), (1, u64::MAX)]);
     db.remove(&(1, 2)).unwrap();
@@ -1084,7 +1084,7 @@ async fn test_safe_iter_with_prefix_from() {
 #[tokio::test]
 async fn test_safe_iter_with_prefix_from_multi_field() {
     // The bound is the *entire* remainder after the prefix, i.e. both
-    // trailing fields here — not just the one nearest the prefix.
+    // trailing fields here, not just the one nearest the prefix.
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<(u8, u64, u8), String> = open_map(tmp_dir.path(), None);
     for (a, b, c) in [
