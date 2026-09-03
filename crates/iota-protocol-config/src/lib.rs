@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 34;
+pub const MAX_PROTOCOL_VERSION: u64 = 35;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -212,6 +212,11 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             activates).
 //             Stop locking immutable objects in post-consensus conflict
 //             resolution.
+// Version 35: Add the attestor registry framework module and its protocol
+//             parameters (joining bond rate, low-bond threshold rate, max
+//             attestor count, max inactivity epochs, inactivity penalty) on
+//             devnet. The registry itself stays inert until
+//             `enable_external_attestation` is set.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -634,6 +639,12 @@ struct FeatureFlags {
     // shared-object scheduling.
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
+
+    // If true, enables the external (third-party) attestation feature: the
+    // on-chain attestor registry, attestor activity tracking, and explicit
+    // attestation verification.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_external_attestation: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1572,6 +1583,29 @@ pub struct ProtocolConfig {
     /// over (the scoring depth). When unset, defaults to 600. Consulted only
     /// when `consensus_enable_sliding_window_leader_schedule` is set.
     consensus_leader_schedule_window_size: Option<u32>,
+
+    /// Minimum bond required to register as an attestor, as a rate (basis
+    /// points) applied to `min_validator_joining_stake`.
+    attestor_joining_bond_rate: Option<u64>,
+
+    /// Bond level an active attestor must hold at an epoch boundary, as a
+    /// rate (basis points) applied to `min_validator_joining_stake`; below it
+    /// the remaining bond is burned and the attestor is evicted.
+    attestor_low_bond_threshold_rate: Option<u64>,
+
+    /// Maximum number of attestors (active + pending) in the registry.
+    max_attestor_count: Option<u64>,
+
+    /// Maximum number of full epochs an active attestor may go without
+    /// attesting before being dropped, with a penalty, at the next epoch
+    /// boundary.
+    attestor_max_inactivity_epochs: Option<u64>,
+
+    /// Amount, in NANOS, burned from an attestor's bond when it is dropped
+    /// for inactivity; the remaining bond is refunded. Must not exceed the
+    /// bond level implied by `attestor_low_bond_threshold_rate` so the refund
+    /// cannot underflow.
+    attestor_inactivity_penalty: Option<u64>,
 }
 
 // feature flags
@@ -2070,13 +2104,15 @@ impl ProtocolConfig {
         res
     }
 
+    /// Effective only with its prerequisite `enable_pcool_flow`: a config
+    /// missing the prerequisite reads as disabled.
     pub fn enable_validator_attestation(&self) -> bool {
-        let res = self.feature_flags.enable_validator_attestation;
-        assert!(
-            !res || self.enable_pcool_flow(),
-            "enable_validator_attestation requires enable_pcool_flow to be set"
-        );
-        res
+        self.feature_flags.enable_validator_attestation && self.enable_pcool_flow()
+    }
+
+    /// Effective only with its prerequisite `enable_validator_attestation`.
+    pub fn enable_external_attestation(&self) -> bool {
+        self.feature_flags.enable_external_attestation && self.enable_validator_attestation()
     }
 }
 
@@ -2731,6 +2767,11 @@ impl ProtocolConfig {
             validator_very_low_stake_threshold: None,
             validator_low_stake_grace_period: None,
             consensus_leader_schedule_window_size: None,
+            attestor_joining_bond_rate: None,
+            attestor_low_bond_threshold_rate: None,
+            max_attestor_count: None,
+            attestor_max_inactivity_epochs: None,
+            attestor_inactivity_penalty: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3379,6 +3420,18 @@ impl ProtocolConfig {
                     // resolution. Set on all chains; inert where the P-COOL flow
                     // is off.
                     cfg.feature_flags.pcool_skip_immutable_object_locks = true;
+                }
+                35 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Attestor registry parameters (devnet only for now),
+                        // read from Move via get_attr.
+                        // 10% and 5% of `min_validator_joining_stake`.
+                        cfg.attestor_joining_bond_rate = Some(1_000);
+                        cfg.attestor_low_bond_threshold_rate = Some(500);
+                        cfg.max_attestor_count = Some(1_000);
+                        cfg.attestor_max_inactivity_epochs = Some(7);
+                        cfg.attestor_inactivity_penalty = Some(500_000_000_000);
+                    }
                 }
                 // Use this template when making changes:
                 //

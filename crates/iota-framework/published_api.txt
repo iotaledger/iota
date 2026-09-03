@@ -1,3 +1,165 @@
+is_feature_enabled
+	public(package) fun
+	0x3::protocol_config
+get_attr
+	public(package) fun
+	0x3::protocol_config
+AttestorRegistryKey
+	public struct
+	0x3::attestor_registry
+AttestorMetadataKey
+	public struct
+	0x3::attestor_registry
+AttestorMetadataV1
+	public struct
+	0x3::attestor_registry
+AttestorRegistryV1
+	public struct
+	0x3::attestor_registry
+DepartedAttestors
+	public struct
+	0x3::attestor_registry
+AttestorV1
+	public struct
+	0x3::attestor_registry
+AttestorRegisteredEvent
+	public struct
+	0x3::attestor_registry
+AttestorDeregisterRequestedEvent
+	public struct
+	0x3::attestor_registry
+AttestorRemovedEvent
+	public struct
+	0x3::attestor_registry
+AttestorBondDepositedEvent
+	public struct
+	0x3::attestor_registry
+AttestorsActivatedEvent
+	public struct
+	0x3::attestor_registry
+AttestorExitInfo
+	public struct
+	0x3::attestor_registry
+AttestorsExitedEvent
+	public struct
+	0x3::attestor_registry
+is_feature_enabled
+	public(package) fun
+	0x3::attestor_registry
+assert_feature_enabled
+	public(package) fun
+	0x3::attestor_registry
+min_joining_bond
+	public(package) fun
+	0x3::attestor_registry
+low_bond_threshold
+	public(package) fun
+	0x3::attestor_registry
+stake_fraction
+	fun
+	0x3::attestor_registry
+registry_key
+	public(package) fun
+	0x3::attestor_registry
+metadata_key
+	public(package) fun
+	0x3::attestor_registry
+new
+	public(package) fun
+	0x3::attestor_registry
+validate_attestor_pubkey
+	fun
+	0x3::attestor_registry
+find_active
+	fun
+	0x3::attestor_registry
+find_pending
+	fun
+	0x3::attestor_registry
+pubkey_in_use
+	fun
+	0x3::attestor_registry
+register
+	public(package) fun
+	0x3::attestor_registry
+deregister
+	public(package) fun
+	0x3::attestor_registry
+deposit
+	public(package) fun
+	0x3::attestor_registry
+refresh_activity
+	public(package) fun
+	0x3::attestor_registry
+rotate_key
+	public(package) fun
+	0x3::attestor_registry
+advance_epoch
+	public(package) fun
+	0x3::attestor_registry
+rebalance
+	fun
+	0x3::attestor_registry
+remove_departed_metadata
+	public(package) fun
+	0x3::attestor_registry
+validated_string
+	fun
+	0x3::attestor_registry
+validated_url
+	fun
+	0x3::attestor_registry
+add_metadata
+	public(package) fun
+	0x3::attestor_registry
+remove_metadata
+	public(package) fun
+	0x3::attestor_registry
+borrow_metadata_mut
+	fun
+	0x3::attestor_registry
+update_metadata_name
+	public(package) fun
+	0x3::attestor_registry
+update_metadata_description
+	public(package) fun
+	0x3::attestor_registry
+update_metadata_url
+	public(package) fun
+	0x3::attestor_registry
+update_metadata_logo
+	public(package) fun
+	0x3::attestor_registry
+slash
+	public(package) fun
+	0x3::attestor_registry
+active_count
+	public(package) fun
+	0x3::attestor_registry
+pending_count
+	public(package) fun
+	0x3::attestor_registry
+attestor_address
+	public(package) fun
+	0x3::attestor_registry
+attestor_pubkey
+	public(package) fun
+	0x3::attestor_registry
+bond_value
+	public(package) fun
+	0x3::attestor_registry
+excess_bond_value
+	public(package) fun
+	0x3::attestor_registry
+activation_epoch
+	public(package) fun
+	0x3::attestor_registry
+last_active_epoch
+	public(package) fun
+	0x3::attestor_registry
+active_attestors
+	public(package) fun
+	0x3::attestor_registry
 UnverifiedValidatorOperationCap
 	public struct
 	0x3::validator_cap
@@ -688,12 +850,6 @@ total_object_storage_rebates
 total_balance
 	public fun
 	0x3::storage_fund
-is_feature_enabled
-	public(package) fun
-	0x3::protocol_config
-get_attr
-	public(package) fun
-	0x3::protocol_config
 SystemParametersV1
 	public struct
 	0x3::iota_system_state_inner
@@ -899,6 +1055,33 @@ request_set_commission_rate
 	public entry fun
 	0x3::iota_system
 set_candidate_validator_commission_rate
+	public entry fun
+	0x3::iota_system
+load_attestor_registry_mut
+	fun
+	0x3::iota_system
+register_attestor
+	public entry fun
+	0x3::iota_system
+deregister_attestor
+	public entry fun
+	0x3::iota_system
+deposit_attestor_bond
+	public entry fun
+	0x3::iota_system
+rotate_attestor_key
+	public entry fun
+	0x3::iota_system
+update_attestor_name
+	public entry fun
+	0x3::iota_system
+update_attestor_description
+	public entry fun
+	0x3::iota_system
+update_attestor_url
+	public entry fun
+	0x3::iota_system
+update_attestor_logo
 	public entry fun
 	0x3::iota_system
 request_add_stake

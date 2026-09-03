@@ -2205,6 +2205,20 @@ impl IotaNode {
                 .expect("Error loading highest executed checkpoint sequence number")
         );
 
+        // Attach the new epoch's active attestor snapshot so the epoch store
+        // exposes it via `attestor_set()` for explicit-attestation
+        // verification. Feature-gated: with the flag off the epoch-start
+        // state keeps its previous version, decodable by older binaries.
+        let next_epoch_start_system_state =
+            match iota_types::iota_system_state::attestor_registry::epoch_start_attestors(
+                state.get_object_store().as_ref(),
+                next_epoch_start_system_state.protocol_version(),
+                state.get_chain_identifier(),
+            )? {
+                Some(attestors) => next_epoch_start_system_state.with_attestors(attestors),
+                None => next_epoch_start_system_state,
+            };
+
         let epoch_start_configuration = EpochStartConfiguration::new(
             next_epoch_start_system_state,
             *last_checkpoint.digest(),
