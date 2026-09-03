@@ -589,8 +589,6 @@ async fn publish_managed_coin_package(
     // the assertions below; automatic selection would pin every IOTA coin as
     // gas and smash them into one.
     builder.gas([select_gas_coin(&grpc_client, sender).await]);
-    // Doesn't need to be scaled by RGP since most of the cost is storage
-    builder.gas_budget(500_000_000);
     let data = builder.finish().await?;
     let response = ctx.sign_and_execute(data, "publish ft package").await;
     let changes = response.object_changes.unwrap();

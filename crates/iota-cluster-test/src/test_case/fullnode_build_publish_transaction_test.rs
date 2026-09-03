@@ -35,8 +35,6 @@ impl TestCaseImpl for FullNodeBuildPublishTransactionTest {
         let upgrade_cap = builder.publish_package(package_data).result();
         builder.transfer_objects(sender, [upgrade_cap]);
         builder.gas([select_gas_coin(&grpc_client, sender).await]);
-        // Doesn't need to be scaled by RGP since most of the cost is storage
-        builder.gas_budget(50_000_000);
         let data = builder.finish().await?;
         let response = ctx.sign_and_execute(data, "publish basics package").await;
         response

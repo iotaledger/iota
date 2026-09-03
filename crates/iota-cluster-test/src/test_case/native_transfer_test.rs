@@ -38,7 +38,6 @@ impl TestCaseImpl for NativeTransferTest {
         let mut builder = grpc_client.transaction_builder(signer);
         builder.transfer_objects(recipient_addr, [obj_to_transfer]);
         builder.gas([*gas_obj.id()]);
-        builder.gas_budget(2_000_000);
         let data = builder.finish().await?;
         let mut response = ctx.sign_and_execute(data, "coin transfer").await;
 
@@ -51,7 +50,6 @@ impl TestCaseImpl for NativeTransferTest {
         let mut builder = grpc_client.transaction_builder(signer);
         builder.transfer_objects(recipient_addr, [unresolved::Argument::Gas]);
         builder.gas([obj_to_transfer_2]);
-        builder.gas_budget(2_000_000);
         let data = builder.finish().await?;
         let mut response = ctx.sign_and_execute(data, "coin transfer").await;
 

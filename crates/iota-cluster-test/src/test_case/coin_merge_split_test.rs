@@ -122,7 +122,6 @@ impl CoinMergeSplitTest {
         let mut builder = grpc_client.transaction_builder(signer);
         builder.merge_coins(primary_coin, [coin_to_merge]);
         builder.gas([gas_obj_id]);
-        builder.gas_budget(20_000_000);
         let data = builder.finish().await.unwrap();
 
         ctx.sign_and_execute(data, "coin merge").await
@@ -152,7 +151,6 @@ impl CoinMergeSplitTest {
                 .collect::<Vec<_>>(),
         );
         builder.gas([gas_obj_id]);
-        builder.gas_budget(20_000_000);
         let data = builder.finish().await.unwrap();
 
         ctx.sign_and_execute(data, "coin split").await
