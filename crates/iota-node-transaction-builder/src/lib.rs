@@ -67,9 +67,7 @@ pub enum Error {
     #[error(transparent)]
     Node(#[from] IotaError),
     #[error("invalid objects page cursor: {0}")]
-    Cursor(bcs::Error),
-    #[error("objects page cursor does not match the request parameters")]
-    CursorMismatch,
+    Cursor(String),
     #[error("gRPC indexes are disabled on this node")]
     IndexesDisabled,
     #[error("protocol version {0} is not supported by this node")]
@@ -137,9 +135,12 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
         };
         let cursor: Option<OwnedObjectCursor> = match cursor {
             Some(bytes) => {
-                let token: PageToken = bcs::from_bytes(&bytes).map_err(Error::Cursor)?;
+                let token: PageToken =
+                    bcs::from_bytes(&bytes).map_err(|e| Error::Cursor(e.to_string()))?;
                 if token.owner != owner || token.struct_tag != struct_tag {
-                    return Err(Error::CursorMismatch);
+                    return Err(Error::Cursor(
+                        "does not match the request parameters".to_string(),
+                    ));
                 }
                 Some(token.cursor)
             }

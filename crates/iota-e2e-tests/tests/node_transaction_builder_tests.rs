@@ -94,7 +94,7 @@ async fn transaction_builder_via_node_internal_client() {
     assert!(
         matches!(
             mismatched_owner,
-            Err(iota_node_transaction_builder::Error::CursorMismatch)
+            Err(iota_node_transaction_builder::Error::Cursor(_))
         ),
         "a cursor from another owner's listing must be rejected: {mismatched_owner:?}",
     );
@@ -102,7 +102,7 @@ async fn transaction_builder_via_node_internal_client() {
     assert!(
         matches!(
             mismatched_filter,
-            Err(iota_node_transaction_builder::Error::CursorMismatch)
+            Err(iota_node_transaction_builder::Error::Cursor(_))
         ),
         "a cursor from a differently-filtered listing must be rejected: {mismatched_filter:?}",
     );
