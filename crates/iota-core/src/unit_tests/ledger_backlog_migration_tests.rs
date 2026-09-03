@@ -305,6 +305,24 @@ fn assert_migrated(
 
     for transaction in &seeded.transactions {
         let digest = &transaction.digest;
+        // A body with no execution record names no epoch, so the migration
+        // drops it rather than guessing; state sync fetches it again.
+        if transaction.effects_digest.is_none() {
+            assert!(
+                historic_ledger.get_transaction(digest).unwrap().is_none(),
+                "a body with no execution record must not be filed in any bucket"
+            );
+            assert!(
+                store
+                    .perpetual_tables
+                    .transactions
+                    .get(digest)
+                    .unwrap()
+                    .is_none(),
+                "a body with no execution record must not be left flat either"
+            );
+            continue;
+        }
         if transaction.epoch < floor {
             assert_eq!(
                 historic_ledger.find_epoch(digest).unwrap().map(|(e, _)| e),
@@ -321,11 +339,9 @@ fn assert_migrated(
             "the body of {digest} belongs in epoch {}'s bucket",
             transaction.epoch
         );
-        let Some(effects_digest) = transaction.effects_digest else {
-            // A body nothing places is filed under the running epoch, and the
-            // seed gave it that epoch, so the bucket above is the right one.
-            continue;
-        };
+        let effects_digest = transaction
+            .effects_digest
+            .expect("bodies with no execution record are handled above");
         assert_eq!(
             historic_ledger.find_epoch(digest).unwrap().map(|(e, _)| e),
             Some(transaction.epoch),
@@ -702,5 +718,91 @@ async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
             .get_transaction(stray.digest())
             .unwrap()
             .is_none()
+    );
+}
+
+/// A node whose state sync has run ahead of execution holds transactions the
+/// migration cannot attribute, because only execution records name an epoch.
+/// Those rows are dropped, so the synced watermark has to come back to the
+/// executed one: the checkpoint executor reads transactions by digest and
+/// panics on a missing one, and it takes its work from the synced watermark.
+#[tokio::test]
+async fn the_synced_watermark_rewinds_so_dropped_checkpoints_are_fetched_again() {
+    let store_dir = tempfile::tempdir().unwrap();
+    let checkpoint_dir = tempfile::tempdir().unwrap();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    seed(&store, &checkpoint_store);
+
+    let executed = checkpoint_store
+        .get_highest_executed_checkpoint_seq_number()
+        .unwrap()
+        .expect("the seed sets the executed watermark");
+
+    // State sync ran on past what execution reached, staging a body that no
+    // execution record places.
+    let ahead = seed_checkpoint(&checkpoint_store, RUNNING_EPOCH, 90);
+    let staged = seed_transaction(&store, RUNNING_EPOCH, 90, EpochSource::Nothing);
+    checkpoint_store
+        .update_highest_synced_checkpoint(&ahead)
+        .unwrap();
+    assert!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap()
+            > Some(executed),
+        "the fixture must leave state sync ahead of execution"
+    );
+
+    migration(&store, checkpoint_store.clone(), Some(1), 2)
+        .run()
+        .unwrap();
+
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        Some(executed),
+        "the synced watermark must come back to the executed checkpoint"
+    );
+    assert!(
+        store
+            .get_historic_ledger()
+            .get_transaction(&staged.digest)
+            .unwrap()
+            .is_none(),
+        "the staged body must not be filed under an epoch nothing recorded for it"
+    );
+}
+
+/// The rewind only ever moves the watermark back. A node whose execution has
+/// caught up with its sync — every node that is not behind — must come out of
+/// the migration with both watermarks where it left them.
+#[tokio::test]
+async fn a_node_that_is_not_behind_keeps_its_synced_watermark() {
+    let store_dir = tempfile::tempdir().unwrap();
+    let checkpoint_dir = tempfile::tempdir().unwrap();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    seed(&store, &checkpoint_store);
+
+    let before = checkpoint_store
+        .get_highest_synced_checkpoint_seq_number()
+        .unwrap();
+    assert_eq!(
+        before,
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        "the seed must leave the two watermarks together"
+    );
+
+    migration(&store, checkpoint_store.clone(), Some(1), 2)
+        .run()
+        .unwrap();
+
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        before
     );
 }

@@ -715,13 +715,9 @@ impl CheckpointStore {
     /// `HighestVerified` watermark, such that state sync will have a chance to
     /// process this checkpoint and perform some state-sync only things.
     ///
-    /// Fails for a checkpoint whose epoch has been expired, since that epoch's
-    /// bucket cannot be reopened. Callers must only pass checkpoints of an
-    /// epoch the node has not left behind: consensus and state sync both move
-    /// forwards from the highest checkpoint the store already holds, and
-    /// [`WriteStore::insert_checkpoint`](iota_types::storage::WriteStore::insert_checkpoint),
-    /// which turns any failure here into a panic, is reached only through
-    /// those two.
+    /// A checkpoint of an epoch already expired is filed in
+    /// `certified_checkpoints` only: the digest-keyed row is skipped, so it
+    /// stays reachable by sequence number but not by digest.
     pub fn insert_certified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -1038,6 +1034,33 @@ impl CheckpointStore {
         )
     }
 
+    /// Brings the synced watermark back to the executed one, and answers the
+    /// sequence number it now names.
+    ///
+    /// For a caller that has removed the data behind the checkpoints between
+    /// the two, so that state sync fetches them again rather than the
+    /// checkpoint executor reading what is no longer there. Copies the row
+    /// rather than resolving it, so it holds whether or not either watermark
+    /// still names a checkpoint this store can look up by digest.
+    ///
+    /// Does nothing when execution has already caught up, which is every node
+    /// that is not behind.
+    pub fn rewind_highest_synced_to_executed(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        let Some(executed) = self.get_watermark(CheckpointWatermark::HighestExecuted)? else {
+            return Ok(None);
+        };
+        let synced = self.get_watermark_seq_number(CheckpointWatermark::HighestSynced)?;
+        if synced.is_none_or(|synced| synced <= executed.0) {
+            return Ok(synced);
+        }
+        self.tables
+            .watermarks
+            .insert(&CheckpointWatermark::HighestSynced, &executed)?;
+        Ok(Some(executed.0))
+    }
+
     /// Sets highest executed checkpoint to any value.
     ///
     /// WARNING: This method is very subtle and can corrupt the database if used
@@ -1094,9 +1117,9 @@ impl CheckpointStore {
     /// This is the call state sync makes, so it can be the write that creates
     /// the bucket of an epoch whose first checkpoint has not been executed
     /// yet: state sync runs ahead of execution and across epoch boundaries.
-    /// See [`HistoricCheckpoints`] for what that means for retention. Fails
-    /// for a checkpoint whose epoch has been expired, under the same caller
-    /// invariant as [`Self::insert_certified_checkpoint`].
+    /// See [`HistoricCheckpoints`] for what that means for retention. For a
+    /// checkpoint whose epoch has been expired the contents are skipped, as
+    /// [`Self::insert_certified_checkpoint`] skips the summary.
     ///
     /// INVARIANT: See [`Self::cache_full_checkpoint_contents`].
     pub fn insert_verified_checkpoint_contents(
