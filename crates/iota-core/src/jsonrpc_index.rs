@@ -1264,18 +1264,15 @@ impl IndexStore {
     ) -> IotaResult<impl Iterator<Item = Result<(ObjectId, DynamicFieldInfo), TypedStoreError>> + '_>
     {
         debug!(?object, "get_dynamic_fields");
-        // The lower bound excludes the cursor position itself, so the scan
-        // resumes strictly after the last returned field, even when the
-        // cursor's index row no longer exists (e.g. the field was removed
-        // from its parent or transferred between pages).
-        let lower = match &cursor {
-            Some(field_id) => std::ops::Bound::Excluded(field_id),
-            None => std::ops::Bound::Unbounded,
-        };
         Ok(self
             .tables
             .dynamic_field_index
-            .safe_iter_with_prefix_from(&object, lower)
+            .safe_iter_with_prefix_from(
+                &object,
+                cursor
+                    .as_ref()
+                    .map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded),
+            )
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 

@@ -828,17 +828,12 @@ impl IndexStoreTables {
         cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, TypedStoreError>
     {
-        // When `cursor` is `Some`, the lower bound excludes the cursor
-        // position itself, so the scan resumes strictly after the last
-        // returned field, even when the cursor's index row no longer exists
-        // (e.g. the field was deleted between pages).
-        let lower = match &cursor {
-            Some(field_id) => Bound::Excluded(field_id),
-            None => Bound::Unbounded,
-        };
         let iter = self
             .dynamic_field
-            .safe_iter_with_prefix_from(&parent, lower)
+            .safe_iter_with_prefix_from(
+                &parent,
+                cursor.as_ref().map_or(Bound::Unbounded, Bound::Excluded),
+            )
             .map(|r| r.map(|(key, ())| key));
         Ok(iter)
     }
@@ -858,15 +853,10 @@ impl IndexStoreTables {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        // The lower bound excludes the cursor position itself, so the scan
-        // resumes strictly after the last returned version.
-        let lower = match &cursor {
-            Some(version) => Bound::Excluded(version),
-            None => Bound::Unbounded,
-        };
-        Ok(self
-            .package_version
-            .safe_iter_with_prefix_from(&original_package_id, lower))
+        Ok(self.package_version.safe_iter_with_prefix_from(
+            &original_package_id,
+            cursor.as_ref().map_or(Bound::Unbounded, Bound::Excluded),
+        ))
     }
 }
 
