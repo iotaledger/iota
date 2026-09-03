@@ -1079,6 +1079,16 @@ async fn test_safe_iter_with_prefix_from() {
 
     // An unbounded lower bound covers the whole prefix.
     assert_eq!(keys(Bound::Unbounded), [(1, 1), (1, 3), (1, u64::MAX)]);
+
+    // `safe_iter_with_prefix_after` is the exclusive form: strictly after the
+    // cursor, or the whole prefix without one.
+    let after = |cursor: Option<&u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_prefix_after(&1u64, cursor)
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+    assert_eq!(after(Some(&2)), keys(Bound::Excluded(&2)));
+    assert_eq!(after(None), keys(Bound::Unbounded));
 }
 
 #[tokio::test]

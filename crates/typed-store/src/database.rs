@@ -878,6 +878,24 @@ impl<K, V> DBMap<K, V> {
         self.iter_forward_raw(lower_bound, upper_bound)
     }
 
+    /// Forward iterator over entries whose key begins with `prefix`, resuming
+    /// strictly after `cursor`, or from the first key under the prefix when
+    /// there is no cursor. `cursor` is the remainder of the key after
+    /// `prefix`, as for [`Self::safe_iter_with_prefix_from`].
+    pub fn safe_iter_with_prefix_after<P, C>(
+        &self,
+        prefix: &P,
+        cursor: Option<&C>,
+    ) -> DbIterator<'_, (K, V)>
+    where
+        P: ?Sized + Serialize,
+        C: ?Sized + Serialize,
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        self.safe_iter_with_prefix_from(prefix, cursor.map_or(Bound::Unbounded, Bound::Excluded))
+    }
+
     /// Reverse counterpart of [`Self::safe_iter_with_prefix`]: the matching
     /// entries in descending key order (e.g. for "latest entry under a
     /// prefix").
