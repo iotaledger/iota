@@ -75,12 +75,12 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
         }
     }
 
-    if let Ok(ref built) = built_ptb {
+    if let Ok(ref ptb) = built_ptb {
         results.push(" === BUILT PTB === ".to_string());
-        for (i, ca) in built.ptb.inputs.iter().enumerate() {
+        for (i, ca) in ptb.inputs.iter().enumerate() {
             results.push(format!("Input {}: {}", i, stable_call_arg_display(ca)));
         }
-        for (i, c) in built.ptb.commands.iter().enumerate() {
+        for (i, c) in ptb.commands.iter().enumerate() {
             results.push(format!("Command {i}: {c}"));
         }
     }
