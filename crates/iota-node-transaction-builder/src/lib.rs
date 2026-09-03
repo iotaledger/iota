@@ -55,6 +55,28 @@ struct PageToken {
     cursor: OwnedObjectCursor,
 }
 
+impl PageToken {
+    /// Decodes a cursor and checks that it was produced by a request with the
+    /// same `owner` and `struct_tag`.
+    fn decode(
+        bytes: &[u8],
+        owner: Address,
+        struct_tag: Option<&StructTag>,
+    ) -> Result<OwnedObjectCursor, Error> {
+        let token: PageToken = bcs::from_bytes(bytes).map_err(|e| Error::Cursor(e.to_string()))?;
+        if token.owner != owner || token.struct_tag.as_ref() != struct_tag {
+            return Err(Error::Cursor(
+                "does not match the request parameters".to_string(),
+            ));
+        }
+        Ok(token.cursor)
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        bcs::to_bytes(self).expect("page token serialization cannot fail")
+    }
+}
+
 /// Error type for [`NodeTransactionBuilderLedgerClient`].
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -127,25 +149,13 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
         cursor: Option<Vec<u8>>,
         limit: Option<usize>,
     ) -> Result<ObjectsPage, Self::Error> {
-        // `Some(0)` falls back to the default, matching the gRPC server's
-        // page-size validation.
         let limit = match limit {
             None | Some(0) => DEFAULT_OBJECTS_PAGE_SIZE,
             Some(limit) => limit.min(MAX_OBJECTS_PAGE_SIZE),
         };
-        let cursor: Option<OwnedObjectCursor> = match cursor {
-            Some(bytes) => {
-                let token: PageToken =
-                    bcs::from_bytes(&bytes).map_err(|e| Error::Cursor(e.to_string()))?;
-                if token.owner != owner || token.struct_tag != struct_tag {
-                    return Err(Error::Cursor(
-                        "does not match the request parameters".to_string(),
-                    ));
-                }
-                Some(token.cursor)
-            }
-            None => None,
-        };
+        let cursor = cursor
+            .map(|bytes| PageToken::decode(&bytes, owner, struct_tag.as_ref()))
+            .transpose()?;
 
         let indexes = self.reader.grpc_indexes().ok_or(Error::IndexesDisabled)?;
         // The index iterator's cursor bound is inclusive, so skip the cursor
@@ -180,21 +190,14 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
         }
 
         let has_more = iter.next().transpose()?.is_some();
-        let next_cursor = if has_more {
-            last_cursor.map(|cursor| {
-                // BCS can only fail on excessive nesting; the type depth of
-                // `struct_tag` is bounded by protocol type limits, since a
-                // non-empty page means the type exists on-chain.
-                bcs::to_bytes(&PageToken {
-                    owner,
-                    struct_tag,
-                    cursor,
-                })
-                .expect("page token serialization cannot fail")
-            })
-        } else {
-            None
-        };
+        let next_cursor = last_cursor.filter(|_| has_more).map(|cursor| {
+            PageToken {
+                owner,
+                struct_tag,
+                cursor,
+            }
+            .encode()
+        });
 
         Ok(ObjectsPage { data, next_cursor })
     }
