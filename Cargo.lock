@@ -2482,12 +2482,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "collectable"
-version = "0.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08abddbaad209601e53c7dd4308d8c04c06f17bb7df006434e586a22b83be45a"
-
-[[package]]
 name = "colorchoice"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14933,7 +14927,6 @@ dependencies = [
  "backoff",
  "bcs",
  "bincode",
- "collectable",
  "eyre",
  "fastcrypto",
  "fdlimit",
@@ -14944,9 +14937,7 @@ dependencies = [
  "msim",
  "num_cpus",
  "once_cell",
- "ouroboros 0.18.4",
  "prometheus-filtered",
- "rand 0.8.6",
  "rocksdb",
  "rstest",
  "serde",
