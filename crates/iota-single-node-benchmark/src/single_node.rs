@@ -9,7 +9,9 @@ use std::{
 
 use iota_core::{
     authority::{
-        AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+        AuthorityState, ExecutionEnv,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::{AssignedTxAndVersions, AssignedVersions, Schedulable},
         test_authority_builder::TestAuthorityBuilder,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
@@ -17,6 +19,7 @@ use iota_core::{
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
     },
+    execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
@@ -139,7 +142,7 @@ impl SingleValidator {
         );
         let effects = self
             .get_validator()
-            .try_execute_immediately(&executable, None, &self.epoch_store)
+            .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap()
             .0;
         assert!(effects.status().is_success());
@@ -162,6 +165,7 @@ impl SingleValidator {
     pub async fn execute_certificate(
         &self,
         cert: CertifiedTransaction,
+        assigned_versions: &AssignedVersions,
         component: Component,
     ) -> TransactionEffects {
         let effects = match component {
@@ -170,7 +174,11 @@ impl SingleValidator {
                     VerifiedCertificate::new_unchecked(cert),
                 );
                 self.get_validator()
-                    .try_execute_immediately(&cert, None, &self.epoch_store)
+                    .try_execute_immediately(
+                        &cert,
+                        ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+                        &self.epoch_store,
+                    )
                     .unwrap()
                     .0
             }
@@ -180,8 +188,14 @@ impl SingleValidator {
                     // For shared objects transactions, `execute_certificate` won't enqueue it
                     // because it expects consensus to do so. However we don't
                     // have consensus, hence the manual enqueue.
-                    self.get_validator()
-                        .enqueue_certificates_for_execution(vec![cert.clone()], &self.epoch_store);
+                    self.get_validator().execution_scheduler().enqueue(
+                        vec![(
+                            VerifiedExecutableTransaction::new_from_certificate(cert.clone())
+                                .into(),
+                            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+                        )],
+                        &self.epoch_store,
+                    );
                 }
                 self.get_validator()
                     .wait_for_certificate_execution(&cert, &self.epoch_store)
@@ -209,10 +223,11 @@ impl SingleValidator {
         &self,
         store: InMemoryObjectStore,
         transaction: CertifiedTransaction,
+        assigned_versions: &AssignedVersions,
     ) -> TransactionEffects {
         let input_objects = transaction.transaction().input_objects().unwrap();
         let objects = store
-            .read_objects_for_execution(&self.epoch_store, &transaction.key(), &input_objects)
+            .read_objects_for_execution(&transaction.key(), assigned_versions, &input_objects)
             .unwrap();
 
         let executable = VerifiedExecutableTransaction::new_from_certificate(
@@ -316,7 +331,7 @@ impl SingleValidator {
     pub(crate) async fn assigned_shared_object_versions(
         &self,
         transactions: &[CertifiedTransaction],
-    ) {
+    ) -> AssignedTxAndVersions {
         let transactions: Vec<_> = transactions
             .iter()
             .map(|tx| {
@@ -325,12 +340,13 @@ impl SingleValidator {
                 )
             })
             .collect();
+        let assignables: Vec<_> = transactions.iter().map(Schedulable::Transaction).collect();
         self.epoch_store
             .assign_shared_object_versions_idempotent(
                 self.get_validator().get_object_cache_reader().as_ref(),
-                &transactions,
+                assignables.iter(),
             )
-            .unwrap();
+            .unwrap()
     }
 }
 

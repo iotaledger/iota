@@ -22,7 +22,7 @@ pub mod epoch;
 pub mod epoch_start_consensus_committee;
 pub mod execution_cache;
 mod execution_driver;
-mod execution_scheduler;
+pub mod execution_scheduler;
 mod fallback_fetch;
 pub mod global_state_hasher;
 pub mod grpc_indexes;

@@ -150,6 +150,7 @@ use crate::{
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
         authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
+        shared_object_version_manager::{AssignedVersions, Schedulable},
     },
     authority_client::NetworkAuthorityClient,
     checkpoint_progress_tracker::CheckpointProgressTracker,
@@ -849,6 +850,39 @@ impl AuthorityMetrics {
 /// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
 pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
 
+/// Execution env contains the "environment" for the transaction to be executed
+/// in, that is, all the information necessary for execution that is not
+/// specified by the transaction itself.
+#[derive(Debug, Clone, Default)]
+pub struct ExecutionEnv {
+    /// The assigned version of each shared object for the transaction.
+    pub assigned_versions: AssignedVersions,
+    /// The expected digest of the effects of the transaction, if executing from
+    /// checkpoint or other sources where the effects are known in advance.
+    pub expected_effects_digest: Option<TransactionEffectsDigest>,
+}
+
+impl ExecutionEnv {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn with_expected_effects_digest(
+        mut self,
+        expected_effects_digest: TransactionEffectsDigest,
+    ) -> Self {
+        self.expected_effects_digest = Some(expected_effects_digest);
+        self
+    }
+
+    pub fn with_assigned_versions(mut self, assigned_versions: AssignedVersions) -> Self {
+        if !assigned_versions.is_empty() {
+            self.assigned_versions = assigned_versions;
+        }
+        self
+    }
+}
+
 pub struct AuthorityState {
     // Fixed size, static, identity of the authority
     /// The name of this authority.
@@ -1429,7 +1463,15 @@ impl AuthorityState {
             // enqueueing for execution, done in
             // AuthorityPerEpochStore::handle_consensus_transaction(). For owned
             // object transactions, they can be enqueued for execution immediately.
-            self.enqueue_certificates_for_execution(vec![certificate.clone()], epoch_store);
+            self.execution_scheduler.enqueue(
+                vec![(
+                    Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
+                        certificate.clone(),
+                    )),
+                    ExecutionEnv::new(),
+                )],
+                epoch_store,
+            );
         }
 
         // tx could be reverted when epoch ends, so we must be careful not to return a
@@ -1462,7 +1504,7 @@ impl AuthorityState {
     pub fn try_execute_immediately(
         &self,
         transaction: &VerifiedExecutableTransaction,
-        expected_effects_digest: Option<TransactionEffectsDigest>,
+        execution_env: ExecutionEnv,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         let _scope = monitored_scope("Execution::try_execute_immediately");
@@ -1479,7 +1521,7 @@ impl AuthorityState {
             .get_transaction_cache_reader()
             .try_get_executed_effects(tx_digest)?
         {
-            if let Some(expected_effects_digest_inner) = expected_effects_digest {
+            if let Some(expected_effects_digest_inner) = execution_env.expected_effects_digest {
                 assert_eq!(
                     effects.digest(),
                     expected_effects_digest_inner,
@@ -1490,15 +1532,19 @@ impl AuthorityState {
             return Ok((effects, None));
         }
 
-        let (tx_input_objects, per_authenticator_inputs) =
-            self.read_objects_for_execution(tx_guard.as_lock_guard(), transaction, epoch_store)?;
+        let (tx_input_objects, per_authenticator_inputs) = self.read_objects_for_execution(
+            tx_guard.as_lock_guard(),
+            transaction,
+            execution_env.assigned_versions,
+            epoch_store,
+        )?;
 
         self.process_transaction(
             tx_guard,
             transaction,
             tx_input_objects,
             per_authenticator_inputs,
-            expected_effects_digest,
+            execution_env.expected_effects_digest,
             epoch_store,
         )
         .tap_err(|e| info!(?tx_digest, "process_transaction failed: {e}"))
@@ -1511,6 +1557,7 @@ impl AuthorityState {
         &self,
         tx_lock: &TxLockGuard,
         transaction: &VerifiedExecutableTransaction,
+        assigned_shared_object_versions: AssignedVersions,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(InputObjects, Vec<(InputObjects, ObjectReadResult)>)> {
         let _scope = monitored_scope("Execution::load_input_objects");
@@ -1522,10 +1569,10 @@ impl AuthorityState {
         let input_objects = transaction.collect_all_input_object_kind_for_reading()?;
 
         let input_objects = self.input_loader.read_objects_for_execution(
-            epoch_store,
             &transaction.key(),
             tx_lock,
             &input_objects,
+            &assigned_shared_object_versions,
             epoch_store.epoch(),
         )?;
 
@@ -1538,11 +1585,12 @@ impl AuthorityState {
     pub fn try_execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
+        execution_env: ExecutionEnv,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
         let (effects, execution_error_opt) = self.try_execute_immediately(
             &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
-            None,
+            execution_env,
             &epoch_store,
         )?;
         let signed_effects = self.sign_effects(effects, &epoch_store)?;
@@ -1553,8 +1601,9 @@ impl AuthorityState {
     pub fn execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
+        execution_env: ExecutionEnv,
     ) -> (VerifiedSignedTransactionEffects, Option<ExecutionError>) {
-        self.try_execute_for_test(certificate)
+        self.try_execute_for_test(certificate, execution_env)
             .expect("try_execute_for_test should not fail")
     }
 
@@ -1761,7 +1810,6 @@ impl AuthorityState {
             monitored_scope("Execution::commit_certificate");
         let _metrics_guard = self.metrics.commit_certificate_latency.start_timer();
 
-        let tx_key = transaction.key();
         let tx_digest = transaction.digest();
         let input_object_count = inner_temporary_store.input_objects.len();
         let shared_object_count = effects.input_shared_objects().len();
@@ -1779,7 +1827,12 @@ impl AuthorityState {
         // The insertion to epoch_store is not atomic with the insertion to the
         // perpetual store. This is OK because we insert to the epoch store
         // first. And during lookups we always look up in the perpetual store first.
-        epoch_store.insert_tx_key_and_digest(&tx_key, tx_digest)?;
+        epoch_store.insert_executed_in_epoch(tx_digest);
+
+        let key = transaction.key();
+        if !matches!(key, TransactionKey::Digest(_)) {
+            epoch_store.insert_tx_key(key, *tx_digest)?;
+        }
 
         // Allow testing what happens if we crash here.
         fail_point!("crash");
@@ -1816,6 +1869,14 @@ impl AuthorityState {
                 // This provides necessary information to transaction manager to start executing
                 // additional ready transactions.
                 tm.notify_commit(tx_digest, output_keys, epoch_store);
+                // A transaction with a non-digest key can execute from a synced
+                // checkpoint, in which case local randomness generation — the only
+                // other caller of `notify_transaction_key` — never runs for that
+                // round and would leave the env parked under its key forever. The
+                // enqueue this triggers is filtered out as already executed.
+                if let Some(key) = transaction.non_digest_key() {
+                    tm.notify_transaction_key(epoch_store, key, *tx_digest);
+                }
             }
         }
 
@@ -3147,7 +3208,7 @@ impl AuthorityState {
         .await
     }
 
-    pub(crate) fn execution_scheduler(&self) -> &Arc<ExecutionSchedulerWrapper> {
+    pub fn execution_scheduler(&self) -> &Arc<ExecutionSchedulerWrapper> {
         &self.execution_scheduler
     }
 
@@ -3155,34 +3216,6 @@ impl AuthorityState {
     /// `TransactionManager`.
     pub fn uses_execution_scheduler(&self) -> bool {
         self.execution_scheduler.uses_execution_scheduler()
-    }
-
-    /// Adds transactions to the execution scheduler for ordered execution.
-    pub fn enqueue_transactions_for_execution(
-        &self,
-        transactions: Vec<VerifiedExecutableTransaction>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) {
-        self.execution_scheduler.enqueue(transactions, epoch_store)
-    }
-
-    /// Adds certificates to the execution scheduler for ordered execution.
-    pub fn enqueue_certificates_for_execution(
-        &self,
-        certs: Vec<VerifiedCertificate>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) {
-        self.execution_scheduler
-            .enqueue_certificates(certs, epoch_store)
-    }
-
-    pub fn enqueue_with_expected_effects_digest(
-        &self,
-        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) {
-        self.execution_scheduler
-            .enqueue_with_expected_effects_digest(transactions, epoch_store)
     }
 
     fn create_owner_index_if_empty(
@@ -3426,27 +3459,6 @@ impl AuthorityState {
             epoch_last_checkpoint >= highest_locally_built_checkpoint_seq,
             "expected {epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
         );
-        if highest_locally_built_checkpoint_seq == epoch_last_checkpoint
-            || self.is_fullnode(cur_epoch_store)
-        {
-            // if we built the last checkpoint locally (as opposed to receiving it from a
-            // peer), then all shared_version_assignments except the one for the
-            // ChangeEpoch transaction should have been removed
-            let num_shared_version_assignments = cur_epoch_store.num_shared_version_assignments();
-            // Due to (otherwise harmless) race conditions between CheckpointExecutor and
-            // ConsensusHandler, we actually can't guarantee that all
-            // shared_version_assignments have been removed. However,
-            // typically at most 2 or 3 are left over. We leave this check here in order to
-            // catch complete failure of cleanup which would cause a memory
-            // leak.
-            if num_shared_version_assignments > 10 {
-                // If this happens in prod, we have a memory leak, but not a correctness issue.
-                debug_fatal!(
-                    "all shared_version_assignments should have been removed \
-                    (num_shared_version_assignments: {num_shared_version_assignments})"
-                );
-            }
-        }
 
         // Safe to reconfigure now. No transactions are being executed,
         // and no epoch-specific tasks are running.
@@ -5467,13 +5479,20 @@ impl AuthorityState {
         // We must manually assign the shared object versions to the transaction before
         // executing it. This is because we do not sequence end-of-epoch
         // transactions through consensus.
-        epoch_store.assign_shared_object_versions_idempotent(
+        let assigned_versions = epoch_store.assign_shared_object_versions_idempotent(
             self.get_object_cache_reader().as_ref(),
-            std::slice::from_ref(&executable_tx),
+            std::iter::once(&Schedulable::Transaction(&executable_tx)),
         )?;
 
-        let (input_objects, _) =
-            self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
+        assert_eq!(assigned_versions.0.len(), 1);
+        let assigned_versions = assigned_versions.0.into_iter().next().unwrap().1;
+
+        let (input_objects, _) = self.read_objects_for_execution(
+            &tx_lock,
+            &executable_tx,
+            assigned_versions,
+            epoch_store,
+        )?;
 
         let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
             &execution_guard,
@@ -5961,6 +5980,7 @@ impl RandomnessRoundReceiver {
             );
             return;
         }
+        let key = TransactionKey::RandomnessRound(epoch, round);
         let transaction = VerifiedTransaction::new_randomness_state_update(
             epoch,
             round,
@@ -5984,10 +6004,21 @@ impl RandomnessRoundReceiver {
             .get_cache_commit()
             .persist_transaction(&transaction);
 
-        // Send transaction to the execution scheduler for execution.
-        self.authority_state
-            .execution_scheduler()
-            .enqueue(vec![transaction], &epoch_store);
+        // Notify the scheduler that the transaction key now has a known digest
+        if epoch_store.insert_tx_key(key, digest).is_err() {
+            warn!("epoch ended while handling new randomness");
+        }
+
+        // TODO: delete this when transaction manager is deleted
+        match self.authority_state.execution_scheduler().as_ref() {
+            ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
+            ExecutionSchedulerWrapper::TransactionManager(manager) => {
+                // Notifies transaction manager about transaction and output objects
+                // committed. This provides necessary information to transaction manager
+                // to start executing additional ready transactions.
+                manager.notify_transaction_key(&epoch_store, key, digest);
+            }
+        }
 
         let authority_state = self.authority_state.clone();
         spawn_monitored_task!(async move {

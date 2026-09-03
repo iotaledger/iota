@@ -17,6 +17,7 @@ use iota_types::{
     crypto::AuthorityKeyPair,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
@@ -32,10 +33,11 @@ use iota_types::{
 use tracing::info;
 
 use crate::{
-    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
+    authority::{AuthorityState, ExecutionEnv, test_authority_builder::TestAuthorityBuilder},
     authority_client::{
         validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
     },
+    execution_scheduler::ExecutionSchedulerAPI,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -236,10 +238,10 @@ impl LocalAuthorityClient {
         }
     }
 
-    // One difference between this implementation and actual certificate execution,
-    // is that this assumes shared object locks have already been acquired and
-    // tries to execute shared object transactions as well as owned object
-    // transactions.
+    // Executes owned-object certificates. Shared-object certificates must go
+    // through consensus (`send_consensus`), which is what assigns their versions:
+    // without an assignment the TransactionManager panics here, while under the
+    // ExecutionScheduler the transaction is dropped and this call never returns.
     async fn handle_certificate(
         state: Arc<AuthorityState>,
         request: HandleCertificateRequestV1,
@@ -263,8 +265,14 @@ impl LocalAuthorityClient {
                     .signature_verifier
                     .verify_cert(request.certificate)
                     .await?;
-                // let certificate = certificate.verify(epoch_store.committee())?;
-                state.enqueue_certificates_for_execution(vec![certificate.clone()], &epoch_store);
+                state.execution_scheduler().enqueue(
+                    vec![(
+                        VerifiedExecutableTransaction::new_from_certificate(certificate.clone())
+                            .into(),
+                        ExecutionEnv::new(),
+                    )],
+                    &epoch_store,
+                );
                 let effects = state.notify_read_effects("", &certificate).await?;
                 state.sign_effects(effects, &epoch_store)?
             }
