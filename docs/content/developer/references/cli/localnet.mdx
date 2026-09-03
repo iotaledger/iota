@@ -89,8 +89,18 @@ Each validator owns a block of ten ports starting at `9200 + 10 * i`: validator 
 | `9205 + 10 * i` to `9209 + 10 * i` | Reserved. |
 
 The default committee of 1 therefore owns `9200`-`9209`, and `--committee-size 4` owns `9200`-`9239`.
-A node fails to start if one of its ports is already taken, for instance by a second local network.
 The admin interface addresses can be changed with `iota-localnet genesis --admin-interface-address`.
+
+`start` checks every port it is about to bind before it launches anything, so a port already taken — by a second local network, say — is reported up front:
+
+```
+port 9202 (validator-0 metrics-address) is already in use
+  override it with --node-config-override validator-0:metrics-address=127.0.0.1:<port>
+```
+
+A port the run itself would bind twice — a `--with-faucet` port that is also the fullnode's JSON-RPC port, say — is reported the same way.
+For a validator's `network-address`, `primary-address` and the port of its `p2p-config.listen-address`, the report names a new genesis instead of suggesting an override.
+The admin interface ports are not checked: a local network runs its nodes in-process, which starts no admin interface.
 
 ### Node config overrides
 
