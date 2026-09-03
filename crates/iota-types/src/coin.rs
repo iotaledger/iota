@@ -4,8 +4,10 @@
 
 use iota_sdk_types::{Identifier, ObjectData, ObjectId, StructTag, TypeTag};
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
+    identifier::IdentStr,
 };
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +23,12 @@ pub const COIN_JOIN_FUNC_NAME: Identifier = Identifier::from_static("join");
 
 pub const PAY_SPLIT_N_FUNC_NAME: Identifier = Identifier::from_static("divide_and_keep");
 pub const PAY_SPLIT_VEC_FUNC_NAME: Identifier = Identifier::from_static("split_vec");
+
+pub const RESOLVED_COIN_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &crate::IOTA_FRAMEWORK_ADDRESS,
+    ident_str!("coin"),
+    ident_str!("Coin"),
+);
 
 // Rust version of the Move iota::coin::Coin type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]

@@ -27,7 +27,7 @@ use iota_types::{
     base_types::TxContext,
     committee::EpochId,
     error::{ExecutionError, IotaError, IotaResult},
-    execution::{ExecutionResult, TypeLayoutStore},
+    execution::{ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -93,6 +93,7 @@ impl executor::Executor for Executor {
         InnerTemporaryStore,
         IotaGasStatus,
         TransactionEffects,
+        Vec<ExecutionTiming>,
         Result<(), ExecutionError>,
     ) {
         execute_transaction_to_effects::<execution_mode::Normal>(
@@ -136,7 +137,7 @@ impl executor::Executor for Executor {
         TransactionEffects,
         Result<Vec<ExecutionResult>, ExecutionError>,
     ) {
-        if skip_all_checks {
+        let (inner_temp_store, gas_status, effects, _timings, result) = if skip_all_checks {
             execute_transaction_to_effects::<execution_mode::DevInspect<true>>(
                 store,
                 input_objects,
@@ -172,7 +173,8 @@ impl executor::Executor for Executor {
                 certificate_deny_set,
                 &mut None,
             )
-        }
+        };
+        (inner_temp_store, gas_status, effects, result)
     }
 
     fn authenticate_then_execute_transaction_to_effects(
@@ -207,6 +209,7 @@ impl executor::Executor for Executor {
         InnerTemporaryStore,
         IotaGasStatus,
         TransactionEffects,
+        Vec<ExecutionTiming>,
         Result<(), ExecutionError>,
     ) {
         authenticate_then_execute_transaction_to_effects::<execution_mode::Normal>(

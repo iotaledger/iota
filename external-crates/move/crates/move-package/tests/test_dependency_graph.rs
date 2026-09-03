@@ -46,6 +46,8 @@ fn no_dep_graph() {
         std::io::sink(),
         tempfile::tempdir().unwrap().path().to_path_buf(),
         Dependencies::default(), // implicit deps
+        // force_lock_file
+        false,
     );
     let (graph, _) = dep_graph_builder
         .get_graph(
@@ -173,6 +175,8 @@ fn always_deps() {
         std::io::sink(),
         tempfile::tempdir().unwrap().path().to_path_buf(),
         Dependencies::default(), // implicit_deps
+        // force_lock_file
+        false,
     );
     let (graph, _) = dep_graph_builder
         .get_graph(
@@ -592,6 +596,8 @@ fn immediate_dependencies() {
         std::io::sink(),
         tempfile::tempdir().unwrap().path().to_path_buf(),
         Dependencies::default(), // implicit_deps
+        // force_lock_file
+        false,
     );
     let (graph, _) = dep_graph_builder
         .get_graph(

@@ -2,6 +2,7 @@
 name = "move-package-alt"
 version = "0.1.0"
 authors = ["IOTA Foundation <info@iota.org>"]
+default-run = "move-package-alt"
 edition = "2021"
 license = "Apache-2.0"
 publish = false
@@ -9,22 +10,48 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 append-only-vec.workspace = true
+clap.workspace = true
 codespan-reporting.workspace = true
 derive-where.workspace = true
+futures.workspace = true
+itertools.workspace = true
+move-command-line-common.workspace = true
+move-core-types.workspace = true
+move-package.workspace = true
+petgraph.workspace = true
+regex.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 serde_spanned.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 toml.workspace = true
 toml_edit.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
-# external dependencies
 datatest-stable.workspace = true
 insta.workspace = true
-
-# internal dependencies
 move-command-line-common.workspace = true
+tempfile.workspace = true
+
+[[bin]]
+name = "move-package-alt"
+path = "src/main.rs"
+
+[[bin]]
+name = "mock-resolver"
+path = "src/mocks/mock-resolver.rs"
+
+[[bin]]
+name = "mock-resolver-2"
+path = "src/mocks/mock-resolver-2.rs"
 
 [[test]]
-name = "parsing_tests"
+name = "test_runner"
 harness = false
+
+[[test]]
+name = "jsonrpc_tests"

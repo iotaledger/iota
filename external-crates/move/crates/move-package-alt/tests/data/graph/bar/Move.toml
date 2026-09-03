@@ -1,0 +1,11 @@
+[package]
+name = "bar"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Move Team"]
+
+[environments]
+mainnet = "6364aad5"
+testnet = "2304aa97"
+
+[dependencies]

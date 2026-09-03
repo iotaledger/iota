@@ -38,7 +38,6 @@ use iota_types::{
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     message_envelope::Message,
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticatorExt,
@@ -54,11 +53,7 @@ use iota_types::{
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::ModuleId,
-    resolver::{ModuleResolver, ResourceResolver},
-};
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use similar::{ChangeTag, TextDiff};
@@ -792,7 +787,8 @@ impl LocalExec {
 
         let move_authenticators = tx_info.sender_signed_data.move_authenticators();
 
-        let (inner_store, gas_status, effects, result) = if move_authenticators.is_empty() {
+        let (inner_store, gas_status, effects, _timings, result) = if move_authenticators.is_empty()
+        {
             // Standard path: no MoveAuthenticator
             executor.execute_transaction_to_effects(
                 &self,
@@ -1051,7 +1047,7 @@ impl LocalExec {
 
         let move_authenticators = sender_signed_data.move_authenticators();
 
-        let (_, _, effects, exec_res) = if move_authenticators.is_empty() {
+        let (_, _, effects, _timings, exec_res) = if move_authenticators.is_empty() {
             // Standard path: no MoveAuthenticator
             let input_objects = store.read_input_objects_for_transaction(
                 &TransactionEnvelope::new(sender_signed_data.clone()),
@@ -2300,60 +2296,6 @@ impl ChildObjectResolver for LocalExec {
                 owner: *owner,
                 receive: *receiving_object_id,
                 receive_at_version: receive_object_at_version,
-                result: res.clone(),
-            });
-        res
-    }
-}
-
-impl ResourceResolver for LocalExec {
-    type Error = IotaError;
-
-    /// In this case we might need to download a Move object on the fly which
-    /// was not present in the modified at versions list because packages
-    /// are immutable
-    fn get_resource(
-        &self,
-        address: &AccountAddress,
-        type_: &move_core_types::language_storage::StructTag,
-    ) -> IotaResult<Option<Vec<u8>>> {
-        fn inner(
-            self_: &LocalExec,
-            address: &AccountAddress,
-            type_: &StructTag,
-        ) -> IotaResult<Option<Vec<u8>>> {
-            // If package not present fetch it from the network or some remote location
-            let Some(object) = self_.get_or_download_object(
-                &ObjectId::new(address.into_bytes()),
-                false, // we expect a Move obj
-            )?
-            else {
-                return Ok(None);
-            };
-
-            match &object.data {
-                ObjectData::Struct(m) => {
-                    assert!(
-                        m.is_struct_tag(type_),
-                        "Invariant violation: ill-typed object in storage \
-                        or bad object request from caller"
-                    );
-                    Ok(Some(m.contents().to_vec()))
-                }
-                other => unimplemented!(
-                    "Bad object lookup: expected Move object, but got {:#?}",
-                    other
-                ),
-            }
-        }
-
-        let res = inner(self, address, &struct_tag_core_to_sdk(type_));
-        self.exec_store_events
-            .lock()
-            .expect("Unable to lock events list")
-            .push(ExecutionStoreEvent::ResourceResolverGetResource {
-                address: *address,
-                typ: type_.clone(),
                 result: res.clone(),
             });
         res

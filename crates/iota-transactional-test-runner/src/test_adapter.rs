@@ -488,6 +488,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             dependencies,
             view_functions,
             gas_price,
+            dry_run,
         } = extra;
 
         fill_metadata(&mut modules, &view_functions, self.dynamic_module_metadata)?;
@@ -526,6 +527,34 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         dependencies.extend([ObjectId::STD, ObjectId::FRAMEWORK]);
+
+        if dry_run {
+            let sender_acc = self.get_sender(sender.clone());
+            let sender_address = sender_acc.address;
+
+            let mut builder = ProgrammableTransactionBuilder::new();
+            if upgradeable {
+                let cap = builder.publish_upgradeable(modules_bytes, dependencies);
+                builder.transfer_arg(sender_address, cap);
+            } else {
+                builder.publish_immutable(modules_bytes, dependencies);
+            };
+            let pt = builder.finish();
+            let payments = self.get_payments(sender_acc, vec![]);
+
+            let transaction = TransactionData::new_programmable(
+                sender_acc.address,
+                payments.clone(),
+                pt,
+                gas_budget,
+                gas_price,
+            );
+            let summary = self.dry_run(transaction).await?;
+            let output = self.object_summary_output(&summary, /* summarize */ false);
+
+            // do not pass back any modules for storage
+            return Ok((output, vec![]));
+        }
 
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -697,7 +726,13 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                 let mut output = vec![];
                 if show_headers {
-                    output.push(format!("Headers: {:#?}", resp.http_headers.unwrap()));
+                    let headers_map: BTreeMap<_, _> = resp
+                        .http_headers
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|(h, v)| Some((h?.to_string(), v)))
+                        .collect();
+                    output.push(format!("Headers: {headers_map:#?}"));
                 }
                 if show_service_version {
                     output.push(format!(
@@ -1092,7 +1127,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         .insert(package, before_upgrade);
                 }
                 let (warnings_opt, output, data, modules) = result?;
-                store_modules(self, syntax, data, modules);
+                // skip storing modules if this is a dry run
+                if !dry_run {
+                    store_modules(self, syntax, data, modules);
+                }
                 Ok(merge_output(warnings_opt, output))
             }
             IotaSubcommand::StagePackage(StagePackageCommand {

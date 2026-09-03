@@ -67,10 +67,14 @@ serde-wasm-bindgen = { version = "0.6", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 
 [dev-dependencies]
+# external dependencies
 anyhow.workspace = true
 fastcrypto.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# internal dependencies
+iota-move-build.workspace = true
 
 [[example]]
 name = "offline_dev_inspect"
@@ -82,6 +86,11 @@ path = "examples/authenticator_gas_profile.rs"
 required-features = ["tracing"]
 
 [[example]]
+name = "move_authenticator_publish_and_call"
+path = "examples/move_authenticator_publish_and_call.rs"
+required-features = ["tracing"]
+
+[[example]]
 name = "stake_grpc"
 path = "examples/stake_grpc.rs"
 required-features = ["grpc"]
@@ -90,6 +99,11 @@ required-features = ["grpc"]
 name = "stake_graphql"
 path = "examples/stake_graphql.rs"
 required-features = ["graphql"]
+
+[package.metadata.cargo-udeps.ignore]
+development = [
+  "iota-move-build",
+]
 
 [lints]
 workspace = true

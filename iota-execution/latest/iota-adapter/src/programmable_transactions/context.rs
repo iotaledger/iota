@@ -14,6 +14,7 @@ mod checked {
         sync::Arc,
     };
 
+    use indexmap::IndexSet;
     use iota_move_natives::object_runtime::{
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
@@ -35,17 +36,17 @@ mod checked {
         metrics::LimitsMetrics,
         move_package::{MovePackageExt, derive_package_metadata_id},
         object::{MoveStructExt, Object, ObjectInner},
-        storage::{BackingPackageStore, DenyListResult, PackageObject},
+        storage::DenyListResult,
         transaction::CallArg,
     };
     use move_binary_format::{
         CompiledModule,
-        errors::{Location, PartialVMError, PartialVMResult, VMError, VMResult},
-        file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
+        errors::{Location, PartialVMError, VMError, VMResult},
+        file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
     };
     use move_core_types::{
         account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
-        resolver::ModuleResolver, vm_status::StatusCode,
+        vm_status::StatusCode,
     };
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::{
@@ -53,20 +54,23 @@ mod checked {
         native_extensions::NativeContextExtensions,
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
-    use move_vm_types::{data_store::DataStore, loaded_data::runtime_types::Type};
+    use move_vm_types::loaded_data::runtime_types::Type;
     use tracing::instrument;
 
     use crate::{
         adapter::new_native_extensions,
+        data_store::{
+            PackageStore, cached_data_store::CachedPackageStore, iota_data_store::IotaDataStore,
+            linkage_view::LinkageView,
+        },
         error::convert_vm_error,
         execution_mode::ExecutionMode,
         execution_value::{
             CommandKind, ExecutionState, InputObjectMetadata, InputValue, ObjectContents,
-            ObjectValue, RawValueType, ResultValue, TryFromValue, UsageKind, Value,
+            ObjectValue, RawValueType, ResultValue, SizeBound, TryFromValue, UsageKind, Value,
         },
         gas_charger::GasCharger,
         gas_meter::IotaGasMeter,
-        programmable_transactions::linkage_view::LinkageView,
         type_resolver::TypeTagResolver,
     };
 
@@ -158,7 +162,9 @@ mod checked {
         where
             'a: 'state,
         {
-            let mut linkage_view = LinkageView::new(Box::new(state_view.as_iota_resolver()));
+            let mut linkage_view = LinkageView::new(Box::new(CachedPackageStore::new(Box::new(
+                state_view.as_iota_resolver(),
+            ))));
             let mut input_object_map = BTreeMap::new();
             let inputs = inputs
                 .into_iter()
@@ -307,38 +313,35 @@ mod checked {
             &mut self,
             package_id: ObjectId,
         ) -> Result<AccountAddress, ExecutionError> {
-            if self.linkage_view.has_linkage(package_id) {
+            if self.linkage_view.has_linkage(package_id)? {
                 // Setting same context again, can skip.
                 return Ok(self
                     .linkage_view
-                    .original_package_id()
+                    .original_package_id()?
                     .unwrap_or(AccountAddress::new(package_id.into_bytes())));
             }
 
             let package = package_for_linkage(&self.linkage_view, package_id)
                 .map_err(|e| self.convert_vm_error(e))?;
 
-            self.linkage_view.set_linkage(package.move_package())
+            self.linkage_view.set_linkage(&package)
         }
 
         /// Load a type using the context's current session.
         pub fn load_type(&mut self, type_tag: &TypeTag) -> VMResult<Type> {
-            load_type(
-                self.vm,
-                &mut self.linkage_view,
-                &self.new_packages,
-                type_tag,
-            )
+            load_type(self.vm, &self.linkage_view, &self.new_packages, type_tag)
         }
 
         /// Load a type using the context's current session.
         pub fn load_type_from_struct(&mut self, struct_tag: &StructTag) -> VMResult<Type> {
-            load_type_from_struct(
-                self.vm,
-                &mut self.linkage_view,
-                &self.new_packages,
-                struct_tag,
-            )
+            load_type_from_struct(self.vm, &self.linkage_view, &self.new_packages, struct_tag)
+        }
+
+        pub fn get_type_abilities(&self, t: &Type) -> Result<AbilitySet, ExecutionError> {
+            self.vm
+                .get_runtime()
+                .get_type_abilities(t)
+                .map_err(|e| self.convert_vm_error(e))
         }
 
         /// Takes the user events from the runtime and tags them with the Move
@@ -895,7 +898,7 @@ mod checked {
                 } = additional_write;
 
                 let move_object = {
-                    create_written_object(
+                    create_written_object::<Mode>(
                         vm,
                         &linkage_view,
                         protocol_config,
@@ -921,7 +924,7 @@ mod checked {
                     invariant_violation!("Failed to deserialize already serialized Move value");
                 };
                 let move_object = {
-                    create_written_object(
+                    create_written_object::<Mode>(
                         vm,
                         &linkage_view,
                         protocol_config,
@@ -935,76 +938,19 @@ mod checked {
                 written_objects.insert(id, object);
             }
 
-            // Before finishing, ensure that any shared object taken by value by the
-            // transaction is either:
-            // 1. Mutated (and still has a shared ownership); or
-            // 2. Deleted.
-            // Otherwise, the shared object operation is not allowed and we fail the
-            // transaction.
-            for id in &by_value_shared_objects {
-                // If it's been written it must have been reshared so must still have an
-                // ownership of `Shared`.
-                if let Some(obj) = written_objects.get(id) {
-                    if !obj.is_shared() {
-                        return Err(ExecutionError::new(
-                            ExecutionErrorKind::SharedObjectOperationNotAllowed,
-                            Some(
-                                format!(
-                                    "Shared object operation on {id} not allowed: \
-                                     cannot be frozen, transferred, or wrapped"
-                                )
-                                .into(),
-                            ),
-                        ));
-                    }
-                } else {
-                    // If it's not in the written objects, the object must have been deleted.
-                    // Otherwise it's an error.
-                    if !deleted_object_ids.contains(id) {
-                        return Err(ExecutionError::new(
-                            ExecutionErrorKind::SharedObjectOperationNotAllowed,
-                            Some(
-                                format!("Shared object operation on {id} not allowed: \
-                                         shared objects used by value must be re-shared if not deleted").into(),
-                            ),
-                        ));
-                    }
-                }
-            }
-
-            let DenyListResult {
-                result,
-                num_non_gas_coin_owners,
-            } = state_view.check_coin_deny_list(&written_objects);
-            gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
-            result?;
-
-            let user_events = user_events
-                .into_iter()
-                .map(|(module_id, struct_tag, contents)| {
-                    let package_id = ObjectId::new(module_id.address().into_bytes());
-                    let module = identifier_core_to_sdk(module_id.name());
-                    let sender = ref_context.borrow().sender();
-                    Event {
-                        package_id,
-                        module,
-                        sender,
-                        struct_tag,
-                        contents,
-                    }
-                })
-                .collect();
-
-            Ok(ExecutionResults::V1(ExecutionResultsV1 {
+            let results = finish(
+                protocol_config,
+                state_view,
+                gas_charger,
+                &ref_context.borrow(),
+                &by_value_shared_objects,
+                loaded_runtime_objects,
                 written_objects,
-                modified_objects: loaded_runtime_objects
-                    .into_iter()
-                    .filter_map(|(id, loaded)| loaded.is_modified.then_some(id))
-                    .collect(),
-                created_object_ids: created_object_ids.into_iter().collect(),
-                deleted_object_ids: deleted_object_ids.into_iter().collect(),
+                created_object_ids,
+                deleted_object_ids,
                 user_events,
-            }))
+            );
+            results
         }
 
         /// Convert a VM Error to an execution one
@@ -1242,6 +1188,22 @@ mod checked {
                 &mut IotaGasMeter(self.gas_charger.move_gas_status_mut()),
             )
         }
+
+        pub fn size_bound_raw(&self, bound: u64) -> SizeBound {
+            if self.protocol_config.max_ptb_value_size_v2() {
+                SizeBound::Raw(bound)
+            } else {
+                SizeBound::Object(bound)
+            }
+        }
+
+        pub fn size_bound_vector_elem(&self, bound: u64) -> SizeBound {
+            if self.protocol_config.max_ptb_value_size_v2() {
+                SizeBound::VectorElem(bound)
+            } else {
+                SizeBound::Object(bound)
+            }
+        }
     }
 
     impl TypeTagResolver for ExecutionContext<'_, '_, '_> {
@@ -1260,13 +1222,13 @@ mod checked {
     /// context.  Produces an error if the object at that ID does not exist,
     /// or is not a package.
     fn package_for_linkage(
-        linkage_view: &LinkageView,
+        package_store: &dyn PackageStore,
         package_id: ObjectId,
-    ) -> VMResult<PackageObject> {
+    ) -> VMResult<Rc<MovePackage>> {
         use move_binary_format::errors::PartialVMError;
         use move_core_types::vm_status::StatusCode;
 
-        match linkage_view.get_package_object(&package_id) {
+        match package_store.get_package(&package_id) {
             Ok(Some(package)) => Ok(package),
             Ok(None) => Err(PartialVMError::new(StatusCode::LINKER_ERROR)
                 .with_message(format!("Cannot find link context {package_id} in store"))
@@ -1284,9 +1246,96 @@ mod checked {
     /// context to resolve the struct's module and verifies
     /// any type parameter constraints. If the struct has type parameters, they
     /// are recursively loaded and verified.
+    pub fn finish(
+        protocol_config: &ProtocolConfig,
+        state_view: &dyn ExecutionState,
+        gas_charger: &mut GasCharger,
+        tx_context: &TxContext,
+        by_value_shared_objects: &BTreeSet<ObjectId>,
+        loaded_runtime_objects: BTreeMap<ObjectId, LoadedRuntimeObject>,
+        written_objects: BTreeMap<ObjectId, Object>,
+        created_object_ids: IndexSet<ObjectId>,
+        deleted_object_ids: IndexSet<ObjectId>,
+        user_events: Vec<(ModuleId, StructTag, Vec<u8>)>,
+    ) -> Result<ExecutionResults, ExecutionError> {
+        // Before finishing, ensure that any shared object taken by value by the
+        // transaction is either:
+        // 1. Mutated (and still has a shared ownership); or
+        // 2. Deleted.
+        // Otherwise, the shared object operation is not allowed and we fail the
+        // transaction.
+        for id in by_value_shared_objects {
+            // If it's been written it must have been reshared so must still have an
+            // ownership of `Shared`.
+            if let Some(obj) = written_objects.get(id) {
+                if !obj.is_shared() {
+                    return Err(ExecutionError::new(
+                        ExecutionErrorKind::SharedObjectOperationNotAllowed,
+                        Some(
+                            format!(
+                                "Shared object operation on {id} not allowed: \
+                                 cannot be frozen, transferred, or wrapped"
+                            )
+                            .into(),
+                        ),
+                    ));
+                }
+            } else {
+                // If it's not in the written objects, the object must have been deleted.
+                // Otherwise it's an error.
+                if !deleted_object_ids.contains(id) {
+                    return Err(ExecutionError::new(
+                        ExecutionErrorKind::SharedObjectOperationNotAllowed,
+                        Some(
+                            format!(
+                                "Shared object operation on {id} not allowed: \
+                                     shared objects used by value must be re-shared if not deleted"
+                            )
+                            .into(),
+                        ),
+                    ));
+                }
+            }
+        }
+
+        let DenyListResult {
+            result,
+            num_non_gas_coin_owners,
+        } = state_view.check_coin_deny_list(&written_objects);
+        gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
+        result?;
+
+        let user_events = user_events
+            .into_iter()
+            .map(|(module_id, tag, contents)| {
+                let package_id = ObjectId::new(module_id.address().into_bytes());
+                let module = identifier_core_to_sdk(module_id.name());
+                let sender = tx_context.sender();
+                Event {
+                    package_id,
+                    module,
+                    sender,
+                    type_: tag,
+                    contents,
+                }
+            })
+            .collect();
+
+        Ok(ExecutionResults::V1(ExecutionResultsV1 {
+            written_objects,
+            modified_objects: loaded_runtime_objects
+                .into_iter()
+                .filter_map(|(id, loaded)| loaded.is_modified.then_some(id))
+                .collect(),
+            created_object_ids: created_object_ids.into_iter().collect(),
+            deleted_object_ids: deleted_object_ids.into_iter().collect(),
+            user_events,
+        }))
+    }
+
     pub fn load_type_from_struct(
         vm: &MoveVM,
-        linkage_view: &mut LinkageView,
+        linkage_view: &LinkageView,
         new_packages: &[MovePackage],
         struct_tag: &StructTag,
     ) -> VMResult<Type> {
@@ -1300,13 +1349,11 @@ mod checked {
 
         // Set the defining package as the link context while loading the
         // struct
-        let original_address = linkage_view
-            .set_linkage(package.move_package())
-            .map_err(|e| {
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message(e.to_string())
-                    .finish(Location::Undefined)
-            })?;
+        let original_address = linkage_view.set_linkage(&package).map_err(|e| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message(e.to_string())
+                .finish(Location::Undefined)
+        })?;
 
         let runtime_id = ModuleId::new(
             original_address,
@@ -1318,7 +1365,11 @@ mod checked {
             IdentStr::new(struct_tag.name().as_str()).unwrap(),
             &data_store,
         );
-        linkage_view.reset_linkage();
+        linkage_view.reset_linkage().map_err(|e| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message(e.to_string())
+                .finish(Location::Undefined)
+        })?;
         let (idx, struct_type) = res?;
 
         // Recursively load type parameters, if necessary
@@ -1356,7 +1407,7 @@ mod checked {
     /// the operation, it may change when loading a struct.
     pub fn load_type(
         vm: &MoveVM,
-        linkage_view: &mut LinkageView,
+        linkage_view: &LinkageView,
         new_packages: &[MovePackage],
         type_tag: &TypeTag,
     ) -> VMResult<Type> {
@@ -1656,7 +1707,7 @@ mod checked {
     }
 
     /// Generate a MoveStruct given an updated/written object
-    fn create_written_object(
+    fn create_written_object<Mode: ExecutionMode>(
         vm: &MoveVM,
         linkage_view: &LinkageView,
         protocol_config: &ProtocolConfig,
@@ -1689,105 +1740,11 @@ mod checked {
             old_obj_ver.unwrap_or_default(),
             contents,
             protocol_config,
+            Mode::packages_are_predefined(),
         )
     }
 
-    // Implementation of the `DataStore` trait for the Move VM.
-    // When used during execution it may have a list of new packages that have
-    // just been published in the current context. Those are used for module/type
-    // resolution when executing module init.
-    // It may be created with an empty slice of packages either when no
-    // publish/upgrade are performed or when a type is requested not during
-    // execution.
-    pub(crate) struct IotaDataStore<'state, 'a> {
-        linkage_view: &'a LinkageView<'state>,
-        new_packages: &'a [MovePackage],
-    }
-
-    impl<'state, 'a> IotaDataStore<'state, 'a> {
-        pub(crate) fn new(
-            linkage_view: &'a LinkageView<'state>,
-            new_packages: &'a [MovePackage],
-        ) -> Self {
-            Self {
-                linkage_view,
-                new_packages,
-            }
-        }
-
-        fn get_module(&self, module_id: &ModuleId) -> Option<&Vec<u8>> {
-            for package in self.new_packages {
-                if package.id != ObjectId::from(module_id.address().into_bytes()) {
-                    continue;
-                }
-
-                let module = package.module(&identifier_core_to_sdk(module_id.name()));
-
-                if module.is_some() {
-                    return module;
-                }
-            }
-            None
-        }
-    }
-
-    // TODO: `DataStore` will be reworked and this is likely to disappear.
-    //       Leaving this comment around until then as testament to better days to
-    // come...
-    impl DataStore for IotaDataStore<'_, '_> {
-        fn link_context(&self) -> AccountAddress {
-            self.linkage_view.link_context()
-        }
-
-        fn relocate(&self, module_id: &ModuleId) -> PartialVMResult<ModuleId> {
-            self.linkage_view.relocate(module_id).map_err(|err| {
-                PartialVMError::new(StatusCode::LINKER_ERROR)
-                    .with_message(format!("Error relocating {module_id}: {err:?}"))
-            })
-        }
-
-        fn defining_module(
-            &self,
-            runtime_id: &ModuleId,
-            struct_: &IdentStr,
-        ) -> PartialVMResult<ModuleId> {
-            self.linkage_view
-                .defining_module(runtime_id, struct_)
-                .map_err(|err| {
-                    PartialVMError::new(StatusCode::LINKER_ERROR).with_message(format!(
-                        "Error finding defining module for {runtime_id}::{struct_}: {err:?}"
-                    ))
-                })
-        }
-
-        fn load_module(&self, module_id: &ModuleId) -> VMResult<Vec<u8>> {
-            if let Some(bytes) = self.get_module(module_id) {
-                return Ok(bytes.clone());
-            }
-            match self.linkage_view.get_module(module_id) {
-                Ok(Some(bytes)) => Ok(bytes),
-                Ok(None) => Err(PartialVMError::new(StatusCode::LINKER_ERROR)
-                    .with_message(format!("Cannot find {module_id:?} in data cache"))
-                    .finish(Location::Undefined)),
-                Err(err) => {
-                    let msg = format!("Unexpected storage error: {err:?}");
-                    Err(
-                        PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                            .with_message(msg)
-                            .finish(Location::Undefined),
-                    )
-                }
-            }
-        }
-
-        fn publish_module(&mut self, _module_id: &ModuleId, _blob: Vec<u8>) -> VMResult<()> {
-            // we cannot panic here because during execution and publishing this is
-            // currently called from the publish flow in the Move runtime
-            Ok(())
-        }
-    }
-
-    enum EitherError {
+    pub enum EitherError {
         CommandArgument(CommandArgumentError),
         Execution(ExecutionError),
     }
@@ -1805,7 +1762,7 @@ mod checked {
     }
 
     impl EitherError {
-        fn into_execution_error(self, command_index: usize) -> ExecutionError {
+        pub fn into_execution_error(self, command_index: usize) -> ExecutionError {
             match self {
                 EitherError::CommandArgument(e) => command_argument_error(e, command_index),
                 EitherError::Execution(e) => e,

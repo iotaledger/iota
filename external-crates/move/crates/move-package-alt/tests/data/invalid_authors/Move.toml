@@ -1,0 +1,7 @@
+[package]
+name = "name"
+edition = "2024.beta"
+authors = "nope"
+
+[environments]
+mainnet = "6364aad5"

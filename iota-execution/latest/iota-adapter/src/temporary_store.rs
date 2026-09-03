@@ -27,9 +27,7 @@ use iota_types::{
         DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
     },
     execution_config_utils::to_binary_config,
-    fp_bail,
     inner_temporary_store::InnerTemporaryStore,
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
     layout_resolver::LayoutResolver,
     object::Object,
@@ -39,7 +37,6 @@ use iota_types::{
     },
     transaction::InputObjects,
 };
-use move_core_types::{account_address::AccountAddress, resolver::ResourceResolver};
 use parking_lot::RwLock;
 
 use crate::gas_charger::GasCharger;
@@ -1187,44 +1184,6 @@ impl BackingPackageStore for TemporaryStore<'_> {
                     }
                 }
             })
-        }
-    }
-}
-
-impl ResourceResolver for TemporaryStore<'_> {
-    type Error = IotaError;
-
-    fn get_resource(
-        &self,
-        address: &AccountAddress,
-        struct_tag: &move_core_types::language_storage::StructTag,
-    ) -> Result<Option<Vec<u8>>, Self::Error> {
-        let object = match self.read_object(&ObjectId::new(address.into_bytes())) {
-            Some(x) => x,
-            None => match self.read_object(&ObjectId::new(address.into_bytes())) {
-                None => return Ok(None),
-                Some(x) => {
-                    if !x.is_immutable() {
-                        fp_bail!(IotaError::ExecutionInvariantViolation);
-                    }
-                    x
-                }
-            },
-        };
-
-        match &object.data {
-            ObjectData::Struct(m) => {
-                assert!(
-                    m.is_struct_tag(&struct_tag_core_to_sdk(struct_tag)),
-                    "Invariant violation: ill-typed object in storage \
-                    or bad object request from caller"
-                );
-                Ok(Some(m.contents().to_vec()))
-            }
-            other => unimplemented!(
-                "Bad object lookup: expected Move object, but got {:?}",
-                other
-            ),
         }
     }
 }
