@@ -115,28 +115,23 @@ fn dry_run_response(
         .collect();
     let raw_events = result.events.take().unwrap_or_default();
 
+    // A dry run is not committed, so a package it published is not in the
+    // store; the run's resolver reads it from the run's output first.
+    let resolver = result.module_resolver(vm);
+    let events = IotaTransactionBlockEvents::try_from_using_module_resolver(
+        raw_events, tx_digest, None, &resolver,
+    )?;
+    let input = IotaTransactionBlockData::try_from_with_module_cache(
+        result.transaction.clone(),
+        &resolver,
+        tx_digest,
+    )?;
+
     let ExecutionResult {
-        transaction,
         effects,
-        output_objects,
         suggested_gas_price,
         ..
     } = result;
-    // A dry run is not committed, so a package it published lives only in
-    // `output_objects`; the resolver reads those before the store.
-    let module_cache = vm.module_cache(&output_objects);
-
-    let events = IotaTransactionBlockEvents::try_from_using_module_resolver(
-        raw_events,
-        tx_digest,
-        None,
-        &module_cache,
-    )?;
-    let input = IotaTransactionBlockData::try_from_with_module_cache(
-        transaction,
-        &module_cache,
-        tx_digest,
-    )?;
 
     Ok(DryRunTransactionBlockResponse {
         effects: effects.try_into()?,

@@ -39,3 +39,13 @@ impl Display for BalanceChange {
         )
     }
 }
+
+impl From<iota_sdk_types::BalanceChange> for BalanceChange {
+    fn from(change: iota_sdk_types::BalanceChange) -> Self {
+        Self {
+            owner: change.owner,
+            coin_type: change.coin_type,
+            amount: change.amount,
+        }
+    }
+}

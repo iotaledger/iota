@@ -4479,156 +4479,162 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> {
-    /// The protocol's minimum gas budget: valid, but too little to complete a
-    /// transfer, so execution fails rather than the transaction being rejected.
-    const MIN_GAS_BUDGET_FOR_TESTS: u64 = 1_000_000;
+    Box::pin(async move {
+        /// The protocol's minimum gas budget: valid, but too little to complete
+        /// a transfer, so execution fails rather than the transaction
+        /// being rejected.
+        const MIN_GAS_BUDGET_FOR_TESTS: u64 = 1_000_000;
 
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
-        .build()
-        .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let address = test_cluster.get_address_0();
-    let grpc_url = test_cluster.grpc_url();
-    let context = &mut test_cluster.wallet;
+        let mut test_cluster = TestClusterBuilder::new()
+            .with_num_validators(2)
+            .build()
+            .await;
+        let rgp = test_cluster.get_reference_gas_price().await;
+        let address = test_cluster.get_address_0();
+        let grpc_url = test_cluster.grpc_url();
+        let context = &mut test_cluster.wallet;
 
-    let mut env = context.config().get_active_env()?.clone();
-    env.set_grpc(Some(grpc_url));
-    context.config_mut().set_env(env);
+        let mut env = context.config().get_active_env()?.clone();
+        env.set_grpc(Some(grpc_url));
+        context.config_mut().set_env(env);
 
-    let client = context.get_client().await?;
-    let object_refs = client
-        .read_api()
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::full_content(),
-            )),
-            None,
-            None,
+        let client = context.get_client().await?;
+        let object_refs = client
+            .read_api()
+            .get_owned_objects(
+                address,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::full_content(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        let gas_id = object_refs
+            .data
+            .first()
+            .unwrap()
+            .object()
+            .unwrap()
+            .object_id;
+        let object_to_send = object_refs.data.get(1).unwrap().object().unwrap().object_id;
+        let recipient = Address::random();
+
+        let transfer = |local: bool| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                ..Default::default()
+            },
+        };
+
+        let node_dry_run = transfer(false).execute(context).await?;
+        let local_dry_run = transfer(true).execute(context).await?;
+        let (
+            IotaClientCommandResult::DryRun(node_response),
+            IotaClientCommandResult::DryRun(local_response),
+        ) = (node_dry_run, local_dry_run)
+        else {
+            panic!("expected DryRun results");
+        };
+
+        assert_eq!(
+            *node_response.effects.status(),
+            IotaExecutionStatus::Success
+        );
+        assert_eq!(node_response.effects, local_response.effects);
+        assert_eq!(node_response.input, local_response.input);
+        assert_eq!(node_response.events, local_response.events);
+
+        let sorted_object_changes = |mut changes: Vec<ObjectChange>| {
+            changes.sort_by_key(|change| change.object_id());
+            changes
+        };
+        assert_eq!(
+            sorted_object_changes(node_response.object_changes),
+            sorted_object_changes(local_response.object_changes)
+        );
+
+        let sorted_balance_changes = |mut changes: Vec<BalanceChange>| {
+            changes.sort_by_key(|change| {
+                (format!("{:?}", change.owner), change.coin_type.to_string())
+            });
+            changes
+        };
+        assert_eq!(
+            sorted_balance_changes(node_response.balance_changes),
+            sorted_balance_changes(local_response.balance_changes)
+        );
+
+        // No mutable shared input, so both paths suggest the reference gas price.
+        assert_eq!(node_response.suggested_gas_price, Some(rgp));
+        assert_eq!(
+            local_response.suggested_gas_price,
+            node_response.suggested_gas_price
+        );
+
+        // A run that fails for want of gas: the error source must read the same
+        // either way.
+        let failing_transfer = |local: bool| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(MIN_GAS_BUDGET_FOR_TESTS),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                ..Default::default()
+            },
+        };
+        let (
+            IotaClientCommandResult::DryRun(node_failed),
+            IotaClientCommandResult::DryRun(local_failed),
+        ) = (
+            failing_transfer(false).execute(context).await?,
+            failing_transfer(true).execute(context).await?,
         )
-        .await?;
-    let gas_id = object_refs
-        .data
-        .first()
-        .unwrap()
-        .object()
-        .unwrap()
-        .object_id;
-    let object_to_send = object_refs.data.get(1).unwrap().object().unwrap().object_id;
-    let recipient = Address::random();
+        else {
+            panic!("expected DryRun results");
+        };
+        assert!(matches!(
+            node_failed.effects.status(),
+            IotaExecutionStatus::Failure { .. }
+        ));
+        assert_eq!(node_failed.effects, local_failed.effects);
+        assert_eq!(
+            node_failed.execution_error_source,
+            local_failed.execution_error_source
+        );
 
-    let transfer = |local: bool| IotaClientCommands::Transfer {
-        to: KeyIdentity::Address(recipient),
-        object_id: object_to_send,
-        payment: PaymentArgs { gas: vec![gas_id] },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs {
-            dry_run: true,
-            local,
-            ..Default::default()
-        },
-    };
+        // --local is a dry-run option only.
+        let err = IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs::default(),
+            processing: TxProcessingArgs {
+                local: true,
+                ..Default::default()
+            },
+        }
+        .execute(context)
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("--local"));
 
-    let node_dry_run = transfer(false).execute(context).await?;
-    let local_dry_run = transfer(true).execute(context).await?;
-    let (
-        IotaClientCommandResult::DryRun(node_response),
-        IotaClientCommandResult::DryRun(local_response),
-    ) = (node_dry_run, local_dry_run)
-    else {
-        panic!("expected DryRun results");
-    };
-
-    assert_eq!(
-        *node_response.effects.status(),
-        IotaExecutionStatus::Success
-    );
-    assert_eq!(node_response.effects, local_response.effects);
-    assert_eq!(node_response.input, local_response.input);
-    assert_eq!(node_response.events, local_response.events);
-
-    let sorted_object_changes = |mut changes: Vec<ObjectChange>| {
-        changes.sort_by_key(|change| change.object_id());
-        changes
-    };
-    assert_eq!(
-        sorted_object_changes(node_response.object_changes),
-        sorted_object_changes(local_response.object_changes)
-    );
-
-    let sorted_balance_changes = |mut changes: Vec<BalanceChange>| {
-        changes.sort_by_key(|change| (format!("{:?}", change.owner), change.coin_type.to_string()));
-        changes
-    };
-    assert_eq!(
-        sorted_balance_changes(node_response.balance_changes),
-        sorted_balance_changes(local_response.balance_changes)
-    );
-
-    // No mutable shared input, so both paths suggest the reference gas price.
-    assert_eq!(node_response.suggested_gas_price, Some(rgp));
-    assert_eq!(
-        local_response.suggested_gas_price,
-        node_response.suggested_gas_price
-    );
-
-    // A run that fails for want of gas: the error source must read the same
-    // either way.
-    let failing_transfer = |local: bool| IotaClientCommands::Transfer {
-        to: KeyIdentity::Address(recipient),
-        object_id: object_to_send,
-        payment: PaymentArgs { gas: vec![gas_id] },
-        gas_data: GasDataArgs {
-            gas_budget: Some(MIN_GAS_BUDGET_FOR_TESTS),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs {
-            dry_run: true,
-            local,
-            ..Default::default()
-        },
-    };
-    let (
-        IotaClientCommandResult::DryRun(node_failed),
-        IotaClientCommandResult::DryRun(local_failed),
-    ) = (
-        failing_transfer(false).execute(context).await?,
-        failing_transfer(true).execute(context).await?,
-    )
-    else {
-        panic!("expected DryRun results");
-    };
-    assert!(matches!(
-        node_failed.effects.status(),
-        IotaExecutionStatus::Failure { .. }
-    ));
-    assert_eq!(node_failed.effects, local_failed.effects);
-    assert_eq!(
-        node_failed.execution_error_source,
-        local_failed.execution_error_source
-    );
-
-    // --local is a dry-run option only.
-    let err = IotaClientCommands::Transfer {
-        to: KeyIdentity::Address(recipient),
-        object_id: object_to_send,
-        payment: PaymentArgs { gas: vec![gas_id] },
-        gas_data: GasDataArgs::default(),
-        processing: TxProcessingArgs {
-            local: true,
-            ..Default::default()
-        },
-    }
-    .execute(context)
+        Ok(())
+    })
     .await
-    .unwrap_err();
-    assert!(err.to_string().contains("--local"));
-
-    Ok(())
 }
 
 // A receive loads the received object during execution, so it reaches the
@@ -4639,118 +4645,123 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result<(), anyhow::Error>
 {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(2)
-        .build()
-        .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let address = test_cluster.get_address_0();
-    let grpc_url = test_cluster.grpc_url();
-    let context = &mut test_cluster.wallet;
+    Box::pin(async move {
+        let mut test_cluster = TestClusterBuilder::new()
+            .with_num_validators(2)
+            .build()
+            .await;
+        let rgp = test_cluster.get_reference_gas_price().await;
+        let address = test_cluster.get_address_0();
+        let grpc_url = test_cluster.grpc_url();
+        let context = &mut test_cluster.wallet;
 
-    let mut env = context.config().get_active_env()?.clone();
-    env.set_grpc(Some(grpc_url));
-    context.config_mut().set_env(env);
+        let mut env = context.config().get_active_env()?.clone();
+        env.set_grpc(Some(grpc_url));
+        context.config_mut().set_env(env);
 
-    let client = context.get_client().await?;
-    let gas_id = client
-        .read_api()
-        .get_owned_objects(address, None, None, None)
-        .await?
-        .data
-        .first()
-        .unwrap()
-        .object()
-        .unwrap()
-        .object_id;
+        let client = context.get_client().await?;
+        let gas_id = client
+            .read_api()
+            .get_owned_objects(address, None, None, None)
+            .await?
+            .data
+            .first()
+            .unwrap()
+            .object()
+            .unwrap()
+            .object_id;
 
-    let mut package_path = PathBuf::from(TEST_DATA_DIR);
-    package_path.push("tto");
-    let publish = IotaClientCommands::Publish {
-        package_path,
-        build_config: BuildConfig::new_for_testing().config,
-        skip_dependency_verification: false,
-        verify_deps: true,
-        with_unpublished_dependencies: false,
-        payment: PaymentArgs { gas: vec![gas_id] },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
-    .await?;
-    let IotaClientCommandResult::TransactionBlock(publish_response) = publish else {
-        panic!("expected a TransactionBlock result");
-    };
-    let package_id = publish_response
-        .effects
-        .unwrap()
-        .created()
-        .iter()
-        .find(|OwnedObjectRef { owner, .. }| owner == &Owner::Immutable)
-        .expect("must find the published package")
-        .reference
-        .object_id;
+        let mut package_path = PathBuf::from(TEST_DATA_DIR);
+        package_path.push("tto");
+        let publish = IotaClientCommands::Publish {
+            package_path,
+            build_config: BuildConfig::new_for_testing().config,
+            skip_dependency_verification: false,
+            verify_deps: true,
+            with_unpublished_dependencies: false,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs::default(),
+        }
+        .execute(context)
+        .await?;
+        let IotaClientCommandResult::TransactionBlock(publish_response) = publish else {
+            panic!("expected a TransactionBlock result");
+        };
+        let package_id = publish_response
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .find(|OwnedObjectRef { owner, .. }| owner == &Owner::Immutable)
+            .expect("must find the published package")
+            .reference
+            .object_id;
 
-    let (parent, child) = start_tto(package_id, gas_id, rgp, context).await?;
+        let (parent, child) = start_tto(package_id, gas_id, rgp, context).await?;
 
-    let receive = |local: bool| IotaClientCommands::Call {
-        package: package_id,
-        module: "tto".to_string(),
-        function: "receiver".to_string(),
-        type_args: vec![],
-        args: vec![
-            IotaJsonValue::from_str(&parent.to_string()).unwrap(),
-            IotaJsonValue::from_str(&child.to_string()).unwrap(),
-        ],
-        payment: PaymentArgs { gas: vec![gas_id] },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs {
-            dry_run: true,
-            local,
-            ..Default::default()
-        },
-    };
-    let (
-        IotaClientCommandResult::DryRun(node_receive),
-        IotaClientCommandResult::DryRun(local_receive),
-    ) = (
-        receive(false).execute(context).await?,
-        receive(true).execute(context).await?,
-    )
-    else {
-        panic!("expected DryRun results");
-    };
+        let receive = |local: bool| IotaClientCommands::Call {
+            package: package_id,
+            module: "tto".to_string(),
+            function: "receiver".to_string(),
+            type_args: vec![],
+            args: vec![
+                IotaJsonValue::from_str(&parent.to_string()).unwrap(),
+                IotaJsonValue::from_str(&child.to_string()).unwrap(),
+            ],
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                ..Default::default()
+            },
+        };
+        let (
+            IotaClientCommandResult::DryRun(node_receive),
+            IotaClientCommandResult::DryRun(local_receive),
+        ) = (
+            receive(false).execute(context).await?,
+            receive(true).execute(context).await?,
+        )
+        else {
+            panic!("expected DryRun results");
+        };
 
-    assert_eq!(
-        *node_receive.effects.status(),
-        IotaExecutionStatus::Success,
-        "the receive must succeed for this comparison to mean anything"
-    );
-    assert_eq!(node_receive.effects, local_receive.effects);
-    let by_object_id = |mut changes: Vec<ObjectChange>| {
-        changes.sort_by_key(|change| change.object_id());
-        changes
-    };
-    assert_eq!(
-        by_object_id(node_receive.object_changes),
-        by_object_id(local_receive.object_changes)
-    );
-    let by_owner_and_coin = |mut changes: Vec<BalanceChange>| {
-        changes.sort_by_key(|change| (format!("{:?}", change.owner), change.coin_type.to_string()));
-        changes
-    };
-    assert_eq!(
-        by_owner_and_coin(node_receive.balance_changes),
-        by_owner_and_coin(local_receive.balance_changes)
-    );
+        assert_eq!(
+            *node_receive.effects.status(),
+            IotaExecutionStatus::Success,
+            "the receive must succeed for this comparison to mean anything"
+        );
+        assert_eq!(node_receive.effects, local_receive.effects);
+        let by_object_id = |mut changes: Vec<ObjectChange>| {
+            changes.sort_by_key(|change| change.object_id());
+            changes
+        };
+        assert_eq!(
+            by_object_id(node_receive.object_changes),
+            by_object_id(local_receive.object_changes)
+        );
+        let by_owner_and_coin = |mut changes: Vec<BalanceChange>| {
+            changes.sort_by_key(|change| {
+                (format!("{:?}", change.owner), change.coin_type.to_string())
+            });
+            changes
+        };
+        assert_eq!(
+            by_owner_and_coin(node_receive.balance_changes),
+            by_owner_and_coin(local_receive.balance_changes)
+        );
 
-    Ok(())
+        Ok(())
+    })
+    .await
 }
 
 /// Call `tto::start`, returning the ids of the parent object and of the object
