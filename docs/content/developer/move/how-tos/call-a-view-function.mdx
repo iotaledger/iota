@@ -1,5 +1,5 @@
 ---
-description: 'How to call a Move #[view] function from off-chain over JSON-RPC, GraphQL, or the Rust and TypeScript SDKs.'
+description: 'How to call a Move #[view] function from off-chain over JSON-RPC, GraphQL, gRPC, or the Rust and TypeScript SDKs.'
 tags:
   - how-to
   - rpc
@@ -57,7 +57,7 @@ curl --location --request POST 'https://api.devnet.iota.cafe' \
 }'
 ```
 
-2. Read the return values from the `functionReturnValues` array. `u64` and `u128` values are returned as strings to avoid overflow.
+2. Read the return values from the `functionReturnValues` array. `u64`, `u128`, and `u256` values are returned as strings to avoid overflow.
 
 ```json
 {
@@ -101,7 +101,7 @@ A call that fails validation — the target is not a recorded `#[view]` function
   "id": 1,
   "error": {
     "code": -32000,
-    "message": "Invalid Move View Function call: function submit_score in module leaderboard of package <PACKAGE-ID> is not declared as a #[view] function"
+    "message": "Failed to resolve <PACKAGE-ID>::leaderboard::submit_score move function: Function submit_score is not declared as a #[view] function"
   }
 }
 ```
@@ -205,6 +205,22 @@ For a generic view, pass the type arguments in `typeArgs`. This call reads `vaul
 ```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts#L175-L186
 ```
 
+## Call over gRPC
+
+The gRPC `TransactionExecutionService` exposes views as its `ViewFunctionCalls` method, which runs a batch of view calls in one request. The `iota_grpc_client::Client::view_function_call` helper wraps a single call, taking the same fully qualified name, type arguments, and JSON value arguments, and returning the view's outputs — the return values, or an execution error if the view aborted:
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/1b0213c2065f0b922ca3c75e52e047e7963bde32/crates/iota-sdk/examples/move_view_call_grpc.rs#L43-L61
+```
+
+The example runs against the `view_demo` package published on testnet.
+
+Argument encoding over gRPC has a few constraints that the JSON-RPC and GraphQL paths do not:
+
+- Integers are passed as JSON **strings** — a protobuf `Value` number is a double and cannot represent every integer exactly.
+- Struct and `vector<struct>` arguments must be supplied as BCS bytes rather than JSON.
+- `vector<object>` arguments are not supported.
+
 ## Full Example Code
 
 The complete, runnable examples live in the IOTA repository:
@@ -212,3 +228,4 @@ The complete, runnable examples live in the IOTA repository:
 - [Rust SDK example](https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/examples/read_api/move_view_function_call.rs) — publishes the package and calls the views.
 - [TypeScript SDK example](https://github.com/iotaledger/iota/blob/develop/docs/examples/typescript/src/view-functions/call-view-function.ts) — same flow with `@iota/iota-sdk`.
 - [Shell script](https://github.com/iotaledger/iota/blob/develop/docs/examples/shell/call-view-function.sh) — publishes with the `iota` CLI and calls each view over JSON-RPC with `curl`.
+- [gRPC example](https://github.com/iotaledger/iota-rust-sdk/blob/1b0213c2065f0b922ca3c75e52e047e7963bde32/crates/iota-sdk/examples/move_view_call_grpc.rs) — calls views on the `view_demo` package on testnet over the `ViewFunctionCalls` gRPC endpoint, singly and batched.

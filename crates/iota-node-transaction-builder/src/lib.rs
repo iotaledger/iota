@@ -78,7 +78,7 @@ impl NodeTransactionBuilderLedgerClient {
     }
 
     /// Protocol config of the current epoch.
-    fn node_protocol_config(&self) -> Result<NodeProtocolConfig, Error> {
+    pub fn node_protocol_config(&self) -> Result<NodeProtocolConfig, Error> {
         let system_state = get_iota_system_state(self.reader.as_ref())?;
         let chain = self.reader.get_chain_identifier()?.chain();
         let protocol_version = system_state.protocol_version();
