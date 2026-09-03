@@ -111,9 +111,9 @@ pub trait GrpcIndexes: Send + Sync {
 
     /// Iterate over all versions of a package by its original package ID.
     ///
-    /// The `cursor` bound is **inclusive** (the `GrpcReader` wrapper skips
-    /// the cursor item itself); version keys are append-only, so a cursor
-    /// row never vanishes between pages.
+    /// The `cursor` is **exclusive**: only versions strictly after the
+    /// cursor position are returned. Version keys are append-only, so a
+    /// cursor row never vanishes between pages.
     fn package_versions_iter(
         &self,
         original_package_id: ObjectId,
