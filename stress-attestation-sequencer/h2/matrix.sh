@@ -64,16 +64,22 @@
 # The `slow` workload publishes ONE `slow::Obj` and every transaction takes it as a
 # mutable input, so all of them contend on the same object.
 #
-# 80 configs total. Use the substring FILTER to run one cost point or one
-# limit at a time.
+# The cu cells all give every transaction the SAME cost, which makes the two
+# modes equivalent — a unit limit and a count limit then admit the same work,
+# so those cells are the control. The mix cells at the end give transactions
+# in one commit DIFFERENT costs, which is the only way the modes can differ.
+#
+# 85 configs total. Use the substring FILTER to run one cost point, one limit,
+# or the mixed-cost cells (FILTER=mix) at a time.
 #
 # Every cell runs on 4 validators; N=4 is not in the label since nothing else is
 # planned.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 80 configs
+#   ITERS=5 ./matrix.sh             # run all 85 configs
 #   ITERS=5 ./matrix.sh cu10k       # one cost point, its whole limit ladder
 #   ITERS=5 ./matrix.sh lim100k     # one limit, every cost point that uses it
+#   ITERS=1 ./matrix.sh mix         # the mixed-cost cells only
 #
 # A failed config does not abort the matrix. Re-running appends iterations to an
 # existing label rather than overwriting (run.sh's config gate).
@@ -109,6 +115,21 @@ SLOW1015="WORKLOAD=slow SLOW_N=1015 SLOW_SIZE=100 SLOW_SHARED=true" # 500,000 un
 SLOW1848="WORKLOAD=slow SLOW_N=1848 SLOW_SIZE=100 SLOW_SHARED=true" # 1,000,000 units/tx
 SLOW3511="WORKLOAD=slow SLOW_N=3511 SLOW_SIZE=100 SLOW_SHARED=true" # 2,000,000 units/tx
 SLOW8000="WORKLOAD=slow SLOW_N=8000 SLOW_SIZE=100 SLOW_SHARED=true" # 5,000,000 units/tx
+# Mixed cost: SLOW_MIX draws n per TRANSACTION from a weighted list, so one
+# commit carries transactions of different cost. That is the only setting in
+# which the two modes can differ at all — with one fixed cost a unit limit
+# admits limit/cost transactions, exactly what a count limit of limit/cost
+# admits, and the 12 matched cells above measure that (Run B within 1.6% of
+# Run A). Under a spread a count limit admits a fixed NUMBER and lets the
+# admitted work swing, while a unit limit admits a fixed amount of WORK and
+# lets the number swing. Named by mean cost; each level costs the calibrated
+# cost of its own n: 1 -> 1,000, 160 -> 10,000, 350 -> 100,000,
+# 1015 -> 500,000 units.
+MIX1900="WORKLOAD=slow SLOW_MIX=1:9,160:1 SLOW_SIZE=100 SLOW_SHARED=true"   # 1,900 mean units/tx
+MIX3700="WORKLOAD=slow SLOW_MIX=1:7,160:3 SLOW_SIZE=100 SLOW_SHARED=true"   # 3,700 mean units/tx
+MIX10900="WORKLOAD=slow SLOW_MIX=1:9,350:1 SLOW_SIZE=100 SLOW_SHARED=true"  # 10,900 mean units/tx
+MIX20800="WORKLOAD=slow SLOW_MIX=1:4,350:1 SLOW_SIZE=100 SLOW_SHARED=true"  # 20,800 mean units/tx
+MIX50900="WORKLOAD=slow SLOW_MIX=1:9,1015:1 SLOW_SIZE=100 SLOW_SHARED=true" # 50,900 mean units/tx
 # Run A's reference in every cell: production's count limit, burst off in both runs.
 # The duration is pinned: run.sh's own default is shorter, for ad-hoc test runs.
 REF="N=4 RUN_DURATION=60s LIMIT_A=10 OVERSHOOT_A=0 OVERSHOOT_B=0"
@@ -235,6 +256,23 @@ configs=(
   "cu5m-lim10m-qps1000    | $SLOW8000 $REF LIMIT_B=10000000 TARGET_QPS=1000"
   "cu5m-lim20m-qps1000    | $SLOW8000 $REF LIMIT_B=20000000 TARGET_QPS=1000"
   "cu5m-lim50m-qps1000    | $SLOW8000 $REF LIMIT_B=50000000 TARGET_QPS=1000"
+  #
+  # ---- mixed cost. LIMIT_B is 10x the mean cost in every cell, so Run B's
+  #      budget matches what Run A's count limit admits on average and the
+  #      spread is the only difference between the arms. Each cell's
+  #      fixed-cost control is the cu cell of the same mean cost above,
+  #      already run to 10 iterations.
+  #
+  #      Two constraints pin the weights to 10-40%. Below 10% the matched
+  #      limit falls BELOW one expensive transaction, which Run B could then
+  #      never schedule at all; above 40% the mean cost is high enough that
+  #      fewer than 10 transactions arrive per commit, so neither limit binds
+  #      and the arms are identical.
+  "mix1900-w10-lim19k-qps1000   | $MIX1900 $REF LIMIT_B=19000  TARGET_QPS=1000"
+  "mix3700-w30-lim37k-qps1000   | $MIX3700 $REF LIMIT_B=37000  TARGET_QPS=1000"
+  "mix10900-w10-lim109k-qps1000 | $MIX10900 $REF LIMIT_B=109000 TARGET_QPS=1000"
+  "mix20800-w20-lim208k-qps1000 | $MIX20800 $REF LIMIT_B=208000 TARGET_QPS=1000"
+  "mix50900-w10-lim509k-qps1000 | $MIX50900 $REF LIMIT_B=509000 TARGET_QPS=1000"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the

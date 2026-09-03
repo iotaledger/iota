@@ -12,9 +12,15 @@ Reported per arm:
   - finalized tps: the checkpoint-inclusion rate as scraped, prologues
     included — comparable to the client's own reported throughput.
   - cancelled/s: transactions dropped at max_deferral_rounds.
-  - checkpoint lag p50/p95: pooled histogram quantiles across all iterations.
-    Above 30s these carry roughly one bucket :f resolution (the histogram
-    steps 25, 30, 60, 90), so read anything past 30s as "30 to 60s".
+  - checkpoint lag: the exact mean (from the histogram's _sum) and the exact
+    share above 30s (a bucket boundary), plus the pooled p95. Only the first
+    two are measurements past 30s — the buckets step 25, 30, 60, 90, so a
+    quantile landing in that gap is an interpolation, and prints as ">30".
+  - latency: settlement finality (client-facing), receipt to executed (the
+    validator pipeline, including time spent deferred) and user VM execution,
+    each as an exact mean plus p50/p95.
+  - admitted per commit: what the arm actually let onto the hot object, the
+    check that a limit enforced what it was set to.
   - deferral rounds above max_deferral_rounds: should be 0; every such
     observation is the signature of a skipped leader round (the deferral
     budget is a commit-round difference, so a skipped round spends budget

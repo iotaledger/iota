@@ -25,7 +25,8 @@
 #                 NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO, PRIMARY_GAS_OWNER,
 #                 RUNNER_IMAGE, DOCKER_NETWORK, FULLNODE_RPC,
 #                 USE_FULLNODE_FOR_EXECUTION, WORKLOAD, NUM_SHARED_COUNTERS,
-#                 SLOW_N, SLOW_SIZE, SLOW_SHARED, AUTHENTICATOR, AUTH_OBJ_TYPE,
+#                 SLOW_N, SLOW_SIZE, SLOW_MIX, SLOW_SHARED, AUTHENTICATOR,
+#                 AUTH_OBJ_TYPE,
 #                 AUTH_SHOULD_FAIL, AUTH_SPLIT_AMOUNT, AUTH_CYCLES.
 
 set -euo pipefail
@@ -66,6 +67,7 @@ WORKLOAD="${WORKLOAD:-owned}"
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}" # WORKLOAD=shared: fewer => more congestion
 SLOW_N="${SLOW_N:-}"                           # WORKLOAD=slow: slow::slow(n,size) vector count
 SLOW_SIZE="${SLOW_SIZE:-}"                     # WORKLOAD=slow: each vector size in bytes
+SLOW_MIX="${SLOW_MIX:-}"                       # WORKLOAD=slow: "n:weight,..." draws n per transaction (overrides SLOW_N; shares SLOW_SIZE)
 SLOW_SHARED="${SLOW_SHARED:-}"                 # WORKLOAD=slow: false => owned-only (no shared object / congestion)
 AUTHENTICATOR="${AUTHENTICATOR:-ed25519}"      # WORKLOAD=moveauth: which on-chain authenticate function (sets its Move VM cost)
 AUTH_OBJ_TYPE="${AUTH_OBJ_TYPE:-owned-object}" # WORKLOAD=moveauth: owned-object | shared-object (the tx body)
@@ -84,7 +86,13 @@ shared)
   ;;
 slow)
   WORKLOAD_ARGS=(--transfer-object 0 --slow 100)
-  [[ -n "$SLOW_N" ]] && WORKLOAD_ARGS+=(--slow-n "$SLOW_N")
+  # SLOW_MIX draws a per-transaction n from its own levels, so SLOW_N is left
+  # off rather than passed and ignored. Both share SLOW_SIZE.
+  if [[ -n "$SLOW_MIX" ]]; then
+    WORKLOAD_ARGS+=(--slow-mix "$SLOW_MIX")
+  elif [[ -n "$SLOW_N" ]]; then
+    WORKLOAD_ARGS+=(--slow-n "$SLOW_N")
+  fi
   [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
   [[ -n "$SLOW_SHARED" ]] && WORKLOAD_ARGS+=(--slow-shared "$SLOW_SHARED")
   ;;

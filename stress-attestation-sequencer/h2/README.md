@@ -98,15 +98,15 @@ which is why the limit has to be picked from a measurement rather than
 converted from `LIMIT_A`.
 
 ```bash
-# one cost point, one limit, one rate, 3 iterations
-LABEL=cu16k-lim160k-qps500 ITERS=3 WORKLOAD=slow SLOW_N=200 SLOW_SIZE=100 \
-  LIMIT_A=10 LIMIT_B=160000 TARGET_QPS=500 ./run.sh
+# one cost point, one limit, 3 iterations
+LABEL=cu10k-lim100k-qps1000 ITERS=3 WORKLOAD=slow SLOW_N=160 SLOW_SIZE=100 \
+  LIMIT_A=10 LIMIT_B=100000 TARGET_QPS=1000 ./run.sh
 
-# the whole grid, or one cost point / limit / rate at a time
+# the whole grid, or one cost point / limit / the mixed cells at a time
 ITERS=5 ./matrix.sh
-ITERS=5 ./matrix.sh cu491k
-ITERS=5 ./matrix.sh lim160k
-ITERS=5 ./matrix.sh qps2000
+ITERS=5 ./matrix.sh cu10k
+ITERS=5 ./matrix.sh lim100k
+ITERS=1 ./matrix.sh mix
 ```
 
 The limit to look for is the most units a commit can admit for one object before
@@ -161,6 +161,46 @@ run — same one hot object, same uniform cost. `run.sh` still takes
 `WORKLOAD=shared`, so it is available as an independent workload to cross-check
 against if the `slow` numbers look surprising.
 
+### Mixed cost, and why the fixed-cost grid is only the control
+
+With one fixed cost per transaction the two modes are the same scheduler: if
+every transaction costs C, a unit limit L admits `L / C` of them, which is
+exactly what a count limit of `L / C` admits. The grid measures that — across
+its twelve matched cells, spanning a 5000× cost range, Run B lands within 1.6%
+of Run A on throughput and latency alike.
+
+The modes can only differ when transactions in ONE commit cost different
+amounts. Then a count limit admits a fixed number and lets the admitted work
+swing with the mix, while a unit limit admits a fixed amount of work and lets
+the number swing instead. `SLOW_MIX` draws each transaction's `slow_n` from a
+weighted list, so a commit carries a spread:
+
+```bash
+# 9 transactions of 1,000 units for every 1 of 100,000 (mean 10,900), against
+# a limit of ten mean-cost transactions
+LABEL=mix10900-w10-lim109k-qps1000 ITERS=1 WORKLOAD=slow \
+  SLOW_MIX=1:9,350:1 SLOW_SIZE=100 LIMIT_A=10 LIMIT_B=109000 \
+  TARGET_QPS=1000 ./run.sh
+```
+
+Every level shares `SLOW_SIZE`, so the mix varies `n` alone, and each level
+costs whatever the calibration measured for that `n`. `SLOW_MIX` overrides
+`SLOW_N`. `run.sh` refuses to start on a malformed spec, and on `SLOW_SIZE=0`,
+where `slow::slow(n, 0)` writes n EMPTY vectors so every level would collapse
+onto the cost floor and the spread would vanish unnoticed.
+
+Two constraints pin the usable weights to 10-40% for the expensive level:
+
+- Below 10%, `LIMIT_B = 10 × mean` falls below one expensive transaction's own
+  cost, so Run B could never schedule one at all — it would cancel every one
+  of them, which is a different experiment.
+- Above 40% the mean cost is high enough that fewer than 10 transactions
+  arrive per commit. Run A admits `min(LIMIT_A, arrivals)`, so its count limit
+  stops binding, Run B's budget stops filling, and the arms become identical.
+
+Each mixed cell's control is the `cu` cell of the same mean cost, already run:
+same mean cost, same mean admitted work, uniform against spread.
+
 Results follow the H1 layout: `results/<LABEL>/iter-NNN/`, one config per
 label, enforced by the same config gate (`../exp_dir.py`):
 
@@ -179,7 +219,9 @@ results/<LABEL>/
 ## Tooling
 
 - `run.sh` — the mode comparison; one iteration is bootstrap, Run A, reset,
-  Run B. Needs `LABEL` and `LIMIT_B`.
+  Run B. Needs `LABEL` and `LIMIT_B`. `SLOW_N` gives every transaction one
+  cost; `SLOW_MIX` draws a cost per transaction so a commit carries a spread,
+  which is the only setting in which the two modes differ.
 - `matrix.sh` — runs `run.sh` over the config grid, one iteration of every
   config per round, `ITERS` rounds, with one log per config under `logs/`.
 - `aggregate.py` — pools every label's iterations into one A-vs-B table per
@@ -230,13 +272,18 @@ The results so far are written up in `probe-test.md`.
   ones), not for the whole grid. Also still unplotted:
   `consensus_handler_transaction_deferral_rounds` and
   `consensus_handler_scheduled_transactions_per_object_per_commit`.
-- **Add a run whose transactions do not all cost the same.** The grid is all
-  fixed-cost, which is the control; the modes can only differ when the cost
-  varies, since that is when a count limit and a cost limit admit different
-  amounts of work. The only mixed-cost workload available today is
-  `slow::bimodal`, which alternates every 10s between 4,000 and 1,000
-  computation units — a factor of 4, with both levels fixed in the Move code,
-  and still uniform within any one commit. A useful version needs either
-  configurable levels in `slow::bimodal` or two `slow` weights with different
-  `n` running at the same time (benchmark groups run one after another, so they
-  cannot serve this today).
+- **Run the mixed-cost cells.** `SLOW_MIX` and the five `mix` cells are in
+  place but have not been run. Start with `ITERS=1 ./matrix.sh mix` (about 50
+  minutes) and check `admits/cmt` for Run A in the summary: at 9.5 or above
+  the count limit is binding and the cell is sound, while 7 or 8 means the
+  cell is arrival-limited and wants a lower weight or a cheaper expensive
+  level. `mix50900` sits closest to that edge, at an estimated ten arrivals
+  per commit. Then the full campaign, five cells at `ITERS=10`, about eight
+  hours.
+- **Give the mixed cells their own figure.** `plot.py` places a cell on the
+  admitted-rate axis from `LIMIT_B / units-per-tx`, which for a mix is an
+  average, and the knee plot cannot show a spread at all. The mixed story is
+  the distribution of admitted transactions per commit — pinned for a count
+  limit, wide for a unit limit — which wants a different figure and the
+  `consensus_handler_scheduled_transactions_per_object_per_commit` histogram
+  read per arm rather than reduced to a mean.

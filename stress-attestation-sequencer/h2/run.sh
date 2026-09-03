@@ -26,7 +26,8 @@
 #                 NUM_CLIENT_THREADS, NUM_TRANSFER_ACCOUNTS, IN_FLIGHT_RATIO,
 #                 DIRECT, NUM_TARGET_VALIDATORS,
 #                 WORKLOAD (owned|shared|slow),
-#                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, SLOW_SHARED,
+#                 NUM_SHARED_COUNTERS, SLOW_N, SLOW_SIZE, SLOW_MIX,
+#                 SLOW_SHARED,
 #                 MODE_A, LIMIT_A, OVERSHOOT_A, MODE_B, OVERSHOOT_B,
 #                 MAX_DEFERRAL_ROUNDS, ATTEST, PRE_SPAM_DELAY_SECS,
 #                 SLEEP_BETWEEN_RUNS_S, PRE_SPAM_WAIT_S, PRE_STOP_WAIT_S, PROM,
@@ -100,6 +101,7 @@ WORKLOAD="${WORKLOAD:-slow}"                       # slow (slow::slow / slow::bi
 NUM_SHARED_COUNTERS="${NUM_SHARED_COUNTERS:-}"     # WORKLOAD=shared: fewer => more congestion (empty => benchmark default ~qps/2)
 SLOW_N="${SLOW_N-0}"                               # WORKLOAD=slow: slow::slow(n,size) — n vectors (empty BOTH knobs => bimodal)
 SLOW_SIZE="${SLOW_SIZE-0}"                         # WORKLOAD=slow: each vector size in bytes
+SLOW_MIX="${SLOW_MIX:-}"                           # WORKLOAD=slow: "n:weight,..." draws n per TRANSACTION, so one commit holds a cost spread (empty => one fixed cost from SLOW_N)
 SLOW_SHARED="${SLOW_SHARED:-true}"                 # WORKLOAD=slow: true attaches the mutable shared input congestion control needs; false => owned-only pure compute
 # Per shared object per commit: LIMIT_* is the base budget, OVERSHOOT_* the burst a
 # single commit may exceed it by, carried as debt and repaid from later commits.
@@ -146,6 +148,34 @@ for _v in LIMIT_A OVERSHOOT_A LIMIT_B OVERSHOOT_B; do
   }
 done
 
+# --- Validate the mixed-cost spec ---------------------------------------------
+# Checked here rather than left to the client so a typo fails now instead of
+# after a bootstrap. The client re-validates and is the authority on meaning.
+if [[ -n "$SLOW_MIX" ]]; then
+  [[ "$SLOW_MIX" =~ ^[0-9]+(:[0-9]+)?(,[0-9]+(:[0-9]+)?)*$ ]] || {
+    echo "${RED}ERROR: SLOW_MIX must be \"n[:weight],n[:weight],...\" (got '$SLOW_MIX')." >&2
+    echo "       e.g. SLOW_MIX=1:9,350:1 draws n=1 nine times in ten.${RESET}" >&2
+    exit 1
+  }
+  # Every level shares SLOW_SIZE, and slow::slow(n, 0) writes n EMPTY vectors —
+  # so at size 0 every level collapses onto the per-transaction cost floor and
+  # the spread the mix exists to create silently disappears. The calibrated
+  # cost points all use size 100.
+  [[ "$SLOW_SIZE" =~ ^[0-9]+$ && "$SLOW_SIZE" -gt 0 ]] || {
+    echo "${RED}ERROR: SLOW_MIX needs a non-zero SLOW_SIZE (got '$SLOW_SIZE'); at" >&2
+    echo "       size 0 every level costs the same and the mix has no spread." >&2
+    echo "       The calibrated cost points use SLOW_SIZE=100.${RESET}" >&2
+    exit 1
+  }
+fi
+
+# The mix is recorded in config.json only when it is set, so labels created
+# before this knob existed keep their exact key set and still accept new
+# iterations. A mix label and a fixed-cost label therefore never pool together
+# either: one carries the key, the other does not.
+_slow_mix_cfg=()
+[[ -n "$SLOW_MIX" ]] && _slow_mix_cfg=(CFG_slow_mix="$SLOW_MIX")
+
 # --- Experiment label + config-gated results directory --------------------
 # LABEL names the EXPERIMENT (one config). Every run.sh iteration for the same
 # LABEL accumulates under results/<LABEL>/iter-NNN/. config.json — written once when
@@ -172,6 +202,7 @@ allocate_iter() {
       CFG_num_client_threads="$NUM_CLIENT_THREADS" CFG_num_transfer_accounts="$NUM_TRANSFER_ACCOUNTS" \
       CFG_run_duration="$RUN_DURATION" CFG_num_shared_counters="${NUM_SHARED_COUNTERS:-default}" \
       CFG_slow_n="${SLOW_N:-default}" CFG_slow_size="${SLOW_SIZE:-default}" CFG_slow_shared="$SLOW_SHARED" \
+      "${_slow_mix_cfg[@]}" \
       CFG_mode_a="$MODE_A" CFG_limit_a="$LIMIT_A" CFG_overshoot_a="$OVERSHOOT_A" \
       CFG_mode_b="$MODE_B" CFG_limit_b="$LIMIT_B" CFG_overshoot_b="$OVERSHOOT_B" \
       CFG_attest="$ATTEST" \
@@ -203,7 +234,13 @@ slow)
   # The workload publishes ONE slow::Obj and every payload takes it as a mutable
   # input, so all of them contend on the same object.
   WORKLOAD_ARGS=(--transfer-object 0 --slow 100)
-  [[ -n "$SLOW_N" ]] && WORKLOAD_ARGS+=(--slow-n "$SLOW_N")
+  # SLOW_MIX replaces the single fixed n; it shares SLOW_SIZE across its levels,
+  # so SLOW_N is left off rather than passed and ignored.
+  if [[ -n "$SLOW_MIX" ]]; then
+    WORKLOAD_ARGS+=(--slow-mix "$SLOW_MIX")
+  elif [[ -n "$SLOW_N" ]]; then
+    WORKLOAD_ARGS+=(--slow-n "$SLOW_N")
+  fi
   [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
   WORKLOAD_ARGS+=(--slow-shared "$SLOW_SHARED")
   ;;
@@ -292,6 +329,7 @@ dump_timeseries() {
     CFG_direct="$DIRECT" CFG_num_target_validators="${NUM_TARGET_VALIDATORS:-all}" CFG_n="$N" \
     CFG_workload="$WORKLOAD" CFG_num_shared_counters="${NUM_SHARED_COUNTERS:-default}" \
     CFG_slow_n="${SLOW_N:-default}" CFG_slow_size="${SLOW_SIZE:-default}" CFG_slow_shared="$SLOW_SHARED" \
+    "${_slow_mix_cfg[@]}" \
     CFG_mode_a="$MODE_A" CFG_limit_a="$LIMIT_A" CFG_overshoot_a="$OVERSHOOT_A" \
     CFG_mode_b="$MODE_B" CFG_limit_b="$LIMIT_B" CFG_overshoot_b="$OVERSHOOT_B" \
     CFG_attest="$ATTEST" \
@@ -334,7 +372,8 @@ run_stress() {
       PRE_SPAM_DELAY_SECS="$PRE_SPAM_DELAY_SECS" \
       WORKLOAD="$WORKLOAD" \
       NUM_SHARED_COUNTERS="$NUM_SHARED_COUNTERS" \
-      SLOW_N="$SLOW_N" SLOW_SIZE="$SLOW_SIZE" SLOW_SHARED="$SLOW_SHARED" \
+      SLOW_N="$SLOW_N" SLOW_SIZE="$SLOW_SIZE" SLOW_MIX="$SLOW_MIX" \
+      SLOW_SHARED="$SLOW_SHARED" \
       "$TOOLS_DIR/run-stress-docker.sh" 2>"$stress_log" | tee "$report_log"
   else
     echo "${BLUE}Running stress via ${STRESS_BIN} executable...${RESET}"
@@ -503,7 +542,11 @@ run_one_iteration() {
 sudo -v # cache sudo creds up front so prompts don't interrupt mid-run
 
 banner "== H2 [0/5] client + config =="
-echo "  workload : $WORKLOAD$([[ "$WORKLOAD" == slow ]] && echo " (slow(${SLOW_N:-bimodal}, ${SLOW_SIZE:-bimodal}), shared=$SLOW_SHARED)")"
+if [[ "$WORKLOAD" == slow && -n "$SLOW_MIX" ]]; then
+  echo "  workload : slow (mix n=$SLOW_MIX at size $SLOW_SIZE, shared=$SLOW_SHARED)"
+else
+  echo "  workload : $WORKLOAD$([[ "$WORKLOAD" == slow ]] && echo " (slow(${SLOW_N:-bimodal}, ${SLOW_SIZE:-bimodal}), shared=$SLOW_SHARED)")"
+fi
 echo "  Run A    : $MODE_A, limit $LIMIT_A transactions, overshoot $OVERSHOOT_A"
 echo "  Run B    : $MODE_B, limit $LIMIT_B units, overshoot $OVERSHOOT_B"
 echo "  load     : $TARGET_QPS qps for $RUN_DURATION, attestation=$ATTEST, $N validators, direct=$DIRECT"
