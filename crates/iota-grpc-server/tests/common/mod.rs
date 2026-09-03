@@ -440,7 +440,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>>
     {
         // Find the start index: if a cursor is provided, seek strictly past
-        // its position (the cursor is exclusive) within this owner's rows —
+        // its position (the cursor is exclusive) within this owner's rows:
         // in the real index the owner is the leading key component.
         let start = if let Some(c) = cursor {
             self.owned_objects

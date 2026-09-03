@@ -233,7 +233,7 @@ fn hash_type_params(tag: &StructTag) -> u64 {
 /// the last real key of the prefix.
 ///
 /// When `cursor` is `Some`, the lower bound excludes the cursor position
-/// itself, so the scan resumes strictly after the last returned item — even
+/// itself, so the scan resumes strictly after the last returned item, even
 /// when the cursor's index row no longer exists (e.g. the coin's balance
 /// changed, which moves its key).
 fn owner_bounds(
@@ -830,7 +830,7 @@ impl IndexStoreTables {
     {
         // When `cursor` is `Some`, the lower bound excludes the cursor
         // position itself, so the scan resumes strictly after the last
-        // returned field — even when the cursor's index row no longer exists
+        // returned field, even when the cursor's index row no longer exists
         // (e.g. the field was deleted between pages).
         let lower = match &cursor {
             Some(field_id) => Bound::Excluded(field_id),
@@ -1680,9 +1680,9 @@ mod tests {
         )
     }
 
-    /// Walking `owner_iter` one row at a time over a mixed population —
-    /// non-coin rows (`inverted_balance: None`, shorter keys) next to coin
-    /// rows, including two coins with an equal balance — returns every row
+    /// Walking `owner_iter` one row at a time over a mixed population of
+    /// non-coin rows (`inverted_balance: None`, shorter keys) and coin
+    /// rows, including two coins with an equal balance, returns every row
     /// exactly once, in the full listing's order: the exclusive-cursor seek
     /// advances correctly across the `None`→`Some` key-layout boundary and
     /// across equal-balance ties.

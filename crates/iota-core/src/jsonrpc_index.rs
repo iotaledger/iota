@@ -1265,7 +1265,7 @@ impl IndexStore {
     {
         debug!(?object, "get_dynamic_fields");
         // The lower bound excludes the cursor position itself, so the scan
-        // resumes strictly after the last returned field — even when the
+        // resumes strictly after the last returned field, even when the
         // cursor's index row no longer exists (e.g. the field was removed
         // from its parent or transferred between pages).
         let lower = match &cursor {
