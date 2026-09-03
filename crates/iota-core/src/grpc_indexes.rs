@@ -1597,6 +1597,86 @@ mod tests {
         );
     }
 
+    /// An address-owned non-coin `Object`, indexed with
+    /// `inverted_balance: None`.
+    fn non_coin_object(owner: Address) -> Object {
+        let id = ObjectId::random();
+        let move_struct = iota_sdk_types::MoveStruct::new(
+            "0x2::clock::Clock".parse::<StructTag>().unwrap().into(),
+            iota_types::object::OBJECT_START_VERSION,
+            id.as_bytes().to_vec(),
+        )
+        .unwrap();
+        Object::new_move(
+            move_struct,
+            Owner::Address(owner),
+            TransactionDigest::GENESIS_MARKER,
+        )
+    }
+
+    /// Walking `owner_iter` one row at a time over a mixed population —
+    /// non-coin rows (`inverted_balance: None`, shorter keys) next to coin
+    /// rows, including two coins with an equal balance — returns every row
+    /// exactly once, in the full listing's order: the exclusive-cursor seek
+    /// advances correctly across the `None`→`Some` key-layout boundary and
+    /// across equal-balance ties.
+    #[tokio::test]
+    async fn owner_iter_full_walk_returns_each_row_once() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let owner = Address::from_u16(42);
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        for _ in 0..3 {
+            partition.index_object(non_coin_object(owner)).unwrap();
+        }
+        // Two coins share a balance to exercise the object-id tie-break.
+        for balance in [300, 200, 200, 100] {
+            partition
+                .index_object(Object::new_gas_with_balance_and_owner_for_testing(
+                    balance, owner,
+                ))
+                .unwrap();
+        }
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let all: Vec<_> = grpc
+            .owner_iter(owner, None, OwnerTypeFilter::None)
+            .unwrap()
+            .map(|result| result.map(|(key, _)| key))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(all.len(), 7);
+
+        // Walk at most `len + 2` pages, so a cursor that stops advancing
+        // fails the assertion below instead of looping forever.
+        let mut walked = Vec::new();
+        let mut cursor: Option<OwnedObjectCursor> = None;
+        for _ in 0..all.len() + 2 {
+            let Some(item) = grpc
+                .owner_iter(owner, cursor.as_ref(), OwnerTypeFilter::None)
+                .unwrap()
+                .next()
+            else {
+                break;
+            };
+            let (key, _) = item.unwrap();
+            cursor = Some(OwnedObjectCursor {
+                object_type_identifier: key.object_type_identifier,
+                object_type_params: key.object_type_params,
+                inverted_balance: key.inverted_balance,
+                object_id: key.object_id,
+            });
+            walked.push(key);
+        }
+        assert_eq!(
+            walked, all,
+            "the one-row walk must return each row exactly once, in listing order",
+        );
+    }
+
     /// `finalize_restore` must leave a store that `GrpcIndexesStore::new`
     /// opens in place: `meta` is current and `Watermark::Indexed` matches the
     /// restore checkpoint, so `needs_to_do_initialization` is false and the

@@ -10,41 +10,18 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{MockGrpcStateReader, start_test_server};
+use common::{MockGrpcStateReader, connect_state_client, object_id_proto, start_test_server};
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    v1::{
-        state_service::{
-            ListDynamicFieldsRequest, ListDynamicFieldsResponse,
-            state_service_client::StateServiceClient,
-        },
-        types::ObjectId as ProtoObjectId,
-    },
+    v1::state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},
 };
 use iota_sdk_types::ObjectId;
 use iota_types::storage::DynamicFieldKey;
 use prost_types::FieldMask;
-use tonic::transport::Channel;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-fn object_id_proto(id: ObjectId) -> ProtoObjectId {
-    ProtoObjectId::default().with_object_id(id.into_bytes().to_vec())
-}
-
-/// Connect a state-service client to the test server.
-async fn connect_state_client(
-    handle: &iota_grpc_server::GrpcServerHandle,
-) -> StateServiceClient<Channel> {
-    let channel = Channel::from_shared(format!("http://{}", handle.address()))
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
-    StateServiceClient::new(channel)
-}
 
 /// Extract the returned field IDs (as raw bytes) from a response.
 fn returned_field_ids(resp: &ListDynamicFieldsResponse) -> Vec<Vec<u8>> {
@@ -93,7 +70,15 @@ async fn paginate_one_at_a_time() {
 
     let mut returned: Vec<Vec<u8>> = Vec::new();
     let mut page_token = None;
+    // Walk at most `len + 2` pages, so a regression where the cursor stops
+    // advancing fails the test instead of hanging it.
+    let mut pages_left = expected_ids.len() + 2;
     loop {
+        assert!(
+            pages_left > 0,
+            "cursor did not advance: page budget exhausted"
+        );
+        pages_left -= 1;
         let mut request = base.clone();
         if let Some(token) = page_token.take() {
             request = request.with_page_token(token);
@@ -171,8 +156,9 @@ async fn cursor_row_removed_between_pages_loses_no_field() {
         .unwrap()
         .into_inner();
 
-    assert!(
-        returned_field_ids(&page2).contains(&index_ids[1].as_bytes().to_vec()),
+    assert_eq!(
+        returned_field_ids(&page2),
+        [index_ids[1].as_bytes().to_vec()],
         "the unchanged second row must not be skipped when the cursor row is gone",
     );
 }

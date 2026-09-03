@@ -110,6 +110,10 @@ pub trait GrpcIndexes: Send + Sync {
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 
     /// Iterate over all versions of a package by its original package ID.
+    ///
+    /// The `cursor` bound is **inclusive** (the `GrpcReader` wrapper skips
+    /// the cursor item itself); version keys are append-only, so a cursor
+    /// row never vanishes between pages.
     fn package_versions_iter(
         &self,
         original_package_id: ObjectId,
