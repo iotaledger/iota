@@ -254,7 +254,7 @@ iota-indexer restore --network <mainnet|testnet|devnet> run [OPTIONS]
       --staging-path <STAGING_PATH>   Local directory to stage the downloaded MANIFEST and .ref files
       --genesis-path <GENESIS_PATH>   Path to the genesis blob used to verify the snapshot
       --epoch <EPOCH>                 Epoch to download [default: latest available]
-      --num-parallel-downloads <N>    Parallel downloads [default: host available parallelism]
+      --num-parallel-downloads <N>    Parallel downloads [default: logical cores - 1, capped at 8]
 ```
 where `--genesis-path` is the network's [genesis blob](../common/genesis.mdx). It is the trusted resource the committee chain is verified against. The snapshot is in turn verified against that committee chain.
 
