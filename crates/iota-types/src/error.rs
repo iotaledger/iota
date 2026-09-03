@@ -743,6 +743,18 @@ pub enum IotaError {
          an honest dry-run cannot exceed what the tx can pay for"
     )]
     AttestationUnitsAboveBudget { actual: u64, maximum: u64 },
+
+    #[error(
+        "Attestation carries a gas vector (AttestationData::V2) but the \
+         `attestation_gas_vector` feature is not enabled in this protocol version"
+    )]
+    AttestationGasVectorNotEnabled,
+
+    #[error(
+        "Attestation reports cpu_time = 0; no dry-run of a valid transaction \
+         can execute in zero lane-time"
+    )]
+    AttestationCpuTimeZero,
 }
 
 #[repr(u64)]
