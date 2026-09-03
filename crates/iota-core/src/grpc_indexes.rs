@@ -858,10 +858,15 @@ impl IndexStoreTables {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        Ok(self.package_version.safe_iter_with_prefix_from(
-            &original_package_id,
-            Bound::Included(&cursor.unwrap_or(0)),
-        ))
+        // The lower bound excludes the cursor position itself, so the scan
+        // resumes strictly after the last returned version.
+        let lower = match &cursor {
+            Some(version) => Bound::Excluded(version),
+            None => Bound::Unbounded,
+        };
+        Ok(self
+            .package_version
+            .safe_iter_with_prefix_from(&original_package_id, lower))
     }
 }
 
@@ -1391,7 +1396,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{GasCostSummary, checkpoint::CheckpointSummary};
+    use iota_sdk_types::{GasCostSummary, MovePackage, checkpoint::CheckpointSummary};
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
         message_envelope::Envelope, messages_checkpoint::VerifiedCheckpoint,
@@ -1594,6 +1599,67 @@ mod tests {
             after_removal,
             all[1..],
             "the next live row must not be skipped",
+        );
+    }
+
+    /// Three versions of the same package (same `original_package_id`,
+    /// versions 1..=3), as the package-version index sees them.
+    fn package_versions() -> [MovePackage; 3] {
+        let module = move_binary_format::file_format::empty_module();
+        let v1 = Object::new_package_for_testing(&[module], TransactionDigest::GENESIS_MARKER, [])
+            .unwrap();
+        let v1 = v1.data.as_opt_package().unwrap().clone();
+        let mut v2 = v1.clone();
+        v2.id = ObjectId::random();
+        v2.version = Version::from_u64(2);
+        let mut v3 = v1.clone();
+        v3.id = ObjectId::random();
+        v3.version = Version::from_u64(3);
+        [v1, v2, v3]
+    }
+
+    /// The `cursor` of `package_versions_iter` is exclusive: the cursor row
+    /// itself is never returned again. Unlike `owner_iter` and
+    /// `dynamic_field_iter`, a package-version row is never deleted (version
+    /// keys are append-only), so there is no vanished-cursor-row case to
+    /// cover here.
+    #[tokio::test]
+    async fn package_versions_iter_cursor_is_exclusive() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let versions = package_versions();
+        let original_package_id = versions[0].original_package_id();
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        for package in versions {
+            partition
+                .index_object(Object::new_from_package(
+                    package,
+                    TransactionDigest::GENESIS_MARKER,
+                ))
+                .unwrap();
+        }
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let all: Vec<_> = grpc
+            .package_versions_iter(original_package_id, None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(all.len(), 3);
+        let cursor = all[0].0.version;
+
+        let after: Vec<_> = grpc
+            .package_versions_iter(original_package_id, Some(cursor))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after,
+            all[1..],
+            "the cursor row itself must not be returned again",
         );
     }
 

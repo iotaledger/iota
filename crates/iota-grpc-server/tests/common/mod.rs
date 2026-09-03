@@ -13,6 +13,7 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_grpc_types::v1::{
+    move_package_service::move_package_service_client::MovePackageServiceClient,
     state_service::state_service_client::StateServiceClient,
     types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
 };
@@ -153,6 +154,14 @@ pub struct MockGrpcStateReader {
     /// Pre-sorted in dynamic-field index key order (`parent`, `field_id`).
     /// The iterator respects cursor-based seeking.
     pub dynamic_fields: Vec<iota_types::storage::DynamicFieldKey>,
+
+    // -- Package versions (for list_package_versions pagination tests) --
+    /// Pre-sorted in package-version index key order (`original_package_id`,
+    /// `version`). The iterator respects cursor-based seeking.
+    pub package_versions: Vec<(
+        iota_types::storage::PackageVersionKey,
+        iota_types::storage::PackageVersionInfo,
+    )>,
 
     // -- Transactions --
     pub transactions: HashMap<TransactionDigest, Arc<VerifiedTransaction>>,
@@ -510,11 +519,20 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn package_versions_iter(
         &self,
-        _original_package_id: ObjectId,
-        _cursor: Option<u64>,
+        original_package_id: ObjectId,
+        cursor: Option<u64>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>>
     {
-        Ok(Box::new(std::iter::empty()))
+        // Seek strictly past the cursor position (the cursor is exclusive).
+        let iter = self
+            .package_versions
+            .iter()
+            .filter(move |(key, _)| {
+                key.original_package_id == original_package_id
+                    && cursor.is_none_or(|c| key.version > c)
+            })
+            .map(|(key, info)| Ok((key.clone(), info.clone())));
+        Ok(Box::new(iter))
     }
 }
 
@@ -604,4 +622,16 @@ pub async fn connect_state_client(handle: &GrpcServerHandle) -> StateServiceClie
         .await
         .unwrap();
     StateServiceClient::new(channel)
+}
+
+/// Connect a move-package-service client to the test server.
+pub async fn connect_move_package_service_client(
+    handle: &GrpcServerHandle,
+) -> MovePackageServiceClient<Channel> {
+    let channel = Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    MovePackageServiceClient::new(channel)
 }
