@@ -50,7 +50,10 @@
 //! Once we've ratcheted up our highest_verified_checkpoint, and if it is higher
 //! than highest_synced_checkpoint, StateSync will then kick off a task to
 //! synchronize the contents of all of the checkpoints from
-//! highest_synced_checkpoint..=highest_verified_checkpoint. After the
+//! highest_synced_checkpoint..=highest_verified_checkpoint. Contents are only
+//! synced up to `max_checkpoints_ahead_of_execution` checkpoints above the
+//! executed watermark, since synced contents can only be pruned once
+//! executed; the range resumes as execution catches up. After the
 //! contents of each checkpoint is fully downloaded, StateSync will update our
 //! highest_synced_checkpoint watermark and send out a notification on a
 //! broadcast channel indicating that a new checkpoint has been fully
@@ -904,10 +907,9 @@ where
         }
     }
 
-    /// Triggers the checkpoint contents sync task if
-    /// highest_verified_checkpoint > highest_synced_checkpoint and there
-    /// are peers that have highest_known_checkpoint >
-    /// highest_synced_checkpoint.
+    /// Triggers the checkpoint contents sync task if the sync target is above
+    /// highest_synced_checkpoint and there are peers that have
+    /// highest_known_checkpoint > highest_synced_checkpoint.
     fn maybe_trigger_checkpoint_contents_sync_task(
         &mut self,
         target_sequence_channel: &watch::Sender<CheckpointSequenceNumber>,
@@ -920,8 +922,17 @@ where
             .store
             .try_get_highest_synced_checkpoint_seq_number()
             .expect("store operation should not fail");
+        let highest_executed_checkpoint = self
+            .store
+            .try_get_highest_executed_checkpoint_seq_number()
+            .expect("store operation should not fail");
+        let target = checkpoint_contents_sync_target(
+            highest_verified_checkpoint,
+            highest_executed_checkpoint,
+            self.config.max_checkpoints_ahead_of_execution(),
+        );
 
-        if highest_verified_checkpoint > highest_synced_checkpoint
+        if target > highest_synced_checkpoint
             // Skip if we aren't connected to any peers that can help
             && self
                 .peer_heights
@@ -931,7 +942,7 @@ where
                 > Some(highest_synced_checkpoint)
         {
             let _ = target_sequence_channel.send_if_modified(|num| {
-                let new_num = highest_verified_checkpoint;
+                let new_num = target;
                 if *num == new_num {
                     return false;
                 }
@@ -1446,6 +1457,25 @@ fn checkpoint_archive_sync_end(
 ) -> Option<CheckpointSequenceNumber> {
     let last = lowest_checkpoint_on_peers.checked_sub(1)?;
     (start <= last).then_some(last)
+}
+
+/// The highest checkpoint whose contents may be synced from peers: the highest
+/// verified one, held back to `max_ahead_of_execution` checkpoints above the
+/// executed watermark.
+///
+/// Synced contents can only be pruned once executed, so syncing far ahead of
+/// execution grows disk usage without bound. `None` for `highest_executed`
+/// means the store does not track execution, and there is nothing to hold the
+/// target back against.
+fn checkpoint_contents_sync_target(
+    highest_verified: CheckpointSequenceNumber,
+    highest_executed: Option<CheckpointSequenceNumber>,
+    max_ahead_of_execution: u64,
+) -> CheckpointSequenceNumber {
+    let Some(highest_executed) = highest_executed else {
+        return highest_verified;
+    };
+    highest_verified.min(highest_executed.saturating_add(max_ahead_of_execution))
 }
 
 /// Syncs checkpoint contents from peers if the target sequence cursor, which is
