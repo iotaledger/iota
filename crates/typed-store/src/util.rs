@@ -86,15 +86,7 @@ pub(crate) fn prefix_iterator_bounds<P>(prefix: &P) -> (Option<Vec<u8>>, Option<
 where
     P: ?Sized + Serialize,
 {
-    let lower = be_fix_int_ser(prefix);
-    let upper = if is_max(&lower) {
-        None
-    } else {
-        let mut upper = lower.clone();
-        big_endian_add_one(&mut upper);
-        Some(upper)
-    };
-    (Some(lower), upper)
+    prefix_iterator_bounds_with_range::<P, ()>(prefix, ..)
 }
 
 /// Computes the raw byte bounds for scanning `range` within the key range of
@@ -127,7 +119,15 @@ where
             Some(key_buf)
         }
         // An unbounded range ends where the prefix ends.
-        None => prefix_iterator_bounds(prefix).1,
+        None => {
+            if is_max(&prefix_buf) {
+                None
+            } else {
+                let mut upper = prefix_buf;
+                big_endian_add_one(&mut upper);
+                Some(upper)
+            }
+        }
     };
 
     (Some(iterator_lower_bound), iterator_upper_bound)
