@@ -509,7 +509,7 @@ impl ValidatorService {
 
         let update = match result {
             // Epoch ended before execution or rejection.
-            Ok(Err(())) => TxStatusUpdate::Expired {
+            Ok(Err(_)) => TxStatusUpdate::Expired {
                 epoch: epoch_store.epoch(),
             },
             Ok(Ok(Either::Left(effects_digests))) => {

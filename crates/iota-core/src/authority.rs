@@ -1482,7 +1482,6 @@ impl AuthorityState {
                 certificate,
             ))
             .await
-            .map_err(|_| IotaError::EpochEnded(epoch_store.epoch()))
             .and_then(|r| r)
     }
 

@@ -426,7 +426,7 @@ enum ContentSyncError {
     /// The checkpoint is below all peers' pruning watermark.
     /// No peer will ever serve this content; it must come from archive.
     PrunedOnAllPeers {
-        checkpoint: VerifiedCheckpoint,
+        checkpoint: Box<VerifiedCheckpoint>,
         lowest_peer_watermark: CheckpointSequenceNumber,
         connected_peers: usize,
         known_peers: usize,
@@ -434,7 +434,7 @@ enum ContentSyncError {
     /// A transient failure: network error, timeout, or no peers currently
     /// connected. Retrying may succeed.
     Transient {
-        checkpoint: VerifiedCheckpoint,
+        checkpoint: Box<VerifiedCheckpoint>,
         /// Lowest pruning watermark across connected peers, if any are
         /// connected.
         lowest_peer_watermark: Option<CheckpointSequenceNumber>,
@@ -1557,7 +1557,7 @@ async fn sync_checkpoint_contents<S>(
                                         &store,
                                         peer_heights.clone(),
                                         timeout,
-                                        checkpoint,
+                                        *checkpoint,
                                     ),
                                 );
                             }
@@ -1589,7 +1589,7 @@ async fn sync_checkpoint_contents<S>(
                                         &store,
                                         peer_heights.clone(),
                                         timeout,
-                                        checkpoint,
+                                        *checkpoint,
                                     ),
                                 );
                             }
@@ -1703,7 +1703,7 @@ where
         tokio::time::sleep(duration).await;
 
         return Err(ContentSyncError::PrunedOnAllPeers {
-            checkpoint,
+            checkpoint: Box::new(checkpoint),
             // Safe to unwrap: is_pruned is only true when lowest_peer_watermark
             // is Some.
             lowest_peer_watermark: lowest_peer_watermark.unwrap(),
@@ -1734,7 +1734,7 @@ where
             tokio::time::sleep(duration).await;
         }
         return Err(ContentSyncError::Transient {
-            checkpoint,
+            checkpoint: Box::new(checkpoint),
             lowest_peer_watermark,
             connected_peers,
             known_peers,
