@@ -38,7 +38,7 @@ pub async fn execution_process(
         let _scope = monitored_scope("ExecutionDriver::loop");
 
         let transaction;
-        let expected_effects_digest;
+        let execution_env;
         let txn_ready_time;
         // Held until execution completes, keeping the executing-certificates gauge
         // accurate for ExecutionScheduler (always None for TransactionManager).
@@ -47,7 +47,7 @@ pub async fn execution_process(
             result = rx_ready_transactions.recv() => {
                 if let Some(pending_tx) = result {
                     transaction = pending_tx.transaction;
-                    expected_effects_digest = pending_tx.expected_effects_digest;
+                    execution_env = pending_tx.execution_env;
                     txn_ready_time = pending_tx.stats.ready_time.unwrap();
                     executing_guard = pending_tx.executing_guard;
                 } else {
@@ -127,7 +127,7 @@ pub async fn execution_process(
 
             match authority.try_execute_immediately(
                 &transaction,
-                expected_effects_digest,
+                execution_env,
                 &epoch_store_clone,
             ) {
                 Err(IotaError::ValidatorHaltedAtEpochEnd) => {

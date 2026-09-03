@@ -25,8 +25,8 @@ impl TransactionDenyRulesUpdateTransaction {
     }
 
     /// Consensus round of the update.
-    async fn round(&self) -> UInt53 {
-        self.native.round.into()
+    async fn round(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native.round).extend()
     }
 
     /// Addresses added to the sender-or-sponsor deny list.
@@ -120,10 +120,7 @@ impl TransactionDenyRulesUpdateTransaction {
     }
 
     /// The initial version the deny rules object was shared at.
-    async fn deny_rules_obj_initial_shared_version(&self) -> UInt53 {
-        self.native
-            .deny_rules_obj_initial_shared_version
-            .as_u64()
-            .into()
+    async fn deny_rules_obj_initial_shared_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native.deny_rules_obj_initial_shared_version.as_u64()).extend()
     }
 }

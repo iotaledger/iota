@@ -30,12 +30,13 @@ use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{
-        AuthorityMetrics, AuthorityState,
+        AuthorityMetrics, AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
             AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndices,
             ExecutionIndicesWithStats,
         },
         backpressure::{BackpressureManager, BackpressureSubscriber},
+        shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
     consensus_types::{
@@ -43,7 +44,7 @@ use crate::{
         consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
     },
     epoch_start_consensus_committee::get_consensus_committee,
-    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_cache::ObjectCacheRead,
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
 };
@@ -97,7 +98,6 @@ impl ConsensusHandlerInitializer {
             self.checkpoint_service.clone(),
             self.state.execution_scheduler().clone(),
             self.state.get_object_cache_reader().clone(),
-            self.state.get_transaction_cache_reader().clone(),
             self.low_scoring_authorities.clone(),
             consensus_committee,
             self.state.metrics.clone(),
@@ -122,8 +122,6 @@ pub struct ConsensusHandler<C> {
     /// cache reader is needed when determining the next version to assign for
     /// shared objects.
     cache_reader: Arc<dyn ObjectCacheRead>,
-    /// used to read randomness transactions during crash recovery
-    tx_reader: Arc<dyn TransactionCacheRead>,
     /// Reputation scores used by consensus adapter that we update, forwarded
     /// from consensus
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
@@ -149,7 +147,6 @@ impl<C> ConsensusHandler<C> {
         checkpoint_service: Arc<C>,
         execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         cache_reader: Arc<dyn ObjectCacheRead>,
-        tx_reader: Arc<dyn TransactionCacheRead>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
         committee: ConsensusCommittee,
         metrics: Arc<AuthorityMetrics>,
@@ -176,7 +173,6 @@ impl<C> ConsensusHandler<C> {
             last_consensus_stats,
             checkpoint_service,
             cache_reader,
-            tx_reader,
             low_scoring_authorities,
             committee,
             metrics,
@@ -413,14 +409,13 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             }
         }
 
-        let transactions_to_schedule = self
+        let (transactions_to_schedule, assigned_versions) = self
             .epoch_store
             .process_consensus_transactions_and_commit_boundary(
                 all_transactions,
                 &self.last_consensus_stats,
                 &self.checkpoint_service,
                 self.cache_reader.as_ref(),
-                self.tx_reader.as_ref(),
                 &ConsensusCommitInfo::new(&consensus_output),
                 &self.metrics,
                 &self.state,
@@ -440,7 +435,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         fail_point!("crash"); // for tests that produce random crashes
 
         self.transaction_scheduler
-            .schedule(transactions_to_schedule)
+            .schedule(transactions_to_schedule, assigned_versions)
             .await;
     }
 }
@@ -472,7 +467,7 @@ fn publish_scoring_gauges(
 }
 
 struct AsyncTransactionScheduler {
-    sender: tokio::sync::mpsc::Sender<Vec<VerifiedExecutableTransaction>>,
+    sender: tokio::sync::mpsc::Sender<(Vec<Schedulable>, AssignedTxAndVersions)>,
 }
 
 impl AsyncTransactionScheduler {
@@ -485,19 +480,39 @@ impl AsyncTransactionScheduler {
         Self { sender }
     }
 
-    pub async fn schedule(&self, transactions: Vec<VerifiedExecutableTransaction>) {
+    pub async fn schedule(
+        &self,
+        transactions: Vec<Schedulable>,
+        assigned_versions: AssignedTxAndVersions,
+    ) {
         tracing::trace_span!("transaction_scheduler_enqueue");
-        self.sender.send(transactions).await.ok();
+        self.sender
+            .send((transactions, assigned_versions))
+            .await
+            .ok();
     }
 
     pub async fn run(
-        mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableTransaction>>,
+        mut recv: tokio::sync::mpsc::Receiver<(Vec<Schedulable>, AssignedTxAndVersions)>,
         execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
-        while let Some(transactions) = recv.recv().await {
+        while let Some((transactions, assigned_versions)) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
-            execution_scheduler.enqueue(transactions, &epoch_store);
+            let assigned_versions = assigned_versions.into_map();
+            let txns = transactions
+                .into_iter()
+                .map(|txn| {
+                    let key = txn.key();
+                    (
+                        txn,
+                        ExecutionEnv::new().with_assigned_versions(
+                            assigned_versions.get(&key).cloned().unwrap_or_default(),
+                        ),
+                    )
+                })
+                .collect();
+            execution_scheduler.enqueue(txns, &epoch_store);
         }
     }
 }
@@ -925,7 +940,8 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::{AccountPrivateKey, get_key_pair},
+        crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
+        effects::TransactionEffectsAPI,
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -955,6 +971,8 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_consensus_handler() {
+        telemetry_subscribers::init_for_testing();
+
         // GIVEN
         let mut objects = test_gas_objects();
         let shared_object = Object::shared_for_testing();
@@ -984,7 +1002,6 @@ mod tests {
             Arc::new(CheckpointServiceNoop {}),
             state.execution_scheduler().clone(),
             state.get_object_cache_reader().clone(),
-            state.get_transaction_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
             consensus_committee.clone(),
             metrics,
@@ -1077,6 +1094,18 @@ mod tests {
             num_transactions as u64
         );
 
+        // AND the certificates execute. Bounded: a lost or mismatched assignment
+        // leaves the transaction waiting forever.
+        let digests: Vec<_> = transactions.iter().map(|tx| *tx.digest()).collect();
+        tokio::time::timeout(
+            Duration::from_secs(60),
+            state
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &digests),
+        )
+        .await
+        .expect("consensus-scheduled certificates did not execute");
+
         // WHEN processing the same output multiple times
         // THEN the consensus stats do not update
         for _ in 0..2 {
@@ -1086,6 +1115,165 @@ mod tests {
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats_1, last_consensus_stats_2);
         }
+    }
+
+    /// A commit mixing a shared-object certificate with an owned-object-only
+    /// one. Version assignment emits no entry for the owned certificate, so it
+    /// must fall back to an empty `ExecutionEnv` — the `unwrap_or_default()` in
+    /// `AsyncTransactionScheduler::run`. Both must execute: a panic there would
+    /// lose every owned-only transaction of a commit.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_mixed_owned_and_shared_commit() {
+        // GIVEN
+        let (sender, keypair) = deterministic_random_account_private_key();
+        let mut objects = test_gas_objects();
+        let shared_object = Object::shared_for_testing();
+        let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        let owned_gas_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
+        objects.push(shared_object.clone());
+        objects.push(owned_object.clone());
+        objects.push(owned_gas_object.clone());
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(objects.clone())
+                .build();
+
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let new_epoch_start_state = epoch_store.epoch_start_state();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
+
+        let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let backpressure_manager = BackpressureManager::new_for_tests();
+
+        let mut consensus_handler = ConsensusHandler::new(
+            epoch_store.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            consensus_committee.clone(),
+            metrics,
+            backpressure_manager.subscribe(),
+        );
+
+        // AND one shared-object certificate...
+        let shared_certificate = test_certificates(&state, shared_object.clone())
+            .await
+            .swap_remove(0);
+
+        // ...and one owned-object-only certificate (a transfer).
+        let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
+        let rgp = epoch_store.reference_gas_price();
+        let owned_ref = state.get_object(&owned_object.id()).unwrap().object_ref();
+        let gas_ref = state
+            .get_object(&owned_gas_object.id())
+            .unwrap()
+            .object_ref();
+        let transfer_data = Transaction::new_transfer(
+            recipient,
+            owned_ref,
+            sender,
+            gas_ref,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            rgp,
+        );
+        let transfer_transaction = epoch_store
+            .verify_transaction(to_sender_signed_transaction(transfer_data, &keypair))
+            .unwrap();
+        let response = state
+            .handle_transaction(&epoch_store, transfer_transaction.clone())
+            .await
+            .unwrap();
+        let vote = response.status.into_signed_for_testing();
+        let owned_certificate = CertifiedTransaction::new(
+            transfer_transaction.into_message(),
+            vec![vote],
+            &state.clone_committee_for_testing(),
+        )
+        .unwrap();
+
+        // The owned-only certificate goes first so that a positional pairing
+        // would shift the shared certificate onto the empty tail of the
+        // assignment list, failing the bounded wait below. With it last, such a
+        // pairing would coincidentally hand every transaction the same env a
+        // lookup by key does, and the test would pass either way.
+        let certificates = [owned_certificate.clone(), shared_certificate.clone()];
+        let mut headers = Vec::new();
+        let mut subdag_transactions = Vec::new();
+        for (i, certificate) in certificates.iter().enumerate() {
+            let transaction_bytes = bcs::to_bytes(&ConsensusTransaction::new_certificate_message(
+                &state.name,
+                certificate.clone(),
+            ))
+            .unwrap();
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
+                    .build(),
+            );
+            let tx_batch = CommitmentVerifiedTransactions::new_for_test(
+                &header,
+                vec![starfish_core::Transaction::new(transaction_bytes)],
+            );
+            headers.push(header);
+            subdag_transactions.push(tx_batch);
+        }
+        let leader_header = headers[0].clone();
+        let committed_header_refs: Vec<_> = headers.iter().map(|h| h.reference()).collect();
+        let committed_sub_dag = CommittedSubDag::new(
+            leader_header.reference(),
+            headers.clone(),
+            committed_header_refs,
+            subdag_transactions,
+            leader_header.timestamp_ms(),
+            CommitRef::new(10, CommitDigest::MIN),
+            vec![],
+            vec![],
+        );
+
+        // WHEN processing the consensus output
+        consensus_handler
+            .handle_consensus_output_for_test(committed_sub_dag)
+            .await;
+
+        // THEN both certificates execute. Bounded, as above.
+        let digests = [*shared_certificate.digest(), *owned_certificate.digest()];
+        let effects = tokio::time::timeout(
+            Duration::from_secs(60),
+            state
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &digests),
+        )
+        .await
+        .expect("both certificates of the mixed commit must execute");
+
+        // AND the shared certificate executed on the consensus-assigned shared
+        // object version, while the owned certificate touched no shared input.
+        let shared_effects = &effects[0];
+        let owned_effects = &effects[1];
+        assert_eq!(
+            shared_effects
+                .input_shared_objects()
+                .into_iter()
+                .map(|iso| {
+                    let oref = iso.object_reference();
+                    (oref.object_id, oref.version)
+                })
+                .collect::<Vec<_>>(),
+            vec![(shared_object.id(), shared_object.version())]
+        );
+        // Pins that the transaction is owned-only — effects cannot show which env
+        // it received.
+        assert!(
+            owned_effects.input_shared_objects().is_empty(),
+            "the transaction paired with the empty env must be owned-only"
+        );
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -1135,7 +1323,6 @@ mod tests {
             Arc::new(CheckpointServiceNoop {}),
             state.execution_scheduler().clone(),
             state.get_object_cache_reader().clone(),
-            state.get_transaction_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
             consensus_committee.clone(),
             metrics,

@@ -13,10 +13,10 @@ pub(crate) struct SystemParameters {
     pub duration_ms: Option<BigInt>,
 
     /// The minimum number of active validators that the system supports.
-    pub min_validator_count: Option<u64>,
+    pub min_validator_count: Option<i32>,
 
     /// The maximum number of active validators that the system supports.
-    pub max_validator_count: Option<u64>,
+    pub max_validator_count: Option<i32>,
 
     /// Minimum stake needed to become a new validator.
     pub min_validator_joining_stake: Option<BigInt>,

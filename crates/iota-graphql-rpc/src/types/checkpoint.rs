@@ -125,8 +125,8 @@ impl Checkpoint {
     /// This checkpoint's position in the total order of finalized checkpoints,
     /// agreed upon by consensus.
     #[graphql(complexity = 0)]
-    async fn sequence_number(&self) -> UInt53 {
-        self.sequence_number_impl().into()
+    async fn sequence_number(&self) -> Result<UInt53> {
+        UInt53::try_from(self.sequence_number_impl()).extend()
     }
 
     /// The timestamp at which the checkpoint is agreed to have happened
@@ -156,8 +156,10 @@ impl Checkpoint {
     /// The total number of transaction blocks in the network by the end of this
     /// checkpoint.
     #[graphql(complexity = 0)]
-    async fn network_total_transactions(&self) -> Option<UInt53> {
-        Some(self.network_total_transactions_impl().into())
+    async fn network_total_transactions(&self) -> Result<Option<UInt53>> {
+        Ok(Some(
+            UInt53::try_from(self.network_total_transactions_impl()).extend()?,
+        ))
     }
 
     /// The computation cost, storage cost, storage rebate, and non-refundable
@@ -235,7 +237,7 @@ impl Checkpoint {
         let Some(filter) = filter
             .unwrap_or_default()
             .intersect(TransactionBlockFilter {
-                at_checkpoint: Some(UInt53::from(self.stored.sequence_number as u64)),
+                at_checkpoint: Some(UInt53::try_from(self.stored.sequence_number as u64).extend()?),
                 ..Default::default()
             })
         else {
@@ -249,11 +251,11 @@ impl Checkpoint {
 }
 
 impl CheckpointId {
-    pub(crate) fn by_seq_num(seq_num: u64) -> Self {
-        CheckpointId {
-            sequence_number: Some(seq_num.into()),
+    pub(crate) fn by_seq_num(seq_num: u64) -> Result<Self, Error> {
+        Ok(CheckpointId {
+            sequence_number: Some(seq_num.try_into()?),
             digest: None,
-        }
+        })
     }
 }
 
@@ -634,7 +636,7 @@ impl Loader<DigestKey> for Db {
         let checkpoint_id_to_stored: BTreeMap<Vec<u8>, StoredCheckpoint> = digests
             .into_iter()
             .zip(rows)
-            .filter_map(|(digest, row)| row.map(|stored| (digest.inner().to_vec(), stored)))
+            .filter_map(|(digest, row)| row.map(|stored| (digest.bytes().to_vec(), stored)))
             .collect();
 
         Ok(keys

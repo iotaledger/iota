@@ -193,7 +193,7 @@ fn parse_transaction_proto(
                     .with_reason(ErrorReason::FieldInvalid)
             })?;
 
-        if computed_digest.inner() != &provided_digest_bytes {
+        if computed_digest.bytes() != &provided_digest_bytes {
             let provided_digest_typed = iota_sdk_types::Digest::new(provided_digest_bytes);
             return Err(FieldViolation::new("transaction.digest")
                 .with_description(format!(

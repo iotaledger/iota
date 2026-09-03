@@ -19,7 +19,10 @@ use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
+use iota_core::authority::{
+    AuthorityState, shared_object_version_manager::AssignedVersions,
+    test_authority_builder::TestAuthorityBuilder,
+};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{
@@ -1141,7 +1144,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     module_bytes.iter(),
                     &dependencies,
                 )
-                .into_inner()
+                .into_bytes()
                 .to_vec();
                 let staged = StagedPackage {
                     file: data,
@@ -1255,7 +1258,12 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     )
                     .unwrap();
 
-                let objects = self.executor.read_input_objects(tx.clone()).await?;
+                // Note: benchmark does not support shared object version assignment
+                let assigned_versions = AssignedVersions::default();
+                let objects = self
+                    .executor
+                    .read_input_objects(tx.clone(), assigned_versions)
+                    .await?;
 
                 // only run benchmarks in release mode
                 if !cfg!(debug_assertions) {
@@ -1697,7 +1705,7 @@ impl IotaTestAdapter {
         let upgrade_arg = builder.pure(policy).unwrap();
         let digest: Vec<u8> =
             MovePackage::compute_digest_for_modules_and_deps(&modules_bytes, &dependencies)
-                .into_inner()
+                .into_bytes()
                 .to_vec();
         let digest_arg = builder.pure(digest).unwrap();
 

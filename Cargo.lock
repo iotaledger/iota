@@ -990,6 +990,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async_io_stream"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6d7b9decdf35d8908a7e3ef02f64c5e9b1695e230154c0e8de3969142d9b94c"
+dependencies = [
+ "futures",
+ "pharos",
+ "rustc_version",
+]
+
+[[package]]
 name = "async_once"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4591,7 +4602,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f288b0a4f20f9a56b5d1da57e2227c661b7b16168e2f72365f57b63326e29b24"
 dependencies = [
  "gloo-timers",
- "send_wrapper",
+ "send_wrapper 0.4.0",
 ]
 
 [[package]]
@@ -4865,11 +4876,13 @@ dependencies = [
  "futures-lite",
  "futures-sink",
  "futures-timer",
+ "pharos",
  "pin-project",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tungstenite",
+ "ws_stream_wasm",
 ]
 
 [[package]]
@@ -7062,6 +7075,7 @@ dependencies = [
  "msim",
  "prometheus-filtered",
  "rand 0.10.2",
+ "serde_yaml",
  "telemetry-subscribers",
  "tempfile",
  "tokio",
@@ -7398,6 +7412,7 @@ dependencies = [
  "reqwest 0.13.4",
  "rustc_version_runtime",
  "serde",
+ "serde_yaml",
  "tap",
  "telemetry-subscribers",
  "tokio",
@@ -7776,7 +7791,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=89630700f47841e62546818167b49f92eec5d900#89630700f47841e62546818167b49f92eec5d900"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9c94abe76cb7defc3ca32e7546186d87a0871e7b#9c94abe76cb7defc3ca32e7546186d87a0871e7b"
 dependencies = [
  "base64ct",
  "bech32 0.12.0",
@@ -7803,7 +7818,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=89630700f47841e62546818167b49f92eec5d900#89630700f47841e62546818167b49f92eec5d900"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9c94abe76cb7defc3ca32e7546186d87a0871e7b#9c94abe76cb7defc3ca32e7546186d87a0871e7b"
 dependencies = [
  "async-stream",
  "base64ct",
@@ -7830,12 +7845,13 @@ dependencies = [
  "variadics_please",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "ws_stream_wasm",
 ]
 
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=89630700f47841e62546818167b49f92eec5d900#89630700f47841e62546818167b49f92eec5d900"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9c94abe76cb7defc3ca32e7546186d87a0871e7b#9c94abe76cb7defc3ca32e7546186d87a0871e7b"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7843,7 +7859,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=89630700f47841e62546818167b49f92eec5d900#89630700f47841e62546818167b49f92eec5d900"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9c94abe76cb7defc3ca32e7546186d87a0871e7b#9c94abe76cb7defc3ca32e7546186d87a0871e7b"
 dependencies = [
  "async-stream",
  "base64 0.23.1",
@@ -7862,7 +7878,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=89630700f47841e62546818167b49f92eec5d900#89630700f47841e62546818167b49f92eec5d900"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9c94abe76cb7defc3ca32e7546186d87a0871e7b#9c94abe76cb7defc3ca32e7546186d87a0871e7b"
 dependencies = [
  "bcs 0.2.1",
  "iota-sdk-types",
@@ -7878,7 +7894,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=89630700f47841e62546818167b49f92eec5d900#89630700f47841e62546818167b49f92eec5d900"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9c94abe76cb7defc3ca32e7546186d87a0871e7b#9c94abe76cb7defc3ca32e7546186d87a0871e7b"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
@@ -7897,7 +7913,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=89630700f47841e62546818167b49f92eec5d900#89630700f47841e62546818167b49f92eec5d900"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9c94abe76cb7defc3ca32e7546186d87a0871e7b#9c94abe76cb7defc3ca32e7546186d87a0871e7b"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
@@ -7970,7 +7986,6 @@ dependencies = [
  "move-core-types",
  "move-package",
  "move-symbol-pool",
- "once_cell",
  "prometheus-filtered",
  "serde",
  "serde_json",
@@ -8188,6 +8203,7 @@ dependencies = [
  "prometheus-filtered",
  "rand 0.10.2",
  "serde",
+ "serde_ignored",
  "serde_with",
  "serde_yaml",
  "tempfile",
@@ -8431,6 +8447,7 @@ dependencies = [
  "futures",
  "hex",
  "indexmap 2.11.0",
+ "iota-enum-compat-util",
  "iota-macros",
  "iota-multiaddr",
  "iota-protocol-config",
@@ -11468,6 +11485,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pharos"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9567389417feee6ce15dd6527a8a1ecac205ef62c2932bcf3d9f6fc5b78b414"
+dependencies = [
+ "futures",
+ "rustc_version",
+]
+
+[[package]]
 name = "phf"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13271,6 +13298,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
 
 [[package]]
+name = "send_wrapper"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
+
+[[package]]
 name = "seq-macro"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13369,6 +13402,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "serde_ignored"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "115dffd5f3853e06e746965a20dcbae6ee747ae30b543d91b0e089668bb07798"
+dependencies = [
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -16611,6 +16654,25 @@ name = "writeable"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
+
+[[package]]
+name = "ws_stream_wasm"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c173014acad22e83f16403ee360115b38846fe754e735c5d9d3803fe70c6abc"
+dependencies = [
+ "async_io_stream",
+ "futures",
+ "js-sys",
+ "log",
+ "pharos",
+ "rustc_version",
+ "send_wrapper 0.6.0",
+ "thiserror 2.0.18",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
 
 [[package]]
 name = "wyz"

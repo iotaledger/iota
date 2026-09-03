@@ -300,7 +300,7 @@ impl Committee {
         tx_digest: &TransactionDigest,
     ) -> Vec<AuthorityName> {
         // the 32 is as requirement of the default StdRng::from_seed choice
-        let digest_bytes = tx_digest.into_inner();
+        let digest_bytes = tx_digest.into_bytes();
 
         // permute the validators deterministically, based on the digest
         let mut rng = StdRng::from_seed(digest_bytes);

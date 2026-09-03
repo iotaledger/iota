@@ -212,7 +212,7 @@ impl<const T: bool> From<ValidatorAggregatedSignature>
 
         Self {
             epoch,
-            signature: crate::crypto::AggregateAuthoritySignature::from_bytes(signature.as_bytes())
+            signature: crate::crypto::AggregateAuthoritySignature::from_bytes(signature.bytes())
                 .unwrap(),
             signers_map: bitmap,
         }
@@ -352,6 +352,6 @@ impl From<crate::crypto::AuthorityPublicKeyBytes> for Bls12381PublicKey {
 
 impl From<Bls12381PublicKey> for crate::crypto::AuthorityPublicKeyBytes {
     fn from(value: Bls12381PublicKey) -> Self {
-        Self::new(value.into_inner())
+        Self::new(value.into_bytes())
     }
 }

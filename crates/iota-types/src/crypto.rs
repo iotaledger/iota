@@ -168,13 +168,13 @@ impl From<&SimpleKeypair> for PublicKey {
     fn from(kp: &SimpleKeypair) -> Self {
         match kp.public_key() {
             iota_sdk_types::PublicKey::Ed25519(pk) => {
-                PublicKey::Ed25519(BytesRepresentation(pk.into_inner()))
+                PublicKey::Ed25519(BytesRepresentation(pk.into_bytes()))
             }
             iota_sdk_types::PublicKey::Secp256k1(pk) => {
-                PublicKey::Secp256k1(BytesRepresentation(pk.into_inner()))
+                PublicKey::Secp256k1(BytesRepresentation(pk.into_bytes()))
             }
             iota_sdk_types::PublicKey::Secp256r1(pk) => {
-                PublicKey::Secp256r1(BytesRepresentation(pk.into_inner()))
+                PublicKey::Secp256r1(BytesRepresentation(pk.into_bytes()))
             }
             _ => unreachable!("SimpleKeypair keys use the three simple signature schemes"),
         }
@@ -511,7 +511,7 @@ macro_rules! random_key_pair_from_sdk {
             fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
                 let key = <$private_key>::random_with(StdRng::from_seed(seed));
                 let public =
-                    PublicKey::$variant(BytesRepresentation(key.public_key().into_inner()));
+                    PublicKey::$variant(BytesRepresentation(key.public_key().into_bytes()));
                 (Address::from(&public), key)
             }
         }

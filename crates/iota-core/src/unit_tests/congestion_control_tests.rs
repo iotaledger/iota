@@ -32,7 +32,7 @@ use iota_types::{
 
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{
             CongestionControlParameters, PreviouslyDeferredTransactions,
             consensus_quarantine::ConsensusCommitOutput,
@@ -49,6 +49,7 @@ use crate::{
             CongestionPerObjectDebt,
             shared_object_test_utils::new_congestion_tracker_with_initial_value_for_test,
         },
+        shared_object_version_manager::Schedulable,
         suggested_gas_price_calculator::suggested_gas_price_calculator_test_utils::new_suggested_gas_price_calculator_with_initial_values_for_test,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -487,10 +488,10 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
 
     // Run the same transaction in `authority_state_2`, but using the above effects
     // for the execution.
-    let cert = certify_shared_obj_transaction_no_execution(&authority_state_2, congested_tx)
+    let (cert, _) = certify_shared_obj_transaction_no_execution(&authority_state_2, congested_tx)
         .await
         .unwrap();
-    authority_state_2
+    let assigned_versions = authority_state_2
         .epoch_store_for_testing()
         .acquire_shared_version_assignments_from_effects(
             &VerifiedExecutableTransaction::new_from_certificate(cert.clone()),
@@ -498,7 +499,10 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
             authority_state_2.get_object_cache_reader().as_ref(),
         )
         .unwrap();
-    let (effects_2, execution_error) = authority_state_2.execute_for_test(&cert);
+    let (effects_2, execution_error) = authority_state_2.execute_for_test(
+        &cert,
+        ExecutionEnv::new().with_assigned_versions(assigned_versions),
+    );
 
     // Should result in the same cancellation.
     assert_eq!(
@@ -1105,35 +1109,68 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
                 &[],
                 congestion_control_parameters,
             );
-            let (non_randomness, randomness, _notifications, _reconfig, _final_round, _root) =
-                epoch_store
-                    .process_consensus_transactions(
-                        &mut output,
-                        &combined,
-                        &[],
-                        &[],
-                        &Arc::new(CheckpointServiceNoop {}),
-                        authority.get_object_cache_reader().as_ref(),
-                        &ConsensusCommitInfo::new_for_test(round, 0, true),
-                        &mut non_randomness_roots,
-                        &mut randomness_roots,
-                        PreviouslyDeferredTransactions::default(),
-                        None,
-                        false,
-                        Some(RandomnessRound::new(0)),
-                        &authority.metrics,
-                        tracker,
-                        // Combined mode: no separate randomness tracker.
-                        None,
-                    )
-                    .await
-                    .unwrap();
+            let (
+                non_randomness,
+                randomness,
+                _notifications,
+                _reconfig,
+                _final_round,
+                _root,
+                assigned,
+            ) = epoch_store
+                .process_consensus_transactions(
+                    &mut output,
+                    &combined,
+                    &[],
+                    &[],
+                    &Arc::new(CheckpointServiceNoop {}),
+                    authority.get_object_cache_reader().as_ref(),
+                    &ConsensusCommitInfo::new_for_test(round, 0, true),
+                    &mut non_randomness_roots,
+                    &mut randomness_roots,
+                    PreviouslyDeferredTransactions::default(),
+                    None,
+                    false,
+                    Some(RandomnessRound::new(0)),
+                    &authority.metrics,
+                    tracker,
+                    // Combined mode: no separate randomness tracker.
+                    None,
+                )
+                .await
+                .unwrap();
+            // The update is assigned under its round key, which is also the key
+            // the scheduler looks its env up by.
+            assert!(
+                assigned
+                    .into_map()
+                    .contains_key(&TransactionKey::RandomnessRound(
+                        epoch_store.epoch(),
+                        RandomnessRound::new(0),
+                    ))
+            );
+            // The randomness queue starts with the round's state update, the
+            // one schedulable that is not a transaction yet; the regular queue
+            // must not carry it.
+            assert!(matches!(
+                randomness.first(),
+                Some(Schedulable::RandomnessStateUpdate(..))
+            ));
             (
                 non_randomness
                     .iter()
+                    .map(|schedulable| {
+                        *schedulable
+                            .as_tx()
+                            .expect("only transactions are scheduled outside the randomness queue")
+                            .digest()
+                    })
+                    .collect::<Vec<_>>(),
+                randomness
+                    .iter()
+                    .filter_map(|schedulable| schedulable.as_tx())
                     .map(|tx| *tx.digest())
                     .collect::<Vec<_>>(),
-                randomness.iter().map(|tx| *tx.digest()).collect::<Vec<_>>(),
                 non_randomness_roots,
                 randomness_roots,
             )
@@ -1276,27 +1313,36 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         .collect();
 
     let checkpoint_service = Arc::new(CheckpointServiceNoop {});
-    let executable_transactions = epoch_store
+    let (executable_transactions, assigned_versions) = epoch_store
         .process_consensus_transactions_for_tests(
             sequenced_transactions,
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
         )
         .await
         .unwrap();
+    let assigned_versions = assigned_versions.into_map();
 
     // Both transactions are scheduled for execution: one normally, the other
     // in cancelled mode.
     assert_eq!(executable_transactions.len(), 2);
 
     let mut cancelled = Vec::new();
-    for tx in &executable_transactions {
+    for schedulable in &executable_transactions {
+        let tx = schedulable
+            .as_tx()
+            .expect("the commit schedules only transactions here");
+        let env = ExecutionEnv::new().with_assigned_versions(
+            assigned_versions
+                .get(&tx.key())
+                .cloned()
+                .unwrap_or_default(),
+        );
         let (effects, _) = authority
-            .try_execute_immediately(tx, None, &epoch_store)
+            .try_execute_immediately(tx, env, &epoch_store)
             .unwrap();
         let is_cancelled = match effects.status() {
             ExecutionStatus::Success => false,
@@ -1342,7 +1388,7 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
     // execution status and must reproduce identical effects.
     let authority_2 = init_state_with_objects(genesis_objects).await;
     let epoch_store_2 = authority_2.epoch_store_for_testing();
-    epoch_store_2
+    let assigned_versions_2 = epoch_store_2
         .acquire_shared_version_assignments_from_effects(
             &cancelled_tx,
             &effects,
@@ -1350,7 +1396,11 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         )
         .unwrap();
     let (effects_2, _) = authority_2
-        .try_execute_immediately(&cancelled_tx, None, &epoch_store_2)
+        .try_execute_immediately(
+            &cancelled_tx,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions_2),
+            &epoch_store_2,
+        )
         .unwrap();
     assert_eq!(effects, effects_2);
 }
@@ -1453,18 +1503,18 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
         .collect();
 
     let checkpoint_service = Arc::new(CheckpointServiceNoop {});
-    let executable_transactions = epoch_store
+    let (executable_transactions, assigned_versions) = epoch_store
         .process_consensus_transactions_for_tests(
             sequenced_transactions,
             &checkpoint_service,
             authority_state.get_object_cache_reader().as_ref(),
-            authority_state.get_transaction_cache_reader().as_ref(),
             &authority_state.metrics,
             true,
             authority_state.as_ref(),
         )
         .await
         .unwrap();
+    let assigned_versions = assigned_versions.into_map();
     assert_eq!(executable_transactions.len(), 2);
 
     let shared_input_of = |digest| {
@@ -1477,9 +1527,18 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
     };
 
     let mut cancellations = 0;
-    for tx in &executable_transactions {
+    for schedulable in &executable_transactions {
+        let tx = schedulable
+            .as_tx()
+            .expect("the commit schedules only transactions here");
+        let env = ExecutionEnv::new().with_assigned_versions(
+            assigned_versions
+                .get(&tx.key())
+                .cloned()
+                .unwrap_or_default(),
+        );
         let (effects, _) = authority_state
-            .try_execute_immediately(tx, None, &epoch_store)
+            .try_execute_immediately(tx, env, &epoch_store)
             .unwrap();
         let shared_input = shared_input_of(tx.digest());
         match effects.status() {
@@ -1599,24 +1658,33 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         .collect();
 
     let checkpoint_service = Arc::new(CheckpointServiceNoop {});
-    let executable_transactions = epoch_store
+    let (executable_transactions, assigned_versions) = epoch_store
         .process_consensus_transactions_for_tests(
             sequenced_transactions,
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
         )
         .await
         .unwrap();
+    let assigned_versions = assigned_versions.into_map();
     assert_eq!(executable_transactions.len(), 2);
 
     let mut cancelled = Vec::new();
-    for tx in &executable_transactions {
+    for schedulable in &executable_transactions {
+        let tx = schedulable
+            .as_tx()
+            .expect("the commit schedules only transactions here");
+        let env = ExecutionEnv::new().with_assigned_versions(
+            assigned_versions
+                .get(&tx.key())
+                .cloned()
+                .unwrap_or_default(),
+        );
         let (effects, _) = authority
-            .try_execute_immediately(tx, None, &epoch_store)
+            .try_execute_immediately(tx, env, &epoch_store)
             .unwrap();
         let is_cancelled = match effects.status() {
             ExecutionStatus::Success => false,
@@ -1664,7 +1732,7 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
     // Re-execution from the effects must reproduce identical effects.
     let authority_2 = init_state_with_objects(genesis_objects).await;
     let epoch_store_2 = authority_2.epoch_store_for_testing();
-    epoch_store_2
+    let assigned_versions_2 = epoch_store_2
         .acquire_shared_version_assignments_from_effects(
             &cancelled_tx,
             &effects,
@@ -1672,7 +1740,11 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         )
         .unwrap();
     let (effects_2, _) = authority_2
-        .try_execute_immediately(&cancelled_tx, None, &epoch_store_2)
+        .try_execute_immediately(
+            &cancelled_tx,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions_2),
+            &epoch_store_2,
+        )
         .unwrap();
     assert_eq!(effects, effects_2);
 }

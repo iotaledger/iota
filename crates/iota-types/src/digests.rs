@@ -83,11 +83,11 @@ impl ChainIdentifier {
     }
 
     pub fn as_bytes(&self) -> &[u8; 32] {
-        self.0.inner()
+        self.0.bytes()
     }
 
     pub fn into_bytes(self) -> [u8; 32] {
-        self.0.into_inner()
+        self.0.into_bytes()
     }
 
     pub fn digest(&self) -> CheckpointDigest {
@@ -123,7 +123,7 @@ pub fn get_testnet_chain_identifier() -> ChainIdentifier {
 
 impl fmt::Display for ChainIdentifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0.as_bytes()[0..4].iter() {
+        for byte in self.0.bytes()[0..4].iter() {
             write!(f, "{byte:02x}")?;
         }
 

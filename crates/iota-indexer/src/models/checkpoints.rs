@@ -71,18 +71,18 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
     fn from(c: &IndexedCheckpoint) -> Self {
         Self {
             sequence_number: c.sequence_number as i64,
-            checkpoint_digest: c.checkpoint_digest.into_inner().to_vec(),
+            checkpoint_digest: c.checkpoint_digest.into_bytes().to_vec(),
             epoch: c.epoch as i64,
             tx_digests: c
                 .tx_digests
                 .iter()
-                .map(|tx| Some(tx.into_inner().to_vec()))
+                .map(|tx| Some(tx.into_bytes().to_vec()))
                 .collect(),
             network_total_transactions: c.network_total_transactions as i64,
             previous_checkpoint_digest: c
                 .previous_checkpoint_digest
                 .as_ref()
-                .map(|d| (*d).into_inner().to_vec()),
+                .map(|d| (*d).into_bytes().to_vec()),
             timestamp_ms: c.timestamp_ms as i64,
             total_gas_cost: c.total_gas_cost,
             computation_cost: c.computation_cost as i64,
@@ -99,7 +99,7 @@ impl From<&IndexedCheckpoint> for StoredCheckpoint {
             end_of_epoch: c.end_of_epoch_data.is_some(),
             min_tx_sequence_number: Some(c.min_tx_sequence_number as i64),
             max_tx_sequence_number: Some(c.max_tx_sequence_number as i64),
-            content_digest: Some(c.content_digest.into_inner().to_vec()),
+            content_digest: Some(c.content_digest.into_bytes().to_vec()),
             version_specific_data: Some(c.version_specific_data.clone()),
         }
     }
@@ -319,10 +319,10 @@ mod tests {
 
         let stored = StoredCheckpoint {
             sequence_number: summary.sequence_number as i64,
-            checkpoint_digest: summary.digest().into_inner().to_vec(),
+            checkpoint_digest: summary.digest().into_bytes().to_vec(),
             epoch: summary.epoch as i64,
             network_total_transactions: summary.network_total_transactions as i64,
-            previous_checkpoint_digest: summary.previous_digest.map(|d| d.into_inner().to_vec()),
+            previous_checkpoint_digest: summary.previous_digest.map(|d| d.into_bytes().to_vec()),
             end_of_epoch: summary.end_of_epoch_data.is_some(),
             tx_digests: vec![],
             timestamp_ms: summary.timestamp_ms as i64,
@@ -346,7 +346,7 @@ mod tests {
                     .epoch_rolling_gas_cost_summary
                     .computation_cost_burned as i64,
             ),
-            content_digest: Some(summary.contents_digest.into_inner().to_vec()),
+            content_digest: Some(summary.contents_digest.into_bytes().to_vec()),
             version_specific_data: Some(summary.version_specific_data.clone()),
         };
 

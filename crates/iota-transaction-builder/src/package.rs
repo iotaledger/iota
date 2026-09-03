@@ -155,7 +155,7 @@ impl TransactionBuilder {
             .owner
             .ok_or_else(|| anyhow!("Unable to determine ownership of upgrade capability"))?;
         let digest = MovePackage::compute_digest_for_modules_and_deps(&compiled_modules, &dep_ids)
-            .into_inner()
+            .into_bytes()
             .to_vec();
         Transaction::new_upgrade(
             sender,

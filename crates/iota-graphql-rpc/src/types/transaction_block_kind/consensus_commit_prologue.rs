@@ -28,8 +28,8 @@ impl ConsensusCommitPrologueTransaction {
     }
 
     /// Consensus round of the commit.
-    async fn round(&self) -> UInt53 {
-        self.native.round.into()
+    async fn round(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native.round).extend()
     }
 
     /// Unix timestamp from consensus.
@@ -39,6 +39,6 @@ impl ConsensusCommitPrologueTransaction {
 
     /// Digest of consensus output, encoded as a Base58 string.
     async fn consensus_commit_digest(&self) -> String {
-        Base58::encode(self.native.consensus_commit_digest.inner())
+        Base58::encode(self.native.consensus_commit_digest.bytes())
     }
 }

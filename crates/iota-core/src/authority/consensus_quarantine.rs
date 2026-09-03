@@ -9,7 +9,7 @@ use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_sdk_types::{
     ObjectId, ObjectReference, RandomnessRound, TransactionDigest, UserSignature, Version,
-    VersionAssignment, checkpoint::CheckpointContents,
+    checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::AuthorityName,
@@ -32,7 +32,6 @@ use crate::{
         shared_object_congestion_tracker::{
             CongestionPerObjectDebt, CongestionWorkerDebt, WorkerDebtSlots,
         },
-        shared_object_version_manager::AssignedTxAndVersions,
     },
     checkpoints::PendingCheckpoint,
     consensus_handler::SequencedConsensusTransactionKey,
@@ -437,10 +436,6 @@ impl ConsensusCommitOutput {
 /// commit from which it originated is marked as processed. Therefore we can
 /// rely on replay of consensus commits to recover this data.
 pub(crate) struct ConsensusOutputCache {
-    // shared version assignments is a DashMap because it is read from execution so we don't
-    // want contention.
-    shared_version_assignments: DashMap<TransactionKey, Vec<VersionAssignment>>,
-
     // deferred transactions is only used by consensus handler so there should never be lock
     // contention
     // - hence no need for a DashMap.
@@ -460,12 +455,10 @@ pub(crate) struct ConsensusOutputCache {
 
     executed_in_epoch: RwLock<DashMap<TransactionDigest, ()>>,
     executed_in_epoch_cache: MokaCache<TransactionDigest, ()>,
-
-    metrics: Arc<EpochMetrics>,
 }
 
 impl ConsensusOutputCache {
-    pub(crate) fn new(tables: &AuthorityEpochTables, metrics: Arc<EpochMetrics>) -> Self {
+    pub(crate) fn new(tables: &AuthorityEpochTables) -> Self {
         let deferred_transactions = tables
             .get_all_deferred_transactions()
             .expect("load deferred transactions cannot fail");
@@ -477,7 +470,6 @@ impl ConsensusOutputCache {
         let executed_in_epoch_cache_capacity = 50_000;
 
         Self {
-            shared_version_assignments: Default::default(),
             deferred_transactions: Mutex::new(deferred_transactions),
             deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
             user_signatures_for_checkpoints: Default::default(),
@@ -489,61 +481,7 @@ impl ConsensusOutputCache {
                 ))
                 .eviction_policy(EvictionPolicy::lru())
                 .build(),
-            metrics,
         }
-    }
-
-    pub fn num_shared_version_assignments(&self) -> usize {
-        self.shared_version_assignments.len()
-    }
-
-    pub fn get_assigned_shared_object_versions(
-        &self,
-        key: &TransactionKey,
-    ) -> Option<Vec<VersionAssignment>> {
-        self.shared_version_assignments
-            .get(key)
-            .map(|locks| locks.clone())
-    }
-
-    pub fn insert_shared_object_assignments(&self, versions: &AssignedTxAndVersions) {
-        trace!("insert_shared_object_assignments: {:?}", versions);
-        let mut inserted_count = 0;
-        for (key, value) in versions {
-            if self
-                .shared_version_assignments
-                .insert(*key, value.clone())
-                .is_none()
-            {
-                inserted_count += 1;
-            }
-        }
-        self.metrics
-            .shared_object_assignments_size
-            .add(inserted_count as i64);
-    }
-
-    pub fn set_shared_object_versions_for_testing(
-        &self,
-        tx_digest: &TransactionDigest,
-        assigned_versions: &[VersionAssignment],
-    ) {
-        self.shared_version_assignments.insert(
-            TransactionKey::Digest(*tx_digest),
-            assigned_versions.to_owned(),
-        );
-    }
-
-    pub fn remove_shared_object_assignments(&self, keys: impl IntoIterator<Item = TransactionKey>) {
-        let mut removed_count = 0;
-        for tx_key in keys {
-            if self.shared_version_assignments.remove(&tx_key).is_some() {
-                removed_count += 1;
-            }
-        }
-        self.metrics
-            .shared_object_assignments_size
-            .sub(removed_count as i64);
     }
 
     pub fn executed_in_current_epoch(&self, digest: &TransactionDigest) -> bool {
@@ -835,13 +773,6 @@ impl ConsensusOutputQuarantine {
                     .extend(&output.overload_notifications);
                 self.cached_deny_rule_proposals
                     .extend(output.deny_rule_proposals.clone());
-                epoch_store.remove_shared_version_assignments(
-                    output
-                        .pending_checkpoints
-                        .iter()
-                        .flat_map(|c| c.roots().iter())
-                        .copied(),
-                );
                 output.write_to_batch(epoch_store, batch)?;
             } else {
                 break;

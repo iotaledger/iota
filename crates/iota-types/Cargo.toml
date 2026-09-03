@@ -87,6 +87,7 @@ tokio.workspace = true
 url.workspace = true
 
 # internal dependencies
+iota-enum-compat-util.workspace = true
 iota-sdk-types = { workspace = true, features = ["proptest"] }
 
 [[bench]]

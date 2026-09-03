@@ -221,13 +221,13 @@ impl Worker for KVStoreWorker {
         let checkpoint_number = checkpoint.checkpoint_summary.sequence_number;
 
         for transaction in &checkpoint.transactions {
-            let transaction_digest = transaction.transaction.digest().into_inner().to_vec();
+            let transaction_digest = transaction.transaction.digest().into_bytes().to_vec();
             effects.push((transaction_digest.clone(), transaction.effects.clone()));
             transactions_to_checkpoint.push((transaction_digest.clone(), checkpoint_number));
             transactions.push((transaction_digest.clone(), transaction.transaction.clone()));
 
             if let Some(tx_events) = &transaction.events {
-                events.push((tx_events.digest().into_inner().to_vec(), tx_events));
+                events.push((tx_events.digest().into_bytes().to_vec(), tx_events));
             }
             for object in &transaction.output_objects {
                 let object_key = ObjectKey(object.id(), object.version());
@@ -260,7 +260,7 @@ impl Worker for KVStoreWorker {
             ItemType::CheckpointSummary,
             [
                 serialized_checkpoint_number,
-                checkpoint_summary.digest().into_inner().to_vec(),
+                checkpoint_summary.digest().into_bytes().to_vec(),
             ]
             .into_iter()
             .zip(repeat(checkpoint_summary)),
