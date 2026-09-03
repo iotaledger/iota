@@ -602,7 +602,7 @@ impl VersionedDkgMessage {
         party: Arc<dkg_v1::Party<bls12381::G2Element, bls12381::G2Element>>,
     ) -> FastCryptoResult<VersionedDkgMessage> {
         assert_eq!(dkg_version, 1, "BUG: invalid DKG version");
-        let msg = party.create_message(&mut rand::thread_rng())?;
+        let msg = party.create_message(&mut rand08::thread_rng())?;
         Ok(VersionedDkgMessage::V1(msg))
     }
 

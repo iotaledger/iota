@@ -44,7 +44,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use parking_lot::Mutex;
-use rand::{Rng, seq::SliceRandom as _};
+use rand::{RngExt, seq::SliceRandom as _};
 use starfish_config::{AuthorityIndex, Committee};
 
 use crate::{Round, block_header::BlockTimestampMs, dag_state::DataSource, metrics::Metrics};
@@ -332,7 +332,7 @@ impl PeerResponsiveness {
     /// from a fallback, never the failure state, so a peer that failed on
     /// another source ranks as healthy here - carrying the timeout-scale
     /// latency that failure left behind.
-    pub(crate) fn prioritize<R: Rng>(
+    pub(crate) fn prioritize<R: RngExt>(
         &self,
         source: DataSource,
         candidates: &mut [AuthorityIndex],
@@ -345,7 +345,7 @@ impl PeerResponsiveness {
         // Exploration round: ignore ranking entirely. This is the floor that
         // keeps every peer reachable early and prevents any peer from
         // monopolizing the head of the list across rounds.
-        if rng.gen::<f64>() < EXPLORE_PROBABILITY {
+        if rng.random::<f64>() < EXPLORE_PROBABILITY {
             candidates.shuffle(rng);
             return;
         }
@@ -402,7 +402,7 @@ impl PeerResponsiveness {
     /// Writes the ranked order back into `candidates` from per-candidate
     /// `(effective latency, last fetch failed)` stats; the ordering rules are
     /// described on [`Self::prioritize`].
-    fn reorder_by_latency<R: Rng>(
+    fn reorder_by_latency<R: RngExt>(
         candidates: &mut [AuthorityIndex],
         stats: &[(f64, bool)],
         rng: &mut R,
@@ -410,7 +410,7 @@ impl PeerResponsiveness {
         let mut healthy: Vec<(f64, f64, AuthorityIndex)> = Vec::new();
         let mut failed: Vec<(f64, f64, AuthorityIndex)> = Vec::new();
         for (peer, (latency, last_fetch_failed)) in candidates.iter().zip(stats) {
-            let entry = (*latency, rng.gen::<f64>(), *peer);
+            let entry = (*latency, rng.random::<f64>(), *peer);
             if *last_fetch_failed {
                 failed.push(entry);
             } else {
@@ -430,7 +430,7 @@ impl PeerResponsiveness {
         let tail = healthy.split_off(healthy.len().min(SELECTION_WINDOW));
         while !healthy.is_empty() {
             let total: f64 = healthy.iter().map(|(latency, _, _)| 1.0 / latency).sum();
-            let mut draw = rng.gen::<f64>() * total;
+            let mut draw = rng.random::<f64>() * total;
             let mut chosen = healthy.len() - 1;
             for (i, (latency, _, _)) in healthy.iter().enumerate() {
                 draw -= 1.0 / latency;

@@ -49,7 +49,7 @@ use iota_swarm_config::{
     },
 };
 use iota_types::traffic_control::PolicyConfig;
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use tempfile::tempdir;
 use tracing::info;
 
@@ -728,7 +728,8 @@ async fn start(
             .with_fullnode_count(1)
             .with_fullnode_rpc_addr(fullnode_url)
             .with_fullnode_genesis_config(
-                fullnode_config_info.unwrap_or_else(|| fullnode_genesis_config(&mut OsRng, None)),
+                fullnode_config_info
+                    .unwrap_or_else(|| fullnode_genesis_config(&mut UnwrapErr(SysRng), None)),
             );
     }
 
@@ -1173,7 +1174,7 @@ async fn genesis(
     // persisted with the validators'. `start` then derives the same fullnode
     // config, and reuses its database, on every run.
     genesis_config.fullnode_config_info.get_or_insert_with(|| {
-        fullnode_genesis_config(&mut OsRng, admin_interface_address_with_port)
+        fullnode_genesis_config(&mut UnwrapErr(SysRng), admin_interface_address_with_port)
     });
 
     info!("Network genesis completed.");
@@ -1247,7 +1248,7 @@ async fn genesis(
 /// Only the ports are fixed. The addresses stay on the IP the fullnode would
 /// have used anyway. That IP is localhost outside the simulator, and one
 /// address of its own inside it.
-fn fullnode_genesis_config<R: rand::RngCore + rand::CryptoRng>(
+fn fullnode_genesis_config<R: rand::CryptoRng>(
     rng: &mut R,
     admin_interface_address: Option<SocketAddr>,
 ) -> ValidatorGenesisConfig {
@@ -1294,7 +1295,7 @@ fn write_state_sync_fullnode_configs(
             .with_json_rpc_address(([0, 0, 0, 0], 9000))
             .with_genesis(deployed_genesis.clone())
             .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
-            .try_build_from_parts(&mut OsRng, validator_configs, deployed_genesis)?;
+            .try_build_from_parts(&mut UnwrapErr(SysRng), validator_configs, deployed_genesis)?;
         ssfn_config.save(path)?;
         ssfn_configs.push(ssfn_config);
     }
@@ -1569,7 +1570,7 @@ mod tests {
             let overrides = with_grpc_overrides(input.to_string()).unwrap();
             let mut config = FullnodeConfigBuilder::new()
                 .with_config_directory(dir.path().to_path_buf())
-                .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+                .build_from_parts(&mut UnwrapErr(SysRng), &[], Genesis::new_empty());
             // One batch, as `start` hands them to the swarm builder.
             apply_node_config_overrides(&overrides, &mut config).unwrap();
             assert!(config.enable_grpc_api, "{input}");

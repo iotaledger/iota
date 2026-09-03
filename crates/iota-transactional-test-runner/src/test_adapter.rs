@@ -91,7 +91,7 @@ use move_transactional_test_runner::{
 };
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use simulacrum::SimulatorStore;
 use tempfile::{NamedTempFile, tempdir};
 
@@ -2698,7 +2698,7 @@ async fn init_val_fullnode_executor(
     let mut mk_account = || {
         let (address, key) = get_key_pair_from_rng(&mut rng);
         let obj = Object::with_id_owner_gas_for_testing(
-            ObjectId::new(rng.gen()),
+            ObjectId::new(rng.random()),
             address,
             GAS_FOR_TESTING,
         );

@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn verify_allowall() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let allowed = Ed25519KeyPair::generate(&mut rng);
         let disallowed = Ed25519KeyPair::generate(&mut rng);
         let random_cert_bob =
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn verify_server_cert() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let allowed = Ed25519KeyPair::generate(&mut rng);
         let disallowed = Ed25519KeyPair::generate(&mut rng);
         let allowed_public_key = allowed.public().to_owned();
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn verify_hashset() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let allowed = Ed25519KeyPair::generate(&mut rng);
         let disallowed = Ed25519KeyPair::generate(&mut rng);
 
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn invalid_server_name() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let keypair = Ed25519KeyPair::generate(&mut rng);
         let public_key = keypair.public().to_owned();
         let cert = SelfSignedCertificate::new(keypair.private(), "not-iota");
@@ -263,7 +263,7 @@ mod tests {
     async fn axum_acceptor() {
         use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let client_keypair = Ed25519KeyPair::generate(&mut rng);
         let client_public_key = client_keypair.public().to_owned();
         let client_certificate =
@@ -272,7 +272,7 @@ mod tests {
         let server_certificate = SelfSignedCertificate::new(server_keypair.private(), "localhost");
 
         let client = reqwest::Client::builder()
-            .add_root_certificate(server_certificate.reqwest_certificate())
+            .tls_certs_only([server_certificate.reqwest_certificate()])
             .identity(client_certificate.reqwest_identity())
             .https_only(true)
             .build()

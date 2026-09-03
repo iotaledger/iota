@@ -2321,7 +2321,7 @@ mod test {
         let mut acknowledgments = vec![];
         let num_acks = 2 * context.committee.size();
         let mut num_pending_acks = 0;
-        let mut rng = &mut rand::thread_rng();
+        let mut rng = &mut rand::rng();
         loop {
             acknowledgments.push(BlockRef::new(
                 0,

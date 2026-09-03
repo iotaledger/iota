@@ -198,10 +198,11 @@ impl Frame<FlameMetric> {
         }
     }
 }
-fn random_rgb<R: rand::Rng>(rng: &mut R) -> (u8, u8, u8) {
-    let r = rng.gen_range(150..=255);
-    let g = rng.gen_range(0..=100);
-    let b = rng.gen_range(0..=100);
+
+fn random_rgb<R: rand::RngExt>(rng: &mut R) -> (u8, u8, u8) {
+    let r = rng.random_range(150..=255);
+    let g = rng.random_range(0..=100);
+    let b = rng.random_range(0..=100);
     (r, g, b)
 }
 

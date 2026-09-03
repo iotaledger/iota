@@ -22,7 +22,7 @@ use lru::LruCache;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
 use rand::prelude::SliceRandom;
-use rand::{SeedableRng, prelude::StdRng};
+use rand::prelude::StdRng;
 use starfish_config::AuthorityIndex;
 use tap::TapFallible;
 use tokio::{
@@ -1584,7 +1584,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         // Step 2: Choose at most MAX_PEERS-MAX_RANDOM_PEERS peers from those who are
         // aware of some missing block headers
 
-        let mut rng = StdRng::from_entropy();
+        let mut rng: StdRng = rand::make_rng();
         let rank_peers = |candidates: &mut Vec<AuthorityIndex>, rng: &mut StdRng| {
             if context.parameters.enable_peer_responsiveness_ranking {
                 context.peer_responsiveness.prioritize(

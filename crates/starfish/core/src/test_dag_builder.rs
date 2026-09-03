@@ -9,7 +9,7 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{RngExt, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 
 use crate::{
@@ -614,7 +614,7 @@ impl DagBuilder {
             self.record_own_block(block.reference());
             self.block_headers.insert(block.reference(), block.clone());
         }
-        let mut rng = StdRng::from_entropy();
+        let mut rng = rand::make_rng::<StdRng>();
         let unique_transaction_acks: Vec<BlockRef> = transaction_acks
             .values()
             .flatten()
@@ -990,7 +990,7 @@ impl<'a> LayerBuilder<'a> {
 
         let mut rng = match self.min_ancestor_links_random_seed {
             Some(s) => StdRng::seed_from_u64(s),
-            None => StdRng::from_entropy(),
+            None => rand::make_rng::<StdRng>(),
         };
 
         let mut authorities_to_shuffle = authorities.clone();
@@ -1148,7 +1148,7 @@ impl<'a> LayerBuilder<'a> {
         transaction_acknowledgments: HashMap<AuthorityIndex, Vec<BlockRef>>,
     ) {
         let mut references = Vec::new();
-        let mut rng = StdRng::from_entropy();
+        let mut rng = rand::make_rng::<StdRng>();
         let version = TestBlockHeaderVersion::from_context(&self.dag_builder.context);
 
         for (authority, ancestors) in connections {

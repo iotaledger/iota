@@ -14,7 +14,11 @@ use iota_multiaddr::Multiaddr;
 pub use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{TransactionDigest, validator::ValidatorCommitteeMember};
 use once_cell::sync::OnceCell;
-use rand::{
+// `shuffle_by_stake_from_tx_digest` permutes the committee deterministically
+// from the transaction digest so every validator derives the same submission
+// order, so this stays on `rand` 0.8: the 0.10 weighted sampler consumes the
+// seeded stream differently and would produce a different permutation.
+use rand08::{
     Rng, SeedableRng,
     rngs::{StdRng, ThreadRng},
     seq::SliceRandom,
@@ -638,7 +642,7 @@ mod test {
     /// committee, and one that is not a close of epoch.
     #[test]
     fn committee_chain_verifier_walks_and_rejects() {
-        let mut rng = StdRng::from_seed(RNG_SEED);
+        let mut rng = <rand::rngs::StdRng as rand::SeedableRng>::from_seed(RNG_SEED);
         let (keys, committee) = make_committee_key(&mut rng);
         let (other_keys, other_committee) = make_committee_key(&mut rng);
 

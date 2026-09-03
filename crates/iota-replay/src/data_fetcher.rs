@@ -25,7 +25,7 @@ use iota_types::{
 };
 use lru::LruCache;
 use parking_lot::RwLock;
-use rand::Rng;
+use rand::RngExt;
 
 use crate::types::{EPOCH_CHANGE_STRUCT_TAGS, ReplayEngineError};
 
@@ -511,10 +511,10 @@ impl DataFetcher for RemoteFetcher {
         let checkpoint_id_end = checkpoint_id_end_inclusive
             .unwrap_or(self.get_latest_checkpoint_sequence_number().await?);
         let checkpoint_id_start = checkpoint_id_start_inclusive.unwrap_or(1);
-        let checkpoint_id = rand::thread_rng().gen_range(checkpoint_id_start..=checkpoint_id_end);
+        let checkpoint_id = rand::rng().random_range(checkpoint_id_start..=checkpoint_id_end);
 
         let txs = self.get_checkpoint_txs(checkpoint_id).await?;
-        let tx_idx = rand::thread_rng().gen_range(0..txs.len());
+        let tx_idx = rand::rng().random_range(0..txs.len());
 
         Ok(txs[tx_idx])
     }

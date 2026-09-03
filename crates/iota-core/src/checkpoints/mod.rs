@@ -59,7 +59,7 @@ use itertools::Itertools;
 use nonempty::NonEmpty;
 use parking_lot::Mutex;
 use pin_project_lite::pin_project;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{Notify, mpsc, watch},

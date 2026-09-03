@@ -20,9 +20,7 @@ pub fn generate_rand_seed_for_testing(
     _args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let mut seed = [0u8; 32];
-    rand::thread_rng()
-        .try_fill(&mut seed)
-        .expect("should never fail");
+    rand::rng().fill_bytes(&mut seed);
     Ok(NativeResult::ok(
         legacy_test_cost(),
         smallvec![Value::vector_u8(seed)],

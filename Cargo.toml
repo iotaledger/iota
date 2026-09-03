@@ -249,7 +249,7 @@ axum-server = { version = "0.8", default-features = false, features = ["tls-rust
 backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
 base64 = "0.21.2"
 base64-url = "2"
-bcs = "0.1.4"
+bcs = "0.2.1"
 better_any = "0.1.1"
 bincode = "1.3.3"
 bip32 = "0.5"
@@ -281,7 +281,7 @@ fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f
 fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a", features = ["experimental"] }
 fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a", package = "fastcrypto-zkp" }
 fs_extra = "1.3.0"
-futures = "0.3.28"
+futures = "0.3.34"
 getrandom = { version = "0.2", features = ["js"] }
 git-version = "0.3.5"
 governor = "0.6.0"
@@ -326,9 +326,13 @@ prost = "0.14"
 prost-build = "0.14"
 prost-types = "0.14"
 quote = "1.0.23"
-rand = "0.8.5"
+rand = "0.10.2"
+# fastcrypto's `AllowedRng` is implemented only for `rand` 0.8's `StdRng` and
+# `ThreadRng`, so its key generation APIs have to be fed an RNG from that
+# version rather than the workspace `rand` above.
+rand08 = { package = "rand", version = "0.8.5" }
 regex = "1.7.1"
-reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["http2", "json", "rustls"] }
 roaring = "0.11.2"
 rs_merkle = "1.5.0"
 rstest = "0.16.0"
@@ -403,9 +407,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "8152cddee51e4963e1f79cfe55bfe8383d3dcd83" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "9c94abe76cb7defc3ca32e7546186d87a0871e7b" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "8152cddee51e4963e1f79cfe55bfe8383d3dcd83" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "9c94abe76cb7defc3ca32e7546186d87a0871e7b" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -446,10 +450,10 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "8152cddee51e4963e1f79cfe55bfe8383d3dcd83", default-features = false }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "8152cddee51e4963e1f79cfe55bfe8383d3dcd83", default-features = false }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "8152cddee51e4963e1f79cfe55bfe8383d3dcd83", default-features = false }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "8152cddee51e4963e1f79cfe55bfe8383d3dcd83", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9c94abe76cb7defc3ca32e7546186d87a0871e7b", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9c94abe76cb7defc3ca32e7546186d87a0871e7b", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9c94abe76cb7defc3ca32e7546186d87a0871e7b", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "9c94abe76cb7defc3ca32e7546186d87a0871e7b", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

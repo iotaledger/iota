@@ -84,7 +84,7 @@ use iota_types::{
     storage::WriteStore,
 };
 use prometheus_filtered::Registry;
-use rand::Rng;
+use rand::RngExt;
 use tap::{Pipe, TapFallible, TapOptional};
 use tokio::{
     sync::{broadcast, mpsc, oneshot, watch},
@@ -376,8 +376,8 @@ impl Iterator for PeerBalancer {
 
     fn next(&mut self) -> Option<Self::Item> {
         while !self.peers.is_empty() {
-            let idx = rand::thread_rng()
-                .gen_range(0..std::cmp::min(PEER_BALANCER_SELECTION_WINDOW, self.peers.len()));
+            let idx = rand::rng()
+                .random_range(0..std::cmp::min(PEER_BALANCER_SELECTION_WINDOW, self.peers.len()));
 
             // Remove the selected peer
             let (peer, info) = self.peers.remove(idx).unwrap();

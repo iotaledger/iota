@@ -513,7 +513,7 @@ mod test {
     use futures::future::join_all;
     use iota_macros::sim_test;
     use parking_lot::Mutex;
-    use rand::{Rng, thread_rng};
+    use rand::{RngExt, rng};
 
     use super::*;
 
@@ -550,7 +550,7 @@ mod test {
 
                 async fn finish_stage(handle: &mut PipelineHandle, stage: PipelineStage) {
                     handle.finish_stage(stage).await;
-                    let sleep_time = Duration::from_millis(thread_rng().gen_range(0..10));
+                    let sleep_time = Duration::from_millis(rng().random_range(0..10));
                     tokio::time::sleep(sleep_time).await;
                 }
 
@@ -560,7 +560,7 @@ mod test {
                     output_by_stage: &Arc<Mutex<HashMap<u64, Vec<CheckpointSequenceNumber>>>>,
                     output_by_order: &Arc<Mutex<Vec<u64>>>,
                 ) {
-                    let sleep_time = Duration::from_millis(thread_rng().gen_range(0..10));
+                    let sleep_time = Duration::from_millis(rng().random_range(0..10));
                     tokio::time::sleep(sleep_time).await;
                     let val = get_next_val();
                     debug!("pushing output ({val}) for seq: {}", seq);

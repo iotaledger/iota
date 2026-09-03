@@ -43,7 +43,11 @@ fn make_committee_and_checkpoints<F: Fn() -> VerifiedCheckpointContents>(
     previous_checkpoint: Option<VerifiedCheckpoint>,
     content_generator: F,
 ) -> (CommitteeFixture, MakeCheckpointResults) {
-    let committee = CommitteeFixture::generate(rand::rngs::OsRng, epoch, committee_size);
+    let committee = CommitteeFixture::generate(
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+        epoch,
+        committee_size,
+    );
     let results = committee.make_checkpoints(
         number_of_checkpoints,
         previous_checkpoint,
@@ -300,7 +304,8 @@ async fn isolated_sync_job() {
 #[tokio::test]
 async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
     telemetry_subscribers::init_for_testing();
-    let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+    let committee =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
     // build mock data
     let (ordered_checkpoints, ordered_contents, sequence_number_to_digest, checkpoints) =
         committee.make_empty_checkpoints(100, None);

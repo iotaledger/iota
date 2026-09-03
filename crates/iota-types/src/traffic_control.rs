@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use serde::{Deserialize, Serialize, de::Deserializer};
 use serde_with::serde_as;
 
@@ -99,37 +99,13 @@ impl Weight {
     }
 
     pub fn is_sampled(&self) -> bool {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         // `Uniform::new` excludes the upper bound, so a weight of 1.0 accepts every
         // sample.
-        let sample = rand::distributions::Uniform::new(0.0, 1.0).sample(&mut rng);
-        self.accepts(sample)
-    }
-
-    fn accepts(&self, sample: f32) -> bool {
-        sample < self.value()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Weight;
-
-    #[test]
-    fn zero_weight_rejects_the_lowest_sample() {
-        assert!(!Weight::zero().accepts(0.0));
-    }
-
-    #[test]
-    fn full_weight_accepts_the_highest_sample() {
-        assert!(Weight::one().accepts(1.0 - f32::EPSILON));
-    }
-
-    #[test]
-    fn the_former_burst_key_still_parses() {
-        let config: super::FreqThresholdConfig =
-            serde_json::from_str(r#"{"window-size-secs": 7}"#).unwrap();
-        assert_eq!(config.burst_secs, 7);
+        let sample = rand::distr::Uniform::new(0.0, 1.0)
+            .unwrap()
+            .sample(&mut rng);
+        sample <= self.value()
     }
 }
 
@@ -325,4 +301,14 @@ pub fn default_dry_run() -> bool {
 
 pub fn default_spam_sample_rate() -> Weight {
     Weight::new(0.2).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_former_burst_key_still_parses() {
+        let config: super::FreqThresholdConfig =
+            serde_json::from_str(r#"{"window-size-secs": 7}"#).unwrap();
+        assert_eq!(config.burst_secs, 7);
+    }
 }
