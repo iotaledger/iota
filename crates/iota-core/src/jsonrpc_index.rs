@@ -1267,12 +1267,7 @@ impl IndexStore {
         Ok(self
             .tables
             .dynamic_field_index
-            .safe_iter_with_prefix_from(
-                &object,
-                cursor
-                    .as_ref()
-                    .map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded),
-            )
+            .safe_iter_with_prefix_after(&object, cursor.as_ref())
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 
