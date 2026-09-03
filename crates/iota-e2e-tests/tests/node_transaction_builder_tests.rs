@@ -80,6 +80,36 @@ async fn transaction_builder_via_node_internal_client() {
     assert_eq!(second_page.data.len(), 1);
     assert_ne!(first_page.data[0].id(), second_page.data[0].id());
 
+    // Walking one object per page returns every coin exactly once; the loop
+    // is bounded so a cursor that does not advance fails instead of hanging.
+    let mut walked = Vec::new();
+    let mut page_cursor = None;
+    for _ in 0..DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT + 2 {
+        let page = client
+            .objects(
+                Some(StructTag::new_gas_coin()),
+                sender,
+                page_cursor.clone(),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        walked.extend(page.data.iter().map(|object| object.id()));
+        page_cursor = page.next_cursor;
+        if page_cursor.is_none() {
+            break;
+        }
+    }
+    assert!(
+        page_cursor.is_none(),
+        "the cursor did not advance to the end"
+    );
+    let expected: Vec<_> = full_page.data.iter().map(|object| object.id()).collect();
+    assert_eq!(
+        walked, expected,
+        "a page-by-page walk must equal the full listing"
+    );
+
     // The cursor is bound to the request that produced it: replaying it
     // with a different owner or type filter is rejected instead of silently
     // resuming from a meaningless position.
