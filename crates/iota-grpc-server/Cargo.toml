@@ -32,13 +32,16 @@ tracing.workspace = true
 # internal dependencies
 iota-config.workspace = true
 iota-grpc-types.workspace = true
+iota-json.workspace = true
 iota-metrics.workspace = true
 iota-node-storage.workspace = true
 iota-node-transaction-builder.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-transaction-builder.workspace = true
 iota-sdk-types.workspace = true
 iota-traffic-controller.workspace = true
 iota-types.workspace = true
+move-binary-format.workspace = true
 move-core-types.workspace = true
 prometheus-filtered.workspace = true
 
@@ -49,5 +52,4 @@ async-trait.workspace = true
 # internal dependencies
 iota-grpc-client.workspace = true
 iota-test-transaction-builder.workspace = true
-move-binary-format.workspace = true
 typed-store-error.workspace = true
