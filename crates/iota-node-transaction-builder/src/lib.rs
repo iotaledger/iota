@@ -44,8 +44,8 @@ const MAX_OBJECTS_PAGE_SIZE: usize = 1000;
 
 /// Payload of the opaque [`TransactionBuilderLedgerClient::objects`] cursor.
 ///
-/// Binds the index position to the request that produced it — mirroring the
-/// gRPC server's page token — so a cursor replayed with a different `owner`
+/// Binds the index position to the request that produced it, mirroring the
+/// gRPC server's page token, so a cursor replayed with a different `owner`
 /// or `struct_tag` is rejected instead of silently resuming from a
 /// meaningless position.
 #[derive(Serialize, Deserialize)]
