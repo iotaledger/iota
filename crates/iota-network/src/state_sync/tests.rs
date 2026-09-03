@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, num::NonZeroUsize, time::Duration};
+use std::{
+    collections::HashMap,
+    num::{NonZeroU64, NonZeroUsize},
+    time::Duration,
+};
 
 use anemo::{PeerId, Request};
 use anyhow::anyhow;
@@ -337,7 +341,6 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
     let checkpoint_archive_config = CheckpointArchiveConfig {
         download_concurrency: NonZeroUsize::new(1).unwrap(),
         verify_concurrency: NonZeroUsize::new(2).unwrap(),
-        max_checkpoints_ahead_of_execution: NonZeroUsize::new(1_000_000).unwrap(),
         url: format!("file://{}", temp_dir.path().display()),
     };
     // Build and connect two nodes where Node 1 will be given access to an archive
@@ -354,6 +357,8 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
             // Shorten the retry delay so pruned-checkpoint tasks quickly discover
             // that the archive has already advanced highest_synced past them.
             wait_interval_when_no_peer_to_sync_content_ms: Some(10),
+            // Keep sync unbounded: this store does not execute checkpoints.
+            max_checkpoints_ahead_of_execution: NonZeroU64::new(1_000_000),
             ..StateSyncConfig::randomized_for_testing()
         })
         .checkpoint_archive_config(Some(checkpoint_archive_config))

@@ -529,6 +529,7 @@ where
         let task = sync_checkpoint_contents_from_checkpoint_archive(
             self.network.clone(),
             self.checkpoint_archive_config.clone(),
+            self.config.max_checkpoints_ahead_of_execution(),
             self.store.clone(),
             self.peer_heights.clone(),
             self.metrics.clone(),
@@ -1306,6 +1307,7 @@ async fn setup_data_ingestion_executor<W: Worker + 'static>(
 async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
     network: anemo::Network,
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
+    max_checkpoints_ahead_of_execution: u64,
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
@@ -1316,6 +1318,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
         sync_checkpoint_contents_from_checkpoint_archive_iteration(
             &network,
             &checkpoint_archive_config,
+            max_checkpoints_ahead_of_execution,
             store.clone(),
             peer_heights.clone(),
             metrics.clone(),
@@ -1328,6 +1331,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
 async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
     network: &anemo::Network,
     checkpoint_archive_config: &Option<CheckpointArchiveConfig>,
+    max_checkpoints_ahead_of_execution: u64,
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
@@ -1400,9 +1404,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             StateSyncReducer {
                 store,
                 metrics,
-                max_checkpoints_ahead_of_execution: checkpoint_archive_config
-                    .max_checkpoints_ahead_of_execution
-                    .get() as u64,
+                max_checkpoints_ahead_of_execution,
             },
         );
         let setup_result = setup_data_ingestion_executor(

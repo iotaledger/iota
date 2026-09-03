@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
+use std::{
+    net::SocketAddr,
+    num::{NonZeroU32, NonZeroU64},
+    time::Duration,
+};
 
 use iota_multiaddr::Multiaddr;
 use iota_sdk_types::CheckpointDigest;
@@ -196,6 +200,17 @@ pub struct StateSyncConfig {
     /// content from. If unspecified, this will set to default value
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait_interval_when_no_peer_to_sync_content_ms: Option<u64>,
+
+    /// Pause syncing checkpoint contents while the synced watermark is this
+    /// many checkpoints ahead of the executed watermark, and resume once
+    /// execution catches up. Bounds the disk space held by checkpoints that
+    /// are synced but not yet executed, since only executed checkpoints can
+    /// be pruned. Applies to sync from peers and from the checkpoint archive
+    /// alike.
+    ///
+    /// If unspecified, this will default to `100,000`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_checkpoints_ahead_of_execution: Option<NonZeroU64>,
 }
 
 impl StateSyncConfig {
@@ -253,6 +268,14 @@ impl StateSyncConfig {
         self.checkpoint_content_timeout_ms
             .map(Duration::from_millis)
             .unwrap_or(DEFAULT_TIMEOUT)
+    }
+
+    pub fn max_checkpoints_ahead_of_execution(&self) -> u64 {
+        const MAX_CHECKPOINTS_AHEAD_OF_EXECUTION: u64 = 100_000;
+
+        self.max_checkpoints_ahead_of_execution
+            .map(NonZeroU64::get)
+            .unwrap_or(MAX_CHECKPOINTS_AHEAD_OF_EXECUTION)
     }
 
     pub fn wait_interval_when_no_peer_to_sync_content(&self) -> Duration {
