@@ -2604,3 +2604,121 @@ async fn test_already_executed_tx_does_not_lock_immutable_input() {
          is still locked"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Gas-vector attestation (`AttestationData::V2`) validation
+// ---------------------------------------------------------------------------
+
+/// Wraps a `Transaction` in a `UserTransactionV2` whose attestation carries
+/// the gas vector.
+fn make_user_tx_v2_gas_vector(
+    tx: TransactionEnvelope,
+    attestor_index: u8,
+    cpu_time: u64,
+) -> VerifiedSequencedConsensusTransaction {
+    let attestation = Attestation::Validator {
+        payload: AttestationData::V2 {
+            cpu_time,
+            moved_bytes: 4096,
+            write_bytes: 512,
+            object_versions: vec![],
+        },
+        attestor_index,
+    };
+    let attested = AttestedTransaction::new(tx, attestation);
+    let consensus_tx = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV2(Box::new(attested)),
+        tracking_id: Default::default(),
+    };
+    VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
+}
+
+/// Runs validation over one gas-vector-attested transfer under the given
+/// protocol overrides and returns (kept, dropped-errors, digests).
+async fn run_gas_vector_case(
+    enable_gas_vector: bool,
+    cpu_time: u64,
+) -> (usize, Vec<IotaError>, usize) {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        if enable_gas_vector {
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_attestation_gas_vector_for_testing(true);
+        }
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = get_key_pair::<AccountPrivateKey>().0;
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+
+    let mut transactions = vec![make_user_tx_v2_gas_vector(tx, 0, cpu_time)];
+    let (dropped, _locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+    (
+        transactions.len(),
+        dropped.into_iter().map(|(_, e)| e).collect(),
+        user_tx_digests.len(),
+    )
+}
+
+/// A V2 payload is rejected while the `attestation_gas_vector` flag is off —
+/// acceptance is version-gated exactly like production, because old nodes
+/// cannot decode the variant at all. The digest still surfaces for soft-lock
+/// release.
+#[sim_test]
+async fn test_gas_vector_attestation_rejected_when_flag_off() {
+    let (kept, dropped, digests) = run_gas_vector_case(false, 1_000_000).await;
+    assert_eq!(kept, 0, "V2 payload must be dropped while the flag is off");
+    assert_eq!(dropped.len(), 1);
+    assert!(
+        matches!(dropped[0], IotaError::AttestationGasVectorNotEnabled),
+        "expected AttestationGasVectorNotEnabled, got {:?}",
+        dropped[0],
+    );
+    assert_eq!(digests, 1, "digest still collected for soft-lock release");
+}
+
+/// With the flag on, a structurally valid gas-vector attestation passes
+/// Check #3 and the transaction is kept.
+#[sim_test]
+async fn test_gas_vector_attestation_passes_when_flag_on() {
+    let (kept, dropped, digests) = run_gas_vector_case(true, 1_000_000).await;
+    assert_eq!(kept, 1, "valid V2 payload must be kept: {dropped:?}");
+    assert!(dropped.is_empty());
+    assert_eq!(digests, 1);
+}
+
+/// `cpu_time = 0` is structurally invalid — no dry-run of a valid transaction
+/// executes in zero lane-time — and is dropped even with the flag on.
+#[sim_test]
+async fn test_gas_vector_attestation_zero_cpu_time_dropped() {
+    let (kept, dropped, digests) = run_gas_vector_case(true, 0).await;
+    assert_eq!(kept, 0);
+    assert_eq!(dropped.len(), 1);
+    assert!(
+        matches!(dropped[0], IotaError::AttestationCpuTimeZero),
+        "expected AttestationCpuTimeZero, got {:?}",
+        dropped[0],
+    );
+    assert_eq!(digests, 1, "digest still collected for soft-lock release");
+}

@@ -1360,6 +1360,13 @@ impl AuthorityState {
         }
 
         // Step 7: build AttestationData.
+        // The producer stays on V1 until the calibrated coefficient table
+        // ships in the protocol config: `AttestationData::V2`'s `cpu_time`
+        // is the dry-run's resource profile priced by those coefficients,
+        // and attesting a placeholder price would be worse than attesting
+        // units. Switch-on requires `attestation_gas_vector` AND the
+        // constants; acceptance is already implemented in
+        // post-consensus validation.
         // `gas_cost_summary().computation_cost` is in NANOS; convert to gas
         // units (`computation_units = computation_cost / gas_price`) so the
         // attestation is independent of the gas price the user chose.
