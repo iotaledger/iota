@@ -181,6 +181,9 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
         let has_more = iter.next().transpose()?.is_some();
         let next_cursor = if has_more {
             last_cursor.map(|cursor| {
+                // BCS can only fail on excessive nesting; the type depth of
+                // `struct_tag` is bounded by protocol type limits, since a
+                // non-empty page means the type exists on-chain.
                 bcs::to_bytes(&PageToken {
                     owner,
                     struct_tag,

@@ -9,6 +9,7 @@
 use iota_macros::sim_test;
 use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderLedgerClient};
 use iota_sdk_types::{StructTag, Transaction};
+use iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -50,7 +51,11 @@ async fn transaction_builder_via_node_internal_client() {
         .objects(Some(StructTag::new_gas_coin()), sender, None, Some(0))
         .await
         .unwrap();
-    assert!(full_page.data.len() > 1);
+    assert_eq!(
+        full_page.data.len(),
+        DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT,
+        "the full listing returns every genesis gas coin of the account",
+    );
     assert!(full_page.next_cursor.is_none());
 
     // Owned-object listing with cursor pagination through the gRPC indexes.
@@ -100,6 +105,21 @@ async fn transaction_builder_via_node_internal_client() {
             Err(iota_node_transaction_builder::Error::CursorMismatch)
         ),
         "a cursor from a differently-filtered listing must be rejected: {mismatched_filter:?}",
+    );
+    let undecodable = client
+        .objects(
+            Some(StructTag::new_gas_coin()),
+            sender,
+            Some(vec![0xff; 4]),
+            Some(1),
+        )
+        .await;
+    assert!(
+        matches!(
+            undecodable,
+            Err(iota_node_transaction_builder::Error::Cursor(_))
+        ),
+        "an undecodable cursor must be rejected: {undecodable:?}",
     );
 
     // Object lookup by id.
