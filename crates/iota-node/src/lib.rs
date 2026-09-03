@@ -594,6 +594,22 @@ impl IotaNode {
         // Database has everything from genesis, set corrupted key to 0
         unmark_db_corruption(db_corrupted_path)?;
 
+        // The index databases of earlier releases can no longer be adopted,
+        // so remove them whether or not indexing stays enabled: left in place
+        // they hold on to potentially hundreds of gigabytes.
+        //
+        // Ahead of everything that follows, and not beside the index store it
+        // concerns: the one-time passes over the pre-bucket tables relocate
+        // rows rather than delete them, so they hold both copies until a
+        // compaction and need the most disk of anything a node does. Freeing
+        // dead databases afterwards would be reclaiming the space just after
+        // the point it was wanted.
+        if is_full_node {
+            if let Err(e) = remove_legacy_index_dirs(&config.db_path()) {
+                warn!("failed to remove a legacy index database: {e}");
+            }
+        }
+
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
             cache_traits.clone(),
@@ -601,14 +617,6 @@ impl IotaNode {
             checkpoint_store.clone(),
         );
 
-        // The index databases of earlier releases can no longer be adopted,
-        // so remove them whether or not indexing stays enabled: left in place
-        // they hold on to potentially hundreds of gigabytes.
-        if is_full_node {
-            if let Err(e) = remove_legacy_index_dirs(&config.db_path()) {
-                warn!("failed to remove a legacy index database: {e}");
-            }
-        }
         let mut index_groups = BTreeSet::new();
         if is_full_node && config.enable_index_processing {
             index_groups.insert(IndexGroup::JsonRpc);
