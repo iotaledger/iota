@@ -848,27 +848,32 @@ impl<K, V> DBMap<K, V> {
     }
 
     /// Forward iterator over entries whose key begins with `prefix`, starting
-    /// at `prefix ++ cursor` rather than at the first key under the prefix.
+    /// at the position `lower` gives within the prefix rather than at the
+    /// first key under the prefix.
     ///
-    /// `cursor` is **not** a full key — it is the remainder of the key that
-    /// follows `prefix` (typically the trailing field(s) of a tuple key). Both
-    /// `prefix` and `cursor` are serialized with `be_fix_int_ser` and
-    /// concatenated, mirroring how a composite key is encoded; the scan then
-    /// covers `[prefix ++ cursor, end-of-prefix)`. This lets a paginated scan
-    /// resume from a cursor without an artificial maximum key for the upper
-    /// bound.
-    pub fn safe_iter_with_prefix_from<P, C>(&self, prefix: &P, cursor: &C) -> DbIterator<'_, (K, V)>
+    /// The bound value is **not** a full key — it is the remainder of the key
+    /// that follows `prefix` (typically the trailing field(s) of a tuple
+    /// key). Both `prefix` and the bound value are serialized with
+    /// `be_fix_int_ser` and concatenated, mirroring how a composite key is
+    /// encoded. `Included` starts the scan at `prefix ++ lower`, `Excluded`
+    /// strictly after that position (also when no such key exists), and
+    /// `Unbounded` at the first key under the prefix. The scan bounds never
+    /// leave the prefix — excluding the maximum remainder yields an empty
+    /// scan, not the next prefix's keys — so a paginated scan can resume from
+    /// a cursor without an artificial maximum key for the upper bound.
+    pub fn safe_iter_with_prefix_from<P, C>(
+        &self,
+        prefix: &P,
+        lower: Bound<&C>,
+    ) -> DbIterator<'_, (K, V)>
     where
         P: ?Sized + Serialize,
         C: ?Sized + Serialize,
         K: DeserializeOwned,
         V: DeserializeOwned,
     {
-        let (lower_bound, upper_bound) = prefix_iterator_bounds(prefix);
-        let lower_bound = lower_bound.map(|mut lower| {
-            lower.extend_from_slice(&be_fix_int_ser(cursor));
-            lower
-        });
+        let (lower_bound, upper_bound) =
+            prefix_iterator_bounds_with_range::<P, C>(prefix, (lower, Bound::Unbounded));
         self.iter_forward_raw(lower_bound, upper_bound)
     }
 

@@ -399,10 +399,10 @@ impl AuthorityPerpetualTables {
         object: &(ObjectId, Version),
     ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
-        for result in self
-            .objects
-            .safe_iter_with_prefix_from(&object.0, &object.1.next().unwrap())
-        {
+        for result in self.objects.safe_iter_with_prefix_from(
+            &object.0,
+            std::ops::Bound::Included(&object.1.next().unwrap()),
+        ) {
             let (key, _) = result?;
             objects.push(key);
         }

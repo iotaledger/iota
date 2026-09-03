@@ -23,7 +23,7 @@ pub(crate) fn iterator_bounds_with_range<K>(
     range: impl RangeBounds<K>,
 ) -> (Option<Vec<u8>>, Option<Vec<u8>>)
 where
-    K: Serialize,
+    K: ?Sized + Serialize,
 {
     let iterator_lower_bound = match range.start_bound() {
         Bound::Included(lower_bound) => {
@@ -110,7 +110,7 @@ pub(crate) fn prefix_iterator_bounds_with_range<P, K>(
 ) -> (Option<Vec<u8>>, Option<Vec<u8>>)
 where
     P: ?Sized + Serialize,
-    K: Serialize,
+    K: ?Sized + Serialize,
 {
     let prefix_buf = be_fix_int_ser(prefix);
     let (lower_bound, upper_bound) = iterator_bounds_with_range(range);

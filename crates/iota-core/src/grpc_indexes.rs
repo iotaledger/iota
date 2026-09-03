@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     hash::Hasher,
+    ops::Bound,
     path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
@@ -826,7 +827,7 @@ impl IndexStoreTables {
     {
         let iter = self
             .dynamic_field
-            .safe_iter_with_prefix_from(&parent, &cursor.unwrap_or(ObjectId::ZERO))
+            .safe_iter_with_prefix_from(&parent, Bound::Included(&cursor.unwrap_or(ObjectId::ZERO)))
             .map(|r| r.map(|(key, ())| key));
         Ok(iter)
     }
@@ -846,9 +847,10 @@ impl IndexStoreTables {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        Ok(self
-            .package_version
-            .safe_iter_with_prefix_from(&original_package_id, &cursor.unwrap_or(0)))
+        Ok(self.package_version.safe_iter_with_prefix_from(
+            &original_package_id,
+            Bound::Included(&cursor.unwrap_or(0)),
+        ))
     }
 }
 
