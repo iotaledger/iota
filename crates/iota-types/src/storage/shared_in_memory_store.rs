@@ -215,6 +215,12 @@ impl WriteStore for SharedInMemoryStore {
         self.inner_mut().insert_committee(new_committee);
         Ok(())
     }
+
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        Ok(self.inner().get_highest_executed_checkpoint_seq_number())
+    }
 }
 
 impl SharedInMemoryStore {
@@ -227,6 +233,7 @@ impl SharedInMemoryStore {
 pub struct InMemoryStore {
     highest_verified_checkpoint: Option<(CheckpointSequenceNumber, CheckpointDigest)>,
     highest_synced_checkpoint: Option<(CheckpointSequenceNumber, CheckpointDigest)>,
+    highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
     checkpoints: HashMap<CheckpointDigest, VerifiedCheckpoint>,
     full_checkpoint_contents: HashMap<CheckpointSequenceNumber, FullCheckpointContents>,
     contents_digest_to_sequence_number: HashMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
@@ -330,6 +337,16 @@ impl InMemoryStore {
     pub fn get_highest_synced_checkpoint_seq_number(&self) -> Option<CheckpointSequenceNumber> {
         self.highest_synced_checkpoint
             .map(|(sequence_number, _digest)| sequence_number)
+    }
+
+    pub fn get_highest_executed_checkpoint_seq_number(&self) -> Option<CheckpointSequenceNumber> {
+        self.highest_executed_checkpoint
+    }
+
+    /// Moves the executed watermark, which nothing in this store advances on
+    /// its own since it does not execute checkpoints.
+    pub fn set_highest_executed_checkpoint(&mut self, sequence_number: CheckpointSequenceNumber) {
+        self.highest_executed_checkpoint = Some(sequence_number);
     }
 
     pub fn get_lowest_available_checkpoint(&self) -> CheckpointSequenceNumber {
