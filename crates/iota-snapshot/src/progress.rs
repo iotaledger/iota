@@ -23,7 +23,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use backoff::future::retry;
 use bytes::Bytes;
 use futures::{StreamExt, TryStreamExt};
@@ -474,8 +474,15 @@ pub async fn copy_files_with_progress<S: ObjectStoreGetExt, D: ObjectStorePutExt
 ) -> Result<()> {
     futures::stream::iter(paths)
         .map(|path| async move {
-            let bytes = get_with_progress(src_store, path, progress).await?;
-            put(dest_store, path, bytes).await?;
+            let bytes = get_with_progress(src_store, path, progress)
+                .await
+                .with_context(|| format!("Failed to download {path}"))?;
+            if bytes.is_empty() {
+                return Err(anyhow!("Downloaded empty file {path}"));
+            }
+            put(dest_store, path, bytes)
+                .await
+                .with_context(|| format!("Failed to write {path}"))?;
             Ok::<_, anyhow::Error>(())
         })
         .boxed()
@@ -710,6 +717,29 @@ mod tests {
         assert_eq!(
             dest_store.get_bytes(&Path::from("a")).await?.to_vec(),
             b"12345"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_files_with_progress_rejects_empty_file() -> anyhow::Result<()> {
+        let src_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let dest_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        src_store
+            .put_bytes(&Path::from("empty.ref"), Bytes::new())
+            .await?;
+        let paths = [Path::from("empty.ref")];
+
+        let progress = DownloadProgressBar::new(&hidden_multi_progress(), "Downloading", 1, None);
+        let error = copy_files_with_progress(&paths, &src_store, &dest_store, 1, &progress)
+            .await
+            .unwrap_err();
+        assert!(format!("{error:#}").contains("Downloaded empty file empty.ref"));
+        assert!(
+            dest_store
+                .get_bytes(&Path::from("empty.ref"))
+                .await
+                .is_err()
         );
         Ok(())
     }
