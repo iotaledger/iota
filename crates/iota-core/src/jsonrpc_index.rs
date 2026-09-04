@@ -1330,10 +1330,6 @@ impl IndexStore {
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<Vec<ObjectInfo>> {
-        let cursor = match cursor {
-            Some(cursor) => cursor,
-            None => ObjectId::ZERO,
-        };
         Ok(self
             .get_owner_objects_iterator(owner, cursor, filter)?
             .take(limit)
@@ -1399,23 +1395,20 @@ impl IndexStore {
             .map(|(_, ((_, coin_type, obj_id), coin))| (coin_type, obj_id, coin)))
     }
 
-    /// starting_object_id can be used to implement pagination, where a client
-    /// remembers the last object id of each page, and use it to query the
+    /// `cursor` can be used to implement pagination, where a client
+    /// remembers the last object id of each page, and uses it to query the
     /// next page.
     pub fn get_owner_objects_iterator(
         &self,
         owner: Address,
-        starting_object_id: ObjectId,
+        cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
         Ok(self
             .tables
             .owner_index
-            // The object id 0 is the smallest possible
-            .safe_iter_with_bounds(Some((owner, starting_object_id)), None)
+            .safe_iter_with_prefix_after(&owner, cursor.as_ref())
             .map(|result| result.expect("iterator db error"))
-            .skip(usize::from(starting_object_id != ObjectId::ZERO))
-            .take_while(move |((address_owner, _), _)| address_owner == &owner)
             .filter(move |(_, o)| {
                 if let Some(filter) = filter.as_ref() {
                     filter.matches(o)
@@ -1703,6 +1696,20 @@ mod tests {
             object_id: field_id,
             version: Version::from_u64(1),
             digest: ObjectDigest::random(),
+        }
+    }
+
+    /// An `ObjectInfo` for `object_id` owned by `owner`, with placeholder
+    /// metadata: the cursor tests below only care about the object's
+    /// identity, not its content.
+    fn owner_object_info(owner: Address, object_id: ObjectId) -> ObjectInfo {
+        ObjectInfo {
+            object_id,
+            version: Version::from_u64(1),
+            digest: ObjectDigest::random(),
+            object_type: ObjectType::Struct(StructTag::new_uid().into()),
+            owner: Owner::Address(owner),
+            previous_transaction: TransactionDigest::random(),
         }
     }
 
@@ -2011,6 +2018,98 @@ mod tests {
         assert_eq!(
             after_removal_ids,
             field_ids[1..],
+            "the next live row must not be skipped",
+        );
+    }
+
+    /// The `cursor` of `get_owner_objects_iterator` is exclusive: the cursor
+    /// row itself is never returned again, and when the cursor row no longer
+    /// exists (the object was deleted or transferred to a different owner)
+    /// the scan resumes at the next live row without skipping it.
+    #[tokio::test]
+    async fn get_owner_objects_iterator_cursor_is_exclusive() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+
+        let owner = Address::random();
+        let mut object_ids: Vec<ObjectId> = (0..3).map(|_| ObjectId::random()).collect();
+        object_ids.sort();
+
+        let new_owners = object_ids
+            .iter()
+            .map(|&id| ((owner, id), owner_object_info(owner, id)))
+            .collect();
+        index_store
+            .index_tx(
+                Address::random(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                &TransactionEvents(vec![]),
+                ObjectIndexChanges {
+                    deleted_owners: vec![],
+                    deleted_dynamic_fields: vec![],
+                    new_owners,
+                    new_dynamic_fields: vec![],
+                },
+                &TransactionDigest::random(),
+                0,
+                None,
+            )
+            .unwrap();
+
+        let all: Vec<_> = index_store
+            .get_owner_objects_iterator(owner, None, None)
+            .unwrap()
+            .map(|info| info.object_id)
+            .collect();
+        assert_eq!(all, object_ids);
+        let cursor = all[0];
+
+        // Live cursor row: the scan starts strictly after it.
+        let after: Vec<_> = index_store
+            .get_owner_objects_iterator(owner, Some(cursor), None)
+            .unwrap()
+            .map(|info| info.object_id)
+            .collect();
+        assert_eq!(
+            after,
+            object_ids[1..],
+            "the cursor row itself must not be returned again",
+        );
+
+        // Vanished cursor row: the scan resumes at the next live row instead
+        // of skipping it.
+        index_store
+            .index_tx(
+                Address::random(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                &TransactionEvents(vec![]),
+                ObjectIndexChanges {
+                    deleted_owners: vec![(owner, cursor)],
+                    deleted_dynamic_fields: vec![],
+                    new_owners: vec![],
+                    new_dynamic_fields: vec![],
+                },
+                &TransactionDigest::random(),
+                0,
+                None,
+            )
+            .unwrap();
+        let after_removal: Vec<_> = index_store
+            .get_owner_objects_iterator(owner, Some(cursor), None)
+            .unwrap()
+            .map(|info| info.object_id)
+            .collect();
+        assert_eq!(
+            after_removal,
+            object_ids[1..],
             "the next live row must not be skipped",
         );
     }
