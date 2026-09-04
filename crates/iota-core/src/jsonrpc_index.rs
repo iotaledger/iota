@@ -1666,7 +1666,7 @@ impl IndexStore {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TransactionEvents,
@@ -2022,6 +2022,129 @@ mod tests {
         );
     }
 
+    /// Walking `get_dynamic_fields_iterator` one field at a time, feeding
+    /// each page's last id back in as the next cursor, must visit every
+    /// field of the parent exactly once, in the same order as a single
+    /// unpaginated listing, without picking up another parent's fields, even
+    /// though every returned field is removed right after being read (the
+    /// next cursor always names a row that no longer exists).
+    #[tokio::test]
+    async fn get_dynamic_fields_iterator_walks_every_field() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+
+        let parent = ObjectId::random();
+        let mut field_ids: Vec<ObjectId> = (0..4).map(|_| ObjectId::random()).collect();
+        field_ids.sort();
+
+        let other_parent = ObjectId::random();
+        let other_field_ids: Vec<ObjectId> = (0..2).map(|_| ObjectId::random()).collect();
+
+        let mut new_dynamic_fields: Vec<_> = field_ids
+            .iter()
+            .map(|&id| ((parent, id), dynamic_field_info(id)))
+            .collect();
+        new_dynamic_fields.extend(
+            other_field_ids
+                .iter()
+                .map(|&id| ((other_parent, id), dynamic_field_info(id))),
+        );
+
+        index_store
+            .index_tx(
+                Address::random(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                &TransactionEvents(vec![]),
+                ObjectIndexChanges {
+                    deleted_owners: vec![],
+                    deleted_dynamic_fields: vec![],
+                    new_owners: vec![],
+                    new_dynamic_fields,
+                },
+                &TransactionDigest::random(),
+                0,
+                None,
+            )
+            .unwrap();
+
+        let expected_ids: Vec<_> = index_store
+            .get_dynamic_fields_iterator(parent, None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap()
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+        assert_eq!(expected_ids, field_ids);
+
+        let mut walked_ids = Vec::new();
+        let mut cursor = None;
+        let mut finished = false;
+        for _ in 0..field_ids.len() + 2 {
+            let Some(item) = index_store
+                .get_dynamic_fields_iterator(parent, cursor)
+                .unwrap()
+                .next()
+            else {
+                finished = true;
+                break;
+            };
+            let (id, _) = item.unwrap();
+            walked_ids.push(id);
+            cursor = Some(id);
+
+            // Remove the row just read before fetching the next page, as if
+            // another transaction had removed it concurrently.
+            index_store
+                .index_tx(
+                    Address::random(),
+                    vec![].into_iter(),
+                    vec![].into_iter(),
+                    vec![].into_iter(),
+                    &TransactionEvents(vec![]),
+                    ObjectIndexChanges {
+                        deleted_owners: vec![],
+                        deleted_dynamic_fields: vec![(parent, id)],
+                        new_owners: vec![],
+                        new_dynamic_fields: vec![],
+                    },
+                    &TransactionDigest::random(),
+                    0,
+                    None,
+                )
+                .unwrap();
+        }
+        if !finished {
+            panic!(
+                "cursor did not advance: exceeded {} pages for {} fields",
+                field_ids.len() + 2,
+                field_ids.len(),
+            );
+        }
+
+        assert_eq!(
+            walked_ids, expected_ids,
+            "the walk must return every field exactly once, in listing order, \
+             even though each row vanishes right after being read",
+        );
+        let unique: BTreeSet<_> = walked_ids.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            walked_ids.len(),
+            "every field must be returned exactly once",
+        );
+        assert!(
+            other_field_ids.iter().all(|id| !walked_ids.contains(id)),
+            "another parent's fields must not leak into the walk",
+        );
+    }
+
     /// The `cursor` of `get_owner_objects_iterator` is exclusive: the cursor
     /// row itself is never returned again, and when the cursor row no longer
     /// exists (the object was deleted or transferred to a different owner)
@@ -2111,6 +2234,125 @@ mod tests {
             after_removal,
             object_ids[1..],
             "the next live row must not be skipped",
+        );
+    }
+
+    /// Walking `get_owner_objects` one object at a time, feeding each page's
+    /// last id back in as the next cursor, must visit every object of the
+    /// owner exactly once, in the same order as a single unpaginated
+    /// listing, without picking up another owner's objects, even though
+    /// every returned object is removed right after being read (the next
+    /// cursor always names a row that no longer exists).
+    #[tokio::test]
+    async fn get_owner_objects_paginates_the_whole_listing() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+
+        let owner = Address::random();
+        let mut object_ids: Vec<ObjectId> = (0..5).map(|_| ObjectId::random()).collect();
+        object_ids.sort();
+
+        let other_owner = Address::random();
+        let other_object_ids: Vec<ObjectId> = (0..2).map(|_| ObjectId::random()).collect();
+
+        let mut new_owners: Vec<_> = object_ids
+            .iter()
+            .map(|&id| ((owner, id), owner_object_info(owner, id)))
+            .collect();
+        new_owners.extend(
+            other_object_ids
+                .iter()
+                .map(|&id| ((other_owner, id), owner_object_info(other_owner, id))),
+        );
+
+        index_store
+            .index_tx(
+                Address::random(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                &TransactionEvents(vec![]),
+                ObjectIndexChanges {
+                    deleted_owners: vec![],
+                    deleted_dynamic_fields: vec![],
+                    new_owners,
+                    new_dynamic_fields: vec![],
+                },
+                &TransactionDigest::random(),
+                0,
+                None,
+            )
+            .unwrap();
+
+        let expected_ids: Vec<_> = index_store
+            .get_owner_objects(owner, None, usize::MAX, None)
+            .unwrap()
+            .into_iter()
+            .map(|info| info.object_id)
+            .collect();
+        assert_eq!(expected_ids, object_ids);
+
+        let mut walked_ids = Vec::new();
+        let mut cursor = None;
+        let mut finished = false;
+        for _ in 0..object_ids.len() + 2 {
+            let page = index_store
+                .get_owner_objects(owner, cursor, 1, None)
+                .unwrap();
+            let Some(info) = page.into_iter().next() else {
+                finished = true;
+                break;
+            };
+            walked_ids.push(info.object_id);
+            cursor = Some(info.object_id);
+
+            // Remove the row just read before fetching the next page, as if
+            // another transaction had transferred or deleted it concurrently.
+            index_store
+                .index_tx(
+                    Address::random(),
+                    vec![].into_iter(),
+                    vec![].into_iter(),
+                    vec![].into_iter(),
+                    &TransactionEvents(vec![]),
+                    ObjectIndexChanges {
+                        deleted_owners: vec![(owner, info.object_id)],
+                        deleted_dynamic_fields: vec![],
+                        new_owners: vec![],
+                        new_dynamic_fields: vec![],
+                    },
+                    &TransactionDigest::random(),
+                    0,
+                    None,
+                )
+                .unwrap();
+        }
+        if !finished {
+            panic!(
+                "cursor did not advance: exceeded {} pages for {} objects",
+                object_ids.len() + 2,
+                object_ids.len(),
+            );
+        }
+
+        assert_eq!(
+            walked_ids, expected_ids,
+            "the walk must return every object exactly once, in listing order, \
+             even though each row vanishes right after being read",
+        );
+        let unique: BTreeSet<_> = walked_ids.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            walked_ids.len(),
+            "every object must be returned exactly once",
+        );
+        assert!(
+            other_object_ids.iter().all(|id| !walked_ids.contains(id)),
+            "another owner's objects must not leak into the walk",
         );
     }
 }
