@@ -335,20 +335,31 @@ impl CheckpointExecutor {
         // is a pure function of the effects, and being a multiset hash it does
         // not depend on their order, so it needs no ordering against other
         // checkpoints — only its recording does, in `FinalizeTransactions`.
-        let loaded = (self.state.is_fullnode(&self.epoch_store) || is_last_checkpoint_of_epoch)
-            .then(|| {
+        //
+        // It runs on the blocking pool rather than here: the multiset hash is
+        // CPU-bound with no await point, and this block runs for as many
+        // checkpoints at once as the pipeline buffers, which would otherwise
+        // leave the runtime's own workers with nothing to poll.
+        let loaded = if self.state.is_fullnode(&self.epoch_store) || is_last_checkpoint_of_epoch {
+            let (ckpt_state, tx_data) = {
                 let _scope = iota_metrics::monitored_scope(
                     "CheckpointExecutor::load_checkpoint_transactions",
                 );
-                let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint.clone());
-                let state_hash = {
-                    let _scope =
-                        iota_metrics::monitored_scope("CheckpointExecutor::accumulate_effects");
-                    self.global_state_hasher
-                        .accumulate_effects(&tx_data.effects)
-                };
-                (ckpt_state, tx_data, state_hash)
-            });
+                self.load_checkpoint_transactions(checkpoint.clone())
+            };
+            let hasher = self.global_state_hasher.clone();
+            let (tx_data, state_hash) = tokio::task::spawn_blocking(move || {
+                let _scope =
+                    iota_metrics::monitored_scope("CheckpointExecutor::accumulate_effects");
+                let state_hash = hasher.accumulate_effects(&tx_data.effects);
+                (tx_data, state_hash)
+            })
+            .await
+            .expect("accumulating a checkpoint's effects cannot panic");
+            Some((ckpt_state, tx_data, state_hash))
+        } else {
+            None
+        };
 
         let mut pipeline_handle = pipeline_handle.await;
 
