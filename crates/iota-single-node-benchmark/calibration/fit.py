@@ -26,13 +26,14 @@ import time
 from pathlib import Path
 
 # Predictors, in the plan's dimension order. Native cost is priced per
-# function: each `native_gas_by_function` key becomes a gas column and a
-# call-count column. Two columns because (calls, gas) spans the same space
-# as (per-call cost, per-byte cost): real per-call time varies far more
-# within a module than the charged gas does (a group_ops pairing is ~18x a
-# G1 add), and a per-byte gas rate can be disproportionate to the per-call
-# rate relative to real time (ecvrf) — one gas column alone under-predicts
-# exactly the expensive cases.
+# function, directly on its deterministic observables: each function becomes
+# an input-bytes column and a call-count column ((calls, input bytes) spans
+# (per-call cost, per-byte cost); real per-call time varies far more within
+# a module than any single column can carry — a group_ops pairing is ~18x a
+# G1 add). Charged native gas is deliberately not a predictor: pricing per
+# gas unit would bake the cost tables' mispricings into the coefficients and
+# couple the fit to the cost-table state. Datasets recorded before the
+# input-bytes counter fall back to the gas columns so they stay refittable.
 BASE_PREDICTORS = [
     "interp_instruction_count",
     "interp_stack_size_flow",
@@ -87,26 +88,34 @@ def load_dataset(root: Path):
     return rows, manifest
 
 
-def native_gas_field(rows):
-    """Datasets recorded before per-function native attribution carry only
-    `native_gas_by_module`; fall back to it so they stay refittable."""
+def native_size_field(rows):
+    """The per-function size column: input bytes when the dataset records
+    them, else charged gas (per function, or per module for the oldest
+    datasets), so old captures stay refittable."""
+    if any("native_input_bytes_by_function" in r["profile"] for r in rows):
+        return "native_input_bytes_by_function", "native_calls_by_function", "native_input"
+    # TODO: delete the gas-column fallbacks below before ship — the shipping
+    # constants are fitted on fresh datasets that all record input bytes.
     if any("native_gas_by_function" in r["profile"] for r in rows):
-        return "native_gas_by_function", "native_calls_by_function"
-    return "native_gas_by_module", None
+        return "native_gas_by_function", "native_calls_by_function", "native_gas"
+    return "native_gas_by_module", None, "native_gas"
 
 
 def build_matrix(rows):
-    gas_field, calls_field = native_gas_field(rows)
-    native_cols = sorted({f for r in rows for f in r["profile"].get(gas_field, {})})
-    columns = BASE_PREDICTORS + [f"native_gas[{f}]" for f in native_cols]
+    size_field, calls_field, size_prefix = native_size_field(rows)
+    native_cols = {f for r in rows for f in r["profile"].get(size_field, {})}
+    if calls_field:
+        native_cols |= {f for r in rows for f in r["profile"].get(calls_field, {})}
+    native_cols = sorted(native_cols)
+    columns = BASE_PREDICTORS + [f"{size_prefix}[{f}]" for f in native_cols]
     if calls_field:
         columns += [f"native_calls[{f}]" for f in native_cols]
     xs, ys = [], []
     for r in rows:
         p = r["profile"]
         x = [float(p.get(c, 0)) for c in BASE_PREDICTORS]
-        per_fn_gas = p.get(gas_field, {})
-        x += [float(per_fn_gas.get(f, 0)) for f in native_cols]
+        per_fn_size = p.get(size_field, {})
+        x += [float(per_fn_size.get(f, 0)) for f in native_cols]
         if calls_field:
             per_fn_calls = p.get(calls_field, {})
             x += [float(per_fn_calls.get(f, 0)) for f in native_cols]
