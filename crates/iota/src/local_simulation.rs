@@ -14,26 +14,24 @@ use anyhow::{Context, Result, anyhow};
 use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, IotaTransactionBlockData, IotaTransactionBlockEvents,
 };
-use iota_protocol_config::ProtocolConfig;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{Address, ObjectReference, Transaction, TransactionKind};
 use iota_types::{
     effects::TransactionEffectsAPI, gas::get_gas_balance, transaction::TransactionAPI,
 };
-use iota_vm_sdk::{ChainContext, ExecuteOptions, ExecutionResult, LocalVm, grpc::GrpcStore};
+use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, grpc::GrpcStore};
 
-use crate::client_commands::{IotaClientCommandResult, cap_gas_budget_to_balance};
+use crate::client_commands::{IotaClientCommandResult, fallback_gas_budget};
 
 /// Build a [`LocalVm`] resolving objects on demand from the active env's gRPC
-/// endpoint. Also returns the fetched [`ChainContext`] so callers can read the
-/// chain parameters the VM was built for.
-pub async fn local_vm_from_context(context: &WalletContext) -> Result<(LocalVm, ChainContext)> {
+/// endpoint.
+pub async fn local_vm_from_context(context: &WalletContext) -> Result<LocalVm> {
     let client = context.get_grpc_client().await.context(
         "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
     )?;
     let store = GrpcStore::new(client);
     let chain_context = store.fetch_chain_context().await?;
-    Ok((LocalVm::new(chain_context.clone(), store)?, chain_context))
+    Ok(LocalVm::new(chain_context, store)?)
 }
 
 /// Run a dry-run locally and assemble the node-shaped response.
@@ -46,21 +44,15 @@ pub async fn execute_local_dry_run(
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult> {
-    let (mut vm, chain_context) = local_vm_from_context(context).await?;
+    let mut vm = local_vm_from_context(context).await?;
 
     let gas_budget = match gas_budget {
-        // Mirrors the node-backed path's fallback: the protocol's maximum,
-        // capped at the total balance of any provided gas coins — resolved
-        // from the protocol config and the store instead of RPC calls.
         Some(gas_budget) => gas_budget,
+        // The same fallback as the node-backed path, resolved from the
+        // protocol config and the store instead of RPC calls.
         None => {
-            let max_gas_budget = ProtocolConfig::get_for_version(
-                chain_context.protocol_version,
-                chain_context.chain,
-            )
-            .max_tx_gas();
-            if gas_payment.is_empty() {
-                max_gas_budget
+            let payment_balance = if gas_payment.is_empty() {
+                None
             } else {
                 let mut balance = 0;
                 for object_ref in &gas_payment {
@@ -70,8 +62,9 @@ pub async fn execute_local_dry_run(
                         .ok_or_else(|| anyhow!("gas coin {} not found", object_ref.object_id))?;
                     balance += get_gas_balance(&coin)?;
                 }
-                cap_gas_budget_to_balance(balance, max_gas_budget)
-            }
+                Some(balance)
+            };
+            fallback_gas_budget(payment_balance, vm.protocol_config().max_tx_gas())
         }
     };
 
