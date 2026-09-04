@@ -25,7 +25,10 @@ use crate::client_commands::{IotaClientCommandResult, fallback_gas_budget};
 
 /// Build a [`LocalVm`] resolving objects on demand from the active env's gRPC
 /// endpoint.
-pub async fn local_vm_from_context(context: &WalletContext) -> Result<LocalVm> {
+///
+/// Object resolution blocks the calling thread, so this needs a multi-threaded
+/// Tokio runtime.
+async fn local_vm_from_context(context: &WalletContext) -> Result<LocalVm> {
     let client = context.get_grpc_client().await.context(
         "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
     )?;
@@ -35,7 +38,10 @@ pub async fn local_vm_from_context(context: &WalletContext) -> Result<LocalVm> {
 }
 
 /// Run a dry-run locally and assemble the node-shaped response.
-pub async fn execute_local_dry_run(
+///
+/// Needs a multi-threaded Tokio runtime, since resolving an object the run
+/// asks for blocks the calling thread.
+pub(crate) async fn execute_local_dry_run(
     context: &mut WalletContext,
     signer: Address,
     kind: TransactionKind,
@@ -96,11 +102,14 @@ fn dry_run_response(
         .execution_error
         .as_ref()
         .and_then(|error| error.source().as_ref().map(|source| source.to_string()));
+    // Both change sets are derived from the effects, so they come out in a
+    // different order than the node reports them in. Consumers that compare
+    // the two backends have to sort first.
     let object_changes = result
         .object_changes()?
         .into_iter()
-        .map(Into::into)
-        .collect();
+        .map(TryInto::try_into)
+        .collect::<Result<_, _>>()?;
     let balance_changes = result
         .balance_changes()?
         .into_iter()

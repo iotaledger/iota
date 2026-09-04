@@ -31,6 +31,8 @@ Options:
 
      --dry-run                                                            Perform a dry run of the PTB instead of executing it.
      --dev-inspect                                                        Perform a dev-inspect of the PTB instead of executing it.
+     --local                                                              Run the simulation locally through the Move VM instead of on the node. Supported with --dry-run. Requires a `grpc` URL configured for the active env, from which objects
+                                                                          and chain parameters are resolved. The env's JSON-RPC endpoint is still used for the gas price and for rendering errors.
      --gas-coins <ID>                                                     The object IDs for the gas coins to use. If not specified, it will try to use the first gas coin that it finds that has at least the requested gas-budget balance.
      --gas-budget <NANOS>                                                 An optional gas budget for this PTB (in NANOS). If gas budget is not provided, the tool will first perform a dry run to estimate the gas cost, and then it will execute the
                                                                           transaction. Please note that this incurs a small cost in performance due to the additional dry run call.
