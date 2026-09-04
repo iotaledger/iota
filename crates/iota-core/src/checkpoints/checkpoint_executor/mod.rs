@@ -343,12 +343,24 @@ impl CheckpointExecutor {
         // across the buffered checkpoints instead of inside the ordered
         // ExecuteTransactions stage. The clone is needed because the
         // locally-built-checkpoint path below wants the checkpoint too.
+        //
+        // The checkpoint's state hash is computed here for the same reason. It
+        // is a pure function of the effects, and being a multiset hash it does
+        // not depend on their order, so it needs no ordering against other
+        // checkpoints — only its recording does, in `FinalizeTransactions`.
         let loaded = (self.state.is_fullnode(&self.epoch_store) || is_last_checkpoint_of_epoch)
             .then(|| {
                 let _scope = iota_metrics::monitored_scope(
                     "CheckpointExecutor::load_checkpoint_transactions",
                 );
-                self.load_checkpoint_transactions(checkpoint.clone())
+                let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint.clone());
+                let state_hash = {
+                    let _scope =
+                        iota_metrics::monitored_scope("CheckpointExecutor::accumulate_effects");
+                    self.global_state_hasher
+                        .accumulate_effects(&tx_data.effects)
+                };
+                (ckpt_state, tx_data, state_hash)
             });
 
         let mut pipeline_handle = pipeline_handle.await;
@@ -385,7 +397,7 @@ impl CheckpointExecutor {
         // does not wait for the consensus handler: unless the handler has
         // executed every transaction in it, the call switches this node to
         // executing synced checkpoints.
-        if let Some((_, tx_data)) = loaded
+        if let Some((_, tx_data, _)) = loaded
             .as_ref()
             .filter(|_| is_last_checkpoint_of_epoch && self.epoch_store.pcool_bookkeeping_enabled())
         {
@@ -406,10 +418,11 @@ impl CheckpointExecutor {
         // divergence here would stamp the watermark over unstaged checkpoints.
         let exec_start = Instant::now();
         let ckpt_state = match loaded {
-            Some((ckpt_state, tx_data)) => {
+            Some((ckpt_state, tx_data, state_hash)) => {
                 self.execute_transactions_from_synced_checkpoint(
                     ckpt_state,
                     tx_data,
+                    state_hash,
                     &mut pipeline_handle,
                 )
                 .await
@@ -564,8 +577,18 @@ impl CheckpointExecutor {
             self.wait_for_locally_built_checkpoint(&checkpoint).await
         else {
             let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
+            // This path is already inside the ordered stages, so there is
+            // nowhere cheaper to have computed the hash.
+            let state_hash = self
+                .global_state_hasher
+                .accumulate_effects(&tx_data.effects);
             return self
-                .execute_transactions_from_synced_checkpoint(ckpt_state, tx_data, pipeline_handle)
+                .execute_transactions_from_synced_checkpoint(
+                    ckpt_state,
+                    tx_data,
+                    state_hash,
+                    pipeline_handle,
+                )
                 .await;
         };
         fail_point_async!("execute-locally-built-checkpoint");
@@ -596,10 +619,20 @@ impl CheckpointExecutor {
                 .await
             {
                 let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
+                let hasher = self.global_state_hasher.clone();
+                let (tx_data, state_hash) = tokio::task::spawn_blocking(move || {
+                    let _scope =
+                        iota_metrics::monitored_scope("CheckpointExecutor::accumulate_effects");
+                    let state_hash = hasher.accumulate_effects(&tx_data.effects);
+                    (tx_data, state_hash)
+                })
+                .await
+                .expect("accumulating a checkpoint's effects cannot panic");
                 return self
                     .execute_transactions_from_synced_checkpoint(
                         ckpt_state,
                         tx_data,
+                        state_hash,
                         pipeline_handle,
                     )
                     .await;
@@ -851,6 +884,7 @@ impl CheckpointExecutor {
         &self,
         mut ckpt_state: CheckpointExecutionState,
         tx_data: CheckpointTransactionData,
+        state_hash: GlobalStateHash,
         pipeline_handle: &mut PipelineHandle,
     ) -> CheckpointExecutionState {
         let sequence_number = ckpt_state.data.checkpoint.sequence_number;
@@ -948,9 +982,11 @@ impl CheckpointExecutor {
         // The early versions of the hasher (prior to effectsv2) rely on db
         // state, so we must wait until all transactions have been executed
         // before accumulating the checkpoint.
+        // Computed before admission to this pipeline; only the recording has
+        // to happen in order.
         ckpt_state.state_hash = Some(
             self.global_state_hasher
-                .accumulate_checkpoint(&tx_data.effects, sequence_number, &self.epoch_store)
+                .record_checkpoint_hash(sequence_number, state_hash, &self.epoch_store)
                 .expect("epoch cannot have ended"),
         );
 
