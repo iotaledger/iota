@@ -64,7 +64,7 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
     object::Object,
-    storage::ObjectKey,
+    storage::{ObjectKey, ObjectStore},
 };
 use itertools::chain;
 use parking_lot::{Mutex, RwLock};
@@ -356,16 +356,16 @@ impl HandlerObjectState {
     /// it wrote and shelters the bytes of the owned input versions it
     /// consumed.
     ///
-    /// `loaded_input_objects` must contain every consumed owned input at its
+    /// `loaded_input_objects` must serve every consumed owned input at its
     /// consumed version - including dynamic-field children and received
-    /// objects, which are not part of the declared input objects; a missing
-    /// one cannot be sheltered against pruning and is reported through
-    /// `debug_fatal`.
+    /// objects, which are not part of the transaction's declared input objects;
+    /// a missing one cannot be sheltered against pruning and is reported
+    /// through `debug_fatal`.
     pub fn record_executed_transaction(
         &self,
         tables: &AuthorityEpochTables,
         effects: &TransactionEffects,
-        loaded_input_objects: &[Object],
+        loaded_input_objects: &dyn ObjectStore,
     ) -> IotaResult {
         if let Some(round) = self.commit_round_of(effects.transaction_digest()) {
             self.upsert_handler_latest_rows(tables, &handler_latest_upserts(effects, round))
@@ -376,8 +376,7 @@ impl HandlerObjectState {
                 consumed_input_keys_to_shelter(&old_metadata),
                 loaded_input_objects,
                 effects.transaction_digest(),
-            );
-            Ok(())
+            )
         }
     }
 
@@ -676,30 +675,32 @@ impl HandlerObjectState {
     fn shelter_consumed_inputs(
         &self,
         keys: Vec<ObjectKey>,
-        loaded_input_objects: &[Object],
+        loaded_input_objects: &dyn ObjectStore,
         tx_digest: &TransactionDigest,
-    ) {
+    ) -> IotaResult {
         if keys.is_empty() {
-            return;
+            return Ok(());
         }
-        let mut needed: BTreeSet<ObjectKey> = keys.into_iter().collect();
-        let mut overlay = self.sheltered_overlay.write();
-        for object in loaded_input_objects {
-            let key = ObjectKey(object.id(), object.version());
-            // A replay after a crash may re-insert rows that are already
-            // durable; that is fine - the checkpoint executor's persist step
-            // re-runs on the same replay and evicts them again, and the
-            // bytes are identical either way.
-            if needed.remove(&key) {
-                overlay.insert(key, Arc::new(object.clone()));
+        // Resolve outside the overlay lock: the store reads can reach the DB.
+        let mut rows = Vec::with_capacity(keys.len());
+        for (key, object) in keys
+            .iter()
+            .zip(loaded_input_objects.try_multi_get_objects_by_key(&keys)?)
+        {
+            match object {
+                Some(object) => rows.push((*key, Arc::new(object))),
+                None => debug_fatal!(
+                    "input {key:?} consumed by sync-executed transaction {tx_digest} missing from \
+                 the loaded inputs; its bytes cannot be sheltered against pruning"
+                ),
             }
         }
-        for key in needed {
-            debug_fatal!(
-                "input {key:?} consumed by sync-executed transaction {tx_digest} missing from \
-                 the loaded inputs; its bytes cannot be sheltered against pruning"
-            );
-        }
+        // A replay after a crash may re-insert rows that are already durable;
+        // that is fine - the checkpoint executor's persist step re-runs on the
+        // same replay and evicts them again, and the bytes are identical
+        // either way.
+        self.sheltered_overlay.write().extend(rows);
+        Ok(())
     }
 
     fn remove_handled_sync_ahead_records(

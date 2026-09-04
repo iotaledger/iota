@@ -60,7 +60,7 @@ use iota_types::{
         VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
     },
     object::Object,
-    storage::{BackingPackageStore, InputKey, ObjectKey},
+    storage::{BackingPackageStore, InputKey, ObjectKey, ObjectStore},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionAPI,
         TransactionEnvelope, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
@@ -1777,7 +1777,7 @@ impl AuthorityPerEpochStore {
     pub fn record_executed_transaction(
         &self,
         effects: &TransactionEffects,
-        loaded_input_objects: &[Object],
+        loaded_input_objects: &dyn ObjectStore,
     ) -> IotaResult {
         let tables = self.tables()?;
         self.handler_object_state.record_executed_transaction(

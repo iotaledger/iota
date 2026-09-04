@@ -1833,6 +1833,20 @@ impl AuthorityState {
             epoch_store.insert_tx_key(key, *tx_digest)?;
         }
 
+        if epoch_store
+            .protocol_config()
+            .pcool_deterministic_validation()
+        {
+            // A consumed input version comes from the declared inputs; the
+            // store fallback covers the versions execution loaded at runtime
+            // (dynamic-field children and received objects).
+            let loaded_input_objects = ObjectStoreWithFallback {
+                primary: &inner_temporary_store.input_objects,
+                fallback: self.get_object_store().as_ref(),
+            };
+            epoch_store.record_executed_transaction(effects, &loaded_input_objects)?;
+        }
+
         // Allow testing what happens if we crash here.
         fail_point!("crash");
 
@@ -6202,6 +6216,37 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         Ok(self
             .get_transaction_cache_reader()
             .multi_get_events(digests))
+    }
+}
+
+/// An [`ObjectStore`] serving from `primary` first and `fallback` on a miss;
+/// the object-store sibling of
+/// [`PackageStoreWithFallback`](iota_types::inner_temporary_store::PackageStoreWithFallback).
+struct ObjectStoreWithFallback<P, F> {
+    primary: P,
+    fallback: F,
+}
+
+impl<P: ObjectStore, F: ObjectStore> ObjectStore for ObjectStoreWithFallback<P, F> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectId,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        match self.primary.try_get_object(object_id)? {
+            Some(object) => Ok(Some(object)),
+            None => self.fallback.try_get_object(object_id),
+        }
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: VersionNumber,
+    ) -> iota_types::storage::error::Result<Option<Object>> {
+        match self.primary.try_get_object_by_key(object_id, version)? {
+            Some(object) => Ok(Some(object)),
+            None => self.fallback.try_get_object_by_key(object_id, version),
+        }
     }
 }
 

@@ -1830,7 +1830,7 @@ mod handler_object_state_storage {
         base_types::CommitRound,
         effects::{TestEffectsBuilder, TransactionEffectsAPI},
         object::Object,
-        storage::ObjectKey,
+        storage::{ObjectKey, ObjectStore},
         transaction::TransactionAPI,
     };
 
@@ -1838,6 +1838,27 @@ mod handler_object_state_storage {
     use crate::authority::authority_per_epoch_store::handler_object_state::{
         HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
     };
+
+    /// An [`ObjectStore`] for the map-hit arm: a handler-known transaction
+    /// must never fetch shelter bytes.
+    struct NoShelterFetch;
+
+    impl ObjectStore for NoShelterFetch {
+        fn try_get_object(
+            &self,
+            _: &ObjectId,
+        ) -> iota_types::storage::error::Result<Option<Object>> {
+            unreachable!("a handler-known transaction must not fetch shelter bytes")
+        }
+
+        fn try_get_object_by_key(
+            &self,
+            _: &ObjectId,
+            _: Version,
+        ) -> iota_types::storage::error::Result<Option<Object>> {
+            unreachable!("a handler-known transaction must not fetch shelter bytes")
+        }
+    }
 
     fn owned_object(id: ObjectId, version: u64) -> Object {
         Object::with_id_owner_version_for_testing(
@@ -1957,7 +1978,7 @@ mod handler_object_state_storage {
         // The digest is not in the round map: this execution is state sync
         // running ahead of the handler.
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs)
+            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
             .unwrap();
 
         assert_eq!(epoch_store.handler_latest(&mutated).unwrap(), None);
@@ -1978,7 +1999,7 @@ mod handler_object_state_storage {
         // extends the record without touching its previous version.
         let (next_effects, next_inputs) = executed_owned_tx_effects(mutated, lamport.as_u64(), 2);
         epoch_store
-            .record_executed_transaction(&next_effects, &next_inputs)
+            .record_executed_transaction(&next_effects, &next_inputs.as_slice())
             .unwrap();
         assert_eq!(
             epoch_store.sync_ahead_record(&mutated).unwrap(),
@@ -2001,8 +2022,9 @@ mod handler_object_state_storage {
             .with_created_objects([(created, Owner::Address(Address::ZERO))])
             .build();
         let gas = create_tx.transaction().gas()[0].object_id;
+        let create_inputs = [owned_object(gas, 1)];
         epoch_store
-            .record_executed_transaction(&create_effects, &[owned_object(gas, 1)])
+            .record_executed_transaction(&create_effects, &create_inputs.as_slice())
             .unwrap();
         let created_version = create_effects.lamport_version();
         assert_eq!(
@@ -2019,7 +2041,7 @@ mod handler_object_state_storage {
         let (mutate_effects, mutate_inputs) =
             executed_owned_tx_effects(created, created_version.as_u64(), 2);
         epoch_store
-            .record_executed_transaction(&mutate_effects, &mutate_inputs)
+            .record_executed_transaction(&mutate_effects, &mutate_inputs.as_slice())
             .unwrap();
         assert_eq!(
             epoch_store.sync_ahead_record(&created).unwrap(),
@@ -2040,7 +2062,7 @@ mod handler_object_state_storage {
         let mutated = ObjectId::random();
         let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs)
+            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
             .unwrap();
         let first_chain_head = effects.lamport_version();
         let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
@@ -2065,7 +2087,7 @@ mod handler_object_state_storage {
         let (next_effects, next_inputs) =
             executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
         epoch_store
-            .record_executed_transaction(&next_effects, &next_inputs)
+            .record_executed_transaction(&next_effects, &next_inputs.as_slice())
             .unwrap();
         let record = SyncAheadRecord {
             base_version: Some(first_chain_head),
@@ -2098,7 +2120,7 @@ mod handler_object_state_storage {
 
         epoch_store.assign_commit_to_transactions(6, vec![*effects.transaction_digest()]);
         epoch_store
-            .record_executed_transaction(&effects, &[])
+            .record_executed_transaction(&effects, &NoShelterFetch)
             .unwrap();
 
         let row = epoch_store
@@ -2125,7 +2147,7 @@ mod handler_object_state_storage {
         let mutated = ObjectId::random();
         let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs)
+            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
             .unwrap();
         assert!(epoch_store.sync_ahead_record(&mutated).unwrap().is_some());
 
@@ -2149,7 +2171,7 @@ mod handler_object_state_storage {
         let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
         let gas = loaded_inputs[1].id();
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs)
+            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
             .unwrap();
 
         // Flush everything the sync execution wrote, then verify the reads
