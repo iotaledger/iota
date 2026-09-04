@@ -70,6 +70,7 @@ iota-sdk-transaction-builder.workspace = true
 iota-sdk-types.workspace = true
 iota-source-validation.workspace = true
 iota-types.workspace = true
+iota-vm-sdk = { workspace = true, features = ["grpc"] }
 move-analyzer.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
@@ -134,4 +135,9 @@ iota-names = [
   "dep:iota-names",
   "iota-sdk/iota-names",
 ]
-tracing = ["iota-types/tracing", "iota-execution/tracing", "iota-move/tracing"]
+tracing = [
+  "iota-types/tracing",
+  "iota-execution/tracing",
+  "iota-move/tracing",
+  "iota-vm-sdk/tracing",
+]

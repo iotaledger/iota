@@ -5573,6 +5573,7 @@ dependencies = [
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
+ "iota-vm-sdk",
  "json_to_table",
  "miette",
  "move-analyzer",
