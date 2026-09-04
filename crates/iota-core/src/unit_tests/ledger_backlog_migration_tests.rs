@@ -649,13 +649,35 @@ async fn the_migration_resumes_from_its_watermark() {
         4,
         "one row moved and four left, or the slice size is not being honoured"
     );
+    // The watermark names a row this run decided, which for a body with an
+    // execution record means a bucket and for one without means deletion.
+    // Which of the five the single-row slice took depends on digest order, so
+    // the seed says which outcome to expect.
+    let attributable = seeded
+        .transactions
+        .iter()
+        .find(|transaction| transaction.digest == watermark)
+        .expect("the watermark must name a seeded transaction")
+        .effects_digest
+        .is_some();
+    let bucketed = store
+        .get_historic_ledger()
+        .get_transaction(&watermark)
+        .unwrap()
+        .is_some();
+    assert_eq!(
+        bucketed, attributable,
+        "the row the watermark names must be in a bucket when an execution \
+         record places it, and gone when none does"
+    );
     assert!(
         store
-            .get_historic_ledger()
-            .get_transaction(&watermark)
+            .perpetual_tables
+            .transactions
+            .get(&watermark)
             .unwrap()
-            .is_some(),
-        "the row the watermark names must already be in a bucket"
+            .is_none(),
+        "the row the watermark names must have left the flat table either way"
     );
 
     // Release every handle on both databases before reopening the same paths,
@@ -804,5 +826,45 @@ async fn a_node_that_is_not_behind_keeps_its_synced_watermark() {
             .get_highest_synced_checkpoint_seq_number()
             .unwrap(),
         before
+    );
+}
+
+/// The rewind belongs to the run that deletes rows, not to every later start.
+/// A migrated node keeps whatever state sync has fetched ahead of execution,
+/// which on a healthy node is a large and expensive buffer: rewinding it on
+/// each restart would make the node fetch those checkpoints again every time.
+#[tokio::test]
+async fn a_restart_after_the_migration_keeps_the_synced_watermark() {
+    let store_dir = tempfile::tempdir().unwrap();
+    let checkpoint_dir = tempfile::tempdir().unwrap();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    seed(&store, &checkpoint_store);
+
+    // First start: the migration runs and rewinds, as it must.
+    migration(&store, checkpoint_store.clone(), Some(1), 2)
+        .run()
+        .unwrap();
+
+    // State sync then runs ahead of execution again, as it does on any node
+    // that is keeping up.
+    let ahead = seed_checkpoint(&checkpoint_store, RUNNING_EPOCH, 91);
+    checkpoint_store
+        .update_highest_synced_checkpoint(&ahead)
+        .unwrap();
+    let synced_before_restart = checkpoint_store
+        .get_highest_synced_checkpoint_seq_number()
+        .unwrap();
+
+    // Second start: nothing left to migrate, so nothing may be given back.
+    migration(&store, checkpoint_store.clone(), Some(1), 2)
+        .run()
+        .unwrap();
+
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        synced_before_restart,
+        "a restart of a migrated node must not rewind the synced watermark"
     );
 }

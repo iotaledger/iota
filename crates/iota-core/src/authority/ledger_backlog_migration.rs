@@ -242,9 +242,20 @@ impl LedgerBacklogMigration {
     /// Drains both stores' flat tables, then records how much of the
     /// checkpoint range the node no longer holds.
     fn run(&self) -> IotaResult<()> {
+        // Rewound before the drains rather than after them, and only while
+        // they still have work recorded. The drains delete rows the checkpoint
+        // executor reads by digest, so no start may ever observe the watermark
+        // naming a checkpoint above them — which a run interrupted between the
+        // drains and a rewind that came after them would leave behind. Gating
+        // on the drains' recorded progress rather than on what this run moved
+        // covers that, and keeps the rewind off every later start: a migrated
+        // node deletes nothing, and rewinding it would throw away the
+        // checkpoints state sync legitimately holds ahead of execution.
+        if self.migration_pending()? {
+            self.rewind_synced_watermark()?;
+        }
         let mut counts = self.drain_ledger()?;
         counts.add(&self.drain_checkpoints()?);
-        self.rewind_synced_watermark()?;
         // Silent on a database with nothing to move: this stays in the startup
         // path long after every database has been migrated.
         if counts.moved > 0 || counts.expired > 0 {
@@ -401,6 +412,24 @@ impl LedgerBacklogMigration {
     /// That keeps it for a whole retention window instead of risking an expiry
     /// that is due already, which is the same choice the object backlog sweep
     /// makes for the versions it cannot place.
+    /// Whether either drain still has rows to move, read from the progress
+    /// rows the drains themselves write.
+    fn migration_pending(&self) -> IotaResult<bool> {
+        let ledger = self
+            .perpetual_tables
+            .ledger_backlog_migration_progress
+            .get(&())?;
+        let checkpoints = self
+            .checkpoint_store
+            .tables
+            .checkpoint_backlog_migration_progress
+            .get(&())?;
+        Ok(
+            !matches!(ledger, Some(LedgerBacklogMigrationProgress::Done))
+                || !matches!(checkpoints, Some(CheckpointBacklogMigrationProgress::Done)),
+        )
+    }
+
     /// Brings the synced watermark back to the executed one, so state sync
     /// fetches again whatever the migration dropped.
     ///
