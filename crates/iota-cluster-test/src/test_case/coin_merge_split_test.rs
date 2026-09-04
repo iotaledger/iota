@@ -4,9 +4,8 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
+use iota_sdk_transaction_builder::assigned;
 use iota_sdk_types::{Address, ObjectId, Owner};
-use iota_types::iota_serde::BigInt;
-use jsonrpsee::rpc_params;
 use tracing::{debug, info};
 
 use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
@@ -36,7 +35,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
 
         // Split
         info!("Testing coin split.");
-        let amounts = vec![1.into(), ((original_value - 2) / 2).into()];
+        let amounts = vec![1, (original_value - 2) / 2];
 
         let response =
             Self::split_coin(ctx, signer, *primary_coin.id(), amounts, *gas_obj.id()).await;
@@ -119,18 +118,11 @@ impl CoinMergeSplitTest {
         coin_to_merge: ObjectId,
         gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
-        let params = rpc_params![
-            signer,
-            primary_coin,
-            coin_to_merge,
-            Some(gas_obj_id),
-            (20_000_000).to_string()
-        ];
-
-        let data = ctx
-            .build_transaction_remotely("unsafe_mergeCoins", params)
-            .await
-            .unwrap();
+        let grpc_client = ctx.get_fullnode_grpc_client();
+        let mut builder = grpc_client.transaction_builder(signer);
+        builder.merge_coins(primary_coin, [coin_to_merge]);
+        builder.gas([gas_obj_id]);
+        let data = builder.finish().await.unwrap();
 
         ctx.sign_and_execute(data, "coin merge").await
     }
@@ -139,22 +131,28 @@ impl CoinMergeSplitTest {
         ctx: &TestContext,
         signer: Address,
         primary_coin: ObjectId,
-        amounts: Vec<BigInt<u64>>,
+        amounts: Vec<u64>,
         gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
-        let params = rpc_params![
+        let grpc_client = ctx.get_fullnode_grpc_client();
+        let mut builder = grpc_client.transaction_builder(signer);
+        // Transfer the split coins back to the sender; an untransferred `Coin`
+        // would be an unused PTB value (coins have no `drop`) and the
+        // transaction would be rejected.
+        let names: Vec<String> = (0..amounts.len()).map(|i| format!("coin{i}")).collect();
+        builder
+            .split_coins(primary_coin, amounts)
+            .assign(names.clone());
+        builder.transfer_objects(
             signer,
-            primary_coin,
-            amounts,
-            Some(gas_obj_id),
-            (20_000_000).to_string()
-        ];
+            names
+                .iter()
+                .map(|name| assigned(name.as_str()))
+                .collect::<Vec<_>>(),
+        );
+        builder.gas([gas_obj_id]);
+        let data = builder.finish().await.unwrap();
 
-        let data = ctx
-            .build_transaction_remotely("unsafe_splitCoin", params)
-            .await
-            .unwrap();
-
-        ctx.sign_and_execute(data, "coin merge").await
+        ctx.sign_and_execute(data, "coin split").await
     }
 }
