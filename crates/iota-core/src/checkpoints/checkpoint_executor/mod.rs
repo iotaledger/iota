@@ -466,6 +466,8 @@ impl CheckpointExecutor {
 
         fail_point!("crash");
 
+        // Keep this after the index commit: `wait_for_checkpoint_inclusion`
+        // reads this bump as "the checkpoint is indexed".
         self.bump_highest_executed_checkpoint(&ckpt_state.data.checkpoint);
 
         self.broadcast_checkpoint(&ckpt_state.data, ckpt_state.full_data.as_ref());
