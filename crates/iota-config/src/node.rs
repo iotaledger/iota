@@ -1353,14 +1353,6 @@ pub struct CheckpointArchiveConfig {
     /// binary's execution and the history the network certified.
     #[serde(default)]
     pub re_execute_archived_checkpoints: bool,
-    /// Sync checkpoints from the archive regardless of what peers can serve,
-    /// and follow it for as long as it grows.
-    ///
-    /// Normally the archive only fills the gap below the lowest checkpoint the
-    /// peers still hold, so a node with no peers never reads from it. Set this
-    /// on a node whose only source is the archive.
-    #[serde(default)]
-    pub sync_from_archive_only: bool,
     /// Approximate memory budget for checkpoint results held between being
     /// downloaded and being committed by the checkpoint executor.
     ///

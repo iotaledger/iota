@@ -560,6 +560,7 @@ where
             self.peer_heights.clone(),
             self.metrics.clone(),
             self.results_cache.clone(),
+            self.config.sync_from_archive_only(),
         );
         let task_handle = self.tasks.spawn(task);
         self.sync_checkpoint_from_archive_task = Some(task_handle);
@@ -927,6 +928,11 @@ where
     /// `max_checkpoints_ahead_of_execution` above the executed watermark. Only
     /// one sync task is allowed to run at a time.
     fn maybe_start_checkpoint_summary_sync_task(&mut self) {
+        // Configured to read only the archive, which carries summaries too.
+        if self.config.sync_from_archive_only() {
+            return;
+        }
+
         // Only run one sync task at a time
         if self.sync_checkpoint_summaries_task.is_some() {
             return;
@@ -974,6 +980,11 @@ where
         &mut self,
         target_sequence_channel: &watch::Sender<CheckpointSequenceNumber>,
     ) {
+        // Configured to read only the archive, which carries contents too.
+        if self.config.sync_from_archive_only() {
+            return;
+        }
+
         let highest_verified_checkpoint = self
             .store
             .try_get_highest_verified_checkpoint_seq_number()
@@ -1382,6 +1393,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
     results_cache: Option<Arc<dyn CacheCheckpointResults>>,
+    archive_only: bool,
 ) where
     S: WriteStore + Clone + Send + Sync + 'static,
 {
@@ -1394,6 +1406,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
             peer_heights.clone(),
             metrics.clone(),
             results_cache.clone(),
+            archive_only,
         )
         .await;
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -1408,6 +1421,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
     results_cache: Option<Arc<dyn CacheCheckpointResults>>,
+    archive_only: bool,
 ) where
     S: WriteStore + Clone + Send + Sync + 'static,
 {
@@ -1426,11 +1440,9 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
     // Only sync from checkpoint archive when there is at least one checkpoint in
     // the gap [highest_synced+1, lowest_peer). If highest_synced+1 ==
     // lowest_peer the archive range is empty and there is nothing to do.
-    // A node configured to sync only from the archive has no peers to take over
-    // from, so it reads from the archive whatever the peers report.
-    let archive_only = checkpoint_archive_config
-        .as_ref()
-        .is_some_and(|config| config.sync_from_archive_only);
+    //
+    // A node reading only from the archive has no peers to take over from, so
+    // it reads whatever the peers report.
     let sync_from_checkpoint_archive = archive_only
         || if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers {
             highest_synced

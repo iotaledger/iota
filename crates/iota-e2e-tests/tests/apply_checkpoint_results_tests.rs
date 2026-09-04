@@ -379,12 +379,15 @@ async fn sync_archive_only_fullnode(
             download_concurrency: NonZeroUsize::new(4).unwrap(),
             verify_concurrency: NonZeroUsize::new(2).unwrap(),
             re_execute_archived_checkpoints: re_execute,
-            sync_from_archive_only: true,
             results_cache_size_bytes: results_cache_size_bytes.unwrap_or(256 * 1024 * 1024),
         })
         .build(&mut rand::rngs::OsRng, cluster.swarm.config());
-    // With no peers the archive is the node's only source, so reaching the
-    // target proves the archive path did the work rather than p2p sync.
+    // The archive is the node's only source, so reaching the target proves the
+    // archive path did the work rather than p2p sync. Emptying the seed peers
+    // as well means nothing is dialled even to be declined.
+    let mut state_sync = config.p2p_config.state_sync.clone().unwrap_or_default();
+    state_sync.sync_from_archive_only = Some(true);
+    config.p2p_config.state_sync = Some(state_sync);
     config.p2p_config.seed_peers = Vec::new();
     let node = cluster.start_fullnode_from_config(config).await;
 

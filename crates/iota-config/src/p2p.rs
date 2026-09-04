@@ -216,6 +216,23 @@ pub struct StateSyncConfig {
     /// If unspecified, this will default to `10,000`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_checkpoints_ahead_of_execution: Option<NonZeroU64>,
+
+    /// Take checkpoints only from the checkpoint archive, never from peers.
+    ///
+    /// Peers normally serve the recent range and the archive fills in below
+    /// what they still hold, so a node with no peers reads from neither. Set
+    /// this on a node whose only source is the archive: it stops syncing
+    /// summaries and contents from peers and reads the archive whatever the
+    /// peers report.
+    ///
+    /// The node still answers state sync requests from others, and still
+    /// accepts peer connections — those are governed by `listen-address` and
+    /// by which ports the deployment publishes. It also cannot follow the
+    /// chain tip, since the archive trails it.
+    ///
+    /// If unspecified, this will default to `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sync_from_archive_only: Option<bool>,
 }
 
 impl StateSyncConfig {
@@ -273,6 +290,10 @@ impl StateSyncConfig {
         self.checkpoint_content_timeout_ms
             .map(Duration::from_millis)
             .unwrap_or(DEFAULT_TIMEOUT)
+    }
+
+    pub fn sync_from_archive_only(&self) -> bool {
+        self.sync_from_archive_only.unwrap_or(false)
     }
 
     pub fn max_checkpoints_ahead_of_execution(&self) -> u64 {
