@@ -145,15 +145,22 @@ impl GasMeter for IotaGasMeter<'_> {
         // Determine the number of pops that are going to be needed for this function
         // call, and charge for them.
         let pops = args.len() as u64;
-        // Calculate the size decrease of the stack from the above pops.
-        let arg_sizes = args.fold(AbstractMemorySize::zero(), |acc, elem| {
-            acc + abstract_memory_size(elem)
-        });
-        // Hashing natives stream their arguments; record their size for the
-        // memory-bandwidth counter. Profile-only, charges nothing.
-        if self.0.pending_native_streams_input() {
-            self.0.record_hash_input_bytes(arg_sizes.into());
-        }
+        // One pass over the arguments, two sums: the stack-size decrease the
+        // charge below needs (references at their constant size, matching how
+        // the stack was charged when they were pushed), and the input bytes
+        // the resource profile records (sizes taken through references — the
+        // bytes the native actually consumes). Recording is profile-only and
+        // charges nothing.
+        let (arg_sizes, input_bytes) = args.fold(
+            (AbstractMemorySize::zero(), AbstractMemorySize::zero()),
+            |(charge_size, input_size), elem| {
+                (
+                    charge_size + elem.abstract_memory_size(false),
+                    input_size + elem.abstract_memory_size(true),
+                )
+            },
+        );
+        self.0.record_native_input_bytes(input_bytes.into());
         let stack_reduction_size = AbstractMemorySize::new(pops) + arg_sizes;
         // Track that this is going to be popping from the operand stack. We also
         // increment the instruction count as we need to account for the `Call`
