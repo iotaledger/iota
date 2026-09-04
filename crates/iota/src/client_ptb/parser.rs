@@ -1117,4 +1117,30 @@ mod tests {
         }
         insta::assert_debug_snapshot!(parsed);
     }
+
+    /// The flags reach `ProgramMetadata`, so `--local` is not silently
+    /// swallowed on the PTB path, where clap does not validate it.
+    #[test]
+    fn test_parse_simulation_flags() {
+        let metadata = |input: &str| {
+            let args = shlex::split(input).unwrap();
+            let parser = ProgramParser::new(args.iter().map(|arg| arg.as_str())).unwrap();
+            let (_, metadata) = parser
+                .parse()
+                .unwrap_or_else(|e| panic!("failed on {input:?}: {e:?}"));
+            metadata
+        };
+
+        let plain = metadata("--gas-budget 1");
+        assert!(!plain.dry_run_set);
+        assert!(!plain.local_set);
+
+        let local = metadata("--gas-budget 1 --dry-run --local");
+        assert!(local.dry_run_set);
+        assert!(local.local_set);
+
+        // `--local` parses on its own; rejecting the combination is the
+        // command's job, not the parser's.
+        assert!(metadata("--gas-budget 1 --local").local_set);
+    }
 }

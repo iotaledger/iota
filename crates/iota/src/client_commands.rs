@@ -112,6 +112,7 @@ use crate::{
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::{Key, lowercase_key_scheme},
+    local_simulation::execute_local_dry_run,
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -661,7 +662,9 @@ pub struct TxProcessingArgs {
     pub dev_inspect: bool,
     /// Run the simulation locally through the Move VM instead of on the node.
     /// Supported with --dry-run. Requires a `grpc` URL configured for the
-    /// active env, from which objects and chain parameters are resolved.
+    /// active env, from which objects and chain parameters are resolved. The
+    /// env's JSON-RPC endpoint is still used for the gas price and for
+    /// rendering errors.
     #[arg(long, requires = "dry_run", conflicts_with = "dev_inspect")]
     pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
@@ -3187,7 +3190,7 @@ pub(crate) fn fallback_gas_budget(payment_balance: Option<u64>, max_gas_budget: 
         let warn_msg = format!(
             "Gas budget is equal to the total gas balance of the provided gas coins: {balance}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
         );
-        warn!(warn_msg);
+        warn!("{warn_msg}");
         eprintln!("{}", warn_msg.yellow().bold());
     }
     gas_budget
@@ -3389,12 +3392,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
     // `--local` picks the local backend for whichever simulation mode was
-    // asked for, so the condition lists the modes that have one. `iota client
+    // asked for, so these guards list the modes that have one. `iota client
     // ptb` builds its flags by hand, so clap's `requires` and
     // `conflicts_with` on `--local` do not apply there.
+    ensure!(!local || dry_run, "--local requires --dry-run");
     ensure!(
-        !local || (dry_run && !dev_inspect),
-        "--local is only supported with --dry-run"
+        !(local && dev_inspect),
+        "--local is not supported with --dev-inspect"
     );
     let gas_price = if let Some(gas_price) = gas_price {
         gas_price
@@ -3428,13 +3432,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
 
     if dry_run {
         if local {
-            return crate::local_simulation::execute_local_dry_run(
+            return execute_local_dry_run(
                 context,
                 signer,
                 tx_kind,
                 gas_budget,
                 gas_price,
-                gas_payment.clone(),
+                gas_payment,
                 gas_sponsor,
             )
             .await;

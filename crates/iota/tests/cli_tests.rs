@@ -4474,8 +4474,6 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-// The local dry-run resolves objects over gRPC via `block_in_place`, which
-// needs a real multi-threaded runtime; the msim simulator provides neither.
 /// Point the wallet's active env at the cluster's own gRPC endpoint, which
 /// `--local` needs to resolve objects.
 #[cfg(not(msim))]
@@ -4499,18 +4497,20 @@ fn sorted_by_object_id(mut changes: Vec<ObjectChange>) -> Vec<ObjectChange> {
 /// Balance changes in a comparable order, for the same reason.
 #[cfg(not(msim))]
 fn sorted_by_owner_and_coin(mut changes: Vec<BalanceChange>) -> Vec<BalanceChange> {
-    changes.sort_by_key(|change| (format!("{:?}", change.owner), change.coin_type.to_string()));
+    changes.sort_by_key(|change| (change.owner, change.coin_type.clone()));
     changes
 }
 
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> {
+    // Boxed because building a test cluster and driving the CLI in one test
+    // future otherwise gets close to the test thread's stack limit.
     Box::pin(async move {
-        /// The protocol's minimum gas budget: valid, but too little to complete
-        /// a transfer, so execution fails rather than the transaction
-        /// being rejected.
-        const MIN_GAS_BUDGET_FOR_TESTS: u64 = 1_000_000;
+        /// Above the protocol's minimum budget, so the transaction is
+        /// accepted, but too little to complete a transfer, so execution
+        /// runs out of gas instead.
+        const GAS_BUDGET_TOO_LOW_TO_TRANSFER: u64 = 1_000_000;
 
         let mut test_cluster = TestClusterBuilder::new()
             .with_num_validators(2)
@@ -4600,7 +4600,7 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
             object_id: object_to_send,
             payment: PaymentArgs { gas: vec![gas_id] },
             gas_data: GasDataArgs {
-                gas_budget: Some(MIN_GAS_BUDGET_FOR_TESTS),
+                gas_budget: Some(GAS_BUDGET_TOO_LOW_TO_TRANSFER),
                 ..Default::default()
             },
             processing: TxProcessingArgs {
@@ -4658,6 +4658,8 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result<(), anyhow::Error>
 {
+    // Boxed because building a test cluster and driving the CLI in one test
+    // future otherwise gets close to the test thread's stack limit.
     Box::pin(async move {
         let mut test_cluster = TestClusterBuilder::new()
             .with_num_validators(2)
@@ -4765,6 +4767,7 @@ async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result
 
 /// Call `tto::start`, returning the ids of the parent object and of the object
 /// transferred to it.
+#[cfg(not(msim))]
 async fn start_tto(
     package_id: ObjectId,
     gas_id: ObjectId,
