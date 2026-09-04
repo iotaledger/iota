@@ -1,0 +1,32 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Predefined groupings of the node’s Prometheus metrics."><title>iota_metrics::metric_groups - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="iota_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module metric_groups</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../iota_metrics/index.html">iota_<wbr>metrics</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module metric_<wbr>groups</a></h2><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate iota_<wbr>metrics</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">iota_metrics</a></div><h1>Module <span>metric_<wbr>groups</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/iota_metrics/metric_groups.rs.html#4-717">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Predefined groupings of the node’s Prometheus metrics.</p>
+<p>Most groups are filter-based: they key on the module path of the metrics
+(preferred over the metric name, because module paths are stable and names
+are not) and are rendered into a <code>METRICS_FILTER</code>-style string via
+<code>MetricGroups::to_filter_string</code>.</p>
+<p>Each filter-based group is set to a <a href="../enum.MetricLevel.html" title="enum iota_metrics::MetricLevel"><code>MetricLevel</code></a>, a verbosity threshold.
+Individual metrics declare their own level where they are registered,
+defaulting to <a href="../enum.MetricLevel.html#variant.Debug" title="variant iota_metrics::MetricLevel::Debug"><code>MetricLevel::Debug</code></a>. A group’s level decides which of its
+metrics are <strong>exposed</strong> on the metrics endpoint — a metric is exposed when
+the group’s level is at least as verbose as the metric’s:</p>
+<ul>
+<li><code>off</code> exposes nothing;</li>
+<li><code>warn</code> (the group default) exposes only <code>warn</code>-tagged metrics;</li>
+<li><code>info</code> exposes <code>warn</code> and <code>info</code> metrics;</li>
+<li><code>debug</code> exposes everything except <code>trace</code>-tagged metrics;</li>
+<li><code>trace</code> exposes everything.</li>
+</ul>
+<p>Metrics whose module belongs to no other group form the <code>default</code> group,
+covered by the <code>default</code> threshold (<code>info</code> unless configured), rendered
+as the leading <code>default=LEVEL</code> directive.</p>
+<p>The levels never affect collection: a filter-based group’s metrics are
+registered and keep collecting regardless of the configured level.</p>
+<p>Note the two defaults differ: an untagged metric is exposed from level
+<code>debug</code>, while a group defaults to the <code>warn</code> threshold, so the default
+config exposes only the <code>warn</code>-tagged metrics.</p>
+<p>The node applies <a href="struct.MetricGroups.html#method.default" title="associated function iota_metrics::metric_groups::MetricGroups::default"><code>MetricGroups::default()</code></a> when the config omits
+<code>metrics.groups</code> entirely, so an omitted and an empty section behave the
+same.</p>
+<p>The <code>hardware</code> metrics are grouped together as one collector and
+registered with <code>warn</code> level, so the whole group shares a single level.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.MetricGroups.html" title="struct iota_metrics::metric_groups::MetricGroups">Metric<wbr>Groups</a></dt><dd>Per-group verbosity levels for the node’s predefined Prometheus metric
+groups.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.MetricLevel.html" title="enum iota_metrics::metric_groups::MetricLevel">Metric<wbr>Level</a></dt><dd>Verbosity level for a metric.</dd></dl></section></div></main></body></html>

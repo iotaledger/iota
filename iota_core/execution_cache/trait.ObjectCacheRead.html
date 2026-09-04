@@ -1,0 +1,413 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `ObjectCacheRead` trait in crate `iota_core`."><title>ObjectCacheRead in iota_core::execution_cache - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="iota_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">ObjectCacheRead</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../iota_core/index.html">iota_<wbr>core</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Object<wbr>Cache<wbr>Read</a></h2><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod._try_get_live_objref" title="_try_get_live_objref">_try_get_live_objref</a></li><li><a href="#tymethod.force_reload_system_packages" title="force_reload_system_packages">force_reload_system_packages</a></li><li><a href="#tymethod.multi_input_objects_available_cache_only" title="multi_input_objects_available_cache_only">multi_input_objects_available_cache_only</a></li><li><a href="#tymethod.notify_read_input_objects" title="notify_read_input_objects">notify_read_input_objects</a></li><li><a href="#tymethod.try_check_owned_objects_are_live" title="try_check_owned_objects_are_live">try_check_owned_objects_are_live</a></li><li><a href="#tymethod.try_find_object_lt_or_eq_version" title="try_find_object_lt_or_eq_version">try_find_object_lt_or_eq_version</a></li><li><a href="#tymethod.try_get_highest_pruned_checkpoint" title="try_get_highest_pruned_checkpoint">try_get_highest_pruned_checkpoint</a></li><li><a href="#tymethod.try_get_iota_system_state_object_unsafe" title="try_get_iota_system_state_object_unsafe">try_get_iota_system_state_object_unsafe</a></li><li><a href="#tymethod.try_get_latest_marker" title="try_get_latest_marker">try_get_latest_marker</a></li><li><a href="#tymethod.try_get_latest_object_or_tombstone" title="try_get_latest_object_or_tombstone">try_get_latest_object_or_tombstone</a></li><li><a href="#tymethod.try_get_latest_object_ref_or_tombstone" title="try_get_latest_object_ref_or_tombstone">try_get_latest_object_ref_or_tombstone</a></li><li><a href="#tymethod.try_get_lock" title="try_get_lock">try_get_lock</a></li><li><a href="#tymethod.try_get_marker_value" title="try_get_marker_value">try_get_marker_value</a></li><li><a href="#tymethod.try_get_object" title="try_get_object">try_get_object</a></li><li><a href="#tymethod.try_get_object_by_key" title="try_get_object_by_key">try_get_object_by_key</a></li><li><a href="#tymethod.try_get_package_object" title="try_get_package_object">try_get_package_object</a></li><li><a href="#tymethod.try_multi_get_objects_by_key" title="try_multi_get_objects_by_key">try_multi_get_objects_by_key</a></li><li><a href="#tymethod.try_multi_object_exists_by_key" title="try_multi_object_exists_by_key">try_multi_object_exists_by_key</a></li><li><a href="#tymethod.try_object_exists_by_key" title="try_object_exists_by_key">try_object_exists_by_key</a></li></ul><h3><a href="#provided-methods">Provided Methods</a></h3><ul class="block"><li><a href="#method.check_owned_objects_are_live" title="check_owned_objects_are_live">check_owned_objects_are_live</a></li><li><a href="#method.find_object_lt_or_eq_version" title="find_object_lt_or_eq_version">find_object_lt_or_eq_version</a></li><li><a href="#method.get_deleted_shared_object_previous_tx_digest" title="get_deleted_shared_object_previous_tx_digest">get_deleted_shared_object_previous_tx_digest</a></li><li><a href="#method.get_highest_pruned_checkpoint" title="get_highest_pruned_checkpoint">get_highest_pruned_checkpoint</a></li><li><a href="#method.get_iota_system_state_object_unsafe" title="get_iota_system_state_object_unsafe">get_iota_system_state_object_unsafe</a></li><li><a href="#method.get_last_shared_object_deletion_info" title="get_last_shared_object_deletion_info">get_last_shared_object_deletion_info</a></li><li><a href="#method.get_latest_marker" title="get_latest_marker">get_latest_marker</a></li><li><a href="#method.get_latest_object_or_tombstone" title="get_latest_object_or_tombstone">get_latest_object_or_tombstone</a></li><li><a href="#method.get_latest_object_ref_or_tombstone" title="get_latest_object_ref_or_tombstone">get_latest_object_ref_or_tombstone</a></li><li><a href="#method.get_lock" title="get_lock">get_lock</a></li><li><a href="#method.get_marker_value" title="get_marker_value">get_marker_value</a></li><li><a href="#method.get_object" title="get_object">get_object</a></li><li><a href="#method.get_object_by_key" title="get_object_by_key">get_object_by_key</a></li><li><a href="#method.get_objects" title="get_objects">get_objects</a></li><li><a href="#method.get_package_object" title="get_package_object">get_package_object</a></li><li><a href="#method.have_deleted_owned_object_at_version_or_after" title="have_deleted_owned_object_at_version_or_after">have_deleted_owned_object_at_version_or_after</a></li><li><a href="#method.have_received_object_at_version" title="have_received_object_at_version">have_received_object_at_version</a></li><li><a href="#method.multi_get_objects_by_key" title="multi_get_objects_by_key">multi_get_objects_by_key</a></li><li><a href="#method.multi_get_objects_with_more_accurate_error_return" title="multi_get_objects_with_more_accurate_error_return">multi_get_objects_with_more_accurate_error_return</a></li><li><a href="#method.multi_input_objects_available" title="multi_input_objects_available">multi_input_objects_available</a></li><li><a href="#method.multi_object_exists_by_key" title="multi_object_exists_by_key">multi_object_exists_by_key</a></li><li><a href="#method.object_exists_by_key" title="object_exists_by_key">object_exists_by_key</a></li><li><a href="#method.try_get_deleted_shared_object_previous_tx_digest" title="try_get_deleted_shared_object_previous_tx_digest">try_get_deleted_shared_object_previous_tx_digest</a></li><li><a href="#method.try_get_last_shared_object_deletion_info" title="try_get_last_shared_object_deletion_info">try_get_last_shared_object_deletion_info</a></li><li><a href="#method.try_get_objects" title="try_get_objects">try_get_objects</a></li><li><a href="#method.try_have_deleted_owned_object_at_version_or_after" title="try_have_deleted_owned_object_at_version_or_after">try_have_deleted_owned_object_at_version_or_after</a></li><li><a href="#method.try_have_received_object_at_version" title="try_have_received_object_at_version">try_have_received_object_at_version</a></li><li><a href="#method.try_multi_get_objects_with_more_accurate_error_return" title="try_multi_get_objects_with_more_accurate_error_return">try_multi_get_objects_with_more_accurate_error_return</a></li><li><a href="#method.try_multi_input_objects_available" title="try_multi_input_objects_available">try_multi_input_objects_available</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2><a href="index.html">In iota_<wbr>core::<wbr>execution_<wbr>cache</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">iota_core</a>::<wbr><a href="index.html">execution_cache</a></div><h1>Trait <span class="trait">Object<wbr>Cache<wbr>Read</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/iota_core/execution_cache.rs.html#244-730">Source</a> </span></div><pre class="rust item-decl"><code>pub trait ObjectCacheRead: <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> {
+<details class="toggle type-contents-toggle"><summary class="hideme"><span>Show 48 methods</span></summary>    // Required methods
+    fn <a href="#tymethod.try_get_package_object" class="fn">try_get_package_object</a>(
+        &amp;self,
+        id: &amp;ObjectId,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/storage/struct.PackageObject.html" title="struct iota_types::storage::PackageObject">PackageObject</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.force_reload_system_packages" class="fn">force_reload_system_packages</a>(&amp;self, system_package_ids: &amp;[ObjectId]);
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_object" class="fn">try_get_object</a>(&amp;self, id: &amp;ObjectId) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_latest_object_ref_or_tombstone" class="fn">try_get_latest_object_ref_or_tombstone</a>(
+        &amp;self,
+        object_id: ObjectId,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ObjectReference&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_latest_object_or_tombstone" class="fn">try_get_latest_object_or_tombstone</a>(
+        &amp;self,
+        object_id: ObjectId,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>, <a class="enum" href="../../iota_types/storage/enum.ObjectOrTombstone.html" title="enum iota_types::storage::ObjectOrTombstone">ObjectOrTombstone</a>)&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_object_by_key" class="fn">try_get_object_by_key</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_multi_get_objects_by_key" class="fn">try_multi_get_objects_by_key</a>(
+        &amp;self,
+        object_keys: &amp;[<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>],
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_object_exists_by_key" class="fn">try_object_exists_by_key</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_multi_object_exists_by_key" class="fn">try_multi_object_exists_by_key</a>(
+        &amp;self,
+        object_keys: &amp;[<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>],
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.multi_input_objects_available_cache_only" class="fn">multi_input_objects_available_cache_only</a>(
+        &amp;self,
+        keys: &amp;[<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>],
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_find_object_lt_or_eq_version" class="fn">try_find_object_lt_or_eq_version</a>(
+        &amp;self,
+        object_id: ObjectId,
+        version: Version,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_lock" class="fn">try_get_lock</a>(
+        &amp;self,
+        obj_ref: ObjectReference,
+        epoch_store: &amp;<a class="struct" href="../authority/authority_per_epoch_store/struct.AuthorityPerEpochStore.html" title="struct iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore">AuthorityPerEpochStore</a>,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;ObjectLockStatus&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod._try_get_live_objref" class="fn">_try_get_live_objref</a>(
+        &amp;self,
+        object_id: ObjectId,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;ObjectReference&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_check_owned_objects_are_live" class="fn">try_check_owned_objects_are_live</a>(
+        &amp;self,
+        owned_object_refs: &amp;[ObjectReference],
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_iota_system_state_object_unsafe" class="fn">try_get_iota_system_state_object_unsafe</a>(
+        &amp;self,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="../../iota_types/iota_system_state/enum.IotaSystemState.html" title="enum iota_types::iota_system_state::IotaSystemState">IotaSystemState</a>&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_marker_value" class="fn">try_get_marker_value</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../iota_types/storage/enum.MarkerValue.html" title="enum iota_types::storage::MarkerValue">MarkerValue</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_latest_marker" class="fn">try_get_latest_marker</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Version, <a class="enum" href="../../iota_types/storage/enum.MarkerValue.html" title="enum iota_types::storage::MarkerValue">MarkerValue</a>)&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.try_get_highest_pruned_checkpoint" class="fn">try_get_highest_pruned_checkpoint</a>(
+        &amp;self,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../iota_types/messages_checkpoint/type.CheckpointSequenceNumber.html" title="type iota_types::messages_checkpoint::CheckpointSequenceNumber">CheckpointSequenceNumber</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.notify_read_input_objects" class="fn">notify_read_input_objects</a>&lt;'a&gt;(
+        &amp;'a self,
+        input_and_receiving_keys: &amp;'a [<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>],
+        receiving_keys: &amp;'a <a class="struct" href="https://doc.rust-lang.org/1.98.1/std/collections/hash/set/struct.HashSet.html" title="struct std::collections::hash::set::HashSet">HashSet</a>&lt;<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>&gt;,
+        epoch: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; BoxFuture&lt;'a, <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.unit.html">()</a>&gt;;
+
+    // Provided methods
+    fn <a href="#method.get_package_object" class="fn">get_package_object</a>(&amp;self, id: &amp;ObjectId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/storage/struct.PackageObject.html" title="struct iota_types::storage::PackageObject">PackageObject</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_object" class="fn">get_object</a>(&amp;self, id: &amp;ObjectId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.try_get_objects" class="fn">try_get_objects</a>(
+        &amp;self,
+        objects: &amp;[ObjectId],
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_objects" class="fn">get_objects</a>(&amp;self, objects: &amp;[ObjectId]) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_latest_object_ref_or_tombstone" class="fn">get_latest_object_ref_or_tombstone</a>(
+        &amp;self,
+        object_id: ObjectId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ObjectReference&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_latest_object_or_tombstone" class="fn">get_latest_object_or_tombstone</a>(
+        &amp;self,
+        object_id: ObjectId,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>, <a class="enum" href="../../iota_types/storage/enum.ObjectOrTombstone.html" title="enum iota_types::storage::ObjectOrTombstone">ObjectOrTombstone</a>)&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_object_by_key" class="fn">get_object_by_key</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.multi_get_objects_by_key" class="fn">multi_get_objects_by_key</a>(
+        &amp;self,
+        object_keys: &amp;[<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>],
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.object_exists_by_key" class="fn">object_exists_by_key</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+    ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a> { ... }
+<span class="item-spacer"></span>    fn <a href="#method.multi_object_exists_by_key" class="fn">multi_object_exists_by_key</a>(&amp;self, object_keys: &amp;[<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>]) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.try_multi_get_objects_with_more_accurate_error_return" class="fn">try_multi_get_objects_with_more_accurate_error_return</a>(
+        &amp;self,
+        object_refs: &amp;[ObjectReference],
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;, <a class="enum" href="../../iota_types/error/enum.IotaError.html" title="enum iota_types::error::IotaError">IotaError</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.multi_get_objects_with_more_accurate_error_return" class="fn">multi_get_objects_with_more_accurate_error_return</a>(
+        &amp;self,
+        object_refs: &amp;[ObjectReference],
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.try_multi_input_objects_available" class="fn">try_multi_input_objects_available</a>(
+        &amp;self,
+        keys: &amp;[<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>],
+        receiving_objects: &amp;<a class="struct" href="https://doc.rust-lang.org/1.98.1/std/collections/hash/set/struct.HashSet.html" title="struct std::collections::hash::set::HashSet">HashSet</a>&lt;<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>&gt;,
+        epoch: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;, <a class="enum" href="../../iota_types/error/enum.IotaError.html" title="enum iota_types::error::IotaError">IotaError</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.multi_input_objects_available" class="fn">multi_input_objects_available</a>(
+        &amp;self,
+        keys: &amp;[<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>],
+        receiving_objects: &amp;<a class="struct" href="https://doc.rust-lang.org/1.98.1/std/collections/hash/set/struct.HashSet.html" title="struct std::collections::hash::set::HashSet">HashSet</a>&lt;<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>&gt;,
+        epoch: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.find_object_lt_or_eq_version" class="fn">find_object_lt_or_eq_version</a>(
+        &amp;self,
+        object_id: ObjectId,
+        version: Version,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_lock" class="fn">get_lock</a>(
+        &amp;self,
+        obj_ref: ObjectReference,
+        epoch_store: &amp;<a class="struct" href="../authority/authority_per_epoch_store/struct.AuthorityPerEpochStore.html" title="struct iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore">AuthorityPerEpochStore</a>,
+    ) -&gt; ObjectLockStatus { ... }
+<span class="item-spacer"></span>    fn <a href="#method.check_owned_objects_are_live" class="fn">check_owned_objects_are_live</a>(
+        &amp;self,
+        owned_object_refs: &amp;[ObjectReference],
+    ) { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_iota_system_state_object_unsafe" class="fn">get_iota_system_state_object_unsafe</a>(&amp;self) -&gt; <a class="enum" href="../../iota_types/iota_system_state/enum.IotaSystemState.html" title="enum iota_types::iota_system_state::IotaSystemState">IotaSystemState</a> { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_marker_value" class="fn">get_marker_value</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../iota_types/storage/enum.MarkerValue.html" title="enum iota_types::storage::MarkerValue">MarkerValue</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_latest_marker" class="fn">get_latest_marker</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Version, <a class="enum" href="../../iota_types/storage/enum.MarkerValue.html" title="enum iota_types::storage::MarkerValue">MarkerValue</a>)&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.try_get_last_shared_object_deletion_info" class="fn">try_get_last_shared_object_deletion_info</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Version, TransactionDigest)&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_last_shared_object_deletion_info" class="fn">get_last_shared_object_deletion_info</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Version, TransactionDigest)&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.try_get_deleted_shared_object_previous_tx_digest" class="fn">try_get_deleted_shared_object_previous_tx_digest</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;TransactionDigest&gt;&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_deleted_shared_object_previous_tx_digest" class="fn">get_deleted_shared_object_previous_tx_digest</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;TransactionDigest&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.try_have_received_object_at_version" class="fn">try_have_received_object_at_version</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.have_received_object_at_version" class="fn">have_received_object_at_version</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a> { ... }
+<span class="item-spacer"></span>    fn <a href="#method.try_have_deleted_owned_object_at_version_or_after" class="fn">try_have_deleted_owned_object_at_version_or_after</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt; { ... }
+<span class="item-spacer"></span>    fn <a href="#method.have_deleted_owned_object_at_version_or_after" class="fn">have_deleted_owned_object_at_version_or_after</a>(
+        &amp;self,
+        object_id: &amp;ObjectId,
+        version: Version,
+        epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+    ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a> { ... }
+<span class="item-spacer"></span>    fn <a href="#method.get_highest_pruned_checkpoint" class="fn">get_highest_pruned_checkpoint</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../iota_types/messages_checkpoint/type.CheckpointSequenceNumber.html" title="type iota_types::messages_checkpoint::CheckpointSequenceNumber">CheckpointSequenceNumber</a>&gt; { ... }
+</details>}</code></pre><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.try_get_package_object" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#245">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_package_object" class="fn">try_get_package_object</a>(
+    &amp;self,
+    id: &amp;ObjectId,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/storage/struct.PackageObject.html" title="struct iota_types::storage::PackageObject">PackageObject</a>&gt;&gt;</h4></section><section id="tymethod.force_reload_system_packages" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#253">Source</a><h4 class="code-header">fn <a href="#tymethod.force_reload_system_packages" class="fn">force_reload_system_packages</a>(&amp;self, system_package_ids: &amp;[ObjectId])</h4></section><section id="tymethod.try_get_object" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#255">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_object" class="fn">try_get_object</a>(&amp;self, id: &amp;ObjectId) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;</h4></section><section id="tymethod.try_get_latest_object_ref_or_tombstone" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#276-279">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_latest_object_ref_or_tombstone" class="fn">try_get_latest_object_ref_or_tombstone</a>(
+    &amp;self,
+    object_id: ObjectId,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ObjectReference&gt;&gt;</h4></section><section id="tymethod.try_get_latest_object_or_tombstone" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#287-290">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_latest_object_or_tombstone" class="fn">try_get_latest_object_or_tombstone</a>(
+    &amp;self,
+    object_id: ObjectId,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>, <a class="enum" href="../../iota_types/storage/enum.ObjectOrTombstone.html" title="enum iota_types::storage::ObjectOrTombstone">ObjectOrTombstone</a>)&gt;&gt;</h4></section><section id="tymethod.try_get_object_by_key" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#301-305">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_object_by_key" class="fn">try_get_object_by_key</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;</h4></section><section id="tymethod.try_multi_get_objects_by_key" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#313-316">Source</a><h4 class="code-header">fn <a href="#tymethod.try_multi_get_objects_by_key" class="fn">try_multi_get_objects_by_key</a>(
+    &amp;self,
+    object_keys: &amp;[<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>],
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;&gt;</h4></section><section id="tymethod.try_object_exists_by_key" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#324">Source</a><h4 class="code-header">fn <a href="#tymethod.try_object_exists_by_key" class="fn">try_object_exists_by_key</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;</h4></section><section id="tymethod.try_multi_object_exists_by_key" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#332">Source</a><h4 class="code-header">fn <a href="#tymethod.try_multi_object_exists_by_key" class="fn">try_multi_object_exists_by_key</a>(
+    &amp;self,
+    object_keys: &amp;[<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>],
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="tymethod.multi_input_objects_available_cache_only" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#508">Source</a><h4 class="code-header">fn <a href="#tymethod.multi_input_objects_available_cache_only" class="fn">multi_input_objects_available_cache_only</a>(
+    &amp;self,
+    keys: &amp;[<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>],
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Like <code>multi_input_objects_available</code>, but consults only the in-memory
+cache (no store reads). Used as a fast-path availability check before
+registering for change notifications.</p>
+<p>Implementations MUST NOT read the store: this check runs on the hot
+scheduling path and is meant to stay free of store I/O. Reporting an
+available input as unavailable is safe — the caller then waits on the
+full, marker-aware path, which reads the store.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.try_find_object_lt_or_eq_version" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#515-519">Source</a><h4 class="code-header">fn <a href="#tymethod.try_find_object_lt_or_eq_version" class="fn">try_find_object_lt_or_eq_version</a>(
+    &amp;self,
+    object_id: ObjectId,
+    version: Version,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Return the object with version less then or eq to the provided seq
+number. This is used by indexer to find the correct version of
+dynamic field child object. We do not store the version of the child
+object, but because of lamport timestamp, we know the child must
+have version number less then or eq to the parent.</p>
+</div></details><section id="tymethod.try_get_lock" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#531-535">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_lock" class="fn">try_get_lock</a>(
+    &amp;self,
+    obj_ref: ObjectReference,
+    epoch_store: &amp;<a class="struct" href="../authority/authority_per_epoch_store/struct.AuthorityPerEpochStore.html" title="struct iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore">AuthorityPerEpochStore</a>,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;ObjectLockStatus&gt;</h4></section><section id="tymethod._try_get_live_objref" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#549">Source</a><h4 class="code-header">fn <a href="#tymethod._try_get_live_objref" class="fn">_try_get_live_objref</a>(
+    &amp;self,
+    object_id: ObjectId,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;ObjectReference&gt;</h4></section><section id="tymethod.try_check_owned_objects_are_live" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#554-555">Source</a><h4 class="code-header">fn <a href="#tymethod.try_check_owned_objects_are_live" class="fn">try_check_owned_objects_are_live</a>(
+    &amp;self,
+    owned_object_refs: &amp;[ObjectReference],
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a></h4></section><section id="tymethod.try_get_iota_system_state_object_unsafe" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#563">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_iota_system_state_object_unsafe" class="fn">try_get_iota_system_state_object_unsafe</a>(&amp;self) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="../../iota_types/iota_system_state/enum.IotaSystemState.html" title="enum iota_types::iota_system_state::IotaSystemState">IotaSystemState</a>&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="tymethod.try_get_marker_value" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#574-579">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_marker_value" class="fn">try_get_marker_value</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../iota_types/storage/enum.MarkerValue.html" title="enum iota_types::storage::MarkerValue">MarkerValue</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Get the marker at a specific version</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.try_get_latest_marker" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#593-597">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_latest_marker" class="fn">try_get_latest_marker</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Version, <a class="enum" href="../../iota_types/storage/enum.MarkerValue.html" title="enum iota_types::storage::MarkerValue">MarkerValue</a>)&gt;&gt;</h4></section></summary><div class="docblock"><p>Get the latest marker for a given object.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.try_get_highest_pruned_checkpoint" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#709">Source</a><h4 class="code-header">fn <a href="#tymethod.try_get_highest_pruned_checkpoint" class="fn">try_get_highest_pruned_checkpoint</a>(
+    &amp;self,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../iota_types/messages_checkpoint/type.CheckpointSequenceNumber.html" title="type iota_types::messages_checkpoint::CheckpointSequenceNumber">CheckpointSequenceNumber</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Return the watermark for the highest checkpoint for which we’ve pruned
+objects.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.notify_read_input_objects" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#724-729">Source</a><h4 class="code-header">fn <a href="#tymethod.notify_read_input_objects" class="fn">notify_read_input_objects</a>&lt;'a&gt;(
+    &amp;'a self,
+    input_and_receiving_keys: &amp;'a [<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>],
+    receiving_keys: &amp;'a <a class="struct" href="https://doc.rust-lang.org/1.98.1/std/collections/hash/set/struct.HashSet.html" title="struct std::collections::hash::set::HashSet">HashSet</a>&lt;<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>&gt;,
+    epoch: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; BoxFuture&lt;'a, <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.unit.html">()</a>&gt;</h4></section></summary><div class="docblock"><p>Given a list of input and receiving objects for a transaction,
+wait until all of them become available, so that the transaction
+can start execution.
+<code>input_and_receiving_keys</code> contains both input objects and receiving
+input objects, including canceled objects.
+TODO: Eventually this can return the objects read results,
+so that execution does not need to load them again.</p>
+</div></details></div><h2 id="provided-methods" class="section-header">Provided Methods<a href="#provided-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="method.get_package_object" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#248-251">Source</a><h4 class="code-header">fn <a href="#method.get_package_object" class="fn">get_package_object</a>(&amp;self, id: &amp;ObjectId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/storage/struct.PackageObject.html" title="struct iota_types::storage::PackageObject">PackageObject</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_package_object</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_object" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#258-260">Source</a><h4 class="code-header">fn <a href="#method.get_object" class="fn">get_object</a>(&amp;self, id: &amp;ObjectId) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_object</code>.</p>
+</div></details><section id="method.try_get_objects" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#262-268">Source</a><h4 class="code-header">fn <a href="#method.try_get_objects" class="fn">try_get_objects</a>(
+    &amp;self,
+    objects: &amp;[ObjectId],
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="method.get_objects" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#271-274">Source</a><h4 class="code-header">fn <a href="#method.get_objects" class="fn">get_objects</a>(&amp;self, objects: &amp;[ObjectId]) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_objects</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_latest_object_ref_or_tombstone" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#282-285">Source</a><h4 class="code-header">fn <a href="#method.get_latest_object_ref_or_tombstone" class="fn">get_latest_object_ref_or_tombstone</a>(
+    &amp;self,
+    object_id: ObjectId,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;ObjectReference&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_latest_object_ref_or_tombstone</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_latest_object_or_tombstone" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#293-299">Source</a><h4 class="code-header">fn <a href="#method.get_latest_object_or_tombstone" class="fn">get_latest_object_or_tombstone</a>(
+    &amp;self,
+    object_id: ObjectId,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>, <a class="enum" href="../../iota_types/storage/enum.ObjectOrTombstone.html" title="enum iota_types::storage::ObjectOrTombstone">ObjectOrTombstone</a>)&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_latest_object_or_tombstone</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_object_by_key" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#308-311">Source</a><h4 class="code-header">fn <a href="#method.get_object_by_key" class="fn">get_object_by_key</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_object_by_key</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.multi_get_objects_by_key" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#319-322">Source</a><h4 class="code-header">fn <a href="#method.multi_get_objects_by_key" class="fn">multi_get_objects_by_key</a>(
+    &amp;self,
+    object_keys: &amp;[<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>],
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_multi_get_objects_by_key</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.object_exists_by_key" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#327-330">Source</a><h4 class="code-header">fn <a href="#method.object_exists_by_key" class="fn">object_exists_by_key</a>(&amp;self, object_id: &amp;ObjectId, version: Version) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_object_exists_by_key</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.multi_object_exists_by_key" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#335-338">Source</a><h4 class="code-header">fn <a href="#method.multi_object_exists_by_key" class="fn">multi_object_exists_by_key</a>(&amp;self, object_keys: &amp;[<a class="struct" href="../../iota_types/storage/struct.ObjectKey.html" title="struct iota_types::storage::ObjectKey">ObjectKey</a>]) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_multi_object_exists_by_key</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.try_multi_get_objects_with_more_accurate_error_return" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#348-380">Source</a><h4 class="code-header">fn <a href="#method.try_multi_get_objects_with_more_accurate_error_return" class="fn">try_multi_get_objects_with_more_accurate_error_return</a>(
+    &amp;self,
+    object_refs: &amp;[ObjectReference],
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;, <a class="enum" href="../../iota_types/error/enum.IotaError.html" title="enum iota_types::error::IotaError">IotaError</a>&gt;</h4></section></summary><div class="docblock"><p>Load a list of objects from the store by object reference.
+If they exist in the store, they are returned directly.
+If any object missing, we try to figure out the best error to return.
+If the object we are asking is currently locked at a future version, we
+know this transaction is out-of-date and we return a
+ObjectVersionUnavailableForConsumption, which indicates this is not
+retriable. Otherwise, we return a ObjectNotFound error, which
+indicates this is retriable.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.multi_get_objects_with_more_accurate_error_return" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#384-390">Source</a><h4 class="code-header">fn <a href="#method.multi_get_objects_with_more_accurate_error_return" class="fn">multi_get_objects_with_more_accurate_error_return</a>(
+    &amp;self,
+    object_refs: &amp;[ObjectReference],
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of
+<code>try_multi_get_objects_with_more_accurate_error_return</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.try_multi_input_objects_available" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#397-487">Source</a><h4 class="code-header">fn <a href="#method.try_multi_input_objects_available" class="fn">try_multi_input_objects_available</a>(
+    &amp;self,
+    keys: &amp;[<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>],
+    receiving_objects: &amp;<a class="struct" href="https://doc.rust-lang.org/1.98.1/std/collections/hash/set/struct.HashSet.html" title="struct std::collections::hash::set::HashSet">HashSet</a>&lt;<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>&gt;,
+    epoch: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;, <a class="enum" href="../../iota_types/error/enum.IotaError.html" title="enum iota_types::error::IotaError">IotaError</a>&gt;</h4></section></summary><div class="docblock"><p>Used by transaction manager to determine if input objects are ready.
+Distinct from multi_get_object_by_key because it also consults
+markers to handle the case where an object will never become available
+(e.g. because it has been received by some other transaction
+already).</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.multi_input_objects_available" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#490-498">Source</a><h4 class="code-header">fn <a href="#method.multi_input_objects_available" class="fn">multi_input_objects_available</a>(
+    &amp;self,
+    keys: &amp;[<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>],
+    receiving_objects: &amp;<a class="struct" href="https://doc.rust-lang.org/1.98.1/std/collections/hash/set/struct.HashSet.html" title="struct std::collections::hash::set::HashSet">HashSet</a>&lt;<a class="enum" href="../../iota_types/storage/enum.InputKey.html" title="enum iota_types::storage::InputKey">InputKey</a>&gt;,
+    epoch: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_multi_input_objects_available</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.find_object_lt_or_eq_version" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#522-529">Source</a><h4 class="code-header">fn <a href="#method.find_object_lt_or_eq_version" class="fn">find_object_lt_or_eq_version</a>(
+    &amp;self,
+    object_id: ObjectId,
+    version: Version,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../iota_types/object/struct.Object.html" title="struct iota_types::object::Object">Object</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_find_object_lt_or_eq_version</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_lock" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#538-545">Source</a><h4 class="code-header">fn <a href="#method.get_lock" class="fn">get_lock</a>(
+    &amp;self,
+    obj_ref: ObjectReference,
+    epoch_store: &amp;<a class="struct" href="../authority/authority_per_epoch_store/struct.AuthorityPerEpochStore.html" title="struct iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore">AuthorityPerEpochStore</a>,
+) -&gt; ObjectLockStatus</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_lock</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.check_owned_objects_are_live" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#558-561">Source</a><h4 class="code-header">fn <a href="#method.check_owned_objects_are_live" class="fn">check_owned_objects_are_live</a>(&amp;self, owned_object_refs: &amp;[ObjectReference])</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_check_owned_objects_are_live</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_iota_system_state_object_unsafe" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#566-569">Source</a><h4 class="code-header">fn <a href="#method.get_iota_system_state_object_unsafe" class="fn">get_iota_system_state_object_unsafe</a>(&amp;self) -&gt; <a class="enum" href="../../iota_types/iota_system_state/enum.IotaSystemState.html" title="enum iota_types::iota_system_state::IotaSystemState">IotaSystemState</a></h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_iota_system_state_object_unsafe</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_marker_value" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#582-590">Source</a><h4 class="code-header">fn <a href="#method.get_marker_value" class="fn">get_marker_value</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../iota_types/storage/enum.MarkerValue.html" title="enum iota_types::storage::MarkerValue">MarkerValue</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_marker_value</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_latest_marker" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#600-607">Source</a><h4 class="code-header">fn <a href="#method.get_latest_marker" class="fn">get_latest_marker</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Version, <a class="enum" href="../../iota_types/storage/enum.MarkerValue.html" title="enum iota_types::storage::MarkerValue">MarkerValue</a>)&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_latest_marker</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.try_get_last_shared_object_deletion_info" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#611-620">Source</a><h4 class="code-header">fn <a href="#method.try_get_last_shared_object_deletion_info" class="fn">try_get_last_shared_object_deletion_info</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Version, TransactionDigest)&gt;&gt;</h4></section></summary><div class="docblock"><p>If the shared object was deleted, return deletion info for the current
+live version</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_last_shared_object_deletion_info" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#623-630">Source</a><h4 class="code-header">fn <a href="#method.get_last_shared_object_deletion_info" class="fn">get_last_shared_object_deletion_info</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;(Version, TransactionDigest)&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_last_shared_object_deletion_info</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.try_get_deleted_shared_object_previous_tx_digest" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#634-644">Source</a><h4 class="code-header">fn <a href="#method.try_get_deleted_shared_object_previous_tx_digest" class="fn">try_get_deleted_shared_object_previous_tx_digest</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;TransactionDigest&gt;&gt;</h4></section></summary><div class="docblock"><p>If the shared object was deleted, return deletion info for the specified
+version.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_deleted_shared_object_previous_tx_digest" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#648-656">Source</a><h4 class="code-header">fn <a href="#method.get_deleted_shared_object_previous_tx_digest" class="fn">get_deleted_shared_object_previous_tx_digest</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;TransactionDigest&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of
+<code>try_get_deleted_shared_object_previous_tx_digest</code>.</p>
+</div></details><section id="method.try_have_received_object_at_version" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#658-668">Source</a><h4 class="code-header">fn <a href="#method.try_have_received_object_at_version" class="fn">try_have_received_object_at_version</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="method.have_received_object_at_version" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#671-679">Source</a><h4 class="code-header">fn <a href="#method.have_received_object_at_version" class="fn">have_received_object_at_version</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_have_received_object_at_version</code>.</p>
+</div></details><section id="method.try_have_deleted_owned_object_at_version_or_after" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#681-693">Source</a><h4 class="code-header">fn <a href="#method.try_have_deleted_owned_object_at_version_or_after" class="fn">try_have_deleted_owned_object_at_version_or_after</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="type" href="../../iota_types/error/type.IotaResult.html" title="type iota_types::error::IotaResult">IotaResult</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>&gt;</h4></section><details class="toggle method-toggle" open><summary><section id="method.have_deleted_owned_object_at_version_or_after" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#697-705">Source</a><h4 class="code-header">fn <a href="#method.have_deleted_owned_object_at_version_or_after" class="fn">have_deleted_owned_object_at_version_or_after</a>(
+    &amp;self,
+    object_id: &amp;ObjectId,
+    version: Version,
+    epoch_id: <a class="type" href="../../iota_types/committee/type.EpochId.html" title="type iota_types::committee::EpochId">EpochId</a>,
+) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Non-fallible version of
+<code>try_have_deleted_owned_object_at_version_or_after</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.get_highest_pruned_checkpoint" class="method"><a class="src rightside" href="../../src/iota_core/execution_cache.rs.html#712-715">Source</a><h4 class="code-header">fn <a href="#method.get_highest_pruned_checkpoint" class="fn">get_highest_pruned_checkpoint</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../iota_types/messages_checkpoint/type.CheckpointSequenceNumber.html" title="type iota_types::messages_checkpoint::CheckpointSequenceNumber">CheckpointSequenceNumber</a>&gt;</h4></section></summary><div class="docblock"><p>Non-fallible version of <code>try_get_highest_pruned_checkpoint</code>.</p>
+</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait <b>is</b> <a href="https://doc.rust-lang.org/1.98.1/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety".</i></p></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><div class="negative-marker"></div><section id="impl-ObjectCacheRead-for-WritebackCache" class="impl"><a class="src rightside" href="../../src/iota_core/execution_cache/writeback_cache.rs.html#1366-1890">Source</a><a href="#impl-ObjectCacheRead-for-WritebackCache" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.ObjectCacheRead.html" title="trait iota_core::execution_cache::ObjectCacheRead">ObjectCacheRead</a> for <a class="struct" href="writeback_cache/struct.WritebackCache.html" title="struct iota_core::execution_cache::writeback_cache::WritebackCache">WritebackCache</a></h3></section></div><script src="../../trait.impl/iota_core/execution_cache/trait.ObjectCacheRead.js" async></script></section></div></main></body></html>

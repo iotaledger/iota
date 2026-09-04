@@ -1,0 +1,108 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Processes and commits batches of messages produced by workers."><title>Reducer in iota_data_ingestion_core - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="iota_data_ingestion_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Reducer</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../iota_data_ingestion_core/index.html">iota_<wbr>data_<wbr>ingestion_<wbr>core</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Reducer</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#batch-processing" title="Batch Processing">Batch Processing</a></li></ul><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.commit" title="commit">commit</a></li></ul><h3><a href="#provided-methods">Provided Methods</a></h3><ul class="block"><li><a href="#method.commit_with_retry" title="commit_with_retry">commit_with_retry</a></li><li><a href="#method.should_close_batch" title="should_close_batch">should_close_batch</a></li></ul><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate iota_<wbr>data_<wbr>ingestion_<wbr>core</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">iota_data_ingestion_core</a></div><h1>Trait <span class="trait">Reducer</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/iota_data_ingestion_core/reducer.rs.html#43-141">Source</a> </span></div><pre class="rust item-decl"><code>pub trait Reducer&lt;Mapper: <a class="trait" href="trait.Worker.html" title="trait iota_data_ingestion_core::Worker">Worker</a>&gt;: <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> {
+    // Required method
+    fn <a href="#tymethod.commit" class="fn">commit</a>&lt;'life0, 'life1, 'async_trait&gt;(
+        &amp;'life0 self,
+        batch: &amp;'life1 [Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Message" title="type iota_data_ingestion_core::Worker::Message">Message</a>],
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.unit.html">()</a>, Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Error" title="type iota_data_ingestion_core::Worker::Error">Error</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait,
+             'life1: 'async_trait</span>;
+
+    // Provided methods
+    fn <a href="#method.commit_with_retry" class="fn">commit_with_retry</a>&lt;'life0, 'life1, 'life2, 'async_trait&gt;(
+        &amp;'life0 self,
+        batch: &amp;'life1 [Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Message" title="type iota_data_ingestion_core::Worker::Message">Message</a>],
+        backoff: ExponentialBackoff,
+        token: &amp;'life2 CancellationToken,
+    ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = CommitStatus&gt; + <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
+       <span class="where">where Self: 'async_trait,
+             'life0: 'async_trait,
+             'life1: 'async_trait,
+             'life2: 'async_trait</span> { ... }
+<span class="item-spacer"></span>    fn <a href="#method.should_close_batch" class="fn">should_close_batch</a>(
+        &amp;self,
+        _batch: &amp;[Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Message" title="type iota_data_ingestion_core::Worker::Message">Message</a>],
+        next_item: <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Message" title="type iota_data_ingestion_core::Worker::Message">Message</a>&gt;,
+    ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a> { ... }
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Processes and commits batches of messages produced by workers.</p>
+<p>The Reducer trait provides batch processing capabilities for messages
+generated by <a href="trait.Worker.html" title="trait iota_data_ingestion_core::Worker"><code>Worker</code></a>s. It allows for custom batching logic and efficient
+processing of worker results.</p>
+<h2 id="batch-processing"><a class="doc-anchor" href="#batch-processing">§</a>Batch Processing</h2>
+<p><a href="trait.Worker.html#associatedtype.Message" title="associated type iota_data_ingestion_core::Worker::Message"><code>Messages</code></a> are accumulated in batches based on the
+<a href="trait.Reducer.html#method.should_close_batch" title="method iota_data_ingestion_core::Reducer::should_close_batch"><code>should_close_batch</code></a> policy.</p>
+<p>When a batch is
+ready to be committed (as determined by <code>should_close_batch</code>), the
+<a href="trait.Reducer.html#tymethod.commit" title="method iota_data_ingestion_core::Reducer::commit"><code>commit</code></a> method is called with the collected messages.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.commit" class="method"><a class="src rightside" href="../src/iota_data_ingestion_core/reducer.rs.html#54">Source</a><h4 class="code-header">fn <a href="#tymethod.commit" class="fn">commit</a>&lt;'life0, 'life1, 'async_trait&gt;(
+    &amp;'life0 self,
+    batch: &amp;'life1 [Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Message" title="type iota_data_ingestion_core::Worker::Message">Message</a>],
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.unit.html">()</a>, Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Error" title="type iota_data_ingestion_core::Worker::Error">Error</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,
+    'life1: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Commits a batch of messages.</p>
+<p>This method is called when a batch is ready to be processed, as
+determined by <a href="trait.Reducer.html#method.should_close_batch" title="method iota_data_ingestion_core::Reducer::should_close_batch"><code>should_close_batch</code></a>. The
+implementation should handle the batch processing logic and return
+an error if the operation fails.</p>
+<h5 id="note"><a class="doc-anchor" href="#note">§</a>Note</h5>
+<p>Messages within each batch are guaranteed to be ordered by checkpoint
+sequence number.</p>
+</div></details></div><h2 id="provided-methods" class="section-header">Provided Methods<a href="#provided-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="method.commit_with_retry" class="method"><a class="src rightside" href="../src/iota_data_ingestion_core/reducer.rs.html#77-113">Source</a><h4 class="code-header">fn <a href="#method.commit_with_retry" class="fn">commit_with_retry</a>&lt;'life0, 'life1, 'life2, 'async_trait&gt;(
+    &amp;'life0 self,
+    batch: &amp;'life1 [Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Message" title="type iota_data_ingestion_core::Worker::Message">Message</a>],
+    backoff: ExponentialBackoff,
+    token: &amp;'life2 CancellationToken,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = CommitStatus&gt; + <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
+    Self: 'async_trait,
+    'life0: 'async_trait,
+    'life1: 'async_trait,
+    'life2: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Attempts to commit a batch of messages with exponential backoff retries
+on failure.</p>
+<p>This function repeatedly calls the <a href="trait.Reducer.html#tymethod.commit" title="method iota_data_ingestion_core::Reducer::commit"><code>commit</code></a> method of
+the provided <a href="trait.Reducer.html" title="trait iota_data_ingestion_core::Reducer"><code>Reducer</code></a> until either:</p>
+<ul>
+<li>The commit succeeds, returning <code>CommitStatus::Success</code>.</li>
+<li>A cancellation signal is received via the [<code>CancellationToken</code>],
+returning <code>CommitStatus::Shutdown</code>.</li>
+<li>All retry attempts are exhausted within backoff’s maximum elapsed
+time, causing a panic.</li>
+</ul>
+<h5 id="retry-mechanism"><a class="doc-anchor" href="#retry-mechanism">§</a>Retry Mechanism:</h5>
+<ul>
+<li>Uses <a href="backoff::ExponentialBackoff"><code>ExponentialBackoff</code></a> to introduce
+increasing delays between retry attempts.</li>
+<li>Checks for cancellation both before and after each commit attempt.</li>
+<li>If a cancellation signal is received during a backoff delay, the
+function exits immediately with <code>CommitStatus::Shutdown</code>.</li>
+</ul>
+<h5 id="panics"><a class="doc-anchor" href="#panics">§</a>Panics:</h5>
+<ul>
+<li>If all retry attempts are exhausted within backoff’s the maximum
+elapsed time, indicating a persistent failure.</li>
+</ul>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.should_close_batch" class="method"><a class="src rightside" href="../src/iota_data_ingestion_core/reducer.rs.html#134-140">Source</a><h4 class="code-header">fn <a href="#method.should_close_batch" class="fn">should_close_batch</a>(
+    &amp;self,
+    _batch: &amp;[Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Message" title="type iota_data_ingestion_core::Worker::Message">Message</a>],
+    next_item: <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;Mapper::<a class="associatedtype" href="trait.Worker.html#associatedtype.Message" title="type iota_data_ingestion_core::Worker::Message">Message</a>&gt;,
+) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Determines if the current batch should be closed and committed.</p>
+<p>This method is called by the framework in two situations:</p>
+<ul>
+<li>
+<p><strong><code>next_item = Some(msg)</code></strong>: a new message is about to be added to the
+batch. Returning <code>true</code> triggers a commit of the existing batch first.
+The <code>msg</code> is added to a new batch. Returning <code>false</code> appends <code>msg</code> to
+the current batch without committing.</p>
+</li>
+<li>
+<p><strong><code>next_item = None</code></strong>: the current chunk from the upstream stream has
+been fully consumed and there are no more messages to add in this
+iteration (the stream itself may still produce more chunks later).
+Returning <code>true</code> flushes the partial batch. Returning <code>false</code> leaves
+the batch in memory until the next chunk arrives.</p>
+</li>
+</ul>
+<h5 id="default-implementation"><a class="doc-anchor" href="#default-implementation">§</a>Default Implementation</h5>
+<p>Returns <code>true</code> only when <code>next_item</code> is <code>None</code>, so each chunk’s
+remaining batch is flushed at the chunk boundary.</p>
+</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait <b>is</b> <a href="https://doc.rust-lang.org/1.98.1/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety".</i></p></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../trait.impl/iota_data_ingestion_core/reducer/trait.Reducer.js" async></script></section></div></main></body></html>

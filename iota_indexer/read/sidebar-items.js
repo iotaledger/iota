@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["EVENT_SEQUENCE_NUMBER_STR","TX_SEQUENCE_NUMBER_STR"],"enum":["InputObjectsStatus","TransactionRead"],"struct":["DBReader","IndexerReader"],"type":["PackageResolver"]};

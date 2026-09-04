@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Creates a remote store client without any retry mechanism."><title>create_remote_store_client in iota_data_ingestion_core - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="iota_data_ingestion_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">create_remote_store_client</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../iota_data_ingestion_core/index.html">iota_<wbr>data_<wbr>ingestion_<wbr>core</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">create_<wbr>remote_<wbr>store_<wbr>client</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#arguments" title="Arguments">Arguments</a></li><li><a href="#examples" title="Examples">Examples</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate iota_<wbr>data_<wbr>ingestion_<wbr>core</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">iota_data_ingestion_core</a></div><h1>Function <span class="fn">create_<wbr>remote_<wbr>store_<wbr>client</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/iota_data_ingestion_core/util.rs.html#81-98">Source</a> </span></div><pre class="rust item-decl"><code>pub fn create_remote_store_client(
+    url: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
+    remote_store_options: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>)&gt;,
+    request_timeout_secs: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="type.IngestionResult.html" title="type iota_data_ingestion_core::IngestionResult">IngestionResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn ObjectStore&gt;&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Creates a remote store client <em>without</em> any retry mechanism.</p>
+<p>This function constructs a remote store client configured to <em>not</em> retry
+failed requests. All requests will fail immediately if the underlying
+operation encounters an error.  This is a convenience wrapper around
+<code>create_remote_store_client_with_ops</code> that sets the retry configuration
+to disable retries.</p>
+<h2 id="arguments"><a class="doc-anchor" href="#arguments">§</a>Arguments</h2>
+<ul>
+<li><code>url</code>: The URL of the remote store. The scheme of the URL determines the
+storage provider:
+<ul>
+<li><code>http://</code> or <code>https://</code>: HTTP-based store.</li>
+<li><code>gs://</code>: Google Cloud Storage.</li>
+<li><code>s3://</code> or other AWS S3-compatible URL: Amazon S3.</li>
+</ul>
+</li>
+<li><code>remote_store_options</code>: A vector of key-value pairs representing
+provider-specific options.
+<ul>
+<li>For GCS: See [<code>object_store::gcp::GoogleConfigKey</code>] for valid keys.</li>
+<li>For S3: See [<code>object_store::aws::AmazonS3ConfigKey</code>] for valid keys.</li>
+<li>For HTTP: No options are currently supported. This parameter should be
+empty.</li>
+</ul>
+</li>
+<li><code>request_timeout_secs</code>: The timeout duration (in seconds) for individual
+requests. This timeout is used to set a slightly longer retry timeout
+(request_timeout_secs + 1) internally, even though retries are disabled.
+This is done to ensure that the overall operation doesn’t hang
+indefinitely.</li>
+</ul>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<p>Creating an S3 client without retries:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>object_store::aws::AmazonS3ConfigKey;
+
+<span class="kw">let </span>url = <span class="string">"s3://my-bucket"</span>;
+<span class="kw">let </span>options = <span class="macro">vec!</span>[(
+    AmazonS3ConfigKey::Region.as_ref().to_owned(),
+    <span class="string">"us-east-1"</span>.to_string(),
+)];
+<span class="kw">let </span>client = create_remote_store_client(url.to_string(), options, <span class="number">30</span>).unwrap();</code></pre></div>
+<p>Creating a GCS client without retries:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>object_store::gcp::GoogleConfigKey;
+
+<span class="kw">let </span>url = <span class="string">"gs://my-bucket"</span>;
+<span class="kw">let </span>options = <span class="macro">vec!</span>[(
+    GoogleConfigKey::ServiceAccount.as_ref().to_owned(),
+    <span class="string">"my-service-account"</span>.to_string(),
+)];
+<span class="kw">let </span>client = create_remote_store_client(url.to_string(), options, <span class="number">30</span>).unwrap();</code></pre></div>
+<p>Creating an HTTP client without retries (no options supported):</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>
+<span class="kw">let </span>url = <span class="string">"http://example.bucket.com"</span>;
+<span class="kw">let </span>options = <span class="macro">vec!</span>[]; <span class="comment">// No options for HTTP
+</span><span class="kw">let </span>client = create_remote_store_client(url.to_string(), options, <span class="number">30</span>).unwrap();</code></pre></div></div></details></section></div></main></body></html>

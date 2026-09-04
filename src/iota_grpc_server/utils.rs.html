@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/iota-grpc-server/src/utils.rs`."><title>utils.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="iota_grpc_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">iota_grpc_server/</div>utils.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Copyright (c) Mysten Labs, Inc.
+<a href=#2 id=2 data-nosnippet>2</a>// Modifications Copyright (c) 2025 IOTA Stiftung
+<a href=#3 id=3 data-nosnippet>3</a>// SPDX-License-Identifier: Apache-2.0
+<a href=#4 id=4 data-nosnippet>4</a>
+<a href=#5 id=5 data-nosnippet>5</a></span><span class="kw">use </span>std::sync::Arc;
+<a href=#6 id=6 data-nosnippet>6</a>
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>iota_sdk_types::TypeTag;
+<a href=#8 id=8 data-nosnippet>8</a>
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span><span class="kw">crate</span>::GrpcReader;
+<a href=#10 id=10 data-nosnippet>10</a>
+<a href=#11 id=11 data-nosnippet>11</a><span class="doccomment">/// Per-item overhead when an item is placed in a protobuf `repeated`
+<a href=#12 id=12 data-nosnippet>12</a>/// length-delimited field (field number 1-15):
+<a href=#13 id=13 data-nosnippet>13</a>///   field_tag (1 byte) + length_delimiter_varint
+<a href=#14 id=14 data-nosnippet>14</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>repeated_field_item_overhead(item_encoded_len: usize) -&gt; usize {
+<a href=#15 id=15 data-nosnippet>15</a>    <span class="number">1 </span>+ prost::length_delimiter_len(item_encoded_len)
+<a href=#16 id=16 data-nosnippet>16</a>}
+<a href=#17 id=17 data-nosnippet>17</a>
+<a href=#18 id=18 data-nosnippet>18</a><span class="doccomment">/// Wrapper overhead for a `CheckpointData` oneof message wrapping an inner
+<a href=#19 id=19 data-nosnippet>19</a>/// message (e.g. `ExecutedTransactions` or `Events`).
+<a href=#20 id=20 data-nosnippet>20</a>///
+<a href=#21 id=21 data-nosnippet>21</a>/// Encoding: field_tag (1 byte) + length_delimiter(inner_encoded_len).
+<a href=#22 id=22 data-nosnippet>22</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>checkpoint_data_wrapper_overhead(inner_encoded_len: usize) -&gt; usize {
+<a href=#23 id=23 data-nosnippet>23</a>    <span class="number">1 </span>+ prost::length_delimiter_len(inner_encoded_len)
+<a href=#24 id=24 data-nosnippet>24</a>}
+<a href=#25 id=25 data-nosnippet>25</a>
+<a href=#26 id=26 data-nosnippet>26</a><span class="doccomment">/// Exact overhead for `has_next: true` in `GetObjectsResponse` /
+<a href=#27 id=27 data-nosnippet>27</a>/// `GetTransactionsResponse`. A proto3 bool field set to `true` encodes as
+<a href=#28 id=28 data-nosnippet>28</a>/// field_tag (1 byte) + varint(1) (1 byte) = 2 bytes.
+<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const </span>HAS_NEXT_TRUE_OVERHEAD: usize = <span class="number">2</span>;
+<a href=#30 id=30 data-nosnippet>30</a>
+<a href=#31 id=31 data-nosnippet>31</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>render_json(
+<a href=#32 id=32 data-nosnippet>32</a>    grpc_reader: Arc&lt;GrpcReader&gt;,
+<a href=#33 id=33 data-nosnippet>33</a>    max_json_move_value_size: usize,
+<a href=#34 id=34 data-nosnippet>34</a>    type_tag: <span class="kw-2">&amp;</span>TypeTag,
+<a href=#35 id=35 data-nosnippet>35</a>    contents: <span class="kw-2">&amp;</span>[u8],
+<a href=#36 id=36 data-nosnippet>36</a>) -&gt; <span class="prelude-ty">Option</span>&lt;prost_types::Value&gt; {
+<a href=#37 id=37 data-nosnippet>37</a>    <span class="comment">// JSON rendering is best-effort - log errors but don't fail the request
+<a href=#38 id=38 data-nosnippet>38</a>    </span><span class="kw">let </span>layout = grpc_reader
+<a href=#39 id=39 data-nosnippet>39</a>        .get_type_layout(type_tag)
+<a href=#40 id=40 data-nosnippet>40</a>        .map_err(|e| <span class="macro">tracing::debug!</span>(<span class="string">"unable to get type layout for JSON rendering: {e}"</span>))
+<a href=#41 id=41 data-nosnippet>41</a>        .ok()
+<a href=#42 id=42 data-nosnippet>42</a>        .flatten()<span class="question-mark">?</span>;
+<a href=#43 id=43 data-nosnippet>43</a>
+<a href=#44 id=44 data-nosnippet>44</a>    iota_types::proto_value::ProtoVisitorBuilder::new(max_json_move_value_size)
+<a href=#45 id=45 data-nosnippet>45</a>        .deserialize_value(contents, <span class="kw-2">&amp;</span>layout)
+<a href=#46 id=46 data-nosnippet>46</a>        .map_err(|e| <span class="macro">tracing::debug!</span>(<span class="string">"unable to convert move value to JSON: {e}"</span>))
+<a href=#47 id=47 data-nosnippet>47</a>        .ok()
+<a href=#48 id=48 data-nosnippet>48</a>}
+</code></pre></div></section></main></body></html>

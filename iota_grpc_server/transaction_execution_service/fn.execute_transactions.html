@@ -1,0 +1,107 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Execute a batch of transactions sequentially."><title>execute_transactions in iota_grpc_server::transaction_execution_service - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="iota_grpc_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">execute_transactions</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../iota_grpc_server/index.html">iota_<wbr>grpc_<wbr>server</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">execute_<wbr>transactions</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#checkpoint-inclusion" title="Checkpoint Inclusion">Checkpoint Inclusion</a></li><li><a href="#read-mask" title="Read Mask">Read Mask</a></li><li><a href="#available-read-mask-fields" title="Available Read Mask Fields">Available Read Mask Fields</a></li><li><a href="#transaction-fields" title="Transaction Fields">Transaction Fields</a></li><li><a href="#event-fields" title="Event Fields">Event Fields</a></li><li><a href="#checkpoint-fields" title="Checkpoint Fields">Checkpoint Fields</a></li><li><a href="#object-fields" title="Object Fields">Object Fields</a></li><li><a href="#derived-change-fields" title="Derived Change Fields">Derived Change Fields</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="index.html">In iota_<wbr>grpc_<wbr>server::<wbr>transaction_<wbr>execution_<wbr>service</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">iota_grpc_server</a>::<wbr><a href="index.html">transaction_execution_service</a></div><h1>Function <span class="fn">execute_<wbr>transactions</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/iota_grpc_server/transaction_execution_service/mod.rs.html#313-443">Source</a> </span></div><pre class="rust item-decl"><code>pub async fn execute_transactions(
+    reader: &amp;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;<a class="struct" href="../types/struct.GrpcReader.html" title="struct iota_grpc_server::types::GrpcReader">GrpcReader</a>&gt;,
+    executor: &amp;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;dyn <a class="trait" href="../../iota_types/transaction_executor/trait.TransactionExecutor.html" title="trait iota_types::transaction_executor::TransactionExecutor">TransactionExecutor</a>&gt;,
+    config: &amp;GrpcApiConfig,
+    request: ExecuteTransactionsRequest,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;ExecuteTransactionsResponse, RpcError&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Execute a batch of transactions sequentially.</p>
+<p>Each transaction is executed independently — failure of one does not abort
+the rest. Results are returned in the same order as the input.</p>
+<h3 id="checkpoint-inclusion"><a class="doc-anchor" href="#checkpoint-inclusion">§</a>Checkpoint Inclusion</h3>
+<p>If <code>checkpoint_inclusion_timeout_ms</code> is set in the request, the server will
+wait (after executing all transactions) for them to be included in a
+checkpoint. On success the <code>checkpoint</code> and <code>timestamp</code> fields of each
+<code>ExecutedTransaction</code> are populated. If the timeout expires, partial results
+are returned: transactions that were already checkpointed will have the
+fields set, while the rest will have them unset.</p>
+<p>Note: <code>checkpoint</code> and <code>timestamp</code> must also be included in the <code>read_mask</code>
+for them to appear in the response.</p>
+<h3 id="read-mask"><a class="doc-anchor" href="#read-mask">§</a>Read Mask</h3>
+<p>The read mask paths apply directly to
+<a href="iota_grpc_types::v1::transaction::ExecutedTransaction"><code>ExecutedTransaction</code></a>
+fields (e.g. <code>"effects"</code>, not <code>"executed_transaction.effects"</code>).</p>
+<h3 id="available-read-mask-fields"><a class="doc-anchor" href="#available-read-mask-fields">§</a>Available Read Mask Fields</h3>
+<p>The <code>execute_transactions</code> function supports the following <code>read_mask</code>
+fields to control which data is included in each <code>ExecutedTransaction</code>
+result:</p>
+<h3 id="transaction-fields"><a class="doc-anchor" href="#transaction-fields">§</a>Transaction Fields</h3>
+<ul>
+<li><code>transaction</code> - includes all transaction fields
+<ul>
+<li><code>transaction.digest</code> - the transaction digest</li>
+<li><code>transaction.bcs</code> - the full BCS-encoded transaction</li>
+</ul>
+</li>
+<li><code>signatures</code> - includes all signature fields
+<ul>
+<li><code>signatures.bcs</code> - the full BCS-encoded signature</li>
+</ul>
+</li>
+<li><code>effects</code> - includes all effects fields
+<ul>
+<li><code>effects.digest</code> - the effects digest</li>
+<li><code>effects.bcs</code> - the full BCS-encoded effects</li>
+</ul>
+</li>
+</ul>
+<h3 id="event-fields"><a class="doc-anchor" href="#event-fields">§</a>Event Fields</h3>
+<ul>
+<li><code>events</code> - includes all event fields (all events of the transaction)
+<ul>
+<li><code>events.digest</code> - the events digest</li>
+<li><code>events.events.bcs</code> - the full BCS-encoded event</li>
+<li><code>events.events.package_id</code> - the ID of the package that emitted the
+event</li>
+<li><code>events.events.module</code> - the module that emitted the event</li>
+<li><code>events.events.sender</code> - the sender that triggered the event</li>
+<li><code>events.events.event_type</code> - the type of the event</li>
+<li><code>events.events.bcs_contents</code> - the full BCS-encoded contents of the
+event</li>
+<li><code>events.events.json_contents</code> - the JSON-encoded contents of the event</li>
+</ul>
+</li>
+</ul>
+<h3 id="checkpoint-fields"><a class="doc-anchor" href="#checkpoint-fields">§</a>Checkpoint Fields</h3>
+<ul>
+<li><code>checkpoint</code> - the checkpoint that included the transaction. Requires
+<code>checkpoint_inclusion_timeout_ms</code> to be set.</li>
+<li><code>timestamp</code> - the timestamp of the checkpoint. Requires
+<code>checkpoint_inclusion_timeout_ms</code> to be set.</li>
+</ul>
+<h3 id="object-fields"><a class="doc-anchor" href="#object-fields">§</a>Object Fields</h3>
+<ul>
+<li><code>input_objects</code> - includes all input object fields
+<ul>
+<li><code>input_objects.reference</code> - includes all reference fields
+<ul>
+<li><code>input_objects.reference.object_id</code> - the ID of the input object</li>
+<li><code>input_objects.reference.version</code> - the version of the input object</li>
+<li><code>input_objects.reference.digest</code> - the digest of the input object
+contents</li>
+</ul>
+</li>
+<li><code>input_objects.bcs</code> - the full BCS-encoded object</li>
+</ul>
+</li>
+<li><code>output_objects</code> - includes all output object fields
+<ul>
+<li><code>output_objects.reference</code> - includes all reference fields
+<ul>
+<li><code>output_objects.reference.object_id</code> - the ID of the output object</li>
+<li><code>output_objects.reference.version</code> - the version of the output object</li>
+<li><code>output_objects.reference.digest</code> - the digest of the output object
+contents</li>
+</ul>
+</li>
+<li><code>output_objects.bcs</code> - the full BCS-encoded object</li>
+</ul>
+</li>
+</ul>
+<h3 id="derived-change-fields"><a class="doc-anchor" href="#derived-change-fields">§</a>Derived Change Fields</h3>
+<p>Derived from the transaction’s effects and input/output objects.</p>
+<ul>
+<li><code>balance_changes</code> - per-owner, per-coin-type balance deltas. For a failed
+transaction this contains only the gas charge.</li>
+<li><code>object_changes</code> - structured object changes (created, mutated, deleted,
+wrapped, unwrapped, published)</li>
+</ul>
+</div></details></section></div></main></body></html>

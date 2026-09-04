@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["COIN_JOIN_FUNC_NAME","PAY_SPLIT_N_FUNC_NAME","PAY_SPLIT_VEC_FUNC_NAME"],"struct":["Coin","CoinMetadata","TreasuryCap"]};

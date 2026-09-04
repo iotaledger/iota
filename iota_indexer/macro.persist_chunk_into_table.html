@@ -1,0 +1,45 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="This macro provides a standardized way to bulk insert data into database tables with built-in performance monitoring, error handling, and retry logic. It automatically subdivides large chunks into smaller batches to optimize database performance and avoid overwhelming individual transactions."><title>persist_chunk_into_table in iota_indexer - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="iota_indexer" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc macro"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">persist_chunk_into_table</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../iota_indexer/index.html">iota_<wbr>indexer</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">persist_<wbr>chunk_<wbr>into_<wbr>table</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#parameters" title="Parameters">Parameters</a></li><li><a href="#behavior" title="Behavior">Behavior</a></li><li><a href="#examples" title="Examples">Examples</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate iota_<wbr>indexer</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">iota_indexer</a></div><h1>Macro <span class="macro">persist_<wbr>chunk_<wbr>into_<wbr>table</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/iota_indexer/store/mod.rs.html#376-401">Source</a> </span></div><pre class="rust item-decl"><code>macro_rules! persist_chunk_into_table {
+    ($table:expr, $chunk:expr, $pool:expr) =&gt; { ... };
+}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>This macro provides a standardized way to bulk insert data into database
+tables with built-in performance monitoring, error handling, and
+retry logic. It automatically subdivides large chunks into smaller
+batches to optimize database performance and avoid overwhelming
+individual transactions.</p>
+<h2 id="parameters"><a class="doc-anchor" href="#parameters">§</a>Parameters</h2>
+<ul>
+<li><code>$table</code> - The target database table (e.g., <code>events::table</code>,
+<code>transactions::table</code>)</li>
+<li><code>$chunk</code> - Collection of data to persist (must implement <code>.len()</code> and
+<code>.chunks()</code>)</li>
+<li><code>$pool</code> - Database connection pool reference</li>
+</ul>
+<h2 id="behavior"><a class="doc-anchor" href="#behavior">§</a>Behavior</h2>
+<ol>
+<li><strong>Performance Timing</strong>: Records operation duration for monitoring</li>
+<li><strong>Automatic Batching</strong>: Splits data into chunks of
+<code>PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX</code> rows</li>
+<li><strong>Transaction Safety</strong>: Uses <code>transactional_blocking_with_retry!</code> for
+atomic operations</li>
+<li><strong>Conflict Resolution</strong>: Employs <code>INSERT ... ON CONFLICT DO NOTHING</code>
+strategy</li>
+<li><strong>Retry Logic</strong>: Automatically retries failed operations with timeout
+of <code>PG_DB_COMMIT_SLEEP_DURATION</code></li>
+<li><strong>Comprehensive Logging</strong>: Logs success/failure with timing and row
+count information</li>
+</ol>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>event_batch = <span class="macro">vec!</span>[<span class="comment">/* event data */</span>];
+<span class="comment">// Persist event data
+</span><span class="macro">persist_chunk_into_table!</span>(
+    events::table,
+    event_batch,
+    <span class="kw-2">&amp;</span>connection_pool
+).unwrap();
+
+<span class="kw">let </span>sender_data = <span class="macro">vec!</span>[<span class="comment">/* sender data */</span>];
+<span class="comment">// Persist transaction senders
+</span><span class="macro">persist_chunk_into_table!</span>(
+    tx_senders::table,
+    sender_data,
+    <span class="kw-2">&amp;</span>blocking_pool
+).unwrap();</code></pre></div></div></details></section></div></main></body></html>

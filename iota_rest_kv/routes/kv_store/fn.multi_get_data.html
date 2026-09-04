@@ -1,0 +1,39 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Retrieves multiple objects via POST request with JSON payload."><title>multi_get_data in iota_rest_kv::routes::kv_store - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="iota_rest_kv" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc fn"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">multi_get_data</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../../iota_rest_kv/index.html">iota_<wbr>rest_<wbr>kv</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">multi_<wbr>get_<wbr>data</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#path-parameters" title="Path Parameters">Path Parameters</a></li><li><a href="#query-parameters" title="Query Parameters">Query Parameters</a></li><li><a href="#request-body" title="Request Body">Request Body</a></li><li><a href="#returns" title="Returns">Returns</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="index.html">In iota_<wbr>rest_<wbr>kv::<wbr>routes::<wbr>kv_<wbr>store</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">iota_rest_kv</a>::<wbr><a href="../index.html">routes</a>::<wbr><a href="index.html">kv_store</a></div><h1>Function <span class="fn">multi_<wbr>get_<wbr>data</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../src/iota_rest_kv/routes/kv_store.rs.html#131-181">Source</a> </span></div><pre class="rust item-decl"><code>pub async fn multi_get_data(
+    __arg0: State&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;<a class="struct" href="../../types/struct.RestServerAppState.html" title="struct iota_rest_kv::types::RestServerAppState">RestServerAppState</a>&gt;&gt;,
+    __arg1: Path&lt;<a class="enum" href="../../../iota_storage/http_key_value_store/enum.ItemType.html" title="enum iota_storage::http_key_value_store::ItemType">ItemType</a>&gt;,
+    __arg2: Query&lt;<a class="struct" href="struct.BeforeVersion.html" title="struct iota_rest_kv::routes::kv_store::BeforeVersion">BeforeVersion</a>&gt;,
+    __arg3: Json&lt;<a class="struct" href="struct.MultiGetRequest.html" title="struct iota_rest_kv::routes::kv_store::MultiGetRequest">MultiGetRequest</a>&gt;,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;impl IntoResponse, <a class="enum" href="../../errors/enum.ApiError.html" title="enum iota_rest_kv::errors::ApiError">ApiError</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Retrieves multiple objects via POST request with JSON payload.</p>
+<h2 id="path-parameters"><a class="doc-anchor" href="#path-parameters">§</a>Path Parameters</h2>
+<ul>
+<li><code>item_type</code>: The type of items to get (e.g., “cs”, “cc”, “tx”)</li>
+</ul>
+<h2 id="query-parameters"><a class="doc-anchor" href="#query-parameters">§</a>Query Parameters</h2>
+<ul>
+<li><code>before_version</code> (optional, default <code>false</code>): only valid when <code>item_type</code>
+is <a href="../../../iota_storage/http_key_value_store/enum.ItemType.html#variant.Object" title="variant iota_storage::http_key_value_store::ItemType::Object"><code>ItemType::Object</code></a>. When <code>true</code>, returns the latest stored version
+strictly less than the version encoded in each key. Returns <code>400 Bad Request</code> if used with any other <a href="../../../iota_storage/http_key_value_store/enum.ItemType.html" title="enum iota_storage::http_key_value_store::ItemType"><code>ItemType</code></a>.</li>
+</ul>
+<h2 id="request-body"><a class="doc-anchor" href="#request-body">§</a>Request Body</h2>
+<p>JSON object with <code>keys</code> field:</p>
+<div class="example-wrap"><pre class="language-json"><code>{
+  &quot;keys&quot;: [&quot;AAEAAAAAAAAA&quot;, &quot;AAIAAAAAAAAA&quot;, &quot;AAMAAAAAAAAA&quot;]
+}</code></pre></div>
+<p>Where:</p>
+<ul>
+<li><code>keys</code>: Array of base64url-encoded keys for given <code>item_type</code>. The same
+kind of key and encoding user would use in single item GET request.</li>
+</ul>
+<h2 id="returns"><a class="doc-anchor" href="#returns">§</a>Returns</h2>
+<ul>
+<li>If successful, returns a BCS-serialized
+<a href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec"><code>Vec</code></a>&lt;<a href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option"><code>Option</code></a>&lt;<a href="bytes::Bytes"><code>Bytes</code></a>&gt;&gt; with a <code>200 OK</code> status code.
+The vector has the same length and order as the <code>keys</code> list in the request
+body. Each entry is <code>Some(bytes)</code> if the key was found, or <code>None</code> if the
+key was not found.</li>
+<li>If no keys are provided or the number of keys exceeds the configured
+<code>multiget_max_items</code> limit, a <code>400 bad request error</code> is returned.</li>
+<li>If the keys cannot be parsed, a <code>400 bad request error</code> is returned.</li>
+<li>If an error occurs while interacting with the KV store, an <code>500 internal server error</code> is returned.</li>
+</ul>
+</div></details></section></div></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["EPOCH_DURATION_MS_FOR_TESTING","MIN_EPOCHS_TO_RETAIN_FOR_INDEXES"],"enum":["PruningMode"],"struct":["AuthorityStorePruner","AuthorityStorePruningMetrics","ObjectsCompactionFilter"]};

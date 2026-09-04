@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["ADD_STAKE_FUN_NAME","ADD_STAKE_MUL_COIN_FUN_NAME","WITHDRAW_STAKE_FUN_NAME"],"struct":["StakedIota"]};

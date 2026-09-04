@@ -1,0 +1,531 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API for accessing and constructing `Transaction`."><title>TransactionAPI in iota_types::transaction - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="iota_types" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc trait"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">TransactionAPI</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../iota_types/index.html">iota_<wbr>types</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">TransactionAPI</a></h2><h3><a href="#required-methods">Required Methods</a></h3><ul class="block"><li><a href="#tymethod.check_gas_payment_size" title="check_gas_payment_size">check_gas_payment_size</a></li><li><a href="#tymethod.check_sponsorship" title="check_sponsorship">check_sponsorship</a></li><li><a href="#tymethod.execution_parts" title="execution_parts">execution_parts</a></li><li><a href="#tymethod.expiration" title="expiration">expiration</a></li><li><a href="#tymethod.expiration_mut_for_testing" title="expiration_mut_for_testing">expiration_mut_for_testing</a></li><li><a href="#tymethod.gas" title="gas">gas</a></li><li><a href="#tymethod.gas_budget" title="gas_budget">gas_budget</a></li><li><a href="#tymethod.gas_data" title="gas_data">gas_data</a></li><li><a href="#tymethod.gas_data_mut" title="gas_data_mut">gas_data_mut</a></li><li><a href="#tymethod.gas_owner" title="gas_owner">gas_owner</a></li><li><a href="#tymethod.gas_price" title="gas_price">gas_price</a></li><li><a href="#tymethod.input_objects" title="input_objects">input_objects</a></li><li><a href="#tymethod.into_kind" title="into_kind">into_kind</a></li><li><a href="#tymethod.is_end_of_epoch_tx" title="is_end_of_epoch_tx">is_end_of_epoch_tx</a></li><li><a href="#tymethod.is_genesis_tx" title="is_genesis_tx">is_genesis_tx</a></li><li><a href="#tymethod.is_sponsored_tx" title="is_sponsored_tx">is_sponsored_tx</a></li><li><a href="#tymethod.is_system_tx" title="is_system_tx">is_system_tx</a></li><li><a href="#tymethod.kind" title="kind">kind</a></li><li><a href="#tymethod.kind_mut" title="kind_mut">kind_mut</a></li><li><a href="#tymethod.message_version" title="message_version">message_version</a></li><li><a href="#tymethod.move_calls" title="move_calls">move_calls</a></li><li><a href="#tymethod.new" title="new">new</a></li><li><a href="#tymethod.new_module" title="new_module">new_module</a></li><li><a href="#tymethod.new_move_call" title="new_move_call">new_move_call</a></li><li><a href="#tymethod.new_move_call_with_gas_coins" title="new_move_call_with_gas_coins">new_move_call_with_gas_coins</a></li><li><a href="#tymethod.new_pay" title="new_pay">new_pay</a></li><li><a href="#tymethod.new_pay_all_iota" title="new_pay_all_iota">new_pay_all_iota</a></li><li><a href="#tymethod.new_pay_iota" title="new_pay_iota">new_pay_iota</a></li><li><a href="#tymethod.new_programmable" title="new_programmable">new_programmable</a></li><li><a href="#tymethod.new_programmable_allow_sponsor" title="new_programmable_allow_sponsor">new_programmable_allow_sponsor</a></li><li><a href="#tymethod.new_split_coin" title="new_split_coin">new_split_coin</a></li><li><a href="#tymethod.new_system_transaction" title="new_system_transaction">new_system_transaction</a></li><li><a href="#tymethod.new_transfer" title="new_transfer">new_transfer</a></li><li><a href="#tymethod.new_transfer_iota" title="new_transfer_iota">new_transfer_iota</a></li><li><a href="#tymethod.new_transfer_iota_allow_sponsor" title="new_transfer_iota_allow_sponsor">new_transfer_iota_allow_sponsor</a></li><li><a href="#tymethod.new_upgrade" title="new_upgrade">new_upgrade</a></li><li><a href="#tymethod.new_with_gas_coins" title="new_with_gas_coins">new_with_gas_coins</a></li><li><a href="#tymethod.new_with_gas_coins_allow_sponsor" title="new_with_gas_coins_allow_sponsor">new_with_gas_coins_allow_sponsor</a></li><li><a href="#tymethod.new_with_gas_data" title="new_with_gas_data">new_with_gas_data</a></li><li><a href="#tymethod.receiving_objects" title="receiving_objects">receiving_objects</a></li><li><a href="#tymethod.sender" title="sender">sender</a></li><li><a href="#tymethod.sender_mut_for_testing" title="sender_mut_for_testing">sender_mut_for_testing</a></li><li><a href="#tymethod.shared_input_objects" title="shared_input_objects">shared_input_objects</a></li><li><a href="#tymethod.signers" title="signers">signers</a></li><li><a href="#tymethod.validity_check" title="validity_check">validity_check</a></li><li><a href="#tymethod.validity_check_no_gas_check" title="validity_check_no_gas_check">validity_check_no_gas_check</a></li></ul><h3><a href="#foreign-impls">Implementations on Foreign Types</a></h3><ul class="block"><li><a href="#impl-TransactionAPI-for-Transaction" title="Transaction">Transaction</a></li></ul><h3><a href="#dyn-compatibility">Dyn Compatibility</a></h3><h3><a href="#implementors">Implementors</a></h3></section><div id="rustdoc-modnav"><h2><a href="index.html">In iota_<wbr>types::<wbr>transaction</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">iota_types</a>::<wbr><a href="index.html">transaction</a></div><h1>Trait <span class="trait">TransactionAPI</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/iota_types/transaction.rs.html#993-1296">Source</a> </span></div><pre class="rust item-decl"><code>pub trait TransactionAPI {
+<details class="toggle type-contents-toggle"><summary class="hideme"><span>Show 46 methods</span></summary>    // Required methods
+    fn <a href="#tymethod.sender" class="fn">sender</a>(&amp;self) -&gt; Address;
+<span class="item-spacer"></span>    fn <a href="#tymethod.kind" class="fn">kind</a>(&amp;self) -&gt; &amp;TransactionKind;
+<span class="item-spacer"></span>    fn <a href="#tymethod.kind_mut" class="fn">kind_mut</a>(&amp;mut self) -&gt; &amp;mut TransactionKind;
+<span class="item-spacer"></span>    fn <a href="#tymethod.into_kind" class="fn">into_kind</a>(self) -&gt; TransactionKind;
+<span class="item-spacer"></span>    fn <a href="#tymethod.signers" class="fn">signers</a>(&amp;self) -&gt; NonEmpty&lt;Address&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.gas_data" class="fn">gas_data</a>(&amp;self) -&gt; &amp;GasPayment;
+<span class="item-spacer"></span>    fn <a href="#tymethod.gas_owner" class="fn">gas_owner</a>(&amp;self) -&gt; Address;
+<span class="item-spacer"></span>    fn <a href="#tymethod.gas" class="fn">gas</a>(&amp;self) -&gt; &amp;[ObjectReference];
+<span class="item-spacer"></span>    fn <a href="#tymethod.gas_price" class="fn">gas_price</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.gas_budget" class="fn">gas_budget</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.expiration" class="fn">expiration</a>(&amp;self) -&gt; &amp;TransactionExpiration;
+<span class="item-spacer"></span>    fn <a href="#tymethod.shared_input_objects" class="fn">shared_input_objects</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;SharedObjectReference&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.move_calls" class="fn">move_calls</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(&amp;ObjectId, &amp;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.str.html">str</a>, &amp;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.str.html">str</a>)&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.input_objects" class="fn">input_objects</a>(&amp;self) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="enum.InputObjectKind.html" title="enum iota_types::transaction::InputObjectKind">InputObjectKind</a>&gt;&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.receiving_objects" class="fn">receiving_objects</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.validity_check" class="fn">validity_check</a>(&amp;self, config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.validity_check_no_gas_check" class="fn">validity_check_no_gas_check</a>(
+        &amp;self,
+        config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>,
+    ) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.check_gas_payment_size" class="fn">check_gas_payment_size</a>(&amp;self, config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.check_sponsorship" class="fn">check_sponsorship</a>(&amp;self) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.is_system_tx" class="fn">is_system_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.is_genesis_tx" class="fn">is_genesis_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.is_end_of_epoch_tx" class="fn">is_end_of_epoch_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.is_sponsored_tx" class="fn">is_sponsored_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.sender_mut_for_testing" class="fn">sender_mut_for_testing</a>(&amp;mut self) -&gt; &amp;mut Address;
+<span class="item-spacer"></span>    fn <a href="#tymethod.gas_data_mut" class="fn">gas_data_mut</a>(&amp;mut self) -&gt; &amp;mut GasPayment;
+<span class="item-spacer"></span>    fn <a href="#tymethod.expiration_mut_for_testing" class="fn">expiration_mut_for_testing</a>(&amp;mut self) -&gt; &amp;mut TransactionExpiration;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_system_transaction" class="fn">new_system_transaction</a>(kind: TransactionKind) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new" class="fn">new</a>(
+        kind: TransactionKind,
+        sender: Address,
+        gas_payment: ObjectReference,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_with_gas_coins" class="fn">new_with_gas_coins</a>(
+        kind: TransactionKind,
+        sender: Address,
+        gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_with_gas_coins_allow_sponsor" class="fn">new_with_gas_coins_allow_sponsor</a>(
+        kind: TransactionKind,
+        sender: Address,
+        gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_sponsor: Address,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_with_gas_data" class="fn">new_with_gas_data</a>(
+        kind: TransactionKind,
+        sender: Address,
+        gas_data: GasPayment,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_move_call" class="fn">new_move_call</a>(
+        sender: Address,
+        package: ObjectId,
+        module: Identifier,
+        function: Identifier,
+        type_arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;TypeTag&gt;,
+        gas_payment: ObjectReference,
+        arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="type.CallArg.html" title="type iota_types::transaction::CallArg">CallArg</a>&gt;,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_move_call_with_gas_coins" class="fn">new_move_call_with_gas_coins</a>(
+        sender: Address,
+        package: ObjectId,
+        module: Identifier,
+        function: Identifier,
+        type_arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;TypeTag&gt;,
+        gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+        arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="type.CallArg.html" title="type iota_types::transaction::CallArg">CallArg</a>&gt;,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_transfer" class="fn">new_transfer</a>(
+        recipient: Address,
+        object_ref: ObjectReference,
+        sender: Address,
+        gas_payment: ObjectReference,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_transfer_iota" class="fn">new_transfer_iota</a>(
+        recipient: Address,
+        sender: Address,
+        amount: <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+        gas_payment: ObjectReference,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_transfer_iota_allow_sponsor" class="fn">new_transfer_iota_allow_sponsor</a>(
+        recipient: Address,
+        sender: Address,
+        amount: <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+        gas_payment: ObjectReference,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_sponsor: Address,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_pay" class="fn">new_pay</a>(
+        sender: Address,
+        coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+        recipients: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Address&gt;,
+        amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+        gas_payment: ObjectReference,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_pay_iota" class="fn">new_pay_iota</a>(
+        sender: Address,
+        coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+        recipients: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Address&gt;,
+        amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+        gas_payment: ObjectReference,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_pay_all_iota" class="fn">new_pay_all_iota</a>(
+        sender: Address,
+        coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+        recipient: Address,
+        gas_payment: ObjectReference,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_split_coin" class="fn">new_split_coin</a>(
+        sender: Address,
+        coin: ObjectReference,
+        amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+        gas_payment: ObjectReference,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_module" class="fn">new_module</a>(
+        sender: Address,
+        gas_payment: ObjectReference,
+        modules: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;&gt;,
+        dep_ids: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectId&gt;,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_upgrade" class="fn">new_upgrade</a>(
+        sender: Address,
+        gas_payment: ObjectReference,
+        package_id: ObjectId,
+        modules: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;&gt;,
+        dep_ids: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectId&gt;,
+        upgrade_capability_and_owner: (ObjectReference, Owner),
+        upgrade_policy: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>,
+        digest: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_programmable" class="fn">new_programmable</a>(
+        sender: Address,
+        gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+        pt: ProgrammableTransaction,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.new_programmable_allow_sponsor" class="fn">new_programmable_allow_sponsor</a>(
+        sender: Address,
+        gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+        pt: ProgrammableTransaction,
+        gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+        sponsor: Address,
+    ) -&gt; Transaction;
+<span class="item-spacer"></span>    fn <a href="#tymethod.message_version" class="fn">message_version</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>;
+<span class="item-spacer"></span>    fn <a href="#tymethod.execution_parts" class="fn">execution_parts</a>(&amp;self) -&gt; (TransactionKind, Address, GasPayment);
+</details>}</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>API for accessing and constructing [<code>Transaction</code>].</p>
+<p>This trait provides node-internal methods for:</p>
+<ul>
+<li><strong>Accessors</strong>: reading transaction fields (sender, kind, gas, expiration,
+etc.)</li>
+<li><strong>Queries</strong>: inspecting transaction properties (shared objects, Move
+calls, sponsorship)</li>
+<li><strong>Validation</strong>: checking transaction validity against protocol config</li>
+<li><strong>Constructors</strong>: building new transactions (transfers, Move calls,
+programmable txs, etc.)</li>
+</ul>
+<p>Note: The <code>iota-rust-sdk</code> crate (<code>iota-sdk-types</code>) defines additional
+client-facing methods on [<code>Transaction</code>] itself.</p>
+</div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.sender" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#995">Source</a><h4 class="code-header">fn <a href="#tymethod.sender" class="fn">sender</a>(&amp;self) -&gt; Address</h4></section></summary><div class="docblock"><p>Returns the address of the transaction sender.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.kind" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#998">Source</a><h4 class="code-header">fn <a href="#tymethod.kind" class="fn">kind</a>(&amp;self) -&gt; &amp;TransactionKind</h4></section></summary><div class="docblock"><p>Returns a reference to the transaction kind.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.kind_mut" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1001">Source</a><h4 class="code-header">fn <a href="#tymethod.kind_mut" class="fn">kind_mut</a>(&amp;mut self) -&gt; &amp;mut TransactionKind</h4></section></summary><div class="docblock"><p>Returns a mutable reference to the transaction kind.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.into_kind" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1004">Source</a><h4 class="code-header">fn <a href="#tymethod.into_kind" class="fn">into_kind</a>(self) -&gt; TransactionKind</h4></section></summary><div class="docblock"><p>Consumes self and returns the transaction kind.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.signers" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1008">Source</a><h4 class="code-header">fn <a href="#tymethod.signers" class="fn">signers</a>(&amp;self) -&gt; NonEmpty&lt;Address&gt;</h4></section></summary><div class="docblock"><p>Returns the transaction signer(s). Includes both the sender and the gas
+owner if they differ (i.e. for sponsored transactions).</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.gas_data" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1012">Source</a><h4 class="code-header">fn <a href="#tymethod.gas_data" class="fn">gas_data</a>(&amp;self) -&gt; &amp;GasPayment</h4></section></summary><div class="docblock"><p>Returns a reference to the gas data (owner, payment objects, price,
+budget).</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.gas_owner" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1015">Source</a><h4 class="code-header">fn <a href="#tymethod.gas_owner" class="fn">gas_owner</a>(&amp;self) -&gt; Address</h4></section></summary><div class="docblock"><p>Returns the address that owns the gas payment objects.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.gas" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1018">Source</a><h4 class="code-header">fn <a href="#tymethod.gas" class="fn">gas</a>(&amp;self) -&gt; &amp;[ObjectReference]</h4></section></summary><div class="docblock"><p>Returns the gas payment object references.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.gas_price" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1021">Source</a><h4 class="code-header">fn <a href="#tymethod.gas_price" class="fn">gas_price</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a></h4></section></summary><div class="docblock"><p>Returns the gas price for this transaction.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.gas_budget" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1024">Source</a><h4 class="code-header">fn <a href="#tymethod.gas_budget" class="fn">gas_budget</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a></h4></section></summary><div class="docblock"><p>Returns the gas budget for this transaction.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.expiration" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1027">Source</a><h4 class="code-header">fn <a href="#tymethod.expiration" class="fn">expiration</a>(&amp;self) -&gt; &amp;TransactionExpiration</h4></section></summary><div class="docblock"><p>Returns the transaction expiration.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.shared_input_objects" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1034">Source</a><h4 class="code-header">fn <a href="#tymethod.shared_input_objects" class="fn">shared_input_objects</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;SharedObjectReference&gt;</h4></section></summary><div class="docblock"><p>Returns a list of the transaction data shared input objects.</p>
+<p>IMPORTANT: This function does not return shared objects associated with
+<code>MoveAuthenticator</code> signatures. To check those objects as well, use the
+corresponding function from <code>SenderSignedTransaction</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.move_calls" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1038">Source</a><h4 class="code-header">fn <a href="#tymethod.move_calls" class="fn">move_calls</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(&amp;ObjectId, &amp;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.str.html">str</a>, &amp;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.str.html">str</a>)&gt;</h4></section></summary><div class="docblock"><p>Returns a list of Move calls as <code>(package_id, module_name, function_name)</code> tuples.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.input_objects" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1047">Source</a><h4 class="code-header">fn <a href="#tymethod.input_objects" class="fn">input_objects</a>(&amp;self) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="enum.InputObjectKind.html" title="enum iota_types::transaction::InputObjectKind">InputObjectKind</a>&gt;&gt;</h4></section></summary><div class="docblock"><p>Returns the input objects required by the transaction body.</p>
+<p>Note: this does NOT include the objects read by any <code>MoveAuthenticator</code>s
+(abstract-account authenticators); those are carried by the transaction
+envelope, not by <code>TransactionData</code>. For the full set including
+authenticator inputs, use <code>SenderSignedData::input_objects</code> or
+<code>SenderSignedData::collect_all_input_object_kind_for_reading</code>.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.receiving_objects" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1051">Source</a><h4 class="code-header">fn <a href="#tymethod.receiving_objects" class="fn">receiving_objects</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;</h4></section></summary><div class="docblock"><p>Returns object references for all objects being received in this
+transaction.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.validity_check" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1055">Source</a><h4 class="code-header">fn <a href="#tymethod.validity_check" class="fn">validity_check</a>(&amp;self, config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a></h4></section></summary><div class="docblock"><p>Validates the transaction data against the given protocol config,
+including gas checks.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.validity_check_no_gas_check" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1059">Source</a><h4 class="code-header">fn <a href="#tymethod.validity_check_no_gas_check" class="fn">validity_check_no_gas_check</a>(
+    &amp;self,
+    config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>,
+) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a></h4></section></summary><div class="docblock"><p>Validates the transaction data against the given protocol config,
+skipping gas-related checks.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.check_gas_payment_size" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1063">Source</a><h4 class="code-header">fn <a href="#tymethod.check_gas_payment_size" class="fn">check_gas_payment_size</a>(&amp;self, config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a></h4></section></summary><div class="docblock"><p>Checks the gas payment against the protocol’s cap on how many objects it
+may name.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.check_sponsorship" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1066">Source</a><h4 class="code-header">fn <a href="#tymethod.check_sponsorship" class="fn">check_sponsorship</a>(&amp;self) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a></h4></section></summary><div class="docblock"><p>Check if the transaction is compliant with sponsorship.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.is_system_tx" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1069">Source</a><h4 class="code-header">fn <a href="#tymethod.is_system_tx" class="fn">is_system_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Returns <code>true</code> if this is a system transaction.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.is_genesis_tx" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1071">Source</a><h4 class="code-header">fn <a href="#tymethod.is_genesis_tx" class="fn">is_genesis_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Returns <code>true</code> if this is the genesis transaction.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.is_end_of_epoch_tx" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1075">Source</a><h4 class="code-header">fn <a href="#tymethod.is_end_of_epoch_tx" class="fn">is_end_of_epoch_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>returns true if the transaction is one that is specially sequenced to
+run at the very end of the epoch</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.is_sponsored_tx" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1078">Source</a><h4 class="code-header">fn <a href="#tymethod.is_sponsored_tx" class="fn">is_sponsored_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Check if the transaction is sponsored (namely gas owner != sender)</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.sender_mut_for_testing" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1081">Source</a><h4 class="code-header">fn <a href="#tymethod.sender_mut_for_testing" class="fn">sender_mut_for_testing</a>(&amp;mut self) -&gt; &amp;mut Address</h4></section></summary><div class="docblock"><p>Returns a mutable reference to the sender address. <strong>Testing only.</strong></p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.gas_data_mut" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1084">Source</a><h4 class="code-header">fn <a href="#tymethod.gas_data_mut" class="fn">gas_data_mut</a>(&amp;mut self) -&gt; &amp;mut GasPayment</h4></section></summary><div class="docblock"><p>Returns a mutable reference to the gas data.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.expiration_mut_for_testing" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1087">Source</a><h4 class="code-header">fn <a href="#tymethod.expiration_mut_for_testing" class="fn">expiration_mut_for_testing</a>(&amp;mut self) -&gt; &amp;mut TransactionExpiration</h4></section></summary><div class="docblock"><p>Returns a mutable reference to the expiration. <strong>Testing only.</strong></p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_system_transaction" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1091">Source</a><h4 class="code-header">fn <a href="#tymethod.new_system_transaction" class="fn">new_system_transaction</a>(kind: TransactionKind) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a new system transaction with no gas payment. Used for
+validator-initiated transactions (epoch changes, checkpoints, etc.).</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1096-1102">Source</a><h4 class="code-header">fn <a href="#tymethod.new" class="fn">new</a>(
+    kind: TransactionKind,
+    sender: Address,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a new transaction with a single gas payment coin. The sender
+is also the gas owner.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_with_gas_coins" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1106-1112">Source</a><h4 class="code-header">fn <a href="#tymethod.new_with_gas_coins" class="fn">new_with_gas_coins</a>(
+    kind: TransactionKind,
+    sender: Address,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a new transaction with multiple gas payment coins. The sender
+is also the gas owner.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_with_gas_coins_allow_sponsor" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1117-1124">Source</a><h4 class="code-header">fn <a href="#tymethod.new_with_gas_coins_allow_sponsor" class="fn">new_with_gas_coins_allow_sponsor</a>(
+    kind: TransactionKind,
+    sender: Address,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_sponsor: Address,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a new transaction with multiple gas payment coins and a
+separate gas sponsor. Use this for sponsored transactions where
+the gas owner differs from the sender.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_with_gas_data" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1127-1131">Source</a><h4 class="code-header">fn <a href="#tymethod.new_with_gas_data" class="fn">new_with_gas_data</a>(
+    kind: TransactionKind,
+    sender: Address,
+    gas_data: GasPayment,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a new transaction from a pre-built [<code>GasPayment</code>] struct.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_move_call" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1135-1145">Source</a><h4 class="code-header">fn <a href="#tymethod.new_move_call" class="fn">new_move_call</a>(
+    sender: Address,
+    package: ObjectId,
+    module: Identifier,
+    function: Identifier,
+    type_arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;TypeTag&gt;,
+    gas_payment: ObjectReference,
+    arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="type.CallArg.html" title="type iota_types::transaction::CallArg">CallArg</a>&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section></summary><div class="docblock"><p>Creates a transaction that calls a single Move function with a single
+gas payment coin.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_move_call_with_gas_coins" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1149-1159">Source</a><h4 class="code-header">fn <a href="#tymethod.new_move_call_with_gas_coins" class="fn">new_move_call_with_gas_coins</a>(
+    sender: Address,
+    package: ObjectId,
+    module: Identifier,
+    function: Identifier,
+    type_arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;TypeTag&gt;,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="type.CallArg.html" title="type iota_types::transaction::CallArg">CallArg</a>&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section></summary><div class="docblock"><p>Creates a transaction that calls a single Move function with multiple
+gas payment coins.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_transfer" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1162-1169">Source</a><h4 class="code-header">fn <a href="#tymethod.new_transfer" class="fn">new_transfer</a>(
+    recipient: Address,
+    object_ref: ObjectReference,
+    sender: Address,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a transaction that transfers an object to a recipient.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_transfer_iota" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1174-1181">Source</a><h4 class="code-header">fn <a href="#tymethod.new_transfer_iota" class="fn">new_transfer_iota</a>(
+    recipient: Address,
+    sender: Address,
+    amount: <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a transaction that transfers IOTA coins to a recipient.
+If <code>amount</code> is <code>None</code>, the entire gas coin balance (minus gas fees)
+is transferred.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_transfer_iota_allow_sponsor" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1186-1194">Source</a><h4 class="code-header">fn <a href="#tymethod.new_transfer_iota_allow_sponsor" class="fn">new_transfer_iota_allow_sponsor</a>(
+    recipient: Address,
+    sender: Address,
+    amount: <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_sponsor: Address,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a sponsored transaction that transfers IOTA coins to a
+recipient. If <code>amount</code> is <code>None</code>, the entire gas coin balance
+(minus gas fees) is transferred.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_pay" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1199-1207">Source</a><h4 class="code-header">fn <a href="#tymethod.new_pay" class="fn">new_pay</a>(
+    sender: Address,
+    coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    recipients: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Address&gt;,
+    amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section></summary><div class="docblock"><p>Creates a transaction that pays multiple recipients from a set of
+input coins. The coins are merged and then split to satisfy the
+specified amounts.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_pay_iota" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1212-1220">Source</a><h4 class="code-header">fn <a href="#tymethod.new_pay_iota" class="fn">new_pay_iota</a>(
+    sender: Address,
+    coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    recipients: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Address&gt;,
+    amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section></summary><div class="docblock"><p>Creates a transaction that pays multiple recipients using IOTA coins.
+Similar to <a href="trait.TransactionAPI.html#tymethod.new_pay" title="associated function iota_types::transaction::TransactionAPI::new_pay"><code>Self::new_pay</code></a> but the gas coin is also used as an
+input coin.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_pay_all_iota" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1224-1231">Source</a><h4 class="code-header">fn <a href="#tymethod.new_pay_all_iota" class="fn">new_pay_all_iota</a>(
+    sender: Address,
+    coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    recipient: Address,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a transaction that sends all IOTA from the given coins to a
+single recipient. The gas coin is included as an input coin.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_split_coin" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1235-1242">Source</a><h4 class="code-header">fn <a href="#tymethod.new_split_coin" class="fn">new_split_coin</a>(
+    sender: Address,
+    coin: ObjectReference,
+    amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a transaction that splits a coin into multiple coins with the
+specified amounts.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_module" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1245-1252">Source</a><h4 class="code-header">fn <a href="#tymethod.new_module" class="fn">new_module</a>(
+    sender: Address,
+    gas_payment: ObjectReference,
+    modules: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;&gt;,
+    dep_ids: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectId&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a transaction that publishes new Move modules.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_upgrade" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1256-1267">Source</a><h4 class="code-header">fn <a href="#tymethod.new_upgrade" class="fn">new_upgrade</a>(
+    sender: Address,
+    gas_payment: ObjectReference,
+    package_id: ObjectId,
+    modules: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;&gt;,
+    dep_ids: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectId&gt;,
+    upgrade_capability_and_owner: (ObjectReference, Owner),
+    upgrade_policy: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>,
+    digest: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section></summary><div class="docblock"><p>Creates a transaction that upgrades an existing Move package.
+Requires the upgrade capability object and the upgrade policy.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_programmable" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1271-1277">Source</a><h4 class="code-header">fn <a href="#tymethod.new_programmable" class="fn">new_programmable</a>(
+    sender: Address,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    pt: ProgrammableTransaction,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a programmable transaction with multiple gas payment coins.
+The sender is also the gas owner.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.new_programmable_allow_sponsor" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1281-1288">Source</a><h4 class="code-header">fn <a href="#tymethod.new_programmable_allow_sponsor" class="fn">new_programmable_allow_sponsor</a>(
+    sender: Address,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    pt: ProgrammableTransaction,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    sponsor: Address,
+) -&gt; Transaction</h4></section></summary><div class="docblock"><p>Creates a programmable transaction with multiple gas payment coins
+and a separate gas sponsor.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.message_version" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1291">Source</a><h4 class="code-header">fn <a href="#tymethod.message_version" class="fn">message_version</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a></h4></section></summary><div class="docblock"><p>Returns the internal message version number.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="tymethod.execution_parts" class="method"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1295">Source</a><h4 class="code-header">fn <a href="#tymethod.execution_parts" class="fn">execution_parts</a>(&amp;self) -&gt; (TransactionKind, Address, GasPayment)</h4></section></summary><div class="docblock"><p>Consumes self and returns the transaction kind, sender address, and
+gas payment object references as a tuple.</p>
+</div></details></div><h2 id="dyn-compatibility" class="section-header">Dyn Compatibility<a href="#dyn-compatibility" class="anchor">§</a></h2><div class="dyn-compatibility-info"><p>This trait is <b>not</b> <a href="https://doc.rust-lang.org/1.98.1/reference/items/traits.html#dyn-compatibility">dyn compatible</a>.</p><p><i>In older versions of Rust, dyn compatibility was called "object safety".</i></p></div><h2 id="foreign-impls" class="section-header">Implementations on Foreign Types<a href="#foreign-impls" class="anchor">§</a></h2><details class="toggle implementors-toggle"><summary><section id="impl-TransactionAPI-for-Transaction" class="impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1298-1860">Source</a><a href="#impl-TransactionAPI-for-Transaction" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.TransactionAPI.html" title="trait iota_types::transaction::TransactionAPI">TransactionAPI</a> for Transaction</h3></section></summary><div class="impl-items"><section id="method.sender" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1299-1304">Source</a><a href="#method.sender" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.sender" class="fn">sender</a>(&amp;self) -&gt; Address</h4></section><section id="method.kind" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1306-1311">Source</a><a href="#method.kind" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.kind" class="fn">kind</a>(&amp;self) -&gt; &amp;TransactionKind</h4></section><section id="method.kind_mut" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1313-1318">Source</a><a href="#method.kind_mut" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.kind_mut" class="fn">kind_mut</a>(&amp;mut self) -&gt; &amp;mut TransactionKind</h4></section><section id="method.into_kind" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1320-1325">Source</a><a href="#method.into_kind" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.into_kind" class="fn">into_kind</a>(self) -&gt; TransactionKind</h4></section><section id="method.signers" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1327-1333">Source</a><a href="#method.signers" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.signers" class="fn">signers</a>(&amp;self) -&gt; NonEmpty&lt;Address&gt;</h4></section><section id="method.gas_data" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1335-1340">Source</a><a href="#method.gas_data" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.gas_data" class="fn">gas_data</a>(&amp;self) -&gt; &amp;GasPayment</h4></section><section id="method.gas_owner" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1342-1344">Source</a><a href="#method.gas_owner" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.gas_owner" class="fn">gas_owner</a>(&amp;self) -&gt; Address</h4></section><section id="method.gas" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1346-1348">Source</a><a href="#method.gas" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.gas" class="fn">gas</a>(&amp;self) -&gt; &amp;[ObjectReference]</h4></section><section id="method.gas_price" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1350-1352">Source</a><a href="#method.gas_price" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.gas_price" class="fn">gas_price</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a></h4></section><section id="method.gas_budget" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1354-1356">Source</a><a href="#method.gas_budget" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.gas_budget" class="fn">gas_budget</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a></h4></section><section id="method.expiration" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1358-1363">Source</a><a href="#method.expiration" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.expiration" class="fn">expiration</a>(&amp;self) -&gt; &amp;TransactionExpiration</h4></section><section id="method.shared_input_objects" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1365-1367">Source</a><a href="#method.shared_input_objects" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.shared_input_objects" class="fn">shared_input_objects</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;SharedObjectReference&gt;</h4></section><section id="method.move_calls" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1369-1371">Source</a><a href="#method.move_calls" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.move_calls" class="fn">move_calls</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;(&amp;ObjectId, &amp;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.str.html">str</a>, &amp;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.str.html">str</a>)&gt;</h4></section><section id="method.input_objects" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1373-1384">Source</a><a href="#method.input_objects" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.input_objects" class="fn">input_objects</a>(&amp;self) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="enum.InputObjectKind.html" title="enum iota_types::transaction::InputObjectKind">InputObjectKind</a>&gt;&gt;</h4></section><section id="method.receiving_objects" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1386-1388">Source</a><a href="#method.receiving_objects" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.receiving_objects" class="fn">receiving_objects</a>(&amp;self) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;</h4></section><section id="method.validity_check" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1390-1394">Source</a><a href="#method.validity_check" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.validity_check" class="fn">validity_check</a>(&amp;self, config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a></h4></section><section id="method.validity_check_no_gas_check" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1397-1400">Source</a><a href="#method.validity_check_no_gas_check" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.validity_check_no_gas_check" class="fn">validity_check_no_gas_check</a>(
+    &amp;self,
+    config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>,
+) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a></h4></section><section id="method.check_gas_payment_size" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1402-1411">Source</a><a href="#method.check_gas_payment_size" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.check_gas_payment_size" class="fn">check_gas_payment_size</a>(&amp;self, config: &amp;<a class="struct" href="../supported_protocol_versions/struct.ProtocolConfig.html" title="struct iota_types::supported_protocol_versions::ProtocolConfig">ProtocolConfig</a>) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a></h4></section><section id="method.is_sponsored_tx" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1413-1415">Source</a><a href="#method.is_sponsored_tx" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.is_sponsored_tx" class="fn">is_sponsored_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section><section id="method.check_sponsorship" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1417-1425">Source</a><a href="#method.check_sponsorship" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.check_sponsorship" class="fn">check_sponsorship</a>(&amp;self) -&gt; <a class="type" href="../error/type.UserInputResult.html" title="type iota_types::error::UserInputResult">UserInputResult</a></h4></section><section id="method.is_end_of_epoch_tx" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1427-1429">Source</a><a href="#method.is_end_of_epoch_tx" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.is_end_of_epoch_tx" class="fn">is_end_of_epoch_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section><section id="method.is_system_tx" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1431-1433">Source</a><a href="#method.is_system_tx" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.is_system_tx" class="fn">is_system_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section><section id="method.is_genesis_tx" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1435-1437">Source</a><a href="#method.is_genesis_tx" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.is_genesis_tx" class="fn">is_genesis_tx</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.bool.html">bool</a></h4></section><section id="method.sender_mut_for_testing" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1439-1444">Source</a><a href="#method.sender_mut_for_testing" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.sender_mut_for_testing" class="fn">sender_mut_for_testing</a>(&amp;mut self) -&gt; &amp;mut Address</h4></section><section id="method.gas_data_mut" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1446-1451">Source</a><a href="#method.gas_data_mut" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.gas_data_mut" class="fn">gas_data_mut</a>(&amp;mut self) -&gt; &amp;mut GasPayment</h4></section><section id="method.expiration_mut_for_testing" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1453-1458">Source</a><a href="#method.expiration_mut_for_testing" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.expiration_mut_for_testing" class="fn">expiration_mut_for_testing</a>(&amp;mut self) -&gt; &amp;mut TransactionExpiration</h4></section><section id="method.new_system_transaction" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1460-1478">Source</a><a href="#method.new_system_transaction" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_system_transaction" class="fn">new_system_transaction</a>(kind: TransactionKind) -&gt; Transaction</h4></section><section id="method.new" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1480-1498">Source</a><a href="#method.new" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new" class="fn">new</a>(
+    kind: TransactionKind,
+    sender: Address,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section><section id="method.new_with_gas_coins" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1500-1515">Source</a><a href="#method.new_with_gas_coins" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_with_gas_coins" class="fn">new_with_gas_coins</a>(
+    kind: TransactionKind,
+    sender: Address,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section><section id="method.new_with_gas_coins_allow_sponsor" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1517-1536">Source</a><a href="#method.new_with_gas_coins_allow_sponsor" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_with_gas_coins_allow_sponsor" class="fn">new_with_gas_coins_allow_sponsor</a>(
+    kind: TransactionKind,
+    sender: Address,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_sponsor: Address,
+) -&gt; Transaction</h4></section><section id="method.new_with_gas_data" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1538-1549">Source</a><a href="#method.new_with_gas_data" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_with_gas_data" class="fn">new_with_gas_data</a>(
+    kind: TransactionKind,
+    sender: Address,
+    gas_data: GasPayment,
+) -&gt; Transaction</h4></section><section id="method.new_move_call" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1551-1573">Source</a><a href="#method.new_move_call" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_move_call" class="fn">new_move_call</a>(
+    sender: Address,
+    package: ObjectId,
+    module: Identifier,
+    function: Identifier,
+    type_arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;TypeTag&gt;,
+    gas_payment: ObjectReference,
+    arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="type.CallArg.html" title="type iota_types::transaction::CallArg">CallArg</a>&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section><section id="method.new_move_call_with_gas_coins" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1575-1598">Source</a><a href="#method.new_move_call_with_gas_coins" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_move_call_with_gas_coins" class="fn">new_move_call_with_gas_coins</a>(
+    sender: Address,
+    package: ObjectId,
+    module: Identifier,
+    function: Identifier,
+    type_arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;TypeTag&gt;,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    arguments: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="type.CallArg.html" title="type iota_types::transaction::CallArg">CallArg</a>&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section><section id="method.new_transfer" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1600-1614">Source</a><a href="#method.new_transfer" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_transfer" class="fn">new_transfer</a>(
+    recipient: Address,
+    object_ref: ObjectReference,
+    sender: Address,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section><section id="method.new_transfer_iota" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1616-1633">Source</a><a href="#method.new_transfer_iota" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_transfer_iota" class="fn">new_transfer_iota</a>(
+    recipient: Address,
+    sender: Address,
+    amount: <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section><section id="method.new_transfer_iota_allow_sponsor" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1635-1657">Source</a><a href="#method.new_transfer_iota_allow_sponsor" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_transfer_iota_allow_sponsor" class="fn">new_transfer_iota_allow_sponsor</a>(
+    recipient: Address,
+    sender: Address,
+    amount: <a class="enum" href="https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_sponsor: Address,
+) -&gt; Transaction</h4></section><section id="method.new_pay" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1659-1680">Source</a><a href="#method.new_pay" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_pay" class="fn">new_pay</a>(
+    sender: Address,
+    coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    recipients: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Address&gt;,
+    amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section><section id="method.new_pay_iota" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1682-1700">Source</a><a href="#method.new_pay_iota" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_pay_iota" class="fn">new_pay_iota</a>(
+    sender: Address,
+    coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    recipients: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;Address&gt;,
+    amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section><section id="method.new_pay_all_iota" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1702-1717">Source</a><a href="#method.new_pay_all_iota" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_pay_all_iota" class="fn">new_pay_all_iota</a>(
+    sender: Address,
+    coins: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    recipient: Address,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section><section id="method.new_split_coin" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1719-1733">Source</a><a href="#method.new_split_coin" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_split_coin" class="fn">new_split_coin</a>(
+    sender: Address,
+    coin: ObjectReference,
+    amounts: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>&gt;,
+    gas_payment: ObjectReference,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section><section id="method.new_module" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1735-1750">Source</a><a href="#method.new_module" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_module" class="fn">new_module</a>(
+    sender: Address,
+    gas_payment: ObjectReference,
+    modules: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;&gt;,
+    dep_ids: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectId&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section><section id="method.new_upgrade" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1752-1812">Source</a><a href="#method.new_upgrade" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_upgrade" class="fn">new_upgrade</a>(
+    sender: Address,
+    gas_payment: ObjectReference,
+    package_id: ObjectId,
+    modules: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;&gt;,
+    dep_ids: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectId&gt;,
+    (upgrade_capability, capability_owner): (ObjectReference, Owner),
+    upgrade_policy: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>,
+    digest: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u8.html">u8</a>&gt;,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; <a class="type" href="https://docs.rs/anyhow/1.0.103/anyhow/type.Result.html" title="type anyhow::Result">Result</a>&lt;Transaction&gt;</h4></section><section id="method.new_programmable" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1814-1829">Source</a><a href="#method.new_programmable" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_programmable" class="fn">new_programmable</a>(
+    sender: Address,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    pt: ProgrammableTransaction,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+) -&gt; Transaction</h4></section><section id="method.new_programmable_allow_sponsor" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1831-1848">Source</a><a href="#method.new_programmable_allow_sponsor" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.new_programmable_allow_sponsor" class="fn">new_programmable_allow_sponsor</a>(
+    sender: Address,
+    gas_payment: <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ObjectReference&gt;,
+    pt: ProgrammableTransaction,
+    gas_budget: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    gas_price: <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a>,
+    sponsor: Address,
+) -&gt; Transaction</h4></section><section id="method.message_version" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1850-1855">Source</a><a href="#method.message_version" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.message_version" class="fn">message_version</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.98.1/std/primitive.u64.html">u64</a></h4></section><section id="method.execution_parts" class="method trait-impl"><a class="src rightside" href="../../src/iota_types/transaction.rs.html#1857-1859">Source</a><a href="#method.execution_parts" class="anchor">§</a><h4 class="code-header">fn <a href="#tymethod.execution_parts" class="fn">execution_parts</a>(&amp;self) -&gt; (TransactionKind, Address, GasPayment)</h4></section></div></details><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"></div><script src="../../trait.impl/iota_types/transaction/trait.TransactionAPI.js" data-ignore-extern-crates="iota_sdk_types" async></script></section></div></main></body></html>

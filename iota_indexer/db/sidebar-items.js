@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["check_prunable_tables_valid","get_pool_connection","new_connection_pool","reset_database"],"mod":["setup_postgres"],"struct":["ConnectionConfig","ConnectionPoolConfig"],"type":["ConnectionPool","PoolConnection"]};

@@ -1,0 +1,9 @@
+(function() {
+    const implementors = Object.fromEntries([["iota_metrics",[["impl&lt;T&gt; Stream for <a class=\"struct\" href=\"iota_metrics/metered_channel/struct.ReceiverStream.html\" title=\"struct iota_metrics::metered_channel::ReceiverStream\">ReceiverStream</a>&lt;T&gt;",0]]],["iota_sdk",[["impl&lt;O, C, F, E, Fun&gt; Stream for <a class=\"struct\" href=\"iota_sdk/struct.PagedStream.html\" title=\"struct iota_sdk::PagedStream\">PagedStream</a>&lt;O, C, F, E, Fun&gt;<div class=\"where\">where\n    O: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html\" title=\"trait core::marker::Send\">Send</a>,\n    C: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html\" title=\"trait core::marker::Send\">Send</a>,\n    F: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/future/future/trait.Future.html\" title=\"trait core::future::future::Future\">Future</a>&lt;Output = <a class=\"enum\" href=\"https://doc.rust-lang.org/1.98.1/core/result/enum.Result.html\" title=\"enum core::result::Result\">Result</a>&lt;<a class=\"struct\" href=\"iota_json_rpc_types/struct.Page.html\" title=\"struct iota_json_rpc_types::Page\">Page</a>&lt;O, C&gt;, E&gt;&gt; + <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html\" title=\"trait core::marker::Send\">Send</a>,\n    Fun: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.98.1/core/ops/function/trait.Fn.html\" title=\"trait core::ops::function::Fn\">Fn</a>(<a class=\"enum\" href=\"https://doc.rust-lang.org/1.98.1/core/option/enum.Option.html\" title=\"enum core::option::Option\">Option</a>&lt;C&gt;) -&gt; F,</div>",0]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":59,"fragment_lengths":[225,1411]}

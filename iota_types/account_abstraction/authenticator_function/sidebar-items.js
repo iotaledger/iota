@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["AUTHENTICATOR_FUNCTION_MODULE_NAME","AUTHENTICATOR_FUNCTION_REF_V1_STRUCT_NAME"],"enum":["AuthenticatorFunctionRef"],"fn":["authenticator_function_ref_v1_from_dynamic_field_object","derive_authenticator_function_ref_v1_dynamic_field_id","extract_auth_fun_refs"],"struct":["AuthenticatorFunctionRefForExecution","AuthenticatorFunctionRefV1"]};

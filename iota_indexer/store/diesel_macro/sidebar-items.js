@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CALLED_FROM_BLOCKING_POOL"],"fn":["mark_in_blocking_pool"],"macro":[["blocking_call_is_ok_or_panic",1],["read_only_blocking",1],["read_only_repeatable_blocking",1],["run_query",1],["run_query_async",1],["run_query_repeatable",1],["run_query_repeatable_async",1],["spawn_read_only_blocking",1],["transactional_blocking_with_retry",1]]};

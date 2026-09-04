@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Type to create hooks to alter initial indexer DB state in tests. Those hooks are meant to be called after DB reset (if it occurs) and before indexer is started."><title>DBInitHook in iota_indexer::test_utils - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="iota_indexer" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.1 (48a229cea 2026-09-01)" data-channel="1.98.1" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc type"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">DBInitHook</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../iota_indexer/index.html">iota_<wbr>indexer</a><span class="version">1.32.0-alpha</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">DBInit<wbr>Hook</a></h2><h3><a href="#aliased-type">Aliased Type</a></h3></section><div id="rustdoc-modnav"><h2><a href="index.html">In iota_<wbr>indexer::<wbr>test_<wbr>utils</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">iota_indexer</a>::<wbr><a href="index.html">test_utils</a></div><h1>Type Alias <span class="type">DBInit<wbr>Hook</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/iota_indexer/test_utils.rs.html#65">Source</a> </span></div><pre class="rust item-decl"><code>pub type DBInitHook = <a class="struct" href="https://doc.rust-lang.org/1.98.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;<a class="struct" href="../store/struct.PgIndexerStore.html" title="struct iota_indexer::store::PgIndexerStore">PgIndexerStore</a>) + <a class="trait" href="https://doc.rust-lang.org/1.98.1/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>&gt;;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Type to create hooks to alter initial indexer DB state in tests.
+Those hooks are meant to be called after DB reset (if it occurs) and before
+indexer is started.</p>
+<p>Example:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">let </span>emulate_insertion_order_set_earlier_by_optimistic_indexing: DBInitHook =
+    Box::new(<span class="kw">move </span>|pg_store: <span class="kw-2">&amp;</span>PgIndexerStore| {
+        <span class="macro">transactional_blocking_with_retry!</span>(
+            <span class="kw-2">&amp;</span>pg_store.blocking_cp(),
+            |conn| {
+                <span class="macro">insert_or_ignore_into!</span>(
+                    tx_insertion_order::table,
+                    (
+                        tx_insertion_order::dsl::tx_digest.eq(digest.inner().to_vec()),
+                        tx_insertion_order::dsl::insertion_order.eq(<span class="number">123</span>),
+                    ),
+                    conn
+                );
+                <span class="prelude-val">Ok</span>::&lt;(), IndexerError&gt;(())
+            },
+            Duration::from_secs(<span class="number">60</span>)
+        )
+            .unwrap()
+    });
+
+<span class="kw">let </span>(<span class="kw">_</span>, pg_store, <span class="kw">_</span>) = start_simulacrum_grpc_with_write_indexer(
+    Arc::new(sim),
+    data_ingestion_path,
+    <span class="prelude-val">None</span>,
+    <span class="prelude-val">Some</span>(<span class="string">"indexer_ingestion_tests_db"</span>),
+    <span class="prelude-val">Some</span>(emulate_insertion_order_set_earlier_by_optimistic_indexing),
+)
+.<span class="kw">await</span>;</code></pre></div></div></details><h2 id="aliased-type" class="section-header">Aliased Type<a href="#aliased-type" class="anchor">§</a></h2><pre class="rust item-decl"><code>pub struct DBInitHook(<span class="comment">/* private fields */</span>);</code></pre><script src="../../type.impl/alloc/boxed/struct.Box.js" data-self-path="iota_indexer::test_utils::DBInitHook" async></script></section></div></main></body></html>
