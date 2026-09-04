@@ -1,0 +1,130 @@
+---
+title: Create and Verify an Object Proof
+sidebar_label: Object Proof
+description: Start from an object ID and authenticate the object version resolved during proof construction.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - how-to
+  - rust
+  - typescript
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Create and Verify an Object Proof
+
+An object proof starts from an object ID. The builder fetches the latest available version during proof construction, discovers the transaction that produced it, and packages the required evidence.
+
+The discovered transaction supports the object target but does not become an explicit transaction target.
+
+## Prerequisites
+
+- Complete the [Rust](../../getting-started/rust.mdx) or [Wasm](../../getting-started/wasm.mdx) setup.
+- Select an active IOTA CLI environment and wallet with funds or faucet access.
+- Make sure the JSON-RPC and gRPC endpoints belong to the same network.
+- For local or custom networks, set `IOTA_GENESIS_PATH` to an independently trusted genesis blob.
+
+:::important
+
+The example creates a new Locked Notarization transaction. On mainnet, fund the active wallet and set `IOTA_NOTARIZATION_PKG_ID` to an existing Single Notarization Move Package before running it.
+
+:::
+
+## Steps
+
+### 1. Construct the Object Proof
+
+Create an object and request a proof using only its ID. Inspect the resolved target to confirm that the proof contains the object and no explicit transaction or event targets.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/04_object_proof.rs#L29-L77
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/04_object_proof.ts#L25-L48
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Verify the Object
+
+Verify the proof before accepting the selected object version or its BCS bytes.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/04_object_proof.rs#L79-L89
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/04_object_proof.ts#L50-L60
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+The proof authenticates the selected version. It does not prove that the object remains at that version when verification occurs. Deleted and wrapped objects are unsupported.
+
+## Expected Behavior
+
+- The constructed proof contains one object target and no explicit transaction or event targets.
+- The builder reports the transaction and exact object version resolved during proof construction as supporting evidence.
+- Successful verification returns the authenticated object value; the TypeScript API also exposes its BCS bytes.
+
+## Run the Example
+
+Run either implementation from the Notarization repository root:
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```bash
+cargo run --release -p poi-examples --example 04_object_proof
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```bash
+cd bindings/wasm/poi_wasm
+npm run example:node -- 04_object_proof
+```
+
+</TabItem>
+</Tabs>
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/04_object_proof.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/04_object_proof.ts
+```
+
+</TabItem>
+</Tabs>

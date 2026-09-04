@@ -1,0 +1,160 @@
+---
+title: Build a Committee Cache
+sidebar_label: Committee Cache
+description: Choose a committee cache strategy and implement persistent storage for genesis-anchored Proof of Inclusion verification.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - how-to
+  - rust
+---
+
+# Build a Committee Cache
+
+An IOTA committee identifies the validators and voting power that certify checkpoints during one epoch. A genesis-anchored Proof of Inclusion verifier starts from a trusted committee and authenticates each committee transition needed to reach the proof's epoch.
+
+A committee cache retains the committees produced by that process. Reusing them avoids fetching and verifying the same epoch transitions again, but it does not cache proofs or proof-verification results and does not replace the trusted genesis or committee anchor.
+
+This advanced example is available only in Rust. Complete the [Rust setup](../../../getting-started/rust.mdx) and read [Trust and Verification](../../../explanations/trust-and-verification.mdx) before adding a persistent cache.
+
+## How the Cache Is Used
+
+For each proof, the resolver determines the committee epoch required by its certified checkpoint. It then:
+
+1. Looks for that committee, or the nearest successor to its trusted anchor, in the cache.
+2. Fetches any missing end-of-epoch checkpoint evidence from the ledger source.
+3. Authenticates each missing committee transition from the last trusted committee.
+4. Stores each newly authenticated committee and uses the target committee to verify the proof.
+
+The cache key contains both the network's chain identifier and the epoch. The chain identifier is the genesis checkpoint digest, so one backend can hold committees for several networks without mixing committees from the same epoch.
+
+:::warning
+
+The resolver treats a committee returned by the cache as previously authenticated. Protect persistent cache data from modification, preserve the complete cache key, and reject conflicting values instead of overwriting them.
+
+:::
+
+## Choose a Cache Strategy
+
+Choose the smallest cache lifetime that fits your application:
+
+| Strategy | Use it when | Lifetime | Configuration |
+| --- | --- | --- | --- |
+| Verifier-owned memory | One verifier checks one or more proofs in the same process. | Until the verifier is dropped | Use `from_genesis()` or `anchored()`. |
+| Shared memory | Several verifiers in one process should share authenticated committees. | Until the process exits | Pass a cloned `MemoryCommitteeCache` to `from_genesis_with_cache()` or `anchored_with_cache()`. |
+| Persistent custom cache | Later processes or application instances should reuse authenticated committees. | Defined by the backend | Implement `CommitteeCache` with a file, database, or key-value store. |
+
+The standard [Reuse a Verifier](../reuse-verifier.mdx) example is normally enough for a long-running process. A custom cache adds storage, concurrency, and access-control responsibilities, so use one only when committees must outlive a verifier or be shared across verifier instances.
+
+The Wasm package keeps verifier state in memory and does not expose a custom committee-cache interface. Reuse the same Wasm verifier instance when verifying several proofs.
+
+## Choose an Anchored Constructor
+
+The cache works with both anchored constructor variants:
+
+| Constructor | Trust input | Network scoping |
+| --- | --- | --- |
+| `from_genesis_with_cache(genesis, cache)` | A trusted BCS-encoded `genesis.blob` | Derives the chain identifier and epoch 0 committee from the genesis checkpoint. |
+| `anchored_with_cache(chain_identifier, committee, cache)` | An already trusted committee | Requires the trusted genesis checkpoint digest explicitly, even when the anchor belongs to a later epoch. |
+
+Prefer `from_genesis_with_cache()` when your application already has the network's trusted genesis blob. Use `anchored_with_cache()` when another trusted process supplies both the anchor committee and the correct chain identifier.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/poi-rs/src/committee.rs#L225-L257
+```
+
+</div>
+
+## Implement the Cache Contract
+
+The `CommitteeCache` trait has one lookup operation and one store operation. Both receive a `CommitteeCacheKey`, which exposes the chain identifier and epoch.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/poi-rs/src/cache.rs#L13-L80
+```
+
+</div>
+
+A production implementation should follow these rules:
+
+- Return `Ok(None)` only when no value exists for the complete network-and-epoch key.
+- Return `CommitteeCacheError::Backend` when storage, decoding, or connectivity fails. Do not treat a backend failure as a cache miss.
+- Check that the stored committee's epoch matches the key's epoch.
+- Make repeated writes of the same committee succeed without changing the entry.
+- Return `CommitteeCacheError::Conflict` if another committee already occupies that key.
+- Prevent partial writes and races with atomic file operations, a database transaction, or a conditional key-value-store write.
+- Restrict write access to the verifier process and apply the durability and backup controls required for other trust-sensitive application state.
+
+BCS is a convenient storage format because the file example already uses it, but the trait does not require a particular serialization format or backend.
+
+## Build the File-Backed Cache
+
+The example stores one BCS file per network and epoch. The same design can be adapted to a database table with a composite `(chain_identifier, epoch)` key or a key-value store with both values encoded in its key.
+
+### 1. Attach the Cache
+
+Create the file cache and pass it to `CommitteeResolution::from_genesis_with_cache()`. The resolver calls `store()` only after it authenticates a successor committee.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs#L31-L66
+```
+
+</div>
+
+### 2. Map Keys to Storage
+
+Preserve the complete `CommitteeCacheKey`. The example derives a separate directory from the chain identifier and a separate file from the requested epoch.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs#L82-L122
+```
+
+</div>
+
+### 3. Read and Validate Entries
+
+Return `Ok(None)` for a missing file. Decode an existing file and reject any committee whose epoch does not match the requested cache key.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs#L124-L140
+```
+
+</div>
+
+### 4. Write Without Replacing Conflicts
+
+Return success when an identical committee already exists, but reject a different committee for the same key. The example writes and syncs a temporary file before calling `persist_noclobber()`, so concurrent writers cannot silently replace an authenticated value.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs#L142-L175
+```
+
+</div>
+
+## Run the Example
+
+Run the file-backed implementation from the Notarization repository root:
+
+```bash
+cargo run --release -p poi-examples --example advanced_01_committee_cache
+```
+
+Run it again against the same network to reuse the committees stored during the first verification. The example prints the cache directory and verification duration so you can confirm which storage it uses.
+
+## Full Example Code
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs
+```

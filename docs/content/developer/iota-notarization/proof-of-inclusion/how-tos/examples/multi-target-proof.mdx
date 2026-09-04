@@ -1,0 +1,151 @@
+---
+title: Create and Verify a Multi-Target Proof
+sidebar_label: Multi-Target Proof
+description: Combine transaction, object, and event targets from one execution in a single Proof of Inclusion.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - how-to
+  - rust
+  - typescript
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Create and Verify a Multi-Target Proof
+
+A multi-target proof authenticates several targets from the same transaction without duplicating transaction and checkpoint evidence. Every object and event target must belong to the selected transaction.
+
+## Prerequisites
+
+- Complete the [Rust](../../getting-started/rust.mdx) or [Wasm](../../getting-started/wasm.mdx) setup.
+- Select an active IOTA CLI environment and wallet with funds or faucet access.
+- Make sure the JSON-RPC and gRPC endpoints belong to the same network.
+- For local or custom networks, set `IOTA_GENESIS_PATH` to an independently trusted genesis blob.
+
+:::important
+
+The example creates a new Locked Notarization transaction. On mainnet, fund the active wallet and set `IOTA_NOTARIZATION_PKG_ID` to an existing Single Notarization Move Package before running it.
+
+:::
+
+## Steps
+
+### 1. Prepare Related Targets
+
+Create one transaction that produces a transaction digest, changed object, and emitted event. Establish committee trust from the active network's genesis blob.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/02_multi_target_proof.rs#L28-L44
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/02_multi_target_proof.ts#L24-L32
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Construct One Proof
+
+Add the transaction, object, and event to one proof request. The explicit transaction and event identify the execution, and the builder resolves the object at the version recorded in that transaction's effects.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/02_multi_target_proof.rs#L46-L82
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/02_multi_target_proof.ts#L34-L53
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Verify Every Target
+
+One verification operation authenticates the transaction, object, and event targets together.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/02_multi_target_proof.rs#L84-L95
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/02_multi_target_proof.ts#L55-L61
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+Create separate proofs for targets from different transactions.
+
+## Expected Behavior
+
+- The constructed proof contains one transaction target, one object target, and one event target from the same execution.
+- The object target uses the version recorded in the selected transaction's effects.
+- One successful verification authenticates all three targets against the same certified checkpoint.
+
+## Run the Example
+
+Run either implementation from the Notarization repository root:
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```bash
+cargo run --release -p poi-examples --example 02_multi_target_proof
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```bash
+cd bindings/wasm/poi_wasm
+npm run example:node -- 02_multi_target_proof
+```
+
+</TabItem>
+</Tabs>
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/02_multi_target_proof.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/02_multi_target_proof.ts
+```
+
+</TabItem>
+</Tabs>

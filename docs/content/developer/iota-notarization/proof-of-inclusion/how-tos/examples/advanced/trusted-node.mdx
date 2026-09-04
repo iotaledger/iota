@@ -1,0 +1,131 @@
+---
+title: Verify a Proof Using a Trusted Node
+sidebar_label: Trusted Node
+description: Verify a Proof of Inclusion by accepting the committee reported by a trusted IOTA node.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - how-to
+  - rust
+  - typescript
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Verify a Proof Using a Trusted Node
+
+Trusted-node committee resolution accepts the committee reported by the connected node without authenticating its lineage from genesis. Use this mode only when the selected gRPC endpoint is already inside the verifier's trust boundary.
+
+:::warning
+Trusted-node mode does not authenticate committee lineage. A malicious or compromised trusted node can choose the committee that the verifier accepts.
+:::
+
+## Prerequisites
+
+- Complete the [Rust](../../../getting-started/rust.mdx) or [Wasm](../../../getting-started/wasm.mdx) setup.
+- Select an active IOTA CLI environment and wallet with funds or faucet access.
+- Make sure the JSON-RPC and gRPC endpoints belong to the same network.
+- Use a gRPC endpoint operated by a party you trust.
+
+:::important
+
+The example creates a new Locked Notarization transaction. On mainnet, fund the active wallet and set `IOTA_NOTARIZATION_PKG_ID` to an existing Single Notarization Move Package before running it.
+
+:::
+
+## Steps
+
+### 1. Construct the Transaction Proof
+
+Create a fresh transaction and request a proof for its transaction digest. This example can run against any network and does not require a genesis blob.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/02_trusted_node.rs#L22-L34
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/06_trusted_node.ts#L23-L27
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Verify Using the Node's Committee
+
+Select trusted-node committee resolution and verify the proof against the committee supplied by the connected node. Successful verification authenticates the proof relative to that node, so the node remains part of the trust boundary.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/02_trusted_node.rs#L40-L44
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/06_trusted_node.ts#L33
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- The proof contains the transaction created by the example.
+- Verification succeeds without loading a genesis blob or walking committee history.
+- The verified result exposes the authenticated transaction digest and checkpoint sequence number.
+- The connected node remains responsible for supplying the committee that the verifier accepts.
+
+## Run the Example
+
+Run either implementation from the Notarization repository root:
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```bash
+cargo run --release -p poi-examples --example 02_trusted_node
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```bash
+cd bindings/wasm/poi_wasm
+npm run example:node -- 06_trusted_node
+```
+
+</TabItem>
+</Tabs>
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/02_trusted_node.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/06_trusted_node.ts
+```
+
+</TabItem>
+</Tabs>
