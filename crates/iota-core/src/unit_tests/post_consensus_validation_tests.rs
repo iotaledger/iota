@@ -35,7 +35,7 @@ use crate::{
             LockDetails, consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::HandlerLatestObjectKind,
         },
-        authority_tests::init_state_with_objects_and_object_basics,
+        authority_tests::{TestCallArg, call_move_, init_state_with_objects_and_object_basics},
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -2128,14 +2128,48 @@ impl BookkeepingSetup {
     /// certificate). Unless the digest was registered in the digest ->
     /// commit-round map beforehand, the hook classifies it sync-ahead.
     fn execute(&self, tx: VerifiedTransaction) -> TransactionEffects {
+        let effects = self.execute_unchecked(tx);
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+        effects
+    }
+
+    /// [`Self::execute`] without asserting execution success, for scenarios
+    /// exercising aborted transactions.
+    fn execute_unchecked(&self, tx: VerifiedTransaction) -> TransactionEffects {
         let executable =
             VerifiedExecutableTransaction::new_from_checkpoint(tx, self.epoch_store.epoch(), 1);
         let (effects, _) = self
             .authority
             .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap();
-        assert!(effects.status().is_success(), "{:?}", effects.status());
         effects
+    }
+
+    /// A verified call into `module::function` of the published test package
+    /// at the gas coin's latest version.
+    fn build_move_call(
+        &self,
+        module: &'static str,
+        function: &'static str,
+        args: Vec<CallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+    ) -> VerifiedTransaction {
+        let tx = Transaction::new_move_call(
+            sender,
+            self.package_id,
+            Identifier::from_static(module),
+            Identifier::from_static(function),
+            vec![],
+            self.latest_ref(gas_id),
+            args,
+            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * self.rgp,
+            self.rgp,
+        )
+        .unwrap();
+        let tx = to_sender_signed_transaction(tx, sender_key);
+        self.epoch_store.verify_transaction(tx).unwrap()
     }
 
     /// Builds a call into `module::function` of the published test package at
@@ -2150,20 +2184,37 @@ impl BookkeepingSetup {
         sender: Address,
         sender_key: &AccountPrivateKey,
     ) -> TransactionEffects {
-        let tx = Transaction::new_move_call(
-            sender,
-            self.package_id,
-            Identifier::from_static(module),
-            Identifier::from_static(function),
+        self.execute(self.build_move_call(module, function, args, gas_id, sender, sender_key))
+    }
+
+    /// Builds a call into the `object_basics` module and executes it through
+    /// the certificate + consensus path - the only route that assigns
+    /// shared-object input versions in a unit test. The consensus handler
+    /// does not register digests in the round map yet (that wiring is a later
+    /// increment), so the hook still classifies these executions sync-ahead.
+    async fn shared_object_basics_call(
+        &self,
+        function: &'static str,
+        args: Vec<TestCallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+    ) -> TransactionEffects {
+        call_move_(
+            &self.authority,
+            None,
+            gas_id,
+            &sender,
+            sender_key,
+            &self.package_id,
+            "object_basics",
+            function,
             vec![],
-            self.latest_ref(gas_id),
             args,
-            TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * self.rgp,
-            self.rgp,
+            true, // the call takes shared-object inputs
         )
-        .unwrap();
-        let tx = to_sender_signed_transaction(tx, sender_key);
-        self.execute(self.epoch_store.verify_transaction(tx).unwrap())
+        .await
+        .unwrap()
     }
 
     /// [`Self::move_call`] into the `object_basics` module.
@@ -2788,6 +2839,266 @@ async fn sync_ahead_received_object_is_sheltered_from_the_runtime_load() {
         parent_record.latest_created,
         receive_effects.lamport_version()
     );
+}
+
+#[tokio::test]
+async fn sync_ahead_shared_mutation_writes_nothing_and_deletion_is_recorded() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    // Creating the shared object is recorded like any creation.
+    let share_effects = s.object_basics_call("share", vec![], &gas_id, sender, &sender_key);
+    let shared_ref = share_effects.created()[0].reference;
+    assert!(matches!(share_effects.created()[0].owner, Owner::Shared(_)));
+    let record = s
+        .epoch_store
+        .sync_record(shared_ref.object_id())
+        .unwrap()
+        .expect("a sync-created shared object must carry a sync-ahead record");
+    assert_eq!(record.base_version, None);
+    assert_eq!(record.latest_created, share_effects.lamport_version());
+
+    // Mutating the shared input writes nothing: the record stays where the
+    // creation left it (a busy shared object like the Clock would otherwise
+    // rewrite its record every commit), and shared inputs are never
+    // sheltered. No check consults shared state beyond existence, creation,
+    // and deletion.
+    s.shared_object_basics_call(
+        "set_value",
+        vec![
+            TestCallArg::Object(*shared_ref.object_id()),
+            TestCallArg::Pure(bcs::to_bytes(&42u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    )
+    .await;
+    let record_after_mutation = s
+        .epoch_store
+        .sync_record(shared_ref.object_id())
+        .unwrap()
+        .expect("the mutation must not remove the creation's record");
+    assert_eq!(record_after_mutation, record);
+    s.assert_not_sheltered(shared_ref);
+
+    // Deleting the shared object IS recorded - deletion is one of the shared
+    // facts validation consults - but the consumed shared version is still
+    // not sheltered.
+    let shared_before_delete = s.latest_ref(shared_ref.object_id());
+    let delete_effects = s
+        .shared_object_basics_call(
+            "delete",
+            vec![TestCallArg::Object(*shared_ref.object_id())],
+            &gas_id,
+            sender,
+            &sender_key,
+        )
+        .await;
+    let record_after_delete = s
+        .epoch_store
+        .sync_record(shared_ref.object_id())
+        .unwrap()
+        .expect("a sync-deleted shared object must carry a sync-ahead record");
+    assert_eq!(record_after_delete.base_version, None);
+    assert_eq!(
+        record_after_delete.latest_created,
+        delete_effects.lamport_version()
+    );
+    s.assert_not_sheltered(shared_before_delete);
+    assert!(
+        s.store_object(shared_ref.object_id(), delete_effects.lamport_version())
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn aborted_transaction_still_records_and_shelters_its_gas() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let (parent_ref, _) = s.create_object(&gas_id, sender, &sender_key);
+    let gas_before = s.latest_ref(&gas_id);
+
+    // `remove_field` aborts: no field was ever added to the parent.
+    let effects = s.execute_unchecked(s.build_move_call(
+        "object_basics",
+        "remove_field",
+        vec![CallArg::ImmutableOrOwned(
+            s.latest_ref(parent_ref.object_id()),
+        )],
+        &gas_id,
+        sender,
+        &sender_key,
+    ));
+    assert!(!effects.status().is_success());
+
+    // The aborted execution still consumed and rewrote the gas coin: its
+    // consumed version is recorded and sheltered like any other write.
+    s.assert_sheltered(gas_before);
+    let gas_record = s
+        .epoch_store
+        .sync_record(&gas_id)
+        .unwrap()
+        .expect("the aborted transaction's gas coin must carry a sync-ahead record");
+    assert_eq!(gas_record.latest_created, effects.lamport_version());
+}
+
+#[tokio::test]
+async fn smashed_gas_coin_is_recorded_and_sheltered() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas1_id, sender),
+            Object::with_id_owner_for_testing(gas2_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let gas1_ref = s.latest_ref(&gas1_id);
+    let gas2_ref = s.latest_ref(&gas2_id);
+
+    // Paying with two coins smashes them: the second is merged into the
+    // first and deleted, without ever being named by a command.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.command(Command::new_move_call(
+        s.package_id,
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("share"),
+        vec![],
+        vec![],
+    ));
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![gas1_ref, gas2_ref],
+        builder.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * s.rgp,
+        s.rgp,
+    );
+    let effects = s.execute(
+        s.epoch_store
+            .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
+            .unwrap(),
+    );
+    assert_eq!(effects.deleted().len(), 1);
+    assert_eq!(effects.deleted()[0].object_id, *gas2_ref.object_id());
+
+    // Both coins were consumed - the survivor mutated, the smashed one
+    // deleted - so both versions are recorded and sheltered.
+    s.assert_sheltered(gas1_ref);
+    s.assert_sheltered(gas2_ref);
+    let smashed_record = s
+        .epoch_store
+        .sync_record(&gas2_id)
+        .unwrap()
+        .expect("the smashed gas coin must carry a sync-ahead record");
+    assert_eq!(smashed_record.base_version, Some(gas2_ref.version));
+    assert_eq!(smashed_record.latest_created, effects.lamport_version());
+}
+
+#[tokio::test]
+async fn sync_published_package_is_recorded_but_never_sheltered() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    // Unlike `setup_bookkeeping` (whose `object_basics` package is inserted
+    // at genesis and thus correctly carries no record), this setup publishes
+    // the package through a real transaction, with the flags on and the
+    // digest unknown to the round map.
+    let s = setup_bookkeeping_with_package("tto", sender, &sender_key, gas_id).await;
+
+    // A sync-published package must answer missing at validation - never
+    // read as pre-epoch state - so its creation is recorded; packages are
+    // never sheltered.
+    let package_ref = s.latest_ref(&s.package_id);
+    let record = s
+        .epoch_store
+        .sync_record(&s.package_id)
+        .unwrap()
+        .expect("a sync-published package must carry a sync-ahead record");
+    assert_eq!(record.base_version, None);
+    assert_eq!(record.latest_created, package_ref.version);
+    s.assert_not_sheltered(package_ref);
+}
+
+#[tokio::test]
+async fn sync_ahead_received_wrapper_is_sheltered_and_unwraps_its_content() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping_with_package("tto", sender, &sender_key, gas_id).await;
+
+    // `M2::start` creates the parent and a receivable wrapper `C { wrapped: B }`.
+    // `B` is created and wrapped within the same transaction, so it never gets
+    // a store row or an effects entry - only the two outer objects appear.
+    let start_effects = s.move_call("M2", "start", vec![], &gas_id, sender, &sender_key);
+    assert_eq!(start_effects.created().len(), 2);
+    let (parent, wrapper) = parent_and_child(start_effects.created());
+
+    // `unwrap_receiver` receives the wrapper (a runtime load - not a declared
+    // input), destructures it, transfers the inner object onward, and deletes
+    // the wrapper's id.
+    let unwrap_effects = s.move_call(
+        "M2",
+        "unwrap_receiver",
+        vec![
+            CallArg::ImmutableOrOwned(parent.reference),
+            CallArg::Receiving(wrapper.reference),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+
+    // The consumed wrapper version is sheltered through the store fallback;
+    // since the inner object's bytes live inside the wrapper's, they are
+    // sheltered transitively - the only copy of them on this path.
+    s.assert_sheltered(wrapper.reference);
+    let wrapper_record = s
+        .epoch_store
+        .sync_record(wrapper.reference.object_id())
+        .unwrap()
+        .expect("the received-and-deleted wrapper must carry a sync-ahead record");
+    assert_eq!(wrapper_record.base_version, None);
+    assert_eq!(
+        wrapper_record.latest_created,
+        unwrap_effects.lamport_version()
+    );
+    assert!(
+        s.store_object(
+            wrapper.reference.object_id(),
+            unwrap_effects.lamport_version()
+        )
+        .is_none()
+    );
+
+    // The inner object surfaces for the first time as `unwrapped`: its very
+    // first store row is this version, so its record starts here - no base,
+    // nothing sheltered at its id.
+    let inner = unwrap_effects.unwrapped()[0].reference;
+    let inner_record = s
+        .epoch_store
+        .sync_record(inner.object_id())
+        .unwrap()
+        .expect("the unwrapped inner object must carry a sync-ahead record");
+    assert_eq!(inner_record.base_version, None);
+    assert_eq!(
+        inner_record.latest_created,
+        unwrap_effects.lamport_version()
+    );
+    s.assert_not_sheltered(inner);
+    assert!(s.store_object(inner.object_id(), inner.version).is_some());
 }
 
 #[tokio::test]
