@@ -312,6 +312,10 @@ pub struct AuthorityMetrics {
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
+    /// Checkpoint-inclusion waits that returned before the RPC indexes were
+    /// up to date. The caller's timeout ran out first.
+    pub(crate) checkpoint_inclusion_index_wait_timeouts: IntCounter,
+
     // Post processing metrics
     post_processing_total_events_emitted: IntCounter,
     post_processing_total_tx_had_event_processed: IntCounter,
@@ -707,6 +711,12 @@ impl AuthorityMetrics {
             skipped_consensus_txns_cache_hit: register_int_counter_with_registry!(
                 "skipped_consensus_txns_cache_hit",
                 "Total number of consensus transactions skipped because of local cache hit",
+                registry,
+            )
+                .unwrap(),
+            checkpoint_inclusion_index_wait_timeouts: register_int_counter_with_registry!(
+                "checkpoint_inclusion_index_wait_timeouts",
+                "Total number of checkpoint-inclusion waits that returned before the RPC indexes had caught up",
                 registry,
             )
                 .unwrap(),
@@ -3496,12 +3506,17 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?)
     }
 
-    /// Wait for the given transactions to be included in a checkpoint.
+    /// Wait until the given transactions are in a checkpoint and the RPC
+    /// indexes include that checkpoint.
     ///
     /// Returns a mapping from transaction digest to
     /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
     /// On timeout, returns partial results for any transactions that were
     /// already checkpointed.
+    ///
+    /// If the timeout runs out before the indexes include a checkpointed
+    /// transaction, the transaction is returned all the same, and the wait is
+    /// counted in `checkpoint_inclusion_index_wait_timeouts`.
     ///
     /// The wait survives epoch boundaries: a transaction in flight at a
     /// boundary may only be checkpointed in the next epoch, and still resolves
@@ -3512,6 +3527,42 @@ impl AuthorityState {
         timeout: Duration,
     ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
         let deadline = tokio::time::Instant::now() + timeout;
+        let results = self.wait_for_checkpoint_mapping(digests, deadline).await?;
+
+        // The index commit of a checkpoint comes before its
+        // `highest_executed_checkpoint` bump, and the stages run in checkpoint
+        // order. Thus the bump means "indexed through this checkpoint". The
+        // bump also happens on a node without indexes, so the wait cannot hang.
+        if let Some(max_seq) = results.values().map(|(seq, _)| *seq).max() {
+            let indexed = self
+                .checkpoint_store
+                .notify_read_executed_checkpoint(max_seq);
+            let all_checkpointed = digests.iter().all(|digest| results.contains_key(digest));
+            // A partial result means that the deadline passed during the
+            // inclusion wait. The caller sees that as a timeout. Report only
+            // a wait that got past inclusion.
+            if tokio::time::timeout_at(deadline, indexed).await.is_err() && all_checkpointed {
+                self.metrics.checkpoint_inclusion_index_wait_timeouts.inc();
+                warn!(
+                    checkpoint_seq = max_seq,
+                    "transactions are checkpointed but the RPC indexes have not caught up \
+                     within the timeout; reporting them without the read-after-write guarantee"
+                );
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Wait until each of `digests` is in a checkpoint, or until `deadline`
+    /// passes. Maps each found digest to `(checkpoint_sequence_number,
+    /// checkpoint_timestamp_ms)`. Unlike `wait_for_checkpoint_inclusion`, this
+    /// does not wait until the checkpoint is indexed.
+    pub(crate) async fn wait_for_checkpoint_mapping(
+        &self,
+        digests: &[TransactionDigest],
+        deadline: tokio::time::Instant,
+    ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
         let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
         let mut results = BTreeMap::new();
         let mut remaining = digests.to_vec();

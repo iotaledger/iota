@@ -194,7 +194,10 @@ async fn wait_for_checkpoint_inclusion_resolves_across_reconfiguration() {
     let state = authority_state.clone();
     let waiter = tokio::spawn(async move {
         state
-            .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(30))
+            .wait_for_checkpoint_mapping(
+                &[digest],
+                tokio::time::Instant::now() + Duration::from_secs(30),
+            )
             .await
     });
     // Let the waiter register on the current (soon-to-be-old) epoch store.
@@ -218,7 +221,7 @@ async fn wait_for_checkpoint_inclusion_resolves_across_reconfiguration() {
         .await
         .expect("wait did not resolve promptly after reconfiguration")
         .expect("waiter task panicked")
-        .expect("wait_for_checkpoint_inclusion returned error");
+        .expect("wait_for_checkpoint_mapping returned error");
     assert_eq!(results.get(&digest), Some(&(seq, ts)));
 }
 
@@ -232,7 +235,10 @@ async fn wait_for_checkpoint_inclusion_recovers_mapping_from_old_epoch_store() {
     let state = authority_state.clone();
     let waiter = tokio::spawn(async move {
         state
-            .wait_for_checkpoint_inclusion(&[digest], Duration::from_secs(30))
+            .wait_for_checkpoint_mapping(
+                &[digest],
+                tokio::time::Instant::now() + Duration::from_secs(30),
+            )
             .await
     });
     // Let the waiter register on the current (soon-to-be-old) epoch store.
@@ -260,7 +266,7 @@ async fn wait_for_checkpoint_inclusion_recovers_mapping_from_old_epoch_store() {
         .await
         .expect("wait did not resolve promptly after reconfiguration")
         .expect("waiter task panicked")
-        .expect("wait_for_checkpoint_inclusion returned error");
+        .expect("wait_for_checkpoint_mapping returned error");
     // No checkpoint summary exists in this test, so the timestamp resolves
     // to the 0 fallback.
     assert_eq!(results.get(&digest), Some(&(seq, 0)));
