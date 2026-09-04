@@ -16,7 +16,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::ValueEnum;
 use fastcrypto::{hash::MultisetHash, traits::ToFromBytes};
 use futures::{
@@ -50,7 +50,7 @@ use iota_sdk_types::{
 use iota_snapshot::{
     VerifiedEpochInfo,
     progress::{ProgressTicker, ProgressUnit, make_multi_progress, println_or_log},
-    reader::StateSnapshotReaderV1,
+    reader::{StateAccumulatorSender, StateSnapshotReaderV1},
     restore::RestoreWithGrpcIndexes,
     setup_db_state,
 };
@@ -76,7 +76,10 @@ use iota_types::{
 use itertools::Itertools;
 use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
-use tokio::{sync::mpsc, time::Instant};
+use tokio::{
+    sync::{mpsc, oneshot},
+    time::Instant,
+};
 use typed_store::rocks::bulk_ingestion_options;
 
 pub mod commands;
@@ -928,34 +931,53 @@ pub async fn download_formal_snapshot(
     // TODO if verify is false, we should skip generating these and
     // not pass in a channel to the reader
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads.get());
+    let (accumulation_done_sender, accumulation_done_receiver) = oneshot::channel();
     let grpc_indexes_clone = grpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {
+        let accumulator = Some(StateAccumulatorSender {
+            partials: sender,
+            completion: accumulation_done_sender,
+        });
         if let Some(grpc_indexes) = &grpc_indexes_clone {
             let grpc_restorer =
                 grpc_indexes.live_object_restorer(bulk_ingestion_options().batch_size_limit);
             let restore_target = RestoreWithGrpcIndexes::new(&perpetual_db_clone, &grpc_restorer);
             reader
-                .read_to_db(&restore_target, abort_registration, Some(sender))
+                .read_to_db(&restore_target, abort_registration, accumulator)
                 .await
-                .unwrap_or_else(|err| panic!("Failed during read: {err}"));
+                .context("Failed to read snapshot")?;
             grpc_restorer
                 .finish()
-                .unwrap_or_else(|err| panic!("Failed to flush the gRPC coin index: {err}"));
+                .context("Failed to flush the gRPC coin index")?;
         } else {
             reader
-                .read(&perpetual_db_clone, abort_registration, Some(sender))
+                .read(&perpetual_db_clone, abort_registration, accumulator)
                 .await
-                .unwrap_or_else(|err| panic!("Failed during read: {err}"));
+                .context("Failed to read snapshot")?;
         }
 
         Ok::<(), anyhow::Error>(())
     });
+    // The partial hashes must be drained before the completion signal is
+    // awaited: the reader's accumulation tasks block on this bounded channel
+    // and only signal completion after the last of them, so awaiting
+    // completion first would deadlock the restore.
     let mut root_global_state_hash = GlobalStateHash::default();
     let mut num_live_objects = 0;
     while let Some((partial_hash, num_objects)) = receiver.recv().await {
         num_live_objects += num_objects;
         root_global_state_hash.union(&partial_hash);
+    }
+    // A dropped completion sender means the restore failed before every
+    // partial hash was sent, so the hash accumulated above is incomplete —
+    // surface the restore's own error rather than the digest mismatch its
+    // partial hash would produce below.
+    if accumulation_done_receiver.await.is_err() {
+        snapshot_handle
+            .await
+            .map_err(|error| anyhow!("Snapshot task failed: {error}"))??;
+        return Err(anyhow!("Snapshot accumulation did not complete"));
     }
 
     let last_checkpoint = checkpoint_store
@@ -1018,8 +1040,7 @@ pub async fn download_formal_snapshot(
 
     snapshot_handle
         .await
-        .expect("Task join failed")
-        .expect("Snapshot restore task failed");
+        .map_err(|error| anyhow!("Snapshot restore task failed: {error}"))??;
 
     setup_db_state(
         epoch,
