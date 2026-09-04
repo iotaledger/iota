@@ -120,3 +120,18 @@ pub(crate) fn page_token_mismatch() -> RpcError {
 pub(crate) fn object_id_proto(id: &ObjectId) -> ProtoObjectId {
     ProtoObjectId::default().with_object_id(id.into_bytes().to_vec())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `None` and `Some(0)` fall back to the default; positive sizes pass
+    /// through up to `max` and are clamped above it.
+    #[test]
+    fn validate_page_size_defaults_and_clamps() {
+        assert_eq!(validate_page_size(None, 50, 1000), 50);
+        assert_eq!(validate_page_size(Some(0), 50, 1000), 50);
+        assert_eq!(validate_page_size(Some(7), 50, 1000), 7);
+        assert_eq!(validate_page_size(Some(5000), 50, 1000), 1000);
+    }
+}
