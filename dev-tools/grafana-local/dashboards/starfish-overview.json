@@ -1858,7 +1858,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Distribution of the number of consensus commits coalesced into each checkpoint (`commits_per_checkpoint`). Each cell shows the rate of checkpoints whose commit count fell in the bucket on the Y axis. Buckets are 1..10 with a +Inf overflow (10+). At ~20 commits/s against the ~5 checkpoints/s cap, most checkpoints coalesce 3-5 commits (average ~4); a bimodal spread \u2014 many single-commit checkpoints plus a tail toward 10+ \u2014 indicates clustering.",
+      "description": "Distribution of the number of consensus commits coalesced into each checkpoint (`commits_per_checkpoint`). Each cell shows the rate of checkpoints whose commit count fell in the bucket on the Y axis. Buckets are 1..10 with a +Inf overflow (10+). At ~20 commits/s against the ~5 checkpoints/s cap, most checkpoints coalesce 3-5 commits (average ~4); a bimodal spread — many single-commit checkpoints plus a tail toward 10+ — indicates clustering.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -8658,7 +8658,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Rate at which validators request shards from each author.",
+          "description": "Peers each validator asks for one author's shards; 0 while no selection is active (too few measured peers or nothing missing).",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -8714,11 +8714,11 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
+            "w": 6,
             "x": 12,
             "y": 334
           },
-          "id": 218,
+          "id": 435,
           "options": {
             "legend": {
               "calcs": [],
@@ -8727,8 +8727,8 @@
               "showLegend": true
             },
             "tooltip": {
-              "mode": "single",
-              "sort": "none"
+              "mode": "multi",
+              "sort": "desc"
             }
           },
           "targets": [
@@ -8740,17 +8740,117 @@
               "disableTextWrap": false,
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum by (author)(rate(consensus_cordial_knowledge_useful_shards_authors[2m]))",
+              "expr": "max by (host) (consensus_cordial_knowledge_selected_shard_peers)",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
-              "legendFormat": "{{author}}",
+              "legendFormat": "{{host}}",
               "range": true,
               "refId": "A",
               "useBackend": false
             }
           ],
-          "title": "Useful shard authors over time",
+          "title": "Shard peers selected per author",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Block-stream latency of the slowest peer a validator had to include to cover shard count and stake for reconstruction.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 334
+          },
+          "id": 436,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "max by (host) (consensus_cordial_knowledge_shard_selection_latency_ms)",
+              "fullMetaSearch": false,
+              "includeNullMetadata": true,
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A",
+              "useBackend": false
+            }
+          ],
+          "title": "Shard selection latency",
           "type": "timeseries"
         },
         {
@@ -16015,7 +16115,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Rate of counts instances where commit sync couldn\u2019t proceed due to a gap in block sequence",
+          "description": "Rate of counts instances where commit sync couldn’t proceed due to a gap in block sequence",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -16111,7 +16211,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Rate of counts instances where commit sync couldn\u2019t proceed due to a gap in block sequence",
+          "description": "Rate of counts instances where commit sync couldn’t proceed due to a gap in block sequence",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21771,7 +21871,7 @@
               "refId": "A"
             }
           ],
-          "title": "Transaction synchronizer \u2014 expected fetch latency (uniform vs weighted)",
+          "title": "Transaction synchronizer — expected fetch latency (uniform vs weighted)",
           "type": "timeseries"
         },
         {
@@ -21899,7 +21999,7 @@
               "refId": "A"
             }
           ],
-          "title": "Commit syncer \u2014 expected fetch latency (uniform vs weighted)",
+          "title": "Commit syncer — expected fetch latency (uniform vs weighted)",
           "type": "timeseries"
         },
         {
@@ -22027,7 +22127,7 @@
               "refId": "A"
             }
           ],
-          "title": "Fast commit syncer \u2014 expected fetch latency (uniform vs weighted)",
+          "title": "Fast commit syncer — expected fetch latency (uniform vs weighted)",
           "type": "timeseries"
         },
         {
@@ -22155,7 +22255,7 @@
               "refId": "A"
             }
           ],
-          "title": "Header synchronizer \u2014 expected fetch latency (uniform vs weighted)",
+          "title": "Header synchronizer — expected fetch latency (uniform vs weighted)",
           "type": "timeseries"
         }
       ],

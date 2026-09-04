@@ -857,6 +857,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .latency_to_process_stream_by_peer
             .with_label_values(&[peer_hostname.as_str()])
             .observe(latency_to_process_stream.as_secs_f64());
+        self.context
+            .peer_responsiveness
+            .record_streaming_block_delivery(peer, latency_to_process_stream);
 
         // 3. Create block headers from bytes from a bundle
 
@@ -3822,13 +3825,18 @@ mod tests {
                 (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
             ]),
-            useful_shards_from_peer: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
         {
             let mut connection_knowledge = connection_knowledge.write();
             connection_knowledge.process_one_message(msg);
             connection_knowledge.process_one_message(
                 ConnectionKnowledgeMessage::SetUsefulHeadersFromPeer(BTreeMap::from([
+                    (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
+                    (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
+                ])),
+            );
+            connection_knowledge.process_one_message(
+                ConnectionKnowledgeMessage::SetUsefulShardsFromPeer(BTreeMap::from([
                     (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
                     (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
                 ])),
