@@ -4059,9 +4059,8 @@ impl AuthorityState {
         cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
-        let cursor_u = cursor.unwrap_or(ObjectId::ZERO);
         if let Some(indexes) = &self.indexes {
-            indexes.get_owner_objects_iterator(owner, cursor_u, filter)
+            indexes.get_owner_objects_iterator(owner, cursor, filter)
         } else {
             Err(IotaError::IndexStoreNotAvailable)
         }
