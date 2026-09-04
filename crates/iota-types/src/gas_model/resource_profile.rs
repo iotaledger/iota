@@ -37,12 +37,16 @@ pub struct ResourceProfile {
     pub interp_instruction_count: u64,
     pub interp_stack_size_flow: u64,
     pub interp_stack_height_flow: u64,
-    /// Abstract size of the arguments passed to hashing natives
-    /// (`0x1::hash`, `0x2::hash`, `0x2::hmac`) — the bytes those natives
-    /// stream. Feeds the memory-bandwidth dimension's per-transaction moved-bytes sum;
-    /// recorded only, never a fit predictor (it is one half of an identity
-    /// pair with the per-function hash gas).
-    pub hash_input_bytes: u64,
+    /// Abstract size of the argument values passed to each native function,
+    /// keyed like `native_calls_by_function`. Sizes are taken through
+    /// references (a `&vector<u8>` argument counts the vector's bytes, not
+    /// the reference), so this is the input the native actually consumes —
+    /// deterministic, like all abstract sizes. Together with the call count
+    /// it prices native work directly (per call + per input byte),
+    /// independent of the gas cost parameters; for streaming natives
+    /// (hashing) it also feeds the memory-bandwidth dimension's per-function
+    /// moved-bytes weights.
+    pub native_input_bytes_by_function: BTreeMap<String, u64>,
     /// Internal gas deducted by native functions (tiering-correct: the gas
     /// actually charged, not the pre-tiering declared amount). Together with
     /// `interpreter_gas` and the per-byte charges, this sums to the total
