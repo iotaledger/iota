@@ -872,18 +872,58 @@ where
         );
         self.tasks.spawn(task);
 
+        if let Some(highest_known_checkpoint) = self
+            .peer_heights
+            .read()
+            .unwrap()
+            .highest_known_checkpoint_sequence_number()
+        {
+            self.metrics
+                .set_highest_known_checkpoint(highest_known_checkpoint);
+        }
+
+        // Peers push their latest checkpoint as they sync it, and nothing
+        // reads the ones above the sync target until execution advances. Drop
+        // them here rather than next to the gate, which does not run while a
+        // summary sync task is in flight — and one of those can run for a
+        // whole bound's worth of checkpoints.
+        if let Some(highest_checkpoint_to_sync) = self.highest_checkpoint_to_sync() {
+            self.peer_heights
+                .write()
+                .unwrap()
+                .cleanup_checkpoints_above(highest_checkpoint_to_sync);
+        }
+
         if let Some(layer) = self.download_limit_layer.as_ref() {
             layer.maybe_prune_map();
         }
+    }
+
+    /// The highest checkpoint state sync may take on right now: the highest
+    /// one known to be on peers, held back to
+    /// `max_checkpoints_ahead_of_execution` above the executed watermark.
+    /// `None` when no peer on our chain is known.
+    fn highest_checkpoint_to_sync(&self) -> Option<CheckpointSequenceNumber> {
+        let highest_known_checkpoint = self
+            .peer_heights
+            .read()
+            .unwrap()
+            .highest_known_checkpoint_sequence_number()?;
+        let highest_executed_checkpoint = self
+            .store
+            .try_get_highest_executed_checkpoint_seq_number()
+            .expect("store operation should not fail");
+        Some(checkpoint_sync_target(
+            highest_known_checkpoint,
+            highest_executed_checkpoint,
+            self.config.max_checkpoints_ahead_of_execution(),
+        ))
     }
 
     /// Starts syncing checkpoint summaries if there are peers that have a
     /// higher known checkpoint than us, up to
     /// `max_checkpoints_ahead_of_execution` above the executed watermark. Only
     /// one sync task is allowed to run at a time.
-    ///
-    /// Also drops the summaries peers pushed above that point, since nothing
-    /// reads them until execution advances.
     fn maybe_start_checkpoint_summary_sync_task(&mut self) {
         // Only run one sync task at a time
         if self.sync_checkpoint_summaries_task.is_some() {
@@ -895,29 +935,9 @@ where
             .try_get_highest_verified_checkpoint()
             .expect("store operation should not fail");
 
-        let highest_known_checkpoint = self
-            .peer_heights
-            .read()
-            .unwrap()
-            .highest_known_checkpoint_sequence_number();
-        let Some(highest_known_checkpoint) = highest_known_checkpoint else {
+        let Some(target) = self.highest_checkpoint_to_sync() else {
             return;
         };
-        self.metrics
-            .set_highest_known_checkpoint(highest_known_checkpoint);
-        let highest_executed_checkpoint = self
-            .store
-            .try_get_highest_executed_checkpoint_seq_number()
-            .expect("store operation should not fail");
-        let target = checkpoint_sync_target(
-            highest_known_checkpoint,
-            highest_executed_checkpoint,
-            self.config.max_checkpoints_ahead_of_execution(),
-        );
-        self.peer_heights
-            .write()
-            .unwrap()
-            .cleanup_checkpoints_above(target);
 
         if highest_processed_checkpoint.sequence_number() < target {
             // Start sync job
