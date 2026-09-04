@@ -1480,6 +1480,9 @@ create_account_v1
 create_immutable_account_v1
 	public fun
 	0x2::account
+create_account_v1_internal
+	public(package) fun
+	0x2::account
 rotate_auth_function_ref_v1
 	public fun
 	0x2::account
@@ -3679,6 +3682,12 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
+SmartAccountClaimed
+	public struct
+	0x2::smart_account
+SmartAccountCreated
+	public struct
+	0x2::smart_account
 SmartAccount
 	public struct
 	0x2::smart_account
@@ -3702,6 +3711,9 @@ build_v1
 	0x2::smart_account
 build_immutable_v1
 	public fun
+	0x2::smart_account
+build_v1_internal
+	public(package) fun
 	0x2::smart_account
 account_address
 	public fun
