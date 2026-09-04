@@ -163,16 +163,21 @@ impl From<Error> for RpcError {
             },
             Error::QuorumDriver(err) => {
                 let error_msg = err.to_error_message();
+                // Machine-readable discriminant: the codes below are shared
+                // between variants, so clients disambiguate via
+                // `data.reason` instead of parsing the message.
+                let reason = serde_json::json!({ "reason": err.reason() });
 
                 match err {
                     QuorumDriverError::InvalidUserSignature { .. }
                     | QuorumDriverError::InvalidTransaction { .. }
+                    | QuorumDriverError::RejectedByValidators { .. }
                     | QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures
                     | QuorumDriverError::NonRecoverableTransactionError { .. } => {
-                        let error_object = ErrorObject::owned::<()>(
+                        let error_object = ErrorObject::owned(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
                             error_msg,
-                            None,
+                            Some(reason),
                         );
                         RpcError::Call(error_object)
                     }
@@ -199,7 +204,7 @@ impl From<Error> for RpcError {
                     | QuorumDriverError::SystemOverload { .. }
                     | QuorumDriverError::SystemOverloadRetryAfter { .. } => {
                         let error_object =
-                            ErrorObject::owned::<()>(TRANSIENT_ERROR_CODE, error_msg, None);
+                            ErrorObject::owned(TRANSIENT_ERROR_CODE, error_msg, Some(reason));
                         RpcError::Call(error_object)
                     }
                     QuorumDriverError::QuorumDriverInternal(_) => {
@@ -332,6 +337,36 @@ mod tests {
                 "Invalid user signature: Signature is not valid: Test inner invalid signature"
             ];
             expected_message.assert_eq(error_object.message());
+            let expected_data = expect![[r#"{"reason":"invalid_user_signature"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
+        }
+
+        #[test]
+        fn test_invalid_transaction_vs_rejected_by_validators() {
+            // Same rendered code and message; only `data.reason` tells a
+            // locally proven invalid transaction apart from one rejected by
+            // the polled validators.
+            let inner = || IotaError::Unknown("Test rejection".to_string());
+
+            let error_object = error_object_from_rpc(
+                Error::QuorumDriver(QuorumDriverError::InvalidTransaction(inner())).into(),
+            );
+            let expected_code = expect!["-32002"];
+            expected_code.assert_eq(&error_object.code().to_string());
+            let expected_message = expect!["Invalid transaction: unknown error: Test rejection"];
+            expected_message.assert_eq(error_object.message());
+            let expected_data = expect![[r#"{"reason":"invalid_transaction"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
+
+            let error_object = error_object_from_rpc(
+                Error::QuorumDriver(QuorumDriverError::RejectedByValidators(inner())).into(),
+            );
+            let expected_code = expect!["-32002"];
+            expected_code.assert_eq(&error_object.code().to_string());
+            let expected_message = expect!["Invalid transaction: unknown error: Test rejection"];
+            expected_message.assert_eq(error_object.message());
+            let expected_data = expect![[r#"{"reason":"rejected_by_validators"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
         }
 
         #[test]
@@ -345,6 +380,8 @@ mod tests {
             expected_code.assert_eq(&error_object.code().to_string());
             let expected_message = expect!["Transaction timed out before reaching finality"];
             expected_message.assert_eq(error_object.message());
+            let expected_data = expect![[r#"{"reason":"timeout_before_finality"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
         }
 
         #[test]
@@ -363,6 +400,9 @@ mod tests {
                 "Transaction failed to reach finality with transient error after 10 attempts."
             ];
             expected_message.assert_eq(error_object.message());
+            let expected_data =
+                expect![[r#"{"reason":"failed_with_transient_error_after_maximum_attempts"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
         }
 
         #[test]
@@ -482,6 +522,8 @@ mod tests {
                 "Transaction execution failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 10"
             ];
             expected_message.assert_eq(error_object.message());
+            let expected_data = expect![[r#"{"reason":"non_recoverable_transaction_error"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
         }
 
         #[test]
@@ -547,6 +589,8 @@ mod tests {
                 "Transaction is not processed because 10 of validators by stake are overloaded with certificates pending execution."
             ];
             expected_message.assert_eq(error_object.message());
+            let expected_data = expect![[r#"{"reason":"system_overload"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
         }
     }
 }
