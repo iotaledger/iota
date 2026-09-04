@@ -346,11 +346,13 @@ impl Display for ObjectChange {
     }
 }
 
-impl From<iota_sdk_types::ObjectChange> for ObjectChange {
-    fn from(change: iota_sdk_types::ObjectChange) -> Self {
-        use iota_sdk_types::ObjectChange as Derived;
-        match change {
-            Derived::Published {
+impl TryFrom<iota_sdk_types::ObjectChange> for ObjectChange {
+    type Error = anyhow::Error;
+
+    fn try_from(change: iota_sdk_types::ObjectChange) -> std::result::Result<Self, Self::Error> {
+        use iota_sdk_types::ObjectChange as SdkObjectChange;
+        Ok(match change {
+            SdkObjectChange::Published {
                 package_id,
                 version,
                 digest,
@@ -361,7 +363,7 @@ impl From<iota_sdk_types::ObjectChange> for ObjectChange {
                 digest,
                 modules,
             },
-            Derived::Mutated {
+            SdkObjectChange::Mutated {
                 sender,
                 owner,
                 object_type,
@@ -378,7 +380,7 @@ impl From<iota_sdk_types::ObjectChange> for ObjectChange {
                 previous_version,
                 digest,
             },
-            Derived::Deleted {
+            SdkObjectChange::Deleted {
                 sender,
                 object_type,
                 object_id,
@@ -389,7 +391,7 @@ impl From<iota_sdk_types::ObjectChange> for ObjectChange {
                 object_id,
                 version,
             },
-            Derived::Wrapped {
+            SdkObjectChange::Wrapped {
                 sender,
                 object_type,
                 object_id,
@@ -400,7 +402,7 @@ impl From<iota_sdk_types::ObjectChange> for ObjectChange {
                 object_id,
                 version,
             },
-            Derived::Unwrapped {
+            SdkObjectChange::Unwrapped {
                 sender,
                 owner,
                 object_type,
@@ -415,7 +417,7 @@ impl From<iota_sdk_types::ObjectChange> for ObjectChange {
                 version,
                 digest,
             },
-            Derived::Created {
+            SdkObjectChange::Created {
                 sender,
                 owner,
                 object_type,
@@ -430,9 +432,14 @@ impl From<iota_sdk_types::ObjectChange> for ObjectChange {
                 version,
                 digest,
             },
-            _ => {
-                unimplemented!("a new ObjectChange enum variant was added and needs to be handled")
+            // `iota_sdk_types::ObjectChange` is `#[non_exhaustive]`, so this
+            // arm is required. Reporting an error rather than panicking keeps
+            // an added upstream variant a failed conversion.
+            change => {
+                return Err(anyhow::anyhow!(
+                    "unhandled iota_sdk_types::ObjectChange variant: {change:?}"
+                ));
             }
-        }
+        })
     }
 }
