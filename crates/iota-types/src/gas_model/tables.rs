@@ -115,6 +115,7 @@ pub struct GasStatus {
     pending_native_function: String,
     native_gas_by_function: BTreeMap<String, u64>,
     native_calls_by_function: BTreeMap<String, u64>,
+    native_input_bytes_by_function: BTreeMap<String, u64>,
     input_object_count: u64,
     input_object_bytes: u64,
     child_object_reads: u64,
@@ -124,7 +125,6 @@ pub struct GasStatus {
     package_bytes_loaded: u64,
     event_count: u64,
     event_bytes: u64,
-    hash_input_bytes: u64,
 }
 
 impl GasStatus {
@@ -178,6 +178,7 @@ impl GasStatus {
             pending_native_function: String::new(),
             native_gas_by_function: BTreeMap::new(),
             native_calls_by_function: BTreeMap::new(),
+            native_input_bytes_by_function: BTreeMap::new(),
             input_object_count: 0,
             input_object_bytes: 0,
             child_object_reads: 0,
@@ -187,7 +188,6 @@ impl GasStatus {
             package_bytes_loaded: 0,
             event_count: 0,
             event_bytes: 0,
-            hash_input_bytes: 0,
         }
     }
 
@@ -230,6 +230,7 @@ impl GasStatus {
             pending_native_function: String::new(),
             native_gas_by_function: BTreeMap::new(),
             native_calls_by_function: BTreeMap::new(),
+            native_input_bytes_by_function: BTreeMap::new(),
             input_object_count: 0,
             input_object_bytes: 0,
             child_object_reads: 0,
@@ -239,7 +240,6 @@ impl GasStatus {
             package_bytes_loaded: 0,
             event_count: 0,
             event_bytes: 0,
-            hash_input_bytes: 0,
         }
     }
 
@@ -582,21 +582,19 @@ impl GasStatus {
         self.pending_native_function.push_str(function_name);
     }
 
-    /// True when the pending native (set by `set_pending_native_function`)
-    /// is one whose input is streamed byte-by-byte: the `0x1::hash` and
-    /// `0x2::hash` families and `0x2::hmac`. System addresses, so no user
-    /// package can alias these module ids.
-    pub fn pending_native_streams_input(&self) -> bool {
-        ["0x1::hash::", "0x2::hash::", "0x2::hmac::"]
-            .iter()
-            .any(|m| self.pending_native_function.starts_with(m))
-    }
-
-    /// Record the abstract size of a hashing native's arguments, for the
-    /// memory-bandwidth component of [`ResourceProfile`]. Profile-only;
-    /// charges nothing.
-    pub fn record_hash_input_bytes(&mut self, bytes: u64) {
-        self.hash_input_bytes = self.hash_input_bytes.saturating_add(bytes);
+    /// Record the abstract size of the pending native's argument values (the
+    /// bytes the native actually consumes, sizes taken through references),
+    /// attributed to the pending function. Profile-only; charges nothing.
+    pub fn record_native_input_bytes(&mut self, bytes: u64) {
+        if let Some(per_function) = self
+            .native_input_bytes_by_function
+            .get_mut(&self.pending_native_function)
+        {
+            *per_function = per_function.saturating_add(bytes);
+        } else {
+            self.native_input_bytes_by_function
+                .insert(self.pending_native_function.clone(), bytes);
+        }
     }
 
     /// Attribute the internal gas deducted for a native call to the pending
@@ -705,7 +703,7 @@ impl GasStatus {
             deleted_object_count: 0,
             event_count: self.event_count,
             event_bytes: self.event_bytes,
-            hash_input_bytes: self.hash_input_bytes,
+            native_input_bytes_by_function: self.native_input_bytes_by_function.clone(),
         }
     }
 }
@@ -1000,28 +998,40 @@ mod tests {
     }
 
     #[test]
-    fn hash_input_bytes_counted_for_hashing_natives_only() {
+    fn native_input_bytes_attributed_per_function() {
         let cost_table = initial_cost_schedule_v1();
         let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
         let before = status.gas_used_pre_gas_price();
 
         status.set_pending_native_function("0x2::hash", "keccak256");
-        assert!(status.pending_native_streams_input());
-        status.record_hash_input_bytes(512);
+        status.record_native_input_bytes(512);
+        status.record_native_input_bytes(512);
         status.set_pending_native_function("0x1::hash", "sha2_256");
-        assert!(status.pending_native_streams_input());
-        status.record_hash_input_bytes(256);
-        status.set_pending_native_function("0x2::hmac", "hmac_sha3_256");
-        assert!(status.pending_native_streams_input());
-
-        // Non-hashing natives — including a user module named `hash` at a
-        // non-system address — do not stream.
-        status.set_pending_native_function("0x2::bls12381", "bls12381_min_sig_verify");
-        assert!(!status.pending_native_streams_input());
-        status.set_pending_native_function("0xabc::hash", "keccak256");
-        assert!(!status.pending_native_streams_input());
+        status.record_native_input_bytes(256);
+        // A native with no arguments still records its (zero) entry, so the
+        // key set matches the calls map.
+        status.set_pending_native_function("0x2::tx_context", "fresh_id");
+        status.record_native_input_bytes(0);
 
         assert_eq!(status.gas_used_pre_gas_price(), before);
-        assert_eq!(status.resource_profile().hash_input_bytes, 768);
+        let profile = status.resource_profile();
+        assert_eq!(
+            profile
+                .native_input_bytes_by_function
+                .get("0x2::hash::keccak256"),
+            Some(&1024)
+        );
+        assert_eq!(
+            profile
+                .native_input_bytes_by_function
+                .get("0x1::hash::sha2_256"),
+            Some(&256)
+        );
+        assert_eq!(
+            profile
+                .native_input_bytes_by_function
+                .get("0x2::tx_context::fresh_id"),
+            Some(&0)
+        );
     }
 }
