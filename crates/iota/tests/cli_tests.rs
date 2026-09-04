@@ -4476,6 +4476,33 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
 
 // The local dry-run resolves objects over gRPC via `block_in_place`, which
 // needs a real multi-threaded runtime; the msim simulator provides neither.
+/// Point the wallet's active env at the cluster's own gRPC endpoint, which
+/// `--local` needs to resolve objects.
+#[cfg(not(msim))]
+fn point_env_at_grpc(test_cluster: &mut TestCluster) -> Result<(), anyhow::Error> {
+    let grpc_url = test_cluster.grpc_url();
+    let context = &mut test_cluster.wallet;
+    let mut env = context.config().get_active_env()?.clone();
+    env.set_grpc(Some(grpc_url));
+    context.config_mut().set_env(env);
+    Ok(())
+}
+
+/// Object changes in a comparable order: the two dry-run backends may report
+/// them in different orders.
+#[cfg(not(msim))]
+fn sorted_by_object_id(mut changes: Vec<ObjectChange>) -> Vec<ObjectChange> {
+    changes.sort_by_key(|change| change.object_id());
+    changes
+}
+
+/// Balance changes in a comparable order, for the same reason.
+#[cfg(not(msim))]
+fn sorted_by_owner_and_coin(mut changes: Vec<BalanceChange>) -> Vec<BalanceChange> {
+    changes.sort_by_key(|change| (format!("{:?}", change.owner), change.coin_type.to_string()));
+    changes
+}
+
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> {
@@ -4491,12 +4518,8 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
             .await;
         let rgp = test_cluster.get_reference_gas_price().await;
         let address = test_cluster.get_address_0();
-        let grpc_url = test_cluster.grpc_url();
+        point_env_at_grpc(&mut test_cluster)?;
         let context = &mut test_cluster.wallet;
-
-        let mut env = context.config().get_active_env()?.clone();
-        env.set_grpc(Some(grpc_url));
-        context.config_mut().set_env(env);
 
         let client = context.get_client().await?;
         let object_refs = client
@@ -4553,24 +4576,14 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
         assert_eq!(node_response.input, local_response.input);
         assert_eq!(node_response.events, local_response.events);
 
-        let sorted_object_changes = |mut changes: Vec<ObjectChange>| {
-            changes.sort_by_key(|change| change.object_id());
-            changes
-        };
         assert_eq!(
-            sorted_object_changes(node_response.object_changes),
-            sorted_object_changes(local_response.object_changes)
+            sorted_by_object_id(node_response.object_changes),
+            sorted_by_object_id(local_response.object_changes)
         );
 
-        let sorted_balance_changes = |mut changes: Vec<BalanceChange>| {
-            changes.sort_by_key(|change| {
-                (format!("{:?}", change.owner), change.coin_type.to_string())
-            });
-            changes
-        };
         assert_eq!(
-            sorted_balance_changes(node_response.balance_changes),
-            sorted_balance_changes(local_response.balance_changes)
+            sorted_by_owner_and_coin(node_response.balance_changes),
+            sorted_by_owner_and_coin(local_response.balance_changes)
         );
 
         // No mutable shared input, so both paths suggest the reference gas price.
@@ -4652,12 +4665,8 @@ async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result
             .await;
         let rgp = test_cluster.get_reference_gas_price().await;
         let address = test_cluster.get_address_0();
-        let grpc_url = test_cluster.grpc_url();
+        point_env_at_grpc(&mut test_cluster)?;
         let context = &mut test_cluster.wallet;
-
-        let mut env = context.config().get_active_env()?.clone();
-        env.set_grpc(Some(grpc_url));
-        context.config_mut().set_env(env);
 
         let client = context.get_client().await?;
         let gas_id = client
@@ -4740,23 +4749,13 @@ async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result
             "the receive must succeed for this comparison to mean anything"
         );
         assert_eq!(node_receive.effects, local_receive.effects);
-        let by_object_id = |mut changes: Vec<ObjectChange>| {
-            changes.sort_by_key(|change| change.object_id());
-            changes
-        };
         assert_eq!(
-            by_object_id(node_receive.object_changes),
-            by_object_id(local_receive.object_changes)
+            sorted_by_object_id(node_receive.object_changes),
+            sorted_by_object_id(local_receive.object_changes)
         );
-        let by_owner_and_coin = |mut changes: Vec<BalanceChange>| {
-            changes.sort_by_key(|change| {
-                (format!("{:?}", change.owner), change.coin_type.to_string())
-            });
-            changes
-        };
         assert_eq!(
-            by_owner_and_coin(node_receive.balance_changes),
-            by_owner_and_coin(local_receive.balance_changes)
+            sorted_by_owner_and_coin(node_receive.balance_changes),
+            sorted_by_owner_and_coin(local_receive.balance_changes)
         );
 
         Ok(())

@@ -659,10 +659,9 @@ pub struct TxProcessingArgs {
     /// Perform a dev inspect of the transaction, without executing it.
     #[arg(long)]
     pub dev_inspect: bool,
-    /// Simulate the transaction locally through the Move VM instead of on the
-    /// node. Only valid together with --dry-run. Requires a `grpc` URL to be
-    /// configured for the active env, from which objects and chain parameters
-    /// are resolved.
+    /// Run the simulation locally through the Move VM instead of on the node.
+    /// Supported with --dry-run. Requires a `grpc` URL configured for the
+    /// active env, from which objects and chain parameters are resolved.
     #[arg(long, requires = "dry_run", conflicts_with = "dev_inspect")]
     pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
@@ -3174,11 +3173,15 @@ fn format_balance(
     format!("{whole}.{fractional}{suffix}")
 }
 
-/// Helper function to reduce code duplication for executing dry run
-/// Cap the gas budget of a simulation without an explicit `--gas-budget` at
-/// the total balance of the gas coins it was given, warning when the cap binds:
-/// a budget equal to the whole balance leaves nothing to split off.
-pub(crate) fn cap_gas_budget_to_balance(balance: u64, max_gas_budget: u64) -> u64 {
+/// The gas budget for a simulation that was given no explicit `--gas-budget`:
+/// the protocol maximum, capped at the total balance of the gas coins the
+/// transaction carries, or that maximum outright when it carries none. Warns
+/// when the cap binds, since a budget equal to the whole balance leaves
+/// nothing to split off.
+pub(crate) fn fallback_gas_budget(payment_balance: Option<u64>, max_gas_budget: u64) -> u64 {
+    let Some(balance) = payment_balance else {
+        return max_gas_budget;
+    };
     let gas_budget = min(balance, max_gas_budget);
     if gas_budget == balance {
         let warn_msg = format!(
@@ -3190,6 +3193,7 @@ pub(crate) fn cap_gas_budget_to_balance(balance: u64, max_gas_budget: u64) -> u6
     gas_budget
 }
 
+/// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
     context: &mut WalletContext,
     signer: Address,
@@ -3204,10 +3208,10 @@ pub async fn execute_dry_run(
         Some(gas_budget) => gas_budget,
         None => {
             let max_gas_budget = max_gas_budget(&client).await?;
-            if gas_payment.is_empty() {
-                max_gas_budget
+            let payment_balance = if gas_payment.is_empty() {
+                None
             } else {
-                let mut gas_budget = 0;
+                let mut balance = 0;
                 let gas_coins = client
                     .read_api()
                     .multi_get_object_with_options(
@@ -3219,15 +3223,16 @@ pub async fn execute_dry_run(
                     )
                     .await?;
                 for gas_coin in gas_coins {
-                    gas_budget += get_gas_balance(
+                    balance += get_gas_balance(
                         &gas_coin
                             .into_object()?
                             .try_into()
                             .expect("couldn't convert gas coin into object"),
                     )?
                 }
-                cap_gas_budget_to_balance(gas_budget, max_gas_budget)
-            }
+                Some(balance)
+            };
+            fallback_gas_budget(payment_balance, max_gas_budget)
         }
     };
     debug!("Gas budget for dry run: {gas_budget}");
@@ -3383,9 +3388,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
+    // `--local` picks the local backend for whichever simulation mode was
+    // asked for, so the condition lists the modes that have one. `iota client
+    // ptb` builds its flags by hand, so clap's `requires` and
+    // `conflicts_with` on `--local` do not apply there.
     ensure!(
         !local || (dry_run && !dev_inspect),
-        "--local is only valid together with --dry-run"
+        "--local is only supported with --dry-run"
     );
     let gas_price = if let Some(gas_price) = gas_price {
         gas_price
