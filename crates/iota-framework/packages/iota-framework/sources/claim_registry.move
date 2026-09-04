@@ -70,6 +70,23 @@ public(package) fun claim(
     object::new_uid_from_hash(derived_addr)
 }
 
+/// Returns a deterministic `UID` bound to `ctx.sender()`. The caller must
+/// immediately use the `UID` as the `id` field of a new on-chain object —
+/// `UID` has no `drop` ability, so leaving it unconsumed is a compile error.
+///
+/// Double-claim prevention is not enforced here: the caller is responsible for
+/// ensuring an address is claimed at most once.
+///
+/// Aborts with `EAddressMismatch` if `public_key` does not derive to the
+/// sender.
+///
+/// `public(package)` — only callable from within the iota-framework package.
+public(package) fun claim_address(public_key: PublicKey, ctx: &TxContext): UID {
+    let derived_addr = public_key.to_iota_address();
+    assert!(derived_addr == ctx.sender(), EAddressMismatch);
+    object::new_uid_from_hash(derived_addr)
+}
+
 // === Public reads ===
 
 public fun is_claimed(registry: &ClaimRegistry, addr: address): bool {

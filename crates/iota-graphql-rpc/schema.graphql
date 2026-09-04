@@ -461,17 +461,16 @@ input CheckpointId {
 }
 
 """
-The specific account type being claimed.
+The type of account created by a claim.
 """
 union ClaimAccountKind = SmartAccountClaimTransaction
 
 """
-A transaction that creates an Account object via the constrained builder
-pipeline.
+A transaction that claims the sender's address as an account object.
 """
 type ClaimAccountTransaction {
 	"""
-	The specific kind of account being claimed.
+	The type of account created by the claim.
 	"""
 	kind: ClaimAccountKind!
 }
@@ -4005,43 +4004,34 @@ type SharedObjectRead {
 }
 
 """
-Selects the terminal builder function.
+Whether a claimed account object can be changed after the claim.
 """
 enum SmartAccountBuildKind {
 	"""
-	The account will be a mutable shared object (`build_v1`).
+	The account is a mutable shared object.
 	"""
 	MUTABLE
 	"""
-	The account will be an immutable frozen object (`build_immutable_v1`).
+	The account is an immutable frozen object.
 	"""
 	IMMUTABLE
 }
 
 """
-Parameters for the SmartAccount constrained builder pipeline.
+Parameters the claimed SmartAccount was created with.
 """
 type SmartAccountClaimTransaction {
 	"""
-	The signature scheme flag byte (0=Ed25519, 1=Secp256k1, 2=Secp256r1,
-	6=Passkey).
+	The signature scheme flag byte of the public key (0=Ed25519,
+	1=Secp256k1, 2=Secp256r1, 6=Passkey).
 	"""
 	publicKeyScheme: Int!
 	"""
-	The raw public key bytes, base64-encoded.
+	The raw public key bytes of the claimed address, base64-encoded.
 	"""
 	publicKeyBytes: Base64!
 	"""
-	Initial shared version of the ClaimRegistry object at 0x10.
-	"""
-	claimRegistryInitialSharedVersion: Int!
-	"""
-	Number of `with_field` calls in this claim (0 means no extra fields).
-	"""
-	fieldCount: Int!
-	"""
-	Whether the resulting SmartAccount object will be mutable (shared) or
-	immutable (frozen).
+	Whether the created account object is mutable or immutable.
 	"""
 	buildKind: SmartAccountBuildKind!
 }
@@ -4646,7 +4636,7 @@ input TransactionBlockFilter {
 The kind of transaction block, either a programmable transaction or a system
 transaction.
 """
-union TransactionBlockKind = ClaimAccountTransaction | ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction
+union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction | ClaimAccountTransaction
 
 """
 An input filter selecting for either system or programmable transactions.

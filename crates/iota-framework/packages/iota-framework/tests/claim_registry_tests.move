@@ -340,6 +340,47 @@ fun test_claim_ed25519_wrong_key_length() {
     test_scenario::end(scenario);
 }
 
+// ============================================================
+// claim_address
+// ============================================================
+
+#[test]
+fun test_claim_address_mints_uid_for_sender() {
+    let mut scenario = test_scenario::begin(ED25519_ADDR);
+    {
+        let ctx = test_scenario::ctx(&mut scenario);
+        let uid = claim_registry::claim_address(
+            public_key::from_prefixed_bytes(ED25519_PK),
+            ctx,
+        );
+        assert!(uid.to_address() == ED25519_ADDR);
+        uid.delete();
+    };
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_claim_address_can_mint_the_same_uid_twice() {
+    let mut scenario = test_scenario::begin(ED25519_ADDR);
+    {
+        let ctx = test_scenario::ctx(&mut scenario);
+        claim_registry::claim_address(public_key::from_prefixed_bytes(ED25519_PK), ctx).delete();
+        claim_registry::claim_address(public_key::from_prefixed_bytes(ED25519_PK), ctx).delete();
+    };
+    test_scenario::end(scenario);
+}
+
+#[test]
+#[expected_failure(abort_code = claim_registry::EAddressMismatch)]
+fun test_claim_address_aborts_on_address_mismatch() {
+    let mut scenario = test_scenario::begin(@0xdead);
+    {
+        let ctx = test_scenario::ctx(&mut scenario);
+        claim_registry::claim_address(public_key::from_prefixed_bytes(ED25519_PK), ctx).delete();
+    };
+    test_scenario::end(scenario);
+}
+
 #[test]
 fun test_is_not_claimed_initially() {
     let mut scenario = setup();

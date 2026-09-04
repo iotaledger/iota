@@ -17,20 +17,16 @@ pub(crate) struct ClaimAccountTransaction {
     pub checkpoint_viewed_at: u64,
 }
 
-/// A transaction that creates an Account object via the constrained builder
-/// pipeline.
+/// A transaction that claims the sender's address as an account object.
 #[Object]
 impl ClaimAccountTransaction {
-    /// The specific kind of account being claimed.
+    /// The type of account created by the claim.
     async fn kind(&self) -> ClaimAccountKind {
         match &self.native.kind {
             NativeAccountClaimKind::SmartAccount(smart) => {
                 ClaimAccountKind::SmartAccount(SmartAccountClaimTransaction {
-                    public_key_scheme: smart.public_key.scheme() as u8,
+                    public_key_scheme: smart.public_key.scheme().to_u8(),
                     public_key_bytes: Base64::from(smart.public_key.as_ref()),
-                    claim_registry_initial_shared_version: smart
-                        .claim_registry_initial_shared_version,
-                    field_count: smart.fields.len() as u32,
                     build_kind: match smart.build_kind {
                         NativeSmartAccountBuildKind::Mutable => SmartAccountBuildKind::Mutable,
                         NativeSmartAccountBuildKind::Immutable => SmartAccountBuildKind::Immutable,
@@ -44,34 +40,29 @@ impl ClaimAccountTransaction {
     }
 }
 
-/// The specific account type being claimed.
+/// The type of account created by a claim.
 #[derive(Union, Clone, Eq, PartialEq)]
 pub(crate) enum ClaimAccountKind {
     SmartAccount(SmartAccountClaimTransaction),
 }
 
-/// Parameters for the SmartAccount constrained builder pipeline.
+/// Parameters the claimed SmartAccount was created with.
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 pub(crate) struct SmartAccountClaimTransaction {
-    /// The signature scheme flag byte (0=Ed25519, 1=Secp256k1, 2=Secp256r1,
-    /// 6=Passkey).
+    /// The signature scheme flag byte of the public key (0=Ed25519,
+    /// 1=Secp256k1, 2=Secp256r1, 6=Passkey).
     pub public_key_scheme: u8,
-    /// The raw public key bytes, base64-encoded.
+    /// The raw public key bytes of the claimed address, base64-encoded.
     pub public_key_bytes: Base64,
-    /// Initial shared version of the ClaimRegistry object at 0x10.
-    pub claim_registry_initial_shared_version: u64,
-    /// Number of `with_field` calls in this claim (0 means no extra fields).
-    pub field_count: u32,
-    /// Whether the resulting SmartAccount object will be mutable (shared) or
-    /// immutable (frozen).
+    /// Whether the created account object is mutable or immutable.
     pub build_kind: SmartAccountBuildKind,
 }
 
-/// Selects the terminal builder function.
+/// Whether a claimed account object can be changed after the claim.
 #[derive(Enum, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum SmartAccountBuildKind {
-    /// The account will be a mutable shared object (`build_v1`).
+    /// The account is a mutable shared object.
     Mutable,
-    /// The account will be an immutable frozen object (`build_immutable_v1`).
+    /// The account is an immutable frozen object.
     Immutable,
 }

@@ -20,8 +20,7 @@ mod checked {
         AccountClaimKind, Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
         ChangeEpochV4, ClaimAccountTransaction, Command, EndOfEpochTransactionKind,
         ExecutionStatus, GenesisTransaction, Identifier, ObjectId, ProgrammableTransaction,
-        RandomnessStateUpdate, SignatureScheme, SmartAccountBuildKind, SmartAccountClaim,
-        TransactionKind, gas::GasCostSummary,
+        RandomnessStateUpdate, SmartAccountBuildKind, TransactionKind, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -1395,17 +1394,17 @@ mod checked {
                 Ok(Mode::empty_results())
             }
             TransactionKind::ClaimAccount(claim_tx) => {
-                let pt = build_claim_account_pt(&claim_tx)?;
-                programmable_transactions::execution::execute::<Mode>(
-                    protocol_config,
-                    metrics,
-                    move_vm,
+                setup_claim_account(
+                    &claim_tx,
                     temporary_store,
                     tx_ctx,
+                    move_vm,
                     gas_charger,
-                    pt,
+                    protocol_config,
+                    metrics,
                     trace_builder_opt,
-                )
+                )?;
+                Ok(Mode::empty_results())
             }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
@@ -1987,120 +1986,78 @@ mod checked {
         builder
     }
 
-    /// Builds the `ProgrammableTransaction` that executes a
-    /// [`ClaimAccountTransaction`] as a constrained smart-account builder
-    /// pipeline.
-    fn build_claim_account_pt(
+    /// Executes a [`ClaimAccountTransaction`] by calling the framework's
+    /// private claim function for the requested account kind.
+    ///
+    /// This runs in [`execution_mode::System`] because those claim functions
+    /// are private on purpose: a claimed account object has an id equal to a
+    /// signature-derivable address, and the `ClaimAccount` transaction kind
+    /// must stay the only way such an object can be created.
+    #[allow(clippy::too_many_arguments)]
+    fn setup_claim_account(
         claim_tx: &ClaimAccountTransaction,
-    ) -> Result<ProgrammableTransaction, ExecutionError> {
-        match &claim_tx.kind {
-            AccountClaimKind::SmartAccount(smart) => build_smart_account_pt(smart),
-            _ => unimplemented!(
-                "a new AccountClaimKind enum variant was added and needs to be handled"
-            ),
-        }
-    }
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: Rc<RefCell<TxContext>>,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let AccountClaimKind::SmartAccount(claim) = &claim_tx.kind else {
+            unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+        };
 
-    /// Builds the PTB for the `SmartAccount` builder pipeline:
-    /// `claim_builder_v1 → with_field* → build_v1 | build_immutable_v1`.
-    fn build_smart_account_pt(
-        claim: &SmartAccountClaim,
-    ) -> Result<ProgrammableTransaction, ExecutionError> {
-        let mut builder = ProgrammableTransactionBuilder::new();
-
-        // ClaimRegistry shared object input.
-        let registry_arg = builder
-            .obj(CallArg::Shared(SharedObjectRef::new(
-                ObjectId::CLAIM_REGISTRY,
-                claim.claim_registry_initial_shared_version.into(),
-                true,
-            )))
-            .map_err(|e| {
-                ExecutionError::new(
-                    ExecutionErrorKind::VmInvariantViolation,
-                    Some(e.to_string().into()),
-                )
-            })?;
-
-        // Construct the Move PublicKey via framework calls because the Move struct
-        // layout differs from the Rust BCS enum layout. We call:
-        //   let scheme = iota::signature_scheme::<scheme_fn>();
-        //   let pk     = iota::public_key::create(scheme, raw_bytes);
-        let scheme_fn_name = match claim.public_key.scheme() {
-            SignatureScheme::Ed25519 => "ed25519",
-            SignatureScheme::Secp256k1 => "secp256k1",
-            SignatureScheme::Secp256r1 => "secp256r1",
-            SignatureScheme::PasskeyAuthenticator => "passkey",
-            other => {
-                return Err(ExecutionError::new(
-                    ExecutionErrorKind::VmInvariantViolation,
-                    Some(
-                        format!("unsupported signature scheme for ClaimAccount: {other:?}").into(),
-                    ),
-                ));
+        let claim_function = match claim.build_kind {
+            SmartAccountBuildKind::Mutable => Identifier::from_static("claim_account_v1"),
+            SmartAccountBuildKind::Immutable => {
+                Identifier::from_static("claim_immutable_account_v1")
             }
         };
-        let scheme_arg = builder.programmable_move_call(
-            ObjectId::FRAMEWORK,
-            SIGNATURE_SCHEME_MODULE_NAME,
-            Identifier::from_static(scheme_fn_name),
-            vec![],
-            vec![],
-        );
-        let raw_bytes_arg = builder
-            .pure(claim.public_key.as_ref().to_vec())
-            .map_err(|e| {
-                ExecutionError::new(
-                    ExecutionErrorKind::VmInvariantViolation,
-                    Some(e.to_string().into()),
-                )
-            })?;
-        let public_key_arg = builder.programmable_move_call(
-            ObjectId::FRAMEWORK,
-            PUBLIC_KEY_MODULE_NAME,
-            Identifier::from_static("create"),
-            vec![],
-            vec![scheme_arg, raw_bytes_arg],
-        );
 
-        // claim_builder_v1(registry, public_key, ctx) → SmartAccountBuilder
-        let mut current = builder.programmable_move_call(
-            ObjectId::FRAMEWORK,
-            Identifier::SMART_ACCOUNT_MODULE,
-            Identifier::from_static("claim_builder_v1"),
-            vec![],
-            vec![registry_arg, public_key_arg],
-        );
+        let pt = {
+            // The Move `PublicKey` struct layout differs from the Rust BCS enum, so
+            // build it through the framework:
+            //   let scheme = iota::signature_scheme::from_flag(flag);
+            //   let pk     = iota::public_key::create(scheme, raw_bytes);
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let scheme_flag = pure_arg(&mut builder, &claim.public_key.scheme().to_u8())?;
+            let scheme = builder.programmable_move_call(
+                ObjectId::FRAMEWORK,
+                SIGNATURE_SCHEME_MODULE_NAME,
+                Identifier::from_static("from_flag"),
+                vec![],
+                vec![scheme_flag],
+            );
+            let raw_bytes = pure_arg(&mut builder, &claim.public_key.as_ref().to_vec())?;
+            let public_key = builder.programmable_move_call(
+                ObjectId::FRAMEWORK,
+                PUBLIC_KEY_MODULE_NAME,
+                Identifier::from_static("create"),
+                vec![],
+                vec![scheme, raw_bytes],
+            );
 
-        // with_field<N, V>(builder, name, value) → SmartAccountBuilder (chained)
-        for field in &claim.fields {
-            let name_arg =
-                builder.pure_bytes(field.name_bcs.clone(), /* force_separate */ false);
-            let value_arg =
-                builder.pure_bytes(field.value_bcs.clone(), /* force_separate */ false);
-            current = builder.programmable_move_call(
+            builder.programmable_move_call(
                 ObjectId::FRAMEWORK,
                 Identifier::SMART_ACCOUNT_MODULE,
-                Identifier::from_static("with_field"),
-                vec![field.name_type.clone(), field.value_type.clone()],
-                vec![current, name_arg, value_arg],
+                claim_function,
+                vec![],
+                vec![public_key],
             );
-        }
 
-        // Terminal: build_v1 or build_immutable_v1
-        let build_fn = match claim.build_kind {
-            SmartAccountBuildKind::Mutable => "build_v1",
-            SmartAccountBuildKind::Immutable => "build_immutable_v1",
+            builder.finish()
         };
-        builder.programmable_move_call(
-            ObjectId::FRAMEWORK,
-            Identifier::SMART_ACCOUNT_MODULE,
-            Identifier::from_static(build_fn),
-            vec![],
-            vec![current],
-        );
-
-        Ok(builder.finish())
+        programmable_transactions::execution::execute::<execution_mode::System>(
+            protocol_config,
+            metrics,
+            move_vm,
+            temporary_store,
+            tx_ctx,
+            gas_charger,
+            pt,
+            trace_builder_opt,
+        )
     }
 
     /// The function constructs a transaction that invokes
@@ -2229,6 +2186,19 @@ mod checked {
             ExecutionError::from_kind(ExecutionErrorKind::BuiltinAuthenticatorVerificationError {
                 reason: e.to_string(),
             })
+        })
+    }
+
+    /// Adds `value` to `builder` as a pure argument.
+    fn pure_arg(
+        builder: &mut ProgrammableTransactionBuilder,
+        value: &impl serde::Serialize,
+    ) -> Result<Argument, ExecutionError> {
+        builder.pure(value).map_err(|e| {
+            ExecutionError::new(
+                ExecutionErrorKind::VmInvariantViolation,
+                Some(e.to_string().into()),
+            )
         })
     }
 }

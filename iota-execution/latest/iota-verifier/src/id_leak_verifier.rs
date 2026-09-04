@@ -106,11 +106,19 @@ const CLAIM_REGISTRY_CLAIM: FunctionIdent = (
     ident_str!("claim_registry"),
     ident_str!("claim"),
 );
+// TODO: temporary second entry point; folded back into `claim` once the claim
+// registry is removed.
+const CLAIM_REGISTRY_CLAIM_ADDRESS: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
+    ident_str!("claim_registry"),
+    ident_str!("claim_address"),
+);
 const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[
     OBJECT_NEW,
     OBJECT_NEW_UID_FROM_HASH,
     TS_NEW_OBJECT,
     CLAIM_REGISTRY_CLAIM,
+    CLAIM_REGISTRY_CLAIM_ADDRESS,
 ];
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_SYSTEM_CREATE,

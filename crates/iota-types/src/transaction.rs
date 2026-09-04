@@ -17,13 +17,11 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    AccountClaimKind, Address, Argument, CancelledTransaction, Command,
-    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
-    EndOfEpochTransactionKind, Event, GenesisObject, GenesisTransaction, Identifier, Input,
-    MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, ProgrammableTransaction, Publish,
-    RandomnessRound, RandomnessStateUpdate, SplitCoins, TransactionExpiration, TransactionKind,
-    TransferObjects,
-    TypeTag, Upgrade,
+    Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
+    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
+    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -813,16 +811,6 @@ impl TransactionKindExt for TransactionKind {
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
             Self::Programmable(pt) => Either::Right(Either::Left(pt.shared_input_objects())),
-            Self::ClaimAccount(claim) => match &claim.kind {
-                AccountClaimKind::SmartAccount(smart) => {
-                    Either::Left(Either::Left(iter::once(SharedObjectRef::new(
-                        ObjectId::CLAIM_REGISTRY,
-                        smart.claim_registry_initial_shared_version.into(),
-                        true,
-                    ))))
-                }
-                _ => Either::Right(Either::Right(iter::empty())),
-            },
             _ => Either::Right(Either::Right(iter::empty())),
         }
     }
@@ -891,20 +879,7 @@ impl TransactionKindExt for TransactionKind {
                 after_dedup
             }
             Self::Programmable(p) => return p.input_objects(),
-            Self::ClaimAccount(claim) => match &claim.kind {
-                AccountClaimKind::SmartAccount(smart) => {
-                    vec![InputObjectKind::SharedMoveObject {
-                        id: ObjectId::CLAIM_REGISTRY,
-                        initial_shared_version: smart
-                            .claim_registry_initial_shared_version
-                            .into(),
-                        mutable: true,
-                    }]
-                }
-                _ => unimplemented!(
-                    "a new AccountClaimKind enum variant was added and needs to be handled"
-                ),
-            },
+            Self::ClaimAccount(_) => vec![],
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),

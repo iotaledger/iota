@@ -605,9 +605,6 @@ impl IotaTransactionBlockKind {
                     AccountClaimKind::SmartAccount(smart) => {
                         IotaAccountClaimKind::SmartAccount(IotaSmartAccountClaim {
                             public_key: smart.public_key.to_base64(),
-                            claim_registry_initial_shared_version: smart
-                                .claim_registry_initial_shared_version,
-                            field_count: smart.fields.len() as u64,
                             build_kind: match smart.build_kind {
                                 SmartAccountBuildKind::Mutable => {
                                     IotaSmartAccountBuildKind::Mutable
@@ -1980,35 +1977,30 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
     }
 }
 
-#[serde_as]
+/// A transaction that claims the sender's address as an account object.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaClaimAccountTransaction {
+    /// The type of account created by the claim.
     pub account_kind: IotaAccountClaimKind,
 }
 
+/// The type of account created by an `IotaClaimAccountTransaction`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum IotaAccountClaimKind {
     SmartAccount(IotaSmartAccountClaim),
 }
 
-#[serde_as]
+/// Parameters the claimed `SmartAccount` was created with.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaSmartAccountClaim {
-    /// Scheme-flagged base64-encoded public key.
+    /// Scheme-flagged base64-encoded public key of the claimed address.
     pub public_key: String,
-
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    pub claim_registry_initial_shared_version: u64,
-
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    pub field_count: u64,
-
+    /// Whether the created account object is mutable or immutable.
     pub build_kind: IotaSmartAccountBuildKind,
 }
 
+/// Whether a claimed account object can be changed after the claim.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum IotaSmartAccountBuildKind {
     Mutable,

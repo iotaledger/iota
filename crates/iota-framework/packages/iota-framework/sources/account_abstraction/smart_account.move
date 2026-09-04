@@ -16,6 +16,9 @@
 ///   `ClaimRegistry` records each address once to prevent double-claiming and
 ///   ensures the new account object's ID matches the sender's address.
 ///
+/// Claiming an existing address through the `ClaimAccount` transaction kind does
+/// not go through that API: it drives the private `claim_account_v1` below.
+///
 /// After optionally adding fields with `with_field`, finalize with
 /// `build_v1` (mutable) or `build_immutable_v1` (immutable).
 ///
@@ -34,7 +37,7 @@ module iota::smart_account;
 use iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
-use iota::claim_registry::ClaimRegistry;
+use iota::claim_registry::{Self, ClaimRegistry};
 use iota::dynamic_field;
 use iota::public_key::PublicKey;
 
@@ -132,6 +135,44 @@ public fun claim_builder_v1(
         account,
         authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
     }
+}
+
+/// Claims the sender's address and creates a mutable `SmartAccount` at it,
+/// backed by the built-in authenticator for `public_key`'s signature scheme.
+///
+/// This is the whole `ClaimAccount` pipeline for a mutable account. It is
+/// **private on purpose**: the account object it creates has an ID equal to a
+/// signature-derivable address, so `ClaimAccount` must stay the one and only
+/// way such an object can come into existence. A private function is reachable
+/// from the node's own PTB, which runs in an execution mode that bypasses
+/// visibility, and from nowhere else — not from a user PTB, and not from
+/// another package, which could otherwise wrap a public entry point. See the
+/// `iota::clock::consensus_commit_prologue` and `iota::claim_registry::create`
+/// functions for the same idiom.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
+/// `account::MutableAccountCreated` event.
+///
+/// Aborts if `public_key` does not derive the sender's address, or if its
+/// signature scheme has no built-in authenticator.
+#[allow(unused_function)]
+fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
+    claim_builder(public_key, ctx).build_v1();
+}
+
+/// Claims the sender's address and creates an immutable `SmartAccount` at it,
+/// backed by the built-in authenticator for `public_key`'s signature scheme.
+///
+/// Private on purpose, for the same reason as `claim_account_v1`.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
+/// `account::ImmutableAccountCreated` event.
+///
+/// Aborts if `public_key` does not derive the sender's address, or if its
+/// signature scheme has no built-in authenticator.
+#[allow(unused_function)]
+fun claim_immutable_account_v1(public_key: PublicKey, ctx: &TxContext) {
+    claim_builder(public_key, ctx).build_immutable_v1();
 }
 
 /// Adds a `Value` as a dynamic field to the account being built.
@@ -351,4 +392,31 @@ fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
     assert!(self.account_address() == ctx.sender(), ETransactionSenderIsNotTheSmartAccount);
 }
 
+/// Creates a `SmartAccountBuilder` whose account ID is the claimed sender
+/// address, backed by the built-in authenticator for `public_key`'s signature
+/// scheme.
+fun claim_builder(public_key: PublicKey, ctx: &TxContext): SmartAccountBuilder {
+    let mut account = SmartAccount { id: claim_registry::claim_address(public_key, ctx) };
+    builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
+
+    SmartAccountBuilder {
+        account,
+        authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
+    }
+}
+
 // === Test Functions ===
+
+/// Test-only entry to `claim_account_v1`, which is private so that only the
+/// node's `ClaimAccount` pipeline can reach it.
+#[test_only]
+public fun claim_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
+    claim_account_v1(public_key, ctx)
+}
+
+/// Test-only entry to `claim_immutable_account_v1`, which is private so that
+/// only the node's `ClaimAccount` pipeline can reach it.
+#[test_only]
+public fun claim_immutable_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
+    claim_immutable_account_v1(public_key, ctx)
+}
