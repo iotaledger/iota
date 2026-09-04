@@ -105,8 +105,23 @@ MOVED_BYTES_FIELDS = [
     "stack_size_high_water_mark",
     "locals_size_high_water_mark",
     "object_runtime_cached_bytes",
-    "hash_input_bytes",
 ]
+
+# Streaming natives: their input bytes move through the shared path. System
+# addresses, so no user package can alias these module ids.
+HASH_MODULES = ("0x1::hash::", "0x2::hash::", "0x2::hmac::")
+
+
+def moved_bytes(profile):
+    total = sum(profile.get(f, 0) for f in MOVED_BYTES_FIELDS)
+    input_map = profile.get("native_input_bytes_by_function")
+    if input_map is None:
+        # Datasets recorded before the per-function input-bytes counter carry
+        # the aggregate hash counter instead.
+        # TODO: delete this fallback before ship — fresh datasets all record
+        # the per-function map.
+        return total + profile.get("hash_input_bytes", 0)
+    return total + sum(b for fn, b in input_map.items() if fn.startswith(HASH_MODULES))
 
 
 def run_point(binary, workload, spec, level, runs, out_dir, cooldown):
@@ -160,7 +175,7 @@ def summarize_point(workload, spec, level, run_files):
         n_txs += len(ns)
         sum_ns += sum(ns)
         for r in rows:
-            t = sum(r["profile"].get(f, 0) for f in MOVED_BYTES_FIELDS)
+            t = moved_bytes(r["profile"])
             moved_per_tx.append(t)
             sum_moved += t
     if not per_run_medians:
