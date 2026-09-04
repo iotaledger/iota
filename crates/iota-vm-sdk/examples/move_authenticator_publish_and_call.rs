@@ -35,15 +35,15 @@ use anyhow::{Context, Result, bail};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, MoveAuthenticatorV1, MoveStruct, ObjectId, Owner, SharedObjectReference,
-    TransactionDigest, Version,
+    Identifier, MoveAuthenticatorV1, MoveStruct, ObjectId, Owner, SenderSignedTransaction,
+    SharedObjectReference, Transaction, TransactionDigest, Version,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
     move_package::{ProtocolBuildConfig, derive_package_metadata_id},
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
 };
 use iota_vm_sdk::{
     Address, Chain, ChainContext, DebugConfig, ExecuteOptions, ExecutionResult, InMemoryStore,
@@ -185,7 +185,7 @@ fn publish_tx(
     sender: Address,
     gas_id: ObjectId,
     package: &CompiledPackage,
-) -> Result<TransactionData> {
+) -> Result<Transaction> {
     let mut b = ProgrammableTransactionBuilder::new();
     let cap = b.publish_upgradeable(
         package.get_package_bytes(false),
@@ -205,7 +205,7 @@ fn link_auth_tx(
     account_pkg_id: ObjectId,
     account_id: ObjectId,
     account_version: Version,
-) -> Result<TransactionData> {
+) -> Result<Transaction> {
     // `create_auth_function_ref_v1` validates the function against the
     // package's `PackageMetadataV1`, a derived object created at publish time.
     let metadata_id = derive_package_metadata_id(account_pkg_id);
@@ -242,7 +242,7 @@ fn increment_tx(
     view_pkg_id: ObjectId,
     counter_id: ObjectId,
     counter_version: Version,
-) -> Result<TransactionData> {
+) -> Result<Transaction> {
     let mut b = ProgrammableTransactionBuilder::new();
     let counter = b.obj(CallArg::Shared(SharedObjectReference::new(
         counter_id,
@@ -266,12 +266,12 @@ fn transaction(
     sender: Address,
     gas_id: ObjectId,
     b: ProgrammableTransactionBuilder,
-) -> Result<TransactionData> {
+) -> Result<Transaction> {
     let gas = vm
         .store()
         .get_object(&gas_id, None)?
         .context("gas coin must be in the store")?;
-    Ok(TransactionData::new_programmable(
+    Ok(Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         b.finish(),
@@ -283,7 +283,7 @@ fn transaction(
 // === Running ===
 
 /// Run an unsigned transaction, committing its effects to the store.
-fn run(vm: &mut LocalVm, tx: TransactionData) -> Result<ExecutionResult> {
+fn run(vm: &mut LocalVm, tx: Transaction) -> Result<ExecutionResult> {
     check(vm.execute(tx, ExecuteOptions::execute())?)
 }
 
@@ -300,7 +300,7 @@ fn run(vm: &mut LocalVm, tx: TransactionData) -> Result<ExecutionResult> {
 /// function and the PTB body.
 fn run_signed(
     vm: &mut LocalVm,
-    tx: TransactionData,
+    tx: Transaction,
     account_id: ObjectId,
     account_version: Version,
     trace: bool,
@@ -310,7 +310,7 @@ fn run_signed(
         vec![],
         SharedObjectReference::new(account_id, account_version, false),
     );
-    let signed = SenderSignedData::new(
+    let signed = SenderSignedTransaction::new(
         tx,
         vec![UserSignature::MoveAuthenticator(authenticator.into())],
     );
@@ -347,7 +347,7 @@ fn counter_value(
         vec![],
         vec![counter],
     );
-    let tx = TransactionData::new_programmable(sender, vec![], b.finish(), GAS_BUDGET, GAS_PRICE);
+    let tx = Transaction::new_programmable(sender, vec![], b.finish(), GAS_BUDGET, GAS_PRICE);
 
     let result = check(vm.execute(tx, ExecuteOptions::dev_inspect())?)?;
     let (_, return_values) = result
@@ -384,7 +384,7 @@ fn published_package_id(result: &ExecutionResult) -> Result<ObjectId> {
         .output_objects
         .iter()
         // A package is the only written object with no Move struct type.
-        .find(|obj| obj.type_().is_none())
+        .find(|obj| obj.data.opt_object_type().is_none())
         .map(|obj| obj.id())
         .context("run published no package")
 }
@@ -396,9 +396,9 @@ fn created_shared(result: &ExecutionResult) -> Result<(ObjectId, Version)> {
         .effects
         .created()
         .into_iter()
-        .find_map(|(obj_ref, owner)| match owner {
+        .find_map(|created| match created.owner {
             Owner::Shared(initial_shared_version) => {
-                Some((obj_ref.object_id, initial_shared_version))
+                Some((created.reference.object_id, initial_shared_version))
             }
             _ => None,
         })

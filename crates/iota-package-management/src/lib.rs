@@ -76,7 +76,7 @@ pub fn update_lock_file_with_package_id(
             &mut lock,
             env_alias,
             lock_file::schema::ManagedAddressUpdate::Published {
-                chain_id: chain_identifier.to_string(),
+                chain_id: chain_identifier,
                 original_id: original_id.to_string(),
             },
         ),
