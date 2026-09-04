@@ -457,7 +457,8 @@ pub fn ptb_description() -> clap::Command {
             --"local"
             "Run the simulation locally through the Move VM instead of on the node. Supported \
             with --dry-run. Requires a `grpc` URL configured for the active env, from which \
-            objects and chain parameters are resolved."
+            objects and chain parameters are resolved. The env's JSON-RPC endpoint is still \
+            used for the gas price and for rendering errors."
         ))
         .arg(arg!(
             --"gas-coins" <ID> ...
