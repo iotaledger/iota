@@ -1021,7 +1021,7 @@ async fn test_prefix_from_matches_old_bounded_scan() {
     };
     // New approach: prefix-from with the same cursor as the key remainder.
     let new = |cursor: Option<u64>| -> Vec<(u64, u64)> {
-        db.safe_iter_with_prefix_from(&1u64, &cursor.unwrap_or(0))
+        db.safe_iter_with_prefix_from(&1u64, Bound::Included(&cursor.unwrap_or(0)))
             .skip(usize::from(cursor.is_some()))
             .map(|r| r.unwrap().0)
             .collect()
@@ -1043,19 +1043,120 @@ async fn test_prefix_from_matches_old_bounded_scan() {
 async fn test_safe_iter_with_prefix_from() {
     let tmp_dir = iota_common::tempdir();
     let db: DBMap<(u64, u64), String> = open_map(tmp_dir.path(), None);
-    for (a, b) in [(1u64, 1u64), (1, 2), (1, 3), (2, 1)] {
+    for (a, b) in [(1u64, 1u64), (1, 2), (1, 3), (1, u64::MAX), (2, 1)] {
         db.insert(&(a, b), &format!("{a}-{b}")).unwrap();
     }
+    let keys = |lower: Bound<&u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_prefix_from(&1u64, lower)
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
 
     // Resume the prefix-1 scan from cursor 2 (inclusive); the upper bound is still
     // the end of prefix 1, so (1, 1) and the whole prefix 2 are excluded.
     let got: Vec<_> = db
-        .safe_iter_with_prefix_from(&1u64, &2u64)
+        .safe_iter_with_prefix_from(&1u64, Bound::Included(&2u64))
         .map(|r| r.unwrap())
         .collect();
     assert_eq!(
-        vec![((1, 2), "1-2".to_string()), ((1, 3), "1-3".to_string())],
+        vec![
+            ((1, 2), "1-2".to_string()),
+            ((1, 3), "1-3".to_string()),
+            ((1, u64::MAX), format!("1-{}", u64::MAX)),
+        ],
         got,
+    );
+
+    // An exclusive bound resumes strictly after the cursor, also when the
+    // cursor's row does not exist.
+    assert_eq!(keys(Bound::Excluded(&2)), [(1, 3), (1, u64::MAX)]);
+    db.remove(&(1, 2)).unwrap();
+    assert_eq!(keys(Bound::Excluded(&2)), [(1, 3), (1, u64::MAX)]);
+
+    // Excluding the maximum remainder (an all-0xFF tail) yields an empty
+    // scan rather than the next prefix's keys.
+    assert!(keys(Bound::Excluded(&u64::MAX)).is_empty());
+
+    // An unbounded lower bound covers the whole prefix.
+    assert_eq!(keys(Bound::Unbounded), [(1, 1), (1, 3), (1, u64::MAX)]);
+
+    // `safe_iter_with_prefix_after` is the exclusive form: strictly after the
+    // cursor, or the whole prefix without one.
+    let after = |cursor: Option<&u64>| -> Vec<(u64, u64)> {
+        db.safe_iter_with_prefix_after(&1u64, cursor)
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+    assert_eq!(after(Some(&2)), keys(Bound::Excluded(&2)));
+    assert_eq!(after(None), keys(Bound::Unbounded));
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_from_multi_field() {
+    // The bound is the *entire* remainder after the prefix, i.e. both
+    // trailing fields here, not just the one nearest the prefix.
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u8, u64, u8), String> = open_map(tmp_dir.path(), None);
+    for (a, b, c) in [
+        (1u8, 2u64, 0u8),
+        (1, 2, u8::MAX),
+        (1, 3, 0),
+        (1, u64::MAX, u8::MAX),
+        (2, 0, 0),
+    ] {
+        db.insert(&(a, b, c), &format!("{a}-{b}-{c}")).unwrap();
+    }
+    let keys = |lower: Bound<&(u64, u8)>| -> Vec<(u8, u64, u8)> {
+        db.safe_iter_with_prefix_from(&1u8, lower)
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+
+    // A carry within the tail (`(2, 0xFF)` rolls over to `(3, 0)`) drops every
+    // `(1, 2, _)` entry, not just the one at the excluded value.
+    assert_eq!(
+        keys(Bound::Excluded(&(2u64, u8::MAX))),
+        [(1, 3, 0), (1, u64::MAX, u8::MAX)],
+    );
+    assert_eq!(
+        keys(Bound::Excluded(&(2u64, 0u8))),
+        [(1, 2, u8::MAX), (1, 3, 0), (1, u64::MAX, u8::MAX)],
+    );
+    // The all-0xFF tail is the true end of the prefix's key space; excluding
+    // it must not spill into prefix 2.
+    assert!(keys(Bound::Excluded(&(u64::MAX, u8::MAX))).is_empty());
+    assert_eq!(
+        keys(Bound::Included(&(3u64, 0u8))),
+        [(1, 3, 0), (1, u64::MAX, u8::MAX)],
+    );
+    assert_eq!(
+        keys(Bound::Unbounded),
+        [
+            (1, 2, 0),
+            (1, 2, u8::MAX),
+            (1, 3, 0),
+            (1, u64::MAX, u8::MAX)
+        ],
+    );
+}
+
+#[tokio::test]
+async fn test_safe_iter_with_prefix_from_unsized_tail() {
+    let tmp_dir = iota_common::tempdir();
+    let db: DBMap<(u8, String), String> = open_map(tmp_dir.path(), None);
+    for (a, b) in [(1u8, "a"), (1, "b"), (1, "c"), (2, "a")] {
+        db.insert(&(a, b.to_string()), &format!("{a}-{b}")).unwrap();
+    }
+    let keys = |lower: Bound<&str>| -> Vec<(u8, String)> {
+        db.safe_iter_with_prefix_from(&1u8, lower)
+            .map(|r| r.unwrap().0)
+            .collect()
+    };
+
+    assert_eq!(keys(Bound::Excluded("b")), [(1, "c".to_string())]);
+    assert_eq!(
+        keys(Bound::Included("b")),
+        [(1, "b".to_string()), (1, "c".to_string())],
     );
 }
 
