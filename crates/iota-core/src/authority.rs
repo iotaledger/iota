@@ -80,14 +80,15 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
-    inner_temporary_store::{InnerTemporaryStore, PackageStoreWithFallback},
+    inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    layout_resolver::into_struct_layout,
+    layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
@@ -1866,14 +1867,6 @@ impl AuthorityState {
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // emit subscription notifications
-        let _ = self
-            .post_process_one_tx(transaction, effects, &inner_temporary_store, epoch_store)
-            .tap_err(|e| {
-                self.metrics.post_processing_total_failures.inc();
-                error!(?tx_digest, "tx post processing failed: {e}");
-            });
-
         // The insertion to epoch_store is not atomic with the insertion to the
         // perpetual store. This is OK because we insert to the epoch store
         // first. And during lookups we always look up in the perpetual store first.
@@ -2538,77 +2531,83 @@ impl AuthorityState {
         }
     }
 
-    /// Emits transaction and event subscription notifications for an executed
-    /// transaction. Index updates happen per checkpoint instead, in the
-    /// checkpoint executor.
-    #[instrument(level = "trace", skip_all, err)]
-    fn post_process_one_tx(
+    /// Notify the JSON-RPC transaction and event subscribers of each
+    /// transaction in `checkpoint`.
+    ///
+    /// Call this in checkpoint order, after the index commit of the
+    /// checkpoint.
+    pub fn notify_subscribers_of_checkpoint(
         &self,
-        transaction: &VerifiedExecutableTransaction,
-        effects: &TransactionEffects,
-        inner_temporary_store: &InnerTemporaryStore,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
-        if self.jsonrpc_indexes().is_none() {
-            return Ok(());
+        checkpoint: &CheckpointData,
+        epoch_store: &AuthorityPerEpochStore,
+    ) {
+        let has_transaction_subscribers = self.subscription_handler.has_transaction_subscribers();
+        let has_event_subscribers = self.subscription_handler.has_event_subscribers();
+        if !has_transaction_subscribers && !has_event_subscribers {
+            return;
         }
 
-        let _scope = monitored_scope("Execution::post_process_one_tx");
+        let _scope = monitored_scope("Execution::notify_subscribers_of_checkpoint");
+        let timestamp_ms = checkpoint.checkpoint_summary.timestamp_ms;
+        // The outputs of the checkpoint are committed. Thus the packages it
+        // published are in the backing store.
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()));
 
-        let tx_digest = transaction.digest();
-        let timestamp_ms = Self::unixtime_now_ms();
-
-        let effects: IotaTransactionBlockEffects = effects.clone().try_into()?;
-        let events = self.make_transaction_block_events(
-            inner_temporary_store.events.clone(),
-            *tx_digest,
-            timestamp_ms,
-            epoch_store,
-            inner_temporary_store,
-        )?;
-        // Emit events
-        self.subscription_handler
-            .process_tx(transaction.data().transaction(), &effects, &events)
-            .tap_ok(|_| {
-                self.metrics
-                    .post_processing_total_tx_had_event_processed
-                    .inc()
-            })
-            .tap_err(|e| {
-                warn!(
-                    ?tx_digest,
-                    "Post processing - Couldn't process events for tx: {}", e
-                )
-            })?;
-
-        self.metrics
-            .post_processing_total_events_emitted
-            .inc_by(events.data.len() as u64);
-
-        Ok(())
+        for transaction in &checkpoint.transactions {
+            match self.notify_subscribers_of_transaction(
+                transaction,
+                timestamp_ms,
+                has_event_subscribers,
+                layout_resolver.as_mut(),
+            ) {
+                Ok(events_emitted) => {
+                    self.metrics
+                        .post_processing_total_tx_had_event_processed
+                        .inc();
+                    self.metrics
+                        .post_processing_total_events_emitted
+                        .inc_by(events_emitted);
+                }
+                Err(e) => {
+                    self.metrics.post_processing_total_failures.inc();
+                    error!(
+                        tx_digest = ?transaction.effects.transaction_digest(),
+                        "notifying subscribers failed: {e}"
+                    );
+                }
+            }
+        }
     }
 
-    fn make_transaction_block_events(
+    /// Returns the number of events sent to the event subscribers.
+    fn notify_subscribers_of_transaction(
         &self,
-        transaction_events: TransactionEvents,
-        digest: TransactionDigest,
+        transaction: &CheckpointTransaction,
         timestamp_ms: u64,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        inner_temporary_store: &InnerTemporaryStore,
-    ) -> IotaResult<IotaTransactionBlockEvents> {
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    inner_temporary_store,
-                    self.get_backing_package_store(),
-                )));
-        IotaTransactionBlockEvents::try_from(
-            transaction_events,
-            digest,
-            Some(timestamp_ms),
-            layout_resolver.as_mut(),
-        )
+        has_event_subscribers: bool,
+        layout_resolver: &mut dyn LayoutResolver,
+    ) -> IotaResult<u64> {
+        let effects: IotaTransactionBlockEffects = transaction.effects.clone().try_into()?;
+        // The conversion resolves one Move layout per event. Do it only when
+        // there is an event subscriber.
+        let events = if has_event_subscribers {
+            IotaTransactionBlockEvents::try_from(
+                transaction.events.clone().unwrap_or_default(),
+                *transaction.effects.transaction_digest(),
+                Some(timestamp_ms),
+                layout_resolver,
+            )?
+        } else {
+            IotaTransactionBlockEvents::default()
+        };
+        self.subscription_handler.process_tx(
+            transaction.transaction.data().transaction(),
+            &effects,
+            &events,
+        )?;
+        Ok(events.data.len() as u64)
     }
 
     pub fn unixtime_now_ms() -> u64 {
