@@ -455,9 +455,9 @@ pub fn ptb_description() -> clap::Command {
         ))
         .arg(arg!(
             --"local"
-            "Simulate the PTB locally through the Move VM instead of on the node. Only valid \
-            together with --dry-run. Requires a `grpc` URL to be configured for the active env, \
-            from which objects and chain parameters are resolved."
+            "Run the simulation locally through the Move VM instead of on the node. Supported \
+            with --dry-run. Requires a `grpc` URL configured for the active env, from which \
+            objects and chain parameters are resolved."
         ))
         .arg(arg!(
             --"gas-coins" <ID> ...

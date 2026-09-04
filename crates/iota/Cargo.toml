@@ -74,7 +74,6 @@ iota-vm-sdk = { workspace = true, features = ["grpc"] }
 move-analyzer.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
-move-bytecode-utils.workspace = true
 move-bytecode-verifier-meter.workspace = true
 move-cli.workspace = true
 move-command-line-common.workspace = true
