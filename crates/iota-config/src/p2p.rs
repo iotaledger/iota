@@ -208,7 +208,12 @@ pub struct StateSyncConfig {
     /// contents, and to sync from peers and from the checkpoint archive
     /// alike.
     ///
-    /// If unspecified, this will default to `100,000`.
+    /// Also caps how much the checkpoint archive path can gain from
+    /// committing results instead of executing them, since results are only
+    /// held for checkpoints inside this window — see
+    /// `checkpoint-archive-config.results-cache-size-bytes`.
+    ///
+    /// If unspecified, this will default to `10,000`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_checkpoints_ahead_of_execution: Option<NonZeroU64>,
 }
@@ -271,7 +276,7 @@ impl StateSyncConfig {
     }
 
     pub fn max_checkpoints_ahead_of_execution(&self) -> u64 {
-        const MAX_CHECKPOINTS_AHEAD_OF_EXECUTION: u64 = 100_000;
+        const MAX_CHECKPOINTS_AHEAD_OF_EXECUTION: u64 = 10_000;
 
         self.max_checkpoints_ahead_of_execution
             .map(NonZeroU64::get)
