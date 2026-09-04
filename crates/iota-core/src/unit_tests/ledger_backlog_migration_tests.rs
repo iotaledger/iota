@@ -372,12 +372,22 @@ fn assert_migrated(
                     .is_none(),
                 "a summary below the floor must be gone"
             );
+            // The contents are not deleted with the summary: a contents row
+            // is shared by every checkpoint with the same transactions, so a
+            // retained checkpoint may still name it. They are left to
+            // `move_contents_without_summary`, which files them in the
+            // migration epoch's bucket, where ordinary retention reclaims
+            // them a window later.
             assert!(
-                historic_checkpoints
-                    .find_contents(&checkpoint.contents_digest)
+                checkpoint_store
+                    .historic_checkpoints
+                    .ensure(RUNNING_EPOCH)
                     .unwrap()
-                    .is_none(),
-                "the contents of a summary below the floor must go with it"
+                    .checkpoint_content
+                    .get(&checkpoint.contents_digest)
+                    .unwrap()
+                    .is_some(),
+                "the contents of a summary below the floor are kept one window, not dropped"
             );
             continue;
         }
@@ -649,13 +659,35 @@ async fn the_migration_resumes_from_its_watermark() {
         4,
         "one row moved and four left, or the slice size is not being honoured"
     );
+    // The watermark names a row this run decided, which for a body with an
+    // execution record means a bucket and for one without means deletion.
+    // Which of the five the single-row slice took depends on digest order, so
+    // the seed says which outcome to expect.
+    let attributable = seeded
+        .transactions
+        .iter()
+        .find(|transaction| transaction.digest == watermark)
+        .expect("the watermark must name a seeded transaction")
+        .effects_digest
+        .is_some();
+    let bucketed = store
+        .get_historic_ledger()
+        .get_transaction(&watermark)
+        .unwrap()
+        .is_some();
+    assert_eq!(
+        bucketed, attributable,
+        "the row the watermark names must be in a bucket when an execution \
+         record places it, and gone when none does"
+    );
     assert!(
         store
-            .get_historic_ledger()
-            .get_transaction(&watermark)
+            .perpetual_tables
+            .transactions
+            .get(&watermark)
             .unwrap()
-            .is_some(),
-        "the row the watermark names must already be in a bucket"
+            .is_none(),
+        "the row the watermark names must have left the flat table either way"
     );
 
     // Release every handle on both databases before reopening the same paths,
@@ -804,5 +836,96 @@ async fn a_node_that_is_not_behind_keeps_its_synced_watermark() {
             .get_highest_synced_checkpoint_seq_number()
             .unwrap(),
         before
+    );
+}
+
+/// The rewind belongs to the run that deletes rows, not to every later start.
+/// A migrated node keeps whatever state sync has fetched ahead of execution,
+/// which on a healthy node is a large and expensive buffer: rewinding it on
+/// each restart would make the node fetch those checkpoints again every time.
+#[tokio::test]
+async fn a_restart_after_the_migration_keeps_the_synced_watermark() {
+    let store_dir = tempfile::tempdir().unwrap();
+    let checkpoint_dir = tempfile::tempdir().unwrap();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    seed(&store, &checkpoint_store);
+
+    // First start: the migration runs and rewinds, as it must.
+    migration(&store, checkpoint_store.clone(), Some(1), 2)
+        .run()
+        .unwrap();
+
+    // State sync then runs ahead of execution again, as it does on any node
+    // that is keeping up.
+    let ahead = seed_checkpoint(&checkpoint_store, RUNNING_EPOCH, 91);
+    checkpoint_store
+        .update_highest_synced_checkpoint(&ahead)
+        .unwrap();
+    let synced_before_restart = checkpoint_store
+        .get_highest_synced_checkpoint_seq_number()
+        .unwrap();
+
+    // Second start: nothing left to migrate, so nothing may be given back.
+    migration(&store, checkpoint_store.clone(), Some(1), 2)
+        .run()
+        .unwrap();
+
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        synced_before_restart,
+        "a restart of a migrated node must not rewind the synced watermark"
+    );
+}
+
+/// A contents row shared by an expired checkpoint and a retained one must
+/// survive the expired one. Contents are keyed by digest, so checkpoints with
+/// the same transactions share a row — every checkpoint carrying none does —
+/// and deleting it with the expired summary would leave the retained
+/// checkpoint with a summary and nothing to serve.
+///
+/// A slice of one puts the two summaries in different slices, so the expired
+/// one is processed first for one of the two digest orders; the assertion
+/// holds either way.
+#[tokio::test]
+async fn an_expired_checkpoint_does_not_take_a_retained_one_s_contents() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+
+    let full_contents = FullCheckpointContents::random_for_testing();
+    // Epoch 1 is below the floor at retention 1, epoch 2 is the last retained.
+    let expired = test_checkpoint_with_contents(1, 10, &full_contents);
+    let retained = test_checkpoint_with_contents(WATERMARK_EPOCH, 20, &full_contents);
+    let contents_digest = expired.contents_digest;
+    assert_eq!(retained.contents_digest, contents_digest);
+
+    let tables = &checkpoint_store.tables;
+    tables
+        .checkpoint_content
+        .insert(&contents_digest, &full_contents.checkpoint_contents())
+        .unwrap();
+    for checkpoint in [&expired, &retained] {
+        tables
+            .checkpoint_by_digest
+            .insert(checkpoint.digest(), checkpoint.serializable_ref())
+            .unwrap();
+    }
+
+    migration(&store, checkpoint_store.clone(), Some(1), 1)
+        .run()
+        .unwrap();
+
+    assert!(
+        checkpoint_store
+            .historic_checkpoints
+            .ensure(WATERMARK_EPOCH)
+            .unwrap()
+            .checkpoint_content
+            .get(&contents_digest)
+            .unwrap()
+            .is_some(),
+        "the retained checkpoint must keep the contents it shares with the expired one",
     );
 }
