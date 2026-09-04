@@ -161,8 +161,32 @@ impl GlobalStateHasher {
         if let Some(acc) = epoch_store.get_state_hash_for_checkpoint(&checkpoint_seq_num)? {
             return Ok(acc);
         }
+        self.record_checkpoint_hash(
+            checkpoint_seq_num,
+            self.accumulate_effects(effects),
+            epoch_store,
+        )
+    }
 
-        let acc = self.accumulate_effects(effects);
+    /// Stores a checkpoint's state hash and wakes anything waiting on it,
+    /// returning the hash now on record.
+    ///
+    /// Separate from [`Self::accumulate_checkpoint`] so a caller can compute
+    /// the hash somewhere cheaper and only record it here. Computing it is a
+    /// pure function of the effects, and the multiset hash does not depend on
+    /// their order, so it does not have to happen where the recording does.
+    ///
+    /// A hash already on record wins, so a recomputation after a restart
+    /// cannot replace it.
+    pub fn record_checkpoint_hash(
+        &self,
+        checkpoint_seq_num: CheckpointSequenceNumber,
+        acc: GlobalStateHash,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaResult<GlobalStateHash> {
+        if let Some(existing) = epoch_store.get_state_hash_for_checkpoint(&checkpoint_seq_num)? {
+            return Ok(existing);
+        }
 
         epoch_store.insert_state_hash_for_checkpoint(&checkpoint_seq_num, &acc)?;
         debug!("Accumulated checkpoint {}", checkpoint_seq_num);
