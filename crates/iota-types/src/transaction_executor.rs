@@ -129,3 +129,80 @@ impl VmChecks {
         matches!(self, Self::Enabled)
     }
 }
+
+/// Which input checks a simulation drops relative to a transaction bound for
+/// execution.
+///
+/// Every field defaults to `false`, so a check added to the shared path applies
+/// to a simulation too until someone names it here and says why.
+#[derive(Default, Debug, Copy, Clone)]
+pub struct InputCheckRules {
+    /// Skip the bounds on the gas budget itself, so a caller whose gas is not
+    /// settled runs out of gas rather than being rejected. The gas coins are
+    /// still required to be address-owned and to cover whatever budget is set.
+    pub unbounded_gas_budget: bool,
+    /// Skip the requirement that an address-owned input object be owned by the
+    /// sender, so a caller can ask what a transaction would do over objects it
+    /// does not own.
+    ///
+    /// This relaxes only whose object it is. A child object or a shared object
+    /// named as an owned input is still rejected: those are not questions of
+    /// permission but of what may be an owned input at all, and the engine
+    /// treats the input checks as having settled them — a child object reaching
+    /// it trips an invariant that names this checker.
+    ///
+    /// It also drops the check that the gas payment is owned by the
+    /// transaction's gas owner, since gas coins go through the same arm. The
+    /// weaker requirement that they be address-owned survives, in the gas
+    /// balance check.
+    pub any_object_owner: bool,
+    /// Skip the match between an input object's declared digest and the loaded
+    /// object. The digest is an optimistic-concurrency token for submission,
+    /// which a simulation does not do, and nothing in execution reads it: the
+    /// object is loaded by id and version, and every value is built from what
+    /// was loaded. An object that does not exist still fails in the loader.
+    pub any_object_digest: bool,
+    /// Skip the match between a receiving reference's declared version and the
+    /// version of the object it names, so a simulation can run over a reference
+    /// the caller has not refreshed.
+    ///
+    /// A receiving reference's version is not only an optimistic-concurrency
+    /// token, unlike the two above: execution resolves the receive at exactly
+    /// the declared version, so a stale one still fails at runtime with
+    /// `E_UNABLE_TO_RECEIVE_OBJECT`. This drops the up-front rejection, not the
+    /// outcome.
+    ///
+    /// Neither this nor [`Self::any_receiving_object_digest`] relaxes what the
+    /// object is, or the rejection of a reference that duplicates another or
+    /// collides with an input object — that last one is the only rejection
+    /// standing between a duplicated receiving ticket and an invariant
+    /// violation in the object runtime.
+    pub any_receiving_object_version: bool,
+    /// Skip the match between a receiving reference's declared digest and the
+    /// object it names, for the same reason as [`Self::any_object_digest`]: the
+    /// digest is an optimistic-concurrency token for submission, which a
+    /// simulation does not do.
+    ///
+    /// See [`Self::any_receiving_object_version`] for what stays checked.
+    pub any_receiving_object_digest: bool,
+}
+
+impl InputCheckRules {
+    /// No relaxations: exactly what a validator applies.
+    pub const EXECUTION: Self = Self {
+        unbounded_gas_budget: false,
+        any_object_owner: false,
+        any_object_digest: false,
+        any_receiving_object_version: false,
+        any_receiving_object_digest: false,
+    };
+
+    /// What a simulation with [`VmChecks::Disabled`] drops.
+    pub const SIMULATION: Self = Self {
+        unbounded_gas_budget: true,
+        any_object_owner: true,
+        any_object_digest: true,
+        any_receiving_object_version: true,
+        any_receiving_object_digest: true,
+    };
+}

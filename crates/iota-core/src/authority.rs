@@ -112,7 +112,7 @@ use iota_types::{
     },
     traffic_control::{PolicyConfig, RemoteFirewallConfig, TrafficControlReconfigParams},
     transaction::*,
-    transaction_executor::{SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -2336,44 +2336,22 @@ impl AuthorityState {
 
         // Checks enabled -> DRY-RUN, it means we are simulating a real TX
         // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
-        let (gas_status, checked_input_objects) = if checks.enabled() {
-            iota_transaction_checks::check_transaction_input(
-                protocol_config,
-                epoch_store.reference_gas_price(),
-                &transaction,
-                input_objects,
-                &receiving_objects,
-                &self.metrics.bytecode_verifier_metrics,
-                &self.config.verifier_signing_config,
-                authenticator_gas_budget,
-            )?
+        let input_checks = if checks.enabled() {
+            InputCheckRules::EXECUTION
         } else {
-            // Execution smashes the gas coins and reserves the whole budget from them
-            // before running any command, treating the input checks as having verified
-            // that they are gas coins at all — so with those checks skipped here, this
-            // has to stand in for them. With the checks enabled,
-            // `check_transaction_input` covers it.
-            iota_types::gas::check_gas_coins_cover_budget_in_simulation(
-                &input_objects,
-                transaction.gas(),
-                transaction.gas_budget(),
-            )?;
-
-            let checked_input_objects = iota_transaction_checks::check_simulation_input(
-                protocol_config,
-                transaction.kind(),
-                input_objects,
-                receiving_objects,
-            )?;
-            let gas_status = IotaGasStatus::new(
-                transaction.gas_budget(),
-                transaction.gas_price(),
-                epoch_store.reference_gas_price(),
-                protocol_config,
-            )?;
-
-            (gas_status, checked_input_objects)
+            InputCheckRules::SIMULATION
         };
+        let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
+            protocol_config,
+            epoch_store.reference_gas_price(),
+            &transaction,
+            input_objects,
+            &receiving_objects,
+            &self.metrics.bytecode_verifier_metrics,
+            &self.config.verifier_signing_config,
+            authenticator_gas_budget,
+            input_checks,
+        )?;
 
         // Create a new executor for the simulation
         let executor = iota_execution::executor(
@@ -5894,6 +5872,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
                 authenticator_gas_budget,
+                InputCheckRules::EXECUTION,
             )?;
 
         Ok((

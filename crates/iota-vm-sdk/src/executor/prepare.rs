@@ -25,10 +25,7 @@ use iota_types::{
     auth_context::AuthContextData,
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
-    gas::{
-        IotaGasStatus, IotaGasStatusAPI, check_gas_coins_cover_budget_in_simulation,
-        fill_in_unset_simulation_gas,
-    },
+    gas::{IotaGasStatus, IotaGasStatusAPI, fill_in_unset_simulation_gas},
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -40,7 +37,7 @@ use iota_types::{
         ReceivingObjectReadResult, ReceivingObjects, TransactionAPI,
         merge_authenticator_input_objects,
     },
-    transaction_executor::SimulateTransactionResult,
+    transaction_executor::{InputCheckRules, SimulateTransactionResult},
 };
 use move_trace_format::format::MoveTraceBuilder;
 
@@ -168,62 +165,40 @@ pub(super) fn prepare_transaction(
             .collect::<Vec<_>>()
     });
 
-    let (gas_status, checked_input_objects) = if matches!(mode, ExecutionMode::DevInspect) {
-        // Dev-inspect meters against the transaction's budget, which the fill-in
-        // above resolves to `max_tx_gas` when the caller declares none, matching
-        // the node's dev-inspect entry point.
-        //
-        // The engine smashes the gas coins and reserves the whole budget from them
-        // before running any command, treating the input checks as having verified
-        // that they are gas coins at all — so with those checks skipped here, this
-        // stands in for them, the same way the node's simulation does.
-        let gas_budget = transaction.gas_budget();
-        check_gas_coins_cover_budget_in_simulation(&input_objects, transaction.gas(), gas_budget)
-            .map_err(|e| ValidationError::new("gas balance check", e))?;
-
-        let checked_input_objects = iota_transaction_checks::check_simulation_input(
-            &env.protocol_config,
-            transaction.kind(),
-            input_objects,
-            receiving_objects,
-        )
-        .map_err(|e| ValidationError::new("simulation input check", e))?;
-
-        let gas_status = IotaGasStatus::new(
-            gas_budget,
-            transaction.gas_price(),
-            env.reference_gas_price,
-            &env.protocol_config,
-        )
-        .map_err(|e| ValidationError::new("gas status", e))?;
-        (gas_status, checked_input_objects)
+    // Dev-inspect meters against the transaction's budget, which the fill-in
+    // above resolves to `max_tx_gas` when the caller declares none, matching the
+    // node's dev-inspect entry point, and drops the input checks a simulation
+    // does not need. Every other mode runs what a validator runs.
+    let (input_checks, check_name) = if matches!(mode, ExecutionMode::DevInspect) {
+        (InputCheckRules::SIMULATION, "simulation input check")
     } else {
-        // Offline default: the verifier-signing limits may differ from those a
-        // live validator enforces, so this check will not match a real chain.
-        let verifier_signing_config =
-            iota_config::verifier_signing_config::VerifierSigningConfig::default();
-        // Pass `0` for the authenticator gas budget: this crate runs the
-        // authenticator and body together to effects, which is the node's
-        // post-consensus path, where they share the full transaction budget
-        // (`max_auth_gas` caps only the separate pre-consensus signing check,
-        // which this crate does not model). A `0` budget makes
-        // `check_transaction_input` meter at the full transaction budget, as
-        // `check_certificate_input` does. (Move-authentication support is
-        // verified before preparation, so the precondition a non-zero budget
-        // would enforce is already covered.)
-        let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
-            &env.protocol_config,
-            env.reference_gas_price,
-            &transaction,
-            input_objects,
-            &receiving_objects,
-            &env.bytecode_verifier_metrics,
-            &verifier_signing_config,
-            0,
-        )
-        .map_err(|e| ValidationError::new("transaction input check", e))?;
-        (gas_status, checked_input_objects)
+        (InputCheckRules::EXECUTION, "transaction input check")
     };
+    // Offline default: the verifier-signing limits may differ from those a
+    // live validator enforces, so this check will not match a real chain.
+    let verifier_signing_config =
+        iota_config::verifier_signing_config::VerifierSigningConfig::default();
+    // Pass `0` for the authenticator gas budget: this crate runs the
+    // authenticator and body together to effects, which is the node's
+    // post-consensus path, where they share the full transaction budget
+    // (`max_auth_gas` caps only the separate pre-consensus signing check,
+    // which this crate does not model). A `0` budget makes
+    // `check_transaction_input` meter at the full transaction budget, as
+    // `check_certificate_input` does. (Move-authentication support is
+    // verified before preparation, so the precondition a non-zero budget
+    // would enforce is already covered.)
+    let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
+        &env.protocol_config,
+        env.reference_gas_price,
+        &transaction,
+        input_objects,
+        &receiving_objects,
+        &env.bytecode_verifier_metrics,
+        &verifier_signing_config,
+        0,
+        input_checks,
+    )
+    .map_err(|e| ValidationError::new(check_name, e))?;
 
     if let Some(receiving) = coin_deny_receiving {
         // Regulated-coin deny-list check over the transaction's own inputs and
