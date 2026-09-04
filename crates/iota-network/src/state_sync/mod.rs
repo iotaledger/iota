@@ -1465,17 +1465,18 @@ fn checkpoint_archive_sync_end(
 ///
 /// Synced contents can only be pruned once executed, so syncing far ahead of
 /// execution grows disk usage without bound. `None` for `highest_executed`
-/// means the store does not track execution, and there is nothing to hold the
-/// target back against.
+/// means nothing has been executed yet, not even genesis, and the bound counts
+/// from checkpoint 0.
 fn checkpoint_contents_sync_target(
     highest_verified: CheckpointSequenceNumber,
     highest_executed: Option<CheckpointSequenceNumber>,
     max_ahead_of_execution: u64,
 ) -> CheckpointSequenceNumber {
-    let Some(highest_executed) = highest_executed else {
-        return highest_verified;
-    };
-    highest_verified.min(highest_executed.saturating_add(max_ahead_of_execution))
+    highest_verified.min(
+        highest_executed
+            .unwrap_or(0)
+            .saturating_add(max_ahead_of_execution),
+    )
 }
 
 /// Syncs checkpoint contents from peers if the target sequence cursor, which is

@@ -1204,8 +1204,8 @@ fn test_checkpoint_contents_sync_target() {
     assert_eq!(checkpoint_contents_sync_target(1_000, Some(10), 100), 110);
     assert_eq!(checkpoint_contents_sync_target(1_000, Some(0), 1), 1);
 
-    // A store that does not track execution has nothing to hold back against.
-    assert_eq!(checkpoint_contents_sync_target(1_000, None, 100), 1_000);
+    // Nothing executed yet, not even genesis: the bound counts from 0.
+    assert_eq!(checkpoint_contents_sync_target(1_000, None, 100), 100);
 
     // The bound must not run past the end of the sequence space.
     assert_eq!(checkpoint_contents_sync_target(30, Some(u64::MAX), 100), 30);
