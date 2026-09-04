@@ -58,7 +58,6 @@ const EAddressMismatch: vector<u8> =
 public struct SmartAccountClaimed has copy, drop {
     addr: address,
     scheme: u8,
-    key_id: address,
     immutable: bool,
 }
 
@@ -66,7 +65,6 @@ public struct SmartAccountClaimed has copy, drop {
 public struct SmartAccountCreated has copy, drop {
     addr: address,
     scheme: u8,
-    key_id: address,
     immutable: bool,
 }
 
@@ -180,7 +178,6 @@ fun claim_account_v1(scheme_flag: u8, pk_bytes: vector<u8>, immutable: bool, ctx
     let event = SmartAccountClaimed {
         addr: derived_addr,
         scheme: scheme_flag,
-        key_id: public_key.key_id(),
         immutable,
     };
 
@@ -208,7 +205,6 @@ public fun build_v1(self: SmartAccountBuilder): address {
     let event = SmartAccountCreated {
         addr: self.account.account_address(),
         scheme: self.public_key.scheme().flag(),
-        key_id: self.public_key.key_id(),
         immutable: MUTABLE_ACCOUNT,
     };
     let addr = build_v1_internal(self, MUTABLE_ACCOUNT);
@@ -226,7 +222,6 @@ public fun build_immutable_v1(self: SmartAccountBuilder): address {
     let event = SmartAccountCreated {
         addr: self.account.account_address(),
         scheme: self.public_key.scheme().flag(),
-        key_id: self.public_key.key_id(),
         immutable: IMMUTABLE_ACCOUNT,
     };
     let addr = build_v1_internal(self, IMMUTABLE_ACCOUNT);

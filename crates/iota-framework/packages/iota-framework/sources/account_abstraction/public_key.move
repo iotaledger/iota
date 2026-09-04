@@ -107,35 +107,6 @@ public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
     create(signature_scheme::from_flag(flag), prefixed_bytes)
 }
 
-/// Canonical identity hash of this key: `blake2b256(flag || raw_bytes)` as an address.
-///
-/// Unlike `to_iota_address`, the scheme flag is included for every scheme
-/// (Ed25519 has no legacy exemption here). Used as the identity key of the
-/// account-discoverability event stream.
-/// /// Derives the IOTA address for this public key, mirroring Rust `IotaAddress::from(&PublicKey)`:
-///   Ed25519:   Blake2b256([0x00] || pubkey)
-///   Secp256k1: Blake2b256([0x01] || pubkey)
-///   Secp256r1: Blake2b256([0x02] || pubkey)
-///   MultiSig:  Blake2b256([0x03] || threshold_le16 || member*) where each Ed25519 member
-///              contributes `pk || weight` and each other member contributes
-///              `scheme_flag || pk || weight` (Ed25519 has no flag prefix — IOTA legacy rule)
-///   Passkey:   Blake2b256([0x06] || pubkey)
-public fun key_id(self: &PublicKey): address {
-    // TO BE CHECKED: do we really need this key_id? Can't we use the address derived from the public key directly?
-    // The only difference is that the key_id includes the scheme flag for Ed25519, while the address does not.
-    let scheme = self.scheme;
-    let raw = self.raw_bytes;
-    // TO BE CHECKED: do we need to include multisig as well?
-    let data = if (scheme == signature_scheme::multisig()) {
-        multisig_to_hash_input(raw)
-    } else {
-        let mut v = vector[scheme.flag()];
-        v.append(raw);
-        v
-    };
-    iota_address::from_bytes(hash::blake2b256(&data))
-}
-
 /// Constructs a `PublicKey` from an explicit `scheme` and raw key `raw_bytes`.
 ///
 /// `raw_bytes` must be the raw key material **without** the scheme flag prefix:

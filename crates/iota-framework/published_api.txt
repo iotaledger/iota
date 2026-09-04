@@ -2329,9 +2329,6 @@ PublicKey
 from_prefixed_bytes
 	public fun
 	0x2::public_key
-key_id
-	public fun
-	0x2::public_key
 create
 	public fun
 	0x2::public_key
