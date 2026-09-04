@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, num::NonZeroUsize, time::Duration};
+use std::{
+    collections::HashMap,
+    num::{NonZeroU64, NonZeroUsize},
+    time::Duration,
+};
 
 use anemo::{PeerId, Request};
 use anyhow::anyhow;
@@ -337,7 +341,6 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
     let checkpoint_archive_config = CheckpointArchiveConfig {
         download_concurrency: NonZeroUsize::new(1).unwrap(),
         verify_concurrency: NonZeroUsize::new(2).unwrap(),
-        max_checkpoints_ahead_of_execution: NonZeroUsize::new(1_000_000).unwrap(),
         url: format!("file://{}", temp_dir.path().display()),
     };
     // Build and connect two nodes where Node 1 will be given access to an archive
@@ -354,6 +357,8 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
             // Shorten the retry delay so pruned-checkpoint tasks quickly discover
             // that the archive has already advanced highest_synced past them.
             wait_interval_when_no_peer_to_sync_content_ms: Some(10),
+            // Keep sync unbounded: this store does not execute checkpoints.
+            max_checkpoints_ahead_of_execution: NonZeroU64::new(1_000_000),
             ..StateSyncConfig::randomized_for_testing()
         })
         .checkpoint_archive_config(Some(checkpoint_archive_config))
@@ -1101,4 +1106,107 @@ fn test_required_executed_checkpoint() {
     // to, so that inserting stays exactly at the cap.
     assert_eq!(required_executed_checkpoint(31, 30), 1);
     assert_eq!(required_executed_checkpoint(51, 30), 21);
+}
+
+#[tokio::test]
+async fn peer_sync_pauses_while_too_far_ahead_of_execution() {
+    telemetry_subscribers::init_for_testing();
+    let (committee, (ordered_checkpoints, contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 4, None, random_contents);
+    let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
+    let genesis_contents = contents.first().cloned().unwrap();
+
+    // Node 1 has every checkpoint and serves node 2.
+    let store_1 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        genesis_contents.clone(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_1).build();
+    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_1, handle_1) = builder.build(network_1.clone());
+    let store_1 = event_loop_1.store.clone();
+
+    // Node 2 may sync at most 2 checkpoints past its executed watermark, which
+    // stays at genesis until this test moves it.
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint,
+        genesis_contents,
+        committee.committee().to_owned(),
+    );
+    store_2.inner_mut().set_highest_executed_checkpoint(0);
+    let (builder, server) = Builder::new()
+        .store(store_2)
+        .config(StateSyncConfig {
+            max_checkpoints_ahead_of_execution: NonZeroU64::new(2),
+            // Sync resumes on the next tick once execution advances.
+            interval_period_ms: Some(50),
+            ..Default::default()
+        })
+        .build();
+    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_2, _handle_2) = builder.build(network_2.clone());
+    let store_2 = event_loop_2.store.clone();
+
+    tokio::spawn(event_loop_1.start());
+    tokio::spawn(event_loop_2.start());
+    network_1.connect(network_2.local_addr()).await.unwrap();
+
+    // Hand node 1 every checkpoint, which it announces to node 2.
+    for (checkpoint, contents) in ordered_checkpoints
+        .iter()
+        .zip(contents.iter())
+        .skip(1)
+        .map(|(checkpoint, contents)| (checkpoint.clone(), contents.clone()))
+    {
+        store_1
+            .try_insert_checkpoint_contents(&checkpoint, contents)
+            .unwrap();
+        store_1.insert_certified_checkpoint(&checkpoint);
+        handle_1.send_checkpoint(checkpoint).await;
+    }
+
+    // Node 2 verifies every summary, but stops syncing contents at the bound.
+    timeout(Duration::from_secs(10), async {
+        while store_2.get_highest_verified_checkpoint_seq_number()
+            != ordered_checkpoints.last().unwrap().sequence_number()
+        {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("node 2 failed to verify all checkpoint summaries");
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert_eq!(store_2.get_highest_synced_checkpoint_seq_number(), 2);
+
+    // Execution catches up, and sync continues to the end.
+    store_2.inner_mut().set_highest_executed_checkpoint(2);
+    timeout(Duration::from_secs(10), async {
+        while store_2.get_highest_synced_checkpoint_seq_number()
+            != ordered_checkpoints.last().unwrap().sequence_number()
+        {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("node 2 failed to resume syncing after execution caught up");
+}
+
+#[test]
+fn test_checkpoint_contents_sync_target() {
+    use crate::state_sync::checkpoint_contents_sync_target;
+
+    // Within the bound: sync all the way up to the verified watermark.
+    assert_eq!(checkpoint_contents_sync_target(30, Some(10), 100), 30);
+    assert_eq!(checkpoint_contents_sync_target(30, Some(0), 30), 30);
+
+    // Past the bound: hold the target at the bound above execution.
+    assert_eq!(checkpoint_contents_sync_target(1_000, Some(10), 100), 110);
+    assert_eq!(checkpoint_contents_sync_target(1_000, Some(0), 1), 1);
+
+    // A store that does not track execution has nothing to hold back against.
+    assert_eq!(checkpoint_contents_sync_target(1_000, None, 100), 1_000);
+
+    // The bound must not run past the end of the sequence space.
+    assert_eq!(checkpoint_contents_sync_target(30, Some(u64::MAX), 100), 30);
 }
