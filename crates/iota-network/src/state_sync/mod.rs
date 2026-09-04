@@ -283,6 +283,28 @@ impl PeerHeights {
         self.sequence_number_to_digest.shrink_to_fit();
     }
 
+    /// Drops cached summaries above `sequence_number`. Peers push their
+    /// latest checkpoint as they sync it, and the periodic query records each
+    /// peer's tip, so without this the ones state sync is not going to
+    /// process yet pile up for as long as it holds back.
+    pub fn cleanup_checkpoints_above(&mut self, sequence_number: CheckpointSequenceNumber) {
+        if !self
+            .sequence_number_to_digest
+            .keys()
+            .any(|s| *s > sequence_number)
+        {
+            return;
+        }
+        // `retain` leaves tombstones that count toward the load factor; see
+        // `cleanup_old_checkpoints`.
+        self.unprocessed_checkpoints
+            .retain(|_digest, checkpoint| checkpoint.sequence_number() <= sequence_number);
+        self.unprocessed_checkpoints.shrink_to_fit();
+        self.sequence_number_to_digest
+            .retain(|&s, _digest| s <= sequence_number);
+        self.sequence_number_to_digest.shrink_to_fit();
+    }
+
     // TODO: also record who gives this checkpoint info for peer quality
     // measurement?
     pub fn insert_checkpoint(&mut self, checkpoint: Checkpoint) {
@@ -859,6 +881,9 @@ where
     /// higher known checkpoint than us, up to
     /// `max_checkpoints_ahead_of_execution` above the executed watermark. Only
     /// one sync task is allowed to run at a time.
+    ///
+    /// Also drops the summaries peers pushed above that point, since nothing
+    /// reads them until execution advances.
     fn maybe_start_checkpoint_summary_sync_task(&mut self) {
         // Only run one sync task at a time
         if self.sync_checkpoint_summaries_task.is_some() {
@@ -874,20 +899,25 @@ where
             .peer_heights
             .read()
             .unwrap()
-            .highest_known_checkpoint()
-            .cloned();
+            .highest_known_checkpoint_sequence_number();
         let Some(highest_known_checkpoint) = highest_known_checkpoint else {
             return;
         };
+        self.metrics
+            .set_highest_known_checkpoint(highest_known_checkpoint);
         let highest_executed_checkpoint = self
             .store
             .try_get_highest_executed_checkpoint_seq_number()
             .expect("store operation should not fail");
         let target = checkpoint_sync_target(
-            highest_known_checkpoint.sequence_number(),
+            highest_known_checkpoint,
             highest_executed_checkpoint,
             self.config.max_checkpoints_ahead_of_execution(),
         );
+        self.peer_heights
+            .write()
+            .unwrap()
+            .cleanup_checkpoints_above(target);
 
         if highest_processed_checkpoint.sequence_number() < target {
             // Start sync job
@@ -902,7 +932,6 @@ where
                 self.config.pinned_checkpoints.clone(),
                 concurrency,
                 self.config.timeout(),
-                highest_known_checkpoint,
                 target,
             )
             .map(|result| match result {
@@ -1093,12 +1122,8 @@ async fn query_peers_for_their_latest_checkpoint(
 /// stored in the store. Checkpoints in temporary store (peer_heights) will be
 /// cleaned up after syncing.
 /// Verifies and inserts the checkpoint summaries from the highest verified one
-/// up to `highest_checkpoint_to_sync`, downloading them from peers.
-///
-/// `checkpoint` is the highest checkpoint known to be on peers, which is
-/// reported as such and must not be below `highest_checkpoint_to_sync`; the
-/// walk stops at `highest_checkpoint_to_sync`, which the caller holds back to
-/// keep the store within reach of execution.
+/// up to `highest_checkpoint_to_sync`, downloading them from peers. The caller
+/// holds that bound back to keep the store within reach of execution.
 async fn sync_to_checkpoint<S>(
     network: anemo::Network,
     store: S,
@@ -1107,21 +1132,18 @@ async fn sync_to_checkpoint<S>(
     pinned_checkpoints: Vec<(CheckpointSequenceNumber, CheckpointDigest)>,
     checkpoint_header_download_concurrency: NonZeroUsize,
     timeout: Duration,
-    checkpoint: Checkpoint,
     highest_checkpoint_to_sync: CheckpointSequenceNumber,
 ) -> Result<()>
 where
     S: WriteStore,
 {
-    metrics.set_highest_known_checkpoint(checkpoint.sequence_number());
-
     let mut current = store
         .try_get_highest_verified_checkpoint()
         .expect("store operation should not fail");
-    if current.sequence_number() >= checkpoint.sequence_number() {
+    if current.sequence_number() >= highest_checkpoint_to_sync {
         bail!(
-            "target checkpoint {} is older than highest verified checkpoint {}",
-            checkpoint.sequence_number(),
+            "target checkpoint {highest_checkpoint_to_sync} is older than highest verified \
+             checkpoint {}",
             current.sequence_number(),
         );
     }

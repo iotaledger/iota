@@ -1258,6 +1258,93 @@ async fn peer_content_sync_pauses_when_summaries_run_ahead() {
     wait_for_watermarks(&store_2, last_checkpoint_seq, 4).await;
 }
 
+#[tokio::test]
+async fn pushed_summaries_above_the_sync_target_are_dropped() {
+    telemetry_subscribers::init_for_testing();
+    let (committee, (ordered_checkpoints, contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 6, None, random_contents);
+    let last_checkpoint_seq = ordered_checkpoints.last().unwrap().sequence_number();
+    let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
+    let genesis_contents = contents.first().cloned().unwrap();
+
+    // Node 1 serves node 2, and is given its checkpoints in two rounds below.
+    let store_1 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        genesis_contents.clone(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_1).build();
+    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_1, handle_1) = builder.build(network_1.clone());
+    let store_1 = event_loop_1.store.clone();
+
+    // Node 2 holds at 2 checkpoints past its executed watermark.
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint,
+        genesis_contents,
+        committee.committee().to_owned(),
+    );
+    store_2.inner_mut().set_highest_executed_checkpoint(0);
+    let (builder, server) = Builder::new()
+        .store(store_2)
+        .config(StateSyncConfig {
+            max_checkpoints_ahead_of_execution: NonZeroU64::new(2),
+            interval_period_ms: Some(50),
+            ..Default::default()
+        })
+        .build();
+    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_2, _handle_2) = builder.build(network_2.clone());
+    let store_2 = event_loop_2.store.clone();
+    let peer_heights_2 = event_loop_2.peer_heights.clone();
+
+    tokio::spawn(event_loop_1.start());
+    tokio::spawn(event_loop_2.start());
+    network_1.connect(network_2.local_addr()).await.unwrap();
+
+    let give_to_node_1 = |sequence_numbers: std::ops::RangeInclusive<usize>| {
+        let (store_1, handle_1) = (store_1.clone(), handle_1.clone());
+        let (ordered_checkpoints, contents) = (ordered_checkpoints.clone(), contents.clone());
+        async move {
+            for i in sequence_numbers {
+                store_1
+                    .try_insert_checkpoint_contents(&ordered_checkpoints[i], contents[i].clone())
+                    .unwrap();
+                store_1.insert_certified_checkpoint(&ordered_checkpoints[i]);
+                handle_1
+                    .send_checkpoint(ordered_checkpoints[i].clone())
+                    .await;
+            }
+        }
+    };
+
+    // Node 2 syncs up to the bound and stops there, which also means it has
+    // node 1 registered as a peer.
+    give_to_node_1(1..=2).await;
+    wait_for_watermarks(&store_2, 2, 2).await;
+
+    // Node 1 now produces the rest and pushes each summary to node 2, which is
+    // not going to process any of them until execution advances. Node 2 must
+    // not hold them for the whole wait. The peers' tip is exempt: the periodic
+    // peer query keeps putting it back.
+    give_to_node_1(3..=last_checkpoint_seq as usize).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    for sequence_number in 3..last_checkpoint_seq {
+        assert!(
+            peer_heights_2
+                .read()
+                .unwrap()
+                .get_checkpoint_by_sequence_number(sequence_number)
+                .is_none(),
+            "summary {sequence_number} is above the sync target and should not be cached",
+        );
+    }
+
+    // Dropping them does not cost node 2 the peers' height, so sync resumes.
+    store_2.inner_mut().set_highest_executed_checkpoint(3);
+    wait_for_watermarks(&store_2, last_checkpoint_seq, last_checkpoint_seq).await;
+}
+
 /// Waits for a store to reach the given verified and synced watermarks,
 /// panicking with both watermarks if it does not get there in time.
 async fn wait_for_watermarks(
