@@ -639,6 +639,12 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
 }
 
 impl WriteStore for SingleCheckpointSharedInMemoryStore {
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        self.0.try_get_highest_executed_checkpoint_seq_number()
+    }
+
     fn try_insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
         {
             let mut locked = self.0.0.write().unwrap();

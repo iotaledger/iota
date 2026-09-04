@@ -1117,13 +1117,11 @@ async fn query_peers_for_their_latest_checkpoint(
     }
 }
 
-/// Queries connected peers for checkpoints from sequence
-/// current+1 to the target. The received checkpoints will be verified and
-/// stored in the store. Checkpoints in temporary store (peer_heights) will be
-/// cleaned up after syncing.
-/// Verifies and inserts the checkpoint summaries from the highest verified one
-/// up to `highest_checkpoint_to_sync`, downloading them from peers. The caller
-/// holds that bound back to keep the store within reach of execution.
+/// Queries connected peers for the checkpoint summaries from the highest
+/// verified one up to `highest_checkpoint_to_sync`, verifies them, inserts
+/// them in the store, and cleans the ones it took out of `peer_heights` as it
+/// goes. The caller holds `highest_checkpoint_to_sync` back to keep the store
+/// within reach of execution.
 async fn sync_to_checkpoint<S>(
     network: anemo::Network,
     store: S,
