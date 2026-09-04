@@ -1267,12 +1267,7 @@ impl IndexStore {
         Ok(self
             .tables
             .dynamic_field_index
-            .safe_iter_with_prefix_from(
-                &object,
-                std::ops::Bound::Included(&cursor.unwrap_or(ObjectId::ZERO)),
-            )
-            // skip an extra b/c the cursor is exclusive
-            .skip(usize::from(cursor.is_some()))
+            .safe_iter_with_prefix_after(&object, cursor.as_ref())
             .map_ok(|((_, c), object_info)| (c, object_info)))
     }
 
@@ -1681,15 +1676,35 @@ mod tests {
     use std::collections::BTreeMap;
 
     use iota_sdk_types::{
-        Address, ObjectId, Owner, StructTag, TransactionDigest, TransactionEvents, TypeTag,
+        Address, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TransactionEvents,
+        TypeTag, Version,
     };
     use iota_types::{
         base_types::{ObjectInfo, ObjectType},
+        dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
         object,
     };
     use prometheus_filtered::Registry;
 
     use super::{IndexStore, ObjectIndexChanges};
+
+    /// A `DynamicFieldInfo` for `field_id`, with placeholder metadata: the
+    /// cursor tests below only care about the field's identity, not its
+    /// content.
+    fn dynamic_field_info(field_id: ObjectId) -> DynamicFieldInfo {
+        DynamicFieldInfo {
+            name: DynamicFieldName {
+                type_tag: TypeTag::U64,
+                value: serde_json::Value::Number(0.into()),
+            },
+            bcs_name: vec![],
+            type_: DynamicFieldType::DynamicField,
+            object_type: "0x2::dynamic_field::Field<u64, u64>".to_string(),
+            object_id: field_id,
+            version: Version::from_u64(1),
+            digest: ObjectDigest::random(),
+        }
+    }
 
     #[tokio::test]
     async fn test_index_cache() -> anyhow::Result<()> {
@@ -1903,5 +1918,100 @@ mod tests {
             .unwrap();
         v.reverse();
         assert_eq!(v, v_rev);
+    }
+
+    /// The `cursor` of `get_dynamic_fields_iterator` is exclusive: the cursor
+    /// row itself is never returned again, and when the cursor row no longer
+    /// exists (the field was removed from its parent or transferred between
+    /// pages) the scan resumes at the next live row without skipping it.
+    #[tokio::test]
+    async fn get_dynamic_fields_iterator_cursor_is_exclusive() {
+        let tmp_dir = iota_common::tempdir();
+        let index_store = IndexStore::new(
+            tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            Some(128),
+        );
+
+        let parent = ObjectId::random();
+        let mut field_ids: Vec<ObjectId> = (0..3).map(|_| ObjectId::random()).collect();
+        field_ids.sort();
+
+        let new_dynamic_fields = field_ids
+            .iter()
+            .map(|&id| ((parent, id), dynamic_field_info(id)))
+            .collect();
+        index_store
+            .index_tx(
+                Address::random(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                &TransactionEvents(vec![]),
+                ObjectIndexChanges {
+                    deleted_owners: vec![],
+                    deleted_dynamic_fields: vec![],
+                    new_owners: vec![],
+                    new_dynamic_fields,
+                },
+                &TransactionDigest::random(),
+                0,
+                None,
+            )
+            .unwrap();
+
+        let all: Vec<_> = index_store
+            .get_dynamic_fields_iterator(parent, None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let all_ids: Vec<_> = all.iter().map(|(id, _)| *id).collect();
+        assert_eq!(all_ids, field_ids);
+        let cursor = all_ids[0];
+
+        // Live cursor row: the scan starts strictly after it.
+        let after: Vec<_> = index_store
+            .get_dynamic_fields_iterator(parent, Some(cursor))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let after_ids: Vec<_> = after.iter().map(|(id, _)| *id).collect();
+        assert_eq!(
+            after_ids,
+            field_ids[1..],
+            "the cursor row itself must not be returned again",
+        );
+
+        // Vanished cursor row: the scan resumes at the next live row instead
+        // of skipping it.
+        index_store
+            .index_tx(
+                Address::random(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                vec![].into_iter(),
+                &TransactionEvents(vec![]),
+                ObjectIndexChanges {
+                    deleted_owners: vec![],
+                    deleted_dynamic_fields: vec![(parent, cursor)],
+                    new_owners: vec![],
+                    new_dynamic_fields: vec![],
+                },
+                &TransactionDigest::random(),
+                0,
+                None,
+            )
+            .unwrap();
+        let after_removal: Vec<_> = index_store
+            .get_dynamic_fields_iterator(parent, Some(cursor))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let after_removal_ids: Vec<_> = after_removal.iter().map(|(id, _)| *id).collect();
+        assert_eq!(
+            after_removal_ids,
+            field_ids[1..],
+            "the next live row must not be skipped",
+        );
     }
 }

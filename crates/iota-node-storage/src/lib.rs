@@ -85,7 +85,7 @@ pub trait GrpcIndexes: Send + Sync {
     /// `object_type`.
     ///
     /// Each item includes an [`OwnedObjectCursor`] for seek-based pagination.
-    /// The `cursor` bound is **inclusive**.
+    /// The `cursor` is **exclusive**.
     fn account_owned_objects_info_iter(
         &self,
         owner: Address,
@@ -95,8 +95,9 @@ pub trait GrpcIndexes: Send + Sync {
 
     /// Iterate over the dynamic fields of `parent`.
     ///
-    /// The `cursor` bound is **inclusive**.  Only the `DynamicFieldKey` is
-    /// returned; field metadata is loaded on demand from the object store.
+    /// The `cursor` is **exclusive**.
+    /// Only the `DynamicFieldKey` is returned; field metadata is loaded on
+    /// demand from the object store.
     fn dynamic_field_iter(
         &self,
         parent: ObjectId,
@@ -107,6 +108,8 @@ pub trait GrpcIndexes: Send + Sync {
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 
     /// Iterate over all versions of a package by its original package ID.
+    ///
+    /// The `cursor` is **exclusive**.
     fn package_versions_iter(
         &self,
         original_package_id: ObjectId,

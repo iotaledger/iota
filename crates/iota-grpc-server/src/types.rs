@@ -690,25 +690,23 @@ impl GrpcReader {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        let skip = usize::from(cursor.is_some());
         let iter = indexes
             .account_owned_objects_info_iter(owner, cursor, object_type)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
     }
 
     /// Iterate over dynamic fields of a parent object.
     ///
-    /// When `cursor` is `Some`, the cursor item itself is automatically skipped
-    /// so callers get items *after* the cursor (exclusive lower bound).
+    /// The cursor is exclusive: items *after* the cursor position are
+    /// returned.
     pub fn dynamic_field_iter(
         &self,
         parent: ObjectId,
         cursor: Option<ObjectId>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
-        let skip = usize::from(cursor.is_some());
         let iter = self.require_indexes()?.dynamic_field_iter(parent, cursor)?;
-        Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
     }
 
     /// Get unified coin info.
@@ -726,6 +724,9 @@ impl GrpcReader {
     }
 
     /// Iterate over all versions of a package by its original package ID.
+    ///
+    /// The cursor is exclusive: items *after* the cursor position are
+    /// returned.
     pub fn package_versions_iter(
         &self,
         original_package_id: ObjectId,
@@ -734,11 +735,10 @@ impl GrpcReader {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        let skip = usize::from(cursor.is_some());
         let iter = indexes
             .package_versions_iter(original_package_id, cursor)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
     }
 
     /// Generic stream implementation for checkpoints

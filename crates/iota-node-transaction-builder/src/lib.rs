@@ -132,12 +132,8 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
             .map_err(Error::Cursor)?;
 
         let indexes = self.reader.grpc_indexes().ok_or(Error::IndexesDisabled)?;
-        // The index iterator's cursor bound is inclusive, so skip the cursor
-        // item itself to advance past the previous page.
-        let skip = usize::from(cursor.is_some());
-        let mut iter = indexes
-            .account_owned_objects_info_iter(owner, cursor.as_ref(), struct_tag)?
-            .skip(skip);
+        let mut iter =
+            indexes.account_owned_objects_info_iter(owner, cursor.as_ref(), struct_tag)?;
 
         let mut data = Vec::with_capacity(limit);
         let mut last_cursor = None;
