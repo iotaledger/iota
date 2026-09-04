@@ -57,6 +57,8 @@ use self::{
         hash::{HashBlake2b256CostParams, HashKeccak256CostParams},
         hmac,
         hmac::HmacHmacSha3256CostParams,
+        multisig,
+        multisig::MultisigValidatePubkeyCostParams,
         poseidon,
     },
     dynamic_field::{
@@ -89,6 +91,7 @@ use crate::{
         poseidon::PoseidonBN254CostParams,
         zklogin,
     },
+    public_key::PublicKeyToIotaAddressImplCostParams,
     tx_context::TxContextDigestCostParams,
 };
 
@@ -102,6 +105,7 @@ mod event;
 mod object;
 pub mod object_runtime;
 mod protocol_config;
+mod public_key;
 mod random;
 pub mod test_scenario;
 mod test_utils;
@@ -201,6 +205,12 @@ pub struct NativesCostTable {
     // ed25519
     pub ed25519_verify_cost_params: Ed25519VerifyCostParams,
     pub ed25519_validate_pubkey_cost_params: Ed25519ValidatePubkeyCostParams,
+
+    // multisig
+    pub multisig_validate_pubkey_cost_params: MultisigValidatePubkeyCostParams,
+
+    // public_key
+    pub public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams,
 
     // groth16
     pub groth16_prepare_verifying_key_cost_params: Groth16PrepareVerifyingKeyCostParams,
@@ -363,6 +373,27 @@ impl NativesCostTable {
             ed25519_validate_pubkey_cost_params: Ed25519ValidatePubkeyCostParams {
                 ed25519_ed25519_validate_pubkey_cost_base: protocol_config
                     .ed25519_ed25519_validate_pubkey_cost_base_as_option()
+                    .map(Into::into),
+            },
+            // multisig_validate_pubkey
+            multisig_validate_pubkey_cost_params: MultisigValidatePubkeyCostParams {
+                multisig_multisig_validate_pubkey_cost_base: protocol_config
+                    .multisig_multisig_validate_pubkey_cost_base_as_option()
+                    .map(Into::into),
+                multisig_multisig_validate_pubkey_cost_per_ed25519_member: protocol_config
+                    .multisig_multisig_validate_pubkey_cost_per_ed25519_member_as_option()
+                    .map(Into::into),
+                multisig_multisig_validate_pubkey_cost_per_secp256k1_member: protocol_config
+                    .multisig_multisig_validate_pubkey_cost_per_secp256k1_member_as_option()
+                    .map(Into::into),
+                multisig_multisig_validate_pubkey_cost_per_secp256r1_member: protocol_config
+                    .multisig_multisig_validate_pubkey_cost_per_secp256r1_member_as_option()
+                    .map(Into::into),
+            },
+            // to_iota_address_impl
+            public_key_to_iota_address_impl_cost_params: PublicKeyToIotaAddressImplCostParams {
+                public_key_to_iota_address_impl_cost_base: protocol_config
+                    .public_key_to_iota_address_impl_cost_base_as_option()
                     .map(Into::into),
             },
             // hash
@@ -1107,6 +1138,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "ecdsa_r1",
             "secp256r1_validate_pubkey",
             make_native!(ecdsa_r1::secp256r1_validate_pubkey),
+        ),
+        (
+            "multisig",
+            "multisig_validate_pubkey",
+            make_native!(multisig::multisig_validate_pubkey),
+        ),
+        (
+            "public_key",
+            "to_iota_address_impl",
+            make_native!(public_key::to_iota_address_impl),
         ),
         ("event", "emit", make_native!(event::emit)),
         (
