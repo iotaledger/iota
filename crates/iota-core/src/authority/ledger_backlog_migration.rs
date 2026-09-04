@@ -8,8 +8,8 @@
 //! The one-time move of the ledger and checkpoint history written before this
 //! build into the per-epoch buckets.
 //!
-//! A transaction's body, effects, events, loaded runtime objects and
-//! finalizing checkpoint now go into the bucket of the epoch that executed it,
+//! A transaction's body, effects, events and finalizing checkpoint now go
+//! into the bucket of the epoch that executed it,
 //! and a checkpoint's contents and digest-keyed summary into the bucket of the
 //! epoch that closed it. A database written by an earlier build still holds
 //! all of that in the flat tables of the perpetual and checkpoint stores,
@@ -216,17 +216,9 @@ impl LedgerBacklogMigration {
         epoch: EpochId,
         epochs_to_retain_for_checkpoints: Option<u64>,
     ) -> Self {
-        // The floor the last reconfiguration applied: it counted its retention
-        // back from the epoch it left, one below the epoch the node is now
-        // running in, and kept that epoch as one of the retained. Counting
-        // back from the running epoch instead would delete an epoch this node
-        // still serves — including the one the executed and synced watermarks
-        // name while the running epoch's first checkpoint has yet to be
-        // executed, which leaves both unresolvable by digest.
-        //
-        // `max(1)` because 0 and 1 keep the same epochs: expiry counts
-        // `retained - 1` epochs below its anchor and 0 saturates there, so
-        // both leave the anchor as the floor.
+        // Also keep the epoch before the running one: the executed and synced
+        // watermarks can still point at its last checkpoint. `max(1)` keeps
+        // it even at retention 0; the next reconfiguration drops it.
         let floor = epochs_to_retain_for_checkpoints
             .map_or(0, |retained| epoch.saturating_sub(retained.max(1)));
         Self {
@@ -242,9 +234,20 @@ impl LedgerBacklogMigration {
     /// Drains both stores' flat tables, then records how much of the
     /// checkpoint range the node no longer holds.
     fn run(&self) -> IotaResult<()> {
+        // Rewound before the drains rather than after them, and only while
+        // they still have work recorded. The drains delete rows the checkpoint
+        // executor reads by digest, so no start may ever observe the watermark
+        // naming a checkpoint above them — which a run interrupted between the
+        // drains and a rewind that came after them would leave behind. Gating
+        // on the drains' recorded progress rather than on what this run moved
+        // covers that, and keeps the rewind off every later start: a migrated
+        // node deletes nothing, and rewinding it would throw away the
+        // checkpoints state sync legitimately holds ahead of execution.
+        if self.migration_pending()? {
+            self.rewind_synced_watermark()?;
+        }
         let mut counts = self.drain_ledger()?;
         counts.add(&self.drain_checkpoints()?);
-        self.rewind_synced_watermark()?;
         // Silent on a database with nothing to move: this stays in the startup
         // path long after every database has been migrated.
         if counts.moved > 0 || counts.expired > 0 {
@@ -277,7 +280,7 @@ impl LedgerBacklogMigration {
         Ok(())
     }
 
-    /// Moves every row of the six flat perpetual ledger tables into its
+    /// Moves every row of the five flat perpetual ledger tables into its
     /// epoch's bucket.
     fn drain_ledger(&self) -> IotaResult<MigrationCounts> {
         use LedgerBacklogMigrationProgress as Progress;
@@ -387,20 +390,24 @@ impl LedgerBacklogMigration {
         }
     }
 
-    /// The epoch a transaction-keyed row belongs to, which is the epoch that
-    /// executed the transaction.
-    ///
-    /// Taken from `executed_transactions_to_checkpoint`, which records it for
-    /// every transaction a fullnode has finalized, and otherwise from the
-    /// transaction's own effects, which a validator has as well — that table
-    /// is written on fullnodes only. The two agree: a checkpoint of an epoch
-    /// finalizes only transactions that epoch executed.
-    ///
-    /// A transaction whose epoch neither records — a body persisted or synced
-    /// but never executed — is filed under the epoch the migration runs in.
-    /// That keeps it for a whole retention window instead of risking an expiry
-    /// that is due already, which is the same choice the object backlog sweep
-    /// makes for the versions it cannot place.
+    /// Whether either drain still has rows to move, read from the progress
+    /// rows the drains themselves write.
+    fn migration_pending(&self) -> IotaResult<bool> {
+        let ledger = self
+            .perpetual_tables
+            .ledger_backlog_migration_progress
+            .get(&())?;
+        let checkpoints = self
+            .checkpoint_store
+            .tables
+            .checkpoint_backlog_migration_progress
+            .get(&())?;
+        Ok(
+            !matches!(ledger, Some(LedgerBacklogMigrationProgress::Done))
+                || !matches!(checkpoints, Some(CheckpointBacklogMigrationProgress::Done)),
+        )
+    }
+
     /// Brings the synced watermark back to the executed one, so state sync
     /// fetches again whatever the migration dropped.
     ///
@@ -643,8 +650,8 @@ impl LedgerBacklogMigration {
 
         let mut batch = flat.batch();
         let mut moved = 0;
-        // Every contents row this slice touched, deleted whether it went into
-        // a bucket or went with an expired summary.
+        // The contents rows this slice took into a bucket, deleted from the
+        // flat table because the bucket now holds them.
         let mut contents_keys = Vec::new();
         for (epoch, summaries) in &slice.by_epoch {
             let bucket = self.checkpoint_store.historic_checkpoints.ensure(*epoch)?;
@@ -684,12 +691,12 @@ impl LedgerBacklogMigration {
             )?;
             batch.insert_batch_tagged(&bucket.checkpoint_content, found)?;
         }
-        contents_keys.extend(
-            slice
-                .expired
-                .iter()
-                .map(|(_, summary)| summary.inner().contents_digest),
-        );
+        // An expired summary's contents are left where they are rather than
+        // deleted with it: a contents row is keyed by digest, so checkpoints
+        // with the same transactions share one — every empty checkpoint does
+        // — and a retained summary in a later slice would find nothing to
+        // move. What no retained summary claims by the end of this pass is
+        // left to `move_contents_without_summary`.
         batch.delete_batch(&tables.checkpoint_content, &contents_keys)?;
         batch.delete_batch(flat, &slice.keys)?;
         batch.insert_batch(
