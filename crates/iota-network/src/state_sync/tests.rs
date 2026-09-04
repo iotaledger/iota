@@ -1293,8 +1293,10 @@ fn test_checkpoint_sync_target() {
     assert_eq!(checkpoint_sync_target(1_000, Some(10), 100), 110);
     assert_eq!(checkpoint_sync_target(1_000, Some(0), 1), 1);
 
-    // Nothing executed yet, not even genesis: the bound counts from 0.
+    // Nothing executed yet, not even genesis: the bound counts from 0, and
+    // still never targets more than is available.
     assert_eq!(checkpoint_sync_target(1_000, None, 100), 100);
+    assert_eq!(checkpoint_sync_target(30, None, 100), 30);
 
     // The bound must not run past the end of the sequence space.
     assert_eq!(checkpoint_sync_target(30, Some(u64::MAX), 100), 30);
