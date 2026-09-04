@@ -7556,6 +7556,40 @@
           }
         ]
       },
+      "IotaAccountClaimKind": {
+        "description": "The type of account created by an `IotaClaimAccountTransaction`.",
+        "oneOf": [
+          {
+            "description": "Parameters the claimed `SmartAccount` was created with.",
+            "type": "object",
+            "required": [
+              "build_kind",
+              "public_key",
+              "type"
+            ],
+            "properties": {
+              "build_kind": {
+                "description": "Whether the created account object is mutable or immutable.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IotaSmartAccountBuildKind"
+                  }
+                ]
+              },
+              "public_key": {
+                "description": "Scheme-flagged base64-encoded public key of the claimed address.",
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "smartAccount"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
         "oneOf": [
@@ -8622,6 +8656,14 @@
             }
           }
         }
+      },
+      "IotaSmartAccountBuildKind": {
+        "description": "Whether a claimed account object can be changed after the claim.",
+        "type": "string",
+        "enum": [
+          "Mutable",
+          "Immutable"
+        ]
       },
       "IotaSystemStateSummary": {
         "description": "This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent either V1 or V2 system state objects.",
@@ -11659,6 +11701,30 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
+              }
+            }
+          },
+          {
+            "description": "A transaction that claims an on-chain account object",
+            "type": "object",
+            "required": [
+              "account_kind",
+              "kind"
+            ],
+            "properties": {
+              "account_kind": {
+                "description": "The type of account created by the claim.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IotaAccountClaimKind"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ClaimAccount"
+                ]
               }
             }
           }

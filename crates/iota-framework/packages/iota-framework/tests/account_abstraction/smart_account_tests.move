@@ -101,6 +101,64 @@ fun claim_builder_v1_aborts_on_double_claim() {
     });
 }
 
+// === claim_account_v1 ===
+
+#[test]
+fun claim_account_v1_creates_shared_account_at_sender_address() {
+    let public_key = ed25519_public_key();
+    let sender = public_key.to_iota_address();
+    let mut scenario = test_scenario::begin(sender);
+
+    smart_account::claim_account_v1_for_testing(public_key, scenario.ctx());
+
+    scenario.next_tx(sender);
+    let account = scenario.take_shared<SmartAccount>();
+    assert_eq(account.account_address(), sender);
+    assert_eq(account.has_builtin_auth_public_key(), true);
+    test_scenario::return_shared(account);
+
+    scenario.end();
+}
+
+#[test]
+fun claim_immutable_account_v1_creates_immutable_account_at_sender_address() {
+    let public_key = ed25519_public_key();
+    let sender = public_key.to_iota_address();
+    let mut scenario = test_scenario::begin(sender);
+
+    smart_account::claim_immutable_account_v1_for_testing(public_key, scenario.ctx());
+
+    scenario.next_tx(sender);
+    let account = scenario.take_immutable<SmartAccount>();
+    assert_eq(account.account_address(), sender);
+    assert_eq(account.has_builtin_auth_public_key(), true);
+    test_scenario::return_immutable(account);
+
+    scenario.end();
+}
+
+#[test]
+#[expected_failure(abort_code = iota::claim_registry::EAddressMismatch)]
+fun claim_account_v1_aborts_on_address_mismatch() {
+    let public_key = ed25519_public_key();
+    let mut scenario = test_scenario::begin(@0x1);
+
+    smart_account::claim_account_v1_for_testing(public_key, scenario.ctx());
+
+    scenario.end();
+}
+
+#[test]
+#[expected_failure(abort_code = iota::claim_registry::EAddressMismatch)]
+fun claim_immutable_account_v1_aborts_on_address_mismatch() {
+    let public_key = ed25519_public_key();
+    let mut scenario = test_scenario::begin(@0x1);
+
+    smart_account::claim_immutable_account_v1_for_testing(public_key, scenario.ctx());
+
+    scenario.end();
+}
+
 // === with_field ===
 
 #[test]

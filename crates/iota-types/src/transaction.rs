@@ -829,7 +829,8 @@ impl TransactionKindExt for TransactionKind {
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
-            | TransactionKind::EndOfEpoch(_) => vec![],
+            | TransactionKind::EndOfEpoch(_)
+            | TransactionKind::ClaimAccount(_) => vec![],
             TransactionKind::Programmable(pt) => pt.receiving_objects(),
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
@@ -878,6 +879,7 @@ impl TransactionKindExt for TransactionKind {
                 after_dedup
             }
             Self::Programmable(p) => return p.input_objects(),
+            Self::ClaimAccount(_) => vec![],
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -919,6 +921,14 @@ impl TransactionKindExt for TransactionKind {
                 ));
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
+            TransactionKind::ClaimAccount(_) => {
+                fp_ensure!(
+                    config.enable_claim_registry(),
+                    UserInputError::Unsupported(
+                        "claim account transactions require the claim registry feature".to_string()
+                    )
+                );
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -942,6 +952,7 @@ impl TransactionKindExt for TransactionKind {
             Self::AuthenticatorStateUpdateV1Deprecated => "AuthenticatorStateUpdateV1Deprecated",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpoch(_) => "EndOfEpoch",
+            Self::ClaimAccount(_) => "ClaimAccount",
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -1375,7 +1386,10 @@ impl TransactionDataAPI for TransactionData {
         if self.gas_owner() == self.sender() {
             return Ok(());
         }
-        if matches!(self.kind(), TransactionKind::Programmable(_)) {
+        if matches!(
+            self.kind(),
+            TransactionKind::Programmable(_) | TransactionKind::ClaimAccount(_)
+        ) {
             return Ok(());
         }
         Err(UserInputError::UnsupportedSponsoredTransactionKind)

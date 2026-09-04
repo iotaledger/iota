@@ -461,6 +461,21 @@ input CheckpointId {
 }
 
 """
+The type of account created by a claim.
+"""
+union ClaimAccountKind = SmartAccountClaimTransaction
+
+"""
+A transaction that claims the sender's address as an account object.
+"""
+type ClaimAccountTransaction {
+	"""
+	The type of account created by the claim.
+	"""
+	kind: ClaimAccountKind!
+}
+
+"""
 System transaction for creating the `ClaimRegistry` singleton on networks
 that were deployed before the ClaimRegistry was introduced.
 """
@@ -3989,6 +4004,39 @@ type SharedObjectRead {
 }
 
 """
+Whether a claimed account object can be changed after the claim.
+"""
+enum SmartAccountBuildKind {
+	"""
+	The account is a mutable shared object.
+	"""
+	MUTABLE
+	"""
+	The account is an immutable frozen object.
+	"""
+	IMMUTABLE
+}
+
+"""
+Parameters the claimed SmartAccount was created with.
+"""
+type SmartAccountClaimTransaction {
+	"""
+	The signature scheme flag byte of the public key (0=Ed25519,
+	1=Secp256k1, 2=Secp256r1, 6=Passkey).
+	"""
+	publicKeyScheme: Int!
+	"""
+	The raw public key bytes of the claimed address, base64-encoded.
+	"""
+	publicKeyBytes: Base64!
+	"""
+	Whether the created account object is mutable or immutable.
+	"""
+	buildKind: SmartAccountBuildKind!
+}
+
+"""
 Splits off coins with denominations in `amounts` from `coin`, returning
 multiple results (as many as there are amounts.)
 """
@@ -4588,7 +4636,7 @@ input TransactionBlockFilter {
 The kind of transaction block, either a programmable transaction or a system
 transaction.
 """
-union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction
+union TransactionBlockKind = ConsensusCommitPrologueTransaction | GenesisTransaction | ProgrammableTransactionBlock | RandomnessStateUpdateTransaction | EndOfEpochTransaction | ClaimAccountTransaction
 
 """
 An input filter selecting for either system or programmable transactions.

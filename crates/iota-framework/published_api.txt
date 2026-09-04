@@ -2452,6 +2452,9 @@ create
 claim
 	public(package) fun
 	0x2::claim_registry
+claim_address
+	public(package) fun
+	0x2::claim_registry
 is_claimed
 	public fun
 	0x2::claim_registry
@@ -3697,6 +3700,12 @@ builtin_auth_builder_v1
 claim_builder_v1
 	public fun
 	0x2::smart_account
+claim_account_v1
+	fun
+	0x2::smart_account
+claim_immutable_account_v1
+	fun
+	0x2::smart_account
 with_field
 	public fun
 	0x2::smart_account
@@ -3749,6 +3758,9 @@ rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
 ensure_tx_sender_is_smart_account
+	fun
+	0x2::smart_account
+claim_builder
 	fun
 	0x2::smart_account
 IotaSystemAdminCap
