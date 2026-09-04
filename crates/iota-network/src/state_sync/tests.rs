@@ -27,7 +27,9 @@ use iota_swarm_config::test_utils::{
 use iota_types::{
     committee::{Committee, EpochId},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
+    messages_checkpoint::{
+        CheckpointSequenceNumber, VerifiedCheckpoint, VerifiedCheckpointContents,
+    },
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
 use tokio::time::{Instant, timeout};
@@ -1112,7 +1114,8 @@ fn test_required_executed_checkpoint() {
 async fn peer_sync_pauses_while_too_far_ahead_of_execution() {
     telemetry_subscribers::init_for_testing();
     let (committee, (ordered_checkpoints, contents, _, _)) =
-        make_committee_and_checkpoints(0, 4, 4, None, random_contents);
+        make_committee_and_checkpoints(0, 4, 6, None, random_contents);
+    let last_checkpoint_seq = ordered_checkpoints.last().unwrap().sequence_number();
     let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
     let genesis_contents = contents.first().cloned().unwrap();
 
@@ -1166,47 +1169,133 @@ async fn peer_sync_pauses_while_too_far_ahead_of_execution() {
         handle_1.send_checkpoint(checkpoint).await;
     }
 
-    // Node 2 verifies every summary, but stops syncing contents at the bound.
-    timeout(Duration::from_secs(10), async {
-        while store_2.get_highest_verified_checkpoint_seq_number()
-            != ordered_checkpoints.last().unwrap().sequence_number()
-        {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-        }
-    })
-    .await
-    .expect("node 2 failed to verify all checkpoint summaries");
+    // Node 2 stops at the bound: it neither verifies summaries nor syncs
+    // contents beyond it, though node 1 offers everything up to the last
+    // checkpoint.
+    wait_for_watermarks(&store_2, 2, 2).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert_eq!(store_2.get_highest_verified_checkpoint_seq_number(), 2);
+    assert_eq!(store_2.get_highest_synced_checkpoint_seq_number(), 2);
+    assert_eq!(
+        store_1.get_highest_synced_checkpoint_seq_number(),
+        last_checkpoint_seq
+    );
+
+    // Both watermarks follow execution as it advances.
+    store_2.inner_mut().set_highest_executed_checkpoint(3);
+    wait_for_watermarks(&store_2, last_checkpoint_seq, last_checkpoint_seq).await;
+}
+
+#[tokio::test]
+async fn peer_content_sync_pauses_when_summaries_run_ahead() {
+    telemetry_subscribers::init_for_testing();
+    let (committee, (ordered_checkpoints, contents, _, _)) =
+        make_committee_and_checkpoints(0, 4, 6, None, random_contents);
+    let last_checkpoint_seq = ordered_checkpoints.last().unwrap().sequence_number();
+    let genesis_checkpoint = ordered_checkpoints.first().cloned().unwrap();
+    let genesis_contents = contents.first().cloned().unwrap();
+
+    // Node 1 has every checkpoint and serves node 2.
+    let store_1 = store_with_genesis_state(
+        genesis_checkpoint.clone(),
+        genesis_contents.clone(),
+        committee.committee().to_owned(),
+    );
+    let (builder, server) = Builder::new().store(store_1).build();
+    let network_1 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_1, handle_1) = builder.build(network_1.clone());
+    let store_1 = event_loop_1.store.clone();
+    for (checkpoint, contents) in ordered_checkpoints
+        .iter()
+        .zip(contents.iter())
+        .skip(1)
+        .map(|(checkpoint, contents)| (checkpoint.clone(), contents.clone()))
+    {
+        store_1
+            .try_insert_checkpoint_contents(&checkpoint, contents)
+            .unwrap();
+        store_1.insert_certified_checkpoint(&checkpoint);
+    }
+
+    // Node 2 already holds every summary, the way consensus or archive sync
+    // leaves them, so its verified watermark is at the last checkpoint before
+    // contents sync starts. Only the contents are missing.
+    let store_2 = store_with_genesis_state(
+        genesis_checkpoint,
+        genesis_contents,
+        committee.committee().to_owned(),
+    );
+    for checkpoint in ordered_checkpoints.iter().skip(1) {
+        store_2.inner_mut().insert_checkpoint(checkpoint);
+    }
+    store_2.inner_mut().set_highest_executed_checkpoint(0);
+    let (builder, server) = Builder::new()
+        .store(store_2)
+        .config(StateSyncConfig {
+            max_checkpoints_ahead_of_execution: NonZeroU64::new(2),
+            interval_period_ms: Some(50),
+            ..Default::default()
+        })
+        .build();
+    let network_2 = build_network(|router| router.add_rpc_service(server));
+    let (event_loop_2, _handle_2) = builder.build(network_2.clone());
+    let store_2 = event_loop_2.store.clone();
+
+    tokio::spawn(event_loop_1.start());
+    tokio::spawn(event_loop_2.start());
+    network_1.connect(network_2.local_addr()).await.unwrap();
+    for checkpoint in ordered_checkpoints.iter().skip(1).cloned() {
+        handle_1.send_checkpoint(checkpoint).await;
+    }
+
+    // Contents stop at the bound even though every summary is already there.
+    wait_for_watermarks(&store_2, last_checkpoint_seq, 2).await;
     tokio::time::sleep(Duration::from_secs(1)).await;
     assert_eq!(store_2.get_highest_synced_checkpoint_seq_number(), 2);
 
-    // Execution catches up, and sync continues to the end.
+    // And follow execution as it advances.
     store_2.inner_mut().set_highest_executed_checkpoint(2);
-    timeout(Duration::from_secs(10), async {
-        while store_2.get_highest_synced_checkpoint_seq_number()
-            != ordered_checkpoints.last().unwrap().sequence_number()
+    wait_for_watermarks(&store_2, last_checkpoint_seq, 4).await;
+}
+
+/// Waits for a store to reach the given verified and synced watermarks,
+/// panicking with both watermarks if it does not get there in time.
+async fn wait_for_watermarks(
+    store: &SharedInMemoryStore,
+    verified: CheckpointSequenceNumber,
+    synced: CheckpointSequenceNumber,
+) {
+    let reached = timeout(Duration::from_secs(10), async {
+        while store.get_highest_verified_checkpoint_seq_number() != verified
+            || store.get_highest_synced_checkpoint_seq_number() != synced
         {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     })
-    .await
-    .expect("node 2 failed to resume syncing after execution caught up");
+    .await;
+    assert!(
+        reached.is_ok(),
+        "expected to reach verified {verified} and synced {synced}, got verified {} and synced {}",
+        store.get_highest_verified_checkpoint_seq_number(),
+        store.get_highest_synced_checkpoint_seq_number(),
+    );
 }
 
 #[test]
-fn test_checkpoint_contents_sync_target() {
-    use crate::state_sync::checkpoint_contents_sync_target;
+fn test_checkpoint_sync_target() {
+    use crate::state_sync::checkpoint_sync_target;
 
-    // Within the bound: sync all the way up to the verified watermark.
-    assert_eq!(checkpoint_contents_sync_target(30, Some(10), 100), 30);
-    assert_eq!(checkpoint_contents_sync_target(30, Some(0), 30), 30);
+    // Within the bound: sync all the way up to what is available.
+    assert_eq!(checkpoint_sync_target(30, Some(10), 100), 30);
+    assert_eq!(checkpoint_sync_target(30, Some(0), 30), 30);
 
     // Past the bound: hold the target at the bound above execution.
-    assert_eq!(checkpoint_contents_sync_target(1_000, Some(10), 100), 110);
-    assert_eq!(checkpoint_contents_sync_target(1_000, Some(0), 1), 1);
+    assert_eq!(checkpoint_sync_target(1_000, Some(10), 100), 110);
+    assert_eq!(checkpoint_sync_target(1_000, Some(0), 1), 1);
 
     // Nothing executed yet, not even genesis: the bound counts from 0.
-    assert_eq!(checkpoint_contents_sync_target(1_000, None, 100), 100);
+    assert_eq!(checkpoint_sync_target(1_000, None, 100), 100);
 
     // The bound must not run past the end of the sequence space.
-    assert_eq!(checkpoint_contents_sync_target(30, Some(u64::MAX), 100), 30);
+    assert_eq!(checkpoint_sync_target(30, Some(u64::MAX), 100), 30);
 }

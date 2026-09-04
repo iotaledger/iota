@@ -201,11 +201,11 @@ pub struct StateSyncConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wait_interval_when_no_peer_to_sync_content_ms: Option<u64>,
 
-    /// Pause syncing checkpoint contents while the synced watermark is this
-    /// many checkpoints ahead of the executed watermark, and resume once
-    /// execution catches up. Bounds the disk space held by checkpoints that
-    /// are synced but not yet executed, since only executed checkpoints can
-    /// be pruned. Applies to sync from peers and from the checkpoint archive
+    /// Stop syncing checkpoints more than this many above the executed
+    /// watermark, and resume as execution catches up. Bounds the disk space
+    /// held by checkpoints that are synced but not yet executed, since only
+    /// executed checkpoints can be pruned. Applies to checkpoint summaries and
+    /// contents, and to sync from peers and from the checkpoint archive
     /// alike.
     ///
     /// If unspecified, this will default to `100,000`.

@@ -50,10 +50,10 @@
 //! Once we've ratcheted up our highest_verified_checkpoint, and if it is higher
 //! than highest_synced_checkpoint, StateSync will then kick off a task to
 //! synchronize the contents of all of the checkpoints from
-//! highest_synced_checkpoint..=highest_verified_checkpoint. Contents are only
-//! synced up to `max_checkpoints_ahead_of_execution` checkpoints above the
-//! executed watermark, since synced contents can only be pruned once
-//! executed; the range resumes as execution catches up. After the
+//! highest_synced_checkpoint..=highest_verified_checkpoint. Neither watermark
+//! is moved more than `max_checkpoints_ahead_of_execution` checkpoints above
+//! the executed one, since synced checkpoints can only be pruned once
+//! executed; both resume as execution catches up. After the
 //! contents of each checkpoint is fully downloaded, StateSync will update our
 //! highest_synced_checkpoint watermark and send out a notification on a
 //! broadcast channel indicating that a new checkpoint has been fully
@@ -856,8 +856,9 @@ where
     }
 
     /// Starts syncing checkpoint summaries if there are peers that have a
-    /// higher known checkpoint than us. Only one sync task is allowed to
-    /// run at a time.
+    /// higher known checkpoint than us, up to
+    /// `max_checkpoints_ahead_of_execution` above the executed watermark. Only
+    /// one sync task is allowed to run at a time.
     fn maybe_start_checkpoint_summary_sync_task(&mut self) {
         // Only run one sync task at a time
         if self.sync_checkpoint_summaries_task.is_some() {
@@ -875,12 +876,20 @@ where
             .unwrap()
             .highest_known_checkpoint()
             .cloned();
+        let Some(highest_known_checkpoint) = highest_known_checkpoint else {
+            return;
+        };
+        let highest_executed_checkpoint = self
+            .store
+            .try_get_highest_executed_checkpoint_seq_number()
+            .expect("store operation should not fail");
+        let target = checkpoint_sync_target(
+            highest_known_checkpoint.sequence_number(),
+            highest_executed_checkpoint,
+            self.config.max_checkpoints_ahead_of_execution(),
+        );
 
-        if Some(highest_processed_checkpoint.sequence_number())
-            < highest_known_checkpoint
-                .as_ref()
-                .map(|x| x.sequence_number())
-        {
+        if highest_processed_checkpoint.sequence_number() < target {
             // Start sync job
             let concurrency =
                 NonZeroUsize::new(self.config.checkpoint_header_download_concurrency())
@@ -893,8 +902,8 @@ where
                 self.config.pinned_checkpoints.clone(),
                 concurrency,
                 self.config.timeout(),
-                // The if condition should ensure that this is Some
-                highest_known_checkpoint.unwrap(),
+                highest_known_checkpoint,
+                target,
             )
             .map(|result| match result {
                 Ok(()) => {}
@@ -926,7 +935,7 @@ where
             .store
             .try_get_highest_executed_checkpoint_seq_number()
             .expect("store operation should not fail");
-        let target = checkpoint_contents_sync_target(
+        let target = checkpoint_sync_target(
             highest_verified_checkpoint,
             highest_executed_checkpoint,
             self.config.max_checkpoints_ahead_of_execution(),
@@ -1083,6 +1092,13 @@ async fn query_peers_for_their_latest_checkpoint(
 /// current+1 to the target. The received checkpoints will be verified and
 /// stored in the store. Checkpoints in temporary store (peer_heights) will be
 /// cleaned up after syncing.
+/// Verifies and inserts the checkpoint summaries from the highest verified one
+/// up to `highest_checkpoint_to_sync`, downloading them from peers.
+///
+/// `checkpoint` is the highest checkpoint known to be on peers, which is
+/// reported as such and must not be below `highest_checkpoint_to_sync`; the
+/// walk stops at `highest_checkpoint_to_sync`, which the caller holds back to
+/// keep the store within reach of execution.
 async fn sync_to_checkpoint<S>(
     network: anemo::Network,
     store: S,
@@ -1092,6 +1108,7 @@ async fn sync_to_checkpoint<S>(
     checkpoint_header_download_concurrency: NonZeroUsize,
     timeout: Duration,
     checkpoint: Checkpoint,
+    highest_checkpoint_to_sync: CheckpointSequenceNumber,
 ) -> Result<()>
 where
     S: WriteStore,
@@ -1116,7 +1133,7 @@ where
     );
     // Range of the next sequence_numbers to fetch
     let mut request_stream = (current.sequence_number().checked_add(1).unwrap()
-        ..=checkpoint.sequence_number())
+        ..=highest_checkpoint_to_sync)
         .map(|next| {
             let peers = peer_balancer.clone().with_checkpoint(next);
             let peer_heights = peer_heights.clone();
@@ -1279,7 +1296,7 @@ where
     peer_heights
         .write()
         .unwrap()
-        .cleanup_old_checkpoints(checkpoint.sequence_number());
+        .cleanup_old_checkpoints(highest_checkpoint_to_sync);
 
     Ok(())
 }
@@ -1459,20 +1476,20 @@ fn checkpoint_archive_sync_end(
     (start <= last).then_some(last)
 }
 
-/// The highest checkpoint whose contents may be synced from peers: the highest
-/// verified one, held back to `max_ahead_of_execution` checkpoints above the
-/// executed watermark.
+/// The highest checkpoint state sync may take on: the highest one available,
+/// held back to `max_ahead_of_execution` checkpoints above the executed
+/// watermark.
 ///
-/// Synced contents can only be pruned once executed, so syncing far ahead of
-/// execution grows disk usage without bound. `None` for `highest_executed`
+/// Synced checkpoints can only be pruned once executed, so syncing far ahead
+/// of execution grows disk usage without bound. `None` for `highest_executed`
 /// means nothing has been executed yet, not even genesis, and the bound counts
 /// from checkpoint 0.
-fn checkpoint_contents_sync_target(
-    highest_verified: CheckpointSequenceNumber,
+fn checkpoint_sync_target(
+    highest_available: CheckpointSequenceNumber,
     highest_executed: Option<CheckpointSequenceNumber>,
     max_ahead_of_execution: u64,
 ) -> CheckpointSequenceNumber {
-    highest_verified.min(
+    highest_available.min(
         highest_executed
             .unwrap_or(0)
             .saturating_add(max_ahead_of_execution),
