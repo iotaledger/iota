@@ -624,7 +624,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
                         version: info.version,
                         object_type: info.object_type.clone(),
                     },
-                    cursor.clone(),
+                    *cursor,
                 ))
             });
 
