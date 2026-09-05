@@ -13,7 +13,8 @@ use iota_core::{
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
-    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, Page, TransactionFilter,
+    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, OwnedObjectCursor, Page,
+    TransactionFilter,
 };
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag,
@@ -34,7 +35,7 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
-    storage::{BackingPackageStore, ObjectStore},
+    storage::{BackingPackageStore, ObjectStore, OwnedObjectCursor as IndexCursor},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
     transaction::TransactionEnvelope,
     transaction_executor::{SimulateTransactionResult, VmChecks},
@@ -110,10 +111,10 @@ pub trait StateRead: Send + Sync {
     fn get_owner_objects_page(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Page<ObjectInfo, ObjectId>>;
+    ) -> StateReadResult<Page<ObjectInfo, OwnedObjectCursor>>;
 
     async fn get_transactions(
         &self,
@@ -146,10 +147,10 @@ pub trait StateRead: Send + Sync {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         coin_type: Option<TypeTag>,
         limit: usize,
-    ) -> StateReadResult<Vec<IotaCoin>>;
+    ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>>;
     async fn get_executed_transaction_and_effects(
         &self,
         digest: TransactionDigest,
@@ -296,28 +297,25 @@ impl StateRead for AuthorityState {
     fn get_owner_objects_page(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Page<ObjectInfo, ObjectId>> {
+    ) -> StateReadResult<Page<ObjectInfo, OwnedObjectCursor>> {
         if limit == 0 {
             // only when RPC_QUERY_MAX_RESULT_LIMIT is set to 0
             return Ok(Page::empty());
         }
-        let mut objects = self.get_owner_objects(owner, cursor, limit + 1, filter)?;
-        if objects.len() <= limit {
-            return Ok(Page {
-                data: objects,
-                next_cursor: None,
-                has_next_page: false,
-            });
-        }
+        let mut objects = self.get_owner_objects(owner, cursor.as_ref(), limit + 1, filter)?;
+        let has_next_page = objects.len() > limit;
         objects.truncate(limit);
-        let next_cursor = objects.last().map(|object| object.object_id);
+        let next_cursor = has_next_page
+            .then(|| objects.last())
+            .flatten()
+            .map(|(_, cursor)| OwnedObjectCursor::from_position(*cursor));
         Ok(Page {
-            data: objects,
+            data: objects.into_iter().map(|(info, _)| info).collect(),
             next_cursor,
-            has_next_page: true,
+            has_next_page,
         })
     }
 
@@ -373,20 +371,25 @@ impl StateRead for AuthorityState {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         coin_type: Option<TypeTag>,
         limit: usize,
-    ) -> StateReadResult<Vec<IotaCoin>> {
+    ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>> {
         Ok(self
-            .get_owned_coins_page(owner, cursor, coin_type, limit)?
+            .get_owned_coins_page(owner, cursor.as_ref(), coin_type, limit)?
             .into_iter()
-            .map(|(coin_type, coin_object_id, coin)| IotaCoin {
-                coin_type: coin_type.to_string(),
-                coin_object_id,
-                version: coin.version,
-                digest: coin.digest,
-                balance: coin.balance,
-                previous_transaction: coin.previous_transaction,
+            .map(|(coin_type, coin_object_id, coin, cursor)| {
+                (
+                    IotaCoin {
+                        coin_type: coin_type.to_string(),
+                        coin_object_id,
+                        version: coin.version,
+                        digest: coin.digest,
+                        balance: coin.balance,
+                        previous_transaction: coin.previous_transaction,
+                    },
+                    OwnedObjectCursor::from_position(cursor),
+                )
             })
             .collect())
     }
