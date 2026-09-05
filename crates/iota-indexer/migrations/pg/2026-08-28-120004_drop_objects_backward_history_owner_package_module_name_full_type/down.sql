@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY IF NOT EXISTS objects_backward_history_owner_package_module_name_full_type ON objects_backward_history (superseded_at_checkpoint, owner_id, object_type_package, object_type_module, object_type_name, object_type);

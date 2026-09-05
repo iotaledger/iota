@@ -266,34 +266,58 @@ fn balance_query(
         )
     );
 
-    let mut history = filter(
-        query!(
-            "SELECT object_id, object_version, coin_balance, coin_type \
-             FROM objects_backward_history"
+    // Distinct object_ids matching the owner/coin filter that changed after the
+    // checkpoint. The filtered columns are indexed on objects_backward_history, so
+    // this scans only matching coins.
+    let candidate_ids = filter!(
+        filter(
+            query!("SELECT DISTINCT object_id FROM objects_backward_history"),
+            address,
+            coin_type.clone(),
         ),
-        address,
-        coin_type,
-    );
-    // NotYetCreated and WrappedOrDeleted rows are already excluded above by
-    // `filter`'s `coin_type IS NOT NULL` / `owner_id = ...` clauses, since
-    // `from_empty` leaves those columns NULL.
-    history = filter!(
-        history,
         format!("superseded_at_checkpoint > {checkpoint_viewed_at}")
     );
-    let oldest = query!(format!(
-        "SELECT object_id, MIN(object_version) AS min_version \
-         FROM objects_backward_history \
-         WHERE superseded_at_checkpoint > {checkpoint_viewed_at} \
-         GROUP BY object_id"
-    ));
+    let (candidate_ids_sql, binds) = candidate_ids.finish();
+
+    // Find the highest version already superseded by the checkpoint and take the
+    // next one - that is the version that was live at the checkpoint (or the
+    // object's first version, if no version was superseded earlier). See
+    // `consistent::consistent_historical_objects` for the full rationale.
+    let live_version = format!(
+        "SELECT live.object_version FROM objects_backward_history live \
+         WHERE live.object_id = candidate_ids.object_id \
+           AND live.object_version > COALESCE(( \
+                 SELECT superseded.object_version \
+                 FROM objects_backward_history superseded \
+                 WHERE superseded.object_id = candidate_ids.object_id \
+                   AND superseded.superseded_at_checkpoint <= {checkpoint_viewed_at} \
+                 ORDER BY superseded.object_version DESC \
+                 LIMIT 1), -1) \
+         ORDER BY live.object_version ASC \
+         LIMIT 1"
+    );
+
+    let live_rows = RawQuery::new(
+        format!(
+            "SELECT object_id, coin_balance, coin_type, owner_id, owner_type \
+             FROM ( \
+                 SELECT objects_backward_history.* \
+                 FROM ({candidate_ids_sql}) candidate_ids \
+                 JOIN objects_backward_history \
+                     ON objects_backward_history.object_id = candidate_ids.object_id \
+                 WHERE objects_backward_history.object_version = ({live_version}) \
+             ) AS objects_backward_history"
+        ),
+        binds,
+    );
+
+    // A coin is in candidate_ids if any of its versions superseded after the
+    // checkpoint matched the owner/coin filter, but the version live at the
+    // checkpoint might not. Re-apply the filter to drop those.
     let source_b = query!(
-        r#"SELECT candidates.object_id, candidates.coin_balance, candidates.coin_type
-           FROM ({}) candidates
-           JOIN ({}) oldest ON candidates.object_id = oldest.object_id
-               AND candidates.object_version = oldest.min_version"#,
-        history,
-        oldest
+        "SELECT candidates.object_id, candidates.coin_balance, candidates.coin_type \
+         FROM ({}) candidates",
+        filter(live_rows, address, coin_type)
     );
 
     query!(

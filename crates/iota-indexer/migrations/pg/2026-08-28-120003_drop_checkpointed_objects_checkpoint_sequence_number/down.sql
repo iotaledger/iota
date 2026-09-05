@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY IF NOT EXISTS checkpointed_objects_checkpoint_sequence_number ON checkpointed_objects (checkpoint_sequence_number);
