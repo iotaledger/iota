@@ -457,7 +457,7 @@ impl IotaNode {
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
         let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
-        let (perpetual_tables, historic_objects, historic_ledger) =
+        let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
             AuthorityPerpetualTables::open_with_historic_objects(
                 &config.db_path().join("store"),
                 Some(perpetual_tables_options),
@@ -485,6 +485,7 @@ impl IotaNode {
             perpetual_tables,
             historic_objects,
             historic_ledger,
+            Arc::new(epoch_markers),
             &genesis,
             &config,
             &prometheus_registry,
@@ -635,6 +636,17 @@ impl IotaNode {
         .map_err(|e| {
             anyhow!("failed to sweep the object versions superseded before this build: {e}")
         })?;
+
+        // Before any service starts, and before the marker reads on the
+        // execution path: a marker missed is a receive or a delete this node
+        // would let happen twice.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
+        // call once every database has moved its markers into the buckets.
+        store
+            .migrate_flat_markers(epoch_store.epoch())
+            .map_err(|e| {
+                anyhow!("failed to migrate the object markers written before this build: {e}")
+            })?;
 
         // Before any service starts: the ledger and checkpoint history written
         // before this build is in the flat tables until this returns, where

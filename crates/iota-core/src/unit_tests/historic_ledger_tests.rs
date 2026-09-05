@@ -24,7 +24,7 @@ const CHECKPOINT: u64 = 7;
 #[tokio::test]
 async fn ledger_rows_survive_a_reopen() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic_objects, historic) =
+    let (perpetual, historic_objects, historic, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let digest = TransactionDigest::random();
@@ -40,11 +40,12 @@ async fn ledger_rows_survive_a_reopen() {
     let weak_db = Arc::downgrade(&perpetual.objects.db);
     drop(bucket);
     drop(historic);
+    drop(epoch_markers);
     drop(historic_objects);
     drop(perpetual);
     assert!(wait_for_database_close(weak_db).await);
 
-    let (_perpetual, _historic_objects, reopened) =
+    let (_perpetual, _historic_objects, reopened, _epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert_eq!(reopened.earliest_bucket_epoch(), Some(3));
     assert_eq!(

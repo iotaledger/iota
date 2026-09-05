@@ -16,6 +16,7 @@ use iota_core::{
         authority_per_epoch_store::AuthorityEpochTables,
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreData, StoreObject},
+        epoch_markers::EpochMarkers,
         historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
     },
@@ -233,7 +234,17 @@ pub fn dump_table(
             {
                 return Ok(rows);
             }
-            HistoricLedger::dump_column_family(
+            if let Some(rows) = HistoricLedger::dump_column_family(
+                &perpetual_tables.objects.db,
+                table_name,
+                page_size,
+                page_number,
+            )
+            .map_err(|err| anyhow!(err.to_string()))?
+            {
+                return Ok(rows);
+            }
+            EpochMarkers::dump_column_family(
                 &perpetual_tables.objects.db,
                 table_name,
                 page_size,
