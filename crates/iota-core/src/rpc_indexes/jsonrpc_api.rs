@@ -33,7 +33,7 @@ use iota_types::{
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     layout_resolver::LayoutResolver,
     object::{Object, bounded_visitor::BoundedVisitor},
-    storage::{DynamicFieldKey, ObjectStore},
+    storage::{DynamicFieldKey, ObjectStore, OwnedObjectCursor},
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value as A, language_storage::ModuleId};
@@ -737,9 +737,10 @@ impl RpcIndexesStore {
 
     /// Objects owned by `owner` in the unified key order (grouped by type,
     /// coins balance-descending, id-ascending), resolving the response fields
-    /// the index does not store from the object store. `cursor` is the last
-    /// object of the previous page; its key is rebuilt from the live object,
-    /// so a cursor whose object was deleted in between is refused.
+    /// the index does not store from the object store. `cursor` names the
+    /// last row of the previous page and carries its whole position, so the
+    /// scan resumes strictly after it whether or not the object it named is
+    /// still there.
     ///
     /// A `filter` that pins the object type narrows the scan to that type's
     /// rows, so the page resolves only objects that can match; every other
@@ -747,17 +748,13 @@ impl RpcIndexesStore {
     pub fn get_owner_objects(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
         object_store: &dyn ObjectStore,
-    ) -> IotaResult<Vec<ObjectInfo>> {
+    ) -> IotaResult<Vec<(ObjectInfo, OwnedObjectCursor)>> {
         self.require_jsonrpc()?;
-        let cursor_key = cursor
-            .map(|id| self.owner_key_for_cursor(owner, id, object_store))
-            .transpose()?;
-        // The cursor above is still validated for a zero limit; only the
-        // scan itself is skipped.
+        let cursor_key = cursor.map(|cursor| Self::owner_key_for_cursor(owner, cursor));
         let mut results = Vec::new();
         if limit == 0 {
             return Ok(results);
@@ -765,11 +762,12 @@ impl RpcIndexesStore {
         let type_filter = owner_scan_filter(filter.as_ref());
         for item in self.owner_iter(owner, cursor_key.as_ref(), type_filter)? {
             let (key, info) = item?;
-            if Some(key.object_id) == cursor {
-                // The scan starts after the cursor's rebuilt key, so this
-                // only fires when the index still holds the row at a balance
-                // the live object has since left behind: the same object,
-                // already returned on the previous page.
+            if Some(key.object_id) == cursor.map(|cursor| cursor.object_id) {
+                // The scan already starts after the cursor's key, so this
+                // only fires when the cursor's object has moved to a later
+                // key (its balance changed). It was returned on the previous
+                // page, and an object holds one row at a time, so dropping it
+                // here cannot hide another object.
                 continue;
             }
             // The row's own version, not the latest: an object transferred
@@ -783,7 +781,7 @@ impl RpcIndexesStore {
             };
             let object_info = ObjectInfo::new(&object.object_ref(), &object);
             if filter.as_ref().is_none_or(|f| f.matches(&object_info)) {
-                results.push(object_info);
+                results.push((object_info, Self::cursor_for_key(&key)));
             }
             if results.len() >= limit {
                 break;
@@ -792,27 +790,31 @@ impl RpcIndexesStore {
         Ok(results)
     }
 
-    /// Rebuilds the cursor object's position in the owner index from its live
-    /// state — the same data the gRPC cursor carries explicitly.
-    fn owner_key_for_cursor(
-        &self,
-        owner: Address,
-        cursor: ObjectId,
-        object_store: &dyn ObjectStore,
-    ) -> IotaResult<OwnerIndexKey> {
-        let cursor_not_found = || IotaError::UserInput {
-            error: UserInputError::ObjectNotFound {
-                object_id: cursor,
-                version: None,
-            },
-        };
-        let object = object_store
-            .try_get_object(&cursor)?
-            .ok_or_else(cursor_not_found)?;
-        // A package or other non-Move object is never in the owner index —
-        // its cursor is exactly as invalid as one whose object is gone.
-        let (key, _) = OwnerIndexKey::for_object(owner, &object).ok_or_else(cursor_not_found)?;
-        Ok(key)
+    /// The cursor naming a row's position, so a caller can resume after it.
+    fn cursor_for_key(key: &OwnerIndexKey) -> OwnedObjectCursor {
+        OwnedObjectCursor {
+            object_type_identifier: key.object_type_identifier,
+            object_type_params: key.object_type_params,
+            inverted_balance: key.inverted_balance,
+            object_id: key.object_id,
+        }
+    }
+
+    /// The index position an opaque cursor names.
+    ///
+    /// The cursor carries every field of [`OwnerIndexKey`] but the owner,
+    /// which the caller supplies, so a position needs no read of the object
+    /// itself. That is what lets a page resume after an object that has since
+    /// been spent: its key is still fully described, where an object id alone
+    /// describes nothing once the row it named is gone.
+    fn owner_key_for_cursor(owner: Address, cursor: &OwnedObjectCursor) -> OwnerIndexKey {
+        OwnerIndexKey {
+            owner,
+            object_type_identifier: cursor.object_type_identifier,
+            object_type_params: cursor.object_type_params,
+            inverted_balance: cursor.inverted_balance,
+            object_id: cursor.object_id,
+        }
     }
 
     /// Owned entries of the owner index for `owner`, narrowed by
@@ -854,41 +856,37 @@ impl RpcIndexesStore {
     /// Owned coins of `owner`, in the unified key's order (balance-descending
     /// within a type). `coin_type` narrows the scan to that coin's `Coin<T>`;
     /// `None` scans every coin type, the way [`Self::get_all_balances_from_db`]
-    /// does. `cursor` is the last coin of the previous page, rebuilt from the
-    /// live object the same way [`Self::get_owner_objects`]'s cursor is.
+    /// does. `cursor` names the last coin of the previous page and carries
+    /// its whole position, the same way [`Self::get_owner_objects`]'s cursor
+    /// does.
     ///
     /// Each row carries the coin's own `T`, the same tag
     /// [`Self::get_all_balance`] keys on and the one the JSON-RPC `coinType`
     /// field reports — not the `Coin<T>` the object itself is.
     ///
-    /// Because the order is by balance and the cursor's position is rebuilt
-    /// from its live balance, paging is only stable while the owner's coins
-    /// keep their balances: a cursor coin spent or topped up between two
-    /// pages moves in the order, and the next page resumes from its new
-    /// position, so rows can be repeated or skipped.
+    /// Because the cursor carries the balance its row sorted on, the next
+    /// page resumes at that exact position even when the coin has since been
+    /// spent. A cursor coin whose balance changed has moved in the order: it
+    /// was already returned, and is not returned again.
     pub fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         coin_type: Option<TypeTag>,
         limit: usize,
         object_store: &dyn ObjectStore,
-    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo)>> {
+    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo, OwnedObjectCursor)>> {
         self.require_jsonrpc()?;
         let tag = coin_type.map_or_else(coin_base_type, StructTag::new_coin);
         let filter = OwnerTypeFilter::from_struct_tag(Some(&tag));
-        let cursor_key = cursor
-            .map(|id| self.owner_key_for_cursor(owner, id, object_store))
-            .transpose()?;
-        // The cursor above is still validated for a zero limit; only the
-        // scan itself is skipped.
+        let cursor_key = cursor.map(|cursor| Self::owner_key_for_cursor(owner, cursor));
         let mut results = Vec::new();
         if limit == 0 {
             return Ok(results);
         }
         for item in self.owner_iter(owner, cursor_key.as_ref(), filter)? {
             let (key, info) = item?;
-            if Some(key.object_id) == cursor {
+            if Some(key.object_id) == cursor.map(|cursor| cursor.object_id) {
                 continue;
             }
             let Some(object) = object_store.try_get_object_by_key(&key.object_id, info.version)?
@@ -903,7 +901,7 @@ impl RpcIndexesStore {
             let Some(coin_type) = info.object_type.opt_coin_type().cloned() else {
                 continue;
             };
-            results.push((coin_type, key.object_id, coin));
+            results.push((coin_type, key.object_id, coin, Self::cursor_for_key(&key)));
             if results.len() >= limit {
                 break;
             }

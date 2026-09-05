@@ -12,8 +12,8 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Balance, CoinPage, DelegatedStake, IotaCoinMetadata, IotaExecutionStatus,
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange, StakeStatus,
-    TransactionBlockBytes,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    OwnedObjectCursor, StakeStatus, TransactionBlockBytes,
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
@@ -451,6 +451,7 @@ async fn get_all_coins() {
         .with(|node| node.state().get_owned_coins(address, None, None, 100))
         .unwrap();
 
+    let fullnode_coins: Vec<_> = fullnode_coins.into_iter().map(|(coin, _)| coin).collect();
     assert_eq!(rpc_all_coins.data.len(), fullnode_coins.len());
     assert_eq!(fullnode_coins, rpc_all_coins.data);
 }
@@ -496,6 +497,7 @@ async fn get_all_coins_with_multiple_coin_types() {
         .with(|node| node.state().get_owned_coins(address, None, None, 100))
         .unwrap();
 
+    let fullnode_coins: Vec<_> = fullnode_coins.into_iter().map(|(coin, _)| coin).collect();
     assert_eq!(rpc_all_coins.data.len(), fullnode_coins.len());
     assert_eq!(fullnode_coins, rpc_all_coins.data);
 }
@@ -582,19 +584,25 @@ async fn get_all_coins_with_cursor_boundaries() {
 
     assert!(!full_result.data.is_empty());
 
-    let last_coin = full_result.data.last().unwrap();
+    // A cursor names the row it came from, so resuming from the last row of a
+    // full page yields nothing.
     let result: CoinPage = http_client
-        .get_all_coins(address, Some(last_coin.coin_object_id), None)
+        .get_all_coins(address, full_result.next_cursor, None)
         .await
         .unwrap();
     assert!(
         result.data.is_empty(),
-        "should return no coins when cursor is at the last coin"
+        "should return no coins when the cursor is at the last coin"
     );
 
-    let first_coin = full_result.data.first().unwrap();
+    // And resuming from a page of one yields everything after it.
+    let first_page: CoinPage = http_client
+        .get_all_coins(address, None, Some(1))
+        .await
+        .unwrap();
+    assert_eq!(first_page.data.len(), 1);
     let result: CoinPage = http_client
-        .get_all_coins(address, Some(first_coin.coin_object_id), None)
+        .get_all_coins(address, first_page.next_cursor, None)
         .await
         .unwrap();
     assert_eq!(
@@ -604,19 +612,80 @@ async fn get_all_coins_with_cursor_boundaries() {
     );
 }
 
+/// A cursor carries its own position, so a page resumes after it even when the
+/// coin it named has left the owner. Before that, the position was rebuilt by
+/// reading the object, and a coin spent between two pages failed the second
+/// one outright.
 #[sim_test]
-async fn get_all_coins_invalid_cursor() {
+async fn get_all_coins_with_a_cursor_whose_object_is_gone() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+    let recipient = cluster.get_address_1();
+
+    let all: CoinPage = http_client
+        .get_all_coins(address, None, None)
+        .await
+        .unwrap();
+    assert!(all.data.len() >= 3, "need coins either side of the cursor");
+    let cursor_coin = all.data[0].coin_object_id;
+    let next_coin = all.data[1].coin_object_id;
+    let gas_coin = all.data.last().unwrap().coin_object_id;
+
+    let first: CoinPage = http_client
+        .get_all_coins(address, None, Some(1))
+        .await
+        .unwrap();
+    let cursor = first.next_cursor.expect("a page follows the first coin");
+
+    // The cursor's coin leaves the owner between the two pages, taking its
+    // row in the owner index with it.
+    let transfer = http_client
+        .transfer_object(
+            address,
+            cursor_coin,
+            Some(gas_coin),
+            10_000_000.into(),
+            recipient,
+        )
+        .await
+        .unwrap();
+    execute_tx(&cluster, http_client, transfer).await.unwrap();
+
+    let resumed: CoinPage = http_client
+        .get_all_coins(address, Some(cursor), None)
+        .await
+        .expect("a cursor whose coin is gone still names a position");
+    let ids: Vec<_> = resumed.data.iter().map(|c| c.coin_object_id).collect();
+    assert!(
+        !ids.contains(&cursor_coin),
+        "the transferred cursor coin must not come back",
+    );
+    assert!(
+        ids.contains(&next_coin),
+        "the row after the cursor must not be skipped with it: {ids:?}",
+    );
+}
+
+/// An object id is the indexer's cursor, not this node's: it names no position
+/// in the owner index, so the node refuses it instead of reading it as one.
+#[sim_test]
+async fn get_all_coins_refuses_an_object_id_cursor() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let invalid_cursor_result = http_client
-        .get_all_coins(address, Some(ObjectId::ZERO), None)
+    let result = http_client
+        .get_all_coins(
+            address,
+            Some(OwnedObjectCursor::from_object_id(ObjectId::ZERO)),
+            None,
+        )
         .await;
 
     assert!(
-        invalid_cursor_result.is_err(),
-        "should error with invalid cursor"
+        result.is_err(),
+        "an object-id cursor names no position in this node's index: {result:?}",
     );
 }
 

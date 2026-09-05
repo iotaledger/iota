@@ -996,7 +996,7 @@ pub struct AccountOwnedObjectInfo {
 }
 
 /// Opaque cursor for seeking in the `owner` index.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OwnedObjectCursor {
     pub object_type_identifier: u64,
     pub object_type_params: u64,

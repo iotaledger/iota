@@ -28,8 +28,8 @@ use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockResponse, IotaTransactionKind,
-    MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics, TransactionFilter,
-    TransactionFilterV2,
+    MoveCallMetrics, MoveFunctionName, NetworkMetrics, OwnedObjectCursor, ParticipationMetrics,
+    TransactionFilter, TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
 use iota_sdk_types::{
@@ -2909,7 +2909,7 @@ impl DataReader for IndexerReader {
         &self,
         address: Address,
         object_type: StructTag,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
@@ -2918,7 +2918,8 @@ impl DataReader for IndexerReader {
             .get_owned_objects_in_blocking_task(
                 address,
                 Some(IotaObjectDataFilter::StructType(object_type)),
-                cursor,
+                // Ordered by object id here, so that is all the cursor is read for.
+                cursor.map(|cursor| cursor.object_id()),
                 limit + 1,
             )
             .await?;
@@ -2929,11 +2930,13 @@ impl DataReader for IndexerReader {
         if stored_objects.len() > limit && limit > 0 {
             // Here the cursor is the last object id in the previous page
             stored_objects.pop().unwrap();
-            next_cursor = Some(if let Some(last_object) = stored_objects.last() {
-                last_object.get_object_ref()?.object_id
-            } else {
-                ObjectId::ZERO
-            });
+            next_cursor = Some(OwnedObjectCursor::from_object_id(
+                if let Some(last_object) = stored_objects.last() {
+                    last_object.get_object_ref()?.object_id
+                } else {
+                    ObjectId::ZERO
+                },
+            ));
         }
 
         for stored_object in stored_objects {
