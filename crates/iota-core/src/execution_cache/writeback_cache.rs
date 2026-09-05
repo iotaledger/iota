@@ -1138,7 +1138,6 @@ impl WritebackCache {
             written,
             deleted,
             wrapped,
-            events,
             ..
         } = outputs;
 
@@ -1146,6 +1145,28 @@ impl WritebackCache {
 
         // Update cache before removing from self.dirty to avoid
         // unnecessary cache misses
+        // The dirty maps own the effects and events, and the cache is the only
+        // consumer left for them, so hand the values over rather than copying
+        // them. Taken before the cache insert: a reader that misses both in
+        // between falls through to the database, which the batch above has
+        // already been written to.
+        let (_, effects) = self
+            .dirty
+            .transaction_effects
+            .remove(&effects_digest)
+            .expect("effects must exist");
+
+        let (_, events) = self
+            .dirty
+            .transaction_events
+            .remove(&tx_digest)
+            .expect("events must exist");
+
+        self.dirty
+            .executed_effects_digests
+            .remove(&tx_digest)
+            .expect("executed effects must exist");
+
         self.cached
             .transactions
             .insert(
@@ -1158,7 +1179,7 @@ impl WritebackCache {
             .transaction_effects
             .insert(
                 &effects_digest,
-                PointCacheItem::Some(effects.clone().into()),
+                PointCacheItem::Some(effects.into()),
                 Ticket::Write,
             )
             .ok();
@@ -1174,34 +1195,18 @@ impl WritebackCache {
             .transaction_events
             .insert(
                 &tx_digest,
-                PointCacheItem::Some(events.clone().into()),
+                PointCacheItem::Some(events.into()),
                 Ticket::Write,
             )
             .ok();
 
-        self.dirty
-            .transaction_effects
-            .remove(&effects_digest)
-            .expect("effects must exist");
-
-        self.dirty
-            .transaction_events
-            .remove(&tx_digest)
-            .expect("events must exist");
-
-        self.dirty
-            .executed_effects_digests
-            .remove(&tx_digest)
-            .expect("executed effects must exist");
-
         // Move dirty markers to cache
-        for (object_key, marker_value) in markers.iter() {
+        for (object_key, _) in markers.iter() {
             Self::move_version_from_dirty_to_cache(
                 &self.dirty.markers,
                 &self.cached.marker_cache,
                 (epoch, object_key.0),
                 object_key.1,
-                marker_value,
             );
         }
 
@@ -1211,7 +1216,6 @@ impl WritebackCache {
                 &self.cached.object_cache,
                 *object_id,
                 object.version(),
-                &ObjectEntry::Object(object.clone()),
             );
         }
 
@@ -1221,7 +1225,6 @@ impl WritebackCache {
                 &self.cached.object_cache,
                 *object_id,
                 *version,
-                &ObjectEntry::Deleted,
             );
         }
 
@@ -1231,19 +1234,20 @@ impl WritebackCache {
                 &self.cached.object_cache,
                 *object_id,
                 *version,
-                &ObjectEntry::Wrapped,
             );
         }
     }
 
     // Move the oldest/least entry from the dirty queue to the cache queue.
     // This is called after the entry is committed to the db.
+    /// Hands `version` over from the dirty map to the cache. The value moves
+    /// rather than being copied, which is what keeps a checkpoint's objects
+    /// and markers off the commit path's memory traffic.
     fn move_version_from_dirty_to_cache<K, V>(
         dirty: &DashMap<K, CachedVersionMap<V>>,
         cache: &MokaCache<K, Arc<Mutex<CachedVersionMap<V>>>>,
         key: K,
         version: Version,
-        value: &V,
     ) where
         K: Eq + std::hash::Hash + Clone + Send + Sync + Copy + 'static,
         V: Send + Sync + Clone + Eq + std::fmt::Debug + 'static,
@@ -1257,18 +1261,21 @@ impl WritebackCache {
         let cache_entry = cache.entry(key).or_default();
         let mut cache_map = cache_entry.value().lock();
 
-        // insert into cache and drop old versions.
-        cache_map.insert(version, value.clone());
-        // TODO: make this automatic by giving CachedVersionMap an optional max capacity
-        cache_map.truncate_to(MAX_VERSIONS);
-
         let DashMapEntry::Occupied(mut occupied_dirty_entry) = dirty_entry else {
             panic!("dirty map must exist");
         };
 
-        let removed = occupied_dirty_entry.get_mut().pop_oldest(&version);
+        // `pop_oldest` asserts that this is the oldest version held, which is
+        // what catches transaction data committed out of causal order.
+        let removed = occupied_dirty_entry
+            .get_mut()
+            .pop_oldest(&version)
+            .expect("dirty version must exist");
 
-        assert_eq!(removed.as_ref(), Some(value), "dirty version must exist");
+        // insert into cache and drop old versions.
+        cache_map.insert(version, removed);
+        // TODO: make this automatic by giving CachedVersionMap an optional max capacity
+        cache_map.truncate_to(MAX_VERSIONS);
 
         // if there are no versions remaining, remove the map entry
         if occupied_dirty_entry.get().is_empty() {
