@@ -22,7 +22,12 @@ pub trait CacheCheckpointResults: Send + Sync {
     ///
     /// The caller must already have verified the checkpoint summary's
     /// authority signatures and its `contents_digest`; those are what make the
-    /// effects trustworthy.
+    /// effects trustworthy. It must also have checked the payloads against
+    /// those effects with
+    /// [`CheckpointData::verify_payload_digests`](crate::full_checkpoint_content::CheckpointData::verify_payload_digests)
+    /// and offered only what passed: the executor commits whatever it takes
+    /// from here without checking again, so that rehashing every object stays
+    /// off its ordered path.
     ///
     /// Returns `false` when the results were not kept — the cache is at its
     /// size limit — in which case the executor will execute the checkpoint's
