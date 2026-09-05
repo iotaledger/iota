@@ -3,23 +3,33 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectReference, TransactionEffects, TransactionEvents};
+use iota_common::debug_fatal;
+use iota_sdk_types::{
+    ObjectId, ObjectReference, ObjectVersion, TransactionEffects, TransactionEvents,
+};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
+    object::{Object, ObjectSet},
     storage::{MarkerValue, ObjectKey},
     transaction::{TransactionAPI, VerifiedTransaction},
 };
+
+use crate::authority::AuthorityMetrics;
 
 /// TransactionOutputs
 pub struct TransactionOutputs {
     pub transaction: Arc<VerifiedTransaction>,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
+    /// Pre-images of the versions this transaction superseded, carried in
+    /// memory so checkpoint commit can relocate them into the historic
+    /// bucket in the same atomic batch, without reading them back.
+    pub superseded: Vec<(ObjectKey, Object)>,
 
     pub markers: Vec<(ObjectKey, MarkerValue)>,
     pub wrapped: Vec<ObjectKey>,
@@ -36,6 +46,8 @@ impl TransactionOutputs {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         inner_temporary_store: InnerTemporaryStore,
+        read_objects: ObjectSet,
+        metrics: &AuthorityMetrics,
     ) -> TransactionOutputs {
         let InnerTemporaryStore {
             input_objects,
@@ -52,11 +64,12 @@ impl TransactionOutputs {
 
         let deleted: HashMap<_, _> = effects.all_tombstones().into_iter().collect();
 
+        let modified_at_versions = effects.modified_at_versions();
+
         // Get the actual set of objects that have been received -- any received
         // object will show up in the modified-at set.
-        let modified_at: HashSet<_> = effects
-            .modified_at_versions()
-            .into_iter()
+        let modified_at: HashSet<_> = modified_at_versions
+            .iter()
             .map(|modified| (modified.object_id, modified.version))
             .collect();
         let possible_to_receive = transaction.transaction().receiving_objects();
@@ -130,10 +143,32 @@ impl TransactionOutputs {
 
         let wrapped = effects.wrapped().into_iter().map(ObjectKey::from).collect();
 
+        let mut capture_misses = 0;
+        let superseded = build_superseded_counting(
+            &modified_at_versions,
+            &input_objects,
+            &read_objects,
+            &mut capture_misses,
+        );
+        if capture_misses > 0 {
+            // A miss loses no data — the same set drives both the bucket
+            // insert and the live delete, so the version simply stays in the
+            // live table — but relocation then stops for that shape of
+            // object, which only a crash in a test build makes visible.
+            debug_fatal!(
+                "{capture_misses} of the versions {tx_digest} superseded have no pre-image among \
+                 its input objects or the objects it read"
+            );
+        }
+        metrics
+            .superseded_capture_misses
+            .inc_by(capture_misses as u64);
+
         TransactionOutputs {
             transaction: Arc::new(transaction),
             effects,
             events,
+            superseded,
             markers,
             wrapped,
             deleted,
@@ -143,3 +178,59 @@ impl TransactionOutputs {
         }
     }
 }
+
+/// Pre-images of the object versions a transaction superseded, keyed by
+/// the version each pre-image belonged to. Every modified version whose
+/// pre-image is in neither source is counted into `capture_misses` and left
+/// out, so the gap is visible instead of silently dropped.
+///
+/// A modified object's pre-image is normally in `input_objects`. Objects
+/// loaded at runtime — dynamic fields, in particular — never appear there,
+/// so a lookup that misses in `input_objects` falls back to `read_objects`,
+/// which tracks every object loaded during execution.
+fn build_superseded_counting(
+    modified_at: &[ObjectVersion],
+    input_objects: &BTreeMap<ObjectId, Object>,
+    read_objects: &ObjectSet,
+    capture_misses: &mut usize,
+) -> Vec<(ObjectKey, Object)> {
+    modified_at
+        .iter()
+        .filter_map(|modified| {
+            let (id, version) = (&modified.object_id, modified.version);
+            let pre_image = input_objects
+                .get(id)
+                .filter(|object| object.version() == version)
+                .or_else(|| read_objects.get(&ObjectKey(*id, version)));
+            match pre_image {
+                Some(object) => Some((ObjectKey(*id, version), object.clone())),
+                None => {
+                    *capture_misses += 1;
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
+/// [`build_superseded_counting`] with the miss count discarded, so a test
+/// that only cares about the captured set doesn't have to thread a counter
+/// through it.
+#[cfg(test)]
+fn build_superseded(
+    modified_at: &[ObjectVersion],
+    input_objects: &BTreeMap<ObjectId, Object>,
+    read_objects: &ObjectSet,
+) -> Vec<(ObjectKey, Object)> {
+    let mut capture_misses = 0;
+    build_superseded_counting(
+        modified_at,
+        input_objects,
+        read_objects,
+        &mut capture_misses,
+    )
+}
+
+#[cfg(test)]
+#[path = "unit_tests/transaction_outputs_tests.rs"]
+mod tests;

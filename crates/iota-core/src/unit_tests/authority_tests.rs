@@ -51,7 +51,7 @@ use iota_types::{
     messages_checkpoint::CheckpointContentsExt,
     messages_consensus::{AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest, TransactionInfoRequest},
-    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, OBJECT_START_VERSION, Object, PastObjectRead},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
@@ -99,6 +99,7 @@ use crate::{
     consensus_handler::SequencedConsensusTransaction,
     execution_cache::ExecutionCacheCommit,
     execution_scheduler::ExecutionSchedulerAPI,
+    storage::{GrpcReadStore, RocksDbStore},
     test_utils::{
         init_state_parameters_from_rng, make_transfer_object_transaction, set_scheduler_env,
     },
@@ -3071,12 +3072,17 @@ async fn test_authority_persist() {
     let tmp_dir = iota_common::tempdir();
     let path = tmp_dir.path().to_path_buf();
 
-    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
+    let (perpetual_tables, historic_objects) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
     // Create an authority
-    let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
-            .await
-            .unwrap();
+    let store = AuthorityStore::open_with_committee_for_testing(
+        Arc::new(perpetual_tables),
+        Arc::new(historic_objects),
+        &committee,
+        &genesis,
+    )
+    .await
+    .unwrap();
     let authority = init_state(&genesis, authority_key, store).await;
 
     // Create an object
@@ -3099,11 +3105,16 @@ async fn test_authority_persist() {
     let seed = [1u8; 32];
     let (genesis, authority_key) = init_state_parameters_from_rng(&mut StdRng::from_seed(seed));
     let committee = genesis.committee().unwrap();
-    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
-    let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
-            .await
-            .unwrap();
+    let (perpetual_tables, historic_objects) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
+    let store = AuthorityStore::open_with_committee_for_testing(
+        Arc::new(perpetual_tables),
+        Arc::new(historic_objects),
+        &committee,
+        &genesis,
+    )
+    .await
+    .unwrap();
     let authority2 = init_state(&genesis, authority_key, store).await;
     let obj2 = authority2.get_object(&object_id).unwrap();
 
@@ -3519,6 +3530,104 @@ fn build_and_commit(
 ) {
     let batch = cache_commit.build_db_batch(epoch, checkpoint, txs);
     cache_commit.commit_transaction_outputs(epoch, batch, txs);
+}
+
+/// A checkpoint commit relocates the versions its transactions superseded, so
+/// every read that assembles a response has to reach the historic buckets to
+/// still find them. The pre-images used here are genesis objects, which are
+/// written straight to the store, so no cached copy can answer in the buckets'
+/// place.
+#[tokio::test]
+async fn test_response_reads_resolve_relocated_versions() {
+    use iota_types::storage::{ObjectKey, ObjectStore};
+    use typed_store::Map;
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
+
+    let transferred_pre_image = authority_state.get_object(&object_id).unwrap();
+    let gas_pre_image = authority_state.get_object(&gas_object_id).unwrap();
+
+    let certificate = init_certified_transfer_transaction(
+        sender,
+        &sender_key,
+        recipient,
+        transferred_pre_image.object_ref(),
+        gas_pre_image.object_ref(),
+        &authority_state,
+    );
+    let effects = authority_state
+        .wait_for_certificate_execution(&certificate, &authority_state.epoch_store_for_testing())
+        .await
+        .unwrap();
+    effects.status().unwrap();
+
+    build_and_commit(
+        authority_state.get_cache_commit(),
+        authority_state.epoch_store_for_testing().epoch(),
+        &[*effects.transaction_digest()],
+        0,
+    );
+
+    let perpetual = &authority_state.database_for_testing().perpetual_tables;
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        let key = ObjectKey(pre_image.id(), pre_image.version());
+        assert_eq!(
+            perpetual.objects.get(&key).unwrap(),
+            None,
+            "the commit must have moved {key:?} out of the live table"
+        );
+    }
+
+    // Serves `iota_tryGetPastObject` and the JSON-RPC balance- and
+    // object-change assembly.
+    let past_object = authority_state
+        .get_past_object_read(&object_id, transferred_pre_image.version())
+        .unwrap();
+    match past_object {
+        PastObjectRead::VersionFound(_, object, _) => {
+            assert_eq!(object, transferred_pre_image)
+        }
+        other => panic!("expected the relocated version, got {other:?}"),
+    }
+
+    // Serves fullnode execute-transaction responses and validator gRPC
+    // responses.
+    let input_objects = authority_state
+        .get_transaction_input_objects(&effects)
+        .unwrap();
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert!(
+            input_objects.contains(pre_image),
+            "the input objects must carry the relocated {:?}",
+            pre_image.id()
+        );
+    }
+
+    // Serves the gRPC read API, which reads the same pre-images through its
+    // own store rather than through `AuthorityState`.
+    let grpc_read_store = GrpcReadStore::new(
+        authority_state.clone(),
+        RocksDbStore::new(
+            authority_state.execution_cache_trait_pointers.clone(),
+            authority_state.committee_store().clone(),
+            authority_state.checkpoint_store.clone(),
+        ),
+    );
+    for pre_image in [&transferred_pre_image, &gas_pre_image] {
+        assert_eq!(
+            grpc_read_store
+                .try_get_object_by_key(&pre_image.id(), pre_image.version())
+                .unwrap()
+                .as_ref(),
+            Some(pre_image),
+            "the gRPC read store must serve the relocated version"
+        );
+    }
 }
 
 #[tokio::test]

@@ -42,7 +42,7 @@ use crate::{
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     iota_sdk_types_conversions::identifier_core_to_sdk,
-    object::Object,
+    object::{Object, ObjectSet},
     storage::error::Error as StorageError,
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
@@ -561,6 +561,101 @@ where
 {
     fn as_object_store(&self) -> &dyn ObjectStore {
         self
+    }
+}
+
+/// A [`BackingStore`] that records every object read through it.
+///
+/// The versions a transaction supersedes are relocated by value, and the
+/// transaction's declared inputs do not cover all of them: dynamic fields and
+/// received objects are fetched from the store mid-execution, and execution
+/// reports only their metadata afterwards. Reading through this wrapper is what
+/// keeps their contents available.
+///
+/// Wrap the store for the duration of a single execution, then take the
+/// recorded objects with [`into_read_objects`](Self::into_read_objects).
+pub struct TrackingBackingStore<'a> {
+    inner: &'a dyn BackingStore,
+    read_objects: RefCell<ObjectSet>,
+}
+
+impl<'a> TrackingBackingStore<'a> {
+    pub fn new(inner: &'a dyn BackingStore) -> Self {
+        Self {
+            inner,
+            read_objects: Default::default(),
+        }
+    }
+
+    pub fn into_read_objects(self) -> ObjectSet {
+        self.read_objects.into_inner()
+    }
+
+    fn track_object(&self, object: &Object) {
+        self.read_objects.borrow_mut().insert(object.clone());
+    }
+}
+
+impl BackingPackageStore for TrackingBackingStore<'_> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        self.inner.get_package_object(package_id).inspect(|o| {
+            o.as_ref()
+                .inspect(|package| self.track_object(package.object()));
+        })
+    }
+}
+
+impl ChildObjectResolver for TrackingBackingStore<'_> {
+    fn read_child_object(
+        &self,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
+    ) -> IotaResult<Option<Object>> {
+        self.inner
+            .read_child_object(parent, child, child_version_upper_bound)
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
+    }
+
+    fn get_object_received_at_version(
+        &self,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
+        epoch_id: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        self.inner
+            .get_object_received_at_version(
+                owner,
+                receiving_object_id,
+                receive_object_at_version,
+                epoch_id,
+            )
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
+    }
+}
+
+impl ObjectStore for TrackingBackingStore<'_> {
+    fn try_get_object(&self, object_id: &ObjectId) -> error::Result<Option<Object>> {
+        self.inner.try_get_object(object_id).inspect(|o| {
+            o.as_ref().inspect(|object| self.track_object(object));
+        })
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: VersionNumber,
+    ) -> error::Result<Option<Object>> {
+        self.inner
+            .try_get_object_by_key(object_id, version)
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
     }
 }
 

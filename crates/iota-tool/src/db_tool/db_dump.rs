@@ -21,6 +21,7 @@ use iota_core::{
         },
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreData, StoreObject},
+        historic_objects::HistoricObjects,
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
@@ -275,37 +276,42 @@ pub fn dump_table(
 ) -> anyhow::Result<BTreeMap<String, String>> {
     match store_name {
         StoreName::Validator => {
-            let epoch_tables = AuthorityEpochTables::describe_tables();
-            if epoch_tables.contains_key(table_name) {
+            if AuthorityEpochTables::describe_tables().contains_key(table_name) {
                 let epoch = epoch.ok_or_else(|| anyhow!("--epoch is required"))?;
-                AuthorityEpochTables::open_readonly(epoch, &db_path).dump(
-                    table_name,
-                    page_size,
-                    page_number,
-                )
-            } else {
-                let perpetual_tables = AuthorityPerpetualTables::describe_tables();
-                assert!(perpetual_tables.contains_key(table_name));
-                AuthorityPerpetualTables::open_readonly(&db_path).dump(
-                    table_name,
-                    page_size,
-                    page_number,
-                )
+                return AuthorityEpochTables::open_readonly(epoch, &db_path)
+                    .dump(table_name, page_size, page_number)
+                    .map_err(|err| anyhow!(err.to_string()));
             }
-        }
-        StoreName::Index => {
-            IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default()).dump(
+            let perpetual_tables = AuthorityPerpetualTables::open_readonly(&db_path);
+            if AuthorityPerpetualTables::describe_tables().contains_key(table_name) {
+                return perpetual_tables
+                    .dump(table_name, page_size, page_number)
+                    .map_err(|err| anyhow!(err.to_string()));
+            }
+            // The historic object buckets and their retention floor are column
+            // families of the perpetual database that its table struct does
+            // not declare, so the dump derived from that struct cannot reach
+            // them.
+            HistoricObjects::dump_column_family(
+                &perpetual_tables.objects.db,
                 table_name,
                 page_size,
                 page_number,
             )
+            .map_err(|err| anyhow!(err.to_string()))?
+            .ok_or_else(|| anyhow!("no such table in the validator store: {table_name}"))
+        }
+        StoreName::Index => {
+            IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
+                .dump(table_name, page_size, page_number)
+                .map_err(|err| anyhow!(err.to_string()))
         }
         StoreName::Epoch => {
             CommitteeStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
                 .dump(table_name, page_size, page_number)
+                .map_err(|err| anyhow!(err.to_string()))
         }
     }
-    .map_err(|err| anyhow!(err.to_string()))
 }
 
 #[cfg(test)]
