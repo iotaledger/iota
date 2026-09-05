@@ -26,6 +26,7 @@ pub mod execution_scheduler;
 mod fallback_fetch;
 pub mod global_state_hasher;
 pub mod grpc_indexes;
+pub mod index_rebuild_cancellation;
 pub mod jsonrpc_index;
 pub mod metrics;
 pub mod mock_consensus;

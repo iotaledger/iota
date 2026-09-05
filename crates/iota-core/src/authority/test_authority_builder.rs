@@ -42,7 +42,7 @@ use crate::{
     },
     execution_cache::build_execution_cache,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
+    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR},
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
     signature_verifier::SignatureVerifierMetrics,
@@ -332,13 +332,21 @@ impl<'a> TestAuthorityBuilder<'a> {
         let index_store = if self.disable_indexer {
             None
         } else {
-            Some(Arc::new(IndexStore::new(
-                storage_dir.join("indexes"),
-                &registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
+            Some(
+                IndexStore::new(
+                    storage_dir.join(JSONRPC_INDEXES_DIR),
+                    &registry,
+                    epoch_store
+                        .protocol_config()
+                        .max_move_identifier_len_as_option(),
+                    None,
+                    &authority_store,
+                    &checkpoint_store,
+                    Arc::default(),
+                )
+                .await
+                .expect("failed to open the JSON-RPC index store"),
+            )
         };
         let grpc_indexes_store = if self.disable_indexer {
             None
@@ -348,8 +356,10 @@ impl<'a> TestAuthorityBuilder<'a> {
                     storage_dir.join(GRPC_INDEXES_DIR),
                     Arc::clone(&authority_store),
                     &checkpoint_store,
+                    &Default::default(),
                 )
-                .await,
+                .await
+                .expect("failed to open the gRPC index store"),
             ))
         };
 
@@ -379,7 +389,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             grpc_indexes_store,
             checkpoint_store,
             &registry,
-            genesis.objects(),
             config.clone(),
             None,
             chain_identifier,

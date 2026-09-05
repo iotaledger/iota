@@ -6,8 +6,11 @@ use std::{
     collections::{BTreeMap, HashMap},
     hash::Hasher,
     ops::Bound,
-    path::PathBuf,
-    sync::{Arc, Mutex},
+    path::{Path, PathBuf},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -28,12 +31,13 @@ use iota_types::{
     },
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use typed_store::{
     DBMapUtils, TypedStoreError,
+    database::wait_for_database_close,
     rocks::{
         DBMap, DBMapTableConfigMap, MetricConf, bulk_ingestion_options,
-        bulk_ingestion_write_options,
+        bulk_ingestion_write_options, open_cf_opts, safe_drop_db,
     },
     traits::Map,
 };
@@ -41,6 +45,7 @@ use typed_store::{
 use crate::{
     authority::AuthorityStore,
     checkpoints::CheckpointStore,
+    index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
 };
 
@@ -426,26 +431,36 @@ impl IndexStoreTables {
         )
     }
 
-    fn needs_to_do_initialization(&self, checkpoint_store: &CheckpointStore) -> bool {
-        // Schema mismatch (or unreadable meta) -> migration may be pending
-        // and the watermark CF may be from an incompatible schema.
-        let schema_mismatch = match self.meta.get(&()) {
-            Ok(Some(metadata)) => metadata.version != CURRENT_DB_VERSION,
-            Ok(None) => true,
-            Err(_) => true,
+    /// Whether the store must be wiped and rebuilt. Read errors propagate:
+    /// a transient error must fail the open rather than silently wipe a
+    /// healthy store or adopt a stale one.
+    fn needs_to_do_initialization(
+        &self,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<bool, StorageError> {
+        // Schema mismatch -> migration may be pending and the watermark CF
+        // may be from an incompatible schema.
+        let schema_mismatch = match self.meta.get(&()).map_err(StorageError::from)? {
+            Some(metadata) => metadata.version != CURRENT_DB_VERSION,
+            None => true,
         };
 
-        schema_mismatch || self.is_indexed_watermark_out_of_date(checkpoint_store)
+        Ok(schema_mismatch || self.is_indexed_watermark_out_of_date(checkpoint_store)?)
     }
 
     // Check if the index watermark is behind the highest_executed_checkpoint.
-    fn is_indexed_watermark_out_of_date(&self, checkpoint_store: &CheckpointStore) -> bool {
+    fn is_indexed_watermark_out_of_date(
+        &self,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<bool, StorageError> {
         let highest_executed_checkpoint = checkpoint_store
             .get_highest_executed_checkpoint_seq_number()
-            .ok()
-            .flatten();
-        let watermark = self.watermark.get(&Watermark::Indexed).ok().flatten();
-        watermark < highest_executed_checkpoint
+            .map_err(|e| StorageError::custom(e.to_string()))?;
+        let watermark = self
+            .watermark
+            .get(&Watermark::Indexed)
+            .map_err(StorageError::from)?;
+        Ok(watermark < highest_executed_checkpoint)
     }
 
     /// Range of checkpoints that transaction-digest indexing can cover.
@@ -480,9 +495,14 @@ impl IndexStoreTables {
         &self,
         authority_store: &AuthorityStore,
         batch_size_limit: usize,
+        cancelled: &AtomicBool,
     ) -> Result<(), StorageError> {
         let restorer = self.live_object_restorer(batch_size_limit);
-        crate::par_index_live_object_set::par_index_live_object_set(authority_store, &restorer)?;
+        crate::par_index_live_object_set::par_index_live_object_set(
+            authority_store,
+            &restorer,
+            cancelled,
+        )?;
         restorer.finish()?;
         Ok(())
     }
@@ -498,6 +518,7 @@ impl IndexStoreTables {
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
         batch_size_limit: usize,
+        cancelled: &AtomicBool,
     ) -> Result<(), StorageError> {
         info!("Initializing gRPC indexes");
 
@@ -513,11 +534,11 @@ impl IndexStoreTables {
         // `tx_range` is `None` only when no checkpoints have ever been executed
         // on this node, so skipping phase-1 indexing entirely is correct.
         if let Some(range) = tx_range {
-            self.index_historical_checkpoints(checkpoint_store, range)?;
+            self.index_historical_checkpoints(checkpoint_store, range, cancelled)?;
         }
 
         // Phase 2 — live-state indexes from the current live object set.
-        self.index_live_object_set(authority_store, batch_size_limit)?;
+        self.index_live_object_set(authority_store, batch_size_limit, cancelled)?;
 
         self.finalize(highest_executed_checkpoint.unwrap_or(0))?;
 
@@ -526,14 +547,15 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    /// Mark the store fully initialized: set `Watermark::Indexed` to
-    /// `indexed_checkpoint` and write `meta` last, so a crash before the
-    /// `meta` write leaves a store the next `new` call wipes and re-inits.
-    /// The final step of both `init` and a formal-snapshot restore.
+    /// Flushes the bulk-ingested data, then stamps the watermark and `meta`
+    /// last, so a crash in between leaves a store the next open re-inits.
     fn finalize(
         &self,
         indexed_checkpoint: CheckpointSequenceNumber,
     ) -> Result<(), TypedStoreError> {
+        // The watermark and `meta` are WAL-durable and the bulk writes are not, so
+        // flush first; flushing one table flushes every column family.
+        self.meta.flush_all()?;
         self.watermark
             .insert(&Watermark::Indexed, &indexed_checkpoint)?;
         self.meta.insert(
@@ -545,12 +567,14 @@ impl IndexStoreTables {
     }
 
     /// Index transaction digests by replaying the `CheckpointContents` of
-    /// every checkpoint in `checkpoint_range` in order.
-    #[tracing::instrument(skip(self, checkpoint_store))]
+    /// every checkpoint in `checkpoint_range` in order. Setting `cancelled`
+    /// fails the replay early, as it does the live object set scan.
+    #[tracing::instrument(skip(self, checkpoint_store, cancelled))]
     fn index_historical_checkpoints(
         &self,
         checkpoint_store: &CheckpointStore,
         checkpoint_range: std::ops::RangeInclusive<u64>,
+        cancelled: &AtomicBool,
     ) -> Result<(), StorageError> {
         info!(
             "Indexing {} checkpoints in range {checkpoint_range:?}",
@@ -559,6 +583,11 @@ impl IndexStoreTables {
         let start_time = Instant::now();
 
         for checkpoint_sequence_number in checkpoint_range {
+            if cancelled.load(Ordering::Relaxed) {
+                return Err(RebuildCancelled::error(
+                    "the historical checkpoint replay was cancelled",
+                ));
+            }
             let summary = checkpoint_store
                 .get_checkpoint_by_sequence_number(checkpoint_sequence_number)?
                 .ok_or_else(|| {
@@ -860,68 +889,132 @@ pub struct GrpcIndexesStore {
 }
 
 impl GrpcIndexesStore {
+    /// Opens the database and closes it again, reporting whether it can be
+    /// opened at all: [`IndexStoreTables::open`] panics when it cannot,
+    /// which leaves the node no way to recover.
+    async fn probe_open(path: &Path) -> Result<(), TypedStoreError> {
+        let db = open_cf_opts(path, None, MetricConf::new("grpc-index-probe"), &[])?;
+        let weak_db = Arc::downgrade(&db);
+        drop(db);
+        if !wait_for_database_close(weak_db).await {
+            return Err(TypedStoreError::RocksDB(
+                "the probed gRPC index database did not close".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Setting `cancelled` abandons a rebuild running here and fails the
+    /// open: the store is left unfinalized for the next open to rebuild, and
+    /// must not serve reads in the meantime.
     pub async fn new(
         path: PathBuf,
         authority_store: Arc<AuthorityStore>,
-        checkpoint_store: &CheckpointStore,
-    ) -> Self {
+        checkpoint_store: &Arc<CheckpointStore>,
+        cancelled: &Arc<AtomicBool>,
+    ) -> Result<Self, StorageError> {
         let tables = {
-            let tables = IndexStoreTables::open(&path);
+            // An unopenable database would crash-loop the node with no way
+            // to self-heal; wipe and rebuild it like a stale one — but only
+            // after one retry, so a transient error does not destroy a
+            // healthy store.
+            let mut opened = match Self::probe_open(&path).await {
+                Ok(()) => Some(IndexStoreTables::open(&path)),
+                Err(first) => {
+                    warn!("unable to open the gRPC index database, retrying once: {first}");
+                    match Self::probe_open(&path).await {
+                        Ok(()) => Some(IndexStoreTables::open(&path)),
+                        Err(e) => {
+                            warn!(
+                                "unable to open the gRPC index database, wiping and rebuilding: {e}"
+                            );
+                            None
+                        }
+                    }
+                }
+            };
 
             // If the index tables are uninitialized or on an older version then we need to
             // populate them
-            if tables.needs_to_do_initialization(checkpoint_store) {
+            if opened.as_ref().is_none_or(|tables| {
+                tables
+                    .needs_to_do_initialization(checkpoint_store)
+                    .expect("failed to determine whether the gRPC index needs a rebuild")
+            }) {
                 let batch_size_limit;
-                let mut tables = {
-                    drop(tables);
-                    typed_store::rocks::safe_drop_db(path.clone(), Duration::from_secs(30))
-                        .await
-                        .expect("unable to destroy old gRPC index db");
+                let tables = {
+                    drop(opened.take());
+                    // `DB::destroy` fails on a database it cannot parse —
+                    // the very state the rebuild recovers from — so fall
+                    // back to deleting the directory.
+                    if let Err(e) = safe_drop_db(path.clone(), Duration::from_secs(30)).await {
+                        warn!("unable to destroy the old gRPC index database ({e}), deleting it");
+                        std::fs::remove_dir_all(&path)
+                            .expect("unable to delete the old gRPC index database");
+                    }
 
                     // Open the empty DB with tuned bulk ingestion options to
                     // speed up the initial indexing. The DB is reopened with default options
                     // afterwards.
                     let bulk_options = bulk_ingestion_options();
                     batch_size_limit = bulk_options.batch_size_limit;
-
-                    // Apply the per-column-family bulk options to every table.
-                    let mut table_config = BTreeMap::new();
-                    for table_name in IndexStoreTables::describe_tables().into_keys() {
-                        table_config.insert(table_name, bulk_options.column_family_options.clone());
-                    }
+                    let table_config =
+                        bulk_options.table_config(IndexStoreTables::describe_tables().into_keys());
 
                     IndexStoreTables::open_with_options(
                         &path,
                         bulk_options.db_options,
-                        Some(DBMapTableConfigMap::new(table_config)),
+                        Some(table_config),
                     )
                 };
 
-                tables
-                    .init(&authority_store, checkpoint_store, batch_size_limit)
-                    .expect("unable to initialize gRPC index");
+                // The rebuild scans and writes RocksDB for a long time; keep
+                // it off the async runtime's worker threads.
+                let (tables, initialized) = tokio::task::spawn_blocking({
+                    let authority_store = authority_store.clone();
+                    let checkpoint_store = checkpoint_store.clone();
+                    let cancelled = cancelled.clone();
+                    move || {
+                        let mut tables = tables;
+                        let initialized = tables.init(
+                            &authority_store,
+                            &checkpoint_store,
+                            batch_size_limit,
+                            &cancelled,
+                        );
+                        (tables, initialized)
+                    }
+                })
+                .await
+                .expect("gRPC index initialization task failed");
 
-                // Flush all data to disk before dropping tables. This is critical because
-                // WAL is disabled for the bulk writes during initialization. Flushing any
-                // table flushes every column family of the shared underlying database, so
-                // one call covers all tables.
-                tables
-                    .meta
-                    .flush_all()
-                    .expect("gRPC index DB should be flushable after bulk ingestion");
+                match initialized {
+                    Ok(()) => {}
+                    // Unfinalized, so the next open rebuilds it, as after a
+                    // crash. The open fails so the truncated store is never
+                    // served, and the reopen below never runs on a store
+                    // whose `meta` the skipped finalize never wrote.
+                    // Keyed on the error, not on the flag: a real failure
+                    // that races the shutdown must stay a failure.
+                    Err(e) if is_cancelled(&e) => {
+                        // Release the database so the next open can rebuild
+                        // it.
+                        let weak_db = Arc::downgrade(&tables.meta.db);
+                        drop(tables);
+                        if !wait_for_database_close(weak_db).await {
+                            warn!("the cancelled gRPC index rebuild left its database open");
+                        }
+                        return Err(RebuildCancelled::error(format!(
+                            "the gRPC index rebuild was cancelled by shutdown: {e}"
+                        )));
+                    }
+                    Err(e) => panic!("unable to initialize gRPC index: {e}"),
+                }
 
                 let weak_db = Arc::downgrade(&tables.meta.db);
                 drop(tables);
-
-                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-                loop {
-                    if weak_db.strong_count() == 0 {
-                        break;
-                    }
-                    if std::time::Instant::now() > deadline {
-                        panic!("unable to reopen DB after indexing");
-                    }
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                if !wait_for_database_close(weak_db).await {
+                    panic!("unable to reopen DB after indexing");
                 }
 
                 // Reopen the DB with default options (eg without `unordered_write`s enabled)
@@ -942,16 +1035,16 @@ impl GrpcIndexesStore {
 
                 reopened_tables
             } else {
-                tables
+                opened.expect("the index database is open unless it needs a rebuild")
             }
         };
 
         let tables = Arc::new(tables);
 
-        Self {
+        Ok(Self {
             tables,
             pending_updates: Default::default(),
-        }
+        })
     }
 
     /// Open the store without the wipe/init logic of [`Self::new`] — for the
@@ -1077,6 +1170,76 @@ impl GrpcIndexesStore {
         restore_checkpoint: CheckpointSequenceNumber,
     ) -> Result<(), TypedStoreError> {
         self.tables.finalize(restore_checkpoint)
+    }
+
+    /// Finalizes the restore as [`Self::finalize_restore`] does, then closes
+    /// the store and reopens it the way a node does, so a database the node
+    /// would wipe and rebuild — or one that carries no restored objects —
+    /// fails the restore instead, and so the caller can move the database
+    /// directory. `live_object_count` is the number of objects the restore
+    /// wrote.
+    pub async fn finalize_and_verify_restore(
+        self: Arc<Self>,
+        path: &Path,
+        restore_checkpoint: CheckpointSequenceNumber,
+        live_object_count: u64,
+    ) -> Result<(), StorageError> {
+        self.finalize_restore(restore_checkpoint)?;
+
+        let weak_db = Arc::downgrade(&self.tables.meta.db);
+        drop(self);
+        if !wait_for_database_close(weak_db).await {
+            return Err(StorageError::custom(
+                "unable to close the gRPC index database after the restore",
+            ));
+        }
+
+        Self::probe_open(path).await.map_err(|e| {
+            StorageError::custom(format!(
+                "unable to reopen the restored gRPC index database: {e}"
+            ))
+        })?;
+        let reopened = IndexStoreTables::open(path);
+        let stored_version = reopened
+            .meta
+            .get(&())?
+            .ok_or_else(|| {
+                StorageError::custom("the restored gRPC index database has no metadata")
+            })?
+            .version;
+        if stored_version != CURRENT_DB_VERSION {
+            return Err(StorageError::custom(format!(
+                "restored gRPC index database version mismatch: expected {CURRENT_DB_VERSION}, \
+                 found {stored_version}"
+            )));
+        }
+        let watermark = reopened.watermark.get(&Watermark::Indexed)?;
+        if watermark != Some(restore_checkpoint) {
+            return Err(StorageError::custom(format!(
+                "the restored gRPC index is watermarked at {watermark:?}, expected \
+                 {restore_checkpoint}"
+            )));
+        }
+        // The version and the watermark are written by the finalize itself;
+        // only the live state proves the object stream landed. `is_empty`
+        // has no error channel and reads an unreadable index as non-empty,
+        // so the scan is run here and its failure fails the restore.
+        let owner_is_empty = reopened.owner.safe_iter().next().transpose()?.is_none();
+        if live_object_count > 0 && owner_is_empty {
+            return Err(StorageError::custom(format!(
+                "the restored gRPC index has an empty owner index after {live_object_count} live \
+                 objects"
+            )));
+        }
+
+        let weak_db = Arc::downgrade(&reopened.meta.db);
+        drop(reopened);
+        if !wait_for_database_close(weak_db).await {
+            return Err(StorageError::custom(
+                "unable to close the gRPC index database after verifying the restore",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -1291,7 +1454,7 @@ impl ParMakeLiveObjectIndexer for GrpcLiveObjectRestorer<'_> {
 pub struct GrpcPartitionIndexer<'a>(GrpcLiveObjectIndexer<'a>);
 
 impl GrpcPartitionIndexer<'_> {
-    pub fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+    pub fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
         self.0.index_object(object)
     }
 
@@ -1302,7 +1465,7 @@ impl GrpcPartitionIndexer<'_> {
 }
 
 impl LiveObjectIndexer for GrpcPartitionIndexer<'_> {
-    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+    fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
         GrpcPartitionIndexer::index_object(self, object)
     }
 
@@ -1319,17 +1482,17 @@ struct GrpcLiveObjectIndexer<'a> {
 }
 
 impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
-    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+    fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
         match object.owner {
             Owner::Address(owner) => {
-                if let Some((owner_key, owner_info)) = make_owner_key(owner, &object) {
+                if let Some((owner_key, owner_info)) = make_owner_key(owner, object) {
                     self.batch
                         .insert_batch(&self.tables.owner, [(owner_key, owner_info)])?;
                 }
             }
             // Dynamic Field Index
             Owner::Object(parent) => {
-                if should_index_dynamic_field(&object) {
+                if should_index_dynamic_field(object) {
                     let field_key = DynamicFieldKey::new(parent, object.id());
                     self.batch
                         .insert_batch(&self.tables.dynamic_field, [(field_key, ())])?;
@@ -1340,18 +1503,18 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
         }
 
         // Look for CoinMetadata<T> and TreasuryCap<T> objects
-        if let Some((key, value)) = try_create_coin_index_info(&object) {
+        if let Some((key, value)) = try_create_coin_index_info(object) {
             merge_coin_into(&mut self.coin_index.lock().unwrap(), key, value);
         }
 
         // Package version index
-        if let Some((key, info)) = try_create_package_version_info(&object) {
+        if let Some((key, info)) = try_create_package_version_info(object) {
             self.batch
                 .insert_batch(&self.tables.package_version, [(key, info)])?;
         }
 
         // Regulated coin index
-        if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
+        if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
             merge_coin_into(
                 &mut self.coin_index.lock().unwrap(),
                 key,
@@ -1380,38 +1543,11 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{GasCostSummary, checkpoint::CheckpointSummary};
-    use iota_types::{
-        crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
-        message_envelope::Envelope, messages_checkpoint::VerifiedCheckpoint,
-    };
+    use iota_types::iota_system_state::IotaSystemState;
     use typed_store::rocks::{MetricConf, ReadWriteOptions, open_cf_opts};
 
     use super::*;
-
-    /// An executed (non-boundary) checkpoint for seeding a test
-    /// `CheckpointStore`, with a placeholder signature and no end-of-epoch
-    /// data.
-    fn executed_checkpoint(epoch: EpochId, sequence_number: u64) -> VerifiedCheckpoint {
-        let summary = CheckpointSummary {
-            epoch,
-            sequence_number,
-            network_total_transactions: 0,
-            contents_digest: Default::default(),
-            previous_digest: None,
-            epoch_rolling_gas_cost_summary: GasCostSummary::default(),
-            end_of_epoch_data: None,
-            timestamp_ms: 0,
-            version_specific_data: Vec::new(),
-            checkpoint_commitments: Vec::new(),
-        };
-        let sig = AuthorityStrongQuorumSignInfo {
-            epoch,
-            signature: Default::default(),
-            signers_map: Default::default(),
-        };
-        VerifiedCheckpoint::new_unchecked(Envelope::new_from_data_and_sig(summary, sig))
-    }
+    use crate::test_utils::executed_checkpoint;
 
     /// The live-object restorer must derive the same live-state indexes from
     /// an external object stream that `init` derives from a store scan: an
@@ -1429,7 +1565,7 @@ mod tests {
 
         let restorer = grpc.live_object_restorer(100);
         let mut partition = restorer.begin_partition();
-        partition.index_object(object).unwrap();
+        partition.index_object(&object).unwrap();
         partition.finish().unwrap();
         restorer.finish().unwrap();
 
@@ -1440,6 +1576,133 @@ mod tests {
             .unwrap();
         assert_eq!(owned.len(), 1, "restored object must be owner-indexed");
         assert_eq!(owned[0].0.object_id, object_id);
+    }
+
+    /// `finalize` must make the bulk-ingested data durable before it stamps
+    /// the watermark and `meta`, so a crash in between cannot leave a store
+    /// the next open adopts as complete.
+    #[tokio::test]
+    async fn finalize_flushes_before_stamping_the_watermark() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        partition
+            .index_object(&Object::with_owner_for_testing(Address::from_u16(42)))
+            .unwrap();
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        assert!(
+            grpc.tables.meta.db.live_files().unwrap().is_empty(),
+            "the restored rows must still be unflushed before finalize"
+        );
+
+        grpc.finalize_restore(5).unwrap();
+
+        assert!(
+            !grpc.tables.meta.db.live_files().unwrap().is_empty(),
+            "finalize must flush the restored rows before stamping the watermark"
+        );
+    }
+
+    /// A database that cannot be opened is wiped and rebuilt, instead of
+    /// crash-looping the node with no way to self-heal.
+    #[tokio::test]
+    async fn unopenable_database_is_wiped_and_rebuilt() {
+        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .insert_genesis_checkpoint()
+            .build()
+            .await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let genesis_checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&genesis_checkpoint)
+            .unwrap();
+
+        let owner = Address::from_u16(42);
+        let object = Object::with_owner_for_testing(owner);
+        authority_state.insert_genesis_objects(std::slice::from_ref(&object));
+
+        let tmp_dir = iota_common::tempdir();
+        std::fs::write(tmp_dir.path().join("CURRENT"), b"bogus").unwrap();
+
+        let grpc = GrpcIndexesStore::new(
+            tmp_dir.path().to_path_buf(),
+            authority_state.database_for_testing(),
+            checkpoint_store,
+            &Default::default(),
+        )
+        .await
+        .unwrap();
+
+        let owned: Vec<_> = grpc
+            .owner_iter(owner, None, OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(owned.len(), 1, "the rebuild must repopulate the live state");
+    }
+
+    /// A cancelled rebuild fails the open instead of reopening a store the
+    /// skipped finalize never stamped, and the next open rebuilds it.
+    #[tokio::test]
+    async fn cancelled_rebuild_fails_the_open() {
+        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .insert_genesis_checkpoint()
+            .build()
+            .await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let genesis_checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&genesis_checkpoint)
+            .unwrap();
+
+        let owner = Address::from_u16(42);
+        let object = Object::with_owner_for_testing(owner);
+        authority_state.insert_genesis_objects(std::slice::from_ref(&object));
+
+        let tmp_dir = iota_common::tempdir();
+        let opened = GrpcIndexesStore::new(
+            tmp_dir.path().to_path_buf(),
+            authority_state.database_for_testing(),
+            checkpoint_store,
+            &Arc::new(AtomicBool::new(true)),
+        )
+        .await;
+        let Err(error) = opened else {
+            panic!("a cancelled rebuild must not return a usable store");
+        };
+        assert!(
+            error.to_string().contains("cancelled by shutdown"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            is_cancelled(&error),
+            "the node's exit path must still recognize the rewrapped cancellation"
+        );
+
+        let grpc = GrpcIndexesStore::new(
+            tmp_dir.path().to_path_buf(),
+            authority_state.database_for_testing(),
+            checkpoint_store,
+            &Default::default(),
+        )
+        .await
+        .expect("the next open must rebuild the store the cancelled one left behind");
+        let owned: Vec<_> = grpc
+            .owner_iter(owner, None, OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(owned.len(), 1, "the rebuild must repopulate the live state");
     }
 
     /// `finalize_restore` must leave a store that `GrpcIndexesStore::new`
@@ -1464,11 +1727,18 @@ mod tests {
             .unwrap();
 
         // Before finalize: no `meta`, so the store would be wiped + re-inited.
-        assert!(grpc.tables.needs_to_do_initialization(&checkpoint_store));
+        assert!(
+            grpc.tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap()
+        );
 
         grpc.finalize_restore(5).unwrap();
         assert!(
-            !grpc.tables.needs_to_do_initialization(&checkpoint_store),
+            !grpc
+                .tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
             "a finalized restore must open in place"
         );
 
@@ -1479,8 +1749,54 @@ mod tests {
             .update_highest_executed_checkpoint(&newer)
             .unwrap();
         assert!(
-            grpc.tables.needs_to_do_initialization(&checkpoint_store),
+            grpc.tables
+                .needs_to_do_initialization(&checkpoint_store)
+                .unwrap(),
             "a stale restore watermark must not suppress re-init"
+        );
+    }
+
+    /// The restore's finalize must leave a closed, readable store: the
+    /// verify's own reopen and this one both need every handle released.
+    #[tokio::test]
+    async fn finalize_and_verify_restore_closes_the_store() {
+        let tmp_dir = iota_common::tempdir();
+        let path = tmp_dir.path().to_path_buf();
+        let grpc = Arc::new(GrpcIndexesStore::new_without_init(path.clone()));
+
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        partition
+            .index_object(&Object::with_owner_for_testing(Address::from_u16(42)))
+            .unwrap();
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        grpc.finalize_and_verify_restore(&path, 5, 1).await.unwrap();
+
+        let reopened = IndexStoreTables::open(&path);
+        assert_eq!(
+            reopened.watermark.get(&Watermark::Indexed).unwrap(),
+            Some(5)
+        );
+    }
+
+    /// The finalize writes the version and the watermark whether or not any
+    /// object landed, so an empty store must fail the restore instead of
+    /// being served as a complete index.
+    #[tokio::test]
+    async fn finalize_and_verify_restore_rejects_an_empty_store() {
+        let tmp_dir = iota_common::tempdir();
+        let path = tmp_dir.path().to_path_buf();
+        let grpc = Arc::new(GrpcIndexesStore::new_without_init(path.clone()));
+
+        let error = grpc
+            .finalize_and_verify_restore(&path, 5, 1)
+            .await
+            .expect_err("an empty restore must not pass verification");
+        assert!(
+            error.to_string().contains("empty owner index"),
+            "unexpected error: {error}"
         );
     }
 
