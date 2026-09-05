@@ -17,8 +17,8 @@ use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
-    TransactionFilter,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, OwnedObjectCursor, Page,
+    TransactionBlocksPage, TransactionFilter,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_names::{
@@ -33,6 +33,7 @@ use iota_types::{
     error::UserInputError,
     event::EventID,
     iota_sdk_types_conversions::type_tag_sdk_to_core,
+    storage::OwnedObjectCursor as IndexCursor,
 };
 use jsonrpsee::{
     PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
@@ -102,6 +103,28 @@ pub fn spawn_subscription<S, T>(
     });
 }
 const DEFAULT_MAX_SUBSCRIPTIONS: usize = 100;
+
+/// The index position a cursor names, refusing one this store cannot place.
+///
+/// A cursor carrying only an object id came from a store that orders its owner
+/// index by object id — the indexer, or a release before this one. This node's
+/// index is ordered by object type and balance first, which an object id
+/// cannot describe, so such a cursor is refused rather than read as a position
+/// it is not: seeking to the wrong place would silently skip or repeat rows.
+fn cursor_position(
+    cursor: Option<OwnedObjectCursor>,
+) -> Result<Option<IndexCursor>, IotaRpcInputError> {
+    match cursor {
+        None => Ok(None),
+        Some(cursor) => cursor.position().copied().map(Some).ok_or_else(|| {
+            IotaRpcInputError::GenericInvalid(
+                "this cursor was not issued by this node and cannot be resumed here; \
+                 request the page again without a cursor"
+                    .to_string(),
+            )
+        }),
+    }
+}
 
 pub struct IndexerApi<R> {
     state: Arc<dyn StateRead>,
@@ -204,7 +227,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         &self,
         address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         async move {
@@ -213,20 +236,22 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             self.metrics.get_owned_objects_limit.observe(limit as f64);
             let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
             let options = options.unwrap_or_default();
-            let mut objects =
-                self.state
-                    .get_owner_objects_with_limit(address, cursor, limit + 1, filter)?;
+            let mut objects = self.state.get_owner_objects_with_limit(
+                address,
+                cursor_position(cursor)?,
+                limit + 1,
+                filter,
+            )?;
 
             // objects here are of size (limit + 1), where the last one is the cursor for
             // the next page
             let has_next_page = objects.len() > limit && limit > 0;
             objects.truncate(limit);
-            let next_cursor = (has_next_page).then_some(
-                objects
-                    .last()
-                    .map(|obj| obj.object_id)
-                    .unwrap_or(ObjectId::ZERO),
-            );
+            // A page that announces a successor must name where it resumes,
+            // so an empty page cannot claim one.
+            let next_cursor = objects.last().map(|(_, cursor)| *cursor);
+            let has_next_page = has_next_page && next_cursor.is_some();
+            let objects: Vec<_> = objects.into_iter().map(|(info, _)| info).collect();
 
             let data = match options.is_not_in_object_info() {
                 true => {
@@ -620,7 +645,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {

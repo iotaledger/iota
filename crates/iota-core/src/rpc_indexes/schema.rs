@@ -24,7 +24,7 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::MovePackageExt,
     object::Object,
-    storage::{DynamicFieldKey, PackageVersionInfo, PackageVersionKey},
+    storage::{DynamicFieldKey, OwnedObjectCursor, PackageVersionInfo, PackageVersionKey},
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use move_core_types::{
@@ -137,6 +137,33 @@ pub struct OwnerIndexKey {
     pub object_id: ObjectId,
 }
 
+impl OwnerIndexKey {
+    /// The key `cursor` names among `owner`'s rows. A cursor carries every
+    /// field of the key but the owner, which the caller supplies, so a
+    /// position needs no read of the object itself.
+    pub(super) fn for_cursor(owner: Address, cursor: &OwnedObjectCursor) -> Self {
+        Self {
+            owner,
+            object_type_identifier: cursor.object_type_identifier,
+            object_type_params: cursor.object_type_params,
+            inverted_balance: cursor.inverted_balance,
+            object_id: cursor.object_id,
+        }
+    }
+}
+
+impl From<&OwnerIndexKey> for OwnedObjectCursor {
+    /// The cursor naming a row's position, so a caller can resume after it.
+    fn from(key: &OwnerIndexKey) -> Self {
+        Self {
+            object_type_identifier: key.object_type_identifier,
+            object_type_params: key.object_type_params,
+            inverted_balance: key.inverted_balance,
+            object_id: key.object_id,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OwnerIndexInfo {
     pub object_type: StructTag,
@@ -221,13 +248,7 @@ pub(super) fn owner_bounds(
     filter: &OwnerTypeFilter,
 ) -> (Bound<OwnerIndexKey>, OwnerIndexKey) {
     let lower_bound = if let Some(c) = cursor {
-        Bound::Excluded(OwnerIndexKey {
-            owner,
-            object_type_identifier: c.object_type_identifier,
-            object_type_params: c.object_type_params,
-            inverted_balance: c.inverted_balance,
-            object_id: c.object_id,
-        })
+        Bound::Excluded(OwnerIndexKey { owner, ..*c })
     } else {
         let (lower_id, _, lower_params, _) = match filter {
             OwnerTypeFilter::None => (0, u64::MAX, 0, u64::MAX),
