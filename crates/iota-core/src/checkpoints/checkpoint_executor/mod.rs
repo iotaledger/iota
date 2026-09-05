@@ -632,24 +632,13 @@ impl CheckpointExecutor {
     ) -> CheckpointExecutionState {
         let sequence_number = ckpt_state.data.checkpoint.sequence_number;
 
-        // Results state sync already downloaded and verified, if any. Checked
-        // here rather than at commit time: a checkpoint whose payloads do not
-        // verify has to go back to being executed, and by then its
-        // transactions would no longer be scheduled.
+        // Results state sync already downloaded and verified, if any. Their
+        // payloads were checked against the effects when they were cached, so
+        // that rehashing every object stays out of this ordered stage.
         let committable_results = self
             .checkpoint_results_cache
             .as_ref()
-            .and_then(|cache| cache.take(sequence_number))
-            .filter(|results| match results.verify_payload_digests() {
-                Ok(()) => true,
-                Err(error) => {
-                    warn!(
-                        ?sequence_number,
-                        "executing checkpoint instead of committing its results: {error}"
-                    );
-                    false
-                }
-            });
+            .and_then(|cache| cache.take(sequence_number));
 
         let (unexecuted_tx_digests, unexecuted_expected_fx_digests) = {
             let _scope = iota_metrics::monitored_scope("CheckpointExecutor::execute_transactions");
