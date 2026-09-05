@@ -61,7 +61,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    base_types::{AuthorityName, ConciseableName, ObjectInfo, VersionNumber},
+    base_types::{AuthorityName, ConciseableName, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::{check_coin_deny_list_v1, coin_types_for_denylist_check},
@@ -102,7 +102,7 @@ use iota_types::{
     object::{Object, ObjectRead, ObjectSet, PastObjectRead},
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
-        TrackingBackingStore,
+        OwnedObjectCursor, TrackingBackingStore,
     },
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
@@ -175,7 +175,9 @@ use crate::{
     },
     rpc_indexes::{
         RpcIndexesStore,
-        jsonrpc_api::{CachingLayoutResolver, CoinInfo, try_create_dynamic_field_info},
+        jsonrpc_api::{
+            CachingLayoutResolver, CoinInfo, OwnedObjectsPage, try_create_dynamic_field_info,
+        },
         schema::{IndexGroup, OwnerTypeFilter},
     },
     stake_aggregator::StakeAggregator,
@@ -4139,11 +4141,11 @@ impl AuthorityState {
         &self,
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
         max_read: usize,
-    ) -> IotaResult<(Vec<ObjectInfo>, Option<ObjectId>)> {
+    ) -> IotaResult<OwnedObjectsPage> {
         let indexes = self.require_jsonrpc_indexes()?;
         indexes.get_owner_objects(
             owner,
@@ -4163,10 +4165,10 @@ impl AuthorityState {
         &self,
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         coin_type: Option<TypeTag>,
         limit: usize,
-    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo)>> {
+    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo, OwnedObjectCursor)>> {
         let indexes = self.require_jsonrpc_indexes()?;
         indexes.get_owned_coins(
             owner,

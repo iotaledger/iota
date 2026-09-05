@@ -16,7 +16,8 @@ use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, OwnedObjectCursor, Page,
+    TransactionBlocksPage,
 };
 use iota_metrics::spawn_monitored_blocking;
 use iota_names::{
@@ -29,7 +30,7 @@ use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     dynamic_field::DynamicFieldName, error::UserInputError, event::EventID,
-    iota_sdk_types_conversions::type_tag_sdk_to_core,
+    iota_sdk_types_conversions::type_tag_sdk_to_core, storage::OwnedObjectCursor as IndexCursor,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_bytecode_utils::layout::TypeLayoutBuilder;
@@ -132,7 +133,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         &self,
         address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         async move {
@@ -146,6 +147,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 })?;
             }
             let options = options.unwrap_or_default();
+            let cursor = cursor_position(cursor)?;
             let state = self.state.clone();
             let page = spawn_monitored_blocking!(move || {
                 state.get_owner_objects_page(address, cursor, limit, filter)
@@ -509,7 +511,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
