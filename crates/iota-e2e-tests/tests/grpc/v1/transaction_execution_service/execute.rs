@@ -8,6 +8,7 @@ use iota_grpc_types::{
     v1::{
         bcs::BcsData,
         signatures::{UserSignature, UserSignatures},
+        state_service::ListOwnedObjectsRequest,
         transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
         transaction_execution_service::{
             ExecuteTransactionItem, ExecuteTransactionsRequest, ExecuteTransactionsResponse,
@@ -24,7 +25,7 @@ use test_cluster::override_pcool_flow;
 
 use super::build_item;
 use crate::utils::{
-    assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test,
+    address_proto, assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test,
     setup_grpc_test_with_builder,
 };
 
@@ -441,6 +442,50 @@ async fn execute_transaction_batch_size_exceeded() {
         "Expected InvalidArgument, got {:?}",
         status.code()
     );
+}
+
+/// A transaction that is returned with its checkpoint under
+/// `checkpoint_inclusion_timeout_ms` is visible to the index-backed reads.
+/// A client can query its outputs immediately. It does not need to poll.
+#[sim_test]
+async fn index_backed_reads_see_a_transaction_returned_with_its_checkpoint() {
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+    let mut exec_client = client.execution_service_client();
+    let mut state_client = client.state_service_client();
+
+    // Repeated, so that the check covers more than one checkpoint.
+    for _ in 0..5 {
+        let recipient = Address::random();
+        let txn =
+            make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(9)).await;
+        let response = exec_client
+            .execute_transactions(
+                ExecuteTransactionsRequest::default()
+                    .with_transactions(vec![build_item(&txn)])
+                    .with_read_mask(FieldMask::from_paths(["checkpoint"]))
+                    .with_checkpoint_inclusion_timeout_ms(30_000),
+            )
+            .await
+            .unwrap()
+            .into_inner();
+        assert!(
+            first_executed_transaction(&response).checkpoint.is_some(),
+            "the transaction must be returned with its checkpoint"
+        );
+
+        let owned = state_client
+            .list_owned_objects(
+                ListOwnedObjectsRequest::default().with_owner(address_proto(recipient)),
+            )
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            owned.objects.len(),
+            1,
+            "the transferred coin must be indexed by the time the checkpoint is reported"
+        );
+    }
 }
 
 #[sim_test]

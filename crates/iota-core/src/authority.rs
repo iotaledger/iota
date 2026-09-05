@@ -80,14 +80,15 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     fp_ensure,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
-    inner_temporary_store::{InnerTemporaryStore, PackageStoreWithFallback},
+    inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
     },
-    layout_resolver::into_struct_layout,
+    layout_resolver::{LayoutResolver, into_struct_layout},
     message_envelope::Message,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
@@ -311,6 +312,10 @@ pub struct AuthorityMetrics {
     pub(crate) local_post_consensus_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
+
+    /// Checkpoint-inclusion waits that returned before the RPC indexes were
+    /// up to date. The caller's timeout ran out first.
+    pub(crate) checkpoint_inclusion_index_wait_timeouts: IntCounter,
 
     // Post processing metrics
     post_processing_total_events_emitted: IntCounter,
@@ -707,6 +712,12 @@ impl AuthorityMetrics {
             skipped_consensus_txns_cache_hit: register_int_counter_with_registry!(
                 "skipped_consensus_txns_cache_hit",
                 "Total number of consensus transactions skipped because of local cache hit",
+                registry,
+            )
+                .unwrap(),
+            checkpoint_inclusion_index_wait_timeouts: register_int_counter_with_registry!(
+                "checkpoint_inclusion_index_wait_timeouts",
+                "Total number of checkpoint-inclusion waits that returned before the RPC indexes had caught up",
                 registry,
             )
                 .unwrap(),
@@ -1856,14 +1867,6 @@ impl AuthorityState {
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // emit subscription notifications
-        let _ = self
-            .post_process_one_tx(transaction, effects, &inner_temporary_store, epoch_store)
-            .tap_err(|e| {
-                self.metrics.post_processing_total_failures.inc();
-                error!(?tx_digest, "tx post processing failed: {e}");
-            });
-
         // The insertion to epoch_store is not atomic with the insertion to the
         // perpetual store. This is OK because we insert to the epoch store
         // first. And during lookups we always look up in the perpetual store first.
@@ -2528,77 +2531,83 @@ impl AuthorityState {
         }
     }
 
-    /// Emits transaction and event subscription notifications for an executed
-    /// transaction. Index updates happen per checkpoint instead, in the
-    /// checkpoint executor.
-    #[instrument(level = "trace", skip_all, err)]
-    fn post_process_one_tx(
+    /// Notify the JSON-RPC transaction and event subscribers of each
+    /// transaction in `checkpoint`.
+    ///
+    /// Call this in checkpoint order, after the index commit of the
+    /// checkpoint.
+    pub fn notify_subscribers_of_checkpoint(
         &self,
-        transaction: &VerifiedExecutableTransaction,
-        effects: &TransactionEffects,
-        inner_temporary_store: &InnerTemporaryStore,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
-        if self.jsonrpc_indexes().is_none() {
-            return Ok(());
+        checkpoint: &CheckpointData,
+        epoch_store: &AuthorityPerEpochStore,
+    ) {
+        let has_transaction_subscribers = self.subscription_handler.has_transaction_subscribers();
+        let has_event_subscribers = self.subscription_handler.has_event_subscribers();
+        if !has_transaction_subscribers && !has_event_subscribers {
+            return;
         }
 
-        let _scope = monitored_scope("Execution::post_process_one_tx");
+        let _scope = monitored_scope("Execution::notify_subscribers_of_checkpoint");
+        let timestamp_ms = checkpoint.checkpoint_summary.timestamp_ms;
+        // The outputs of the checkpoint are committed. Thus the packages it
+        // published are in the backing store.
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()));
 
-        let tx_digest = transaction.digest();
-        let timestamp_ms = Self::unixtime_now_ms();
-
-        let effects: IotaTransactionBlockEffects = effects.clone().try_into()?;
-        let events = self.make_transaction_block_events(
-            inner_temporary_store.events.clone(),
-            *tx_digest,
-            timestamp_ms,
-            epoch_store,
-            inner_temporary_store,
-        )?;
-        // Emit events
-        self.subscription_handler
-            .process_tx(transaction.data().transaction(), &effects, &events)
-            .tap_ok(|_| {
-                self.metrics
-                    .post_processing_total_tx_had_event_processed
-                    .inc()
-            })
-            .tap_err(|e| {
-                warn!(
-                    ?tx_digest,
-                    "Post processing - Couldn't process events for tx: {}", e
-                )
-            })?;
-
-        self.metrics
-            .post_processing_total_events_emitted
-            .inc_by(events.data.len() as u64);
-
-        Ok(())
+        for transaction in &checkpoint.transactions {
+            match self.notify_subscribers_of_transaction(
+                transaction,
+                timestamp_ms,
+                has_event_subscribers,
+                layout_resolver.as_mut(),
+            ) {
+                Ok(events_emitted) => {
+                    self.metrics
+                        .post_processing_total_tx_had_event_processed
+                        .inc();
+                    self.metrics
+                        .post_processing_total_events_emitted
+                        .inc_by(events_emitted);
+                }
+                Err(e) => {
+                    self.metrics.post_processing_total_failures.inc();
+                    error!(
+                        tx_digest = ?transaction.effects.transaction_digest(),
+                        "notifying subscribers failed: {e}"
+                    );
+                }
+            }
+        }
     }
 
-    fn make_transaction_block_events(
+    /// Returns the number of events sent to the event subscribers.
+    fn notify_subscribers_of_transaction(
         &self,
-        transaction_events: TransactionEvents,
-        digest: TransactionDigest,
+        transaction: &CheckpointTransaction,
         timestamp_ms: u64,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        inner_temporary_store: &InnerTemporaryStore,
-    ) -> IotaResult<IotaTransactionBlockEvents> {
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    inner_temporary_store,
-                    self.get_backing_package_store(),
-                )));
-        IotaTransactionBlockEvents::try_from(
-            transaction_events,
-            digest,
-            Some(timestamp_ms),
-            layout_resolver.as_mut(),
-        )
+        has_event_subscribers: bool,
+        layout_resolver: &mut dyn LayoutResolver,
+    ) -> IotaResult<u64> {
+        let effects: IotaTransactionBlockEffects = transaction.effects.clone().try_into()?;
+        // The conversion resolves one Move layout per event. Do it only when
+        // there is an event subscriber.
+        let events = if has_event_subscribers {
+            IotaTransactionBlockEvents::try_from(
+                transaction.events.clone().unwrap_or_default(),
+                *transaction.effects.transaction_digest(),
+                Some(timestamp_ms),
+                layout_resolver,
+            )?
+        } else {
+            IotaTransactionBlockEvents::default()
+        };
+        self.subscription_handler.process_tx(
+            transaction.transaction.data().transaction(),
+            &effects,
+            &events,
+        )?;
+        Ok(events.data.len() as u64)
     }
 
     pub fn unixtime_now_ms() -> u64 {
@@ -3496,12 +3505,17 @@ impl AuthorityState {
             .get_checkpoint_by_sequence_number(sequence_number)?)
     }
 
-    /// Wait for the given transactions to be included in a checkpoint.
+    /// Wait until the given transactions are in a checkpoint and the RPC
+    /// indexes include that checkpoint.
     ///
     /// Returns a mapping from transaction digest to
     /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
     /// On timeout, returns partial results for any transactions that were
     /// already checkpointed.
+    ///
+    /// If the timeout runs out before the indexes include a checkpointed
+    /// transaction, the transaction is returned all the same, and the wait is
+    /// counted in `checkpoint_inclusion_index_wait_timeouts`.
     ///
     /// The wait survives epoch boundaries: a transaction in flight at a
     /// boundary may only be checkpointed in the next epoch, and still resolves
@@ -3512,6 +3526,42 @@ impl AuthorityState {
         timeout: Duration,
     ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
         let deadline = tokio::time::Instant::now() + timeout;
+        let results = self.wait_for_checkpoint_mapping(digests, deadline).await?;
+
+        // The index commit of a checkpoint comes before its
+        // `highest_executed_checkpoint` bump, and the stages run in checkpoint
+        // order. Thus the bump means "indexed through this checkpoint". The
+        // bump also happens on a node without indexes, so the wait cannot hang.
+        if let Some(max_seq) = results.values().map(|(seq, _)| *seq).max() {
+            let indexed = self
+                .checkpoint_store
+                .notify_read_executed_checkpoint(max_seq);
+            let all_checkpointed = digests.iter().all(|digest| results.contains_key(digest));
+            // A partial result means that the deadline passed during the
+            // inclusion wait. The caller sees that as a timeout. Report only
+            // a wait that got past inclusion.
+            if tokio::time::timeout_at(deadline, indexed).await.is_err() && all_checkpointed {
+                self.metrics.checkpoint_inclusion_index_wait_timeouts.inc();
+                warn!(
+                    checkpoint_seq = max_seq,
+                    "transactions are checkpointed but the RPC indexes have not caught up \
+                     within the timeout; reporting them without the read-after-write guarantee"
+                );
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Wait until each of `digests` is in a checkpoint, or until `deadline`
+    /// passes. Maps each found digest to `(checkpoint_sequence_number,
+    /// checkpoint_timestamp_ms)`. Unlike `wait_for_checkpoint_inclusion`, this
+    /// does not wait until the checkpoint is indexed.
+    pub(crate) async fn wait_for_checkpoint_mapping(
+        &self,
+        digests: &[TransactionDigest],
+        deadline: tokio::time::Instant,
+    ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
         let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
         let mut results = BTreeMap::new();
         let mut remaining = digests.to_vec();

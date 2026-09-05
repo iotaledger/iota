@@ -73,8 +73,8 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
         .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
-    // A small delay is needed for post processing operations following the
-    // transaction to finish.
+    // A small delay is necessary until the checkpoint of the transaction is
+    // processed.
     sleep(Duration::from_secs(1)).await;
 
     // verify that the node has seen the transfer
@@ -369,7 +369,7 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
         .await?;
     assert_eq!(txes.len(), 0);
 
-    // This is a poor substitute for the post processing taking some time
+    // This is a poor replacement for a wait until the checkpoint is processed.
     // Unfortunately event store writes seem to add some latency so this wait is
     // needed
     sleep(Duration::from_millis(1000)).await;
@@ -721,7 +721,7 @@ async fn test_full_node_event_read_api_ok() {
             || (txes[0] == transfer_digest && txes[1] == publish_digest)
     );
 
-    // This is a poor substitute for the post processing taking some time
+    // This is a poor replacement for a wait until the checkpoint is processed.
     sleep(Duration::from_millis(1000)).await;
 
     let (_sender, _object_id, digest2) = create_nft(context, package_id).await;
@@ -751,7 +751,7 @@ async fn test_full_node_event_query_by_module_ok() {
 
     let (package_id, _, _) = publish_nfts_package(context).await;
 
-    // This is a poor substitute for the post processing taking some time
+    // This is a poor replacement for a wait until the checkpoint is processed.
     sleep(Duration::from_millis(1000)).await;
 
     let (_sender, _object_id, digest2) = create_nft(context, package_id).await;
