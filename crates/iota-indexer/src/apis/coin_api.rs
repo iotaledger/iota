@@ -11,7 +11,7 @@ use iota_json_rpc::{
 };
 use iota_json_rpc_api::{CoinReadApiServer, cap_page_limit};
 use iota_json_rpc_types::{
-    Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, Page,
+    Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, OwnedObjectCursor, Page,
 };
 use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_open_rpc::Module;
@@ -45,7 +45,7 @@ impl CoinReadApiServer for CoinReadApi {
         &self,
         owner: Address,
         coin_type: Option<String>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         let limit = cap_page_limit(limit);
@@ -57,12 +57,10 @@ impl CoinReadApiServer for CoinReadApi {
         let coin_type =
             parse_to_type_tag(coin_type)?.to_canonical_string(/* with_prefix */ true);
 
-        let cursor = match cursor {
-            Some(c) => c,
-            // If cursor is not specified, we need to start from the beginning of the coin type,
-            // which is the minimal possible ObjectId.
-            None => ObjectId::ZERO,
-        };
+        // This store's owner index is ordered by object id, so that is all the
+        // cursor is read for. Without one, start from the beginning of the coin
+        // type, which is the minimal possible ObjectId.
+        let cursor = cursor.map_or(ObjectId::ZERO, |cursor| cursor.object_id());
         let mut results = self
             .inner
             .get_owned_coins_in_blocking_task(owner, Some(coin_type), cursor, limit + 1)
@@ -70,7 +68,9 @@ impl CoinReadApiServer for CoinReadApi {
 
         let has_next_page = results.len() > limit;
         results.truncate(limit);
-        let next_cursor = results.last().map(|o| o.coin_object_id);
+        let next_cursor = results
+            .last()
+            .map(|o| OwnedObjectCursor::from_object_id(o.coin_object_id));
         Ok(Page {
             data: results,
             next_cursor,
@@ -81,7 +81,7 @@ impl CoinReadApiServer for CoinReadApi {
     async fn get_all_coins(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         let limit = cap_page_limit(limit);
@@ -89,12 +89,10 @@ impl CoinReadApiServer for CoinReadApi {
             return Ok(CoinPage::empty());
         }
 
-        let cursor = match cursor {
-            Some(c) => c,
-            // If cursor is not specified, we need to start from the beginning of the coin type,
-            // which is the minimal possible ObjectId.
-            None => ObjectId::ZERO,
-        };
+        // This store's owner index is ordered by object id, so that is all the
+        // cursor is read for. Without one, start from the beginning of the coin
+        // type, which is the minimal possible ObjectId.
+        let cursor = cursor.map_or(ObjectId::ZERO, |cursor| cursor.object_id());
         let mut results = self
             .inner
             .get_owned_coins_in_blocking_task(owner, None, cursor, limit + 1)
@@ -102,7 +100,9 @@ impl CoinReadApiServer for CoinReadApi {
 
         let has_next_page = results.len() > limit;
         results.truncate(limit);
-        let next_cursor = results.last().map(|o| o.coin_object_id);
+        let next_cursor = results
+            .last()
+            .map(|o| OwnedObjectCursor::from_object_id(o.coin_object_id));
         Ok(Page {
             data: results,
             next_cursor,

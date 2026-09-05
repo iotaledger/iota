@@ -19,9 +19,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
-    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, PtbInput, RPCTransactionRequestParams,
-    Stake, StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
-    TransferObjectParams, ValidatorApy, ValidatorApys,
+    ObjectsPage, OwnedObjectCursor, OwnedObjectRef, ProtocolConfigResponse, PtbInput,
+    RPCTransactionRequestParams, Stake, StakeStatus, TransactionBlockBytes, TransactionBlocksPage,
+    TransactionFilter, TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
@@ -872,7 +872,7 @@ impl RpcExampleProvider {
             .collect::<Vec<_>>();
         let page = CoinPage {
             data: coins,
-            next_cursor: Some(next),
+            next_cursor: Some(OwnedObjectCursor::from_object_id(next)),
             has_next_page: true,
         };
 
@@ -963,7 +963,7 @@ impl RpcExampleProvider {
 
         let page = CoinPage {
             data: coins,
-            next_cursor: Some(next_cursor),
+            next_cursor: Some(OwnedObjectCursor::from_object_id(next_cursor)),
             has_next_page: true,
         };
 
@@ -1290,7 +1290,7 @@ impl RpcExampleProvider {
         let next_cursor = items.last().unwrap().object_id();
         let result = ObjectsPage {
             data: items,
-            next_cursor: Some(next_cursor.unwrap()),
+            next_cursor: Some(OwnedObjectCursor::from_object_id(next_cursor.unwrap())),
             has_next_page: true,
         };
 
