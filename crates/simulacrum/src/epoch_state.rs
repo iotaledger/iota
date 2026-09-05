@@ -11,6 +11,7 @@ use iota_config::{
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{Transaction, TransactionEffects};
+use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
@@ -160,7 +161,7 @@ impl EpochState {
             input_objects,
             &receiving_objects,
             &self.bytecode_verifier_metrics,
-            verifier_signing_config,
+            VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
         )?;
 
@@ -259,7 +260,7 @@ impl EpochState {
                 input_objects,
                 &receiving_objects,
                 &self.bytecode_verifier_metrics,
-                verifier_signing_config,
+                VerifierLimitsSource::NodeConfig(verifier_signing_config),
                 authenticator_gas_budget,
             )?
         } else {

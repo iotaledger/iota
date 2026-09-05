@@ -1294,8 +1294,8 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "34",
-              "protocolVersion": "34",
+              "maxSupportedProtocolVersion": "35",
+              "protocolVersion": "35",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1344,6 +1344,7 @@
                 "pass_validator_scores_to_advance_epoch": true,
                 "passkey_auth": true,
                 "pcool_skip_immutable_object_locks": true,
+                "pcool_verifier_limits_from_protocol_config": true,
                 "pre_consensus_sponsor_only_move_authentication": true,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
@@ -1937,10 +1938,13 @@
                   "u64": "5"
                 },
                 "max_meter_ticks_per_module": {
-                  "u64": "16000000"
+                  "u64": "2200000"
                 },
                 "max_meter_ticks_per_package": {
-                  "u64": "16000000"
+                  "u64": "2200000"
+                },
+                "max_meter_ticks_regex_reference_safety": {
+                  "u64": "2200000"
                 },
                 "max_modules_in_publish": {
                   "u32": "64"
@@ -2046,7 +2050,7 @@
                   "u64": "1024"
                 },
                 "max_verifier_meter_ticks_per_function": {
-                  "u64": "16000000"
+                  "u64": "2200000"
                 },
                 "min_checkpoint_interval_ms": {
                   "u64": "200"

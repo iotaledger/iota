@@ -55,6 +55,7 @@ use iota_storage::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_traffic_controller::{TrafficController, metrics::TrafficControllerMetrics};
+use iota_transaction_checks::VerifierLimitsSource;
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
@@ -1017,6 +1018,12 @@ impl AuthorityState {
     ///   losers, for example), and validators that skip admission can put such
     ///   transactions into their blocks anyway, so no admission policy can
     ///   limit how many deterministically-dropped transactions reach consensus.
+    ///
+    /// `verifier_limits_source` says where the metered bytecode verifier takes
+    /// its limits for the packages the transaction publishes. Validator-local
+    /// admission passes this validator's own `VerifierSigningConfig`;
+    /// post-consensus validation passes the protocol config, because every
+    /// validator must reach the same verdict there.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) async fn handle_transaction_validation_checks(
         &self,
@@ -1024,6 +1031,7 @@ impl AuthorityState {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         deny_config: &dyn DenyRuleConfig,
         epoch_gated_coin_deny_list: bool,
+        verifier_limits_source: VerifierLimitsSource<'_>,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
@@ -1067,6 +1075,7 @@ impl AuthorityState {
                 &tx_receiving_objects,
                 &move_authenticators,
                 per_authenticator_inputs,
+                verifier_limits_source,
             )?;
 
         // Get the input objects for the authenticators, if there are
@@ -1226,6 +1235,7 @@ impl AuthorityState {
                 // submission path, no post-consensus re-check follows - this is
                 // the only sender-side coin deny check in the certificate flow.
                 false,
+                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
             )
             .await?;
 
@@ -2344,7 +2354,7 @@ impl AuthorityState {
                 input_objects,
                 &receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
-                &self.config.verifier_signing_config,
+                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
                 authenticator_gas_budget,
             )?
         } else {
@@ -5824,6 +5834,7 @@ impl AuthorityState {
         tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &Vec<&MoveAuthenticator>,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+        verifier_limits_source: VerifierLimitsSource<'_>,
     ) -> IotaResult<(
         IotaGasStatus,
         CheckedInputObjects,
@@ -5892,7 +5903,7 @@ impl AuthorityState {
                 tx_input_objects,
                 tx_receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
-                &self.config.verifier_signing_config,
+                verifier_limits_source,
                 authenticator_gas_budget,
             )?;
 

@@ -324,6 +324,9 @@ impl ValidatorService {
                 // differs from the epoch-gated post-consensus read; see the
                 // read-mode notes on `handle_transaction_validation_checks`.
                 false,
+                iota_transaction_checks::VerifierLimitsSource::NodeConfig(
+                    &state.config.verifier_signing_config,
+                ),
             )
             .await
         {
