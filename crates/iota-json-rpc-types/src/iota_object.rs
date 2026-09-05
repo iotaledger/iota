@@ -33,7 +33,7 @@ use serde_json::Value;
 use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
 use crate::{
-    IotaMoveStruct, IotaMoveValue, IotaObjectResponseError, Page,
+    IotaMoveStruct, IotaMoveValue, IotaObjectResponseError, OwnedObjectCursor, Page,
     iota_owner::OwnerSchema,
     iota_primitives::{
         Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
@@ -1277,7 +1277,7 @@ pub struct IotaMovePackage {
 }
 
 pub type QueryObjectsPage = Page<IotaObjectResponse, CheckpointedObjectID>;
-pub type ObjectsPage = Page<IotaObjectResponse, ObjectId>;
+pub type ObjectsPage = Page<IotaObjectResponse, OwnedObjectCursor>;
 
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Copy, Eq, PartialEq)]

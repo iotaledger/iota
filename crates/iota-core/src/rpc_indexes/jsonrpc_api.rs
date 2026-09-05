@@ -33,7 +33,7 @@ use iota_types::{
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     layout_resolver::LayoutResolver,
     object::{Object, bounded_visitor::BoundedVisitor},
-    storage::{DynamicFieldKey, ObjectStore},
+    storage::{DynamicFieldKey, ObjectStore, OwnedObjectCursor},
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value as A, language_storage::ModuleId};
@@ -756,17 +756,13 @@ impl RpcIndexesStore {
     pub fn get_owner_objects(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
         object_store: &dyn ObjectStore,
-    ) -> IotaResult<Vec<ObjectInfo>> {
+    ) -> IotaResult<Vec<(ObjectInfo, OwnedObjectCursor)>> {
         self.require_jsonrpc()?;
-        let cursor_key = cursor
-            .map(|id| self.owner_key_for_cursor(owner, id, object_store))
-            .transpose()?;
-        // The cursor above is still validated for a zero limit; only the
-        // scan itself is skipped.
+        let cursor_key = cursor.map(|cursor| Self::owner_key_for_cursor(owner, cursor));
         let mut results = Vec::new();
         if limit == 0 {
             return Ok(results);
@@ -774,7 +770,7 @@ impl RpcIndexesStore {
         let type_filter = owner_scan_filter(filter.as_ref());
         for item in self.owner_iter(owner, cursor_key.as_ref(), type_filter)? {
             let (key, _info) = item?;
-            if Some(key.object_id) == cursor {
+            if Some(key.object_id) == cursor.map(|cursor| cursor.object_id) {
                 continue; // the seek is inclusive; drop the cursor row itself
             }
             // The index and the object store are read at different times; an
@@ -784,7 +780,7 @@ impl RpcIndexesStore {
             };
             let object_info = ObjectInfo::new(&object.object_ref(), &object);
             if filter.as_ref().is_none_or(|f| f.matches(&object_info)) {
-                results.push(object_info);
+                results.push((object_info, Self::cursor_for_key(&key)));
             }
             if results.len() >= limit {
                 break;
@@ -793,27 +789,31 @@ impl RpcIndexesStore {
         Ok(results)
     }
 
-    /// Rebuilds the cursor object's position in the owner index from its live
-    /// state — the same data the gRPC cursor carries explicitly.
-    fn owner_key_for_cursor(
-        &self,
-        owner: Address,
-        cursor: ObjectId,
-        object_store: &dyn ObjectStore,
-    ) -> IotaResult<OwnerIndexKey> {
-        let cursor_not_found = || IotaError::UserInput {
-            error: UserInputError::ObjectNotFound {
-                object_id: cursor,
-                version: None,
-            },
-        };
-        let object = object_store
-            .try_get_object(&cursor)?
-            .ok_or_else(cursor_not_found)?;
-        // A package or other non-Move object is never in the owner index —
-        // its cursor is exactly as invalid as one whose object is gone.
-        let (key, _) = OwnerIndexKey::for_object(owner, &object).ok_or_else(cursor_not_found)?;
-        Ok(key)
+    /// The cursor naming a row's position, so a caller can resume after it.
+    fn cursor_for_key(key: &OwnerIndexKey) -> OwnedObjectCursor {
+        OwnedObjectCursor {
+            object_type_identifier: key.object_type_identifier,
+            object_type_params: key.object_type_params,
+            inverted_balance: key.inverted_balance,
+            object_id: key.object_id,
+        }
+    }
+
+    /// The index position an opaque cursor names.
+    ///
+    /// The cursor carries every field of [`OwnerIndexKey`] but the owner,
+    /// which the caller supplies, so a position needs no read of the object
+    /// itself. That is what lets a page resume after an object that has since
+    /// been spent: its key is still fully described, where an object id alone
+    /// describes nothing once the row it named is gone.
+    fn owner_key_for_cursor(owner: Address, cursor: &OwnedObjectCursor) -> OwnerIndexKey {
+        OwnerIndexKey {
+            owner,
+            object_type_identifier: cursor.object_type_identifier,
+            object_type_params: cursor.object_type_params,
+            inverted_balance: cursor.inverted_balance,
+            object_id: cursor.object_id,
+        }
     }
 
     /// Owned entries of the owner index for `owner`, narrowed by
@@ -870,26 +870,22 @@ impl RpcIndexesStore {
     pub fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         coin_type: Option<TypeTag>,
         limit: usize,
         object_store: &dyn ObjectStore,
-    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo)>> {
+    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo, OwnedObjectCursor)>> {
         self.require_jsonrpc()?;
         let tag = coin_type.map_or_else(coin_base_type, StructTag::new_coin);
         let filter = OwnerTypeFilter::from_struct_tag(Some(&tag));
-        let cursor_key = cursor
-            .map(|id| self.owner_key_for_cursor(owner, id, object_store))
-            .transpose()?;
-        // The cursor above is still validated for a zero limit; only the
-        // scan itself is skipped.
+        let cursor_key = cursor.map(|cursor| Self::owner_key_for_cursor(owner, cursor));
         let mut results = Vec::new();
         if limit == 0 {
             return Ok(results);
         }
         for item in self.owner_iter(owner, cursor_key.as_ref(), filter)? {
             let (key, info) = item?;
-            if Some(key.object_id) == cursor {
+            if Some(key.object_id) == cursor.map(|cursor| cursor.object_id) {
                 continue;
             }
             let Some(object) = object_store.try_get_object(&key.object_id)? else {
@@ -903,7 +899,7 @@ impl RpcIndexesStore {
             let Some(coin_type) = info.object_type.opt_coin_type().cloned() else {
                 continue;
             };
-            results.push((coin_type, key.object_id, coin));
+            results.push((coin_type, key.object_id, coin, Self::cursor_for_key(&key)));
             if results.len() >= limit {
                 break;
             }

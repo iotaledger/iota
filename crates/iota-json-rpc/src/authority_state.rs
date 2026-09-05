@@ -13,7 +13,8 @@ use iota_core::{
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
-    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, TransactionFilter,
+    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, OwnedObjectCursor,
+    TransactionFilter,
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, Transaction,
@@ -34,7 +35,7 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
-    storage::{BackingPackageStore, ObjectStore},
+    storage::{BackingPackageStore, ObjectStore, OwnedObjectCursor as IndexCursor},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
     transaction::TransactionEnvelope,
     transaction_executor::{SimulateTransactionResult, VmChecks},
@@ -108,10 +109,10 @@ pub trait StateRead: Send + Sync {
     fn get_owner_objects_with_limit(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Vec<ObjectInfo>>;
+    ) -> StateReadResult<Vec<(ObjectInfo, OwnedObjectCursor)>>;
 
     async fn get_transactions(
         &self,
@@ -144,10 +145,10 @@ pub trait StateRead: Send + Sync {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         coin_type: Option<TypeTag>,
         limit: usize,
-    ) -> StateReadResult<Vec<IotaCoin>>;
+    ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>>;
     async fn get_executed_transaction_and_effects(
         &self,
         digest: TransactionDigest,
@@ -294,11 +295,15 @@ impl StateRead for AuthorityState {
     fn get_owner_objects_with_limit(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Vec<ObjectInfo>> {
-        Ok(self.get_owner_objects(owner, cursor, limit, filter)?)
+    ) -> StateReadResult<Vec<(ObjectInfo, OwnedObjectCursor)>> {
+        Ok(self
+            .get_owner_objects(owner, cursor.as_ref(), limit, filter)?
+            .into_iter()
+            .map(|(info, cursor)| (info, OwnedObjectCursor::from_position(cursor)))
+            .collect())
     }
 
     async fn get_transactions(
@@ -353,20 +358,25 @@ impl StateRead for AuthorityState {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<IndexCursor>,
         coin_type: Option<TypeTag>,
         limit: usize,
-    ) -> StateReadResult<Vec<IotaCoin>> {
+    ) -> StateReadResult<Vec<(IotaCoin, OwnedObjectCursor)>> {
         Ok(self
-            .get_owned_coins_page(owner, cursor, coin_type, limit)?
+            .get_owned_coins_page(owner, cursor.as_ref(), coin_type, limit)?
             .into_iter()
-            .map(|(coin_type, coin_object_id, coin)| IotaCoin {
-                coin_type: coin_type.to_string(),
-                coin_object_id,
-                version: coin.version,
-                digest: coin.digest,
-                balance: coin.balance,
-                previous_transaction: coin.previous_transaction,
+            .map(|(coin_type, coin_object_id, coin, cursor)| {
+                (
+                    IotaCoin {
+                        coin_type: coin_type.to_string(),
+                        coin_object_id,
+                        version: coin.version,
+                        digest: coin.digest,
+                        balance: coin.balance,
+                        previous_transaction: coin.previous_transaction,
+                    },
+                    OwnedObjectCursor::from_position(cursor),
+                )
             })
             .collect())
     }
