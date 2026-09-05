@@ -561,11 +561,18 @@ fn insert_genesis_checkpoint(
     checkpoint_store: &CheckpointStore,
     genesis: &Genesis,
 ) -> Result<(), anyhow::Error> {
+    // Asked of `certified_checkpoints`, which is keyed by sequence number and
+    // never pruned, the same way `CheckpointStore::insert_genesis_checkpoint`
+    // is: `get_checkpoint_by_digest` goes through the bucketed history, which
+    // no longer answers for an epoch a retention window has already expired.
     if checkpoint_store
-        .get_checkpoint_by_digest(genesis.checkpoint().digest())?
-        .is_none()
+        .get_checkpoint_by_sequence_number(0)?
+        .is_none_or(|stored| stored.digest() != genesis.checkpoint().digest())
     {
-        checkpoint_store.insert_checkpoint_contents(genesis.checkpoint_contents().clone())?;
+        checkpoint_store.insert_checkpoint_contents(
+            &genesis.checkpoint(),
+            genesis.checkpoint_contents().clone(),
+        )?;
         checkpoint_store.insert_verified_checkpoint(&genesis.checkpoint())?;
         checkpoint_store.update_highest_synced_checkpoint(&genesis.checkpoint())?;
     }
@@ -612,13 +619,14 @@ pub(crate) async fn backfill_checkpoint_summaries(
     // Open the stopped node's existing stores in place. The committee store
     // already holds the genesis committee (from restore/sync), so it is opened
     // without re-supplying one.
-    let (perpetual_db, historic_objects) =
+    let (perpetual_db, historic_objects, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(&node_db_path.join("store"), None)?;
     let committee_store = Arc::new(CommitteeStore::open(node_db_path.join("epochs"), None)?);
     let checkpoint_store = CheckpointStore::new(&node_db_path.join("checkpoints"));
     let store = AuthorityStore::open_no_genesis(
         Arc::new(perpetual_db),
         Arc::new(historic_objects),
+        Arc::new(historic_ledger),
         false,
         &Registry::default(),
     )?;
@@ -837,10 +845,11 @@ pub async fn download_formal_snapshot(
         )?;
         fs::remove_dir_all(path.clone())?;
     }
-    let (perpetual_db, historic_objects) =
+    let (perpetual_db, historic_objects, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(&path.join("store"), None)?;
     let perpetual_db = Arc::new(perpetual_db);
     let historic_objects = Arc::new(historic_objects);
+    let historic_ledger = Arc::new(historic_ledger);
     println_or_log(&m, format!("Loading genesis from {}", genesis.display()))?;
     let genesis = Genesis::load(genesis).unwrap();
     let genesis_committee = genesis.committee()?;
@@ -1066,6 +1075,7 @@ pub async fn download_formal_snapshot(
     let authority_store = AuthorityStore::open_no_genesis(
         perpetual_db.clone(),
         historic_objects,
+        historic_ledger,
         false,
         &Registry::default(),
     )?;

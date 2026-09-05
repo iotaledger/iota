@@ -313,6 +313,13 @@ impl HistoricObjects {
         self.buckets.earliest_epoch()
     }
 
+    /// The newest epoch this store holds a bucket for, `None` when it holds
+    /// none at all.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn newest_bucket_epoch(&self) -> Option<EpochId> {
+        self.buckets.newest_epoch()
+    }
+
     /// The bucket holding `epoch`'s relocated versions, created if absent.
     pub fn ensure(&self, epoch: EpochId) -> IotaResult<Arc<HistoricObjectsBucket>> {
         self.buckets
@@ -434,9 +441,13 @@ impl HistoricObjects {
     ///
     /// Blocks queries for the duration, so an async caller must use
     /// `spawn_blocking`.
-    pub fn prune(&self, epochs_to_retain: u64) -> IotaResult<Option<EpochId>> {
+    pub fn prune(
+        &self,
+        current_epoch: EpochId,
+        epochs_to_retain: u64,
+    ) -> IotaResult<Option<EpochId>> {
         self.buckets
-            .prune(epochs_to_retain, |epoch, bucket| {
+            .prune(current_epoch, epochs_to_retain, |epoch, bucket| {
                 Self::expire_bucket(&self.objects, epoch, bucket).map_err(|e| {
                     TypedStoreError::RocksDB(format!("expiring the bucket of epoch {epoch}: {e}"))
                 })

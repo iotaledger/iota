@@ -723,8 +723,9 @@ pub struct IndexStoreTables {
     ///
     /// A rebuild seeds this to one past the watermark (no history yet); the
     /// background replay then works downwards, committing the marker inside
-    /// each checkpoint's batch, until it reaches the checkpoint-contents
-    /// pruner. Absent on databases that were never rebuilt: their history
+    /// each checkpoint's batch, until it reaches the lowest checkpoint
+    /// whose contents the node still holds. Absent on databases that were
+    /// never rebuilt: their history
     /// has been indexed continuously and is complete. Backfill, digests
     /// included, lives entirely in the one history bucket family, so this
     /// is the only history marker the store needs.
@@ -732,7 +733,7 @@ pub struct IndexStoreTables {
 
     /// Earliest epoch retained by the last index pruning pass. History
     /// buckets below it are never recreated, and the backfill stops at it
-    /// instead of replaying epochs the pruner would drop again.
+    /// instead of replaying epochs the next pruning pass would drop again.
     pub(super) earliest_retained_epoch: DBMap<(), EpochId>,
 
     /// This is an index of object references to currently existing objects,
