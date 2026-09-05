@@ -5,6 +5,11 @@
 //! IndexStore supports creation of various ancillary indexes of state in
 //! IotaDataStore. The main user of this data is the explorer.
 
+pub mod grpc_api;
+pub mod jsonrpc_api;
+pub mod live_scan;
+pub mod schema;
+
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, HashMap, HashSet},
@@ -43,6 +48,8 @@ use iota_types::{
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
+pub use jsonrpc_api::*;
+use live_scan::*;
 use move_core_types::{
     account_address::AccountAddress, annotated_value as A, identifier::Identifier,
     language_storage::ModuleId,
@@ -52,6 +59,7 @@ use prometheus_filtered::{
     IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
 };
+pub use schema::*;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error, info, trace, warn};
 use typed_store::{
@@ -77,14 +85,15 @@ use crate::{
     rpc_index_history::{self, EpochBuckets},
 };
 
-type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
-
 type OwnerIndexKey = (Address, ObjectId);
+
 type CoinIndexKey = (Address, String, ObjectId);
+
 type DynamicFieldKey = (ObjectId, ObjectId);
+
 type EventId = (TxSequenceNumber, usize);
+
 type EventIndex = (TransactionEventsDigest, TransactionDigest, u64);
-type AllBalance = HashMap<TypeTag, TotalBalance>;
 
 pub const MAX_TX_RANGE_SIZE: u64 = 4096;
 
@@ -112,32 +121,16 @@ pub fn remove_legacy_jsonrpc_indexes_dir(db_path: &Path) -> std::io::Result<()> 
 /// table. A version mismatch triggers a full re-index via
 /// `needs_to_do_initialization`.
 const CURRENT_DB_VERSION: u64 = 1;
+
 const ENV_VAR_COIN_INDEX_BLOCK_CACHE_SIZE_MB: &str = "COIN_INDEX_BLOCK_CACHE_MB";
-const ENV_VAR_DISABLE_INDEX_CACHE: &str = "DISABLE_INDEX_CACHE";
-const ENV_VAR_INVALIDATE_INSTEAD_OF_UPDATE: &str = "INVALIDATE_INSTEAD_OF_UPDATE";
+
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "JSONRPC_HISTORY_BLOCK_CACHE_MB";
+
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
 
-// Do not reuse these tags. Mark them as deprecated if a table is removed.
-pub const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
 pub const DB_PREFIX_HISTORIC_TXS_SEQ: u8 = 1;
-pub const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
-pub const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
-pub const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
-pub const DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID: u8 = 5;
-pub const DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION: u8 = 6;
-pub const DB_PREFIX_HISTORIC_EVENT_ORDER: u8 = 7;
-pub const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE: u8 = 8;
-pub const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
-pub const DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE: u8 = 10;
-pub const DB_PREFIX_HISTORIC_EVENT_BY_SENDER: u8 = 11;
-pub const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
 
-#[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
-pub struct TotalBalance {
-    pub balance: i128,
-    pub num_coins: i64,
-}
+pub const DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID: u8 = 5;
 
 #[derive(Debug)]
 pub struct ObjectIndexChanges {
@@ -147,24 +140,6 @@ pub struct ObjectIndexChanges {
     pub new_dynamic_fields: Vec<DynamicFieldKey>,
 }
 
-/// Per-transaction inputs for the history tables of the index batch. Unlike
-/// the live-state tables (owner, coin, dynamic field), these need only the
-/// transaction, its effects, and its events — no object contents.
-struct TransactionIndexData {
-    digest: TransactionDigest,
-    sender: Address,
-    active_inputs: Vec<ObjectId>,
-    mutated_objects: Vec<(ObjectReference, Owner)>,
-    move_functions: Vec<(ObjectId, String, String)>,
-    events: TransactionEvents,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-struct MetadataInfo {
-    /// Version of the Database
-    version: u64,
-}
-
 /// A staged index update for one checkpoint, waiting for its in-order commit.
 struct PendingCheckpointUpdate {
     batch: DBBatch,
@@ -172,31 +147,6 @@ struct PendingCheckpointUpdate {
     /// commit time to derive balance cache updates from the pre-commit
     /// database state.
     coin_changes: BTreeMap<CoinIndexKey, (TypeTag, Option<CoinInfo>)>,
-}
-
-#[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
-pub struct CoinInfo {
-    pub version: Version,
-    pub digest: ObjectDigest,
-    pub balance: u64,
-    pub previous_transaction: TransactionDigest,
-}
-
-impl CoinInfo {
-    /// Returns coin metadata when `object` is a `Coin<T>`, `None` otherwise.
-    pub fn from_object(object: &Object) -> Option<CoinInfo> {
-        // Check the type before parsing: any struct whose BCS layout matches
-        // `Coin`'s `{UID, u64}` would otherwise deserialize successfully.
-        if !object.is_coin() {
-            return None;
-        }
-        object.as_coin_maybe().map(|coin| CoinInfo {
-            version: object.version(),
-            digest: object.digest(),
-            previous_transaction: object.previous_transaction,
-            balance: coin.value(),
-        })
-    }
 }
 
 pub struct IndexStoreMetrics {
@@ -213,67 +163,12 @@ pub struct IndexStoreMetrics {
     history_backfill_running: IntGauge,
 }
 
-impl IndexStoreMetrics {
-    pub fn new(registry: &Registry) -> IndexStoreMetrics {
-        Self {
-            balance_lookup_from_db: register_int_counter_with_registry!(
-                "balance_lookup_from_db",
-                "Total number of balance requests served from database",
-                registry,
-            )
-            .unwrap(),
-            balance_lookup_from_total: register_int_counter_with_registry!(
-                "balance_lookup_from_total",
-                "Total number of balance requests served ",
-                registry,
-            )
-            .unwrap(),
-            all_balance_lookup_from_db: register_int_counter_with_registry!(
-                "all_balance_lookup_from_db",
-                "Total number of all balance requests served from database",
-                registry,
-            )
-            .unwrap(),
-            all_balance_lookup_from_total: register_int_counter_with_registry!(
-                "all_balance_lookup_from_total",
-                "Total number of all balance requests served",
-                registry,
-            )
-            .unwrap(),
-            // How far the backfill got is visible nowhere else, so keep it
-            // above the default metric filter.
-            history_backfill_lowest_replayed_checkpoint: register_int_gauge_with_registry!(
-                "jsonrpc_index_history_backfill_lowest_replayed_checkpoint",
-                "Lowest checkpoint the JSON-RPC index history backfill has replayed, keeping its \
-                 final value after the backfill stops; unaffected by later pruning",
-                registry;
-                MetricLevel::Warn,
-            )
-            .unwrap(),
-            history_backfill_running: register_int_gauge_with_registry!(
-                "jsonrpc_index_history_backfill_running",
-                "1 while the JSON-RPC index history backfill is running, 0 otherwise",
-                registry;
-                MetricLevel::Warn,
-            )
-            .unwrap(),
-        }
-    }
-}
-
 /// The `IndexStoreCaches` struct manages `ShardedLruCache` instances to
 /// facilitate balance lookups and ownership queries.
 pub struct IndexStoreCaches {
     per_coin_type_balance: ShardedLruCache<(Address, TypeTag), IotaResult<TotalBalance>>,
     all_balances: ShardedLruCache<Address, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>>,
     locks: MutexTable<Address>,
-}
-
-#[derive(Default)]
-pub struct IndexStoreCacheUpdates {
-    _locks: Vec<OwnedMutexGuard<()>>,
-    per_coin_type_balance_changes: Vec<((Address, TypeTag), IotaResult<TotalBalance>)>,
-    all_balance_changes: Vec<(Address, IotaResult<Arc<AllBalance>>)>,
 }
 
 /// The live-state and marker tables of the JSON-RPC index — everything that
@@ -337,7 +232,7 @@ pub struct IndexStoreTables {
 /// of every history table: chaining per-bucket scans in epoch order
 /// preserves the global iteration order, and pruning an epoch is one
 /// constant-time column-family drop.
-struct HistoryBucket {
+pub(crate) struct HistoryBucket {
     /// Ordering of all indexed transactions.
     tx_order: TaggedDBMap<TxSequenceNumber, TransactionDigest>,
 
@@ -379,177 +274,6 @@ struct HistoryBucket {
 /// `{prefix}{epoch}`. On-disk names are the ground truth for which buckets
 /// exist.
 const HISTORY_CF_PREFIX: &str = "hist_e";
-
-pub fn history_cf_name(epoch: EpochId) -> String {
-    rpc_index_history::bucket_cf_name(HISTORY_CF_PREFIX, epoch)
-}
-
-/// The epoch of a history column family, `None` for other names.
-pub fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
-    rpc_index_history::bucket_cf_epoch(HISTORY_CF_PREFIX, cf_name)
-}
-
-impl HistoryBucket {
-    fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
-        // The tags are each table's identity within the shared column
-        // family; never change or reuse them for existing data. Per-epoch
-        // column families skip the periodic metrics reporter task: with up
-        // to ~100 retained epochs, one task per column family adds up.
-        fn map<K, V>(
-            db: &Arc<Database>,
-            cf_name: &str,
-            tag: u8,
-        ) -> Result<TaggedDBMap<K, V>, TypedStoreError>
-        where
-            K: Clone + Serialize + DeserializeOwned,
-            V: Serialize + DeserializeOwned,
-        {
-            TaggedDBMap::reopen(db, cf_name, tag, &ReadWriteOptions::default(), true)
-        }
-        Ok(Self {
-            tx_order: map(db, cf_name, DB_PREFIX_HISTORIC_TX_ORDER)?,
-            txs_seq: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_SEQ)?,
-            txs_from_addr: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_FROM_ADDR)?,
-            txs_to_addr: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_TO_ADDR)?,
-            txs_by_input_object_id: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID)?,
-            txs_by_mutated_object_id: map(db, cf_name, DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID)?,
-            txs_by_move_function: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION)?,
-            event_order: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_ORDER)?,
-            event_by_move_module: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE)?,
-            event_by_move_event: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT)?,
-            event_by_event_module: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE)?,
-            event_by_sender: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_SENDER)?,
-            event_by_time: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_TIME)?,
-        })
-    }
-
-    /// Appends one transaction's history-table rows to a checkpoint's batch.
-    fn index_tx(
-        &self,
-        batch: &mut DBBatch,
-        sequence: TxSequenceNumber,
-        timestamp_ms: u64,
-        tx: TransactionIndexData,
-    ) -> IotaResult {
-        let TransactionIndexData {
-            digest,
-            sender,
-            active_inputs,
-            mutated_objects,
-            move_functions,
-            events,
-        } = tx;
-
-        batch.insert_batch_tagged(&self.tx_order, std::iter::once((sequence, digest)))?;
-
-        batch.insert_batch_tagged(&self.txs_seq, std::iter::once((digest, sequence)))?;
-
-        batch.insert_batch_tagged(
-            &self.txs_from_addr,
-            std::iter::once(((sender, sequence), digest)),
-        )?;
-
-        batch.insert_batch_tagged(
-            &self.txs_by_input_object_id,
-            active_inputs.into_iter().map(|id| ((id, sequence), digest)),
-        )?;
-
-        batch.insert_batch_tagged(
-            &self.txs_by_mutated_object_id,
-            mutated_objects
-                .iter()
-                .map(|(obj_ref, _)| ((obj_ref.object_id, sequence), digest)),
-        )?;
-
-        batch.insert_batch_tagged(
-            &self.txs_by_move_function,
-            move_functions
-                .into_iter()
-                .map(|(obj_id, module, function)| ((obj_id, module, function, sequence), digest)),
-        )?;
-
-        batch.insert_batch_tagged(
-            &self.txs_to_addr,
-            mutated_objects.iter().filter_map(|(_, owner)| {
-                owner
-                    .into_opt_address()
-                    .map(|addr| ((addr, sequence), digest))
-            }),
-        )?;
-
-        // events
-        let event_digest = events.digest();
-        batch.insert_batch_tagged(
-            &self.event_order,
-            events
-                .iter()
-                .enumerate()
-                .map(|(i, _)| ((sequence, i), (event_digest, digest, timestamp_ms))),
-        )?;
-        batch.insert_batch_tagged(
-            &self.event_by_move_module,
-            events
-                .iter()
-                .enumerate()
-                .map(|(i, e)| {
-                    (
-                        i,
-                        ModuleId::new(
-                            AccountAddress::new(e.package_id.into_bytes()),
-                            Identifier::new(e.module.as_str()).unwrap(),
-                        ),
-                    )
-                })
-                .map(|(i, m)| ((m, (sequence, i)), (event_digest, digest, timestamp_ms))),
-        )?;
-        batch.insert_batch_tagged(
-            &self.event_by_sender,
-            events.iter().enumerate().map(|(i, e)| {
-                (
-                    (e.sender, (sequence, i)),
-                    (event_digest, digest, timestamp_ms),
-                )
-            }),
-        )?;
-        batch.insert_batch_tagged(
-            &self.event_by_move_event,
-            events.iter().enumerate().map(|(i, e)| {
-                (
-                    (e.struct_tag.clone(), (sequence, i)),
-                    (event_digest, digest, timestamp_ms),
-                )
-            }),
-        )?;
-
-        batch.insert_batch_tagged(
-            &self.event_by_time,
-            events.iter().enumerate().map(|(i, _)| {
-                (
-                    (timestamp_ms, (sequence, i)),
-                    (event_digest, digest, timestamp_ms),
-                )
-            }),
-        )?;
-
-        batch.insert_batch_tagged(
-            &self.event_by_event_module,
-            events.iter().enumerate().map(|(i, e)| {
-                (
-                    (
-                        ModuleId::new(
-                            AccountAddress::new(e.struct_tag.address().into_bytes()),
-                            Identifier::new(e.struct_tag.module().as_str()).unwrap(),
-                        ),
-                        (sequence, i),
-                    ),
-                    (event_digest, digest, timestamp_ms),
-                )
-            }),
-        )?;
-
-        Ok(())
-    }
-}
 
 impl IndexStoreTables {
     pub fn owner_index(&self) -> &DBMap<OwnerIndexKey, ObjectInfo> {
@@ -902,54 +626,6 @@ fn coin_index_table_default_config() -> DBOptions {
         .disable_write_throttling()
 }
 
-/// Extracts one transaction's history-table index inputs.
-fn transaction_index_data(
-    transaction: &TransactionEnvelope,
-    effects: &TransactionEffects,
-    events: Option<&TransactionEvents>,
-) -> IotaResult<TransactionIndexData> {
-    let tx_data = &transaction.intent_message().value;
-
-    Ok(TransactionIndexData {
-        digest: *effects.transaction_digest(),
-        sender: tx_data.sender(),
-        active_inputs: tx_data
-            .input_objects()?
-            .iter()
-            .map(|o| o.object_id())
-            .collect(),
-        mutated_objects: effects
-            .all_changed_objects()
-            .into_iter()
-            .map(|(changed, _kind)| (changed.reference, changed.owner))
-            .collect(),
-        move_functions: tx_data
-            .move_calls()
-            .into_iter()
-            .map(|(package, module, function)| (*package, module.to_owned(), function.to_owned()))
-            .collect(),
-        events: events.cloned().unwrap_or_default(),
-    })
-}
-
-/// Scan bounds excluding `cursor`: the inclusive lower bound for forward
-/// scans and the inclusive upper bound for reverse scans. `None` when the
-/// cursor leaves nothing to scan.
-fn sequence_bounds_after_cursor(
-    cursor: Option<TxSequenceNumber>,
-    reverse: bool,
-) -> Option<(TxSequenceNumber, TxSequenceNumber)> {
-    let lower = match cursor {
-        Some(cursor) if !reverse => cursor.checked_add(1)?,
-        _ => TxSequenceNumber::MIN,
-    };
-    let upper = match cursor {
-        Some(cursor) if reverse => cursor.checked_sub(1)?,
-        _ => TxSequenceNumber::MAX,
-    };
-    Some((lower, upper))
-}
-
 /// Coin objects touched by the transaction, as inputs for the coin index.
 fn transaction_coins(tx: &CheckpointTransaction) -> TxCoins {
     let input_coins = tx
@@ -1023,217 +699,6 @@ fn process_object_index(tx: &CheckpointTransaction) -> ObjectIndexChanges {
     }
 }
 
-/// Whether the object is a `Field` object of a dynamic field — the only
-/// objects the dynamic-field index stores.
-fn is_dynamic_field(object: &Object) -> bool {
-    object
-        .data
-        .as_opt_struct()
-        .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
-}
-
-/// A [`LayoutResolver`] memoizing layouts by struct tag, for callers that
-/// resolve many values of few types, e.g. scanning a dynamic-field table
-/// whose entries share one type.
-pub(crate) struct CachingLayoutResolver<'a> {
-    resolver: &'a mut dyn LayoutResolver,
-    layouts: HashMap<StructTag, A::MoveDatatypeLayout>,
-}
-
-impl<'a> CachingLayoutResolver<'a> {
-    pub(crate) fn new(resolver: &'a mut dyn LayoutResolver) -> Self {
-        Self {
-            resolver,
-            layouts: HashMap::new(),
-        }
-    }
-}
-
-impl LayoutResolver for CachingLayoutResolver<'_> {
-    fn get_annotated_layout(
-        &mut self,
-        struct_tag: &StructTag,
-    ) -> Result<A::MoveDatatypeLayout, IotaError> {
-        if let Some(layout) = self.layouts.get(struct_tag) {
-            return Ok(layout.clone());
-        }
-        let layout = self.resolver.get_annotated_layout(struct_tag)?;
-        self.layouts.insert(struct_tag.clone(), layout.clone());
-        Ok(layout)
-    }
-}
-
-/// Resolves a `Field` object into the [`DynamicFieldInfo`] served by the
-/// JSON-RPC API. Runs at query time — the index stores only the field keys.
-/// Returns `None` when `o` is not a `Field` object, its layout cannot be
-/// resolved, or a dynamic object field's value object no longer exists.
-pub(crate) fn try_create_dynamic_field_info(
-    o: &Object,
-    object_store: &dyn ObjectStore,
-    resolver: &mut dyn LayoutResolver,
-) -> IotaResult<Option<DynamicFieldInfo>> {
-    // Skip if not a move object
-    let Some(move_object) = o.data.as_opt_struct().cloned() else {
-        return Ok(None);
-    };
-
-    // Only dynamic field objects are resolvable
-    if !move_object.struct_tag().is_dynamic_field() {
-        return Ok(None);
-    }
-
-    let layout = match resolver.get_annotated_layout(move_object.struct_tag()) {
-        Ok(annotated_layout) => annotated_layout.into_layout(),
-        Err(e) => {
-            error!(
-                "unable to load layout for type `{:?}`: {e}",
-                move_object.struct_tag()
-            );
-            return Ok(None);
-        }
-    };
-
-    let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout).map_err(|e| {
-        IotaError::ObjectDeserialization {
-            error: e.to_string(),
-        }
-    })?;
-
-    let type_ = field.kind;
-    let name_type: TypeTag = type_tag_core_to_sdk(&field.name_layout.into());
-    let bcs_name = field.name_bytes.to_owned();
-
-    let name_value = BoundedVisitor::deserialize_value(field.name_bytes, field.name_layout)
-        .map_err(|e| {
-            warn!("{e}");
-            IotaError::ObjectDeserialization {
-                error: e.to_string(),
-            }
-        })?;
-
-    let name = DynamicFieldName {
-        type_tag: name_type,
-        value: IotaMoveValue::from(name_value).to_json_value(),
-    };
-
-    let value_metadata = field.value_metadata().map_err(|e| {
-        warn!("{e}");
-        IotaError::ObjectDeserialization {
-            error: e.to_string(),
-        }
-    })?;
-
-    Ok(Some(match value_metadata {
-        DFV::ValueMetadata::DynamicField(object_type) => DynamicFieldInfo {
-            name,
-            bcs_name,
-            type_,
-            object_type: object_type.to_canonical_string(/* with_prefix */ true),
-            object_id: o.id(),
-            version: o.version(),
-            digest: o.digest(),
-        },
-
-        DFV::ValueMetadata::DynamicObjectField(object_id) => {
-            // The wrapper is not rewritten when its child is mutated, so its
-            // version is not the child's.
-            let Some(object) = object_store.try_get_object(&object_id)? else {
-                return Ok(None);
-            };
-            let version = object.version();
-            let digest = object.digest();
-            let object_type = object.data.opt_object_type().unwrap().clone();
-
-            DynamicFieldInfo {
-                name,
-                bcs_name,
-                type_,
-                object_type: object_type.to_string(),
-                object_id,
-                version,
-                digest,
-            }
-        }
-    }))
-}
-
-/// Builds the live-state indexes (owner, coin, dynamic field) from a parallel
-/// scan of the live object set during `init`.
-struct JsonRpcLiveObjectSetIndexer<'a> {
-    tables: &'a IndexStoreTables,
-    batch_size_limit: usize,
-}
-
-impl ParMakeLiveObjectIndexer for JsonRpcLiveObjectSetIndexer<'_> {
-    type ObjectIndexer<'a>
-        = JsonRpcLiveObjectIndexer<'a>
-    where
-        Self: 'a;
-
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_> {
-        JsonRpcLiveObjectIndexer {
-            tables: self.tables,
-            batch: self.tables.owner_index.batch(),
-            batch_size_limit: self.batch_size_limit,
-        }
-    }
-}
-
-/// One worker's indexer within a [`JsonRpcLiveObjectSetIndexer`] run, and the
-/// per-partition indexer of a formal-snapshot restore.
-struct JsonRpcLiveObjectIndexer<'a> {
-    tables: &'a IndexStoreTables,
-    batch: DBBatch,
-    batch_size_limit: usize,
-}
-
-impl LiveObjectIndexer for JsonRpcLiveObjectIndexer<'_> {
-    fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
-        match object.owner {
-            Owner::Address(owner) => {
-                self.batch.insert_batch(
-                    &self.tables.owner_index,
-                    [((owner, object.id()), ObjectInfo::from_object(object))],
-                )?;
-                if let Some(coin_info) = CoinInfo::from_object(object) {
-                    let coin_type = object
-                        .opt_coin_type()
-                        .expect("coin object must have a coin type")
-                        .to_string();
-                    self.batch.insert_batch(
-                        &self.tables.coin_index,
-                        [((owner, coin_type, object.id()), coin_info)],
-                    )?;
-                }
-            }
-            Owner::Object(parent) => {
-                if is_dynamic_field(object) {
-                    self.batch.insert_batch(
-                        &self.tables.dynamic_field_index,
-                        [((parent, object.id()), ())],
-                    )?;
-                }
-            }
-            Owner::Shared(_) | Owner::Immutable => {}
-            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
-        }
-
-        // If the batch size grows beyond the limit then write out to the DB so
-        // that the data we need to hold in memory doesn't grow unbounded.
-        if self.batch.size_in_bytes() >= self.batch_size_limit {
-            std::mem::replace(&mut self.batch, self.tables.owner_index.batch())
-                .write_opt(&bulk_ingestion_write_options())?;
-        }
-
-        Ok(())
-    }
-
-    fn finish(self) -> Result<(), StorageError> {
-        self.batch.write_opt(&bulk_ingestion_write_options())?;
-        Ok(())
-    }
-}
-
 /// The JSON-RPC index tables opened for a formal-snapshot restore.
 ///
 /// Hands out per-partition indexers that tee the restore's live objects into
@@ -1253,25 +718,6 @@ pub struct JsonRpcIndexRestorer {
 const RESTORE_CONCURRENT_STORES: usize = 2;
 
 impl JsonRpcIndexRestorer {
-    /// Opens the store with bulk-ingestion options and stamps it with this
-    /// schema version. `meta` is written now and `watermark` only in
-    /// [`Self::finalize`], so a node opening a store from a restore that
-    /// crashed in between wipes and rebuilds it.
-    pub fn open(path: PathBuf) -> Result<Self, TypedStoreError> {
-        let tables = IndexStoreTables::open_for_bulk_ingestion(path, RESTORE_CONCURRENT_STORES);
-        tables.meta.insert(
-            &(),
-            &MetadataInfo {
-                version: CURRENT_DB_VERSION,
-            },
-        )?;
-        Ok(Self {
-            tables,
-            batch_size_limit: bulk_ingestion_options_split_between(RESTORE_CONCURRENT_STORES)
-                .batch_size_limit,
-        })
-    }
-
     /// Returns an indexer for one partition of the snapshot's live objects.
     pub fn partition_indexer(&self) -> JsonRpcPartitionIndexer<'_> {
         JsonRpcPartitionIndexer(JsonRpcLiveObjectIndexer {
@@ -1280,107 +726,10 @@ impl JsonRpcIndexRestorer {
             batch_size_limit: self.batch_size_limit,
         })
     }
-
-    /// Seeds the markers so a node opens the store in place, flushes the
-    /// WAL-less bulk writes, and closes the database. `restore_checkpoint`
-    /// is the restore's highest executed checkpoint; no history below it
-    /// exists locally, so there is nothing for the background replay to
-    /// backfill.
-    ///
-    /// Callers must have restored the complete live object set first,
-    /// through [`Self::partition_indexer`].
-    pub async fn finalize(
-        self,
-        restore_checkpoint: CheckpointSequenceNumber,
-    ) -> Result<(), StorageError> {
-        let Self { tables, .. } = self;
-        tables.adopt_bulk_ingestion(Some(restore_checkpoint))?;
-
-        // Release every RocksDB handle before returning, so the caller can
-        // move the database directory.
-        let weak_db = Arc::downgrade(&tables.meta.db);
-        drop(tables);
-        if !wait_for_database_close(weak_db).await {
-            return Err(StorageError::custom(
-                "unable to close the JSON-RPC index database after the restore",
-            ));
-        }
-        Ok(())
-    }
-
-    /// Reopens the finalized store the way a node does and reads back the
-    /// markers and the live state, so a database the node would wipe and
-    /// rebuild — or one that carries no restored objects — fails the restore
-    /// instead. `live_object_count` is the number of objects the restore
-    /// wrote.
-    pub async fn verify_restored(
-        path: &Path,
-        restore_checkpoint: CheckpointSequenceNumber,
-        live_object_count: u64,
-    ) -> Result<(), StorageError> {
-        let reopened = IndexStore::open_index_db(path).map_err(|e| {
-            StorageError::custom(format!(
-                "unable to reopen the restored JSON-RPC index database: {e}"
-            ))
-        })?;
-        let stored_version = reopened.tables.meta.get(&())?.ok_or_else(|| {
-            StorageError::custom("the restored JSON-RPC index database has no metadata")
-        })?;
-        if stored_version.version != CURRENT_DB_VERSION {
-            return Err(StorageError::custom(format!(
-                "restored JSON-RPC index database version mismatch: expected {}, found {}",
-                CURRENT_DB_VERSION, stored_version.version
-            )));
-        }
-        let watermark = reopened.tables.watermark.get(&())?;
-        if watermark != Some(restore_checkpoint) {
-            return Err(StorageError::custom(format!(
-                "the restored JSON-RPC index is watermarked at {watermark:?}, expected \
-                 {restore_checkpoint}"
-            )));
-        }
-        // The version and the watermark are written by the finalize itself;
-        // only the live state proves the object stream landed. `is_empty`
-        // has no error channel and reads an unreadable index as non-empty,
-        // so the scan is run here and its failure fails the restore.
-        let owner_index_is_empty = reopened
-            .tables
-            .owner_index
-            .safe_iter()
-            .next()
-            .transpose()?
-            .is_none();
-        if live_object_count > 0 && owner_index_is_empty {
-            return Err(StorageError::custom(format!(
-                "the restored JSON-RPC index has an empty owner index after {live_object_count} \
-                 live objects"
-            )));
-        }
-
-        let weak_db = Arc::downgrade(&reopened.tables.meta.db);
-        drop(reopened);
-        if !wait_for_database_close(weak_db).await {
-            return Err(StorageError::custom(
-                "unable to close the JSON-RPC index database after verifying the restore",
-            ));
-        }
-        Ok(())
-    }
 }
 
 /// Indexer for one partition of a formal-snapshot restore's live objects.
 pub struct JsonRpcPartitionIndexer<'a>(JsonRpcLiveObjectIndexer<'a>);
-
-impl JsonRpcPartitionIndexer<'_> {
-    pub fn index_object(&mut self, object: &Object) -> Result<(), StorageError> {
-        self.0.index_object(object)
-    }
-
-    /// Writes the partition's remaining batch.
-    pub fn finish(self) -> Result<(), StorageError> {
-        self.0.finish()
-    }
-}
 
 impl IndexStore {
     /// Opens the store, wiping it and rebuilding the live-state tables first
@@ -2049,61 +1398,6 @@ impl IndexStore {
         })
     }
 
-    /// The retained history buckets in scan order: ascending epochs for
-    /// forward scans, descending for reverse scans. Buckets are disjoint,
-    /// epoch-ordered segments of the global sequence order, so chaining
-    /// per-bucket scans in this order preserves it.
-    fn history_buckets(&self, reverse: bool) -> Vec<Arc<HistoryBucket>> {
-        self.history.iter(reverse)
-    }
-
-    /// Maps an `event_order` row to the query result shape.
-    fn event_order_row(
-        ((_, event_seq), (digest, tx_digest, time)): (EventId, EventIndex),
-    ) -> (TransactionEventsDigest, TransactionDigest, usize, u64) {
-        (digest, tx_digest, event_seq, time)
-    }
-
-    /// Maps a keyed event-table row to the query result shape.
-    fn keyed_event_row<K>(
-        ((_, (_, event_seq)), (digest, tx_digest, time)): ((K, EventId), EventIndex),
-    ) -> (TransactionEventsDigest, TransactionDigest, usize, u64) {
-        (digest, tx_digest, event_seq, time)
-    }
-
-    /// Chains one range scan per retained history bucket, in
-    /// global sequence order, collecting up to `limit` mapped rows.
-    fn scan_history_buckets<K, V, R>(
-        &self,
-        select: impl Fn(&HistoryBucket) -> &TaggedDBMap<K, V>,
-        range: impl RangeBounds<K> + Clone,
-        limit: Option<usize>,
-        reverse: bool,
-        row: impl Fn((K, V)) -> R,
-    ) -> IotaResult<Vec<R>>
-    where
-        K: Serialize + DeserializeOwned,
-        V: Serialize + DeserializeOwned,
-    {
-        let mut results = Vec::new();
-        for bucket in self.history_buckets(reverse) {
-            if limit.is_some_and(|l| results.len() >= l) {
-                break;
-            }
-            let remaining = limit.map_or(usize::MAX, |l| l - results.len());
-            let index = select(&bucket);
-            let iter = if reverse {
-                Either::Left(index.safe_range_iter_reversed(range.clone()))
-            } else {
-                Either::Right(index.safe_range_iter(range.clone()))
-            };
-            for result in iter.take(remaining) {
-                results.push(row(result?));
-            }
-        }
-        Ok(results)
-    }
-
     /// The bucket holding `epoch`'s history, created if absent. Pruned
     /// epochs are refused, see [`EpochBuckets::ensure`].
     fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
@@ -2258,74 +1552,6 @@ impl IndexStore {
         Ok(())
     }
 
-    /// Derives the balance cache updates for a checkpoint's net coin changes
-    /// by comparing them against the pre-commit database state, holding the
-    /// affected owners' locks. Must run before the checkpoint's batch is
-    /// written.
-    fn balance_cache_updates(
-        &self,
-        coin_changes: BTreeMap<CoinIndexKey, (TypeTag, Option<CoinInfo>)>,
-    ) -> IotaResult<IndexStoreCacheUpdates> {
-        if coin_changes.is_empty() {
-            return Ok(IndexStoreCacheUpdates::default());
-        }
-
-        let addresses: HashSet<Address> = coin_changes.keys().map(|(owner, _, _)| *owner).collect();
-        let _locks = self.caches.locks.acquire_locks(addresses.into_iter());
-
-        let mut balance_changes: HashMap<Address, HashMap<TypeTag, TotalBalance>> = HashMap::new();
-        for (key, (coin_type, change)) in &coin_changes {
-            let entry = balance_changes
-                .entry(key.0)
-                .or_default()
-                .entry(coin_type.clone())
-                .or_insert(TotalBalance {
-                    num_coins: 0,
-                    balance: 0,
-                });
-            match (self.tables.coin_index.get(key)?, change) {
-                (Some(prior), Some(new)) => {
-                    entry.balance += new.balance as i128 - prior.balance as i128;
-                }
-                (None, Some(new)) => {
-                    entry.num_coins += 1;
-                    entry.balance += new.balance as i128;
-                }
-                (Some(prior), None) => {
-                    entry.num_coins -= 1;
-                    entry.balance -= prior.balance as i128;
-                }
-                (None, None) => {}
-            }
-        }
-
-        let per_coin_type_balance_changes: Vec<_> = balance_changes
-            .iter()
-            .flat_map(|(address, balance_map)| {
-                balance_map.iter().map(|(type_tag, balance)| {
-                    (
-                        (*address, type_tag.clone()),
-                        Ok::<TotalBalance, IotaError>(*balance),
-                    )
-                })
-            })
-            .collect();
-        let all_balance_changes: Vec<_> = balance_changes
-            .into_iter()
-            .map(|(address, balance_map)| {
-                (
-                    address,
-                    Ok::<Arc<HashMap<TypeTag, TotalBalance>>, IotaError>(Arc::new(balance_map)),
-                )
-            })
-            .collect();
-        Ok(IndexStoreCacheUpdates {
-            _locks,
-            per_coin_type_balance_changes,
-            all_balance_changes,
-        })
-    }
-
     /// One past the last indexed transaction's sequence number. Sequence
     /// numbers equal network position and genesis is indexed through
     /// checkpoint 0, so this is the total number of transactions.
@@ -2334,195 +1560,6 @@ impl IndexStore {
     /// re-derives it from the committed rows on the next open.
     pub fn next_sequence_number(&self) -> TxSequenceNumber {
         self.next_sequence_number.load(Ordering::SeqCst)
-    }
-
-    pub fn get_transactions(
-        &self,
-        filter: Option<TransactionFilter>,
-        cursor: Option<TransactionDigest>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        // Lookup TransactionDigest sequence number,
-        let cursor = if let Some(cursor) = cursor {
-            Some(
-                self.get_transaction_seq(&cursor)?
-                    .ok_or(IotaError::TransactionNotFound { digest: cursor })?,
-            )
-        } else {
-            None
-        };
-        match filter {
-            Some(TransactionFilter::MoveFunction {
-                package,
-                module,
-                function,
-            }) => Ok(self.get_transactions_by_move_function(
-                package, module, function, cursor, limit, reverse,
-            )?),
-            Some(TransactionFilter::InputObject(object_id)) => {
-                Ok(self.get_transactions_by_input_object(object_id, cursor, limit, reverse)?)
-            }
-            Some(TransactionFilter::ChangedObject(object_id)) => {
-                Ok(self.get_transactions_by_mutated_object(object_id, cursor, limit, reverse)?)
-            }
-            Some(TransactionFilter::FromAddress(address)) => {
-                Ok(self.get_transactions_from_addr(address, cursor, limit, reverse)?)
-            }
-            Some(TransactionFilter::ToAddress(address)) => {
-                Ok(self.get_transactions_to_addr(address, cursor, limit, reverse)?)
-            }
-            // NOTE: filter via checkpoint sequence number is implemented in
-            // `get_transactions` of authority.rs.
-            Some(_) => Err(IotaError::UserInput {
-                error: UserInputError::Unsupported(format!("{filter:?}")),
-            }),
-            None => {
-                let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
-                    return Ok(vec![]);
-                };
-                self.scan_history_buckets(
-                    |bucket| &bucket.tx_order,
-                    lower..=upper,
-                    limit,
-                    reverse,
-                    |(_, digest)| digest,
-                )
-            }
-        }
-    }
-
-    fn get_transactions_from_index<KeyT: Clone + Serialize + DeserializeOwned>(
-        &self,
-        select: impl Fn(&HistoryBucket) -> &TaggedDBMap<(KeyT, TxSequenceNumber), TransactionDigest>,
-        key: KeyT,
-        cursor: Option<TxSequenceNumber>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        // The cursor is exclusive. Applying it through the scan bounds (rather
-        // than by skipping the first row) makes it compose across buckets:
-        // every bucket gets the same bounds, and only the bucket containing
-        // the cursor's sequence range yields adjacent rows.
-        let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
-            return Ok(vec![]);
-        };
-        self.scan_history_buckets(
-            select,
-            (key.clone(), lower)..=(key, upper),
-            limit,
-            reverse,
-            |(_, digest)| digest,
-        )
-    }
-
-    pub fn get_transactions_by_input_object(
-        &self,
-        input_object: ObjectId,
-        cursor: Option<TxSequenceNumber>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        self.get_transactions_from_index(
-            |bucket| &bucket.txs_by_input_object_id,
-            input_object,
-            cursor,
-            limit,
-            reverse,
-        )
-    }
-
-    pub fn get_transactions_by_mutated_object(
-        &self,
-        mutated_object: ObjectId,
-        cursor: Option<TxSequenceNumber>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        self.get_transactions_from_index(
-            |bucket| &bucket.txs_by_mutated_object_id,
-            mutated_object,
-            cursor,
-            limit,
-            reverse,
-        )
-    }
-
-    pub fn get_transactions_from_addr(
-        &self,
-        addr: Address,
-        cursor: Option<TxSequenceNumber>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        self.get_transactions_from_index(
-            |bucket| &bucket.txs_from_addr,
-            addr,
-            cursor,
-            limit,
-            reverse,
-        )
-    }
-
-    pub fn get_transactions_by_move_function(
-        &self,
-        package: ObjectId,
-        module: Option<String>,
-        function: Option<String>,
-        cursor: Option<TxSequenceNumber>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        // If we are passed a function with no module return a UserInputError
-        if function.is_some() && module.is_none() {
-            return Err(IotaError::UserInput {
-                error: UserInputError::MoveFunctionInput(
-                    "Cannot supply function without supplying module".to_string(),
-                ),
-            });
-        }
-
-        // We cannot have a cursor without filling out the other keys.
-        if cursor.is_some() && (module.is_none() || function.is_none()) {
-            return Err(IotaError::UserInput {
-                error: UserInputError::MoveFunctionInput(
-                    "Cannot supply cursor without supplying module and function".to_string(),
-                ),
-            });
-        }
-
-        let Some((lower, upper)) = sequence_bounds_after_cursor(cursor, reverse) else {
-            return Ok(vec![]);
-        };
-
-        // An unset module or function spans its whole range: identifiers are
-        // at most `max_type_length` characters from an alphabet that sorts
-        // at or below `z`.
-        let max_string = "z".repeat(self.max_type_length.try_into().unwrap());
-        let module_lower = module.clone().unwrap_or_default();
-        let module_upper = module.unwrap_or_else(|| max_string.clone());
-        let function_lower = function.clone().unwrap_or_default();
-        let function_upper = function.unwrap_or(max_string);
-        let lower_key = (package, module_lower, function_lower, lower);
-        let upper_key = (package, module_upper, function_upper, upper);
-
-        self.scan_history_buckets(
-            |bucket| &bucket.txs_by_move_function,
-            lower_key..=upper_key,
-            limit,
-            reverse,
-            |(_, digest)| digest,
-        )
-    }
-
-    pub fn get_transactions_to_addr(
-        &self,
-        addr: Address,
-        cursor: Option<TxSequenceNumber>,
-        limit: Option<usize>,
-        reverse: bool,
-    ) -> IotaResult<Vec<TransactionDigest>> {
-        self.get_transactions_from_index(|bucket| &bucket.txs_to_addr, addr, cursor, limit, reverse)
     }
 
     pub fn get_transaction_seq(
@@ -2537,222 +1574,6 @@ impl IndexStore {
             }
         }
         Ok(None)
-    }
-
-    pub fn all_events(
-        &self,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let range = if descending {
-            (Bound::Unbounded, Bound::Included((tx_seq, event_seq)))
-        } else {
-            (Bound::Included((tx_seq, event_seq)), Bound::Unbounded)
-        };
-        self.scan_history_buckets(
-            |bucket| &bucket.event_order,
-            range,
-            Some(limit),
-            descending,
-            Self::event_order_row,
-        )
-    }
-
-    pub fn events_by_transaction(
-        &self,
-        digest: &TransactionDigest,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let seq = self
-            .get_transaction_seq(digest)?
-            .ok_or(IotaError::TransactionNotFound { digest: *digest })?;
-        let range = if descending {
-            (seq, 0)..=(min(tx_seq, seq), event_seq)
-        } else {
-            (max(tx_seq, seq), event_seq)..=(seq, usize::MAX)
-        };
-        self.scan_history_buckets(
-            |bucket| &bucket.event_order,
-            range,
-            Some(limit),
-            descending,
-            Self::event_order_row,
-        )
-    }
-
-    fn get_event_from_index<KeyT: Clone + Serialize + DeserializeOwned>(
-        &self,
-        select: impl Fn(
-            &HistoryBucket,
-        ) -> &TaggedDBMap<
-            (KeyT, EventId),
-            (TransactionEventsDigest, TransactionDigest, u64),
-        >,
-        key: &KeyT,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let range = if descending {
-            (key.clone(), (TxSequenceNumber::MIN, 0))..=(key.clone(), (tx_seq, event_seq))
-        } else {
-            (key.clone(), (tx_seq, event_seq))..=(key.clone(), (TxSequenceNumber::MAX, usize::MAX))
-        };
-        self.scan_history_buckets(
-            select,
-            range,
-            Some(limit),
-            descending,
-            Self::keyed_event_row,
-        )
-    }
-
-    pub fn events_by_module_id(
-        &self,
-        module: &ModuleId,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        self.get_event_from_index(
-            |bucket| &bucket.event_by_move_module,
-            module,
-            tx_seq,
-            event_seq,
-            limit,
-            descending,
-        )
-    }
-
-    pub fn events_by_move_event_struct_name(
-        &self,
-        struct_name: &StructTag,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        self.get_event_from_index(
-            |bucket| &bucket.event_by_move_event,
-            struct_name,
-            tx_seq,
-            event_seq,
-            limit,
-            descending,
-        )
-    }
-
-    pub fn events_by_move_event_module(
-        &self,
-        module_id: &ModuleId,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        self.get_event_from_index(
-            |bucket| &bucket.event_by_event_module,
-            module_id,
-            tx_seq,
-            event_seq,
-            limit,
-            descending,
-        )
-    }
-
-    pub fn events_by_sender(
-        &self,
-        sender: &Address,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        self.get_event_from_index(
-            |bucket| &bucket.event_by_sender,
-            sender,
-            tx_seq,
-            event_seq,
-            limit,
-            descending,
-        )
-    }
-
-    pub fn event_iterator(
-        &self,
-        start_time: u64,
-        end_time: u64,
-        tx_seq: TxSequenceNumber,
-        event_seq: usize,
-        limit: usize,
-        descending: bool,
-    ) -> IotaResult<Vec<(TransactionEventsDigest, TransactionDigest, usize, u64)>> {
-        let range = if descending {
-            (start_time, (TxSequenceNumber::MIN, 0))..=(end_time, (tx_seq, event_seq))
-        } else {
-            (start_time, (tx_seq, event_seq))..=(end_time, (TxSequenceNumber::MAX, usize::MAX))
-        };
-        self.scan_history_buckets(
-            |bucket| &bucket.event_by_time,
-            range,
-            Some(limit),
-            descending,
-            Self::keyed_event_row,
-        )
-    }
-
-    pub fn get_dynamic_field_ids_iterator(
-        &self,
-        object: ObjectId,
-        cursor: Option<ObjectId>,
-    ) -> IotaResult<impl Iterator<Item = Result<ObjectId, TypedStoreError>> + '_> {
-        debug!(?object, "get_dynamic_fields");
-        Ok(self
-            .tables
-            .dynamic_field_index
-            // Exclusive, so the cursor's row is passed over whether or not it
-            // is still there: a field deleted between two pages would leave a
-            // skip-one seek dropping somebody else's row.
-            .safe_iter_with_prefix_from(
-                &object,
-                match &cursor {
-                    Some(cursor) => std::ops::Bound::Excluded(cursor),
-                    None => std::ops::Bound::Unbounded,
-                },
-            )
-            .map_ok(|((_, field_id), ())| field_id))
-    }
-
-    /// Whether `field_id` is an indexed dynamic field of `object`.
-    pub fn dynamic_field_exists(&self, object: ObjectId, field_id: ObjectId) -> IotaResult<bool> {
-        Ok(self
-            .tables
-            .dynamic_field_index
-            .contains_key(&(object, field_id))?)
-    }
-
-    pub fn get_owner_objects(
-        &self,
-        owner: Address,
-        cursor: Option<ObjectId>,
-        limit: usize,
-        filter: Option<IotaObjectDataFilter>,
-    ) -> IotaResult<Vec<ObjectInfo>> {
-        let cursor = match cursor {
-            Some(cursor) => cursor,
-            None => ObjectId::ZERO,
-        };
-        Ok(self
-            .get_owner_objects_iterator(owner, cursor, filter)?
-            .take(limit)
-            .collect())
     }
 
     pub fn get_owned_coins_iterator(
@@ -2814,169 +1635,9 @@ impl IndexStore {
             .map(|(_, ((_, coin_type, obj_id), coin))| (coin_type, obj_id, coin)))
     }
 
-    /// starting_object_id can be used to implement pagination, where a client
-    /// remembers the last object id of each page, and use it to query the
-    /// next page.
-    pub fn get_owner_objects_iterator(
-        &self,
-        owner: Address,
-        starting_object_id: ObjectId,
-        filter: Option<IotaObjectDataFilter>,
-    ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
-        let cursor = (starting_object_id != ObjectId::ZERO).then_some(starting_object_id);
-        Ok(self
-            .tables
-            .owner_index
-            // The object id 0 is the smallest possible
-            .safe_iter_with_bounds(Some((owner, starting_object_id)), None)
-            .map(|result| result.expect("iterator db error"))
-            // The seek is inclusive, so drop the cursor by id: its own row
-            // may already be gone.
-            .filter(move |((_, object_id), _)| Some(*object_id) != cursor)
-            .take_while(move |((address_owner, _), _)| address_owner == &owner)
-            .filter(move |(_, o)| {
-                if let Some(filter) = filter.as_ref() {
-                    filter.matches(o)
-                } else {
-                    true
-                }
-            })
-            .map(|(_, object_info)| object_info))
-    }
-
     pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
         // We are checkpointing the whole db
         self.tables.meta.checkpoint_db(path).map_err(Into::into)
-    }
-
-    /// This method first gets the balance from `per_coin_type_balance` cache.
-    /// On a cache miss, it gets the balance for passed in `coin_type` from
-    /// the `all_balance` cache. Only on the second cache miss, we go to the
-    /// database (expensive) and update the cache. Notice that db read is
-    /// done with `spawn_blocking` as that is expected to block
-    pub fn get_balance(&self, owner: Address, coin_type: TypeTag) -> IotaResult<TotalBalance> {
-        self.metrics.balance_lookup_from_total.inc();
-        let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
-        let cloned_coin_type = coin_type.clone();
-        let metrics_cloned = self.metrics.clone();
-        let coin_index_cloned = self.tables.coin_index.clone();
-        if force_disable_cache {
-            return Self::get_balance_from_db(
-                metrics_cloned,
-                coin_index_cloned,
-                owner,
-                cloned_coin_type,
-            )
-            .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")));
-        }
-
-        let balance = self
-            .caches
-            .per_coin_type_balance
-            .get(&(owner, coin_type.clone()));
-        if let Some(balance) = balance {
-            return balance;
-        }
-        // Repopulating a missed entry must not interleave with a commit for
-        // this owner: a value read between the commit's batch write and its
-        // cache merge would get the checkpoint's delta applied twice. The
-        // committer holds this lock across both, so the repopulation runs
-        // either fully before it (the delta then merges on top) or fully
-        // after (the merge skipped the absent key).
-        let _lock = self.caches.locks.acquire_lock(owner);
-        // A reader ahead of this one may have filled the entry while it
-        // waited.
-        if let Some(balance) = self
-            .caches
-            .per_coin_type_balance
-            .get(&(owner, coin_type.clone()))
-        {
-            return balance;
-        }
-        // cache miss, lookup in all balance cache
-        let all_balance = self.caches.all_balances.get(&owner.clone());
-        if let Some(Ok(all_balance)) = all_balance {
-            if let Some(balance) = all_balance.get(&coin_type) {
-                return Ok(*balance);
-            }
-        }
-        // The database read runs before the cache insert, so the cache
-        // shard's write lock is not held across the scan and owners of other
-        // shard entries stay unblocked.
-        let balance = Self::get_balance_from_db(
-            self.metrics.clone(),
-            self.tables.coin_index.clone(),
-            owner,
-            coin_type.clone(),
-        )
-        .map_err(|e| IotaError::Execution(format!("Failed to read balance frm DB: {e:?}")));
-        self.caches
-            .per_coin_type_balance
-            .get_with((owner, coin_type), move || balance)
-    }
-
-    /// This method gets the balance for all coin types from the `all_balance`
-    /// cache. On a cache miss, we go to the database (expensive) and update
-    /// the cache. This cache is dual purpose in the sense that it not only
-    /// serves `get_AllBalance()` calls but is also used for serving
-    /// `get_Balance()` queries. Notice that db read is performed with
-    /// `spawn_blocking` as that is expected to block
-    pub fn get_all_balance(
-        &self,
-        owner: Address,
-    ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        self.metrics.all_balance_lookup_from_total.inc();
-        let force_disable_cache = read_size_from_env(ENV_VAR_DISABLE_INDEX_CACHE).unwrap_or(0) > 0;
-        let metrics_cloned = self.metrics.clone();
-        let coin_index_cloned = self.tables.coin_index.clone();
-
-        if force_disable_cache {
-            return Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
-                .map_err(|e| {
-                    IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
-                });
-        }
-
-        if let Some(all_balance) = self.caches.all_balances.get(&owner) {
-            return all_balance;
-        }
-        // See `get_balance`: repopulation takes the owner's lock so it
-        // cannot interleave with a commit's write-then-merge, and the
-        // database read runs before the cache insert.
-        let _lock = self.caches.locks.acquire_lock(owner);
-        if let Some(all_balance) = self.caches.all_balances.get(&owner) {
-            return all_balance;
-        }
-        let all_balance = Self::get_all_balances_from_db(metrics_cloned, coin_index_cloned, owner)
-            .map_err(|e| {
-                IotaError::Execution(format!("Failed to read all balance from DB: {e:?}"))
-            });
-        self.caches
-            .all_balances
-            .get_with(owner, move || all_balance)
-    }
-
-    /// Read balance for a `Address` and `CoinType` from the backend
-    /// database
-    pub fn get_balance_from_db(
-        metrics: Arc<IndexStoreMetrics>,
-        coin_index: DBMap<CoinIndexKey, CoinInfo>,
-        owner: Address,
-        coin_type: TypeTag,
-    ) -> IotaResult<TotalBalance> {
-        metrics.balance_lookup_from_db.inc();
-        let coin_type_str = coin_type.to_string();
-        let coins =
-            Self::get_owned_coins_iterator(&coin_index, owner, Some(coin_type_str.clone()))?
-                .map(|(_coin_type, obj_id, coin)| (coin_type_str.clone(), obj_id, coin));
-
-        let mut balance = 0i128;
-        let mut num_coins = 0;
-        for (_coin_type, _obj_id, coin_info) in coins {
-            balance += coin_info.balance as i128;
-            num_coins += 1;
-        }
-        Ok(TotalBalance { balance, num_coins })
     }
 
     /// Read all balances for a `Address` from the backend database
@@ -3032,80 +1693,8 @@ impl IndexStore {
         self.caches.all_balances.batch_invalidate(addresses);
         Ok(())
     }
-
-    fn update_per_coin_type_cache(
-        &self,
-        keys: impl IntoIterator<Item = ((Address, TypeTag), IotaResult<TotalBalance>)>,
-    ) -> IotaResult {
-        self.caches
-            .per_coin_type_balance
-            .batch_merge(keys, Self::merge_balance);
-        Ok(())
-    }
-
-    fn merge_balance(
-        old_balance: &IotaResult<TotalBalance>,
-        balance_delta: &IotaResult<TotalBalance>,
-    ) -> IotaResult<TotalBalance> {
-        if let Ok(old_balance) = old_balance {
-            if let Ok(balance_delta) = balance_delta {
-                Ok(TotalBalance {
-                    balance: old_balance.balance + balance_delta.balance,
-                    num_coins: old_balance.num_coins + balance_delta.num_coins,
-                })
-            } else {
-                balance_delta.clone()
-            }
-        } else {
-            old_balance.clone()
-        }
-    }
-
-    fn update_all_balance_cache(
-        &self,
-        keys: impl IntoIterator<Item = (Address, IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>)>,
-    ) -> IotaResult {
-        self.caches
-            .all_balances
-            .batch_merge(keys, Self::merge_all_balance);
-        Ok(())
-    }
-
-    fn merge_all_balance(
-        old_balance: &IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>,
-        balance_delta: &IotaResult<Arc<HashMap<TypeTag, TotalBalance>>>,
-    ) -> IotaResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        if let Ok(old_balance) = old_balance {
-            if let Ok(balance_delta) = balance_delta {
-                // create a deep copy of the old balance hashmap
-                let mut new_balance = old_balance.as_ref().clone();
-                for (key, delta) in balance_delta.iter() {
-                    let old = new_balance.get(key).unwrap_or(&TotalBalance {
-                        balance: 0,
-                        num_coins: 0,
-                    });
-                    let new_total = TotalBalance {
-                        balance: old.balance + delta.balance,
-                        num_coins: old.num_coins + delta.num_coins,
-                    };
-
-                    // Remove entries where num_coins becomes zero to prevent cache bloat
-                    if new_total.num_coins == 0 {
-                        new_balance.remove(key);
-                    } else {
-                        new_balance.insert(key.clone(), new_total);
-                    }
-                }
-                Ok(Arc::new(new_balance))
-            } else {
-                balance_delta.clone()
-            }
-        } else {
-            old_balance.clone()
-        }
-    }
 }
 
 #[cfg(test)]
-#[path = "unit_tests/jsonrpc_index_tests.rs"]
+#[path = "../unit_tests/rpc_indexes_tests.rs"]
 mod tests;
