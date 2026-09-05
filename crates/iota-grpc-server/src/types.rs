@@ -1167,11 +1167,7 @@ impl GrpcReader {
         };
 
         let (checkpoint, timestamp_ms) = if fields.include_checkpoint || fields.include_timestamp {
-            let checkpoint = self
-                .require_indexes()
-                .map_err(|e| crate::error::RpcError::internal().with_context(e))?
-                .get_transaction_info(digest)?
-                .map(|info| info.checkpoint);
+            let checkpoint = self.state_reader.get_transaction_checkpoint(digest)?;
 
             let timestamp_ms = if fields.include_timestamp {
                 match checkpoint {
@@ -1205,7 +1201,7 @@ impl GrpcReader {
             fields.include_balance_changes || fields.include_object_changes;
 
         // Get the effects if any of the following are requested: effects, events,
-        // checkpoint/timestamp, input/output objects, balance/object changes
+        // input/output objects, balance/object changes
         let (effects, events, input_objects, output_objects) = if fields.include_effects
             || fields.include_events
             || fields.include_input_objects

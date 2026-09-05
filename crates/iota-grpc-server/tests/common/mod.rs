@@ -396,6 +396,13 @@ impl GrpcStateReader for MockGrpcStateReader {
         Some(self)
     }
 
+    fn get_transaction_checkpoint(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> StorageResult<Option<CheckpointSequenceNumber>> {
+        Ok(None)
+    }
+
     fn get_struct_layout(
         &self,
         _type_tag: &StructTag,
@@ -406,13 +413,6 @@ impl GrpcStateReader for MockGrpcStateReader {
 
 // -- GrpcIndexes impl --
 impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
-    fn get_transaction_info(
-        &self,
-        _digest: &TransactionDigest,
-    ) -> StorageResult<Option<iota_types::storage::TransactionInfo>> {
-        Ok(None)
-    }
-
     fn account_owned_objects_info_iter(
         &self,
         owner: Address,

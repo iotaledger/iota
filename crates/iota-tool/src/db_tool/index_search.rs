@@ -6,19 +6,15 @@ use std::{fmt::Debug, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail};
 use iota_core::rpc_indexes::schema::{
-    DB_PREFIX_HISTORIC_DIGESTS, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE,
-    DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_SENDER,
-    DB_PREFIX_HISTORIC_EVENT_ORDER, DB_PREFIX_HISTORIC_TX_ORDER,
-    DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION,
-    DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID, DB_PREFIX_HISTORIC_TXS_FROM_ADDR,
-    DB_PREFIX_HISTORIC_TXS_TO_ADDR, IndexStoreTables, OwnerIndexKey, history_cf_epoch,
-    history_cf_name,
+    DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE,
+    DB_PREFIX_HISTORIC_EVENT_BY_SENDER, DB_PREFIX_HISTORIC_EVENT_ORDER,
+    DB_PREFIX_HISTORIC_TX_ORDER, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID,
+    DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION, DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID,
+    DB_PREFIX_HISTORIC_TXS_FROM_ADDR, DB_PREFIX_HISTORIC_TXS_SEQ, DB_PREFIX_HISTORIC_TXS_TO_ADDR,
+    IndexStoreTables, OwnerIndexKey, history_cf_epoch, history_cf_name,
 };
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEventsDigest};
-use iota_types::{
-    base_types::TxSequenceNumber, committee::EpochId,
-    messages_checkpoint::CheckpointSequenceNumber, storage::DynamicFieldKey,
-};
+use iota_types::{base_types::TxSequenceNumber, committee::EpochId, storage::DynamicFieldKey};
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
@@ -89,10 +85,6 @@ pub fn search_index(
         "dynamic_field_index" => {
             bail!("no such table \"dynamic_field_index\"; it was renamed to \"dynamic_field\"")
         }
-        "txs_seq" => bail!(
-            "no such table \"txs_seq\"; transaction digest to sequence number lookups are now \
-             served by the \"digests\" table"
-        ),
         _ => search_history_table(db_path, &table_name, start, termination),
     }
 }
@@ -140,16 +132,14 @@ fn search_history_table(
             start,
             termination,
         ),
-        "digests" => {
-            get_history_entries::<TransactionDigest, (TxSequenceNumber, CheckpointSequenceNumber)>(
-                &db,
-                &epochs,
-                DB_PREFIX_HISTORIC_DIGESTS,
-                |s| Ok(TransactionDigest::from_str(s)?),
-                start,
-                termination,
-            )
-        }
+        "txs_seq" => get_history_entries::<TransactionDigest, TxSequenceNumber>(
+            &db,
+            &epochs,
+            DB_PREFIX_HISTORIC_TXS_SEQ,
+            |s| Ok(TransactionDigest::from_str(s)?),
+            start,
+            termination,
+        ),
         "txs_from_addr" => get_history_entries::<_, TransactionDigest>(
             &db,
             &epochs,
@@ -477,4 +467,52 @@ fn from_address_and_event_id(
     let event_seq = usize::from_str(tokens[2])?;
     let address = Address::from_str(tokens[0].trim())?;
     Ok((address, (tx_seq, event_seq)))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use iota_core::rpc_indexes::{IndexGroup, RpcIndexesStore};
+    use iota_types::{
+        effects::TransactionEffectsAPI, test_checkpoint_data_builder::TestCheckpointDataBuilder,
+    };
+
+    use super::*;
+
+    /// A history table's value type is spelled out again above instead of
+    /// coming from the index schema, so only a scan of a store the node
+    /// wrote catches one that no longer matches what is on disk.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn digests_search_decodes_what_the_index_wrote() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = RpcIndexesStore::new_without_init(
+            dir.path().to_path_buf(),
+            BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        );
+        let checkpoint = TestCheckpointDataBuilder::new(0)
+            .start_transaction(0)
+            .create_owned_object(0)
+            .finish_transaction()
+            .build_checkpoint();
+        store.index_checkpoint(&checkpoint).unwrap();
+        store
+            .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
+            .unwrap();
+        let digest = *checkpoint.transactions[0].effects.transaction_digest();
+
+        let entries = search_index(
+            dir.path().to_path_buf(),
+            "txs_seq".to_owned(),
+            TransactionDigest::new([0; 32]).to_string(),
+            SearchRange::Count(10),
+        )
+        .unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert!(
+            entries[0].0.contains(&digest.to_string()),
+            "the scan must return the indexed transaction, got {entries:?}"
+        );
+    }
 }
