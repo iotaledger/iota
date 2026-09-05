@@ -412,12 +412,6 @@ pub(crate) enum ConsensusError {
         starfish_speed: bool,
     },
 
-    #[error("Authority {authority} equivocated: signed a second block header for round {round}")]
-    BlockHeaderEquivocation {
-        authority: AuthorityIndex,
-        round: Round,
-    },
-
     #[error(
         "Fetch response from {peer} contains unrequested header (author {author}, round {round}) outside the request's gap-fill window"
     )]

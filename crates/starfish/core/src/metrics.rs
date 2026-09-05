@@ -1427,7 +1427,7 @@ impl NodeMetrics {
             ).unwrap(),
             equivocations_by_authority: register_int_gauge_vec_with_registry!(
                 "equivocations_by_authority",
-                "Equivocations per authority (source: persisted or in_memory)",
+                "Rounds with more than one signed header per authority (source: persisted or in_memory)",
                 &["authority", "source"],
                 registry;
                 MetricLevel::Warn,
