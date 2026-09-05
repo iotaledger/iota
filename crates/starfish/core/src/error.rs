@@ -440,6 +440,15 @@ pub(crate) enum ConsensusError {
         author: AuthorityIndex,
         round: Round,
     },
+
+    #[error(
+        "Peer {peer} streamed its block for round {round} after its block for round {last_round}"
+    )]
+    StreamedBlockRoundNotIncreasing {
+        peer: AuthorityIndex,
+        round: Round,
+        last_round: Round,
+    },
 }
 
 impl ConsensusError {

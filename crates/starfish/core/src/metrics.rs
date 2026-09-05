@@ -369,6 +369,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) dropped_slot_cap_headers_total: IntCounterVec,
     pub(crate) synchronizer_fetch_window_violations: IntCounterVec,
     pub(crate) shard_reconstructor_dropped_shards: IntCounterVec,
+    pub(crate) dropped_out_of_order_streamed_blocks_total: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -1518,6 +1519,13 @@ impl NodeMetrics {
                 "shard_reconstructor_dropped_shards",
                 "Number of shards dropped by the reconstructor's admission rules, by reason: the relaying peer already contributed a shard in the slot, the slot already holds the maximum number of accumulators, the slot is already resolved, or the peer's retained-shard budget evicted its oldest shard",
                 &["reason"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            dropped_out_of_order_streamed_blocks_total: register_int_counter_vec_with_registry!(
+                "dropped_out_of_order_streamed_blocks_total",
+                "Number of streamed primary blocks dropped because their round did not increase over the subscription stream, by peer",
+                &["peer"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
