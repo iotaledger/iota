@@ -9,6 +9,7 @@
 //! checkpoint's results could diverge from executing its transactions.
 
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -23,7 +24,7 @@ use iota_data_ingestion_core::history::{
     manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
 };
 use iota_macros::sim_test;
-use iota_sdk_types::{ObjectId, SharedObjectReference, TransactionDigest, Version};
+use iota_sdk_types::{ObjectId, SharedObjectReference, Version};
 use iota_storage::{
     FileCompression, StorageFormat,
     blob::{Blob, BlobEncoding},
@@ -55,23 +56,49 @@ fn read_checkpoints(dir: &Path) -> Vec<CheckpointData> {
     checkpoints
 }
 
-/// A version the node no longer holds is only acceptable if a later
-/// transaction superseded it: the version then leaves the live table when its
-/// successor is committed, and its historic bucket expires with its epoch. A
-/// version that was never superseded and is still absent is a write the node
-/// failed to make.
-fn assert_superseded_since(
-    state: &AuthorityState,
-    id: &ObjectId,
-    version: Version,
-    digest: &TransactionDigest,
-) {
-    let live = state.get_object(id);
-    assert!(
-        live.is_some_and(|live| live.version() > version),
-        "transaction {digest} wrote version {version} of object {id}, which the node does not \
-         have and has not superseded"
-    );
+/// What the checkpoints in the range go on to do with each object: the newest
+/// version any of them writes, and whether any of them removes it.
+///
+/// A version the node no longer holds is only acceptable if this says a later
+/// transaction replaced or removed it — the version then leaves the live table
+/// when its successor is committed, and its historic bucket expires with its
+/// epoch. A version nothing touched again and that is still absent is a write
+/// the node failed to make.
+struct LaterHistory {
+    newest_written: HashMap<ObjectId, Version>,
+    removed: HashSet<ObjectId>,
+}
+
+impl LaterHistory {
+    fn of(checkpoints: &[CheckpointData]) -> Self {
+        let mut newest_written: HashMap<ObjectId, Version> = HashMap::new();
+        let mut removed = HashSet::new();
+        for checkpoint in checkpoints {
+            for tx in &checkpoint.transactions {
+                for object in &tx.output_objects {
+                    newest_written
+                        .entry(object.id())
+                        .and_modify(|v| *v = (*v).max(object.version()))
+                        .or_insert(object.version());
+                }
+                for reference in tx.removed_object_refs_post_version() {
+                    removed.insert(reference.object_id);
+                }
+            }
+        }
+        Self {
+            newest_written,
+            removed,
+        }
+    }
+
+    fn explains_absence(&self, id: &ObjectId, version: Version) -> bool {
+        self.removed.contains(id)
+            || self
+                .newest_written
+                .get(id)
+                .is_some_and(|newest| *newest > version)
+    }
 }
 
 /// Every object the applying path would write must match what the node stored
@@ -81,6 +108,7 @@ fn assert_written_objects_match_the_store(
     state: &AuthorityState,
     tx: &CheckpointTransaction,
     applied: &TransactionOutputs,
+    later: &LaterHistory,
 ) -> usize {
     let digest = tx.effects.transaction_digest();
     let mut compared = 0;
@@ -89,7 +117,12 @@ fn assert_written_objects_match_the_store(
             .get_object_store()
             .get_object_by_key(id, object.version())
         else {
-            assert_superseded_since(state, id, object.version(), digest);
+            assert!(
+                later.explains_absence(id, object.version()),
+                "transaction {digest} wrote version {} of object {id}, which the node does not \
+                 have and no later checkpoint in the range replaced or removed",
+                object.version()
+            );
             continue;
         };
         assert_eq!(
@@ -165,6 +198,7 @@ async fn applying_matches_execution_across_cluster_traffic() {
     let mut end_of_epoch_transactions = 0usize;
     let mut markers_checked = 0usize;
     let mut objects_checked = 0usize;
+    let later = LaterHistory::of(&checkpoints);
 
     for checkpoint in &checkpoints {
         let epoch = checkpoint.checkpoint_summary.data().epoch;
@@ -193,7 +227,7 @@ async fn applying_matches_execution_across_cluster_traffic() {
                 applied.effects, tx.effects,
                 "the applied effects must be the certified ones"
             );
-            objects_checked += assert_written_objects_match_the_store(&state, tx, &applied);
+            objects_checked += assert_written_objects_match_the_store(&state, tx, &applied, &later);
             markers_checked += assert_markers_match_the_store(&state, epoch, tx, &applied);
         }
     }
@@ -414,6 +448,7 @@ async fn sync_archive_only_fullnode(
 
     // The state it ended up with must match what the cluster produced.
     let state = node.iota_node.state();
+    let later = LaterHistory::of(&checkpoints);
     for checkpoint in &checkpoints {
         for tx in &checkpoint.transactions {
             let digest = tx.effects.transaction_digest();
@@ -422,7 +457,14 @@ async fn sync_archive_only_fullnode(
                     .get_object_store()
                     .get_object_by_key(&object.id(), object.version())
                 else {
-                    assert_superseded_since(&state, &object.id(), object.version(), digest);
+                    assert!(
+                        later.explains_absence(&object.id(), object.version()),
+                        "transaction {digest} wrote version {} of object {}, which the \
+                         archive-only node does not have and no later checkpoint in the range \
+                         replaced or removed",
+                        object.version(),
+                        object.id()
+                    );
                     continue;
                 };
                 assert_eq!(
@@ -584,7 +626,8 @@ async fn shared_object_deletion_is_marked_the_same_way() {
 #[sim_test]
 async fn interleaved_committed_and_executed_checkpoints_stay_ordered() {
     // Enough for a couple of checkpoints, so most results are dropped.
-    let (executed, total, boundaries) = sync_archive_only_fullnode(false, Some(64 * 1024)).await;
+    let (executed, total, boundaries) =
+        sync_archive_only_fullnode(false, Some(64 * 1024)).await;
 
     assert!(
         executed > boundaries as u64,
