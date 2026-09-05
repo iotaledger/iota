@@ -90,12 +90,19 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consensus_config: Option<ConsensusConfig>,
 
-    /// Flag to enable index processing for a full node.
-    ///
-    /// If set to true, node creates `IndexStore` for transaction
-    /// data including ownership and balance information.
-    #[serde(default = "default_enable_index_processing")]
-    pub enable_index_processing: bool,
+    /// Flag to enable the JSON-RPC API. Default: `true`. When `true` the node
+    /// serves every JSON-RPC method, including the index-backed ones; when
+    /// `false` nothing is mounted on `json_rpc_address`, the `/health`
+    /// endpoint included. Metrics and the admin interface are unaffected.
+    #[serde(default = "default_enable_jsonrpc_api")]
+    pub enable_jsonrpc_api: bool,
+
+    /// Renamed to `enable_jsonrpc_api`, and rejected by
+    /// [`NodeConfig::check_renamed_keys`]. Never set this: it is here only so
+    /// that a config file still carrying the old key is refused rather than
+    /// ignored.
+    #[serde(default, skip_serializing)]
+    pub enable_index_processing: Option<bool>,
 
     // only allow websocket connections for jsonrpc traffic
     #[serde(default)]
@@ -697,7 +704,7 @@ fn default_authority_store_pruning_config() -> AuthorityStorePruningConfig {
     AuthorityStorePruningConfig::default()
 }
 
-pub fn default_enable_index_processing() -> bool {
+pub fn default_enable_jsonrpc_api() -> bool {
     true
 }
 
@@ -763,6 +770,23 @@ pub fn bool_true() -> bool {
 impl Config for NodeConfig {}
 
 impl NodeConfig {
+    /// Fails if the config file still carries a key that has been renamed.
+    ///
+    /// Call this before doing any work. A config file is loaded with unknown
+    /// keys ignored, so an old key left in place has no effect at all, and
+    /// the node runs on the new key's default instead — which is not
+    /// necessarily what the old key said.
+    pub fn check_renamed_keys(&self) -> Result<()> {
+        if self.enable_index_processing.is_some() {
+            anyhow::bail!(
+                "`enable-index-processing` was renamed to `enable-jsonrpc-api` (default true); \
+                 remove the old key and set `enable-jsonrpc-api` to the value you want. Leaving \
+                 the old key in place would serve the JSON-RPC API and rebuild its index."
+            );
+        }
+        Ok(())
+    }
+
     pub fn authority_key_pair(&self) -> &AuthorityKeyPair {
         self.authority_key_pair.authority_keypair()
     }
@@ -1852,6 +1876,36 @@ mod tests {
 
         let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
         assert!(config.enable_soft_locking);
+    }
+
+    #[test]
+    fn renamed_enable_index_processing_key_is_refused() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut template: serde_yaml::Value = serde_yaml::from_str(TEMPLATE).unwrap();
+        template
+            .as_mapping_mut()
+            .unwrap()
+            .insert("enable-index-processing".into(), false.into());
+
+        let mut config: NodeConfig = serde_yaml::from_value(template).unwrap();
+        assert_eq!(config.enable_index_processing, Some(false));
+        assert!(config.enable_jsonrpc_api);
+        let err = config.check_renamed_keys().unwrap_err().to_string();
+        assert!(err.contains("enable-index-processing"), "{err}");
+        assert!(err.contains("enable-jsonrpc-api"), "{err}");
+
+        // The field never reaches a serialized config, so a node that rewrites
+        // its config cannot reintroduce the key it just refused.
+        config.enable_index_processing = Some(true);
+        let serialized = serde_yaml::to_string(&config).unwrap();
+        assert!(
+            !serialized.contains("enable-index-processing"),
+            "{serialized}"
+        );
+
+        let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        assert!(config.check_renamed_keys().is_ok());
     }
 
     #[test]

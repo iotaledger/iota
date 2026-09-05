@@ -360,6 +360,7 @@ impl IotaNode {
         serving_rt_handle: tokio::runtime::Handle,
         index_rebuild_cancelled: Arc<AtomicBool>,
     ) -> Result<Arc<IotaNode>> {
+        config.check_renamed_keys()?;
         config.validate()?;
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         if config.supported_protocol_versions.is_none() {
@@ -618,7 +619,7 @@ impl IotaNode {
         );
 
         let mut index_groups = BTreeSet::new();
-        if is_full_node && config.enable_index_processing {
+        if is_full_node && config.enable_jsonrpc_api {
             index_groups.insert(IndexGroup::JsonRpc);
         }
         if is_full_node && config.enable_grpc_api {
@@ -634,7 +635,7 @@ impl IotaNode {
                 .is_none()
             {
                 warn!(
-                    "index pruning is off (num_epochs_to_retain_for_indexes is unset): the history index, including the transaction-digest lookups the gRPC API serves, adds a column family per epoch and grows without bound"
+                    "index pruning is off (num-epochs-to-retain-for-indexes is unset): the history index, including the transaction-digest lookups the gRPC API serves, adds a column family per epoch and grows without bound"
                 );
             }
             Some(
@@ -2612,8 +2613,9 @@ pub async fn build_http_server(
     config: &NodeConfig,
     prometheus_registry: &Registry,
 ) -> Result<Option<iota_http::ServerHandle>> {
-    // Validators do not expose these APIs
-    if config.is_validator() {
+    // Validators do not expose these APIs, and neither does a node with the
+    // JSON-RPC API turned off.
+    if config.is_validator() || !config.enable_jsonrpc_api {
         return Ok(None);
     }
 

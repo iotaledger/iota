@@ -914,7 +914,7 @@ pub async fn download_formal_snapshot(
 
     // Unless `--skip-rpc-indexes` is passed, both index groups are built from
     // the same object stream that restores the perpetual tables, so a
-    // fullnode started with gRPC, `enable-index-processing`, or both, opens
+    // fullnode started with gRPC, `enable-jsonrpc-api`, or both, opens
     // the store in place instead of re-indexing the whole restored state. A
     // restore cannot know which of the two the node will enable later, so it
     // always builds both.
