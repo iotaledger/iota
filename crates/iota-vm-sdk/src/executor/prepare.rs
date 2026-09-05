@@ -218,7 +218,7 @@ pub(super) fn prepare_transaction(
             input_objects,
             &receiving_objects,
             &env.bytecode_verifier_metrics,
-            &verifier_signing_config,
+            iota_transaction_checks::VerifierLimitsSource::NodeConfig(&verifier_signing_config),
             0,
         )
         .map_err(|e| ValidationError::new("transaction input check", e))?;
