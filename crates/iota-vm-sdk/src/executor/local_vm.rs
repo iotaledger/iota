@@ -40,19 +40,6 @@ use crate::{
     store::{Store, StoreBackend},
 };
 
-/// Adapts the SDK [`Store`] to the [`GetModule`] interface that
-/// [`TypeLayoutBuilder`] needs to resolve struct layouts from packages.
-struct StoreModuleResolver<'a>(StoreBackend<'a>);
-
-impl GetModule for StoreModuleResolver<'_> {
-    type Error = iota_types::error::IotaError;
-    type Item = move_binary_format::CompiledModule;
-
-    fn get_module_by_id(&self, id: &ModuleId) -> Result<Option<Self::Item>, Self::Error> {
-        iota_types::storage::get_module_by_id(&self.0, id)
-    }
-}
-
 /// The local Move VM executor. Owns a [`Store`] and the execution engine for a
 /// single [`ChainContext`].
 pub struct LocalVm {
@@ -69,6 +56,19 @@ pub struct LocalVm {
     /// across calls; a profiled run builds its own executor via
     /// [`ExecutionEnv`].
     cached_executor: OnceLock<Arc<dyn Executor + Send + Sync>>,
+}
+
+/// Resolves Move modules from the store, as [`TypeLayoutBuilder`] needs to
+/// build struct layouts. Packages a run published are not in the store; use
+/// [`ExecutionResult::module_resolver`](crate::ExecutionResult::module_resolver)
+/// to resolve those as well.
+impl GetModule for LocalVm {
+    type Error = iota_types::error::IotaError;
+    type Item = move_binary_format::CompiledModule;
+
+    fn get_module_by_id(&self, id: &ModuleId) -> Result<Option<Self::Item>, Self::Error> {
+        iota_types::storage::get_module_by_id(&StoreBackend::new(self.store.as_ref()), id)
+    }
 }
 
 impl LocalVm {
@@ -98,6 +98,13 @@ impl LocalVm {
             store: Box::new(store),
             cached_executor: OnceLock::new(),
         })
+    }
+
+    /// The protocol config the VM runs under, resolved from the
+    /// [`ChainContext`] it was built with. Read it for protocol limits a
+    /// caller has to honour, such as the maximum gas a transaction may use.
+    pub fn protocol_config(&self) -> &ProtocolConfig {
+        &self.protocol_config
     }
 
     /// A shared reference to the underlying store, for read-only lookups.
@@ -142,14 +149,20 @@ impl LocalVm {
                 opts.check_coin_deny_list,
             )?
         };
-        let sim = {
+        let (sim, transaction) = {
             let backend = StoreBackend::new(self.store.as_ref());
             execute_prepared(&env, &backend, prepared, opts.mode)?
         };
         // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
         // never captures a trace; pass `None`. See `DebugConfig::with_tracing`.
         let artifacts = env.collect_artifacts(None)?;
-        self.finish(sim, opts.mode, SignatureStatus::NotChecked, artifacts)
+        self.finish(
+            sim,
+            transaction,
+            opts.mode,
+            SignatureStatus::NotChecked,
+            artifacts,
+        )
     }
 
     /// Run a signed transaction, verifying signatures first.
@@ -220,22 +233,19 @@ impl LocalVm {
                 opts.check_coin_deny_list,
             )?
         };
-        let (sim, signature_status, trace_builder) = {
+        let (sim, executed, signature_status, trace_builder) = {
             let backend = StoreBackend::new(self.store.as_ref());
             if move_authenticators.is_empty() {
                 // Standard schemes were verified cryptographically above; the
                 // run's outcome cannot retroactively invalidate them. Runs
                 // through the dev-inspect entry point, so no trace is captured.
-                (
-                    execute_prepared(&env, &backend, prepared, opts.mode)?,
-                    SignatureStatus::Verified,
-                    None,
-                )
+                let (sim, executed) = execute_prepared(&env, &backend, prepared, opts.mode)?;
+                (sim, executed, SignatureStatus::Verified, None)
             } else {
                 // Only the authenticator path threads a `MoveTraceBuilder`
                 // through the engine, so a trace is built only here.
                 let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
-                let (sim, authenticator_outcome) = execute_with_move_authenticators(
+                let (sim, authenticator_outcome, executed) = execute_with_move_authenticators(
                     &env,
                     &backend,
                     prepared,
@@ -246,6 +256,7 @@ impl LocalVm {
                 )?;
                 (
                     sim,
+                    executed,
                     SignatureStatus::from_authentication(authenticator_outcome),
                     trace_builder,
                 )
@@ -253,7 +264,7 @@ impl LocalVm {
         };
         let artifacts = env.collect_artifacts(trace_builder)?;
 
-        self.finish(sim, opts.mode, signature_status, artifacts)
+        self.finish(sim, executed, opts.mode, signature_status, artifacts)
     }
 
     /// Check whether the transaction's `MoveAuthenticator`(s) would be admitted
@@ -391,8 +402,7 @@ impl LocalVm {
         type_tag: &iota_sdk_types::TypeTag,
     ) -> Result<move_core_types::annotated_value::MoveValue, VmSdkError> {
         let core_tag = iota_types::iota_sdk_types_conversions::type_tag_sdk_to_core(type_tag);
-        let resolver = StoreModuleResolver(StoreBackend::new(self.store.as_ref()));
-        let layout = TypeLayoutBuilder::build_with_types(&core_tag, &resolver)
+        let layout = TypeLayoutBuilder::build_with_types(&core_tag, self)
             .map_err(|e| ExecutionError::new(format!("build layout for {type_tag}: {e}")))?;
         // `BoundedVisitor` bounds the deserialized value's depth and
         // allocation, like every node-side decoder of externally-sourced
@@ -426,6 +436,7 @@ impl LocalVm {
     fn finish(
         &mut self,
         sim: SimulateTransactionResult,
+        transaction: Transaction,
         mode: ExecutionMode,
         signature_status: SignatureStatus,
         artifacts: Option<DebugArtifacts>,
@@ -438,13 +449,30 @@ impl LocalVm {
             self.apply_effects(&sim);
         }
 
+        // Without a mutable shared input there is no congestion to price in, so
+        // a node suggests exactly the reference gas price; with one, the
+        // suggestion depends on congestion only a node observes.
+        let suggested_gas_price = (!transaction
+            .shared_input_objects()
+            .iter()
+            .any(|object| object.mutable))
+        .then_some(self.reference_gas_price);
+
+        let (command_results, execution_error) = match sim.execution_result {
+            Ok(results) => (results, None),
+            Err(error) => (Vec::new(), Some(error)),
+        };
+
         Ok(ExecutionResult {
+            transaction,
             effects: sim.effects,
             events: sim.events,
-            command_results: sim.execution_result.unwrap_or_default(),
+            command_results,
+            execution_error,
             input_objects: sim.input_objects.into_values().collect(),
             output_objects: sim.output_objects.into_values().collect(),
             gas_summary,
+            suggested_gas_price,
             mock_gas_id: sim.mock_gas_id,
             status,
             signature_status,
