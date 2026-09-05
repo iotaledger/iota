@@ -101,14 +101,13 @@ impl BulkIngestionOptions {
     }
 }
 
-/// Memtable budget for one bulk-ingestion store when `stores` of them are
-/// written at once. Returns `(db_write_buffer_size, cf_memory_budget)`: the
-/// upper bound on memtable memory across all column families of one database
-/// (80% of system RAM split between the stores; large memtables give the
-/// flushing threads enough buffer to keep up with the writers), and the
-/// memtable budget of a single column family within it (25% of system RAM
-/// split between the stores, still capped by the whole-database bound).
-fn write_buffer_budget(total_memory_bytes: u64, stores: usize) -> (usize, usize) {
+/// Memtable budget for a bulk-ingestion store. Returns
+/// `(db_write_buffer_size, cf_memory_budget)`: the upper bound on memtable
+/// memory across all column families of the database (80% of system RAM;
+/// large memtables give the flushing threads enough buffer to keep up with
+/// the writers), and the memtable budget of a single column family within it
+/// (25% of system RAM, still capped by the whole-database bound).
+fn write_buffer_budget(total_memory_bytes: u64) -> (usize, usize) {
     // A failed memory probe reports 0, and RocksDB reads a whole-database cap
     // of 0 as unlimited; a measured limit is used as is, however small.
     const FALLBACK_TOTAL_MEMORY_BYTES: u64 = 4 << 30;
@@ -118,23 +117,16 @@ fn write_buffer_budget(total_memory_bytes: u64, stores: usize) -> (usize, usize)
     } else {
         total_memory_bytes as f64
     };
-    let stores = stores.max(1) as f64;
     (
-        (total_memory_bytes * 0.8 / stores) as usize,
-        (total_memory_bytes * 0.25 / stores) as usize,
+        (total_memory_bytes * 0.8) as usize,
+        (total_memory_bytes * 0.25) as usize,
     )
 }
 
 pub fn bulk_ingestion_options() -> BulkIngestionOptions {
-    bulk_ingestion_options_split_between(1)
-}
-
-/// [`bulk_ingestion_options`] with the memtable budget divided by `stores`,
-/// for a caller that keeps that many databases open and writing at once.
-pub fn bulk_ingestion_options_split_between(stores: usize) -> BulkIngestionOptions {
     let total_memory_bytes = available_memory_bytes();
     let num_cpus = num_cpus::get();
-    let (db_write_buffer_size, cf_memory_budget) = write_buffer_budget(total_memory_bytes, stores);
+    let (db_write_buffer_size, cf_memory_budget) = write_buffer_budget(total_memory_bytes);
 
     let mut db_options = rocksdb::Options::default();
 
@@ -146,14 +138,13 @@ pub fn bulk_ingestion_options_split_between(stores: usize) -> BulkIngestionOptio
     // Allow CPU-intensive flushing to use all cores.
     db_options.set_max_background_jobs(num_cpus as i32);
 
-    // Upper bound on memtable memory: 80% of RAM, shared when several stores ingest
-    // at once, sized so flushing keeps up with the writers.
+    // Upper bound on memtable memory: 80% of RAM, sized so flushing keeps up
+    // with the writers.
     db_options.set_db_write_buffer_size(db_write_buffer_size);
 
     // Per-column-family options: Create options with compactions disabled and large
-    // write buffers. Each CF can use up to this store's share of 25% of system
-    // RAM, but total is still limited by set_db_write_buffer_size configured
-    // above.
+    // write buffers. Each CF can use up to 25% of system RAM, but total is
+    // still limited by set_db_write_buffer_size configured above.
     let mut column_family_options = default_db_options();
     column_family_options
         .options
@@ -194,7 +185,6 @@ pub fn bulk_ingestion_options_split_between(stores: usize) -> BulkIngestionOptio
     debug!(
         total_memory_bytes,
         num_cpus,
-        stores,
         db_write_buffer_size,
         buffer_size,
         buffer_count,
@@ -553,33 +543,26 @@ pub fn read_size_from_env(var_name: &str) -> Option<usize> {
 mod tests {
     use super::*;
 
-    /// Concurrently ingesting stores must share the memtable budget rather
-    /// than each claim the whole machine.
+    /// The memtable budget is a fixed share of the measured memory, with a
+    /// safe fallback when the probe fails.
     #[test]
-    fn write_buffer_budget_is_split_between_stores() {
+    fn write_buffer_budget_scales_with_available_memory() {
         const TOTAL: u64 = 64 << 30;
 
-        let (db_one, cf_one) = write_buffer_budget(TOTAL, 1);
+        let (db_one, cf_one) = write_buffer_budget(TOTAL);
         assert_eq!(db_one, (TOTAL as f64 * 0.8) as usize);
         assert_eq!(cf_one, (TOTAL as f64 * 0.25) as usize);
 
-        let (db_two, cf_two) = write_buffer_budget(TOTAL, 2);
-        assert_eq!(db_two, db_one / 2);
-        assert_eq!(cf_two, cf_one / 2);
-
-        // A caller that reports no stores still gets a usable budget.
-        assert_eq!(write_buffer_budget(TOTAL, 0), (db_one, cf_one));
-
         // A failed memory probe must not turn the whole-database cap into
         // RocksDB's unlimited.
-        let (db_unknown, cf_unknown) = write_buffer_budget(0, 1);
-        assert_eq!(write_buffer_budget(4 << 30, 1), (db_unknown, cf_unknown));
+        let (db_unknown, cf_unknown) = write_buffer_budget(0);
+        assert_eq!(write_buffer_budget(4 << 30), (db_unknown, cf_unknown));
         assert!(db_unknown > 0 && cf_unknown > 0);
 
         // A measured limit below that stand-in is a real cgroup limit, and
         // budgeting above it would get the process killed.
         const SMALL: u64 = 2 << 30;
-        let (db_small, cf_small) = write_buffer_budget(SMALL, 1);
+        let (db_small, cf_small) = write_buffer_budget(SMALL);
         assert_eq!(db_small, (SMALL as f64 * 0.8) as usize);
         assert_eq!(cf_small, (SMALL as f64 * 0.25) as usize);
         assert!(db_small < db_unknown);

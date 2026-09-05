@@ -21,7 +21,7 @@ Transaction pruning removes previous transactions and their effects from the dat
 
 ### Index Pruning
 
-Index pruning advances a watermark in the secondary index stores (JSON-RPC and gRPC) so older entries are no longer served by index-backed queries (for example `iotax_getBalance()`, dynamic-field lookups, and event queries). Without it, the index tables grow with every transaction. Index pruning is only relevant for nodes that have indexing enabled (`enable-index-processing: true`).
+Index pruning drops the expired epochs of the `rpc_indexes` store, the single secondary index store both the JSON-RPC and the gRPC API read from, so older entries are no longer served by index-backed queries (for example `iotax_getBalance()`, dynamic-field lookups, event queries, and gRPC transaction-digest lookups). Without it, the index adds a set of tables per epoch and grows without bound. Index pruning is relevant for every node that maintains the store, which is any node running the JSON-RPC index (`enable-index-processing: true`) or the gRPC API (`enable-grpc-api: true`).
 
 ## Pruning Parameters
 
@@ -37,8 +37,10 @@ All pruning parameters are configured in `fullnode.yaml`. The following annotate
 
 ```yaml
 # Enable indexing of additional data (ownership, balances, events).
-# Required for JSON-RPC and gRPC index queries. Default: true.
+# Required for the JSON-RPC index queries. Default: true.
 # Set to false for validators or nodes that do not serve RPC requests.
+# The gRPC API maintains the same store under its own flag (enable-grpc-api,
+# default: false), so a node with either of the two prunes its indexes.
 enable-index-processing: true
 
 authority-store-pruning-config:
@@ -59,9 +61,10 @@ authority-store-pruning-config:
   #                          the current and immediately prior epoch.
   # num-epochs-to-retain-for-checkpoints: 2
 
-  # Number of epochs to retain entries in the secondary index tables (JSON-RPC
-  # and gRPC). Controls index pruning. Only relevant when indexing is enabled
-  # (enable-index-processing: true).
+  # Number of epochs to retain entries in the rpc_indexes store, which serves
+  # both the JSON-RPC and the gRPC API. Controls index pruning. Relevant
+  # whenever the node maintains that store (enable-index-processing: true or
+  # enable-grpc-api: true).
   #   unset    — index pruning disabled (default).
   #   N (>= 7) — prunes index entries older than N epochs. Values below 7 are
   #             silently coerced to 7.
