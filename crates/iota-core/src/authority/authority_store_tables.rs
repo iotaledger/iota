@@ -7,26 +7,25 @@ use std::path::Path;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
 use serde::{Deserialize, Serialize};
-use tracing::error;
 use typed_store::{
     DBMapUtils, DbIterator,
+    database::Database,
     metrics::SamplingInterval,
     rocks::{
-        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
+        DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
         read_size_from_env,
     },
-    rocksdb::compaction_filter::Decision,
     traits::Map,
 };
 
 use super::*;
 use crate::authority::{
-    authority_store_pruner::ObjectsCompactionFilter,
     authority_store_types::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
     historic_objects::HistoricObjects,
+    object_backlog_sweep::ObjectBacklogSweepProgress,
 };
 
 const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
@@ -34,12 +33,47 @@ pub(crate) const ENV_VAR_LOCKS_BLOCK_CACHE_SIZE: &str = "LOCKS_BLOCK_CACHE_MB";
 const ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE: &str = "TRANSACTIONS_BLOCK_CACHE_MB";
 const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
 
+/// Copies the objects pruner's progress watermark out of `pruned_checkpoint`
+/// into `object_backlog_sweep_bound`, so that the one-time sweep can still
+/// read it after the deprecated column family has been dropped.
+///
+/// The pruner of an earlier build wrote that watermark in the same batch as
+/// its deletes, so it says exactly how far the deletes reached. Nothing is
+/// written when the table is absent or empty, which leaves the sweep to walk
+/// the whole table as it would have anyway.
+// TODO: remove this together with the sweep it bounds,
+// <https://github.com/iotaledger/iota/issues/12712>
+fn rescue_objects_pruner_watermark(db: &Arc<Database>) -> Result<(), TypedStoreError> {
+    let pruned: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
+        db,
+        Some("pruned_checkpoint"),
+        &ReadWriteOptions::default(),
+        true,
+    )?;
+    let Some(watermark) = pruned.get(&())? else {
+        return Ok(());
+    };
+    let bound: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
+        db,
+        Some("object_backlog_sweep_bound"),
+        &ReadWriteOptions::default(),
+        false,
+    )?;
+    // Only ever written here, and this runs once before the column family it
+    // reads is dropped, so there is nothing to overwrite.
+    bound.insert(&(), &watermark)?;
+    info!(
+        watermark,
+        "carried the objects pruner's watermark over for the one-time sweep"
+    );
+    Ok(())
+}
+
 /// Options to apply to every column family of the `perpetual` DB.
 #[derive(Default)]
 pub struct AuthorityPerpetualTablesOptions {
     /// Whether to enable write stalling on all column families.
     pub enable_write_stall: bool,
-    pub compaction_filter: Option<ObjectsCompactionFilter>,
 }
 
 impl AuthorityPerpetualTablesOptions {
@@ -152,9 +186,14 @@ pub struct AuthorityPerpetualTables {
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
 
-    /// A singleton table that stores latest pruned checkpoint. Used to keep
-    /// objects pruner progress
-    pub(crate) pruned_checkpoint: DBMap<(), CheckpointSequenceNumber>,
+    /// Deprecated: was the objects pruner's progress watermark. The objects
+    /// pruner has been replaced by per-epoch bucket expiry, which has no use
+    /// for this table — but the one-time sweep does, so the watermark is
+    /// copied into `object_backlog_sweep_bound` before the column family is
+    /// dropped.
+    #[allow(dead_code)]
+    #[deprecated_db_map(migration = "rescue_objects_pruner_watermark")]
+    pruned_checkpoint: Option<DBMap<(), CheckpointSequenceNumber>>,
 
     /// The total IOTA supply and the epoch at which it was stored.
     /// We check and update it at the end of each epoch if expensive checks are
@@ -175,31 +214,32 @@ pub struct AuthorityPerpetualTables {
     /// per-epoch, and all previous epochs other than the current epoch may
     /// be pruned safely.
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
-}
 
-#[derive(DBMapUtils)]
-pub struct AuthorityPrunerTables {
-    /// Each deleted object's highest tombstoned version, fed to the
-    /// compaction filter that drops old rows from `objects` at or below it.
-    /// Belongs to the objects knob, since it exists solely to serve that
-    /// pruner.
-    pub(crate) object_tombstones: DBMap<ObjectId, Version>,
-}
+    /// How far the one-time sweep of the object versions superseded before
+    /// this build has got through `objects`, and whether it has reached the
+    /// end. Empty until the sweep first writes a slice.
+    /// TODO: remove this table once every database has swept the pre-bucket
+    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
 
-impl AuthorityPrunerTables {
-    pub fn path(parent_path: &Path) -> PathBuf {
-        parent_path.join("pruner")
-    }
+    /// The last checkpoint the objects pruner of an earlier build reported
+    /// having pruned, copied out of `pruned_checkpoint` before that column
+    /// family was dropped. Absent on a database no such build ever pruned.
+    ///
+    /// The pruner wrote it in the same batch as its deletes, so every version
+    /// superseded at or below it is already gone and the sweep only has to
+    /// look above it. See [`crate::authority::object_backlog_sweep`].
+    /// TODO: remove this table once every database has swept the pre-bucket
+    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    pub(crate) object_backlog_sweep_bound: DBMap<(), CheckpointSequenceNumber>,
 
-    pub fn open(parent_path: &Path) -> Self {
-        Self::open_tables_read_write(
-            Self::path(parent_path),
-            MetricConf::new("pruner")
-                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            None,
-            None,
-        )
-    }
+    /// The last checkpoint whose superseded versions the bounded sweep has
+    /// relocated. Empty until that sweep first writes a slice, and unused by
+    /// the unbounded walk, which records its place in
+    /// `object_backlog_sweep_progress` instead.
+    /// TODO: remove this table once every database has swept the pre-bucket
+    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    pub(crate) object_backlog_sweep_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 }
 
 /// The total IOTA supply used during conservation checks.
@@ -231,7 +271,11 @@ impl AuthorityPerpetualTables {
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
     ) -> Result<(Self, HistoricObjects), TypedStoreError> {
         let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
-        let historic_objects = HistoricObjects::open(tables.objects.db.clone(), &db_options)?;
+        let historic_objects = HistoricObjects::open(
+            tables.objects.db.clone(),
+            &db_options,
+            tables.objects.clone(),
+        )?;
         Ok((tables, historic_objects))
     }
 
@@ -251,7 +295,7 @@ impl AuthorityPerpetualTables {
         let mut table_options = BTreeMap::from([
             (
                 "objects".to_string(),
-                objects_table_config(db_options.clone(), db_options_override.compaction_filter),
+                objects_table_config(db_options.clone()),
             ),
             (
                 "live_owned_object_markers".to_string(),
@@ -292,20 +336,25 @@ impl AuthorityPerpetualTables {
         )
     }
 
-    // This is used by indexer to find the correct version of dynamic field child
-    // object. We do not store the version of the child object, but because of
-    // lamport timestamp, we know the child must have version number less then
-    // or eq to the parent.
+    /// The newest row for `object_id` at or below `version`, still wrapped.
+    ///
+    /// A `StoreObject::Value` is a live version; a `Deleted` or `Wrapped`
+    /// row means the object was deleted or wrapped at or below the bound,
+    /// which is a different answer from `None` — nothing at all in range —
+    /// and callers must not collapse the two. Use [`Self::object`] to
+    /// resolve a row once the two cases have been told apart.
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
         version: Version,
-    ) -> IotaResult<Option<Object>> {
+    ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
         let mut iter = self.objects.safe_range_iter_reversed(
             ObjectKey::min_for_id(&object_id)..=ObjectKey(object_id, version),
         );
         match iter.next() {
-            Some(Ok((key, o))) => self.object(&key, o),
+            // Migrate legacy V1 rows before returning; callers inspect the
+            // wrapper via `inner()`, which panics on an un-migrated V1.
+            Some(Ok((key, o))) => Ok(Some((key, o.migrate()))),
             Some(Err(e)) => Err(e.into()),
             None => Ok(None),
         }
@@ -422,21 +471,6 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn get_highest_pruned_checkpoint(
-        &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        self.pruned_checkpoint.get(&())
-    }
-
-    pub fn set_highest_pruned_checkpoint(
-        &self,
-        wb: &mut DBBatch,
-        checkpoint_number: CheckpointSequenceNumber,
-    ) -> IotaResult {
-        wb.insert_batch(&self.pruned_checkpoint, [((), checkpoint_number)])?;
-        Ok(())
-    }
-
     pub fn get_transaction(
         &self,
         digest: &TransactionDigest,
@@ -477,16 +511,6 @@ impl AuthorityPerpetualTables {
             objects.push(key);
         }
         Ok(objects)
-    }
-
-    pub fn set_highest_pruned_checkpoint_without_wb(
-        &self,
-        checkpoint_number: CheckpointSequenceNumber,
-    ) -> IotaResult {
-        let mut wb = self.pruned_checkpoint.batch();
-        self.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
-        wb.write()?;
-        Ok(())
     }
 
     pub fn database_is_empty(&self) -> IotaResult<bool> {
@@ -536,6 +560,22 @@ impl AuthorityPerpetualTables {
     ) -> IotaResult {
         self.root_state_hash_by_epoch
             .insert(&epoch, &(last_checkpoint_of_epoch, hash))?;
+        Ok(())
+    }
+
+    /// Marks the one-time object-backlog sweep as already done, so that a
+    /// later node start does not walk `objects` looking for versions to
+    /// relocate.
+    ///
+    /// Call this only on a database that cannot hold a backlog to begin
+    /// with, such as one just populated by a formal-snapshot restore: a
+    /// snapshot is taken at an epoch boundary and carries only the live
+    /// object set, so there are no superseded versions for the sweep to
+    /// find, and recording `Done` up front skips a walk that would relocate
+    /// nothing.
+    pub fn mark_object_backlog_swept(&self) -> IotaResult {
+        self.object_backlog_sweep_progress
+            .insert(&(), &ObjectBacklogSweepProgress::Done)?;
         Ok(())
     }
 
@@ -751,23 +791,7 @@ fn live_owned_object_markers_table_config(db_options: DBOptions) -> DBOptions {
     }
 }
 
-fn objects_table_config(
-    mut db_options: DBOptions,
-    compaction_filter: Option<ObjectsCompactionFilter>,
-) -> DBOptions {
-    if let Some(mut compaction_filter) = compaction_filter {
-        db_options
-            .options
-            .set_compaction_filter("objects", move |_, key, value| {
-                match compaction_filter.filter(key, value) {
-                    Ok(decision) => decision,
-                    Err(err) => {
-                        error!("Compaction error: {:?}", err);
-                        Decision::Keep
-                    }
-                }
-            });
-    }
+fn objects_table_config(db_options: DBOptions) -> DBOptions {
     db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(5 * 1024))
@@ -957,5 +981,77 @@ mod tests {
             .unwrap()
             .expect("value must reconstruct");
         assert_eq!(reconstructed.object_ref(), object_ref);
+    }
+
+    /// A formal-snapshot restore has no backlog of superseded versions to
+    /// walk, so it records the sweep as done directly rather than paying for
+    /// a walk over the live object set it just wrote.
+    /// The hook must carry the objects pruner's watermark into the table the
+    /// sweep reads, since the column family it was written to is dropped on
+    /// the same open. Without it the sweep loses its bound and falls back to
+    /// walking the whole live table.
+    #[tokio::test]
+    async fn the_objects_pruner_watermark_is_carried_over() {
+        let tmp_dir = iota_common::tempdir();
+        let db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        // Stand where a database written by a build with the pruner does.
+        db.objects
+            .db
+            .create_cf(
+                "pruned_checkpoint",
+                &typed_store::rocksdb::Options::default(),
+            )
+            .unwrap();
+        let pruned: DBMap<(), CheckpointSequenceNumber> = DBMap::reopen(
+            &db.objects.db,
+            Some("pruned_checkpoint"),
+            &ReadWriteOptions::default(),
+            true,
+        )
+        .unwrap();
+        pruned.insert(&(), &4_242).unwrap();
+        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), None);
+
+        rescue_objects_pruner_watermark(&db.objects.db).unwrap();
+
+        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), Some(4_242));
+    }
+
+    /// A database no such build ever pruned has no watermark to carry, and
+    /// the hook leaves the sweep to walk the whole table.
+    #[tokio::test]
+    async fn no_watermark_is_carried_over_when_the_pruner_never_ran() {
+        let tmp_dir = iota_common::tempdir();
+        let db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+        db.objects
+            .db
+            .create_cf(
+                "pruned_checkpoint",
+                &typed_store::rocksdb::Options::default(),
+            )
+            .unwrap();
+
+        rescue_objects_pruner_watermark(&db.objects.db).unwrap();
+
+        assert_eq!(db.object_backlog_sweep_bound.get(&()).unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn mark_object_backlog_swept_records_done() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        assert_eq!(
+            perpetual_db.object_backlog_sweep_progress.get(&()).unwrap(),
+            None
+        );
+
+        perpetual_db.mark_object_backlog_swept().unwrap();
+
+        assert_eq!(
+            perpetual_db.object_backlog_sweep_progress.get(&()).unwrap(),
+            Some(ObjectBacklogSweepProgress::Done)
+        );
     }
 }

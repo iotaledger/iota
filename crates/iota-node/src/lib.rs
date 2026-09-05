@@ -30,12 +30,10 @@ use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, ExecutionEnv, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_pruner::ObjectsCompactionFilter,
-        authority_store_tables::{
-            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
-        },
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
+        object_backlog_sweep,
         shared_object_version_manager::Schedulable,
     },
     authority_aggregator::{
@@ -451,25 +449,9 @@ impl IotaNode {
             None,
         ));
 
-        let mut pruner_db = None;
-        if config
-            .authority_store_pruning_config
-            .enable_compaction_filter
-        {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
-                &config.db_path().join("store"),
-            )));
-        }
-        let compaction_filter = pruner_db
-            .clone()
-            .map(|db| ObjectsCompactionFilter::new(db, &prometheus_registry));
-
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions {
-            enable_write_stall,
-            compaction_filter,
-        };
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
         let (perpetual_tables, historic_objects) =
             AuthorityPerpetualTables::open_with_historic_objects(
                 &config.db_path().join("store"),
@@ -492,7 +474,7 @@ impl IotaNode {
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
-        let perpetual_tables_for_progress = perpetual_tables.clone();
+        let historic_objects_for_progress = historic_objects.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             historic_objects,
@@ -615,6 +597,26 @@ impl IotaNode {
             }
         }
 
+        // Before any service that could expire a historic bucket starts, and
+        // before the index rebuild below scans the live `objects` table for
+        // its latest versions.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
+        // call once every database has swept the pre-bucket backlog.
+        // A `pruner` database is what an earlier build left when it ran the
+        // objects pruner with the compaction filter, which the sweep has to
+        // know about: see `object_backlog_sweep::sweep`.
+        let pruner_db_present = config.db_path().join("pruner").exists();
+        object_backlog_sweep::sweep(
+            store.clone(),
+            checkpoint_store.clone(),
+            epoch_store.epoch(),
+            pruner_db_present,
+        )
+        .await
+        .map_err(|e| {
+            anyhow!("failed to sweep the object versions superseded before this build: {e}")
+        })?;
+
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
             cache_traits.clone(),
@@ -730,7 +732,6 @@ impl IotaNode {
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
-            pruner_db,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),
@@ -966,7 +967,7 @@ impl IotaNode {
         });
 
         node.checkpoint_progress_tracker
-            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
+            .spawn_logging_task(node.checkpoint_store.clone(), historic_objects_for_progress);
 
         Ok(node)
     }

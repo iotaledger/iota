@@ -1005,6 +1005,35 @@ impl CheckpointStore {
         self.tables.epoch_last_checkpoint_map.get(&epoch_id)
     }
 
+    /// The lowest checkpoint whose superseded object versions this node still
+    /// holds, given the epoch of the oldest historic-object bucket it holds
+    /// (`None` when it holds no bucket at all).
+    ///
+    /// Those versions are retained per epoch, so the answer is that epoch's
+    /// first checkpoint — one past the last checkpoint of the epoch before it.
+    ///
+    /// When that cannot be placed — there is no bucket at all, or the epoch
+    /// before the oldest one has no recorded last checkpoint — the answer is
+    /// one past the highest executed checkpoint, claiming nothing rather than
+    /// the full history.
+    pub fn lowest_checkpoint_with_retained_objects(
+        &self,
+        earliest_bucket_epoch: Option<EpochId>,
+    ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
+        if let Some(epoch) = earliest_bucket_epoch {
+            let Some(previous_epoch) = epoch.checked_sub(1) else {
+                return Ok(0);
+            };
+            if let Some(seq) = self.get_epoch_last_checkpoint_seq_number(previous_epoch)? {
+                return Ok(seq + 1);
+            }
+        }
+        Ok(self
+            .get_highest_executed_checkpoint_seq_number()?
+            .map(|seq| seq + 1)
+            .unwrap_or(0))
+    }
+
     pub fn insert_epoch_last_checkpoint(
         &self,
         epoch_id: EpochId,

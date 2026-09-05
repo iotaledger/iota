@@ -3969,8 +3969,8 @@ async fn test_rpc_index_rebuild_on_open() {
 }
 
 /// History replay only writes the history tables, so it needs no input or
-/// output objects: it must cover checkpoints the object pruner has advanced
-/// past, even when the objects themselves are gone from the store.
+/// output objects: it must cover checkpoints whose object versions have been
+/// expired, even when the objects themselves are gone from the store.
 #[tokio::test]
 async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
     use typed_store::Map;
@@ -3993,16 +3993,8 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
         .update_highest_executed_checkpoint(&genesis_checkpoint)
         .unwrap();
 
-    // The object pruner has advanced past the genesis checkpoint; the
-    // checkpoint-contents watermark is untouched.
-    authority_state
-        .database_for_testing()
-        .perpetual_tables
-        .set_highest_pruned_checkpoint_without_wb(0)
-        .unwrap();
-
-    // Delete one of the genesis transaction's output objects, as the object
-    // pruner would: replay must succeed without it.
+    // Delete one of the genesis transaction's output objects, as an expired
+    // bucket would: replay must succeed without it.
     let genesis_contents = checkpoint_store
         .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
         .unwrap()
@@ -9139,4 +9131,177 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
             &previously_signed_sig,
         )
         .unwrap();
+}
+
+/// The epoch boundary expires the historic-object buckets that have fallen
+/// outside the configured retention, which counts the epochs kept beyond the
+/// current one.
+#[tokio::test]
+async fn reconfiguration_expires_buckets_beyond_the_retention() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(1)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+
+    // One relocated version per epoch, so an expired bucket is observable by
+    // the version it no longer serves.
+    let relocated: Vec<ObjectKey> = (0..=3)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    // Retaining one epoch beyond epoch 3 keeps the buckets of 3 and 2.
+    authority.advance_historic_objects(3).await.unwrap();
+    assert_eq!(historic.earliest_bucket_epoch(), Some(2));
+    assert_eq!(historic.get(&relocated[0]).unwrap(), None);
+    assert_eq!(historic.get(&relocated[1]).unwrap(), None);
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+    assert!(historic.get(&relocated[3]).unwrap().is_some());
+}
+
+/// A retention of `u64::MAX` turns object expiry off: the epoch boundary opens
+/// the new epoch's bucket and leaves every older one in place.
+#[tokio::test]
+async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(u64::MAX)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let relocated = ObjectKey(object.id(), object.version());
+    let bucket = historic.ensure(0).unwrap();
+    let objects = &authority.database_for_testing().perpetual_tables.objects;
+    let mut batch = objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(relocated, object)])
+        .unwrap();
+    batch.write().unwrap();
+
+    for epoch in 1..=3 {
+        authority.advance_historic_objects(epoch).await.unwrap();
+    }
+    assert_eq!(historic.earliest_bucket_epoch(), Some(0));
+    assert!(historic.get(&relocated).unwrap().is_some());
+}
+
+/// The gRPC read store advertises object availability from the oldest bucket
+/// it actually holds, not from the retention floor, which says nothing about
+/// what a node was given. Where that bucket's epoch cannot be placed, it must
+/// claim nothing rather than the full history.
+#[tokio::test]
+async fn object_availability_follows_the_oldest_bucket_held() {
+    use iota_node_storage::GrpcStateReader;
+
+    // No genesis execution, so no bucket is written for epoch 0.
+    let authority = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .disable_execute_genesis_transactions()
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+
+    let grpc_read_store = GrpcReadStore::new(
+        authority.clone(),
+        RocksDbStore::new(
+            authority.execution_cache_trait_pointers.clone(),
+            authority.committee_store().clone(),
+            checkpoint_store.clone(),
+        ),
+    );
+
+    let historic = authority.get_historic_objects();
+    assert_eq!(
+        historic.earliest_bucket_epoch(),
+        None,
+        "the fixture must start with no bucket for this to model a restore"
+    );
+
+    // No bucket at all: nothing below the executed watermark is available.
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        1
+    );
+
+    // A bucket whose epoch cannot be placed: nothing records where epoch 7
+    // started. The answer must stay at the watermark rather than fall back to
+    // claiming the whole history.
+    historic.ensure(7).unwrap();
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        1
+    );
+
+    // A bucket for epoch 0 is the one case where the full history really is
+    // available, and it needs no recorded boundary.
+    historic.ensure(0).unwrap();
+    assert_eq!(
+        grpc_read_store
+            .get_lowest_available_checkpoint_objects()
+            .unwrap(),
+        0
+    );
+}
+
+/// A bucket that cannot be expired must not fail the reconfiguration. The node
+/// would halt at that epoch boundary and fail again on every retry, while the
+/// bucket already carries its durable expiring marker — so its versions are
+/// unreadable, its tombstones stay in the live table, and the next open
+/// finishes the job.
+#[tokio::test]
+async fn a_failed_expiry_does_not_fail_reconfiguration() {
+    use typed_store::Map;
+
+    use crate::authority::historic_objects::HistoricObjects;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(1)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+    let oldest = historic.ensure(0).unwrap();
+    for epoch in 1..=3 {
+        historic.ensure(epoch).unwrap();
+    }
+
+    let store = authority.database_for_testing();
+    HistoricObjects::corrupt_tombstone_heads_for_testing(&store.perpetual_tables.objects.db, 0)
+        .unwrap();
+
+    authority
+        .advance_historic_objects(3)
+        .await
+        .expect("a failed expiry must not fail the epoch boundary");
+
+    // The expiry did run and did fail: the bucket it could not finish carries
+    // the durable marker that keeps its versions unreadable until the next
+    // open finishes the job.
+    assert!(oldest.expiring.get(&()).unwrap().is_some());
 }
