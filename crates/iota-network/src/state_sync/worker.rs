@@ -17,7 +17,7 @@ use iota_types::{
     },
     storage::{CacheCheckpointResults, WriteStore},
 };
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::state_sync::metrics::Metrics;
 
@@ -36,6 +36,11 @@ pub(crate) struct VerifiedArchiveCheckpoint {
     /// store, because the previous epoch's last checkpoint had not been
     /// committed; the reducer verifies the signatures for those instead.
     signatures_verified: bool,
+    /// False when the objects or events the checkpoint carries do not match
+    /// the digests its effects record. The checkpoint itself is still sound —
+    /// only the payloads are unusable — so it is synced as normal and its
+    /// transactions are executed rather than their results committed.
+    payloads_verified: bool,
 }
 
 /// Verifies checkpoints downloaded from the archive.
@@ -78,11 +83,26 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
                 checkpoint.transactions.iter().map(|t| t.execution_data()),
             )?
             .verify(summary.contents_digest)?;
+            // Checked here, alongside the other per-checkpoint verification,
+            // so that the executor can commit what it takes from the results
+            // cache without rehashing every object in its ordered stage.
+            let payloads_verified = match checkpoint.verify_payload_digests() {
+                Ok(()) => true,
+                Err(error) => {
+                    warn!(
+                        sequence_number = summary.sequence_number,
+                        "executing the checkpoint's transactions instead of committing their \
+                         results: {error}"
+                    );
+                    false
+                }
+            };
             Ok(VerifiedArchiveCheckpoint {
                 summary,
                 contents,
                 data,
                 signatures_verified,
+                payloads_verified,
             })
         })
         .await?
@@ -172,6 +192,10 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
         let Some(cache) = &self.results_cache else {
             return;
         };
+        if !message.payloads_verified {
+            self.metrics.checkpoint_from_archive_left_to_the_executor();
+            return;
+        }
         if !cache.cache_checkpoint_results(message.data.clone()) {
             self.metrics.checkpoint_from_archive_left_to_the_executor();
         }

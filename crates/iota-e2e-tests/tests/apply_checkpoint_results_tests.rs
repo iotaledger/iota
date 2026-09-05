@@ -352,7 +352,11 @@ fn retained_results_bytes(node: &test_cluster::FullNodeHandle) -> Option<i64> {
 ///
 /// With `re_execute` unset the results are applied, so the driver should run
 /// almost nothing; with it set every transaction goes through execution.
-async fn sync_archive_only_fullnode(re_execute: bool) -> (u64, usize, usize) {
+async fn sync_archive_only_fullnode(
+    re_execute: bool,
+    results_cache_size_bytes: Option<usize>,
+    tamper: Option<fn(&mut [CheckpointData])>,
+) -> (u64, usize, usize) {
     let ingestion = tempfile::tempdir().unwrap();
     let archive = tempfile::tempdir().unwrap();
     let mut cluster = TestClusterBuilder::new()
@@ -398,7 +402,15 @@ async fn sync_archive_only_fullnode(re_execute: bool) -> (u64, usize, usize) {
         .unwrap()
         .checkpoint_summary
         .sequence_number;
-    write_archive(archive.path(), &checkpoints);
+    // Only what the archive serves is corrupted; the assertions below still
+    // compare the node's state against the results the cluster really produced.
+    if let Some(tamper) = tamper {
+        let mut corrupted = checkpoints.clone();
+        tamper(&mut corrupted);
+        write_archive(archive.path(), &corrupted);
+    } else {
+        write_archive(archive.path(), &checkpoints);
+    }
 
     let mut config = cluster
         .fullnode_config_builder()
@@ -412,7 +424,10 @@ async fn sync_archive_only_fullnode(re_execute: bool) -> (u64, usize, usize) {
             re_execute_archived_checkpoints: re_execute,
             results_cache_size_bytes: results_cache_size_bytes.unwrap_or(256 * 1024 * 1024),
         })
-        .build(&mut rand::rngs::OsRng, cluster.swarm.config());
+        .build(
+            &mut rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+            cluster.swarm.config(),
+        );
     // The archive is the node's only source, so reaching the target proves the
     // archive path did the work rather than p2p sync. Emptying the seed peers
     // as well means nothing is dialled even to be declined.
@@ -498,7 +513,7 @@ async fn sync_archive_only_fullnode(re_execute: bool) -> (u64, usize, usize) {
 /// nothing to do: only the end-of-epoch transactions stay on its path.
 #[sim_test]
 async fn archive_only_fullnode_applies_without_executing() {
-    let (executed, total, boundaries) = sync_archive_only_fullnode(false).await;
+    let (executed, total, boundaries) = sync_archive_only_fullnode(false, None, None).await;
     // Only the end-of-epoch transactions are left to the executor, one per
     // boundary in the range.
     assert!(
@@ -513,13 +528,53 @@ async fn archive_only_fullnode_applies_without_executing() {
 /// shows the flag has an effect rather than being inert.
 #[sim_test]
 async fn archive_only_fullnode_re_executes_when_configured() {
-    let (executed, total, _) = sync_archive_only_fullnode(true).await;
+    let (executed, total, _) = sync_archive_only_fullnode(true, None, None).await;
     // Genesis is already executed when the node starts, so it never reaches the
     // driver; everything else in the range must.
     assert!(
         executed + 2 >= total as u64,
         "the node executed only {executed} of {total} transactions, so it did not re-execute \
          the archive's contents"
+    );
+}
+
+/// An archive whose payloads do not match the effects must not have its
+/// results committed. The check happens where the results are cached, so this
+/// is what shows a tampered payload still reaches the executor as an ordinary
+/// checkpoint rather than being written unchecked.
+#[sim_test]
+async fn tampered_archive_payloads_are_executed_instead_of_committed() {
+    let (executed, total, boundaries) = sync_archive_only_fullnode(
+        false,
+        None,
+        Some(|checkpoints: &mut [CheckpointData]| {
+            // Rewrite one output object so its contents no longer hash to the
+            // digest its effects record.
+            let checkpoint = checkpoints
+                .iter_mut()
+                .find(|c| {
+                    c.checkpoint_summary.sequence_number > 0
+                        && c.transactions.iter().any(|t| !t.output_objects.is_empty())
+                })
+                .expect("the archive carries a transaction that wrote an object");
+            let transaction = checkpoint
+                .transactions
+                .iter_mut()
+                .find(|t| !t.output_objects.is_empty())
+                .unwrap();
+            let mut object = transaction.output_objects[0].as_inner().clone();
+            object.storage_rebate += 1;
+            transaction.output_objects[0] = object.into();
+        }),
+    )
+    .await;
+
+    // The tampered checkpoint's transactions go through execution, so more
+    // runs than the end-of-epoch transactions alone.
+    assert!(
+        executed > boundaries as u64,
+        "the node executed {executed} of {total} transactions with {boundaries} epoch \
+         boundaries in range, so the tampered checkpoint was committed rather than executed"
     );
 }
 
@@ -542,7 +597,7 @@ async fn shared_object_deletion_is_marked_the_same_way() {
     .await
     .object_id;
 
-    let created = cluster
+    let creation = cluster
         .sign_and_execute_transaction(
             &cluster
                 .test_transaction_builder()
@@ -550,9 +605,8 @@ async fn shared_object_deletion_is_marked_the_same_way() {
                 .move_call(package, "objects", "create_shared_object", vec![])
                 .build(),
         )
-        .await
-        .created()[0]
-        .reference;
+        .await;
+    let created = *creation.created()[0].reference();
 
     let deletion = cluster
         .sign_and_execute_transaction(
@@ -624,7 +678,7 @@ async fn shared_object_deletion_is_marked_the_same_way() {
 async fn interleaved_committed_and_executed_checkpoints_stay_ordered() {
     // Enough for a couple of checkpoints, so most results are dropped.
     let (executed, total, boundaries) =
-        sync_archive_only_fullnode(false, Some(64 * 1024)).await;
+        sync_archive_only_fullnode(false, Some(64 * 1024), None).await;
 
     assert!(
         executed > boundaries as u64,
