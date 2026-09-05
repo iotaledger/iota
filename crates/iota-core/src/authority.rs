@@ -106,7 +106,7 @@ use iota_types::{
     object::{Object, ObjectRead, ObjectSet, PastObjectRead},
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
-        TrackingBackingStore,
+        OwnedObjectCursor, TrackingBackingStore,
     },
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
@@ -3840,10 +3840,10 @@ impl AuthorityState {
         &self,
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> IotaResult<Vec<ObjectInfo>> {
+    ) -> IotaResult<Vec<(ObjectInfo, OwnedObjectCursor)>> {
         let indexes = self.require_jsonrpc_indexes()?;
         indexes.get_owner_objects(
             owner,
@@ -3862,10 +3862,10 @@ impl AuthorityState {
         &self,
         owner: Address,
         // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<ObjectId>,
+        cursor: Option<&OwnedObjectCursor>,
         coin_type: Option<TypeTag>,
         limit: usize,
-    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo)>> {
+    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo, OwnedObjectCursor)>> {
         let indexes = self.require_jsonrpc_indexes()?;
         indexes.get_owned_coins(
             owner,

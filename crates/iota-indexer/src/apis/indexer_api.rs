@@ -10,8 +10,8 @@ use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc,
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
-    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
-    TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
+    OwnedObjectCursor, Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_names::{
     IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
@@ -49,14 +49,20 @@ impl IndexerApi {
         &self,
         address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: usize,
     ) -> RpcResult<ObjectsPage> {
         let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
         let options = options.unwrap_or_default();
         let objects = self
             .inner
-            .get_owned_objects_in_blocking_task(address, filter, cursor, limit + 1)
+            .get_owned_objects_in_blocking_task(
+                address,
+                filter,
+                // Ordered by object id here, so that is all the cursor is read for.
+                cursor.map(|cursor| cursor.object_id()),
+                limit + 1,
+            )
             .await?;
 
         let mut object_futures = vec![];
@@ -79,7 +85,9 @@ impl IndexerApi {
         let has_next_page = objects.len() > limit;
         objects.truncate(limit);
 
-        let next_cursor = objects.last().map(|o_read| o_read.object_id());
+        let next_cursor = objects
+            .last()
+            .map(|o_read| OwnedObjectCursor::from_object_id(o_read.object_id()));
         let construct_response_tasks = objects.into_iter().map(|object| {
             tokio::task::spawn(construct_object_response(
                 object,
@@ -206,7 +214,7 @@ impl IndexerApiServer for IndexerApi {
         &self,
         address: Address,
         query: Option<IotaObjectResponseQuery>,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         let limit = cap_page_limit(limit);
@@ -484,7 +492,7 @@ impl IndexerApiServer for IndexerApi {
     async fn iota_names_find_all_registration_nfts(
         &self,
         address: Address,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {

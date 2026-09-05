@@ -11,7 +11,7 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{TransactionBuilderOpenRpc, TransactionBuilderServer, internal_error};
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
+    IotaTransactionBlockBuilderMode, IotaTypeTag, OwnedObjectCursor, RPCTransactionRequestParams,
     TransactionBlockBytes,
 };
 use iota_open_rpc::Module;
@@ -49,37 +49,47 @@ impl DataReader for AuthorityStateDataReader {
         &self,
         address: Address,
         object_type: StructTag,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
         let limit = limit.unwrap_or(50);
-        let mut result = self
-            .0
-            .get_owner_objects_with_limit(
-                address,
-                cursor,
-                limit + 1,
-                Some(IotaObjectDataFilter::StructType(object_type)),
-            )?
+        // This reader serves the node's own transaction builder, so a cursor
+        // that cannot name a position in the node's index is a bug rather than
+        // a request to refuse.
+        let cursor = cursor
+            .map(|cursor| {
+                cursor
+                    .position()
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("cursor does not name a position in the index"))
+            })
+            .transpose()?;
+        let mut rows = self.0.get_owner_objects_with_limit(
+            address,
+            cursor,
+            limit + 1,
+            Some(IotaObjectDataFilter::StructType(object_type)),
+        )?;
+
+        // Here the cursor is the first row of the next page, read one past the
+        // limit and left out of this one.
+        let next_cursor = (rows.len() > limit)
+            .then(|| rows.pop().map(|(_, cursor)| cursor))
+            .flatten();
+
+        let result = rows
             .into_iter()
-            .map(|info| {
+            .map(|(info, _)| {
                 let read = self.0.get_object_read(&info.object_id)?;
                 IotaObjectResponse::try_from_object_read_and_options(read, &options)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let next_cursor = if result.len() > limit {
-            // Here the cursor is the first object id of the next page
-            result.pop().unwrap().object_id().ok()
-        } else {
-            None
-        };
-
         Ok(iota_json_rpc_types::ObjectsPage {
+            has_next_page: next_cursor.is_some(),
             data: result,
             next_cursor,
-            has_next_page: next_cursor.is_some(),
         })
     }
 

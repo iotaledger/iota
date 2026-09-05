@@ -12,8 +12,8 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Balance, CoinPage, DelegatedStake, IotaCoinMetadata, IotaExecutionStatus,
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange, StakeStatus,
-    TransactionBlockBytes,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    OwnedObjectCursor, StakeStatus, TransactionBlockBytes,
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
@@ -451,6 +451,7 @@ async fn get_all_coins() {
         .with(|node| node.state().get_owned_coins(address, None, None, 100))
         .unwrap();
 
+    let fullnode_coins: Vec<_> = fullnode_coins.into_iter().map(|(coin, _)| coin).collect();
     assert_eq!(rpc_all_coins.data.len(), fullnode_coins.len());
     assert_eq!(fullnode_coins, rpc_all_coins.data);
 }
@@ -496,6 +497,7 @@ async fn get_all_coins_with_multiple_coin_types() {
         .with(|node| node.state().get_owned_coins(address, None, None, 100))
         .unwrap();
 
+    let fullnode_coins: Vec<_> = fullnode_coins.into_iter().map(|(coin, _)| coin).collect();
     assert_eq!(rpc_all_coins.data.len(), fullnode_coins.len());
     assert_eq!(fullnode_coins, rpc_all_coins.data);
 }
@@ -582,19 +584,25 @@ async fn get_all_coins_with_cursor_boundaries() {
 
     assert!(!full_result.data.is_empty());
 
-    let last_coin = full_result.data.last().unwrap();
+    // A cursor names the row it came from, so resuming from the last row of a
+    // full page yields nothing.
     let result: CoinPage = http_client
-        .get_all_coins(address, Some(last_coin.coin_object_id), None)
+        .get_all_coins(address, full_result.next_cursor, None)
         .await
         .unwrap();
     assert!(
         result.data.is_empty(),
-        "should return no coins when cursor is at the last coin"
+        "should return no coins when the cursor is at the last coin"
     );
 
-    let first_coin = full_result.data.first().unwrap();
+    // And resuming from a page of one yields everything after it.
+    let first_page: CoinPage = http_client
+        .get_all_coins(address, None, Some(1))
+        .await
+        .unwrap();
+    assert_eq!(first_page.data.len(), 1);
     let result: CoinPage = http_client
-        .get_all_coins(address, Some(first_coin.coin_object_id), None)
+        .get_all_coins(address, first_page.next_cursor, None)
         .await
         .unwrap();
     assert_eq!(
@@ -604,20 +612,25 @@ async fn get_all_coins_with_cursor_boundaries() {
     );
 }
 
+/// A cursor carries its own position, so one naming an object the node does
+/// not hold is a position like any other rather than an error. Before that,
+/// the position was rebuilt by reading the object, and a coin spent between
+/// two pages failed the second one outright.
 #[sim_test]
-async fn get_all_coins_invalid_cursor() {
+async fn get_all_coins_with_a_cursor_whose_object_is_gone() {
     let cluster = TestClusterBuilder::new().build().await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let invalid_cursor_result = http_client
-        .get_all_coins(address, Some(ObjectId::ZERO), None)
+    let result = http_client
+        .get_all_coins(
+            address,
+            Some(OwnedObjectCursor::from_object_id(ObjectId::ZERO)),
+            None,
+        )
         .await;
 
-    assert!(
-        invalid_cursor_result.is_err(),
-        "should error with invalid cursor"
-    );
+    assert!(result.is_ok(), "{result:?}");
 }
 
 // This test case depends om the test execution model. The test pass when all

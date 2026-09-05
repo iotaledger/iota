@@ -469,7 +469,10 @@ impl TestCaseImpl for CoinIndexTest {
             iota_coins.len() + 1
         );
         assert_eq!(
-            iota_coins_with_managed_coin_1.next_cursor,
+            iota_coins_with_managed_coin_1
+                .next_cursor
+                .as_ref()
+                .map(|cursor| cursor.object_id()),
             Some(first_managed_coin)
         );
         assert!(iota_coins_with_managed_coin_1.has_next_page);

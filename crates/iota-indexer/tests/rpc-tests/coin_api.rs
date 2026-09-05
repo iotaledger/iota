@@ -11,7 +11,7 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter,
     IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
+    IotaTransactionBlockResponseOptions, IotaTypeTag, OwnedObjectCursor, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
@@ -116,15 +116,24 @@ fn get_coins_with_cursor() {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         let (owner, _, _) = get_or_init_addr_and_custom_coins(cluster, client).await;
-        let all_coins = cluster
+        // Taken from a full node page rather than built from an object id. The
+        // full node's cursor names a position in an index ordered by type and
+        // balance, and the indexer reads the object id out of it, which is all
+        // its own index needs — so one cursor serves both. A cursor the indexer
+        // issues names only an object, which the full node cannot place.
+        let first_page = cluster
             .rpc_client()
-            .get_coins(*owner, None, None, None)
+            .get_coins(*owner, None, None, Some(3))
             .await
             .unwrap();
-        let cursor = all_coins.data[3].coin_object_id; // get some coin from the middle
+        assert!(
+            first_page.next_cursor.is_some(),
+            "the page must name where it stopped"
+        );
 
         let (result_fullnode, result_indexer) =
-            get_coins_fullnode_indexer(cluster, client, *owner, None, Some(cursor), None).await;
+            get_coins_fullnode_indexer(cluster, client, *owner, None, first_page.next_cursor, None)
+                .await;
 
         assert!(!result_indexer.data.is_empty());
         assert_eq!(result_fullnode, result_indexer);
@@ -223,11 +232,10 @@ fn get_all_coins_with_cursor() {
 
         let first_page_results = client.get_all_coins(*owner, None, Some(4)).await.unwrap();
         assert!(first_page_results.has_next_page);
-        let second_page_results: iota_json_rpc_types::Page<iota_json_rpc_types::Coin, ObjectId> =
-            client
-                .get_all_coins(*owner, first_page_results.next_cursor, Some(4))
-                .await
-                .unwrap();
+        let second_page_results: iota_json_rpc_types::CoinPage = client
+            .get_all_coins(*owner, first_page_results.next_cursor, Some(4))
+            .await
+            .unwrap();
         assert!(!second_page_results.has_next_page);
 
         let merged_page_contents: Vec<_> = first_page_results
@@ -668,7 +676,7 @@ async fn get_coins_fullnode_indexer(
     client: &HttpClient,
     owner: Address,
     coin_type: Option<String>,
-    cursor: Option<ObjectId>,
+    cursor: Option<OwnedObjectCursor>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
     let result_fullnode = cluster
@@ -687,7 +695,7 @@ async fn get_all_coins_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     owner: Address,
-    cursor: Option<ObjectId>,
+    cursor: Option<OwnedObjectCursor>,
     limit: Option<usize>,
 ) -> (CoinPage, CoinPage) {
     let result_fullnode = cluster
