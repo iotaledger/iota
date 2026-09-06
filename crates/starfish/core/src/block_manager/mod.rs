@@ -30,7 +30,6 @@ use crate::{
     block_manager::block_suspender::BlockSuspender,
     context::Context,
     dag_state::{DagState, DataSource},
-    error::ConsensusError,
 };
 
 /// Combine headers accepted via the regular path with headers unsuspended by
@@ -605,7 +604,7 @@ impl BlockManager {
     /// peer-controlled sources are filtered, the rest pass through unchanged.
     ///
     /// A drop means two headers of one slot passed signature verification, so
-    /// the author is charged a provable fault.
+    /// the slot is flagged as an equivocation by its author.
     fn drop_over_slot_cap<T>(
         &self,
         items: Vec<T>,
@@ -648,17 +647,7 @@ impl BlockManager {
                             source.as_str(),
                         ])
                         .inc();
-                    // No relaying peer is known at this level; passing the
-                    // author as the peer leaves the author's provable fault as
-                    // the only charge.
-                    misbehavior_store.record_faulty_block(
-                        block_ref.author,
-                        block_ref.author,
-                        &ConsensusError::BlockHeaderEquivocation {
-                            authority: block_ref.author,
-                            round: block_ref.round,
-                        },
-                    );
+                    misbehavior_store.record_equivocating_slot(block_ref.author, block_ref.round);
                 }
                 admit
             })
@@ -1799,18 +1788,26 @@ mod tests {
         );
         assert_eq!(slot_cap_drops(DataSource::BlockBundleStream), 1);
         assert_eq!(
+            misbehavior_store.equivocating_rounds(AuthorityIndex::new_for_test(1)),
+            vec![50],
+            "two verified headers for one slot flag the slot as equivocating"
+        );
+        assert_eq!(
             faults(1),
-            (1, 0),
-            "two verified headers for one slot are the author's provable fault, \
-             and no relaying peer is charged for it"
+            (0, 0),
+            "an equivocation is not charged as a block fault"
         );
 
-        // A repeat of the suspended header is neither a drop nor a fault.
+        // A repeat of the suspended header is neither a drop nor an
+        // equivocation.
         let (accepted, _) =
             block_manager.try_accept_block_headers(vec![first], DataSource::BlockStreaming);
         assert!(accepted.is_empty());
         assert_eq!(slot_cap_drops(DataSource::BlockStreaming), 0);
-        assert_eq!(faults(1), (1, 0));
+        assert_eq!(
+            misbehavior_store.equivocating_rounds(AuthorityIndex::new_for_test(1)),
+            vec![50]
+        );
 
         // Same-batch case at a fresh slot: two different digests in one call,
         // only the first survives.
@@ -1832,8 +1829,17 @@ mod tests {
                 .contains(&batch_second.reference())
         );
         assert_eq!(slot_cap_drops(DataSource::BlockBundleStream), 2);
-        assert_eq!(faults(1), (2, 0));
-        assert_eq!(faults(0), (0, 0), "only the equivocating author is charged");
+        assert_eq!(
+            misbehavior_store.equivocating_rounds(AuthorityIndex::new_for_test(1)),
+            vec![50, 60]
+        );
+        assert_eq!(faults(1), (0, 0));
+        assert!(
+            misbehavior_store
+                .equivocating_rounds(AuthorityIndex::new_for_test(0))
+                .is_empty(),
+            "only the equivocating author is flagged"
+        );
     }
 
     /// A header the cap dropped is still accepted when it arrives from an
