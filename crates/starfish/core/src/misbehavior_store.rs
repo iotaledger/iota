@@ -296,10 +296,12 @@ enum FaultType {
     /// Block has a valid author signature but violates protocol rules.
     /// The signed block header itself is proof of misbehavior.
     Provable,
-    /// Can't prove authorship — either because the signature is bad or
-    /// missing, or because the header is rejected by a pre-signature check
-    /// (epoch / genesis / author-vs-peer mismatch) so its `author` field
-    /// can't be trusted. Charged to the sending peer, not the claimed author.
+    /// Can't prove the fault from the signed data — either because the
+    /// signature is bad or missing, or because the header is rejected by a
+    /// pre-signature check (epoch / genesis / author-vs-peer mismatch) so its
+    /// `author` field can't be trusted, or because the fault is in how the
+    /// peer sent the block (stream order) rather than in the block itself.
+    /// Charged to the sending peer, not the claimed author.
     Unprovable,
     /// Relayed bundle part (framing, metadata, or shard) that is corrupt,
     /// invalid, or one the peer had no right to relay, and isn't tied to a
@@ -314,7 +316,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
     // fault type here rather than silently falling through to `Untracked`.
     match error {
         // Pre-signature / parsing errors — the header's author field can't
-        // be trusted, so charge the sender, not the claimed author.
+        // be trusted, so charge the sender, not the claimed author. A streamed
+        // block that repeats or lowers the peer's own round is charged the
+        // same way: the signed header proves authorship, not the send order.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -328,7 +332,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SerializedTransactionsTooLarge { .. }
         | ConsensusError::TransactionCommitmentFailure { .. }
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
-        | ConsensusError::TooManyFetchedHeadersReturned { .. } => FaultType::Unprovable,
+        | ConsensusError::TooManyFetchedHeadersReturned { .. }
+        | ConsensusError::StreamedBlockRoundNotIncreasing { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had
@@ -1149,6 +1154,11 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 requested: 2,
                 received: 3,
+            },
+            ConsensusError::StreamedBlockRoundNotIncreasing {
+                peer: AuthorityIndex::new_for_test(0),
+                round: 4,
+                last_round: 5,
             },
         ];
         for e in cases {
