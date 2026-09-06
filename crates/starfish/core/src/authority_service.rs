@@ -64,10 +64,8 @@ fn filtered_header_info(header: &VerifiedBlockHeader) -> FilteredHeaderInfo {
     (header.author(), header.round(), header.timestamp_ms())
 }
 
-/// Digests of the block headers received over the block streams, bounded to
-/// the most recent `MAX_FILTER_SIZE`. The authority service inserts on
-/// delivery; the header synchronizer reads it to skip fetching headers that
-/// have already arrived.
+/// Digests of the most recently received block headers, used to drop headers
+/// delivered more than once and to skip fetching headers that already arrived.
 pub(crate) struct FilterForHeaders {
     header_digests: DashMap<BlockHeaderDigest, FilteredHeaderInfo>,
     queue: Mutex<VecDeque<BlockHeaderDigest>>,
