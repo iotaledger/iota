@@ -255,6 +255,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_fetch_block_headers_scheduler_skipped: IntCounterVec,
     pub(crate) synchronizer_fetched_block_headers_by_peer: IntCounterVec,
     pub(crate) synchronizer_skipped_block_headers_by_peer: IntCounterVec,
+    pub(crate) synchronizer_live_block_headers_resolved_before_fetch: IntCounter,
+    pub(crate) synchronizer_live_fetches_skipped: IntCounter,
     pub(crate) synchronizer_requested_block_headers_by_peer: IntCounterVec,
     pub(crate) synchronizer_missing_block_headers_by_authority: IntCounterVec,
     pub(crate) synchronizer_current_missing_block_headers_by_authority: IntGaugeVec,
@@ -770,6 +772,18 @@ impl NodeMetrics {
                 "Number of fetched block headers whose signature verification was skipped as already verified, per peer and sync method",
                 &["peer", "method"],
                 registry,
+            ).unwrap(),
+            synchronizer_live_block_headers_resolved_before_fetch: register_int_counter_with_registry!(
+                "synchronizer_live_block_headers_resolved_before_fetch",
+                "Number of missing block headers the live synchronizer no longer had to fetch because they arrived while it waited",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            synchronizer_live_fetches_skipped: register_int_counter_with_registry!(
+                "synchronizer_live_fetches_skipped",
+                "Number of live synchronizer requests dropped before being sent because every missing block header arrived while it waited",
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             cordial_knowledge_useful_shards_authors: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_useful_shards_authors",
