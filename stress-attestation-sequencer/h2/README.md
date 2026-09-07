@@ -36,10 +36,10 @@ SLOW_N=100 SLOW_SIZE=100 ./probe.sh
 ```
 
 Each invocation prints the per-transaction result and appends a row to
-`results/calibration-<machine>.csv`. `<machine>` is a label of the CPU model
-of the machine it ran on (for example, `ryzen-9-9950x3d` or `epyc-9454p`),
-so sweeps from different machines do not collide and the analysis scripts can
-distinguish them:
+`results/probe/calibration-<machine>.csv`. `<machine>` is a label of the CPU
+model of the machine it ran on (for example, `ryzen-9-9950x3d` or
+`epyc-9454p`), so sweeps from different machines do not collide and the
+analysis scripts can distinguish them:
 
 ```text
 start_epoch, slow_n, slow_size, product, shared, qps, duration, n_samples,
@@ -201,11 +201,12 @@ Two constraints pin the usable weights to 10-40% for the expensive level:
 Each mixed cell's control is the `cu` cell of the same mean cost, already run:
 same mean cost, same mean admitted work, uniform against spread.
 
-Results follow the H1 layout: `results/<LABEL>/iter-NNN/`, one config per
-label, enforced by the same config gate (`../exp_dir.py`):
+Results follow the H1 layout: `results/matrix/<LABEL>/iter-NNN/`, one config
+per label, enforced by the same config gate (`../exp_dir.py`). The probe's own
+outputs are kept apart, under `results/probe/`:
 
 ```text
-results/<LABEL>/
+results/matrix/<LABEL>/
     config.json                    # canonical inputs; rejects a changed config
     iter-001/
         run-a-timeseries.json      run-b-timeseries.json
@@ -225,16 +226,18 @@ results/<LABEL>/
 - `matrix.sh` — runs `run.sh` over the config grid, one iteration of every
   config per round, `ITERS` rounds, with one log per config under `logs/`.
 - `aggregate.py` — pools every label's iterations into one A-vs-B table per
-  mode pair (`results/summary.md`): success tps (executed − cancelled −
+  mode pair (`results/matrix/summary.md`): success tps (executed − cancelled −
   commits, the user transactions that did real work), the finalized
   checkpoint-inclusion rate, cancelled rate, checkpoint lag (the exact
   histogram mean and the exact share over 30s, plus the pooled p95),
   skipped leader rounds, and the safety verdict (counters +
   validator crash scan). The same rows land as scalars in
-  `results/summary.csv` for `plot.py`. Standard library only; the machinery
+  `results/matrix/summary.csv` for `plot.py`. Standard library only; the
+  machinery
   shared with `../h1/aggregate.py` lives in `../aggregate.py`.
 - `plot.py` — renders the mode-comparison figures from `summary.csv` into
-  `results/summary_plots/`: checkpoint lag and cancelled fraction against the
+  `results/matrix/summary_plots/`: checkpoint lag and cancelled fraction
+  against the
   admitted rate (tx/commit × commits/s, with Run A as one vertical line),
   annotated per-cell heatmaps of the same scalars, the throughput-vs-lag
   tradeoff, and lag against admitted/drain utilization.
@@ -250,7 +253,7 @@ results/<LABEL>/
   what the execution-time ratio is. Standard library only, and it writes no
   files.
 - `plot_calibration.py` — renders the calibration figures into
-  `results/summary_plots/`. Needs matplotlib, so run it from a `venv` such as
+  `results/probe/`. Needs matplotlib, so run it from a `venv` such as
   `../h1/.venv`.
 
 The results so far are written up in `probe-test.md`.

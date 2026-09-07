@@ -2,7 +2,7 @@
 #
 # matrix.sh — sweep Run B's per-object computation-unit limit against a fixed
 # TotalTxCount reference, ITERS iterations each, as labeled experiments under
-# results/<LABEL>/.
+# results/matrix/<LABEL>/.
 #
 # Adapted from ../h1/matrix.sh.
 #
@@ -328,7 +328,7 @@ for ((round = 1; round <= ITERS; round++)); do
     # Compress the node logs this iteration captured (gzip ≈10:1) so a long
     # campaign does not fill the disk. _state.log/_crash.log stay uncompressed —
     # the crash scan reads them; the analysis tooling never reads node logs.
-    sudo find "$SCRIPT_DIR/results/$label" -path '*node-logs/*.log' \
+    sudo find "$SCRIPT_DIR/results/matrix/$label" -path '*node-logs/*.log' \
       ! -name '_state.log' ! -name '_crash.log' -exec "$GZIP_BIN" -f {} + 2>/dev/null
   done
 done
@@ -336,5 +336,5 @@ done
 mins=$((($(date +%s) - start) / 60))
 echo
 echo "matrix complete: $ok ok, $fail failed (of $n) in ${mins}m"
-echo "results -> results/<LABEL>/iter-NNN/  (run-a/run-b timeseries JSON + client reports)"
-echo "aggregate: python3 aggregate.py results   (writes results/summary.md)"
+echo "results -> results/matrix/<LABEL>/iter-NNN/  (run-a/run-b timeseries JSON + client reports)"
+echo "aggregate: python3 aggregate.py results/matrix   (writes results/matrix/summary.md)"

@@ -7,10 +7,10 @@
 # TotalComputationUnits schedules on — plus actual, metered at post-consensus
 # execution; for owned-object txs the two should match) and the internal
 # execution time (mean ± sem, plus std). Repeated invocations sweep the
-# (n, size) space and accumulate results/calibration-<machine>.csv, from which
-# the (n, size) settings and per-object limits for the H2 mode comparison get
-# picked. The probe runs the owned slow variant (W4 in ../stress-plan.md); the
-# mode comparison runs the shared variant (W5).
+# (n, size) space and accumulate results/probe/calibration-<machine>.csv,
+# from which the (n, size) settings and per-object limits for the H2 mode
+# comparison get picked. The probe runs the owned slow variant (W4 in
+# ../stress-plan.md); the mode comparison runs the shared variant (W5).
 #
 # Unlike ../h1/run.sh this does NOT do an A/B two-run flow and does NOT wipe or
 # re-bootstrap between invocations: it reuses a running network so a sweep is
@@ -150,7 +150,11 @@ cpu_slug() {
 }
 MACHINE="${MACHINE:-$(cpu_slug)}"
 MACHINE="${MACHINE:-unknown}"
-CSV_OUT="$SCRIPT_DIR/results/calibration-$MACHINE.csv"
+# Everything the probe writes lives under results/probe/, kept apart from the
+# mode comparison's per-label directories in results/matrix/.
+PROBE_DIR="$SCRIPT_DIR/results/probe"
+mkdir -p "$PROBE_DIR"
+CSV_OUT="$PROBE_DIR/calibration-$MACHINE.csv"
 
 # slow::slow(n, size) workload weights (same mapping as ../h1/run.sh).
 WORKLOAD_ARGS=(--transfer-object 0 --slow 100 --slow-n "$SLOW_N" --slow-size "$SLOW_SIZE" --slow-shared "$SLOW_SHARED")
@@ -367,7 +371,7 @@ ensure_network
 banner ">>> probe: slow(n=$SLOW_N, size=$SLOW_SIZE) product=$PRODUCT shared=$SLOW_SHARED qps=$QPS dur=$DURATION path=$([[ "$DIRECT" == true ]] && echo direct-docker || echo fullnode-host)"
 wait_for_fullnode
 wait_for_first_scrape
-STRESS_LOG="$SCRIPT_DIR/results/probe-last-stress.log"
+STRESS_LOG="$PROBE_DIR/probe-last-stress.log"
 mkdir -p "$SCRIPT_DIR/results"
 
 start=$(date +%s)

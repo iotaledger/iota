@@ -2,7 +2,7 @@
 """plot_calibration.py — H2 calibration figures.
 
 Reads the two calibration CSVs (EPYC + WS) and renders, into
-results/summary_plots/:
+results/probe/:
   - cu_exec_vs_product.png : how CUs and internal exec time rise with the
     workload product n*size (log-log). CUs are machine-independent (one curve);
     exec time is per-machine.
@@ -27,7 +27,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUTDIR = os.path.join(HERE, "results", "summary_plots")
+OUTDIR = os.path.join(HERE, "results", "probe")
 COLORS = ["tab:red", "tab:blue", "tab:green", "tab:purple", "tab:orange"]
 
 
@@ -57,16 +57,17 @@ def col(rows, key, f=float):
     return [f(r[key]) for r in rows]
 
 
-# Discover every machine's sweep: results/calibration-<cpu-slug>.csv, one per
-# machine (probe.sh names it from the CPU it ran on). Nothing hardcoded.
+# Discover every machine's sweep: results/probe/calibration-<cpu-slug>.csv,
+# one per machine (probe.sh names it from the CPU it ran on). Nothing
+# hardcoded.
 data = []
 for i, path in enumerate(
-    sorted(glob.glob(os.path.join(HERE, "results", "calibration-*.csv")))
+    sorted(glob.glob(os.path.join(HERE, "results", "probe", "calibration-*.csv")))
 ):
     rows = load(path)
     data.append((label_from(path), COLORS[i % len(COLORS)], ladder(rows), split(rows)))
 if not data:
-    raise SystemExit("no calibration-*.csv found in results/")
+    raise SystemExit("no calibration-*.csv found in results/probe/")
 
 os.makedirs(OUTDIR, exist_ok=True)
 

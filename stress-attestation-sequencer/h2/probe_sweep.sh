@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # probe_sweep.sh — run probe.sh over the H2 calibration grid, accumulating
-# results/calibration-<machine>.csv. Tears down any leftover network first
+# results/probe/calibration-<machine>.csv. Tears down any leftover network first
 # (a previous failed run may have leaked one, still churning its backlog),
 # brings a fresh one up on the first probe, REUSES it for all points, and
 # tears everything down at the end regardless of point failures (WIPE=no
@@ -131,7 +131,7 @@ fi
 
 echo
 # The CSV name carries probe.sh's CPU slug; report the file it actually wrote.
-csv="$(ls -t "$SCRIPT_DIR/results"/calibration-*.csv 2>/dev/null | head -1)"
+csv="$(ls -t "$SCRIPT_DIR/results/probe"/calibration-*.csv 2>/dev/null | head -1)"
 if [[ -n "$csv" ]]; then
   echo "sweep complete -> ${csv#"$SCRIPT_DIR"/}"
 else
@@ -140,8 +140,8 @@ fi
 
 # Recompute the markdown tables and redraw the figures from the fresh CSV.
 # Tables are pure stdlib; figures need a matplotlib venv (reuse ../h1/.venv).
-# REGEN=no skips this — the regen globs every results/calibration-*.csv and
-# overwrites the shared calibration-tables.md + figures, so a throwaway/test
+# REGEN=no skips this — the regen globs every results/probe/calibration-*.csv
+# and overwrites the shared calibration-tables.md + figures, so a throwaway
 # sweep (distinct MACHINE slug) should skip it to leave the real ones untouched.
 if [[ "${REGEN:-yes}" == no || "${REGEN:-yes}" == n ]]; then
   echo

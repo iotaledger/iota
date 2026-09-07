@@ -3,8 +3,13 @@
 .venv*/
 __pycache__/
 results/*
-!results/summary_plots/
-results/summary_plots/*
-!results/summary_plots/*.png
+!results/matrix/
+results/matrix/*
+!results/matrix/summary_plots/
+results/matrix/summary_plots/*
+!results/matrix/summary_plots/*.png
+!results/probe/
+results/probe/*
+!results/probe/*.png
 logs/
 nohup.out

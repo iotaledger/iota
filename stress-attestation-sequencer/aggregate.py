@@ -204,7 +204,7 @@ def crash_incidents(results_dir, run_dirs):
         for sp in sorted(
             glob.glob(os.path.join(results_dir, "*", subdir, "_state.log"))
         ):
-            itr = sp.split(os.sep)[-3]  # results/<LABEL>/<iter-NNN>/<subdir>/_state.log
+            itr = sp.split(os.sep)[-3]  # <results>/<LABEL>/<iter-NNN>/<subdir>/_state.log
             try:
                 lines = open(sp).read().splitlines()
             except Exception as e:  # noqa: BLE001

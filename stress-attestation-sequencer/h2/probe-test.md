@@ -169,7 +169,7 @@ execution times within about 4 % on both machines. So `n × size` sets the cost,
 with more vectors at the same product costing marginally more. The product alone
 is therefore enough to describe the workload's cost.
 
-![CUs and execution time vs product](results/summary_plots/cu_exec_vs_product.png)
+![CUs and execution time vs product](results/probe/cu_exec_vs_product.png)
 
 *Top: computation units vs product — one curve, since CUs are
 machine-independent; the square markers are the product-40000 splits, which
@@ -225,7 +225,7 @@ than flat:
 At the ceiling, both machines are flat: WS ≈150–156 ms, EPYC ≈283–288 ms across
 all five plateau points.
 
-![Execution time vs CUs](results/summary_plots/exec_vs_cu.png)
+![Execution time vs CUs](results/probe/exec_vs_cu.png)
 
 *Internal execution time vs computation units, per machine. The vertical
 cluster at CU = 1,000 is the gas-rounding floor: execution time still rises

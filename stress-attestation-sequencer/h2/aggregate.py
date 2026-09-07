@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Aggregate H2 raw timeseries into a mode-A-vs-mode-B summary table.
 
-One row per experiment label (results/<LABEL>/, one config each), pooling its
+One row per experiment label (results/matrix/<LABEL>/, one config each),
+pooling its
 iter-NNN/ iterations: Run A (MODE_A, LIMIT_A) against Run B (MODE_B, LIMIT_B)
 on the same load. Labels whose runs used different mode pairs (e.g. a swap
 test) are grouped into separate tables.

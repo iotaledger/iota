@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # run.sh — run the H2 mode comparison (TotalTxCount vs TotalComputationUnits)
-# ITERS times. LABEL is required and names results/<LABEL>/; every iteration of a
-# label accumulates under it, gated by config.json (see ../exp_dir.py). Each
-# iteration:
+# ITERS times. LABEL is required and names results/matrix/<LABEL>/; every
+# iteration of a label accumulates under it, gated by config.json (see
+# ../exp_dir.py). Each iteration:
 #   1. cleanup    tear down anything already running
 #   2. bootstrap  -b, regenerate genesis with benchmark gas accounts
 #   3. Run A — MODE_A (default TotalTxCount), LIMIT_A / OVERSHOOT_A
@@ -131,7 +131,7 @@ PRE_SPAM_WAIT_S="${PRE_SPAM_WAIT_S:-0}"           # let the network settle this 
 PRE_STOP_WAIT_S="${PRE_STOP_WAIT_S:-5}"           # keep the network up this long after scraping, before stopping it
 PROM="${PROM:-http://localhost:9090}"
 TS_STEP="${TS_STEP:-1}" # query_range step (s) for the per-run raw timeseries dump
-ITERS="${ITERS:-1}"     # how many times to run the whole experiment; each adds one iter-NNN to results/<LABEL>/
+ITERS="${ITERS:-1}"     # how many times to run the whole experiment; each adds one iter-NNN to results/matrix/<LABEL>/
 PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
 # iota-benchmark moved to the sibling repo `network-benchmark` (one level up
 # from the iota repo root). Override the repo dir with BENCH_REPO, or point
@@ -178,16 +178,18 @@ _slow_mix_cfg=()
 
 # --- Experiment label + config-gated results directory --------------------
 # LABEL names the EXPERIMENT (one config). Every run.sh iteration for the same
-# LABEL accumulates under results/<LABEL>/iter-NNN/. config.json — written once when
-# the label is created — is the contract: a later run with the SAME label but
-# DIFFERENT inputs is REJECTED, so a pool can never go mixed. Same-config re-runs
-# just append the next iteration.
-: "${LABEL:?set LABEL=<experiment-name> — names results/<LABEL>/ (required)}"
+# LABEL accumulates under results/matrix/<LABEL>/iter-NNN/. config.json —
+# written once when the label is created — is the contract: a later run with
+# the SAME label but DIFFERENT inputs is REJECTED, so a pool can never go
+# mixed. Same-config re-runs just append the next iteration.
+: "${LABEL:?set LABEL=<experiment-name> — names results/matrix/<LABEL>/ (required)}"
 if [[ ! "$LABEL" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "${RED}ERROR: LABEL='$LABEL' must match [A-Za-z0-9._-]+ (it is used as a dir name).${RESET}" >&2
   exit 1
 fi
-EXP_DIR="$SCRIPT_DIR/results/$LABEL"
+# The mode comparison's per-label dirs live under results/matrix/, kept apart
+# from the probe's own outputs in results/probe/.
+EXP_DIR="$SCRIPT_DIR/results/matrix/$LABEL"
 
 # Allocate the next config-gated iteration dir. exp_dir.py writes/validates
 # config.json and prints the next iter-NNN; on a config mismatch it prints a diff
