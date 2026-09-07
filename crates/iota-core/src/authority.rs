@@ -83,7 +83,7 @@ use iota_types::{
     fp_ensure,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
-    gas_model::resource_profile::ResourceProfile,
+    gas_model::{gas_vector, resource_profile::ResourceProfile},
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TxCoins, WrittenObjects,
     },
@@ -1301,9 +1301,11 @@ impl AuthorityState {
 
         // Capture the `InnerTemporaryStore` from the dry-run: its object maps are the
         // source of truth for the input versions the attestor observed.
-        let (inner_temp_store, effects, authentication_failed) = if move_authenticators.is_empty() {
+        let (inner_temp_store, gas_status, effects, authentication_failed) = if move_authenticators
+            .is_empty()
+        {
             // No Move authentication, execute directly.
-            let (inner_temp_store, _, effects, _, _) =
+            let (inner_temp_store, gas_status, effects, _, _) =
                 epoch_store.executor().execute_transaction_to_effects(
                     backing_store.as_ref(),
                     protocol_config,
@@ -1321,7 +1323,7 @@ impl AuthorityState {
                     &mut None,
                 );
             // This branch has no Move authentication, so it can never fail auth.
-            (inner_temp_store, effects, false)
+            (inner_temp_store, gas_status, effects, false)
         } else {
             // Recover the `AuthenticatorFunctionRefForExecution` for each authenticator and
             // run auth + execution in one pass.
@@ -1384,7 +1386,7 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            let (inner_temp_store, _, effects, _, _, authentication_failed) = epoch_store
+            let (inner_temp_store, gas_status, effects, _, _, authentication_failed) = epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
                     backing_store.as_ref(),
@@ -1404,7 +1406,7 @@ impl AuthorityState {
                     auth_context_data,
                     &mut None,
                 );
-            (inner_temp_store, effects, authentication_failed)
+            (inner_temp_store, gas_status, effects, authentication_failed)
         };
 
         // Refuse to attest a transaction when its Move authentication did not succeed.
@@ -1419,13 +1421,12 @@ impl AuthorityState {
         }
 
         // Step 7: build AttestationData.
-        // The producer stays on V1 until the calibrated coefficient table
-        // ships in the protocol config: `AttestationData::V2`'s `cpu_time`
-        // is the dry-run's resource profile priced by those coefficients,
-        // and attesting a placeholder price would be worse than attesting
-        // units. Switch-on requires `attestation_gas_vector` AND the
-        // constants; acceptance is already implemented in
-        // post-consensus validation.
+        // The gas vector (`AttestationData::V2`) is attested when the
+        // `attestation_gas_vector` flag is on and the calibrated coefficient
+        // table can price the dry-run's resource profile; otherwise — flag
+        // off, no table in this version, or an unpriceable profile (a native
+        // function the table does not list, arithmetic overflow) — the
+        // attestation stays on V1. V1's `computation_units`:
         // `gas_cost_summary().computation_cost` is in NANOS; convert to gas
         // units (`computation_units = computation_cost / gas_price`) so the
         // attestation is independent of the gas price the user chose.
@@ -1473,13 +1474,24 @@ impl AuthorityState {
             .filter(|oref| !tx_pinned_ids.contains(&oref.object_id))
             .collect();
 
-        Ok((
-            AttestationData::V1 {
+        let gas_vector = if protocol_config.attestation_gas_vector() {
+            gas_vector::declared_gas_vector(&gas_status.resource_profile(), protocol_config)
+        } else {
+            None
+        };
+        let payload = match gas_vector {
+            Some((cpu_time, moved_bytes, write_bytes)) => AttestationData::V2 {
+                cpu_time,
+                moved_bytes,
+                write_bytes,
+                object_versions,
+            },
+            None => AttestationData::V1 {
                 computation_units,
                 object_versions,
             },
-            owned_objects,
-        ))
+        };
+        Ok((payload, owned_objects))
     }
 
     /// This is a private method and should be kept that way. It doesn't check
