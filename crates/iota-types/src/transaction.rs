@@ -924,13 +924,24 @@ impl TransactionKindExt for TransactionKind {
             TransactionKind::RandomnessStateUpdate(_) => (),
             TransactionKind::ClaimAccount(claim) => {
                 fp_ensure!(
-                    config.enable_claim_registry(),
+                    config.enable_claim_account_transaction(),
                     UserInputError::Unsupported(
-                        "claim account transactions require the claim registry feature".to_string()
+                        "claim account transactions are not enabled on this network".to_string()
                     )
                 );
                 match &claim.kind {
                     AccountClaimKind::SmartAccount(smart) => {
+                        // A smart account is authenticated by the built-in authenticator
+                        // for its key's scheme, so without them the claim would create an
+                        // account that can never authenticate a transaction — and an
+                        // address can only be claimed once.
+                        fp_ensure!(
+                            config.enable_builtin_move_authenticators(),
+                            UserInputError::Unsupported(
+                                "smart account claims require built-in Move authenticators"
+                                    .to_string()
+                            )
+                        );
                         // The claim carries the key as raw bytes and execution
                         // builds the Move `PublicKey` from them without going
                         // through `public_key::create`, so apply that

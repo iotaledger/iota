@@ -15,6 +15,7 @@
 module iota::claim_registry;
 
 use iota::dynamic_field as df;
+use iota::protocol_config;
 use iota::public_key::PublicKey;
 
 // === Errors ===
@@ -28,6 +29,10 @@ const EAlreadyClaimed: vector<u8> = b"This address has already been claimed.";
 
 #[error(code = 2)]
 const ENotSystemAddress: vector<u8> = b"ClaimRegistry can only be created in a system transaction.";
+
+#[error(code = 3)]
+const EClaimAccountTransactionNotEnabled: vector<u8> =
+    b"The ClaimAccount transaction kind is not enabled in the protocol config.";
 
 // === Structs ===
 
@@ -77,11 +82,16 @@ public(package) fun claim(
 /// Double-claim prevention is not enforced here: the caller is responsible for
 /// ensuring an address is claimed at most once.
 ///
-/// Aborts with `EAddressMismatch` if `public_key` does not derive to the
-/// sender.
+/// Aborts with `EClaimAccountTransactionNotEnabled` if the
+/// `enable_claim_account_transaction` feature flag is disabled, or with
+/// `EAddressMismatch` if `public_key` does not derive to the sender.
 ///
 /// `public(package)` — only callable from within the iota-framework package.
 public(package) fun claim_address(public_key: PublicKey, ctx: &TxContext): UID {
+    assert!(
+        protocol_config::is_feature_enabled(b"enable_claim_account_transaction"),
+        EClaimAccountTransactionNotEnabled,
+    );
     let derived_addr = public_key.to_iota_address();
     assert!(derived_addr == ctx.sender(), EAddressMismatch);
     object::new_uid_from_hash(derived_addr)

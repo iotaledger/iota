@@ -269,11 +269,118 @@ async fn test_claim_account_immutable_succeeds() {
     );
 }
 
-/// Verify that a `ClaimAccountTransaction` is rejected at validity-check time
-/// when `enable_claim_registry` is disabled.
+/// Pins the current, incorrect behaviour of claiming an address twice: the
+/// second `ClaimAccount` succeeds and re-creates the account object under the
+/// same id with a bumped version, even though that object was never a
+/// transaction input.
+///
+/// `claim_registry::claim_address` leaves double-claim prevention to its caller
+/// and `smart_account::claim_builder` does not implement it, so nothing rejects
+/// the second claim. Once prevention lands, both pins below have to flip: the
+/// second claim must fail, and the account object must keep the version the
+/// first claim gave it.
 #[cfg(msim)]
 #[sim_test]
-async fn test_claim_account_rejected_when_registry_disabled() {
+async fn test_claim_account_twice_is_not_yet_prevented() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+    };
+    use iota_types::{
+        crypto::IotaKeyPair,
+        transaction::{
+            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
+        },
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(20000)
+        .build()
+        .await;
+
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+
+    let keypair: IotaKeyPair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let mut claimed = Vec::new();
+
+    for attempt in 1..=2 {
+        let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
+        let claim = SmartAccountClaim {
+            public_key_scheme,
+            public_key_raw_bytes,
+            build_kind: SmartAccountBuildKind::Immutable,
+        };
+        let tx_data = TransactionData::new(
+            TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+            owner,
+            first_gas_coin(&test_cluster.wallet, owner).await,
+            rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+            rgp,
+        );
+        let response = test_cluster.sign_and_execute_transaction(&tx_data).await;
+        let effects = response.effects.expect("response must include effects");
+
+        assert!(
+            effects.status().is_ok(),
+            "claim attempt {attempt} was expected to be accepted today; got {:?}",
+            effects.status(),
+        );
+
+        let object_changes = response
+            .object_changes
+            .expect("response must include object changes");
+        let (account_id, _) = created_smart_accounts(&object_changes)
+            .into_iter()
+            .next()
+            .expect("the claim must create a SmartAccount");
+        let version = effects
+            .created()
+            .iter()
+            .find(|o| o.reference.object_id == account_id)
+            .map(|o| o.reference.version)
+            .expect("the SmartAccount must be reported as created");
+        claimed.push((account_id, version));
+    }
+
+    let (first_id, first_version) = claimed[0];
+    let (second_id, second_version) = claimed[1];
+
+    assert_eq!(
+        first_id, second_id,
+        "both claims derive the account id from the sender address",
+    );
+    assert!(
+        second_version > first_version,
+        "the immutable account object was expected to be overwritten today; got \
+         {second_version:?} after {first_version:?}",
+    );
+}
+
+/// Verify that a `ClaimAccountTransaction` is rejected at validity-check time
+/// when `enable_claim_account_transaction` is disabled.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_account_rejected_when_disabled() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_protocol_config::ProtocolConfig;
@@ -290,7 +397,106 @@ async fn test_claim_account_rejected_when_registry_disabled() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_claim_registry_for_testing(false);
+        config.set_enable_claim_account_transaction_for_testing(false);
+        config
+    });
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+
+    let keypair: IotaKeyPair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+
+    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
+    let claim = SmartAccountClaim {
+        public_key_scheme,
+        public_key_raw_bytes,
+        build_kind: SmartAccountBuildKind::Mutable,
+    };
+    let kind =
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
+
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let tx_data = TransactionData::new(
+        kind,
+        owner,
+        first_gas_coin(&test_cluster.wallet, owner).await,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    );
+
+    // The transaction must be rejected before execution
+    // (UserInputError::Unsupported).
+    let result = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
+        .await;
+
+    match result {
+        Err(e) => {
+            let msg = e.to_string().to_lowercase();
+            assert!(
+                msg.contains("claim account transactions are not enabled")
+                    || msg.contains("unsupported"),
+                "unexpected error message: {msg}",
+            );
+        }
+        Ok(resp) => {
+            let status = resp
+                .effects
+                .as_ref()
+                .expect("response must include effects")
+                .status();
+            assert!(
+                status.is_err(),
+                "ClaimAccount must be rejected when the feature flag is disabled; got success",
+            );
+        }
+    }
+}
+
+/// Verify that a `SmartAccount` claim is rejected at validity-check time when
+/// `enable_builtin_move_authenticators` is disabled, even though
+/// `enable_claim_account_transaction` is enabled.
+///
+/// The claimed account is authenticated by the built-in authenticator for its
+/// key's scheme, so claiming without them would create an account that can
+/// never authenticate a transaction, at an address that can only be claimed
+/// once.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_account_rejected_without_builtin_authenticators() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+    };
+    use iota_types::{
+        crypto::IotaKeyPair,
+        transaction::{
+            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
+        },
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_builtin_move_authenticators_for_testing(false);
         config
     });
@@ -345,7 +551,7 @@ async fn test_claim_account_rejected_when_registry_disabled() {
         Err(e) => {
             let msg = e.to_string().to_lowercase();
             assert!(
-                msg.contains("claim registry") || msg.contains("unsupported"),
+                msg.contains("built-in move authenticators") || msg.contains("unsupported"),
                 "unexpected error message: {msg}",
             );
         }
@@ -357,7 +563,7 @@ async fn test_claim_account_rejected_when_registry_disabled() {
                 .status();
             assert!(
                 status.is_err(),
-                "ClaimAccount must be rejected when claim_registry is disabled; got success",
+                "SmartAccount claim must be rejected without built-in authenticators; got success",
             );
         }
     }
