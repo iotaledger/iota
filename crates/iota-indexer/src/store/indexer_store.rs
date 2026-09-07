@@ -153,10 +153,10 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         max_tx: u64,
     ) -> Result<(), IndexerError>;
 
-    /// Prune table by global_sequence_number range with DELETE LIMIT.
+    /// Prune table by `optimistic_sequence_number` range with DELETE LIMIT.
     /// Uses DELETE with LIMIT to maintain consistent batch sizes.
     /// Returns the number of rows deleted.
-    async fn prune_table_by_global_seq_with_limit(
+    async fn prune_table_by_optimistic_seq_with_limit(
         &self,
         table: &PrunableTable,
         start: u64,

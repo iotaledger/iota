@@ -19,7 +19,7 @@ use iota_types::digests::ChainIdentifier;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 use tap::TapFallible;
-use tracing::info;
+use tracing::{debug, info};
 
 use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
@@ -80,6 +80,14 @@ use crate::{
 pub struct TxGlobalOrderCursor {
     pub global_sequence_number: i64,
     pub optimistic_sequence_number: i64,
+}
+
+/// Lower bounds of one epoch, used to translate an epoch retention boundary
+/// into per-table pruning ranges.
+struct EpochPruningBounds {
+    first_checkpoint_id: u64,
+    first_tx_sequence_number: u64,
+    min_optimistic_sequence_number: Option<u64>,
 }
 
 #[macro_export]
@@ -175,8 +183,8 @@ impl PgIndexerStore {
 
     /// Get the range of the protocol versions that need to be indexed.
     pub fn get_protocol_version_index_range(&self) -> Result<(i64, i64), IndexerError> {
-        // We start indexing from the next protocol version after the latest one stored
-        // in the db.
+        // We start indexing from the next protocol version after the latest one
+        // stored in the db.
         let start = read_only_blocking!(&self.blocking_cp, |conn| {
             protocol_configs::dsl::protocol_configs
                 .select(max(protocol_configs::protocol_version))
@@ -185,7 +193,8 @@ impl PgIndexerStore {
         .context("Failed reading latest protocol version from PostgresDB")?
         .map_or(1, |v| v + 1);
 
-        // We end indexing at the protocol version of the latest epoch stored in the db.
+        // We end indexing at the protocol version of the latest epoch stored in
+        // the db.
         let end = read_only_blocking!(&self.blocking_cp, |conn| {
             epochs::dsl::epochs
                 .select(max(epochs::protocol_version))
@@ -602,8 +611,8 @@ impl PgIndexerStore {
             return Ok(());
         };
 
-        // If the first checkpoint has sequence number 0, we need to persist the digest
-        // as chain identifier.
+        // If the first checkpoint has sequence number 0, we need to persist the
+        // digest as chain identifier.
         if first_checkpoint.sequence_number == 0 {
             let checkpoint_digest = first_checkpoint.checkpoint_digest.into_bytes().to_vec();
             self.persist_protocol_configs_and_feature_flags(checkpoint_digest.clone())?;
@@ -733,8 +742,9 @@ impl PgIndexerStore {
             &self.blocking_cp,
             |conn| {
                 for tx_order_chunk in tx_order.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                    // Upsert: on conflict (row already inserted by optimistic path),
-                    // set `tx_sequence_number` so checkpoint data is available
+                    // Upsert: on conflict (row already inserted by optimistic
+                    // path), set `tx_sequence_number` so
+                    // checkpoint data is available
                     // immediately.
                     on_conflict_do_update_with_condition!(
                         tx_global_order::table,
@@ -1058,7 +1068,19 @@ impl PgIndexerStore {
                     }
 
                     info!(epoch.new_epoch.epoch, "Persisting epoch beginning info");
-                    insert_or_ignore_into!(epochs::table, &epoch.new_epoch, conn);
+                    // Snapshot the `tx_global_order` sequence so the pruner can
+                    // later translate this epoch into an
+                    // `optimistic_transactions` delete range.
+                    // `nextval` consumes one value, which is harmless (serial
+                    // values are allowed to have gaps) and avoids
+                    // scanning the table for its MAX(), which has no index.
+                    let min_optimistic_seq = diesel::select(sql::<diesel::sql_types::BigInt>(
+                        "nextval(pg_get_serial_sequence('tx_global_order', 'optimistic_sequence_number'))",
+                    ))
+                    .get_result::<i64>(conn)?;
+                    let mut new_epoch = epoch.new_epoch.clone();
+                    new_epoch.min_optimistic_sequence_number = Some(min_optimistic_seq);
+                    insert_or_ignore_into!(epochs::table, &new_epoch, conn);
                 }
                 Ok::<(), IndexerError>(())
             },
@@ -1100,7 +1122,8 @@ impl PgIndexerStore {
                     EpochPartitionData::compose_data(epoch_to_commit, last_epoch);
                 let table_partitions = self.partition_manager.get_table_partitions()?;
                 for (table, (_, last_partition)) in table_partitions {
-                    // Only advance epoch partition for epoch partitioned tables.
+                    // Only advance epoch partition for epoch partitioned
+                    // tables.
                     if !self
                         .partition_manager
                         .get_strategy(&table)
@@ -1348,9 +1371,10 @@ impl PgIndexerStore {
         )
     }
 
-    /// Prune optimistic_transactions table by global_sequence_number range.
-    /// Prunes at most `limit` rows and returns the number of rows deleted.
-    fn prune_optimistic_tx_by_global_seq(
+    /// Prune optimistic_transactions table by optimistic_sequence_number
+    /// range. Prunes at most `limit` rows and returns the number of rows
+    /// deleted.
+    fn prune_optimistic_tx_by_optimistic_seq(
         &self,
         start: u64,
         end: u64,
@@ -1365,8 +1389,8 @@ impl PgIndexerStore {
                     WITH ids_to_delete AS (
                          SELECT optimistic_sequence_number
                          FROM optimistic_transactions
-                         WHERE global_sequence_number BETWEEN $1 AND $2
-                         ORDER BY global_sequence_number, optimistic_sequence_number
+                         WHERE optimistic_sequence_number BETWEEN $1 AND $2
+                         ORDER BY optimistic_sequence_number
                          FOR UPDATE
                          LIMIT $3
                      )
@@ -1382,7 +1406,7 @@ impl PgIndexerStore {
                     .map_err(IndexerError::from)
                     .context(
                         format!(
-                            "failed to prune optimistic_transactions table by global_sequence_number range [{start}..={end}] with limit {limit}"
+                            "failed to prune optimistic_transactions table by optimistic_sequence_number range [{start}..={end}] with limit {limit}"
                         )
                         .as_str(),
                     )
@@ -1558,23 +1582,33 @@ impl PgIndexerStore {
     fn map_epochs_to_cp_tx(
         &self,
         epochs: &[u64],
-    ) -> Result<HashMap<u64, (u64, u64)>, IndexerError> {
+    ) -> Result<HashMap<u64, EpochPruningBounds>, IndexerError> {
         let pool = &self.blocking_cp;
-        let results: Vec<(i64, i64, i64)> = run_query!(pool, move |conn| {
+        let results: Vec<(i64, i64, i64, Option<i64>)> = run_query!(pool, move |conn| {
             epochs::table
                 .filter(epochs::epoch.eq_any(epochs.iter().map(|&e| e as i64)))
                 .select((
                     epochs::epoch,
                     epochs::first_checkpoint_id,
                     epochs::first_tx_sequence_number,
+                    epochs::min_optimistic_sequence_number,
                 ))
-                .load::<(i64, i64, i64)>(conn)
+                .load::<(i64, i64, i64, Option<i64>)>(conn)
         })
         .context("Failed to fetch first checkpoint and tx seq num for epochs")?;
 
         Ok(results
             .into_iter()
-            .map(|(epoch, checkpoint, tx)| (epoch as u64, (checkpoint as u64, tx as u64)))
+            .map(|(epoch, checkpoint, tx, optimistic_seq)| {
+                (
+                    epoch as u64,
+                    EpochPruningBounds {
+                        first_checkpoint_id: checkpoint as u64,
+                        first_tx_sequence_number: tx as u64,
+                        min_optimistic_sequence_number: optimistic_seq.map(|v| v as u64),
+                    },
+                )
+            })
             .collect())
     }
 
@@ -1588,18 +1622,36 @@ impl PgIndexerStore {
         let epoch_mapping = self.map_epochs_to_cp_tx(&epochs)?;
         let lookups: Result<Vec<StoredWatermark>, IndexerError> = watermarks
             .into_iter()
-            .map(|(table, epoch)| {
-                let (checkpoint, tx) = epoch_mapping.get(&epoch).ok_or_else(|| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
+            .filter_map(|(table, epoch)| {
+                let Some(bounds) = epoch_mapping.get(&epoch) else {
+                    return Some(Err(IndexerError::PersistentStorageDataCorruption(format!(
                         "epoch {epoch} not found in epoch mapping",
-                    ))
-                })?;
-                Ok(StoredWatermark::from_lower_bound_update(
+                    ))));
+                };
+
+                // The `optimistic_transactions` watermark uses optimistic sequence numbers,
+                // not tx sequence numbers. Epochs predating `min_optimistic_sequence_number`
+                // have none; skip the update, which pauses pruning of this table until the
+                // retention boundary reaches an epoch with a value.
+                let is_optimistic_table =
+                    table.as_ref() == PrunableTable::OptimisticTransactions.as_ref();
+
+                let min_available_tx =
+                    match (is_optimistic_table, bounds.min_optimistic_sequence_number) {
+                        (false, _) => bounds.first_tx_sequence_number,
+                        (true, Some(seq)) => seq,
+                        (true, None) => {
+                            debug!(epoch, "no min_optimistic_sequence_number for epoch; skipping optimistic_transactions lower bound update");
+                            return None;
+                        }
+                    };
+
+                Some(Ok(StoredWatermark::from_lower_bound_update(
                     table.as_ref(),
                     epoch,
-                    *checkpoint,
-                    *tx,
-                ))
+                    bounds.first_checkpoint_id,
+                    min_available_tx,
+                )))
             })
             .collect();
         let lower_bound_updates = lookups?;
@@ -1652,8 +1704,8 @@ impl PgIndexerStore {
     }
 
     fn get_watermarks(&self) -> Result<(Vec<StoredWatermark>, i64), IndexerError> {
-        // read_only transaction, otherwise this will block and get blocked by write
-        // transactions to the same table.
+        // read_only transaction, otherwise this will block and get blocked by
+        // write transactions to the same table.
         run_query_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -2107,8 +2159,8 @@ impl IndexerStore for PgIndexerStore {
             start_version, end_version
         );
 
-        // Gather all protocol configs and feature flags for all versions between start
-        // and end.
+        // Gather all protocol configs and feature flags for all versions
+        // between start and end.
         for version in start_version..=end_version {
             let protocol_configs = ProtocolConfig::get_for_version_if_supported(
                 (version as u64).into(),
@@ -2397,7 +2449,7 @@ impl IndexerStore for PgIndexerStore {
         .await
     }
 
-    async fn prune_table_by_global_seq_with_limit(
+    async fn prune_table_by_optimistic_seq_with_limit(
         &self,
         table: &crate::pruning::pruner::PrunableTable,
         start: u64,
@@ -2408,13 +2460,13 @@ impl IndexerStore for PgIndexerStore {
 
         if !matches!(table, PrunableTable::OptimisticTransactions) {
             return Err(IndexerError::InvalidArgument(format!(
-                "table {} does not support pruning by global order with limit",
+                "table {} does not support pruning by optimistic sequence number with limit",
                 table.as_ref()
             )));
         }
 
         self.execute_in_blocking_worker(move |this| {
-            this.prune_optimistic_tx_by_global_seq(start, end, limit)
+            this.prune_optimistic_tx_by_optimistic_seq(start, end, limit)
         })
         .await
     }
@@ -2488,7 +2540,8 @@ fn retain_latest_indexed_objects(
     for change in tx_object_changes {
         // Remove mutation / deletion with a following deletion / mutation,
         // as we expect that following deletion / mutation has a higher version.
-        // Technically, assertions below are not required, double check just in case.
+        // Technically, assertions below are not required, double check just in
+        // case.
         for mutation in change.changed_objects {
             let id = mutation.object.id();
             let version = mutation.object.version();
