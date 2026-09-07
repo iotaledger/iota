@@ -2122,7 +2122,7 @@ async fn test_package_size_limit() {
 // Test that publishing a module with "unpublishable" magic fails
 #[tokio::test]
 async fn test_publish_module_with_unpublishable_magic() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object =
         Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, u64::MAX);
@@ -2137,7 +2137,7 @@ async fn test_publish_module_with_unpublishable_magic() {
 
     let authority = init_state_with_objects(vec![gas_payment_object]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_payment_object_ref,
         module_bytes,
@@ -2163,7 +2163,7 @@ async fn test_publish_module_with_unpublishable_magic() {
 // the module publishable again.
 #[tokio::test]
 async fn test_publish_module_with_unpublishable_magic_swapped() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object =
         Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, u64::MAX);
@@ -2182,7 +2182,7 @@ async fn test_publish_module_with_unpublishable_magic_swapped() {
 
     let authority = init_state_with_objects(vec![gas_payment_object]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_module(
+    let data = Transaction::new_module(
         sender,
         gas_payment_object_ref,
         module_bytes,
