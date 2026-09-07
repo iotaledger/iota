@@ -4,8 +4,7 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
-use iota_sdk_transaction_builder::assigned;
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag};
 use tracing::{debug, info};
 
 use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
@@ -136,20 +135,12 @@ impl CoinMergeSplitTest {
     ) -> IotaTransactionBlockResponse {
         let grpc_client = ctx.get_fullnode_grpc_client();
         let mut builder = grpc_client.transaction_builder(signer);
-        // Transfer the split coins back to the sender; an untransferred `Coin`
-        // would be an unused PTB value (coins have no `drop`) and the
-        // transaction would be rejected.
-        let names: Vec<String> = (0..amounts.len()).map(|i| format!("coin{i}")).collect();
+        // `pay::split_vec` transfers the split coins to the sender itself, so no
+        // separate transfer command is needed.
         builder
-            .split_coins(primary_coin, amounts)
-            .assign(names.clone());
-        builder.transfer_objects(
-            signer,
-            names
-                .iter()
-                .map(|name| assigned(name.as_str()))
-                .collect::<Vec<_>>(),
-        );
+            .move_call(ObjectId::FRAMEWORK, "pay", "split_vec")
+            .type_tags([TypeTag::from(StructTag::new_gas())])
+            .arguments((primary_coin, amounts));
         builder.gas([gas_obj_id]);
         let data = builder.finish().await.unwrap();
 
