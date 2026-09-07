@@ -14,7 +14,7 @@
 # the product (validating it as the single W5 axis).
 #
 # Usage:
-#   ./probe_sweep.sh              # full ladder + split check
+#   ./probe_sweep.sh              # everything: ladder + split + cost points
 #   ./probe_sweep.sh ladder       # ladder only
 #   ./probe_sweep.sh split        # split-invariance check only
 #   ./probe_sweep.sh cu           # the mode comparison's cost points
@@ -84,7 +84,16 @@ cu=(
 
 points=()
 case "$WHICH" in
-all) points=("${ladder[@]}" "${split[@]}") ;;
+# The grids overlap at "1 100" (a ladder rung and cu1k), so drop repeats —
+# probing the same point twice only adds a duplicate CSV row.
+all)
+  declare -A _seen=()
+  for _p in "${ladder[@]}" "${split[@]}" "${cu[@]}"; do
+    [[ -n "${_seen[$_p]:-}" ]] && continue
+    _seen[$_p]=1
+    points+=("$_p")
+  done
+  ;;
 ladder) points=("${ladder[@]}") ;;
 split) points=("${split[@]}") ;;
 cu) points=("${cu[@]}") ;;
