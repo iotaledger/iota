@@ -46,6 +46,13 @@ pub struct StoredEpochInfo {
     pub minted_tokens_amount: Option<i64>,
     /// First transaction sequence number of this epoch.
     pub first_tx_sequence_number: i64,
+    /// Upper bound on the `optimistic_sequence_number` values assigned in
+    /// `tx_global_order` before this epoch started. The pruner deletes
+    /// `optimistic_transactions` rows below this value once the epoch falls
+    /// out of the retention window.
+    ///
+    /// `None` for epochs recorded before the column existed.
+    pub min_optimistic_sequence_number: Option<i64>,
 }
 
 /// Extracts the indexed epoch-info facts from a transaction's events.
@@ -130,6 +137,11 @@ pub(crate) struct StartOfEpochUpdate {
     pub epoch: i64,
     pub first_checkpoint_id: i64,
     pub first_tx_sequence_number: i64,
+    /// Upper bound on the `optimistic_sequence_number` values assigned in
+    /// `tx_global_order` before this epoch started.
+    ///
+    /// `None` until the epoch row is persisted.
+    pub min_optimistic_sequence_number: Option<i64>,
     pub epoch_start_timestamp: i64,
     pub reference_gas_price: i64,
     pub protocol_version: i64,
@@ -174,6 +186,7 @@ impl StartOfEpochUpdate {
             epoch: new_system_state_summary.epoch() as i64,
             first_checkpoint_id: first_checkpoint_id as i64,
             first_tx_sequence_number: first_tx_sequence_number as i64,
+            min_optimistic_sequence_number: None,
             epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms() as i64,
             reference_gas_price: new_system_state_summary.reference_gas_price() as i64,
             protocol_version: new_system_state_summary.protocol_version().as_u64() as i64,
