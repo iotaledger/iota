@@ -321,7 +321,7 @@ impl Value {
             Self::vec_pack(
                 Type::U8,
                 digest
-                    .inner()
+                    .bytes()
                     .iter()
                     .copied()
                     .map(|v| Value(VMValue::u8(v)))

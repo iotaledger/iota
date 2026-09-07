@@ -41,7 +41,7 @@ fn input(env: &Env, arg: Input) -> Result<(L::InputArg, L::InputType), Execution
         Input::ImmutableOrOwned(oref) => {
             let id = oref.object_id();
             let obj = env.read_object(id)?;
-            let Some(ty) = obj.type_() else {
+            let Some(ty) = obj.data.opt_object_type() else {
                 invariant_violation!("Object {:?} has does not have a Move type", id);
             };
             let tag: StructTag = ty.clone().into();
@@ -63,7 +63,7 @@ fn input(env: &Env, arg: Input) -> Result<(L::InputArg, L::InputType), Execution
             mutable,
         }) => {
             let obj = env.read_object(&object_id)?;
-            let Some(ty) = obj.type_() else {
+            let Some(ty) = obj.data.opt_object_type() else {
                 invariant_violation!("Object {:?} has does not have a Move type", object_id);
             };
             let tag: StructTag = ty.clone().into();
@@ -107,8 +107,8 @@ fn command(env: &Env, command: Command) -> Result<L::Command, ExecutionError> {
                 arguments,
             }))
         }
-        Command::MakeMoveVector(MakeMoveVector { type_, elements }) => {
-            let type_argument = type_.map(|ty| env.load_type_input(0, ty)).transpose()?;
+        Command::MakeMoveVector(MakeMoveVector { type_tag, elements }) => {
+            let type_argument = type_tag.map(|ty| env.load_type_input(0, ty)).transpose()?;
             L::Command::MakeMoveVec(type_argument, elements)
         }
         Command::TransferObjects(TransferObjects { objects, address }) => {
