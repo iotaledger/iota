@@ -250,19 +250,24 @@ fn balance_query(
         address,
         coin_type.clone(),
     );
-    // NOT EXISTS instead of a JOIN; see `consistent_checkpointed_objects`
-    // for explanation.
+    // Keep a candidate when its newest version was superseded at or before the
+    // checkpoint; see `consistent_checkpointed_objects` for the rationale.
     let source_a = filter!(
         query!(
             "SELECT candidates.object_id, candidates.coin_balance, candidates.coin_type \
-             FROM ({}) candidates",
+             FROM ({}) candidates \
+             LEFT JOIN LATERAL (\
+                 SELECT changed.superseded_at_checkpoint \
+                 FROM objects_backward_history changed \
+                 WHERE changed.object_id = candidates.object_id \
+                 ORDER BY changed.object_version DESC \
+                 LIMIT 1\
+             ) latest ON true",
             checkpointed
         ),
         format!(
-            "NOT EXISTS (\
-                 SELECT 1 FROM objects_backward_history changed \
-                 WHERE changed.object_id = candidates.object_id \
-                   AND changed.superseded_at_checkpoint > {checkpoint_viewed_at})"
+            "(latest.superseded_at_checkpoint IS NULL \
+              OR latest.superseded_at_checkpoint <= {checkpoint_viewed_at})"
         )
     );
 
@@ -279,33 +284,35 @@ fn balance_query(
     );
     let (candidate_ids_sql, binds) = candidate_ids.finish();
 
-    // Find the highest version already superseded by the checkpoint and take the
-    // next one - that is the version that was live at the checkpoint (or the
-    // object's first version, if no version was superseded earlier). See
-    // `consistent::consistent_historical_objects` for the full rationale.
-    let live_version = format!(
-        "SELECT live.object_version FROM objects_backward_history live \
-         WHERE live.object_id = candidate_ids.object_id \
-           AND live.object_version > COALESCE(( \
-                 SELECT superseded.object_version \
-                 FROM objects_backward_history superseded \
-                 WHERE superseded.object_id = candidate_ids.object_id \
-                   AND superseded.superseded_at_checkpoint <= {checkpoint_viewed_at} \
-                 ORDER BY superseded.object_version DESC \
-                 LIMIT 1), -1) \
-         ORDER BY live.object_version ASC \
+    // The newest version already superseded by the checkpoint; the live version
+    // is the next one after it.
+    let newest_superseded = format!(
+        "SELECT superseded.object_version \
+         FROM objects_backward_history superseded \
+         WHERE superseded.object_id = candidate_ids.object_id \
+           AND superseded.superseded_at_checkpoint <= {checkpoint_viewed_at} \
+         ORDER BY superseded.object_version DESC \
          LIMIT 1"
     );
 
+    // For each candidate, fetch the version that was live at the checkpoint: the
+    // earliest one not yet superseded. A LATERAL join fetches that row per
+    // object_id. See `consistent::consistent_historical_objects` for the full
+    // rationale.
     let live_rows = RawQuery::new(
         format!(
             "SELECT object_id, coin_balance, coin_type, owner_id, owner_type \
              FROM ( \
-                 SELECT objects_backward_history.* \
+                 SELECT live.* \
                  FROM ({candidate_ids_sql}) candidate_ids \
-                 JOIN objects_backward_history \
-                     ON objects_backward_history.object_id = candidate_ids.object_id \
-                 WHERE objects_backward_history.object_version = ({live_version}) \
+                 CROSS JOIN LATERAL ( \
+                     SELECT objects_backward_history.* \
+                     FROM objects_backward_history \
+                     WHERE objects_backward_history.object_id = candidate_ids.object_id \
+                       AND objects_backward_history.object_version > COALESCE(({newest_superseded}), -1) \
+                     ORDER BY objects_backward_history.object_version ASC \
+                     LIMIT 1 \
+                 ) live \
              ) AS objects_backward_history"
         ),
         binds,
@@ -335,8 +342,6 @@ fn balance_query(
 /// Applies the filtering criteria for balances to the input `RawQuery` and
 /// returns a new `RawQuery`.
 fn filter(mut query: RawQuery, owner: IotaAddress, coin_type: Option<TypeTag>) -> RawQuery {
-    query = filter!(query, "coin_type IS NOT NULL");
-
     query = filter!(
         query,
         format!(
@@ -347,11 +352,18 @@ fn filter(mut query: RawQuery, owner: IotaAddress, coin_type: Option<TypeTag>) -
     );
 
     if let Some(coin_type) = coin_type {
+        // `coin_type = X` already implies NOT NULL, so only add the
+        // `coin_type IS NOT NULL` filter in the else branch (listing all coins),
+        // to avoid two filters on `coin_type` here, which made the planner pick worse
+        // plans. (planner incorrectly assumes that `coin_type = X AND coin_type
+        // IS NOT NULL` will match less data than just `coin_type = X`)
         query = filter!(
             query,
             "coin_type = {}",
             coin_type.to_canonical_string(/* with_prefix */ true)
         );
+    } else {
+        query = filter!(query, "coin_type IS NOT NULL");
     };
 
     query

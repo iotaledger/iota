@@ -33,17 +33,24 @@ pub(crate) fn query(
 /// Returns active objects from `checkpointed_objects` that were consistent
 /// also at the given checkpoint.
 ///
-/// Uses a NOT EXISTS subquery against `objects_backward_history` to exclude
-/// objects that have any entry with
-/// `superseded_at_checkpoint > checkpoint_viewed_at`.
+/// Uses a LATERAL join against `objects_backward_history` to exclude objects
+/// that have any entry with `superseded_at_checkpoint > checkpoint_viewed_at`.
 ///
 /// # Implementation notes
 ///
-/// NOT EXISTS lets Postgres answer "did this object change?" row by row,
-/// with one index lookup each. A LEFT JOIN on a `SELECT DISTINCT` subquery
-/// takes that option away: the full list of changed objects must always be
-/// built first, and in the worst plans it is then also scanned for every
-/// row.
+/// The LATERAL join lets Postgres answer "did this object change?" row by row:
+/// the object's newest version is read by `ORDER BY object_version DESC`, to
+/// achieve the backward index scan.
+///
+/// Two alternatives to avoid:
+///
+/// - A join on a `SELECT DISTINCT` subquery: the full list of changed objects
+///   must be built first, and in the worst plans it is then scanned for every
+///   row.
+/// - Filtering directly on `superseded_at_checkpoint > checkpoint_viewed_at`
+///   (e.g. `NOT EXISTS`) without ordering by version: it scans all objects
+///   version in the table, forwards, meaning that query cost grows with
+///   retention period.
 fn consistent_checkpointed_objects(
     checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
@@ -57,16 +64,21 @@ fn consistent_checkpointed_objects(
     );
 
     let mut source = query!(
-        "SELECT candidates.* FROM ({}) candidates",
+        "SELECT candidates.* FROM ({}) candidates \
+         LEFT JOIN LATERAL (\
+             SELECT changed.superseded_at_checkpoint \
+             FROM objects_backward_history changed \
+             WHERE changed.object_id = candidates.object_id \
+             ORDER BY changed.object_version DESC \
+             LIMIT 1\
+         ) latest ON true",
         checkpointed_filtered
     );
     source = filter!(
         source,
         format!(
-            "NOT EXISTS (\
-                 SELECT 1 FROM objects_backward_history changed \
-                 WHERE changed.object_id = candidates.object_id \
-                   AND changed.superseded_at_checkpoint > {checkpoint_viewed_at})"
+            "(latest.superseded_at_checkpoint IS NULL \
+              OR latest.superseded_at_checkpoint <= {checkpoint_viewed_at})"
         )
     );
     page.apply::<StoredBackwardObject>(source)
@@ -107,31 +119,40 @@ fn consistent_historical_objects(
     );
     let (candidate_ids_sql, binds) = candidate_ids.finish();
 
-    // Find the highest version already superseded by the checkpoint and take the
-    // next one - that is the version that was live at the checkpoint (or the
-    // object's first version, if no version was superseded earlier).
-    let live_version = format!(
-        "SELECT live.object_version FROM objects_backward_history live \
-         WHERE live.object_id = candidate_ids.object_id \
-           AND live.object_version > COALESCE(( \
-                 SELECT superseded.object_version \
-                 FROM objects_backward_history superseded \
-                 WHERE superseded.object_id = candidate_ids.object_id \
-                   AND superseded.superseded_at_checkpoint <= {checkpoint_viewed_at} \
-                 ORDER BY superseded.object_version DESC \
-                 LIMIT 1), -1) \
-         ORDER BY live.object_version ASC \
+    // The newest version already superseded by the checkpoint; the live version
+    // is the next one after it.
+    let newest_superseded = format!(
+        "SELECT superseded.object_version \
+         FROM objects_backward_history superseded \
+         WHERE superseded.object_id = candidate_ids.object_id \
+           AND superseded.superseded_at_checkpoint <= {checkpoint_viewed_at} \
+         ORDER BY superseded.object_version DESC \
          LIMIT 1"
     );
 
+    // For each candidate, fetch the version that was live at the checkpoint: the
+    // earliest one not yet superseded. A LATERAL join fetches that row per
+    // object_id, using the (object_id, object_version) index.
+    //
+    // `object_id` comes from `candidate_ids`, not `live`, so the page's `ORDER BY
+    // object_id` needs no sort after the LATERAL and the LIMIT can early-terminate
+    // after one page.
     let live_rows = RawQuery::new(
         format!(
             "SELECT {OBJECT_COLUMNS} FROM ( \
-                 SELECT objects_backward_history.* \
+                 SELECT candidate_ids.object_id, live.object_version, live.object_status, \
+                        live.object_digest, live.owner_type, live.owner_id, live.object_type, \
+                        live.object_type_package, live.object_type_module, live.object_type_name, \
+                        live.serialized_object, live.coin_type, live.coin_balance, live.df_kind \
                  FROM ({candidate_ids_sql}) candidate_ids \
-                 JOIN objects_backward_history \
-                     ON objects_backward_history.object_id = candidate_ids.object_id \
-                 WHERE objects_backward_history.object_version = ({live_version}) \
+                 CROSS JOIN LATERAL ( \
+                     SELECT objects_backward_history.* \
+                     FROM objects_backward_history \
+                     WHERE objects_backward_history.object_id = candidate_ids.object_id \
+                       AND objects_backward_history.object_version > COALESCE(({newest_superseded}), -1) \
+                     ORDER BY objects_backward_history.object_version ASC \
+                     LIMIT 1 \
+                 ) live \
              ) AS objects_backward_history"
         ),
         binds,
