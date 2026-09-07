@@ -755,6 +755,14 @@ pub enum IotaError {
          can execute in zero lane-time"
     )]
     AttestationCpuTimeZero,
+
+    #[error(
+        "Attestation declares {moved_bytes} moved bytes in {cpu_time} ns of \
+         cpu_time — a rate above the memory-bandwidth ceiling; a declared \
+         duration can never be shorter than the time the memory path needs \
+         for the declared bytes"
+    )]
+    AttestationRateAboveBandwidth { cpu_time: u64, moved_bytes: u64 },
 }
 
 #[repr(u64)]
