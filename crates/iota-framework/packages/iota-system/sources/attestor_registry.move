@@ -125,7 +125,8 @@ public struct AttestorV1 has store {
     /// Escrow above the joining bond; top-ups land here and fold into
     /// `bond` only at the boundary rebalance.
     excess_bond: Balance<IOTA>,
-    /// Epoch from which this attestor is considered active.
+    /// Epoch from which this attestor is active. Set at registration to the
+    /// expected boundary and overwritten with the real one at activation.
     activation_epoch: u64,
     /// Last epoch in which this attestor was reported active via
     /// `refresh_activity`; starts at `activation_epoch`.
@@ -625,6 +626,11 @@ public(package) fun advance_epoch(
                 transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
             } else {
                 rebalance(&mut entry, min_joining_bond);
+                // Activation may lag registration by more than one epoch
+                // (feature off, safe mode); stamp the real epoch so the entry
+                // does not start with inactivity debt.
+                entry.activation_epoch = new_epoch;
+                entry.last_active_epoch = new_epoch;
                 activated.push_back(entry.attestor_address);
                 self.active_attestors.push_back(entry);
             }
