@@ -1806,9 +1806,9 @@ impl AuthorityPerEpochStore {
     }
 
     /// The sync-ahead record for `id`.
-    pub fn sync_record(&self, id: &ObjectId) -> IotaResult<Option<SyncAheadRecord>> {
+    pub fn sync_ahead_record(&self, id: &ObjectId) -> IotaResult<Option<SyncAheadRecord>> {
         let tables = self.tables()?;
-        self.handler_object_state.sync_record(&tables, id)
+        self.handler_object_state.sync_ahead_record(&tables, id)
     }
 
     /// The sheltered bytes of a consumed input version.
