@@ -27,6 +27,7 @@ pub enum TransactionKind {
     ConsensusCommitPrologueV1 = 3,
     EndOfEpoch = 5,
     RandomnessStateUpdate = 6,
+    ClaimAccount = 7,
 }
 
 impl From<&iota_sdk_types::TransactionKind> for TransactionKind {
@@ -45,6 +46,7 @@ impl From<&iota_sdk_types::TransactionKind> for TransactionKind {
             iota_sdk_types::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
+            iota_sdk_types::TransactionKind::ClaimAccount(_) => TransactionKind::ClaimAccount,
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -321,7 +323,7 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
         | TransactionKind::ConsensusCommitPrologueV1
         | TransactionKind::EndOfEpoch
         | TransactionKind::RandomnessStateUpdate => true,
-        TransactionKind::Programmable => false,
+        TransactionKind::Programmable | TransactionKind::ClaimAccount => false,
         _ => panic!("Unhandled transaction kind"),
     }
 }
