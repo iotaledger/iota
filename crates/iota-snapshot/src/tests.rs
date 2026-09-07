@@ -23,6 +23,7 @@ use iota_core::{
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
+    state_snapshot::EpochSnapshotRequest,
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
@@ -168,16 +169,20 @@ fn insert_end_of_epoch_zero_checkpoint(store: &CheckpointStore, digest: ECMHLive
         .expect("inserting end-of-epoch checkpoint");
 }
 
+/// The signal the epoch boundary waits on. These tests drive the writer
+/// directly, so nothing is listening; the writer must not care.
+fn view_taken() -> tokio::sync::oneshot::Sender<()> {
+    tokio::sync::oneshot::channel().0
+}
+
 /// An uploader over file-backed local and remote stores rooted in the given
 /// directories.
 fn test_uploader(
-    db_checkpoint_dir: &std::path::Path,
     staging_dir: &std::path::Path,
     remote_dir: &std::path::Path,
     checkpoint_store: Arc<CheckpointStore>,
 ) -> Arc<StateSnapshotUploader> {
     StateSnapshotUploader::new(
-        db_checkpoint_dir,
         staging_dir,
         ObjectStoreConfig {
             object_store: Some(ObjectStoreType::File),
@@ -307,7 +312,7 @@ async fn snapshot_round_trip(
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(0, perpetual_db.clone(), root_accumulator)
+        .write_internal(0, perpetual_db.clone(), root_accumulator, view_taken())
         .await?;
 
     // On-disk size assertion: with no compression the uploaded `.ref` file
@@ -459,7 +464,7 @@ async fn epoch_info_round_trip(
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
+        .write_internal(snapshot_epoch, perpetual_db, root_accumulator, view_taken())
         .await?;
 
     // 2. LOAD via `read_epoch_info` (the formal-snapshot restore's EPOCH_INFO-first
@@ -546,7 +551,7 @@ async fn writer_with_stub_returns_err(
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
+        .write_internal(snapshot_epoch, perpetual_db, root_accumulator, view_taken())
         .await
         .expect_err("snapshot writer must reject when watermark is insufficient")
 }
@@ -613,7 +618,7 @@ async fn snapshot_restore_builds_grpc_indexes() -> Result<(), anyhow::Error> {
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(0, perpetual_db.clone(), root_accumulator)
+        .write_internal(0, perpetual_db.clone(), root_accumulator, view_taken())
         .await?;
 
     let local_store_restore_config = ObjectStoreConfig {
@@ -731,7 +736,7 @@ async fn snapshot_round_trip_per_object_checkpoint() -> Result<(), anyhow::Error
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(0, perpetual_db.clone(), root_accumulator)
+        .write_internal(0, perpetual_db.clone(), root_accumulator, view_taken())
         .await?;
 
     let local_store_restore_config = ObjectStoreConfig {
@@ -825,7 +830,7 @@ async fn snapshot_writer_rejects_lifted_v1_row() -> Result<(), anyhow::Error> {
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     let err = snapshot_writer
-        .write_internal(0, perpetual_db, root_accumulator)
+        .write_internal(0, perpetual_db, root_accumulator, view_taken())
         .await
         .expect_err("writer must reject a DB containing a lifted V1 row");
     let msg = format!("{err:#}");
@@ -882,7 +887,7 @@ async fn snapshot_writer_rejects_literal_v1_row() -> Result<(), anyhow::Error> {
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     let err = snapshot_writer
-        .write_internal(0, perpetual_db, root_accumulator)
+        .write_internal(0, perpetual_db, root_accumulator, view_taken())
         .await
         .expect_err("writer must reject a DB containing a literal V1 row");
     let msg = format!("{err:#}");
@@ -1211,85 +1216,42 @@ fn open_row_has_no_end_fields() {
 
 /// After a successful upload, the uploader writes the remote `_SUCCESS`
 /// marker and deletes the local db checkpoint directory it consumed.
+/// The uploader writes and uploads the snapshot of the epoch it is handed,
+/// reading the live object set through a view of the running store rather
+/// than a copy of it, and signals the boundary as soon as that view exists.
 #[tokio::test]
-async fn uploader_removes_db_checkpoint_after_upload() -> Result<(), anyhow::Error> {
+async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
-    let db_checkpoint_dir = dir.path().join("db_checkpoints");
-    let epoch_0_dir = db_checkpoint_dir.join("epoch_0");
-
-    // An epoch-0 db checkpoint with a populated perpetual store, laid out as
-    // `checkpoint_perpetual_db` produces it (`epoch_0/store/perpetual`).
-    fs::create_dir_all(epoch_0_dir.join("store"))?;
-    let ecmh_digest = {
-        let perpetual_db = AuthorityPerpetualTables::open(&epoch_0_dir.join("store"), None);
-        insert_keys(&perpetual_db, 10)?;
-        // The db drops with this scope so the uploader can reopen it.
-        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest())
-    };
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+        &dir.path().join("store"),
+        None,
+    ));
+    insert_keys(&perpetual_db, 10)?;
+    let ecmh_digest =
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
 
     let checkpoint_store = checkpoint_store_with_epochs(0);
     insert_end_of_epoch_zero_checkpoint(&checkpoint_store, ecmh_digest);
 
     let remote_dir = dir.path().join("remote");
-    let uploader = test_uploader(
-        &db_checkpoint_dir,
-        &dir.path().join("staging"),
-        &remote_dir,
-        checkpoint_store,
-    );
+    let uploader = test_uploader(&dir.path().join("staging"), &remote_dir, checkpoint_store);
+
+    let (view_taken, view_is_taken) = tokio::sync::oneshot::channel();
     uploader
-        .upload_state_snapshot_to_object_store(vec![0])
+        .write_state_snapshot(EpochSnapshotRequest {
+            epoch: 0,
+            perpetual_tables: perpetual_db,
+            view_taken,
+        })
         .await?;
 
+    assert!(
+        view_is_taken.await.is_ok(),
+        "the boundary must be released once the read view exists"
+    );
     assert!(
         remote_dir.join("epoch_0").join(SUCCESS_MARKER).exists(),
         "snapshot upload must leave a _SUCCESS marker in the remote epoch dir"
-    );
-    assert!(
-        !epoch_0_dir.exists(),
-        "local db checkpoint dir must be deleted after its snapshot is uploaded"
-    );
-    Ok(())
-}
-
-/// A local db checkpoint whose epoch is already covered remotely is deleted
-/// without being re-uploaded.
-#[tokio::test]
-async fn uploader_removes_db_checkpoint_for_skipped_epoch() -> Result<(), anyhow::Error> {
-    let dir = iota_common::tempdir();
-    let db_checkpoint_dir = dir.path().join("db_checkpoints");
-    let epoch_0_dir = db_checkpoint_dir.join("epoch_0");
-    fs::create_dir_all(&epoch_0_dir)?;
-    fs::write(epoch_0_dir.join("some_file"), b"stale checkpoint contents")?;
-
-    // Only the genesis-checkpoint lookup runs on this path; the commitment
-    // digest is never read.
-    let checkpoint_store = empty_checkpoint_store();
-    insert_end_of_epoch_zero_checkpoint(
-        &checkpoint_store,
-        ECMHLiveObjectSetDigest::from(GlobalStateHash::default().digest()),
-    );
-
-    let remote_dir = dir.path().join("remote");
-    let uploader = test_uploader(
-        &db_checkpoint_dir,
-        &dir.path().join("staging"),
-        &remote_dir,
-        checkpoint_store,
-    );
-    // Epoch 0 is not missing remotely (only epoch 1 is), so its local dir is
-    // deleted without a new upload.
-    uploader
-        .upload_state_snapshot_to_object_store(vec![1])
-        .await?;
-
-    assert!(
-        !epoch_0_dir.exists(),
-        "local db checkpoint dir must be deleted when its epoch needs no upload"
-    );
-    assert!(
-        !remote_dir.join("epoch_0").exists(),
-        "skipped epoch must not be uploaded"
     );
     Ok(())
 }

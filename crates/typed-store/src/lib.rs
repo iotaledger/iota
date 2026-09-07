@@ -15,6 +15,7 @@
 pub use rocksdb;
 
 pub mod database;
+pub use database::DbReadView;
 pub mod traits;
 pub use traits::{DbIterator, Map};
 pub mod memstore;

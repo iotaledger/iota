@@ -8,6 +8,7 @@ use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
 use serde::{Deserialize, Serialize};
 use tracing::error;
+pub use typed_store::DbReadView;
 use typed_store::{
     DBMapUtils, DbIterator,
     metrics::SamplingInterval,
@@ -423,6 +424,24 @@ impl AuthorityPerpetualTables {
         Ok(self.objects.safe_iter().next().is_none())
     }
 
+    /// A consistent read view of the perpetual store, for a scan that must
+    /// see one point in time while the node keeps executing. See
+    /// [`DbReadView`] for what holding one costs.
+    pub fn read_view(&self) -> DbReadView<'_> {
+        self.objects.db.read_view()
+    }
+
+    /// [`Self::iter_live_object_set`] reading as of `view`. Constructing a
+    /// live object needs no further reads, so the view over the objects table
+    /// covers the whole scan.
+    pub fn iter_live_object_set_at<'a>(&'a self, view: &'a DbReadView<'a>) -> LiveSetIter<'a> {
+        LiveSetIter {
+            iter: Box::new(self.objects.safe_iter_at(view)),
+            tables: self,
+            prev: None,
+        }
+    }
+
     pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
         LiveSetIter {
             iter: Box::new(self.objects.safe_iter()),
@@ -444,11 +463,6 @@ impl AuthorityPerpetualTables {
             tables: self,
             prev: None,
         }
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // This checkpoints the entire db and not just objects table
-        self.objects.checkpoint_db(path).map_err(Into::into)
     }
 
     pub fn get_root_state_hash(
