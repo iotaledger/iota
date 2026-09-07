@@ -21,11 +21,11 @@
 # if it has to bootstrap/start the network.
 #
 # Required env: SLOW_N, SLOW_SIZE.
-# Tunables (env): SLOW_SHARED (default false = owned), QPS (default 5),
-#                 DURATION (default 20s), DIRECT (default true = in-docker
-#                 client submitting directly to validators, like ../h1; false =
-#                 host binary via the fullnode), N (validators,
-#                 default 4), NUM_CLIENT_THREADS, NUM_TRANSFER_ACCOUNTS,
+# Tunables (env): QPS (default 5), DURATION (default 20s), DIRECT (default
+#                 true = in-docker client submitting directly to validators,
+#                 like ../h1; false = host binary via the fullnode),
+#                 N (validators, default 4), NUM_CLIENT_THREADS,
+#                 NUM_TRANSFER_ACCOUNTS,
 #                 IN_FLIGHT_RATIO, NUM_WORKERS, PROM, TS_STEP, DRAIN_POLL_S,
 #                 DRAIN_TIMEOUT_S, MAX_ACCUMULATED_TXN_COST (per-object
 #                 per-commit budget, applied on a COLD start only; default
@@ -34,7 +34,7 @@
 #
 # Example:
 #   SLOW_N=100 SLOW_SIZE=100 ./probe.sh
-#   SLOW_N=400 SLOW_SIZE=100 SLOW_SHARED=true QPS=2 ./probe.sh
+#   SLOW_N=400 SLOW_SIZE=100 QPS=2 ./probe.sh
 
 set -euo pipefail
 
@@ -79,13 +79,14 @@ rel() { case "$1" in "$REPO_ROOT"/*) printf './%s' "${1#"$REPO_ROOT"/}" ;; *) pr
   exit 1
 }
 
-SLOW_SHARED="${SLOW_SHARED:-false}"
-# Per-object per-commit budget the network starts with. The probe must never
-# hit it: a shared-input transaction over the limit is deferred every commit
-# and cancelled, and a cancelled transaction still executes far enough to
-# record the cancellation — so it produces a full set of execution samples at
-# the cost of the bookkeeping, not of the workload. 50m is ten times the
-# per-transaction metering ceiling, so no point can reach it.
+# Per-object per-commit budget the network starts with. Owned-object-only
+# transactions are scheduled at time 0 while execution-worker congestion
+# control is off, so today nothing here can be deferred — but a transaction
+# over the limit is deferred every commit and cancelled, and a cancelled
+# transaction still executes far enough to record the cancellation, which
+# lands in the histogram as a fraction of a millisecond and looks like a
+# measurement. 50m is ten times the per-transaction metering ceiling, so no
+# point can reach it whatever the scheduler starts charging for.
 MAX_ACCUMULATED_TXN_COST="${MAX_ACCUMULATED_TXN_COST:-50000000}"
 QPS="${QPS:-5}"
 DURATION="${DURATION:-20s}"
@@ -157,7 +158,10 @@ mkdir -p "$PROBE_DIR"
 CSV_OUT="$PROBE_DIR/calibration-$MACHINE.csv"
 
 # slow::slow(n, size) workload weights (same mapping as ../h1/run.sh).
-WORKLOAD_ARGS=(--transfer-object 0 --slow 100 --slow-n "$SLOW_N" --slow-size "$SLOW_SIZE" --slow-shared "$SLOW_SHARED")
+# --slow-shared false is explicit: the client defaults it to TRUE, and an
+# owned-only transaction is the whole point — it never reaches per-object
+# congestion control, so a deferral can never distort the measurement.
+WORKLOAD_ARGS=(--transfer-object 0 --slow 100 --slow-n "$SLOW_N" --slow-size "$SLOW_SIZE" --slow-shared false)
 
 if [[ "$DIRECT" == true ]]; then
   echo "${YELLOW}NOTE: DIRECT=true runs the stress image in-network; it must be built from the" >&2
@@ -299,18 +303,12 @@ wait_for_checkpoint_drain() {
 }
 
 # Bring the network up ONCE, only if nothing is running. Attestation ON is
-# required to populate attested_computation_units. The mode does not matter at
-# this rate, but the per-object limit does once SLOW_SHARED=true, so the network
-# comes up with one no point can reach.
+# required to populate attested_computation_units. The mode is irrelevant for
+# this owned/low-rate probe but we keep TotalComputationUnits (start.sh
+# default), and the per-object limit is set high so nothing can be deferred.
 ensure_network() {
   if network_is_up; then
     echo "${GREEN}Reusing the running network (fullnode RPC responded).${RESET}"
-    if [[ "$SLOW_SHARED" == true ]]; then
-      echo "${YELLOW}  - NOTE: its per-object limit is whatever it was started"
-      echo "    with, not $MAX_ACCUMULATED_TXN_COST. A point above that limit"
-      echo "    is cancelled rather than executed; probe_scrape.py refuses"
-      echo "    such a point instead of recording it.${RESET}"
-    fi
     return 0
   fi
   echo "${YELLOW}No network detected — bringing up a fresh one (attestation ON, TotalComputationUnits).${RESET}"
@@ -368,7 +366,7 @@ fi
 
 ensure_network
 
-banner ">>> probe: slow(n=$SLOW_N, size=$SLOW_SIZE) product=$PRODUCT shared=$SLOW_SHARED qps=$QPS dur=$DURATION path=$([[ "$DIRECT" == true ]] && echo direct-docker || echo fullnode-host)"
+banner ">>> probe: slow(n=$SLOW_N, size=$SLOW_SIZE) product=$PRODUCT owned qps=$QPS dur=$DURATION path=$([[ "$DIRECT" == true ]] && echo direct-docker || echo fullnode-host)"
 wait_for_fullnode
 wait_for_first_scrape
 STRESS_LOG="$PROBE_DIR/probe-last-stress.log"
@@ -381,7 +379,7 @@ if [[ "$DIRECT" == true ]]; then
     IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" PRIMARY_GAS_OWNER="$PRIMARY_GAS_OWNER" \
     USE_FULLNODE_FOR_EXECUTION=false NUM_TARGET_VALIDATORS="$NUM_TARGET_VALIDATORS" \
     PRE_SPAM_DELAY_SECS="$PRE_SPAM_DELAY_SECS" \
-    WORKLOAD=slow SLOW_N="$SLOW_N" SLOW_SIZE="$SLOW_SIZE" SLOW_SHARED="$SLOW_SHARED" \
+    WORKLOAD=slow SLOW_N="$SLOW_N" SLOW_SIZE="$SLOW_SIZE" SLOW_SHARED=false \
     "$TOOLS_DIR/run-stress-docker.sh" 2>"$STRESS_LOG"
 else
   echo "${BLUE}Running stress via ${STRESS_BIN} executable...${RESET}"
@@ -443,7 +441,7 @@ fi
 banner "== measure =="
 PROM="$PROM" \
   CFG_slow_n="$SLOW_N" CFG_slow_size="$SLOW_SIZE" CFG_product="$PRODUCT" \
-  CFG_shared="$SLOW_SHARED" CFG_qps="$QPS" CFG_duration="$DURATION" \
+  CFG_shared=false CFG_qps="$QPS" CFG_duration="$DURATION" \
   python3 "$SCRIPT_DIR/probe_scrape.py" "$window_start" "$end" "$TS_STEP" "$CSV_OUT"
 
 # End-of-run wipe: default NO so the next probe reuses the network. WIPE=yes

@@ -17,8 +17,9 @@
 #   ./probe_sweep.sh              # full ladder + split check
 #   ./probe_sweep.sh ladder       # ladder only
 #   ./probe_sweep.sh split        # split-invariance check only
+#   ./probe_sweep.sh cu           # the mode comparison's cost points
 #
-# Tunables inherited by probe.sh: QPS, DURATION, SLOW_SHARED, DIRECT, N, PROM.
+# Tunables inherited by probe.sh: QPS, DURATION, DIRECT, N, PROM.
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,14 +60,36 @@ split=(
   "200 200"
   "400 100"
 )
+# The twelve cost points the mode comparison runs (matrix.sh's cost table),
+# each n chosen so the attested cost lands on a round target. They are not
+# ladder rungs: the ladder steps the product geometrically and these fall
+# between its rungs, which is why they were probed one at a time. Measures
+# what the scheduler will charge for each of the grid's cost points; the
+# mode comparison attaches a mutable shared input to the same call, but that
+# input is unused, so it changes only whether congestion control applies.
+cu=(
+  "1 100"    # cu1k       1,000 units
+  "70 100"   # cu2k       2,000
+  "120 100"  # cu5k       5,000
+  "160 100"  # cu10k     10,000
+  "217 100"  # cu20k     20,000
+  "267 100"  # cu50k     50,000
+  "350 100"  # cu100k   100,000
+  "516 100"  # cu200k   200,000
+  "1015 100" # cu500k   500,000
+  "1848 100" # cu1m   1,000,000
+  "3511 100" # cu2m   2,000,000
+  "8000 100" # cu5m   5,000,000 (the metering ceiling)
+)
 
 points=()
 case "$WHICH" in
 all) points=("${ladder[@]}" "${split[@]}") ;;
 ladder) points=("${ladder[@]}") ;;
 split) points=("${split[@]}") ;;
+cu) points=("${cu[@]}") ;;
 *)
-  echo "usage: $0 [all|ladder|split]" >&2
+  echo "usage: $0 [all|ladder|split|cu]" >&2
   exit 1
   ;;
 esac
