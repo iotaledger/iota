@@ -1390,7 +1390,8 @@ mod checked {
                                 protocol_config.deny_rule_governance_on_chain(),
                                 "unexpected TransactionDenyRulesCreate: on-chain deny rule governance is not enabled"
                             );
-                            builder = setup_transaction_deny_rules_create(builder)?;
+                            builder = setup_transaction_deny_rules_create(builder)
+                                .map_err(|e| (e, vec![]))?;
                         }
                         _ => unimplemented!(
                             "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
@@ -1442,8 +1443,9 @@ mod checked {
                     protocol_config,
                     metrics,
                     trace_builder_opt,
-                )?;
-                Ok(Mode::empty_results())
+                )
+                .map_err(|e| (e, vec![]))?;
+                Ok((Mode::empty_results(), vec![]))
             }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
@@ -2145,6 +2147,8 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+        .map(|(results, _timings)| results)
+        .map_err(|(error, _timings)| error)
     }
 
     /// Construct a PTB with a single move call. This calls the authenticator
