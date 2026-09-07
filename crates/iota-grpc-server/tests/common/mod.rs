@@ -12,6 +12,11 @@ use std::{
 
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
+use iota_grpc_types::v1::{
+    move_package_service::move_package_service_client::MovePackageServiceClient,
+    state_service::state_service_client::StateServiceClient,
+    types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
+};
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, MoveStruct, ObjectId, Owner, StructTag,
@@ -30,6 +35,7 @@ use iota_types::{
     storage::error::Result as StorageResult,
     transaction::VerifiedTransaction,
 };
+use tonic::transport::Channel;
 
 // ---------------------------------------------------------------------------
 // Stream invariant helpers
@@ -142,6 +148,19 @@ pub struct MockGrpcStateReader {
     pub owned_objects: Vec<(
         iota_types::storage::AccountOwnedObjectInfo,
         iota_types::storage::OwnedObjectCursor,
+    )>,
+
+    // -- Dynamic fields (for list_dynamic_fields pagination tests) --
+    /// Pre-sorted in dynamic-field index key order (`parent`, `field_id`).
+    /// The iterator respects cursor-based seeking.
+    pub dynamic_fields: Vec<iota_types::storage::DynamicFieldKey>,
+
+    // -- Package versions (for list_package_versions pagination tests) --
+    /// Pre-sorted in package-version index key order (`original_package_id`,
+    /// `version`). The iterator respects cursor-based seeking.
+    pub package_versions: Vec<(
+        iota_types::storage::PackageVersionKey,
+        iota_types::storage::PackageVersionInfo,
     )>,
 
     // -- Transactions --
@@ -420,23 +439,25 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         object_type: Option<StructTag>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>>
     {
-        // Find the start index: if cursor is provided, seek to its position
-        // (inclusive — the GrpcReader wrapper handles skip(1)).
+        // Find the start index: if a cursor is provided, seek strictly past
+        // its position (the cursor is exclusive) within this owner's rows:
+        // in the real index the owner is the leading key component.
         let start = if let Some(c) = cursor {
             self.owned_objects
                 .iter()
-                .position(|(_, oc)| {
-                    (
-                        oc.object_type_identifier,
-                        oc.object_type_params,
-                        oc.inverted_balance,
-                        oc.object_id,
-                    ) >= (
-                        c.object_type_identifier,
-                        c.object_type_params,
-                        c.inverted_balance,
-                        c.object_id,
-                    )
+                .position(|(info, oc)| {
+                    info.owner == owner
+                        && (
+                            oc.object_type_identifier,
+                            oc.object_type_params,
+                            oc.inverted_balance,
+                            oc.object_id,
+                        ) > (
+                            c.object_type_identifier,
+                            c.object_type_params,
+                            c.inverted_balance,
+                            c.object_id,
+                        )
                 })
                 .unwrap_or(self.owned_objects.len())
         } else {
@@ -468,8 +489,8 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn dynamic_field_iter(
         &self,
-        _parent: ObjectId,
-        _cursor: Option<ObjectId>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> StorageResult<
         Box<
             dyn Iterator<
@@ -480,7 +501,13 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
                 > + '_,
         >,
     > {
-        Ok(Box::new(std::iter::empty()))
+        // Seek strictly past the cursor position (the cursor is exclusive).
+        let iter = self
+            .dynamic_fields
+            .iter()
+            .filter(move |key| key.parent == parent && cursor.is_none_or(|c| key.field_id > c))
+            .map(|key| Ok(*key));
+        Ok(Box::new(iter))
     }
 
     fn get_coin_info(
@@ -492,11 +519,20 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn package_versions_iter(
         &self,
-        _original_package_id: ObjectId,
-        _cursor: Option<u64>,
+        original_package_id: ObjectId,
+        cursor: Option<u64>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>>
     {
-        Ok(Box::new(std::iter::empty()))
+        // Seek strictly past the cursor position (the cursor is exclusive).
+        let iter = self
+            .package_versions
+            .iter()
+            .filter(move |(key, _)| {
+                key.original_package_id == original_package_id
+                    && cursor.is_none_or(|c| key.version > c)
+            })
+            .map(|(key, info)| Ok((key.clone(), info.clone())));
+        Ok(Box::new(iter))
     }
 }
 
@@ -562,4 +598,40 @@ pub async fn start_test_server_with_traffic_controller(
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await
+}
+
+// ---------------------------------------------------------------------------
+// Client helpers
+// ---------------------------------------------------------------------------
+
+/// Convert an [`Address`] to its gRPC proto message.
+pub fn owner_proto(addr: Address) -> ProtoAddress {
+    ProtoAddress::default().with_address(addr.into_bytes().to_vec())
+}
+
+/// Convert an [`ObjectId`] to its gRPC proto message.
+pub fn object_id_proto(id: ObjectId) -> ProtoObjectId {
+    ProtoObjectId::default().with_object_id(id.into_bytes().to_vec())
+}
+
+/// Connect a state-service client to the test server.
+pub async fn connect_state_client(handle: &GrpcServerHandle) -> StateServiceClient<Channel> {
+    let channel = Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    StateServiceClient::new(channel)
+}
+
+/// Connect a move-package-service client to the test server.
+pub async fn connect_move_package_service_client(
+    handle: &GrpcServerHandle,
+) -> MovePackageServiceClient<Channel> {
+    let channel = Channel::from_shared(format!("http://{}", handle.address()))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+    MovePackageServiceClient::new(channel)
 }
