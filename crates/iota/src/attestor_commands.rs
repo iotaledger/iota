@@ -648,6 +648,11 @@ async fn display_attestor(client: &IotaClient, address: Address) -> Result<Strin
         "  bond excess:       {} nanos",
         entry.excess_bond.value()
     )?;
+    writeln!(
+        out,
+        "  evicted below:     {} nanos",
+        entry.low_bond_threshold
+    )?;
     writeln!(out, "  activation epoch:  {}", entry.activation_epoch)?;
     writeln!(out, "  last active epoch: {}", entry.last_active_epoch)?;
     if let Some(metadata) = metadata {

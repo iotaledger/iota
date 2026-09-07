@@ -58,7 +58,7 @@ low_bond_threshold
 stake_fraction
 	fun
 	0x3::attestor_registry
-assert_epoch_params_configured
+assert_inactivity_params_configured
 	fun
 	0x3::attestor_registry
 registry_key

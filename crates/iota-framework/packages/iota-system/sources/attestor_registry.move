@@ -11,8 +11,12 @@
 /// and the excess above it. Top-ups join the excess and are folded into the
 /// at-stake bond only at the boundary rebalance, so they cannot rescue an
 /// attestor whose at-stake bond was slashed below the low-bond threshold in
-/// the current epoch. An attestor below the threshold at the boundary is
-/// evicted and its entire escrow (at-stake and excess) burned.
+/// the current epoch: such an attestor is evicted and its entire escrow
+/// (at-stake and excess) burned. The threshold an entry is evicted under is
+/// frozen on the entry at each rebalance, so only slashing can trigger a
+/// burn. A parameter raise is judged against the whole escrow instead: an
+/// attestor whose escrow no longer covers the new threshold exits with a
+/// full refund.
 ///
 /// An active attestor that goes unreported by `refresh_activity` for more
 /// than the configured number of epochs is dropped at the boundary: a
@@ -48,10 +52,11 @@ const ATTESTOR_INACTIVITY_PENALTY_PARAM: vector<u8> = b"attestor_inactivity_pena
 const BASIS_POINT_DENOMINATOR: u128 = 10000;
 
 // Exit reasons for advance_epoch's combined exit pass, in precedence
-// order: eviction > inactivity > voluntary removal.
+// order: eviction > inactivity > voluntary removal > insufficient bond.
 const EXIT_EVICTION: u8 = 0;
 const EXIT_INACTIVITY: u8 = 1;
 const EXIT_REMOVAL: u8 = 2;
+const EXIT_INSUFFICIENT_BOND: u8 = 3;
 
 const MAX_ATTESTOR_METADATA_LENGTH: u64 = 256;
 
@@ -125,6 +130,10 @@ public struct AttestorV1 has store {
     /// Escrow above the joining bond; top-ups land here and fold into
     /// `bond` only at the boundary rebalance.
     excess_bond: Balance<IOTA>,
+    /// Level below which `bond` means eviction. Frozen from the config at
+    /// the same rebalance that set `bond`, so a later parameter raise cannot
+    /// turn a tolerated slash into a burn.
+    low_bond_threshold: u64,
     /// Epoch from which this attestor is active. Set at registration to the
     /// expected boundary and overwritten with the real one at activation.
     activation_epoch: u64,
@@ -169,9 +178,10 @@ public struct AttestorsActivatedEvent has copy, drop {
 }
 
 /// One departed attestor; `reason` is EXIT_EVICTION / EXIT_INACTIVITY /
-/// EXIT_REMOVAL. Eviction burns the whole escrow, excess included
-/// (refunded=0); inactivity burns the penalty and refunds the rest;
-/// removal refunds the whole escrow (burned=0).
+/// EXIT_REMOVAL / EXIT_INSUFFICIENT_BOND. Eviction burns the whole escrow,
+/// excess included (refunded=0); inactivity burns the penalty and refunds
+/// the rest; removal and insufficient bond refund the whole escrow
+/// (burned=0).
 public struct AttestorExitInfo has copy, drop, store {
     attestor_address: address,
     reason: u8,
@@ -218,10 +228,10 @@ fun stake_fraction(rate_param: vector<u8>): u64 {
     ((stake as u128) * (rate as u128) / BASIS_POINT_DENOMINATOR) as u64
 }
 
-/// Read the parameters `advance_epoch` needs, so an incomplete chain config
-/// aborts at registration rather than inside the epoch-change transaction.
-fun assert_epoch_params_configured() {
-    low_bond_threshold();
+/// Read the inactivity parameters `advance_epoch` needs, so an incomplete
+/// chain config aborts at registration rather than inside the epoch-change
+/// transaction (`register` reads the bond parameters itself).
+fun assert_inactivity_params_configured() {
     let _: u64 = protocol_config::get_attr(ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM);
     let _: u64 = protocol_config::get_attr(ATTESTOR_INACTIVITY_PENALTY_PARAM);
 }
@@ -285,8 +295,9 @@ public(package) fun register(
     sender: address,
     current_epoch: u64,
 ) {
-    assert_epoch_params_configured();
+    assert_inactivity_params_configured();
     let min_joining_bond = min_joining_bond();
+    let low_bond_threshold = low_bond_threshold();
     assert!(bond.value() >= min_joining_bond, EBondTooLow);
     assert!(
         self.active_attestors.length() + self.pending_active.length()
@@ -312,6 +323,7 @@ public(package) fun register(
             next_epoch_attestor_pubkey: option::none(),
             bond,
             excess_bond,
+            low_bond_threshold,
             activation_epoch,
             last_active_epoch: activation_epoch,
         });
@@ -343,6 +355,7 @@ public(package) fun deregister(
             next_epoch_attestor_pubkey,
             mut bond,
             excess_bond,
+            low_bond_threshold: _,
             activation_epoch: _,
             last_active_epoch: _,
         } = self.pending_active.remove(pending_idx.destroy_some());
@@ -453,16 +466,19 @@ public(package) fun rotate_key(
 /// 1. Combined exits, one pass so the stored indices stay valid; per-entry
 ///    reason precedence: low-bond eviction (whole escrow burned, excess
 ///    included) > inactivity drop (penalty burned, rest refunded) >
-///    requested removal (escrow refunded). The eviction check reads the
-///    at-stake bond as slashing left it — before the rebalance below — so
-///    an in-epoch top-up cannot rescue a threshold-crossing slash.
-///    Inactivity beating a pending removal means an inactive attestor
-///    cannot escape the penalty by deregistering in the same epoch.
+///    requested removal (escrow refunded) > insufficient bond (escrow
+///    refunded). Eviction compares the at-stake bond, as slashing left it
+///    and before the rebalance below, against the threshold frozen on the
+///    entry: an in-epoch top-up cannot rescue a threshold-crossing slash,
+///    and a parameter raise cannot cause a burn. Insufficient bond is the
+///    parameter-raise case: the whole escrow no longer covers the current
+///    threshold. Inactivity beating a pending removal means an inactive
+///    attestor cannot escape the penalty by deregistering in the same epoch.
 /// 2. Staged key rotations and the bond rebalance (at-stake =
-///    min(total, current joining bond)), in place.
+///    min(total, current joining bond), threshold refrozen), in place.
 /// 3. Pending activations appended in registration order; an entry whose
 ///    total escrow is below the current joining bond is refused and
-///    refunded like a voluntary removal, the rest rebalanced like actives.
+///    refunded as insufficient bond, the rest rebalanced like actives.
 /// Emits at most one `AttestorsExitedEvent` and one `AttestorsActivatedEvent`
 /// for the whole boundary, batching every departed/activated attestor into
 /// them — a per-attestor event here would risk exceeding the per-tx event
@@ -500,12 +516,18 @@ public(package) fun advance_epoch(
             inactivity_penalty = protocol_config::get_attr(ATTESTOR_INACTIVITY_PENALTY_PARAM);
             self.active_attestors.length().do!(|i| {
                 let entry = &self.active_attestors[i];
-                if (entry.bond.value() < low_bond_threshold) {
+                if (entry.bond.value() < entry.low_bond_threshold) {
                     exit_indices.push_back(i);
                     exit_reasons.push_back(EXIT_EVICTION);
                 } else if (new_epoch - entry.last_active_epoch > max_inactivity_epochs) {
                     exit_indices.push_back(i);
                     exit_reasons.push_back(EXIT_INACTIVITY);
+                } else if (
+                    entry.bond.value() + entry.excess_bond.value() < low_bond_threshold
+                        && !self.pending_removals.contains(&i)
+                ) {
+                    exit_indices.push_back(i);
+                    exit_reasons.push_back(EXIT_INSUFFICIENT_BOND);
                 }
             });
         };
@@ -537,6 +559,7 @@ public(package) fun advance_epoch(
                 next_epoch_attestor_pubkey,
                 mut bond,
                 excess_bond,
+                low_bond_threshold: _,
                 activation_epoch: _,
                 last_active_epoch: _,
             } = self.active_attestors.remove(idx);
@@ -580,13 +603,14 @@ public(package) fun advance_epoch(
     let len = self.active_attestors.length();
     if (feature_enabled && len > 0) {
         let min_joining_bond = min_joining_bond();
+        let low_bond_threshold = low_bond_threshold();
         let mut k = 0;
         while (k < len) {
             let entry = &mut self.active_attestors[k];
             if (entry.next_epoch_attestor_pubkey.is_some()) {
                 entry.attestor_pubkey = entry.next_epoch_attestor_pubkey.extract();
             };
-            rebalance(entry, min_joining_bond);
+            rebalance(entry, min_joining_bond, low_bond_threshold);
             k = k + 1;
         };
     };
@@ -594,13 +618,13 @@ public(package) fun advance_epoch(
     // --- 3. Activations, in registration order ---
     // The total escrow is re-checked against the current joining bond: a
     // raise between registration and activation that the escrow (including
-    // top-ups) no longer covers refuses the entry, refunding it like a
-    // voluntary removal. The param read is guarded like the exit pass
-    // above: a pending entry exists only if register() read the same
-    // params, so the read cannot abort here.
+    // top-ups) no longer covers refuses the entry and refunds it. The param
+    // read is guarded like the exit pass above: a pending entry exists only
+    // if register() read the same params, so the read cannot abort here.
     let mut activated = vector<address>[];
     if (feature_enabled && !self.pending_active.is_empty()) {
         let min_joining_bond = min_joining_bond();
+        let low_bond_threshold = low_bond_threshold();
         self.pending_active.reverse();
         while (!self.pending_active.is_empty()) {
             let mut entry = self.pending_active.pop_back();
@@ -611,6 +635,7 @@ public(package) fun advance_epoch(
                     next_epoch_attestor_pubkey,
                     mut bond,
                     excess_bond,
+                    low_bond_threshold: _,
                     activation_epoch: _,
                     last_active_epoch: _,
                 } = entry;
@@ -619,13 +644,13 @@ public(package) fun advance_epoch(
                 departed.push_back(attestor_address);
                 exited.push_back(AttestorExitInfo {
                     attestor_address,
-                    reason: EXIT_REMOVAL,
+                    reason: EXIT_INSUFFICIENT_BOND,
                     refunded_amount: bond.value(),
                     burned_amount: 0,
                 });
                 transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
             } else {
-                rebalance(&mut entry, min_joining_bond);
+                rebalance(&mut entry, min_joining_bond, low_bond_threshold);
                 // Activation may lag registration by more than one epoch
                 // (feature off, safe mode); stamp the real epoch so the entry
                 // does not start with inactivity debt.
@@ -648,8 +673,9 @@ public(package) fun advance_epoch(
 }
 
 /// Restore the boundary invariant: at-stake = min(total escrow, the
-/// current joining bond), the rest held as excess.
-fun rebalance(entry: &mut AttestorV1, min_joining_bond: u64) {
+/// current joining bond), the rest held as excess, and the eviction
+/// threshold frozen from the same config.
+fun rebalance(entry: &mut AttestorV1, min_joining_bond: u64, low_bond_threshold: u64) {
     let at_stake = entry.bond.value();
     let target = (at_stake + entry.excess_bond.value()).min(min_joining_bond);
     if (at_stake < target) {
@@ -657,6 +683,7 @@ fun rebalance(entry: &mut AttestorV1, min_joining_bond: u64) {
     } else if (at_stake > target) {
         entry.excess_bond.join(entry.bond.split(at_stake - target));
     };
+    entry.low_bond_threshold = low_bond_threshold;
 }
 
 /// Consume the departure list, removing each departed attestor's metadata
@@ -840,6 +867,7 @@ fun destroy_attestor_for_testing(attestor: AttestorV1) {
         next_epoch_attestor_pubkey,
         bond,
         excess_bond,
+        low_bond_threshold: _,
         activation_epoch: _,
         last_active_epoch: _,
     } = attestor;
@@ -865,6 +893,7 @@ public fun push_pending_for_testing(
             next_epoch_attestor_pubkey: option::none(),
             bond: balance::create_for_testing(bond_amount),
             excess_bond: balance::zero(),
+            low_bond_threshold: 0,
             activation_epoch: 0,
             last_active_epoch: 0,
         });

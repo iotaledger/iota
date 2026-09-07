@@ -62,6 +62,9 @@ pub struct AttestorV1 {
     /// Escrow above the joining bond; folded into `bond` at epoch
     /// boundaries.
     pub excess_bond: Balance,
+    /// Level below which `bond` means eviction; frozen at the same
+    /// rebalance that set `bond`.
+    pub low_bond_threshold: u64,
     pub activation_epoch: u64,
     pub last_active_epoch: u64,
 }
@@ -371,6 +374,7 @@ mod tests {
                 next_epoch_attestor_pubkey: None,
                 bond: Balance::new(2_000_000_000_000),
                 excess_bond: Balance::new(500_000_000_000),
+                low_bond_threshold: 1_000_000_000_000,
                 activation_epoch: 7,
                 last_active_epoch: 9,
             }],

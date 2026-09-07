@@ -7,6 +7,7 @@ module iota_system::attestor_registry_tests;
 use iota::balance;
 use iota::event;
 use iota_system::attestor_registry::{Self, AttestorsActivatedEvent, AttestorsExitedEvent};
+use iota_system::protocol_config;
 
 fun min_joining_bond(): u64 { attestor_registry::min_joining_bond() }
 
@@ -567,6 +568,53 @@ fun test_topup_does_not_prevent_eviction_and_excess_is_burned() {
     assert!(evicted.value() == low_bond_threshold() + 1);
     evicted.destroy_for_testing();
     assert!(registry.active_count() == 0);
+    registry.destroy_for_testing();
+}
+
+#[test]
+fun test_threshold_raise_refunds_unslashed_and_burns_slashed() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(
+        balance::create_for_testing(min_joining_bond()),
+        ed25519_key(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    registry.register(
+        balance::create_for_testing(min_joining_bond()),
+        secp256k1_key(),
+        secp256k1_pop_a2(),
+        @0xA2,
+        5,
+    );
+    let (evicted_bond, _departed) = registry.advance_epoch(6, true, &mut ctx);
+    _departed.unpack_for_testing();
+    evicted_bond.destroy_zero();
+    let frozen_threshold = low_bond_threshold();
+    // A1: slashed down to exactly the frozen threshold, tolerated.
+    // A2: slashed one below it.
+    registry.slash(@0xA1, min_joining_bond() - frozen_threshold).destroy_for_testing();
+    registry.slash(@0xA2, min_joining_bond() - frozen_threshold + 1).destroy_for_testing();
+    // Raise the threshold above the old joining bond (25% vs 10% of stake).
+    protocol_config::set_attr_for_testing(b"attestor_low_bond_threshold_rate", 2500u64);
+    assert!(low_bond_threshold() > min_joining_bond());
+
+    let (evicted, _departed) = registry.advance_epoch(7, true, &mut ctx);
+    _departed.unpack_for_testing();
+    // Only A2 burns; A1 exits with its remaining escrow refunded.
+    assert!(evicted.value() == frozen_threshold - 1);
+    evicted.destroy_for_testing();
+    assert!(registry.active_count() == 0);
+
+    let exited_events = event::events_by_type<AttestorsExitedEvent>();
+    let (_, mut exited) = exited_events[0].unpack_exited_event_for_testing();
+    assert!(exited.length() == 2);
+    let (addr, reason, refunded, burned) = exited.remove(0).unpack_exit_info_for_testing();
+    assert!(addr == @0xA2 && reason == 0 && refunded == 0 && burned == frozen_threshold - 1);
+    let (addr, reason, refunded, burned) = exited.remove(0).unpack_exit_info_for_testing();
+    assert!(addr == @0xA1 && reason == 3 && refunded == frozen_threshold && burned == 0);
     registry.destroy_for_testing();
 }
 
