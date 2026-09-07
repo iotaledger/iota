@@ -100,3 +100,4 @@
 98: AttestationUnitsAboveBudget
 99: AttestationGasVectorNotEnabled
 100: AttestationCpuTimeZero
+101: AttestationRateAboveBandwidth
