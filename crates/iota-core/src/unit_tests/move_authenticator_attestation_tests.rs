@@ -9,7 +9,6 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, Command, ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
-    attestation::AttestedObjectVersionReader,
     crypto::get_account_key_pair,
     effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
@@ -23,7 +22,7 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 
-use super::AttestedObjectVersions;
+use super::attestation_verdict::AttestedObjectVersions;
 use crate::{
     authority::test_authority_builder::TestAuthorityBuilder,
     transaction_manager::VerifiedExecutableAttestedTransaction,

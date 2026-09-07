@@ -12,7 +12,7 @@ use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
     },
-    attestation::AttestationVerdictContext,
+    attestation::AttestationJudge,
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
@@ -110,10 +110,9 @@ pub trait Executor {
         transaction_digest: TransactionDigest,
         // BCS-serialized `TransactionData` bytes for the auth context.
         auth_context_data: AuthContextData,
-        // Present for attested transactions. When the authenticator function
-        // aborts at execution, authentication is re-run at the attestor's
-        // recorded versions to decide whether the attestation was honest.
-        attestation_verdict_context: Option<AttestationVerdictContext<'_>>,
+        // Present for attested transactions: asked, when Move authentication
+        // fails, whether the failure is charged to the attestor.
+        attestation_judge: Option<&dyn AttestationJudge>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (

@@ -118,37 +118,19 @@ impl AuthenticatorFunctionRefForExecution {
 }
 
 /// A `MoveAuthenticator` with the inputs and account resolution it executes
-/// with. `FunctionRef` is `Option`al only inside
-/// [`MoveAuthenticatorsForExecution::ResolutionFailed`].
+/// with. `FunctionRef` is `Option`al while resolution may still have failed.
 pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefForExecution> {
     pub authenticator: MoveAuthenticator,
     pub function_ref: FunctionRef,
     pub input_objects: CheckedInputObjects,
 }
 
-impl From<MoveAuthenticatorForExecution>
-    for MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>
-{
-    fn from(authenticator: MoveAuthenticatorForExecution) -> Self {
-        Self {
-            authenticator: authenticator.authenticator,
-            function_ref: Some(authenticator.function_ref),
-            input_objects: authenticator.input_objects,
-        }
-    }
-}
-
 /// The Move authenticators a transaction executes with: either every
 /// authenticator's function ref resolved, or resolution failed before
-/// execution and the failure travels with the authenticators so an
-/// attestation can still be judged at the recorded versions.
+/// execution and the failure is reported in the authentication's place.
 pub enum MoveAuthenticatorsForExecution {
     Resolved(Vec<MoveAuthenticatorForExecution>),
-    ResolutionFailed {
-        authenticators:
-            Vec<MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>>,
-        error: ExecutionError,
-    },
+    ResolutionFailed(ExecutionError),
 }
 
 /// Checks that a loaded account object can authenticate `signer` and returns

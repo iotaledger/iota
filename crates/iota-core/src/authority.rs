@@ -68,7 +68,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{Attestation, AttestationVerdictContext, AttestedObjectVersionReader},
+    attestation::{Attestation, AttestationJudge},
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -244,6 +244,7 @@ mod attestation_verdict_tests;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod authority_test_utils;
 
+mod attestation_verdict;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
@@ -2261,11 +2262,34 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
+            // Only attested transactions can have their Move-authentication
+            // failure attributed, and only they carry recorded versions to judge.
+            let attestation_verdict_context = transaction.attestation().map(|attestation| {
+                attestation_verdict::AttestationVerdictContext {
+                    attestation,
+                    attested_versions: attestation_verdict::AttestedObjectVersions {
+                        object_cache: self.get_object_cache_reader().as_ref(),
+                        current_epoch: epoch_id,
+                    },
+                    store: backing_store,
+                    executor: epoch_store.executor().as_ref(),
+                    protocol_config,
+                    metrics: self.metrics.limits_metrics.clone(),
+                    epoch_id,
+                    epoch_timestamp_ms: epoch_start_timestamp,
+                    reference_gas_price,
+                    gas_data: gas_data.clone(),
+                    authenticators: attestation_verdict::authenticator_inputs(&move_authenticators),
+                    executed_versions: attestation_verdict::executed_versions(&move_authenticators),
+                    transaction_kind: kind.clone(),
+                    transaction_signer: signer,
+                    transaction_digest: tx_digest,
+                    auth_context_data: auth_context_data.clone(),
+                }
+            });
+
             let move_authenticators = match pre_authentication_error {
-                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
-                    authenticators: move_authenticators,
-                    error,
-                },
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed(error),
                 None => MoveAuthenticatorsForExecution::Resolved(
                     move_authenticators
                         .into_iter()
@@ -2282,22 +2306,6 @@ impl AuthorityState {
                         .collect(),
                 ),
             };
-
-            // Only attested transactions can have their Move-authentication
-            // failure attributed, and only they carry recorded versions to judge.
-            let attested_object_versions =
-                transaction.attestation().map(|_| AttestedObjectVersions {
-                    object_cache: self.get_object_cache_reader().as_ref(),
-                    current_epoch: epoch_id,
-                });
-            let attestation_verdict_context = transaction
-                .attestation()
-                .zip(attested_object_versions.as_ref())
-                .map(|(attestation, version_reader)| AttestationVerdictContext {
-                    object_versions: attestation.object_versions(),
-                    computation_units: attestation.computation_units(),
-                    version_reader,
-                });
 
             let (
                 inner_temp_store,
@@ -2325,7 +2333,9 @@ impl AuthorityState {
                     signer,
                     tx_digest,
                     auth_context_data,
-                    attestation_verdict_context,
+                    attestation_verdict_context
+                        .as_ref()
+                        .map(|context| context as &dyn AttestationJudge),
                     &mut None,
                 );
             (inner_temp_store, gas_status, effects, execution_error_opt)
@@ -6881,23 +6891,6 @@ impl NodeStateDump {
     pub fn read_from_file(path: &PathBuf) -> Result<Self, anyhow::Error> {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
-    }
-}
-
-/// Judges the object versions recorded in an attestation, so that a
-/// Move-authentication failure can be attributed to the issuer or the attestor.
-struct AttestedObjectVersions<'a> {
-    object_cache: &'a dyn ObjectCacheRead,
-    current_epoch: EpochId,
-}
-
-impl AttestedObjectVersionReader for AttestedObjectVersions<'_> {
-    fn superseded_in_current_epoch(&self, object_id: &ObjectId, version: Version) -> bool {
-        matches!(
-            self.object_cache
-                .try_get_object_superseded_in_epoch(object_id, version),
-            Ok(Some(epoch)) if epoch == self.current_epoch
-        )
     }
 }
 
