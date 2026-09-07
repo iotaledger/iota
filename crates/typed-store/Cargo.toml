@@ -18,7 +18,7 @@ fdlimit = "0.2.1"
 hdrhistogram.workspace = true
 num_cpus.workspace = true
 once_cell.workspace = true
-rocksdb = { version = "0.24.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf", "bindgen-runtime"] }
+rocksdb = { version = "0.25.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf", "bindgen-runtime"] }
 serde.workspace = true
 sysinfo.workspace = true
 tap.workspace = true
