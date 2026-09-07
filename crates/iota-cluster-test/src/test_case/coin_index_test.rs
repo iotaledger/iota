@@ -10,13 +10,12 @@ use iota_json_rpc_types::{
 use iota_move_build::test_utils::compile_managed_coin_package;
 use iota_sdk::PagedFn;
 use iota_sdk_transaction_builder::SharedMut;
-use iota_sdk_types::{ObjectId, ObjectReference, Owner, StructTag};
-use iota_test_transaction_builder::{make_staking_transaction, move_call_tx};
+use iota_sdk_types::{MovePackageData, ObjectId, ObjectReference, Owner, StructTag};
+use iota_test_transaction_builder::{make_staking_transaction, move_call_tx, select_gas_coin};
 use iota_types::{
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType,
 };
-use jsonrpsee::rpc_params;
 use tracing::info;
 
 use crate::{TestCaseImpl, TestContext};
@@ -576,22 +575,20 @@ async fn publish_managed_coin_package(
     ctx: &mut TestContext,
 ) -> Result<(ObjectReference, ObjectReference, ObjectReference), anyhow::Error> {
     let compiled_package = compile_managed_coin_package();
-    let all_module_bytes =
-        compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_storage_package_ids();
+    let package_data = MovePackageData::new(
+        compiled_package.get_package_bytes(/* with_unpublished_deps */ false),
+        compiled_package.get_dependency_storage_package_ids(),
+    );
 
-    let params = rpc_params![
-        ctx.get_wallet_address(),
-        all_module_bytes,
-        dependencies,
-        None::<ObjectId>,
-        // Doesn't need to be scaled by RGP since most of the cost is storage
-        500_000_000.to_string()
-    ];
-
-    let data = ctx
-        .build_transaction_remotely("unsafe_publish", params)
-        .await?;
+    let sender = ctx.get_wallet_address();
+    let grpc_client = ctx.get_fullnode_grpc_client();
+    let mut builder = grpc_client.transaction_builder(sender);
+    let upgrade_cap = builder.publish_package(package_data).result();
+    builder.transfer_objects(sender, [upgrade_cap]);
+    // A single explicit gas coin keeps the sender's coin count unchanged for
+    // the assertions below.
+    builder.gas([select_gas_coin(&grpc_client, sender).await]);
+    let data = builder.finish().await?;
     let response = ctx.sign_and_execute(data, "publish ft package").await;
     let changes = response.object_changes.unwrap();
     info!("changes: {changes:?}");

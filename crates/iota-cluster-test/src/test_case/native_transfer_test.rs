@@ -4,8 +4,8 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_sdk_transaction_builder::unresolved;
 use iota_sdk_types::{Address, ObjectId, Owner};
-use jsonrpsee::rpc_params;
 use tracing::info;
 
 use crate::{
@@ -32,35 +32,25 @@ impl TestCaseImpl for NativeTransferTest {
 
         let signer = ctx.get_wallet_address();
         let recipient_addr = Address::random();
+        let grpc_client = ctx.get_fullnode_grpc_client();
         // Test transfer object
         let obj_to_transfer: ObjectId = *iota_objs.swap_remove(0).id();
-        let params = rpc_params![
-            signer,
-            obj_to_transfer,
-            Some(*gas_obj.id()),
-            (2_000_000).to_string(),
-            recipient_addr
-        ];
-        let data = ctx
-            .build_transaction_remotely("unsafe_transferObject", params)
-            .await?;
+        let mut builder = grpc_client.transaction_builder(signer);
+        builder.transfer_objects(recipient_addr, [obj_to_transfer]);
+        builder.gas([*gas_obj.id()]);
+        let data = builder.finish().await?;
         let mut response = ctx.sign_and_execute(data, "coin transfer").await;
 
         Self::examine_response(ctx, &mut response, signer, recipient_addr, obj_to_transfer).await;
 
         let mut iota_objs_2 = ctx.get_iota_from_faucet(Some(1)).await;
-        // Test transfer iota
+        // Test transfer iota: the transferred coin doubles as the gas coin, so
+        // the recipient receives it whole, minus the gas fee.
         let obj_to_transfer_2 = *iota_objs_2.swap_remove(0).id();
-        let params = rpc_params![
-            signer,
-            obj_to_transfer_2,
-            (2_000_000).to_string(),
-            recipient_addr,
-            None::<u64>
-        ];
-        let data = ctx
-            .build_transaction_remotely("unsafe_transferIota", params)
-            .await?;
+        let mut builder = grpc_client.transaction_builder(signer);
+        builder.transfer_objects(recipient_addr, [unresolved::Argument::Gas]);
+        builder.gas([obj_to_transfer_2]);
+        let data = builder.finish().await?;
         let mut response = ctx.sign_and_execute(data, "coin transfer").await;
 
         Self::examine_response(ctx, &mut response, signer, recipient_addr, obj_to_transfer).await;
