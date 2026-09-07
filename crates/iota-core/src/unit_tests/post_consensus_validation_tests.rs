@@ -13,6 +13,7 @@ use iota_sdk_types::{
     Transaction, TransactionDigest, TransactionEffects, Version,
 };
 use iota_types::{
+    base_types::CommitRound,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
@@ -32,8 +33,9 @@ use crate::{
     authority::{
         ExecutionEnv,
         authority_per_epoch_store::{
-            LockDetails, consensus_quarantine::ConsensusCommitOutput,
-            handler_object_state::HandlerLatestObjectKind,
+            LockDetails,
+            consensus_quarantine::ConsensusCommitOutput,
+            handler_object_state::{HandlerLatestObjectKind, SyncAheadRecord},
         },
         authority_tests::{TestCallArg, call_move_, init_state_with_objects_and_object_basics},
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
@@ -2145,6 +2147,19 @@ impl BookkeepingSetup {
         effects
     }
 
+    /// Registers `tx`'s digest in the digest -> commit-round map for `round`
+    /// before executing - the handler-known classification, under which the
+    /// hook writes handler-latest rows instead of sync-ahead records.
+    fn execute_as_handler_known(
+        &self,
+        tx: VerifiedTransaction,
+        round: CommitRound,
+    ) -> TransactionEffects {
+        self.epoch_store
+            .assign_commit_to_transactions(round, vec![*tx.digest()]);
+        self.execute(tx)
+    }
+
     /// A verified call into `module::function` of the published test package
     /// at the gas coin's latest version.
     fn build_move_call(
@@ -2173,8 +2188,7 @@ impl BookkeepingSetup {
     }
 
     /// Builds a call into `module::function` of the published test package at
-    /// the gas coin's latest version and executes it through the state-sync
-    /// arm.
+    /// the gas coin's latest version and executes it.
     fn move_call(
         &self,
         module: &'static str,
@@ -2188,10 +2202,7 @@ impl BookkeepingSetup {
     }
 
     /// Builds a call into the `object_basics` module and executes it through
-    /// the certificate + consensus path - the only route that assigns
-    /// shared-object input versions in a unit test. The consensus handler
-    /// does not register digests in the round map yet (that wiring is a later
-    /// increment), so the hook still classifies these executions sync-ahead.
+    /// the certificate + consensus path.
     async fn shared_object_basics_call(
         &self,
         function: &'static str,
@@ -2200,7 +2211,7 @@ impl BookkeepingSetup {
         sender: Address,
         sender_key: &AccountPrivateKey,
     ) -> TransactionEffects {
-        call_move_(
+        let effects = call_move_(
             &self.authority,
             None,
             gas_id,
@@ -2214,7 +2225,10 @@ impl BookkeepingSetup {
             true, // the call takes shared-object inputs
         )
         .await
-        .unwrap()
+        .unwrap();
+        assert!(effects.status().is_success(), "{:?}", effects.status());
+
+        effects
     }
 
     /// [`Self::move_call`] into the `object_basics` module.
@@ -2259,7 +2273,7 @@ impl BookkeepingSetup {
         sender: Address,
         sender_key: &AccountPrivateKey,
         recipient: Address,
-    ) {
+    ) -> TransactionEffects {
         let tx = make_transfer_object_transaction(
             self.latest_ref(object_id),
             self.latest_ref(gas_id),
@@ -2268,26 +2282,22 @@ impl BookkeepingSetup {
             recipient,
             self.rgp,
         );
-        self.execute(self.epoch_store.verify_transaction(tx).unwrap());
+        self.execute(self.epoch_store.verify_transaction(tx).unwrap())
     }
 
-    /// Asserts `id` carries a sync-ahead record whose chain grew from `base`
-    /// to some version above `above`.
+    /// Asserts `id`'s sync-ahead record is exactly `{ base_version,
+    /// latest_created }`. `base_version` is the version the chain grew from
+    /// (`None` when the chain itself created the id) and never changes once
+    /// the record exists; `latest_created` is the chain's head.
     #[track_caller]
-    fn assert_sync_chain(&self, id: &ObjectId, base: Version, above: Version) {
-        let record = self
-            .epoch_store
-            .sync_record(id)
-            .unwrap()
-            .expect("a sync-executed write must leave a sync-ahead record");
+    fn assert_record(&self, id: &ObjectId, base_version: Option<Version>, latest_created: Version) {
         assert_eq!(
-            record.base_version,
-            Some(base),
-            "the record's base must stay the version the chain grew from"
-        );
-        assert!(
-            record.latest_created > above,
-            "the chain head must lie above the consumed version"
+            self.epoch_store.sync_record(id).unwrap(),
+            Some(SyncAheadRecord {
+                base_version,
+                latest_created,
+            }),
+            "sync-ahead record mismatch for {id:?}"
         );
     }
 
@@ -2343,20 +2353,28 @@ async fn executed_transaction_updates_sync_ahead_bookkeeping() {
     // consumed, and no handler-latest row.
     let obj_genesis_ref = s.latest_ref(&obj_id);
     let gas1_ref = s.latest_ref(&gas1_id);
-    s.transfer(&obj_id, &gas1_id, address_1, &address_1_key, address_2);
+    let first = s.transfer(&obj_id, &gas1_id, address_1, &address_1_key, address_2);
 
-    s.assert_sync_chain(&gas1_id, gas1_ref.version, gas1_ref.version);
-    s.assert_sync_chain(&obj_id, obj_genesis_ref.version, obj_genesis_ref.version);
+    s.assert_record(&gas1_id, Some(gas1_ref.version), first.lamport_version());
+    s.assert_record(
+        &obj_id,
+        Some(obj_genesis_ref.version),
+        first.lamport_version(),
+    );
     assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
 
     // A second transfer extends the object's chain: the base stays the
     // version the chain originally grew from while the chain head advances.
     let obj_v1_ref = s.latest_ref(&obj_id);
     let gas2_ref = s.latest_ref(&gas2_id);
-    s.transfer(&obj_id, &gas2_id, address_2, &address_2_key, address_1);
+    let second = s.transfer(&obj_id, &gas2_id, address_2, &address_2_key, address_1);
 
-    s.assert_sync_chain(&gas2_id, gas2_ref.version, gas2_ref.version);
-    s.assert_sync_chain(&obj_id, obj_genesis_ref.version, obj_v1_ref.version);
+    s.assert_record(&gas2_id, Some(gas2_ref.version), second.lamport_version());
+    s.assert_record(
+        &obj_id,
+        Some(obj_genesis_ref.version),
+        second.lamport_version(),
+    );
 
     // Both consumed versions are sheltered with their bytes; the live latest
     // version is not.
@@ -2393,9 +2411,7 @@ async fn handler_known_transaction_writes_handler_latest_only() {
 
     // The handler registered the digest before execution: the hook writes
     // handler-latest rows and neither sync records nor shelter bytes.
-    s.epoch_store
-        .assign_commit_to_transactions(7, vec![*tx.digest()]);
-    let effects = s.execute(tx);
+    let effects = s.execute_as_handler_known(tx, 7);
 
     let row = s
         .epoch_store
@@ -2448,13 +2464,7 @@ async fn sync_ahead_created_object_has_no_base_version() {
 
     // `None` marks an id the sync-ahead chain itself created: no named
     // version of it may answer keep at validation.
-    let record = s
-        .epoch_store
-        .sync_record(created_ref.object_id())
-        .unwrap()
-        .expect("a sync-created object must carry a sync-ahead record");
-    assert_eq!(record.base_version, None);
-    assert_eq!(record.latest_created, effects.lamport_version());
+    s.assert_record(created_ref.object_id(), None, effects.lamport_version());
     s.assert_not_sheltered(created_ref);
 }
 
@@ -2483,13 +2493,11 @@ async fn sync_ahead_delete_shelters_the_consumed_version() {
     // changes once the record exists - it stays `None` because this chain
     // created the id instead of consuming a pre-existing version.
     s.assert_sheltered(created_ref);
-    let record = s
-        .epoch_store
-        .sync_record(created_ref.object_id())
-        .unwrap()
-        .expect("a sync-deleted object must keep its sync-ahead record");
-    assert_eq!(record.base_version, None);
-    assert_eq!(record.latest_created, delete_effects.lamport_version());
+    s.assert_record(
+        created_ref.object_id(),
+        None,
+        delete_effects.lamport_version(),
+    );
 
     // A keyed store read at the delete-tombstone version answers `None`; the
     // consumed pre-delete bytes are reachable only through the shelter.
@@ -2524,24 +2532,18 @@ async fn sync_ahead_wrapped_object_is_sheltered_and_reappears_on_unwrap() {
     // tombstone version. The wrapper is a new id created by this chain, so
     // its record starts with `base_version: None`.
     s.assert_sheltered(created_ref);
-    let wrapped_record = s
-        .epoch_store
-        .sync_record(created_ref.object_id())
-        .unwrap()
-        .expect("a sync-wrapped object must keep its sync-ahead record");
-    assert_eq!(wrapped_record.base_version, None);
-    assert_eq!(
-        wrapped_record.latest_created,
-        wrap_effects.lamport_version()
+    s.assert_record(
+        created_ref.object_id(),
+        None,
+        wrap_effects.lamport_version(),
     );
 
     let wrapper_ref = wrap_effects.created()[0].reference;
-    let wrapper_record = s
-        .epoch_store
-        .sync_record(wrapper_ref.object_id())
-        .unwrap()
-        .expect("the wrapper must carry a chain-created sync-ahead record");
-    assert_eq!(wrapper_record.base_version, None);
+    s.assert_record(
+        wrapper_ref.object_id(),
+        None,
+        wrap_effects.lamport_version(),
+    );
 
     // A keyed store read at the wrap-tombstone version answers `None`: the
     // bytes live only inside the wrapper and, for validation, in the shelter.
@@ -2566,26 +2568,19 @@ async fn sync_ahead_wrapped_object_is_sheltered_and_reappears_on_unwrap() {
     assert_eq!(unwrapped_ref.object_id(), created_ref.object_id());
     assert!(unwrapped_ref.version > created_ref.version);
 
-    let record = s
-        .epoch_store
-        .sync_record(created_ref.object_id())
-        .unwrap()
-        .expect("the unwrapped id must still carry its sync-ahead record");
-    assert_eq!(record.base_version, None);
-    assert_eq!(record.latest_created, unwrap_effects.lamport_version());
+    s.assert_record(
+        created_ref.object_id(),
+        None,
+        unwrap_effects.lamport_version(),
+    );
 
     // The wrapper's own chain now ends in its deletion: consumed by the
     // unwrap, its record head advances to the unwrap version.
     s.assert_sheltered(wrapper_ref);
-    let wrapper_record = s
-        .epoch_store
-        .sync_record(wrapper_ref.object_id())
-        .unwrap()
-        .expect("the deleted wrapper must keep its sync-ahead record");
-    assert_eq!(wrapper_record.base_version, None);
-    assert_eq!(
-        wrapper_record.latest_created,
-        unwrap_effects.lamport_version()
+    s.assert_record(
+        wrapper_ref.object_id(),
+        None,
+        unwrap_effects.lamport_version(),
     );
 
     s.assert_not_sheltered(unwrapped_ref);
@@ -2607,25 +2602,24 @@ async fn sync_ahead_creations_of_every_owner_kind_get_records() {
     let start_effects = s.move_call("M1", "start", vec![], &gas_id, sender, &sender_key);
 
     // `start` creates an address-owned object, a receivable child, a frozen
-    // object, a shared object, and a dynamic-field child with its `Field`
+    // object, a shared object, and a dynamic object field child with its `Field`
     // wrapper. Every creation gets a sync-ahead record with no base,
     // whatever its owner kind: a sync-created object must answer missing at
     // validation, never read as pre-epoch state. None is sheltered - nothing
     // was consumed at these ids.
     for created in start_effects.created() {
-        let record = s
-            .epoch_store
-            .sync_record(created.reference.object_id())
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "created object {:?} (owner {:?}) must carry a sync-ahead record",
-                    created.reference.object_id(),
-                    created.owner
-                )
-            });
-        assert_eq!(record.base_version, None, "owner {:?}", created.owner);
-        assert_eq!(record.latest_created, start_effects.lamport_version());
+        assert_eq!(
+            s.epoch_store
+                .sync_record(created.reference.object_id())
+                .unwrap(),
+            Some(SyncAheadRecord {
+                base_version: None,
+                latest_created: start_effects.lamport_version(),
+            }),
+            "sync-ahead record mismatch for {:?} (owner {:?})",
+            created.reference.object_id(),
+            created.owner
+        );
         s.assert_not_sheltered(created.reference);
     }
 
@@ -2685,15 +2679,10 @@ async fn sync_ahead_removed_dynamic_field_shelters_the_runtime_loaded_child() {
     );
 
     s.assert_sheltered(field_ref);
-    let field_record = s
-        .epoch_store
-        .sync_record(field_ref.object_id())
-        .unwrap()
-        .expect("the removed field child must carry a sync-ahead record");
-    assert_eq!(field_record.base_version, None);
-    assert_eq!(
-        field_record.latest_created,
-        remove_effects.lamport_version()
+    s.assert_record(
+        field_ref.object_id(),
+        None,
+        remove_effects.lamport_version(),
     );
     assert!(
         s.store_object(field_ref.object_id(), remove_effects.lamport_version())
@@ -2708,14 +2697,10 @@ async fn sync_ahead_removed_dynamic_field_shelters_the_runtime_loaded_child() {
     // head at the remove version.
     let unwrapped_value = remove_effects.unwrapped()[0].reference;
     assert_eq!(unwrapped_value.object_id(), value_ref.object_id());
-    let value_record = s
-        .epoch_store
-        .sync_record(value_ref.object_id())
-        .unwrap()
-        .expect("the unwrapped value must carry a sync-ahead record");
-    assert_eq!(
-        value_record.latest_created,
-        remove_effects.lamport_version()
+    s.assert_record(
+        value_ref.object_id(),
+        None,
+        remove_effects.lamport_version(),
     );
 }
 
@@ -2768,15 +2753,10 @@ async fn sync_ahead_removed_dynamic_object_field_shelters_child_and_wrapper() {
 
     s.assert_sheltered(field_wrapper_ref);
     s.assert_sheltered(value_after_add.reference);
-
-    let value_record = s
-        .epoch_store
-        .sync_record(value_ref.object_id())
-        .unwrap()
-        .expect("the removed value object must carry a sync-ahead record");
-    assert_eq!(
-        value_record.latest_created,
-        remove_effects.lamport_version()
+    s.assert_record(
+        value_ref.object_id(),
+        None,
+        remove_effects.lamport_version(),
     );
 
     // The value is live and address-owned again at its new version.
@@ -2813,31 +2793,22 @@ async fn sync_ahead_received_object_is_sheltered_from_the_runtime_load() {
         &sender_key,
     );
 
-    s.assert_sheltered(child.reference);
-    let child_record = s
-        .epoch_store
-        .sync_record(child.reference.object_id())
-        .unwrap()
-        .expect("a received-and-transferred object must carry a sync-ahead record");
     // The base stays `None`: the child was created by this same sync-ahead
     // chain (the `start` call), and the receive only extends the chain.
-    assert_eq!(child_record.base_version, None);
-    assert_eq!(
-        child_record.latest_created,
-        receive_effects.lamport_version()
+    s.assert_sheltered(child.reference);
+    s.assert_record(
+        child.reference.object_id(),
+        None,
+        receive_effects.lamport_version(),
     );
 
     // The parent was mutated through its `&mut` argument: a declared input,
     // consumed and sheltered like any other.
     s.assert_sheltered(parent.reference);
-    let parent_record = s
-        .epoch_store
-        .sync_record(parent.reference.object_id())
-        .unwrap()
-        .expect("the receiving parent must carry a sync-ahead record");
-    assert_eq!(
-        parent_record.latest_created,
-        receive_effects.lamport_version()
+    s.assert_record(
+        parent.reference.object_id(),
+        None,
+        receive_effects.lamport_version(),
     );
 }
 
@@ -2855,13 +2826,11 @@ async fn sync_ahead_shared_mutation_writes_nothing_and_deletion_is_recorded() {
     let share_effects = s.object_basics_call("share", vec![], &gas_id, sender, &sender_key);
     let shared_ref = share_effects.created()[0].reference;
     assert!(matches!(share_effects.created()[0].owner, Owner::Shared(_)));
-    let record = s
-        .epoch_store
-        .sync_record(shared_ref.object_id())
-        .unwrap()
-        .expect("a sync-created shared object must carry a sync-ahead record");
-    assert_eq!(record.base_version, None);
-    assert_eq!(record.latest_created, share_effects.lamport_version());
+    s.assert_record(
+        shared_ref.object_id(),
+        None,
+        share_effects.lamport_version(),
+    );
 
     // Mutating the shared input writes nothing: the record stays where the
     // creation left it (a busy shared object like the Clock would otherwise
@@ -2879,12 +2848,11 @@ async fn sync_ahead_shared_mutation_writes_nothing_and_deletion_is_recorded() {
         &sender_key,
     )
     .await;
-    let record_after_mutation = s
-        .epoch_store
-        .sync_record(shared_ref.object_id())
-        .unwrap()
-        .expect("the mutation must not remove the creation's record");
-    assert_eq!(record_after_mutation, record);
+    s.assert_record(
+        shared_ref.object_id(),
+        None,
+        share_effects.lamport_version(),
+    );
     s.assert_not_sheltered(shared_ref);
 
     // Deleting the shared object IS recorded - deletion is one of the shared
@@ -2900,15 +2868,10 @@ async fn sync_ahead_shared_mutation_writes_nothing_and_deletion_is_recorded() {
             &sender_key,
         )
         .await;
-    let record_after_delete = s
-        .epoch_store
-        .sync_record(shared_ref.object_id())
-        .unwrap()
-        .expect("a sync-deleted shared object must carry a sync-ahead record");
-    assert_eq!(record_after_delete.base_version, None);
-    assert_eq!(
-        record_after_delete.latest_created,
-        delete_effects.lamport_version()
+    s.assert_record(
+        shared_ref.object_id(),
+        None,
+        delete_effects.lamport_version(),
     );
     s.assert_not_sheltered(shared_before_delete);
     assert!(
@@ -2927,6 +2890,7 @@ async fn aborted_transaction_still_records_and_shelters_its_gas() {
     )
     .await;
 
+    let gas_genesis_version = s.latest_ref(&gas_id).version;
     let (parent_ref, _) = s.create_object(&gas_id, sender, &sender_key);
     let gas_before = s.latest_ref(&gas_id);
 
@@ -2946,12 +2910,11 @@ async fn aborted_transaction_still_records_and_shelters_its_gas() {
     // The aborted execution still consumed and rewrote the gas coin: its
     // consumed version is recorded and sheltered like any other write.
     s.assert_sheltered(gas_before);
-    let gas_record = s
-        .epoch_store
-        .sync_record(&gas_id)
-        .unwrap()
-        .expect("the aborted transaction's gas coin must carry a sync-ahead record");
-    assert_eq!(gas_record.latest_created, effects.lamport_version());
+    s.assert_record(
+        &gas_id,
+        Some(gas_genesis_version),
+        effects.lamport_version(),
+    );
 }
 
 #[tokio::test]
@@ -3000,13 +2963,7 @@ async fn smashed_gas_coin_is_recorded_and_sheltered() {
     // deleted - so both versions are recorded and sheltered.
     s.assert_sheltered(gas1_ref);
     s.assert_sheltered(gas2_ref);
-    let smashed_record = s
-        .epoch_store
-        .sync_record(&gas2_id)
-        .unwrap()
-        .expect("the smashed gas coin must carry a sync-ahead record");
-    assert_eq!(smashed_record.base_version, Some(gas2_ref.version));
-    assert_eq!(smashed_record.latest_created, effects.lamport_version());
+    s.assert_record(&gas2_id, Some(gas2_ref.version), effects.lamport_version());
 }
 
 #[tokio::test]
@@ -3020,16 +2977,10 @@ async fn sync_published_package_is_recorded_but_never_sheltered() {
     let s = setup_bookkeeping_with_package("tto", sender, &sender_key, gas_id).await;
 
     // A sync-published package must answer missing at validation - never
-    // read as pre-epoch state - so its creation is recorded; packages are
-    // never sheltered.
+    // read as pre-epoch state - so its creation is recorded. Like any
+    // creation, nothing is sheltered at its id.
     let package_ref = s.latest_ref(&s.package_id);
-    let record = s
-        .epoch_store
-        .sync_record(&s.package_id)
-        .unwrap()
-        .expect("a sync-published package must carry a sync-ahead record");
-    assert_eq!(record.base_version, None);
-    assert_eq!(record.latest_created, package_ref.version);
+    s.assert_record(&s.package_id, None, package_ref.version);
     s.assert_not_sheltered(package_ref);
 }
 
@@ -3065,15 +3016,10 @@ async fn sync_ahead_received_wrapper_is_sheltered_and_unwraps_its_content() {
     // since the inner object's bytes live inside the wrapper's, they are
     // sheltered transitively - the only copy of them on this path.
     s.assert_sheltered(wrapper.reference);
-    let wrapper_record = s
-        .epoch_store
-        .sync_record(wrapper.reference.object_id())
-        .unwrap()
-        .expect("the received-and-deleted wrapper must carry a sync-ahead record");
-    assert_eq!(wrapper_record.base_version, None);
-    assert_eq!(
-        wrapper_record.latest_created,
-        unwrap_effects.lamport_version()
+    s.assert_record(
+        wrapper.reference.object_id(),
+        None,
+        unwrap_effects.lamport_version(),
     );
     assert!(
         s.store_object(
@@ -3087,16 +3033,7 @@ async fn sync_ahead_received_wrapper_is_sheltered_and_unwraps_its_content() {
     // first store row is this version, so its record starts here - no base,
     // nothing sheltered at its id.
     let inner = unwrap_effects.unwrapped()[0].reference;
-    let inner_record = s
-        .epoch_store
-        .sync_record(inner.object_id())
-        .unwrap()
-        .expect("the unwrapped inner object must carry a sync-ahead record");
-    assert_eq!(inner_record.base_version, None);
-    assert_eq!(
-        inner_record.latest_created,
-        unwrap_effects.lamport_version()
-    );
+    s.assert_record(inner.object_id(), None, unwrap_effects.lamport_version());
     s.assert_not_sheltered(inner);
     assert!(s.store_object(inner.object_id(), inner.version).is_some());
 }
@@ -3126,15 +3063,10 @@ async fn sync_ahead_received_then_deleted_object_is_sheltered() {
     );
 
     s.assert_sheltered(child.reference);
-    let child_record = s
-        .epoch_store
-        .sync_record(child.reference.object_id())
-        .unwrap()
-        .expect("a received-and-deleted object must carry a sync-ahead record");
-    assert_eq!(child_record.base_version, None);
-    assert_eq!(
-        child_record.latest_created,
-        delete_effects.lamport_version()
+    s.assert_record(
+        child.reference.object_id(),
+        None,
+        delete_effects.lamport_version(),
     );
     assert!(
         s.store_object(
@@ -3146,7 +3078,7 @@ async fn sync_ahead_received_then_deleted_object_is_sheltered() {
 }
 
 #[tokio::test]
-async fn read_only_immutable_input_is_not_recorded_or_sheltered() {
+async fn immutable_input_read_does_not_extend_record_or_shelter() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
 
@@ -3182,25 +3114,17 @@ async fn read_only_immutable_input_is_not_recorded_or_sheltered() {
     // record head stays where the freeze left it. Only the mutated object's
     // chain advances, sheltering the version the update consumed.
     s.assert_not_sheltered(frozen_ref);
-    let frozen_record = s
-        .epoch_store
-        .sync_record(frozen_id_ref.object_id())
-        .unwrap()
-        .expect("the freeze itself must have left a sync-ahead record");
-    assert_eq!(
-        frozen_record.latest_created,
-        freeze_effects.lamport_version()
+    s.assert_record(
+        frozen_id_ref.object_id(),
+        None,
+        freeze_effects.lamport_version(),
     );
 
     s.assert_sheltered(mutated_ref);
-    let mutated_record = s
-        .epoch_store
-        .sync_record(mutated_ref.object_id())
-        .unwrap()
-        .expect("the mutated object must carry a sync-ahead record");
-    assert_eq!(
-        mutated_record.latest_created,
-        update_effects.lamport_version()
+    s.assert_record(
+        mutated_ref.object_id(),
+        None,
+        update_effects.lamport_version(),
     );
 }
 
