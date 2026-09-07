@@ -144,8 +144,10 @@ async fn test_claim_account_mutable_succeeds() {
         .expect("stored key must be a keypair")
         .clone();
 
+    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
     let claim = SmartAccountClaim {
-        public_key: sdk_ed25519_public_key(&keypair),
+        public_key_scheme,
+        public_key_raw_bytes,
         build_kind: SmartAccountBuildKind::Mutable,
     };
     let kind =
@@ -224,8 +226,10 @@ async fn test_claim_account_immutable_succeeds() {
         .expect("stored key must be a keypair")
         .clone();
 
+    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
     let claim = SmartAccountClaim {
-        public_key: sdk_ed25519_public_key(&keypair),
+        public_key_scheme,
+        public_key_raw_bytes,
         build_kind: SmartAccountBuildKind::Immutable,
     };
     let kind =
@@ -312,8 +316,10 @@ async fn test_claim_account_rejected_when_registry_disabled() {
         .expect("stored key must be a keypair")
         .clone();
 
+    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
     let claim = SmartAccountClaim {
-        public_key: sdk_ed25519_public_key(&keypair),
+        public_key_scheme,
+        public_key_raw_bytes,
         build_kind: SmartAccountBuildKind::Mutable,
     };
     let kind =
@@ -352,6 +358,85 @@ async fn test_claim_account_rejected_when_registry_disabled() {
             assert!(
                 status.is_err(),
                 "ClaimAccount must be rejected when claim_registry is disabled; got success",
+            );
+        }
+    }
+}
+
+/// Verify that a `ClaimAccountTransaction` whose public key is not a valid
+/// point on its curve is rejected at validity-check time.
+///
+/// Execution builds the Move `PublicKey` from these bytes directly instead of
+/// calling `public_key::create`, so the validity check is the only thing that
+/// rejects a malformed key.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_account_rejected_with_invalid_public_key() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+    };
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+
+    // A compressed secp256k1 key must start with 0x02 or 0x03, so these bytes
+    // are the right length but off the curve.
+    let claim = SmartAccountClaim {
+        public_key_scheme: 0x01,
+        public_key_raw_bytes: vec![0xff; 33],
+        build_kind: SmartAccountBuildKind::Mutable,
+    };
+    let kind =
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
+
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let tx_data = TransactionData::new(
+        kind,
+        owner,
+        first_gas_coin(&test_cluster.wallet, owner).await,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    );
+
+    // The transaction must be rejected before execution
+    // (UserInputError::Unsupported).
+    let result = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
+        .await;
+
+    match result {
+        Err(e) => {
+            let msg = e.to_string().to_lowercase();
+            assert!(
+                msg.contains("invalid claim account public key"),
+                "unexpected error message: {msg}",
+            );
+        }
+        Ok(resp) => {
+            let status = resp
+                .effects
+                .as_ref()
+                .expect("response must include effects")
+                .status();
+            assert!(
+                status.is_err(),
+                "ClaimAccount with an invalid public key must be rejected; got success",
             );
         }
     }
@@ -403,20 +488,10 @@ fn created_smart_accounts(
         .collect()
 }
 
-/// Build the SDK `PublicKey` from an iota-types `IotaKeyPair` (Ed25519 only).
+/// Build the scheme flag and raw key bytes of a `SmartAccountClaim` from an
+/// iota-types `IotaKeyPair`.
 #[cfg(msim)]
-fn sdk_ed25519_public_key(
-    kp: &iota_types::crypto::IotaKeyPair,
-) -> iota_sdk_types::crypto::PublicKey {
-    use iota_sdk_types::crypto::{Ed25519PublicKey, PublicKey as SdkPublicKey, PublicKeyExt};
-    match kp {
-        iota_types::crypto::IotaKeyPair::Ed25519(_) => SdkPublicKey::Ed25519(
-            Ed25519PublicKey::from_bytes(kp.public().as_ref())
-                .expect("wallet public key must be valid"),
-        ),
-        other => panic!(
-            "expected Ed25519 wallet key; got {:?}",
-            other.public().scheme()
-        ),
-    }
+fn claim_public_key(kp: &iota_types::crypto::IotaKeyPair) -> (u8, Vec<u8>) {
+    let public_key = kp.public();
+    (public_key.flag(), public_key.as_ref().to_vec())
 }

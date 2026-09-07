@@ -4,6 +4,12 @@ AccountAddress:
     TUPLEARRAY:
       CONTENT: U8
       SIZE: 32
+AccountClaimKind:
+  ENUM:
+    0:
+      SmartAccount:
+        NEWTYPE:
+          TYPENAME: SmartAccountClaim
 Address:
   NEWTYPESTRUCT:
     TUPLEARRAY:
@@ -184,6 +190,10 @@ CheckpointTransaction:
     - output_objects:
         SEQ:
           TYPENAME: Object
+ClaimAccountTransaction:
+  STRUCT:
+    - kind:
+        TYPENAME: AccountClaimKind
 ClaimRegistryCreate: UNITSTRUCT
 Command:
   ENUM:
@@ -795,6 +805,19 @@ SenderSignedTransaction:
     - tx_signatures:
         SEQ:
           TYPENAME: GenericSignature
+SmartAccountBuildKind:
+  ENUM:
+    0:
+      Mutable: UNIT
+    1:
+      Immutable: UNIT
+SmartAccountClaim:
+  STRUCT:
+    - public_key_scheme: U8
+    - public_key_raw_bytes:
+        SEQ: U8
+    - build_kind:
+        TYPENAME: SmartAccountBuildKind
 SplitCoins:
   STRUCT:
     - coin:
@@ -894,6 +917,10 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+    6:
+      ClaimAccount:
+        NEWTYPE:
+          TYPENAME: ClaimAccountTransaction
 TransactionV1:
   STRUCT:
     - kind:

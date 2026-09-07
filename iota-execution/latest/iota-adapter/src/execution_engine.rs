@@ -31,8 +31,7 @@ mod checked {
                 AuthenticatorFunctionRefForSigning, AuthenticatorFunctionRefV1,
             },
             builtin_authenticator_functions::{self, PreloadedBuiltinAuthenticatorData},
-            public_key::PUBLIC_KEY_MODULE_NAME,
-            signature_scheme::SIGNATURE_SCHEME_MODULE_NAME,
+            public_key::MovePublicKey,
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
@@ -40,6 +39,7 @@ mod checked {
         claim_registry::CLAIM_REGISTRY_CREATE_FUNCTION_NAME,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
+        crypto::SignatureScheme,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
@@ -2016,36 +2016,31 @@ mod checked {
         };
 
         let pt = {
-            // The Move `PublicKey` struct layout differs from the Rust BCS enum, so
-            // build it through the framework:
-            //   let scheme = iota::signature_scheme::from_flag(flag);
-            //   let pk     = iota::public_key::create(scheme, raw_bytes);
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let scheme_flag = pure_arg(&mut builder, &claim.public_key.scheme().to_u8())?;
-            let scheme = builder.programmable_move_call(
-                ObjectId::FRAMEWORK,
-                SIGNATURE_SCHEME_MODULE_NAME,
-                Identifier::from_static("from_flag"),
-                vec![],
-                vec![scheme_flag],
-            );
-            let raw_bytes = pure_arg(&mut builder, &claim.public_key.as_ref().to_vec())?;
-            let public_key = builder.programmable_move_call(
-                ObjectId::FRAMEWORK,
-                PUBLIC_KEY_MODULE_NAME,
-                Identifier::from_static("create"),
-                vec![],
-                vec![scheme, raw_bytes],
-            );
+            // System mode accepts an arbitrary BCS value as a pure argument, so
+            // the Move `PublicKey` is built here rather than through
+            // `signature_scheme::from_flag` and `public_key::create`.
+            // `TransactionKind::validity_check` already applied the same
+            // validation, so a failure at this point is a bug.
+            let Some(public_key) = SignatureScheme::from_flag_byte(&claim.public_key_scheme)
+                .ok()
+                .and_then(|scheme| {
+                    MovePublicKey::new(scheme, claim.public_key_raw_bytes.clone()).ok()
+                })
+            else {
+                invariant_violation!(
+                    "claim account public key should have been validated before execution"
+                )
+            };
 
-            builder.programmable_move_call(
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let res = builder.move_call(
                 ObjectId::FRAMEWORK,
                 Identifier::SMART_ACCOUNT_MODULE,
                 claim_function,
                 vec![],
-                vec![public_key],
+                vec![CallArg::pure(&public_key)],
             );
-
+            assert_invariant!(res.is_ok(), "Unable to generate claim_account transaction!");
             builder.finish()
         };
         programmable_transactions::execution::execute::<execution_mode::System>(
@@ -2186,19 +2181,6 @@ mod checked {
             ExecutionError::from_kind(ExecutionErrorKind::BuiltinAuthenticatorVerificationError {
                 reason: e.to_string(),
             })
-        })
-    }
-
-    /// Adds `value` to `builder` as a pure argument.
-    fn pure_arg(
-        builder: &mut ProgrammableTransactionBuilder,
-        value: &impl serde::Serialize,
-    ) -> Result<Argument, ExecutionError> {
-        builder.pure(value).map_err(|e| {
-            ExecutionError::new(
-                ExecutionErrorKind::VmInvariantViolation,
-                Some(e.to_string().into()),
-            )
         })
     }
 }

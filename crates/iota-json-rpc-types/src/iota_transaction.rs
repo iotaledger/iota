@@ -604,7 +604,8 @@ impl IotaTransactionBlockKind {
                 let kind = match claim_tx.kind {
                     AccountClaimKind::SmartAccount(smart) => {
                         IotaAccountClaimKind::SmartAccount(IotaSmartAccountClaim {
-                            public_key: smart.public_key.to_base64(),
+                            public_key_scheme: smart.public_key_scheme,
+                            public_key_raw_bytes: smart.public_key_raw_bytes,
                             build_kind: match smart.build_kind {
                                 SmartAccountBuildKind::Mutable => {
                                     IotaSmartAccountBuildKind::Mutable
@@ -1992,10 +1993,17 @@ pub enum IotaAccountClaimKind {
 }
 
 /// Parameters the claimed `SmartAccount` was created with.
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaSmartAccountClaim {
-    /// Scheme-flagged base64-encoded public key of the claimed address.
-    pub public_key: String,
+    /// Signature scheme flag of the public key of the claimed address
+    /// (0=Ed25519, 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).
+    pub public_key_scheme: u8,
+    /// Raw public key bytes of the claimed address, without the scheme flag
+    /// prefix. For MultiSig this is a BCS-encoded multisig public key.
+    #[serde_as(as = "Base64")]
+    #[schemars(with = "Base64Schema")]
+    pub public_key_raw_bytes: Vec<u8>,
     /// Whether the created account object is mutable or immutable.
     pub build_kind: IotaSmartAccountBuildKind,
 }

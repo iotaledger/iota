@@ -4023,13 +4023,14 @@ Parameters the claimed SmartAccount was created with.
 type SmartAccountClaimTransaction {
 	"""
 	The signature scheme flag byte of the public key (0=Ed25519,
-	1=Secp256k1, 2=Secp256r1, 6=Passkey).
+	1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).
 	"""
 	publicKeyScheme: Int!
 	"""
-	The raw public key bytes of the claimed address, base64-encoded.
+	Raw public key bytes of the claimed address, without the scheme flag
+	prefix. For MultiSig this is a BCS-encoded multisig public key.
 	"""
-	publicKeyBytes: Base64!
+	publicKeyRawBytes: Base64!
 	"""
 	Whether the created account object is mutable or immutable.
 	"""

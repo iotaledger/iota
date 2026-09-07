@@ -11,12 +11,13 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Address, Argument, ChangeEpoch, Command, CommandArgumentError, ConsensusCommitPrologueV1,
-    ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
-    ExecutionStatus, GenesisObject, GenesisTransaction, Identifier, MoveLocation, MoveObjectType,
-    ObjectData, ObjectId, Owner, PackageUpgradeError, ProgrammableTransaction,
-    RandomnessStateUpdate, SimpleSignature, StructTag, TransactionExpiration, TransactionKind,
-    TypeArgumentError, TypeTag, UnchangedSharedKind,
+    AccountClaimKind, Address, Argument, ChangeEpoch, Command, CommandArgumentError,
+    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
+    Event, ExecutionError, ExecutionStatus, GenesisObject, GenesisTransaction, Identifier,
+    MoveLocation, MoveObjectType, ObjectData, ObjectId, Owner, PackageUpgradeError,
+    ProgrammableTransaction, RandomnessStateUpdate, SimpleSignature, SmartAccountBuildKind,
+    StructTag, TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag,
+    UnchangedSharedKind,
     crypto::{Intent, IntentMessage, PersonalMessage},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
@@ -513,6 +514,10 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
     tracer
         .trace_type::<EndOfEpochTransactionKind>(&samples)
+        .unwrap();
+    tracer.trace_type::<AccountClaimKind>(&samples).unwrap();
+    tracer
+        .trace_type::<SmartAccountBuildKind>(&samples)
         .unwrap();
 
     tracer.trace_type::<IDOperation>(&samples).unwrap();

@@ -25,8 +25,8 @@ impl ClaimAccountTransaction {
         match &self.native.kind {
             NativeAccountClaimKind::SmartAccount(smart) => {
                 ClaimAccountKind::SmartAccount(SmartAccountClaimTransaction {
-                    public_key_scheme: smart.public_key.scheme().to_u8(),
-                    public_key_bytes: Base64::from(smart.public_key.as_ref()),
+                    public_key_scheme: smart.public_key_scheme,
+                    public_key_raw_bytes: Base64::from(smart.public_key_raw_bytes.as_slice()),
                     build_kind: match smart.build_kind {
                         NativeSmartAccountBuildKind::Mutable => SmartAccountBuildKind::Mutable,
                         NativeSmartAccountBuildKind::Immutable => SmartAccountBuildKind::Immutable,
@@ -50,10 +50,11 @@ pub(crate) enum ClaimAccountKind {
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 pub(crate) struct SmartAccountClaimTransaction {
     /// The signature scheme flag byte of the public key (0=Ed25519,
-    /// 1=Secp256k1, 2=Secp256r1, 6=Passkey).
+    /// 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).
     pub public_key_scheme: u8,
-    /// The raw public key bytes of the claimed address, base64-encoded.
-    pub public_key_bytes: Base64,
+    /// Raw public key bytes of the claimed address, without the scheme flag
+    /// prefix. For MultiSig this is a BCS-encoded multisig public key.
+    pub public_key_raw_bytes: Base64,
     /// Whether the created account object is mutable or immutable.
     pub build_kind: SmartAccountBuildKind,
 }

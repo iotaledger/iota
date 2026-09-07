@@ -7564,7 +7564,8 @@
             "type": "object",
             "required": [
               "build_kind",
-              "public_key",
+              "public_key_raw_bytes",
+              "public_key_scheme",
               "type"
             ],
             "properties": {
@@ -7576,9 +7577,19 @@
                   }
                 ]
               },
-              "public_key": {
-                "description": "Scheme-flagged base64-encoded public key of the claimed address.",
-                "type": "string"
+              "public_key_raw_bytes": {
+                "description": "Raw public key bytes of the claimed address, without the scheme flag prefix. For MultiSig this is a BCS-encoded multisig public key.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Base64"
+                  }
+                ]
+              },
+              "public_key_scheme": {
+                "description": "Signature scheme flag of the public key of the claimed address (0=Ed25519, 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).",
+                "type": "integer",
+                "format": "uint8",
+                "minimum": 0.0
               },
               "type": {
                 "type": "string",

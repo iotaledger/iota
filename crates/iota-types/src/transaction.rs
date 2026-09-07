@@ -17,7 +17,7 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
+    AccountClaimKind, Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
     GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
     ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
@@ -37,11 +37,12 @@ use tracing::{instrument, trace};
 use super::{base_types::*, error::*};
 use crate::{
     IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+    account_abstraction::public_key::MovePublicKey,
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, Signature, Signer, ToFromBytes,
+        IotaSignatureInner, Signature, SignatureScheme, Signer, ToFromBytes,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -921,13 +922,37 @@ impl TransactionKindExt for TransactionKind {
                 ));
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
-            TransactionKind::ClaimAccount(_) => {
+            TransactionKind::ClaimAccount(claim) => {
                 fp_ensure!(
                     config.enable_claim_registry(),
                     UserInputError::Unsupported(
                         "claim account transactions require the claim registry feature".to_string()
                     )
                 );
+                match &claim.kind {
+                    AccountClaimKind::SmartAccount(smart) => {
+                        // The claim carries the key as raw bytes and execution
+                        // builds the Move `PublicKey` from them without going
+                        // through `public_key::create`, so apply that
+                        // function's validation here.
+                        let scheme = SignatureScheme::from_flag_byte(&smart.public_key_scheme)
+                            .map_err(|e| {
+                                UserInputError::Unsupported(format!(
+                                    "invalid claim account public key scheme: {e}"
+                                ))
+                            })?;
+                        MovePublicKey::new(scheme, smart.public_key_raw_bytes.clone()).map_err(
+                            |e| {
+                                UserInputError::Unsupported(format!(
+                                    "invalid claim account public key: {e}"
+                                ))
+                            },
+                        )?;
+                    }
+                    _ => unimplemented!(
+                        "a new AccountClaimKind enum variant was added and needs to be handled"
+                    ),
+                }
             }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
