@@ -2002,92 +2002,6 @@ mod handler_object_state_storage {
     }
 
     #[tokio::test]
-    async fn map_miss_writes_sync_records_and_shelter_but_never_handler_latest() {
-        let authority = TestAuthorityBuilder::new().build().await;
-        let epoch_store = authority.epoch_store_for_testing();
-
-        let mutated = ObjectId::random();
-        let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
-        let lamport = effects.lamport_version();
-
-        // The digest is not in the round map: this execution is state sync
-        // running ahead of the handler.
-        epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
-            .unwrap();
-
-        assert_eq!(epoch_store.handler_latest(&mutated).unwrap(), None);
-        assert_eq!(
-            epoch_store.sync_ahead_record(&mutated).unwrap(),
-            Some(SyncAheadRecord {
-                base_version: Some(Version::from_u64(5)),
-                latest_created: lamport,
-            })
-        );
-        let sheltered = epoch_store
-            .sheltered_object(&ObjectKey(mutated, Version::from_u64(5)))
-            .unwrap()
-            .expect("consumed input must be sheltered");
-        assert_eq!(sheltered.version(), Version::from_u64(5));
-
-        // A second sync-executed transaction consuming the chain's output
-        // extends the record without touching its previous version.
-        let (next_effects, next_inputs) = executed_owned_tx_effects(mutated, lamport.as_u64(), 2);
-        epoch_store
-            .record_executed_transaction(&next_effects, &next_inputs.as_slice())
-            .unwrap();
-        assert_eq!(
-            epoch_store.sync_ahead_record(&mutated).unwrap(),
-            Some(SyncAheadRecord {
-                base_version: Some(Version::from_u64(5)),
-                latest_created: next_effects.lamport_version(),
-            })
-        );
-    }
-
-    #[tokio::test]
-    async fn sync_created_object_keeps_base_version_none_when_chain_extends() {
-        let authority = TestAuthorityBuilder::new().build().await;
-        let epoch_store = authority.epoch_store_for_testing();
-
-        // State sync creates the object ahead of the handler...
-        let created = ObjectId::random();
-        let create_tx = owned_inputs_tx(1);
-        let create_effects = TestEffectsBuilder::new(&create_tx)
-            .with_created_objects([(created, Owner::Address(Address::ZERO))])
-            .build();
-        let gas = create_tx.transaction().gas()[0].object_id;
-        let create_inputs = [owned_object(gas, 1)];
-        epoch_store
-            .record_executed_transaction(&create_effects, &create_inputs.as_slice())
-            .unwrap();
-        let created_version = create_effects.lamport_version();
-        assert_eq!(
-            epoch_store.sync_ahead_record(&created).unwrap(),
-            Some(SyncAheadRecord {
-                base_version: None,
-                latest_created: created_version,
-            })
-        );
-
-        // ...then consumes its own creation. The record must keep
-        // `base_version: None`: the consumed version exists only on
-        // validators that synced ahead, so no named version may answer keep.
-        let (mutate_effects, mutate_inputs) =
-            executed_owned_tx_effects(created, created_version.as_u64(), 2);
-        epoch_store
-            .record_executed_transaction(&mutate_effects, &mutate_inputs.as_slice())
-            .unwrap();
-        assert_eq!(
-            epoch_store.sync_ahead_record(&created).unwrap(),
-            Some(SyncAheadRecord {
-                base_version: None,
-                latest_created: mutate_effects.lamport_version(),
-            })
-        );
-    }
-
-    #[tokio::test]
     async fn recreated_sync_record_starts_fresh_and_survives_deletion_drain() {
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
@@ -2145,8 +2059,11 @@ mod handler_object_state_storage {
         );
     }
 
+    /// The execution-hook tests cover the rows a handler-known execution
+    /// writes through real execution; this pins what real execution cannot:
+    /// a map hit does no shelter fetch at all.
     #[tokio::test]
-    async fn map_hit_writes_handler_latest_only() {
+    async fn map_hit_fetches_no_shelter_bytes() {
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
 
@@ -2171,29 +2088,6 @@ mod handler_object_state_storage {
                 .unwrap(),
             None
         );
-    }
-
-    #[tokio::test]
-    async fn fully_executed_commit_cleans_sync_records_and_round_map() {
-        let authority = TestAuthorityBuilder::new().build().await;
-        let epoch_store = authority.epoch_store_for_testing();
-
-        // State sync executes a transaction ahead of the handler.
-        let mutated = ObjectId::random();
-        let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
-        epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
-            .unwrap();
-        assert!(epoch_store.sync_ahead_record(&mutated).unwrap().is_some());
-
-        // The handler catches up past the whole chain: the sync record goes,
-        // the handler-latest row answers instead.
-        let row = generate_live_entry(effects.lamport_version(), 8);
-        epoch_store
-            .record_commit_fully_executed(8, &[(mutated, row)])
-            .unwrap();
-        assert_eq!(epoch_store.sync_ahead_record(&mutated).unwrap(), None);
-        assert_eq!(epoch_store.handler_latest(&mutated).unwrap(), Some(row));
     }
 
     #[tokio::test]
