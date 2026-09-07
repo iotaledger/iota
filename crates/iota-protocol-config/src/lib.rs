@@ -213,8 +213,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Stop locking immutable objects in post-consensus conflict
 //             resolution.
 //             Disable Move-based sponsor account authentication on mainnet.
-// Version 35: Rebuild the framework binaries to add the Move stdlib `bool`
-//             module and vector sorting functions.
+// Version 35: Scale the PTB value size limit by the value's type.
 //             Allow objects created or mutated by system transactions to exceed
 //             the max object size limit.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -3394,10 +3393,9 @@ impl ProtocolConfig {
                     }
                 }
                 35 => {
-                    // Rebuild the framework binaries to add the Move stdlib
-                    // `bool` module and vector sorting functions. The change is
-                    // additive to the framework and needs no config flags.
+                    // Scale the PTB value size limit by the value's type.
                     cfg.feature_flags.max_ptb_value_size_v2 = true;
+                    // Let system objects grow past the per-object size bound.
                     cfg.feature_flags.allow_unbounded_system_objects = true;
                 }
                 // Use this template when making changes:
