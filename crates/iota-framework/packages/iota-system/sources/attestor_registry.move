@@ -217,6 +217,14 @@ fun stake_fraction(rate_param: vector<u8>): u64 {
     ((stake as u128) * (rate as u128) / BASIS_POINT_DENOMINATOR) as u64
 }
 
+/// Read the parameters `advance_epoch` needs, so an incomplete chain config
+/// aborts at registration rather than inside the epoch-change transaction.
+fun assert_epoch_params_configured() {
+    low_bond_threshold();
+    let _: u64 = protocol_config::get_attr(ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM);
+    let _: u64 = protocol_config::get_attr(ATTESTOR_INACTIVITY_PENALTY_PARAM);
+}
+
 // === Construction ===
 
 public(package) fun registry_key(): AttestorRegistryKey { AttestorRegistryKey {} }
@@ -276,6 +284,7 @@ public(package) fun register(
     sender: address,
     current_epoch: u64,
 ) {
+    assert_epoch_params_configured();
     let min_joining_bond = min_joining_bond();
     assert!(bond.value() >= min_joining_bond, EBondTooLow);
     assert!(
@@ -471,11 +480,9 @@ public(package) fun advance_epoch(
     let mut exited = vector<AttestorExitInfo>[];
 
     // --- 1. Combined exits ---
-    // Only active attestors can ever exit, and only active attestors can
-    // populate `pending_removals` (deregister requires an active entry), so
-    // a chain with the feature flag on but the exit-threshold params unset
-    // is safe here as long as the active set is empty (register also reads
-    // params and would already abort, so it can't be populated otherwise).
+    // The param reads below are safe: an active entry exists only if
+    // `register` succeeded, and `register` reads every param this function
+    // needs, so an incomplete config can never populate the set.
     //
     // With the feature disabled only voluntary removals are processed: they
     // read no params, so escrowed bonds can always exit, while eviction and
