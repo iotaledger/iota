@@ -98,14 +98,18 @@ impl VerifiedExecutableAttestedTransaction {
     /// meaningless. V2 falls back to the unattested path until admission is
     /// time-denominated.
     pub fn attested_computation_units(&self) -> Option<u64> {
-        self.attestation.as_ref().and_then(|a| a.computation_units())
+        self.attestation
+            .as_ref()
+            .and_then(|a| a.computation_units())
     }
 
     /// Returns the attested gas vector's lane-time in reference-hardware
     /// nanoseconds, or `None` for unattested or V1-attested transactions.
     /// The consumer is the time-denominated admission check when it lands.
     pub fn attested_cpu_time(&self) -> Option<u64> {
-        self.attestation.as_ref().and_then(|a| a.declared_cpu_time())
+        self.attestation
+            .as_ref()
+            .and_then(|a| a.declared_cpu_time())
     }
 
     /// Consume the wrapper and return its parts.

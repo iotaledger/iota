@@ -14,7 +14,7 @@
 //! observables (call count and abstract input bytes), never on the gas the
 //! cost tables charge for them.
 
-use iota_protocol_config::GasVectorCoefficientsV1;
+use iota_protocol_config::{GasVectorCoefficientsV1, ProtocolConfig};
 
 use super::resource_profile::ResourceProfile;
 
@@ -161,6 +161,48 @@ pub fn cpu_time_covers_moved_bytes(
     (moved_bytes as u128) * NS_PER_SEC <= (cpu_time_ns as u128) * (bandwidth_bytes_per_sec as u128)
 }
 
+/// The shortest `cpu_time` a transaction moving `moved_bytes` may declare at
+/// the given bandwidth: `ceil(moved_bytes / bandwidth)` in nanoseconds.
+/// [`cpu_time_covers_moved_bytes`] holds at this value by construction.
+/// `None` when the bandwidth is zero or the floor exceeds `u64`.
+pub fn min_cpu_time_ns(moved_bytes: u64, bandwidth_bytes_per_sec: u64) -> Option<u64> {
+    if bandwidth_bytes_per_sec == 0 {
+        return None;
+    }
+    // u64 × NS_PER_SEC cannot overflow u128.
+    let floor_ns = ((moved_bytes as u128) * NS_PER_SEC).div_ceil(bandwidth_bytes_per_sec as u128);
+    u64::try_from(floor_ns).ok()
+}
+
+/// The gas vector a dry-run's resource profile declares under `config`'s
+/// constants: `(cpu_time, moved_bytes, write_bytes)`, the payload of
+/// `AttestationData::V2`.
+///
+/// `cpu_time` is [`predicted_cpu_time_ns`] raised — when the memory-bandwidth
+/// ceiling is configured — to [`min_cpu_time_ns`]: a declared duration can
+/// never be shorter than the time the memory path needs for the declared
+/// bytes. `write_bytes` is written-object bytes plus event bytes (a
+/// deletion's write-cost equivalent joins when its constant ships).
+///
+/// `None` when the config carries no coefficient table, the table cannot
+/// price the profile, or the arithmetic overflows; the caller then attests
+/// the previous payload version instead. Deterministic: every validator
+/// computing this from the same profile and config gets the same vector,
+/// which is what makes attested-vs-actual divergence checkable.
+pub fn declared_gas_vector(
+    profile: &ResourceProfile,
+    config: &ProtocolConfig,
+) -> Option<(u64, u64, u64)> {
+    let table = config.gas_vector_coefficients()?;
+    let moved = moved_bytes(profile, table)?;
+    let mut cpu_time = predicted_cpu_time_ns(profile, table)?;
+    if let Some(bandwidth) = config.memory_bandwidth_bytes_per_sec_as_option() {
+        cpu_time = cpu_time.max(min_cpu_time_ns(moved, bandwidth)?);
+    }
+    let write_bytes = profile.written_bytes.checked_add(profile.event_bytes)?;
+    Some((cpu_time, moved, write_bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -303,6 +345,80 @@ mod tests {
             ),
             Some(0)
         );
+    }
+
+    fn config_with(
+        table: Option<GasVectorCoefficientsV1>,
+        bandwidth: Option<u64>,
+    ) -> ProtocolConfig {
+        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+        if let Some(table) = table {
+            config.set_gas_vector_coefficients_for_testing(table);
+        }
+        if let Some(bandwidth) = bandwidth {
+            config.set_memory_bandwidth_bytes_per_sec_for_testing(bandwidth);
+        }
+        config
+    }
+
+    #[test]
+    fn declared_gas_vector_matches_its_components() {
+        let profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            written_bytes: 700,
+            event_bytes: 44,
+            ..Default::default()
+        };
+        let table = table_pricing_instructions_and_one_hash();
+        let config = config_with(Some(table.clone()), Some(1_000_000_000));
+        let (cpu_time, moved, write_bytes) = declared_gas_vector(&profile, &config).unwrap();
+        // Prediction dominates the bandwidth floor here (nothing moved).
+        assert_eq!(Some(cpu_time), predicted_cpu_time_ns(&profile, &table));
+        assert_eq!(Some(moved), moved_bytes(&profile, &table));
+        assert_eq!(write_bytes, 744);
+    }
+
+    #[test]
+    fn declared_cpu_time_is_raised_to_the_bandwidth_floor() {
+        // A cheap prediction moving many bytes: 1 MB at 1 GB/s needs 1 ms,
+        // far above the ~38 µs prediction, so the floor wins and the rate
+        // comparison holds by construction.
+        let profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            input_object_bytes: 1_000_000,
+            ..Default::default()
+        };
+        let config = config_with(
+            Some(table_pricing_instructions_and_one_hash()),
+            Some(1_000_000_000),
+        );
+        let (cpu_time, moved, _) = declared_gas_vector(&profile, &config).unwrap();
+        assert_eq!(cpu_time, min_cpu_time_ns(moved, 1_000_000_000).unwrap());
+        assert!(cpu_time_covers_moved_bytes(cpu_time, moved, 1_000_000_000));
+        // Without the bandwidth constant the floor is dormant.
+        let config = config_with(Some(table_pricing_instructions_and_one_hash()), None);
+        let (raw_cpu_time, _, _) = declared_gas_vector(&profile, &config).unwrap();
+        assert!(raw_cpu_time < cpu_time);
+    }
+
+    #[test]
+    fn declared_gas_vector_requires_the_table() {
+        let profile = ResourceProfile {
+            interp_instruction_count: 1_000,
+            ..Default::default()
+        };
+        assert_eq!(
+            declared_gas_vector(&profile, &config_with(None, Some(1_000_000_000))),
+            None
+        );
+    }
+
+    #[test]
+    fn min_cpu_time_rounds_up_and_rejects_zero_bandwidth() {
+        // 3 bytes at 2 B/s = 1.5 s, rounded up to 1_500_000_000 ns.
+        assert_eq!(min_cpu_time_ns(3, 2), Some(1_500_000_000));
+        assert_eq!(min_cpu_time_ns(0, 5), Some(0));
+        assert_eq!(min_cpu_time_ns(1, 0), None);
     }
 
     #[test]

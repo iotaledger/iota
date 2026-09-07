@@ -738,6 +738,7 @@ impl ConsensusNetwork {
 /// charges with, so repricing those parameters never invalidates these
 /// coefficients.
 #[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[serde(default, deny_unknown_fields)]
 pub struct NativeFunctionCostV1 {
     /// Femtoseconds of execution time per call.
     pub cpu_time_call_fs: u64,
@@ -767,6 +768,7 @@ pub struct NativeFunctionCostV1 {
 /// beyond its counted instructions is listed with zero coefficients —
 /// present-but-zero means "priced", absent means "unknown".
 #[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[serde(default, deny_unknown_fields)]
 pub struct GasVectorCoefficientsV1 {
     pub interp_instruction_count_fs: u64,
     pub interp_stack_size_flow_fs: u64,
@@ -2252,6 +2254,13 @@ impl ProtocolConfig {
             }
         });
 
+        if let Some(override_fn) = GLOBAL_CONFIG_OVERRIDE.read().unwrap().as_ref() {
+            warn!(
+                "overriding ProtocolConfig settings with process-wide custom settings (you should not see this log outside of tests)"
+            );
+            ret = override_fn(version, ret);
+        }
+
         if std::env::var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE").is_ok() {
             warn!(
                 "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
@@ -3602,6 +3611,23 @@ impl ProtocolConfig {
             OverrideGuard
         })
     }
+
+    /// Process-wide variant of [`Self::apply_overrides_for_testing`]. Unlike
+    /// the thread-local version it also reaches validator node threads
+    /// spawned by in-process test clusters, which build their configs on
+    /// their own threads — and unlike the env-variable overrides it can set
+    /// nested values (the gas-vector coefficient table) that flat variables
+    /// cannot express. Same contract otherwise: install before anything
+    /// calls `get_for_version`, one override at a time, cleared when the
+    /// guard drops.
+    pub fn apply_global_overrides_for_testing(
+        override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
+    ) -> GlobalOverrideGuard {
+        let mut cur = GLOBAL_CONFIG_OVERRIDE.write().unwrap();
+        assert!(cur.is_none(), "global config override already present");
+        *cur = Some(Box::new(override_fn));
+        GlobalOverrideGuard
+    }
 }
 
 // Setters for tests.
@@ -3821,6 +3847,11 @@ thread_local! {
     static CONFIG_OVERRIDE: RefCell<Option<Box<OverrideFn>>> = const { RefCell::new(None) };
 }
 
+/// Process-wide counterpart of `CONFIG_OVERRIDE`; see
+/// [`ProtocolConfig::apply_global_overrides_for_testing`].
+static GLOBAL_CONFIG_OVERRIDE: std::sync::RwLock<Option<Box<OverrideFn>>> =
+    std::sync::RwLock::new(None);
+
 #[must_use]
 pub struct OverrideGuard;
 
@@ -3830,6 +3861,15 @@ impl Drop for OverrideGuard {
         CONFIG_OVERRIDE.with(|ovr| {
             *ovr.borrow_mut() = None;
         });
+    }
+}
+
+pub struct GlobalOverrideGuard;
+
+impl Drop for GlobalOverrideGuard {
+    fn drop(&mut self) {
+        info!("restoring global override fn");
+        *GLOBAL_CONFIG_OVERRIDE.write().unwrap() = None;
     }
 }
 

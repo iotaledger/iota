@@ -2638,12 +2638,16 @@ fn make_user_tx_v2_gas_vector(
 async fn run_gas_vector_case(
     enable_gas_vector: bool,
     cpu_time: u64,
+    memory_bandwidth: Option<u64>,
 ) -> (usize, Vec<IotaError>, usize) {
     let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         if enable_gas_vector {
             config.set_enable_validator_attestation_for_testing(true);
             config.set_attestation_gas_vector_for_testing(true);
+        }
+        if let Some(bandwidth) = memory_bandwidth {
+            config.set_memory_bandwidth_bytes_per_sec_for_testing(bandwidth);
         }
         config
     });
@@ -2687,7 +2691,7 @@ async fn run_gas_vector_case(
 /// release.
 #[sim_test]
 async fn test_gas_vector_attestation_rejected_when_flag_off() {
-    let (kept, dropped, digests) = run_gas_vector_case(false, 1_000_000).await;
+    let (kept, dropped, digests) = run_gas_vector_case(false, 1_000_000, None).await;
     assert_eq!(kept, 0, "V2 payload must be dropped while the flag is off");
     assert_eq!(dropped.len(), 1);
     assert!(
@@ -2702,7 +2706,7 @@ async fn test_gas_vector_attestation_rejected_when_flag_off() {
 /// Check #3 and the transaction is kept.
 #[sim_test]
 async fn test_gas_vector_attestation_passes_when_flag_on() {
-    let (kept, dropped, digests) = run_gas_vector_case(true, 1_000_000).await;
+    let (kept, dropped, digests) = run_gas_vector_case(true, 1_000_000, None).await;
     assert_eq!(kept, 1, "valid V2 payload must be kept: {dropped:?}");
     assert!(dropped.is_empty());
     assert_eq!(digests, 1);
@@ -2712,7 +2716,7 @@ async fn test_gas_vector_attestation_passes_when_flag_on() {
 /// executes in zero lane-time — and is dropped even with the flag on.
 #[sim_test]
 async fn test_gas_vector_attestation_zero_cpu_time_dropped() {
-    let (kept, dropped, digests) = run_gas_vector_case(true, 0).await;
+    let (kept, dropped, digests) = run_gas_vector_case(true, 0, None).await;
     assert_eq!(kept, 0);
     assert_eq!(dropped.len(), 1);
     assert!(
@@ -2721,4 +2725,35 @@ async fn test_gas_vector_attestation_zero_cpu_time_dropped() {
         dropped[0],
     );
     assert_eq!(digests, 1, "digest still collected for soft-lock release");
+}
+
+/// With the memory-bandwidth ceiling configured, a declared rate above it is
+/// dropped: the helper's payload moves 4096 bytes, and 4096 bytes in 1000 ns
+/// is ~4 GB/s against a 1 GB/s ceiling.
+#[sim_test]
+async fn test_gas_vector_attestation_rate_above_bandwidth_dropped() {
+    let (kept, dropped, digests) = run_gas_vector_case(true, 1_000, Some(1_000_000_000)).await;
+    assert_eq!(kept, 0);
+    assert_eq!(dropped.len(), 1);
+    assert!(
+        matches!(dropped[0], IotaError::AttestationRateAboveBandwidth { .. }),
+        "expected AttestationRateAboveBandwidth, got {:?}",
+        dropped[0],
+    );
+    assert_eq!(digests, 1, "digest still collected for soft-lock release");
+}
+
+/// The same declaration passes when the cpu_time covers the moved bytes at
+/// the ceiling (4096 bytes in 1 ms is ~4 MB/s), and also when the ceiling is
+/// absent from the config — the rule activates with its constant.
+#[sim_test]
+async fn test_gas_vector_attestation_rate_within_bandwidth_kept() {
+    let (kept, dropped, _) = run_gas_vector_case(true, 1_000_000, Some(1_000_000_000)).await;
+    assert_eq!(kept, 1, "rate within the ceiling must be kept: {dropped:?}");
+    assert!(dropped.is_empty());
+    // Dormant without the constant: the violating declaration from the test
+    // above is accepted when no ceiling is configured.
+    let (kept, dropped, _) = run_gas_vector_case(true, 1_000, None).await;
+    assert_eq!(kept, 1, "rule must be dormant without B_mem: {dropped:?}");
+    assert!(dropped.is_empty());
 }

@@ -27,9 +27,10 @@
 //! - Check #2: `validity_check()` — drop with error.
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
 //!   the claimed attestor matches the block author and that the attested
-//!   computation units fall within the valid range (cost floor and ceiling).
-//!   Drop with error on mismatch, out-of-range cost, or unsupported attestation
-//!   variant.
+//!   payload is within its bounds (V1: the computation-unit floor and ceiling;
+//!   V2: nonzero cpu_time, and the declared rate against the memory-bandwidth
+//!   ceiling when that constant is configured). Drop with error on mismatch,
+//!   out-of-bounds payload, or unsupported attestation variant.
 //! - Check #4: Extract owned input objects (needed for lock conflict
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
@@ -66,6 +67,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     gas::check_gas_bounds,
+    gas_model::gas_vector::cpu_time_covers_moved_bytes,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
     },
@@ -296,17 +298,37 @@ pub async fn validate_and_resolve_conflicts(
                         None
                     }
                 }
-                AttestationData::V2 { cpu_time, .. } => {
+                AttestationData::V2 {
+                    cpu_time,
+                    moved_bytes,
+                    ..
+                } => {
                     if !protocol_config.attestation_gas_vector() {
                         Some(IotaError::AttestationGasVectorNotEnabled)
                     } else if *cpu_time == 0 {
                         Some(IotaError::AttestationCpuTimeZero)
+                    } else if protocol_config
+                        .memory_bandwidth_bytes_per_sec_as_option()
+                        .is_some_and(|bandwidth| {
+                            !cpu_time_covers_moved_bytes(*cpu_time, *moved_bytes, bandwidth)
+                        })
+                    {
+                        // A declared duration can never be shorter than the
+                        // time the memory path needs for the declared bytes.
+                        // The default producer raises its declared cpu_time
+                        // to exactly this floor, so under a shared protocol
+                        // config this branch only catches hand-crafted
+                        // payloads (or nodes running divergent config
+                        // overrides).
+                        Some(IotaError::AttestationRateAboveBandwidth {
+                            cpu_time: *cpu_time,
+                            moved_bytes: *moved_bytes,
+                        })
                     } else {
-                        // The constant-dependent bounds — the cpu_time cap,
-                        // the moved_bytes/write_bytes caps, the rate rule
-                        // `cpu_time ≥ moved_bytes / B_mem`, and the
-                        // budget-implied lane-time maximum — activate with
-                        // the calibrated constants in the protocol config.
+                        // The remaining constant-dependent bounds — the
+                        // cpu_time cap, the moved_bytes/write_bytes caps, and
+                        // the budget-implied lane-time maximum — activate
+                        // with their constants in the protocol config.
                         None
                     }
                 }

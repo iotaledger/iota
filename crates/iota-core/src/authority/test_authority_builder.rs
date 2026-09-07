@@ -249,7 +249,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 let perpetual_tables_options = AuthorityPerpetualTablesOptions {
                     compaction_filter,
                     enable_write_stall: self.enable_write_stall,
-                    ..Default::default()
                 };
                 let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
                     &storage_dir.join("store"),
