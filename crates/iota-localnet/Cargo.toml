@@ -17,6 +17,7 @@ clap.workspace = true
 colored.workspace = true
 fastcrypto.workspace = true
 rand.workspace = true
+serde_yaml.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tracing.workspace = true

@@ -32,7 +32,7 @@ fn build_test_checkpoint() -> CheckpointData {
 /// transactions, and checkpoints data.
 #[tokio::test]
 #[cfg_attr(
-    any(not(feature = "integration_tests"), feature = "skip_integration_tests"),
+    not(feature = "integration_tests"),
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn process_checkpoint_round_trips_objects_transactions_and_checkpoints() {
@@ -119,7 +119,7 @@ async fn process_checkpoint_round_trips_objects_transactions_and_checkpoints() {
 /// transactions.
 #[tokio::test]
 #[cfg_attr(
-    any(not(feature = "integration_tests"), feature = "skip_integration_tests"),
+    not(feature = "integration_tests"),
     ignore = "requires the BigTable emulator; run with --features integration_tests"
 )]
 async fn readers_omit_not_found_keys() {

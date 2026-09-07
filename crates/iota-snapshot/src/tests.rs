@@ -45,12 +45,16 @@ use iota_types::{
     storage::EpochInfoV2,
 };
 use prometheus_filtered::Registry;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     EPOCH_INFO_FILE_MAGIC, EpochInfo, EpochInfoV1, EpochInfoV1Entry, FileCompression, FileMetadata,
     FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, ManifestV2, OBJECT_REF_BYTES,
-    reader::StateSnapshotReaderV1, restore::RestoreWithGrpcIndexes,
-    uploader::StateSnapshotUploader, verify_epoch_info_chain, writer::StateSnapshotWriterV1,
+    reader::{StateAccumulatorSender, StateSnapshotReaderV1},
+    restore::RestoreWithGrpcIndexes,
+    uploader::StateSnapshotUploader,
+    verify_epoch_info_chain,
+    writer::StateSnapshotWriterV1,
 };
 
 /// A fresh `CheckpointStore` seeded with fully-populated `epoch_info` rows for
@@ -381,9 +385,27 @@ async fn snapshot_round_trip(
     .await?;
     let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
+    let (partials_sender, mut partials_receiver) = mpsc::channel(1);
+    let (completion_sender, completion_receiver) = oneshot::channel();
+    let accumulator = tokio::spawn(async move {
+        let mut accumulated_objects = 0u64;
+        while let Some((_, partial_num_objects)) = partials_receiver.recv().await {
+            accumulated_objects += partial_num_objects;
+        }
+        accumulated_objects
+    });
     snapshot_reader
-        .read(&restored_perpetual_db, abort_registration, None)
+        .read(
+            &restored_perpetual_db,
+            abort_registration,
+            Some(StateAccumulatorSender {
+                partials: partials_sender,
+                completion: completion_sender,
+            }),
+        )
         .await?;
+    completion_receiver.await?;
+    assert_eq!(accumulator.await?, num_objects);
     compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
 
     // Snapshot is at epoch 0, so EPOCH_INFO has exactly one entry, which must

@@ -5,8 +5,9 @@ use std::{num::NonZeroUsize, path::Path};
 
 use futures::{TryFutureExt, future::AbortHandle};
 use iota_config::genesis::Genesis;
+use iota_snapshot::reader::StateAccumulatorSender;
 use iota_types::global_state_hash::GlobalStateHash;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 
 use super::{
@@ -56,13 +57,21 @@ pub async fn start(
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     let (state_hash_tx, state_hash_rx) =
         mpsc::channel::<(GlobalStateHash, u64)>(num_parallel_downloads.get());
+    let (accumulation_done_tx, accumulation_done_rx) = oneshot::channel();
 
     let verified_epoch_info = verify_epoch_info(epoch_info, genesis, snapshot_chain_id).await?;
     let ((), num_objects) = tokio::try_join!(
         reader
-            .read_to_db(&pg_indexer_store, abort_registration, Some(state_hash_tx))
+            .read_to_db(
+                &pg_indexer_store,
+                abort_registration,
+                Some(StateAccumulatorSender {
+                    partials: state_hash_tx,
+                    completion: accumulation_done_tx,
+                }),
+            )
             .map_err(IndexerError::from),
-        verify_state_hash(state_hash_rx, &verified_epoch_info),
+        verify_state_hash(state_hash_rx, accumulation_done_rx, &verified_epoch_info),
     )?;
     populate_remaining_tables(&pg_indexer_store, verified_epoch_info, snapshot_chain_id).await?;
 

@@ -10,9 +10,12 @@ use iota_move_build::BuildConfig;
 use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest};
 use iota_types::{
     dynamic_field::derive_dynamic_field_id, gas_coin::GasCoin,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core, object::Object, parse_iota_type_tag,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core, move_package::MovePackageExt,
+    object::Object, parse_iota_type_tag,
 };
-use move_binary_format::{CompiledModule, file_format::SignatureToken};
+use move_binary_format::{
+    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
@@ -437,6 +440,9 @@ fn test_basic_args_linter_top_level() {
 
     let module = Identifier::from_static("resolve_args");
     let function = Identifier::from_static("foo");
+    let module = package
+        .deserialize_module(&module, &BinaryConfig::standard())
+        .unwrap();
 
     // Function signature:
     // foo(
@@ -474,15 +480,14 @@ fn test_basic_args_linter_top_level() {
         recipient.clone(),
     ]
     .into_iter()
-    .map(|q| IotaJsonValue::new(q).unwrap())
+    .map(|q| IotaJsonValue::new(q).unwrap().into())
     .collect();
 
-    let json_args: Vec<_> =
-        resolve_move_function_args(package, module.clone(), function.clone(), &[], args)
-            .unwrap()
-            .into_iter()
-            .map(|(arg, _)| arg)
-            .collect();
+    let json_args: Vec<_> = resolve_move_function_args(&module, &function, &[], args, false)
+        .unwrap()
+        .into_iter()
+        .map(|(arg, _)| arg)
+        .collect();
 
     use ResolvedCallArg as RCA;
     fn pure<T: Serialize>(t: &T) -> RCA {
@@ -504,10 +509,10 @@ fn test_basic_args_linter_top_level() {
     // Flag is u8 so too large
     let args: Vec<_> = [foo, bar, name, index, json!(10000u64), recipient]
         .into_iter()
-        .map(|q| IotaJsonValue::new(q).unwrap())
+        .map(|q| IotaJsonValue::new(q).unwrap().into())
         .collect();
 
-    assert!(resolve_move_function_args(package, module, function, &[], args,).is_err());
+    assert!(resolve_move_function_args(&module, &function, &[], args, false).is_err());
 }
 
 #[test]
@@ -795,8 +800,8 @@ fn test_resolve_call_args_reference() {
     ))));
     let compiled_module = CompiledModule::default();
     let args = [
-        IotaJsonValue::new(Value::from([0, 1, 2])).unwrap(),
-        IotaJsonValue::new(Value::from("0x000102")).unwrap(),
+        IotaJsonValue::new(Value::from([0, 1, 2])).unwrap().into(),
+        IotaJsonValue::new(Value::from("0x000102")).unwrap().into(),
     ];
     let arg_types = [signature_token.clone(), signature_token];
     let type_args = [];

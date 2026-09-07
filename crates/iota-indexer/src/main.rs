@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::num::NonZeroUsize;
-
 use clap::{CommandFactory, FromArgMatches};
 use iota_indexer::{
     backfill::runner::BackfillRunner,
@@ -146,9 +144,8 @@ async fn main() -> Result<(), IndexerError> {
                 // `available-epochs` is handled before the DB pool is created.
                 return Ok(());
             };
-            let num_parallel_downloads = num_parallel_downloads.unwrap_or_else(|| {
-                std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN)
-            });
+            let num_parallel_downloads =
+                num_parallel_downloads.unwrap_or_else(iota_snapshot::default_download_concurrency);
             {
                 let mut pool_conn = get_pool_connection(&connection_pool)?;
                 reset_database(&mut pool_conn)?;

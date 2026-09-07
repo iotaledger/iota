@@ -60,7 +60,7 @@ pub struct IotaRuntimes {
 
 impl IotaRuntimes {
     pub fn new(config: &NodeConfig) -> Self {
-        let is_validator = config.consensus_config().is_some();
+        let is_validator = config.is_validator();
         let (node_threads, serving_threads) =
             size_worker_threads(available_cpu_cores(), is_validator);
 

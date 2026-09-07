@@ -57,6 +57,12 @@ fn main() {
 
     let args = Args::parse();
     let mut config = NodeConfig::load(&args.config_path).unwrap();
+    // `start_async` validates too, but at this point no runtime, metrics
+    // server or telemetry has started, so a bad config fails cleanly.
+    if let Err(err) = config.validate() {
+        eprintln!("invalid node config {:?}: {err:#}", args.config_path);
+        std::process::exit(1);
+    }
     assert!(
         config.supported_protocol_versions.is_none(),
         "supported_protocol_versions cannot be read from the config file"

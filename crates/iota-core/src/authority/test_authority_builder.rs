@@ -23,7 +23,9 @@ use iota_types::{
 };
 use prometheus_filtered::Registry;
 
-use super::{backpressure::BackpressureManager, epoch_start_configuration::EpochFlag};
+use super::{
+    ExecutionEnv, backpressure::BackpressureManager, epoch_start_configuration::EpochFlag,
+};
 use crate::{
     authority::{
         AuthorityState, AuthorityStore,
@@ -422,7 +424,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                         genesis.epoch(),
                         genesis.checkpoint().sequence_number,
                     ),
-                    None,
+                    ExecutionEnv::new(),
                     &state.epoch_store_for_testing(),
                 )
                 .unwrap();

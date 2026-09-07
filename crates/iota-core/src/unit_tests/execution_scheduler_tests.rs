@@ -19,8 +19,8 @@ use std::{time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_sdk_types::{
-    MoveAuthenticatorV1, ObjectId, SenderSignedTransaction, SharedObjectReference,
-    TransactionEffectsDigest, UserSignature, VersionAssignment,
+    MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction, SharedObjectReference,
+    TransactionEffectsDigest, UserSignature, Version, VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -33,11 +33,17 @@ use iota_types::{
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
-    time::sleep,
+    time::{sleep, timeout},
 };
 
 use crate::{
-    authority::{AuthorityState, authority_tests::init_state_with_objects},
+    authority::{
+        AuthorityState, ExecutionEnv,
+        authority_tests::{
+            init_state_with_objects, randomness_assigned_versions, resolve_randomness_round,
+        },
+        shared_object_version_manager::Schedulable,
+    },
     execution_scheduler::{
         ExecutionSchedulerAPI, PendingTransaction, execution_scheduler_impl::ExecutionScheduler,
         transaction_manager::TransactionManager,
@@ -120,7 +126,10 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
     owned_ref.version = awaited_version;
     let transaction = make_transaction(gas_object, vec![CallArg::ImmutableOrOwned(owned_ref)]);
 
-    execution_scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+    execution_scheduler.enqueue_transactions(
+        vec![(transaction.clone(), ExecutionEnv::new())],
+        &state.epoch_store_for_testing(),
+    );
 
     // The scheduler must NOT release the transaction while its input is missing.
     sleep(Duration::from_secs(1)).await;
@@ -186,9 +195,13 @@ async fn assert_awaits_authenticator_input(
     scheduler: &dyn ExecutionSchedulerAPI,
     rx_ready_transactions: &mut UnboundedReceiver<PendingTransaction>,
     transaction: &VerifiedExecutableTransaction,
+    env: ExecutionEnv,
     make_shared_input_available: impl FnOnce(),
 ) {
-    scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+    scheduler.enqueue_transactions(
+        vec![(transaction.clone(), env)],
+        &state.epoch_store_for_testing(),
+    );
 
     sleep(Duration::from_secs(1)).await;
     assert!(
@@ -228,13 +241,10 @@ async fn schedulers_wait_for_authenticator_inputs() {
         let (scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
 
         let transaction = make_shared_authenticator_transaction(&gas_object, &shared_object);
-        state
-            .epoch_store_for_testing()
-            .set_shared_object_versions_for_testing(
-                transaction.digest(),
-                &[VersionAssignment::new(shared_object.id(), shared_version)],
-            )
-            .unwrap();
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            shared_object.id(),
+            shared_version,
+        )]);
 
         assert_awaits_authenticator_input(
             "ExecutionScheduler",
@@ -242,6 +252,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
             &scheduler,
             &mut rx_ready_transactions,
             &transaction,
+            env,
             || {
                 state.get_cache_writer().write_object_entry_for_test(
                     Object::with_id_owner_version_for_testing(
@@ -264,13 +275,10 @@ async fn schedulers_wait_for_authenticator_inputs() {
         let (scheduler, mut rx_ready_transactions) = make_transaction_manager(&state);
 
         let transaction = make_shared_authenticator_transaction(&gas_object, &shared_object);
-        state
-            .epoch_store_for_testing()
-            .set_shared_object_versions_for_testing(
-                transaction.digest(),
-                &[VersionAssignment::new(shared_object.id(), shared_version)],
-            )
-            .unwrap();
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            shared_object.id(),
+            shared_version,
+        )]);
 
         assert_awaits_authenticator_input(
             "TransactionManager",
@@ -278,6 +286,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
             &scheduler,
             &mut rx_ready_transactions,
             &transaction,
+            env,
             || {
                 scheduler.objects_available(
                     vec![InputKey::VersionedObject {
@@ -321,14 +330,12 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
     let mut txns = Vec::new();
     for gas in &gas_objects {
         let txn = make_transaction(gas.clone(), vec![shared_arg.clone()]);
-        state
-            .epoch_store_for_testing()
-            .set_shared_object_versions_for_testing(
-                txn.digest(),
-                &[VersionAssignment::new(shared_object.id(), shared_version)],
-            )
-            .unwrap();
-        execution_scheduler.enqueue(vec![txn.clone()], &state.epoch_store_for_testing());
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            shared_object.id(),
+            shared_version,
+        )]);
+        execution_scheduler
+            .enqueue_transactions(vec![(txn.clone(), env)], &state.epoch_store_for_testing());
         txns.push(txn);
     }
 
@@ -380,14 +387,17 @@ async fn scheduler_propagates_expected_effects_digest_fast_path() {
     // takes the fast path in `schedule_transaction`.
     let transaction = make_transaction(gas_object, vec![]);
     let expected = TransactionEffectsDigest::new([7; 32]);
-    execution_scheduler.enqueue_with_expected_effects_digest(
-        vec![(transaction.clone(), expected)],
+    execution_scheduler.enqueue_transactions(
+        vec![(
+            transaction.clone(),
+            ExecutionEnv::new().with_expected_effects_digest(expected),
+        )],
         &state.epoch_store_for_testing(),
     );
 
     let ready = rx_ready_transactions.recv().await.unwrap();
     assert_eq!(ready.transaction.digest(), transaction.digest());
-    assert_eq!(ready.expected_effects_digest, Some(expected));
+    assert_eq!(ready.execution_env.expected_effects_digest, Some(expected));
 }
 
 /// The certified `expected_effects_digest` must also survive the `notify_read`
@@ -408,8 +418,11 @@ async fn scheduler_propagates_expected_effects_digest_wait_path() {
     let transaction = make_transaction(gas_object, vec![CallArg::ImmutableOrOwned(owned_ref)]);
 
     let expected = TransactionEffectsDigest::new([9; 32]);
-    execution_scheduler.enqueue_with_expected_effects_digest(
-        vec![(transaction.clone(), expected)],
+    execution_scheduler.enqueue_transactions(
+        vec![(
+            transaction.clone(),
+            ExecutionEnv::new().with_expected_effects_digest(expected),
+        )],
         &state.epoch_store_for_testing(),
     );
 
@@ -428,7 +441,7 @@ async fn scheduler_propagates_expected_effects_digest_wait_path() {
 
     let ready = rx_ready_transactions.recv().await.unwrap();
     assert_eq!(ready.transaction.digest(), transaction.digest());
-    assert_eq!(ready.expected_effects_digest, Some(expected));
+    assert_eq!(ready.execution_env.expected_effects_digest, Some(expected));
 }
 
 /// A transaction with several missing inputs must wait for ALL of them, not
@@ -461,7 +474,10 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
             CallArg::ImmutableOrOwned(ref_b),
         ],
     );
-    execution_scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+    execution_scheduler.enqueue_transactions(
+        vec![(transaction.clone(), ExecutionEnv::new())],
+        &state.epoch_store_for_testing(),
+    );
 
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
@@ -516,7 +532,8 @@ async fn enqueue_wrong_epoch_transaction_is_dropped() {
     assert_eq!(epoch_store.epoch(), 0);
     let transaction = make_transaction_for_epoch(gas_object, vec![], 1);
 
-    execution_scheduler.enqueue(vec![transaction], &epoch_store);
+    execution_scheduler
+        .enqueue_transactions(vec![(transaction, ExecutionEnv::new())], &epoch_store);
 
     // A same-epoch transaction with these inputs would be ready immediately; this
     // one must be filtered out and leave no pending or ready work behind.
@@ -557,14 +574,12 @@ async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
     let mut txns = Vec::new();
     for gas in &gas_objects {
         let txn = make_transaction(gas.clone(), vec![shared_arg.clone()]);
-        state
-            .epoch_store_for_testing()
-            .set_shared_object_versions_for_testing(
-                txn.digest(),
-                &[VersionAssignment::new(shared_object.id(), shared_version)],
-            )
-            .unwrap();
-        execution_scheduler.enqueue(vec![txn.clone()], &state.epoch_store_for_testing());
+        let env = ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+            shared_object.id(),
+            shared_version,
+        )]);
+        execution_scheduler
+            .enqueue_transactions(vec![(txn.clone(), env)], &state.epoch_store_for_testing());
         txns.push(txn);
     }
 
@@ -621,7 +636,10 @@ async fn schedulers_record_ready_transaction_accounting() {
         let num_ready_before = state.metrics.transaction_manager_num_ready.get();
         let dispatch_queue_before = state.metrics.execution_driver_dispatch_queue.get();
 
-        scheduler.enqueue(vec![transaction.clone()], &state.epoch_store_for_testing());
+        scheduler.enqueue_transactions(
+            vec![(transaction.clone(), ExecutionEnv::new())],
+            &state.epoch_store_for_testing(),
+        );
         let ready = rx_ready_transactions.recv().await.unwrap();
         assert_eq!(ready.transaction.digest(), transaction.digest());
 
@@ -670,4 +688,253 @@ async fn schedulers_record_ready_transaction_accounting() {
         &transaction,
     )
     .await;
+}
+
+/// A schedulable that has no transaction yet, only its `TransactionKey`, waits
+/// for that key's digest. Two rounds enqueued together must each be released
+/// with the env parked for it: the digests come back from
+/// `notify_read_tx_key_to_digest` and are zipped positionally with the envs, so
+/// a swapped pairing would execute a round on another round's versions.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_resolves_schedulables_by_key_with_matching_envs() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let expected_1 = TransactionEffectsDigest::new([1; 32]);
+    let expected_2 = TransactionEffectsDigest::new([2; 32]);
+    execution_scheduler.enqueue(
+        vec![
+            (
+                Schedulable::RandomnessStateUpdate(epoch_store.epoch(), RandomnessRound::new(1)),
+                ExecutionEnv::new()
+                    .with_assigned_versions(randomness_assigned_versions(&epoch_store))
+                    .with_expected_effects_digest(expected_1),
+            ),
+            (
+                Schedulable::RandomnessStateUpdate(epoch_store.epoch(), RandomnessRound::new(2)),
+                ExecutionEnv::new()
+                    .with_assigned_versions(randomness_assigned_versions(&epoch_store))
+                    .with_expected_effects_digest(expected_2),
+            ),
+        ],
+        &epoch_store,
+    );
+
+    // Neither transaction exists yet: nothing must be dispatched. Under
+    // `start_paused` the sleep only lets already-spawned tasks run and advances
+    // virtual time, so this asserts that nothing dispatches on its own.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    let transaction_1 = resolve_randomness_round(&state, &epoch_store, 1);
+    let transaction_2 = resolve_randomness_round(&state, &epoch_store, 2);
+
+    let first = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    let second = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    // Without this, one round arriving twice while the other is lost would pass
+    // the loop below.
+    assert_ne!(first.transaction.digest(), second.transaction.digest());
+    for pending in [first, second] {
+        let expected = if pending.transaction.digest() == transaction_1.digest() {
+            expected_1
+        } else {
+            assert_eq!(pending.transaction.digest(), transaction_2.digest());
+            expected_2
+        };
+        assert_eq!(
+            pending.execution_env.expected_effects_digest,
+            Some(expected),
+            "schedulable released with another round's env"
+        );
+    }
+}
+
+/// A key that already resolves to a digest at enqueue time (crash recovery:
+/// the persistent `transaction_key_to_digest` table survived a restart) must
+/// be scheduled immediately with its env.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_schedules_already_resolved_randomness_key() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let round = RandomnessRound::new(3);
+    let transaction = resolve_randomness_round(&state, &epoch_store, 3);
+    let digest = *transaction.digest();
+
+    let assigned_versions = randomness_assigned_versions(&epoch_store);
+    execution_scheduler.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+        )],
+        &epoch_store,
+    );
+
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    assert_eq!(pending.transaction.digest(), &digest);
+    assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
+}
+
+/// A mixed batch must not couple plain transactions to the ones that only have
+/// a key: the plain transaction (inputs available) is dispatched immediately,
+/// while the other stays parked until its key resolves. This pins the
+/// partition in `enqueue` — a real consensus commit mixes user transactions
+/// and the round's `RandomnessStateUpdate` in one call, and funneling the
+/// whole batch through the key-resolution task would stall every user
+/// transaction of the commit behind the randomness round.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediately() {
+    let (owner, _keypair) = deterministic_random_account_private_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let round = RandomnessRound::new(5);
+    let transaction = make_transaction(gas_object, vec![]);
+    execution_scheduler.enqueue(
+        vec![
+            (
+                Schedulable::Transaction(transaction.clone()),
+                ExecutionEnv::new(),
+            ),
+            (
+                Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+                ExecutionEnv::new()
+                    .with_assigned_versions(randomness_assigned_versions(&epoch_store)),
+            ),
+        ],
+        &epoch_store,
+    );
+
+    // The plain transaction is dispatched immediately...
+    let ready = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    assert_eq!(ready.transaction.digest(), transaction.digest());
+
+    // ...while the schedulable stays parked on its unresolved key.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    // Resolving the key releases it.
+    let randomness_tx = resolve_randomness_round(&state, &epoch_store, 5);
+    let ready = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    assert_eq!(ready.transaction.digest(), randomness_tx.digest());
+}
+
+/// The two schedulers fail differently on a missing shared version assignment,
+/// and there is a test for each of them. Such a transaction panics in
+/// `get_input_object_keys`, the check that stops execution on unassigned
+/// versions. Here that panic happens inside the detached per-transaction task,
+/// where the runtime swallows it and the transaction is dropped; the
+/// `TransactionManager` panics in the caller instead
+/// (`transaction_manager_missing_shared_version_assignment_panics`). This test
+/// cannot tell a dropped transaction from one parked forever — it observes only
+/// that nothing was dispatched. If the scheduler ever learns to report this
+/// error, this test must change with it.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_missing_shared_version_assignment_drops_transaction() {
+    let (owner, _keypair) = deterministic_random_account_private_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let shared_object = Object::shared_for_testing();
+    let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    // The shared object is available at the version the call arg declares; only
+    // the assignment is missing. So if the panic ever became a fallback to the
+    // declared version, the transaction would dispatch and the assertion below
+    // would fail.
+    let shared_arg = CallArg::Shared(SharedObjectReference::new(
+        shared_object.id(),
+        shared_object.version(),
+        true,
+    ));
+    let transaction = make_transaction(gas_object, vec![shared_arg]);
+    execution_scheduler.enqueue_transactions(
+        vec![(transaction, ExecutionEnv::new())],
+        &state.epoch_store_for_testing(),
+    );
+
+    // The per-transaction task panics; a backtrace in the test output is
+    // expected. Nothing is dispatched.
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+}
+
+/// A key that resolves only after the epoch ended must dispatch nothing: both
+/// the wait for the key and `schedule_transaction` run under
+/// `within_alive_epoch`, and the test can only see that neither dispatched.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_drops_unresolved_key_wait_on_epoch_termination() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let round = RandomnessRound::new(4);
+    execution_scheduler.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(randomness_assigned_versions(&epoch_store)),
+        )],
+        &epoch_store,
+    );
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+
+    epoch_store.epoch_terminated().await;
+
+    // Resolving the key after the epoch ended must not dispatch anything.
+    resolve_randomness_round(&state, &epoch_store, 4);
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+}
+
+/// A transaction without shared inputs cancelled for execution-worker
+/// congestion carries the cancellation version on its gas object, as an
+/// assignment naming an owned input. The scheduler must neither reject such
+/// an assignment nor lose it: it reaches the ready transaction as assigned,
+/// and only the loader turns it into the cancellation.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_dispatches_gas_object_cancellation_with_its_env() {
+    let (owner, _keypair) = deterministic_random_account_private_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let transaction = make_transaction(gas_object.clone(), vec![]);
+    let assigned_versions = vec![VersionAssignment::new(
+        gas_object.id(),
+        Version::new_congested_with_suggested_gas_price(101).unwrap(),
+    )];
+    execution_scheduler.enqueue(
+        vec![(
+            Schedulable::Transaction(transaction.clone()),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+        )],
+        &epoch_store,
+    );
+
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    assert_eq!(pending.transaction.digest(), transaction.digest());
+    assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
 }

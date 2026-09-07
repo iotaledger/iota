@@ -33,7 +33,10 @@ use tokio::time::sleep;
 
 use super::*;
 use crate::{
-    authority::{AuthorityState, authority_tests::init_state_with_objects},
+    authority::{
+        AuthorityState, ExecutionEnv, authority_tests::init_state_with_objects,
+        shared_object_version_manager::AssignedTxAndVersions,
+    },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
     execution_scheduler::ExecutionSchedulerAPI,
@@ -147,6 +150,7 @@ pub fn make_consensus_adapter_for_test(
 
             let checkpoint_service = Arc::new(CheckpointServiceNoop {});
             let mut transactions = Vec::new();
+            let mut assigned_versions = Vec::new();
             let mut executed_via_checkpoint = 0;
 
             for tx in sequenced_transactions {
@@ -161,34 +165,32 @@ pub fn make_consensus_adapter_for_test(
                             .expect("Should not fail");
                         executed_via_checkpoint += 1;
                     } else {
-                        transactions.extend(
-                            epoch_store
-                                .process_consensus_transactions_for_tests(
-                                    vec![tx],
-                                    &checkpoint_service,
-                                    self.state.get_object_cache_reader().as_ref(),
-                                    self.state.get_transaction_cache_reader().as_ref(),
-                                    &self.state.metrics,
-                                    true,
-                                    self.state.as_ref(),
-                                )
-                                .await?,
-                        );
-                    }
-                } else {
-                    transactions.extend(
-                        epoch_store
+                        let (txns, versions) = epoch_store
                             .process_consensus_transactions_for_tests(
                                 vec![tx],
                                 &checkpoint_service,
                                 self.state.get_object_cache_reader().as_ref(),
-                                self.state.get_transaction_cache_reader().as_ref(),
                                 &self.state.metrics,
                                 true,
                                 self.state.as_ref(),
                             )
-                            .await?,
-                    );
+                            .await?;
+                        transactions.extend(txns);
+                        assigned_versions.extend(versions.0);
+                    }
+                } else {
+                    let (txns, versions) = epoch_store
+                        .process_consensus_transactions_for_tests(
+                            vec![tx],
+                            &checkpoint_service,
+                            self.state.get_object_cache_reader().as_ref(),
+                            &self.state.metrics,
+                            true,
+                            self.state.as_ref(),
+                        )
+                        .await?;
+                    transactions.extend(txns);
+                    assigned_versions.extend(versions.0);
                 }
             }
 
@@ -197,6 +199,20 @@ pub fn make_consensus_adapter_for_test(
                 self.process_via_checkpoint.len(),
                 "Some transactions were not executed via checkpoint"
             );
+
+            let assigned_versions = AssignedTxAndVersions::new(assigned_versions).into_map();
+            let transactions: Vec<_> = transactions
+                .into_iter()
+                .map(|tx| {
+                    let key = tx.key();
+                    (
+                        tx,
+                        ExecutionEnv::new().with_assigned_versions(
+                            assigned_versions.get(&key).cloned().unwrap_or_default(),
+                        ),
+                    )
+                })
+                .collect();
 
             if self.execute {
                 self.state

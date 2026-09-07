@@ -5,10 +5,7 @@
 use std::{net::SocketAddr, path::Path};
 
 use async_trait::async_trait;
-use iota_config::{
-    Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
-    genesis::Genesis,
-};
+use iota_config::{Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, node::Genesis};
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
@@ -19,10 +16,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_swarm::memory::Swarm;
-use iota_swarm_config::{
-    genesis_config::GenesisConfig,
-    network_config::{NetworkConfig, NetworkConfigLight},
-};
+use iota_swarm_config::{genesis_config::GenesisConfig, network_config::PersistedNetworkConfig};
 use iota_types::crypto::AccountPrivateKey;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -187,26 +181,11 @@ impl Cluster for LocalNewCluster {
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {
             assert!(options.epoch_duration_ms.is_none());
-            // Load the config of the IOTA authority.
-            let network_config_path = config_dir.join(IOTA_NETWORK_CONFIG);
-            let NetworkConfigLight {
-                validator_configs,
-                account_keys,
-                committee_with_network: _,
-            } = PersistedConfig::read(&network_config_path).map_err(|err| {
-                err.context(format!(
-                    "cannot open IOTA network config file at {network_config_path:?}"
-                ))
-            })?;
-
-            // Add genesis objects
-            let genesis_path = config_dir.join(IOTA_GENESIS_FILENAME);
-            let genesis = Genesis::load(genesis_path)?;
-            let network_config = NetworkConfig {
-                validator_configs,
-                account_keys,
-                genesis,
-            };
+            // Derive the node configs of the network from its persisted state.
+            let network_config = PersistedNetworkConfig::read(&config_dir)?.into_network_config(
+                &config_dir,
+                Genesis::new_from_file(config_dir.join(IOTA_GENESIS_FILENAME)),
+            )?;
             cluster_builder = cluster_builder.set_network_config(network_config);
 
             cluster_builder = cluster_builder.with_config_dir(config_dir);

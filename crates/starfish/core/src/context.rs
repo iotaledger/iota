@@ -117,6 +117,8 @@ impl Context {
                 // for the many tests that rely on stable peer order; tests that
                 // exercise ranking opt in explicitly.
                 enable_peer_responsiveness_ranking: false,
+                // Tests enable bounded peer selection explicitly when needed.
+                enable_bounded_header_advertisement: false,
                 ..Default::default()
             },
             ProtocolConfig::get_for_max_version_UNSAFE(),
