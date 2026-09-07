@@ -282,13 +282,13 @@ pub struct HandlerObjectState {
 
     /// Sync-ahead records the handler has caught up past, pending deletion
     /// from the durable table; drained into the next flush batch.
-    sync_record_deletions: Mutex<BTreeSet<ObjectId>>,
+    sync_ahead_record_deletions: Mutex<BTreeSet<ObjectId>>,
     /// Sync-ahead records currently alive (created and not yet queued for
     /// deletion), so the per-commit cleanup can skip its table lookups
     /// entirely in normal operation, when no record exists. Increments and
     /// deletion-queue insertions pair exactly: a record recreated while its
     /// deletion is queued cancels the deletion and counts as a fresh record.
-    live_sync_records: AtomicU64,
+    live_sync_ahead_records_count: AtomicU64,
 
     /// Read-through cache over the durable handler-latest table, so the cold
     /// path of the hot per-input lookup is usually served without a table
@@ -306,7 +306,7 @@ impl HandlerObjectState {
         // Nonzero only when reopening mid-epoch with sync-ahead records on
         // disk; counting them keeps the cleanup short-circuit sound across a
         // restart.
-        let live_sync_records = tables
+        let live_sync_ahead_records_count = tables
             .sync_ahead_records
             .safe_iter()
             .try_fold(0u64, |count, entry| entry.map(|_| count + 1))
@@ -317,8 +317,8 @@ impl HandlerObjectState {
             handler_latest_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_overlay: RwLock::new(BTreeMap::new()),
             sheltered_overlay: RwLock::new(BTreeMap::new()),
-            sync_record_deletions: Mutex::new(BTreeSet::new()),
-            live_sync_records: AtomicU64::new(live_sync_records),
+            sync_ahead_record_deletions: Mutex::new(BTreeSet::new()),
+            live_sync_ahead_records_count: AtomicU64::new(live_sync_ahead_records_count),
             handler_latest_cache: MonotonicCache::new(randomize_cache_capacity_in_tests(100_000)),
         }
     }
@@ -400,7 +400,7 @@ impl HandlerObjectState {
         // removed: a validation read that finds neither concludes the object
         // is untouched this epoch and consults epoch-start state.
         self.upsert_handler_latest_rows(tables, upserts)?;
-        self.remove_passed_sync_records(tables, upserts)?;
+        self.remove_handled_sync_ahead_records(tables, upserts)?;
         self.drop_commit_assignments(round);
         Ok(())
     }
@@ -438,7 +438,7 @@ impl HandlerObjectState {
     }
 
     /// The sync-ahead record for `id`, from the overlay or the durable table.
-    pub fn sync_record(
+    pub fn sync_ahead_record(
         &self,
         tables: &AuthorityEpochTables,
         id: &ObjectId,
@@ -487,7 +487,7 @@ impl HandlerObjectState {
         )?;
         // A deletion lost to a batch that never commits is re-queued when the
         // commit replays.
-        let deletions = std::mem::take(&mut *self.sync_record_deletions.lock());
+        let deletions = std::mem::take(&mut *self.sync_ahead_record_deletions.lock());
         batch.delete_batch(&tables.sync_ahead_records, deletions)?;
         Ok(())
     }
@@ -568,7 +568,7 @@ impl HandlerObjectState {
     /// The number of entries in the (handler-latest, sync-ahead, sheltered)
     /// overlays, for asserting eviction behavior.
     #[cfg(test)]
-    pub fn overlay_lens_for_testing(&self) -> (usize, usize, usize) {
+    pub fn overlay_sizes_for_testing(&self) -> (usize, usize, usize) {
         (
             self.handler_latest_overlay.read().len(),
             self.sync_ahead_overlay.read().len(),
@@ -623,7 +623,7 @@ impl HandlerObjectState {
             return Ok(());
         }
         let mut overlay = self.sync_ahead_overlay.write();
-        let mut deletions = self.sync_record_deletions.lock();
+        let mut deletions = self.sync_ahead_record_deletions.lock();
         for write in writes {
             let current = match overlay.get(&write.id) {
                 Some(record) => Some(*record),
@@ -644,7 +644,8 @@ impl HandlerObjectState {
                     // the new record's durable row.
                     deletions.remove(&write.id);
 
-                    self.live_sync_records.fetch_add(1, Ordering::Relaxed);
+                    self.live_sync_ahead_records_count
+                        .fetch_add(1, Ordering::Relaxed);
                 }
                 let base_version = match current {
                     // First write of the chain: what it consumed is what was
@@ -701,7 +702,7 @@ impl HandlerObjectState {
         }
     }
 
-    fn remove_passed_sync_records(
+    fn remove_handled_sync_ahead_records(
         &self,
         tables: &AuthorityEpochTables,
         upserts: &[(ObjectId, HandlerLatestObject)],
@@ -709,11 +710,11 @@ impl HandlerObjectState {
         // Normal operation: no sync-ahead record exists anywhere, so the
         // per-commit cleanup costs one atomic load instead of a table lookup
         // per written object.
-        if self.live_sync_records.load(Ordering::Relaxed) == 0 {
+        if self.live_sync_ahead_records_count.load(Ordering::Relaxed) == 0 {
             return Ok(());
         }
         let mut overlay = self.sync_ahead_overlay.write();
-        let mut deletions = self.sync_record_deletions.lock();
+        let mut deletions = self.sync_ahead_record_deletions.lock();
         for (id, row) in upserts {
             let record = match overlay.get(id) {
                 Some(record) => Some(*record),
@@ -731,7 +732,8 @@ impl HandlerObjectState {
                 // still write this record after the removal. Deleting a key
                 // that never became durable is a no-op.
                 if deletions.insert(*id) {
-                    self.live_sync_records.fetch_sub(1, Ordering::Relaxed);
+                    self.live_sync_ahead_records_count
+                        .fetch_sub(1, Ordering::Relaxed);
                 }
             }
         }
@@ -956,8 +958,8 @@ mod tests {
             handler_latest_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_overlay: RwLock::new(BTreeMap::new()),
             sheltered_overlay: RwLock::new(BTreeMap::new()),
-            sync_record_deletions: Mutex::new(BTreeSet::new()),
-            live_sync_records: AtomicU64::new(0),
+            sync_ahead_record_deletions: Mutex::new(BTreeSet::new()),
+            live_sync_ahead_records_count: AtomicU64::new(0),
             handler_latest_cache: MonotonicCache::new(100),
         };
         let digest_a = TransactionDigest::random();
