@@ -30,9 +30,10 @@ up in `../`.
 SLOW_N=100 SLOW_SIZE=100 ./probe.sh
 
 # Sweep several points on one network.
-./probe_sweep.sh                 # all points
+./probe_sweep.sh                 # all 32 points
 ./probe_sweep.sh ladder          # the product ladder only
 ./probe_sweep.sh split           # the equal-product points only
+./probe_sweep.sh cu              # the mode comparison's 12 cost points only
 ```
 
 Each invocation prints the per-transaction result and appends a row to
@@ -43,8 +44,14 @@ analysis scripts can distinguish them:
 
 ```text
 start_epoch, slow_n, slow_size, product, shared, qps, duration, n_samples,
-attested_cu, actual_cu, exec_mean_ms, exec_std_ms, exec_sem_ms
+attested_cu, actual_cu, exec_mean_ms, exec_std_ms, exec_sem_ms,
+ckpt_lag_mean_ms, ckpt_lag_p50_ms, ckpt_lag_p95_ms, ckpt_lag_p99_ms, ckpt_n,
+user_txs_per_ckpt
 ```
+
+The checkpoint columns are a loading check, not a result: at 5 QPS most
+checkpoints hold no workload transaction, so `user_txs_per_ckpt` says whether
+the point ran light enough to measure one transaction at a time.
 
 ### What it measures
 
@@ -93,7 +100,7 @@ units per object per commit; neither is computed from the other. `LIMIT_A`
 defaults to production's 10, `LIMIT_B` is required. Ten transactions of a
 workload costing C units each is `10 × C` units of work, so `LIMIT_B = 10 × C`
 is the limit that admits the same work as Run A at that one cost: 10,000 units
-for `cu1k`, 160,000 for `cu16k`, 4,910,000 for `cu491k`. Those differ by 491×,
+for `cu1k`, 100,000 for `cu10k`, 50,000,000 for `cu5m`. Those differ by 5,000×,
 which is why the limit has to be picked from a measurement rather than
 converted from `LIMIT_A`.
 
@@ -130,7 +137,7 @@ nothing at all: the scheduler needs `start_time + cost <= limit` and
 `start_time` is at least 0, so every transaction is deferred each commit and
 then cancelled at `MAX_DEFERRAL_ROUNDS`. That is why each cost point's limits
 start at or above its own per-transaction cost, and why the tightest meaningful
-limit for `cu491k` is one transaction per commit.
+limit for `cu5m` is one transaction per commit.
 
 The rate is the second knob: it sets how many transactions are available per
 commit, and a limit only binds when demand exceeds what it admits, so each cell

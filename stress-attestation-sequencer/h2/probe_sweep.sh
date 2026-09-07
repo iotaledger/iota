@@ -29,11 +29,13 @@ RETRIES="${RETRIES:-3}" # extra attempts per failed point
 mkdir -p "$LOGDIR"
 
 # "n size" pairs. Ladder: product in {100,200,500,...,2M} at size=100. The top
-# rungs hit the CU ceiling: the VM computation budget is capped at
-# max_gas_computation_bucket (5M CU) — min(gas_budget, 5M * gas_price) — so metered
-# CU plateaus at ~4.85M just below it and the tx aborts out-of-gas. Measured:
-# product >= ~850k all cap at 4.85M. The 1.2M/1.5M/2M rungs extend the plateau;
-# they are ceiling-characterization points, not usable workloads.
+# rungs hit the CU ceiling: the gas meter is created with
+# min(gas_budget, max_gas_computation_bucket * gas_price), both 5M here, so no
+# transaction is metered above 5,000,000 CU. Once the work costs more than the
+# budget the transaction fails with InsufficientGas and is charged the whole
+# budget, so every point past the ceiling reports exactly 5,000,000. Measured
+# on both machines: product >= 800k. The 1M/1.2M/1.5M/2M rungs extend the
+# plateau; they are ceiling-characterization points, not usable workloads.
 ladder=(
   "1 100"     # product 100
   "2 100"     # 200
@@ -48,11 +50,11 @@ ladder=(
   "2000 100"  # 200k
   "5000 100"  # 500k
   "7000 100"  # 700k  (~4.0M CU)
-  "8500 100"  # 850k  (~4.85M CU, first point at the ceiling)
-  "10000 100" # 1M    (caps at ~4.85M)
-  "12000 100" # 1.2M  (caps at ~4.85M)
-  "15000 100" # 1.5M  (caps at ~4.85M)
-  "20000 100" # 2M    (caps at ~4.85M)
+  "8500 100"  # 850k  (at the ceiling; 800k reaches it first, see cu5m)
+  "10000 100" # 1M    (caps at 5M)
+  "12000 100" # 1.2M  (caps at 5M)
+  "15000 100" # 1.5M  (caps at 5M)
+  "20000 100" # 2M    (caps at 5M)
 )
 # Split-invariance check: all product 40000, different n/size splits.
 split=(

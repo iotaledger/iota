@@ -23,31 +23,41 @@
 # which the most expensive points reach first) and starts one rung below its
 # floor, where such a rung exists.
 #
-# Cost points from the h2 calibration (probe-test.md; size fixed at 100). "drains"
-# is 1 / execution time — how fast one object can execute that point, since
-# transactions on one mutable shared object run one after another:
+# Cost points from the h2 calibration (probe-test.md; size fixed at 100).
+# units/tx is the attested cost, the value the scheduler charges. It is a
+# property of the workload: the probe measures the same figure on both
+# machines, to the digit.
 #
-#   point    slow_n    units/tx   exec ms (WS / EPYC)   drains (WS / EPYC)
-#   cu1k          1       1,000     0.23 /  0.55        4400 / 1800 per s
-#   cu2k         70       2,000     not measured yet
-#   cu5k        120       5,000     not measured yet
-#   cu10k       160      10,000     not measured yet
-#   cu20k       217      20,000     not measured yet
-#   cu50k       267      50,000     not measured yet
-#   cu100k      350     100,000     not measured yet
-#   cu200k      516     200,000     not measured yet
-#   cu500k     1015     500,000     not measured yet
-#   cu1m       1848   1,000,000     not measured yet
-#   cu2m       3511   2,000,000     not measured yet
-#   cu5m       8000   5,000,000     not measured yet (the metering ceiling)
-#   cu16k       200      16,000     4.27 / 18.78         234 /   53 per s
-#   cu491k     1000     491,000    18.81 / 74.62          53 /   13 per s
+# "drains" is how fast one object sustains that point on EPYC. It comes from
+# this grid, not from the probe: transactions on one mutable shared object run
+# one after another, so in a cell whose success rate settles below what its
+# limit admits while cancellations stay quiet, execution is the only remaining
+# constraint and the success rate IS the drain rate. Per-transaction execution
+# time would be the other way to get it, but that is a per-machine, per-load
+# quantity — the probe measures the same point 2.0x to 5.7x apart on the two
+# machines, at 5 QPS with nothing contending — so the rate measured under the
+# grid's own load is the one that applies here.
 #
-# units/tx for cu2k..cu5m is the attested cost measured with SLOW_SHARED=true,
-# which is the value the scheduler charges. Their execution times are still
-# missing: that probe ran with the default per-object limit of 10 units, so
-# every shared-input transaction was cancelled instead of executed. cu16k and
-# cu491k are kept for reference; no cell uses them.
+#   point    slow_n    units/tx   drains on EPYC (tx/s)
+#   cu1k          1       1,000   arrival-limited, no plateau
+#   cu2k         70       2,000   179
+#   cu5k        120       5,000   118
+#   cu10k       160      10,000    94
+#   cu20k       217      20,000    73
+#   cu50k       267      50,000    62
+#   cu100k      350     100,000    52
+#   cu200k      516     200,000    39
+#   cu500k     1015     500,000    24
+#   cu1m       1848   1,000,000    15
+#   cu2m       3511   2,000,000     8.5
+#   cu5m       8000   5,000,000     3.7
+#
+# cu1k has no drain figure because its whole ladder is arrival-limited: the
+# client never offers enough to saturate one object at 1,000 units a
+# transaction. cu5m sits at the metering ceiling — 5,000,000 is the gas budget
+# in computation units, so those transactions fail with InsufficientGas and are
+# charged the whole budget (see probe-test.md). Its work is truncated, which is
+# worth remembering when reading its throughput.
 #
 # Transactions per commit each limit admits is the limit divided by the cost
 # (both ladders are geometric, so it is 1 at the limit equal to the point's
