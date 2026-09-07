@@ -2358,7 +2358,7 @@ impl BookkeepingSetup {
     #[track_caller]
     fn assert_record(&self, id: &ObjectId, base_version: Option<Version>, latest_created: Version) {
         assert_eq!(
-            self.epoch_store.sync_record(id).unwrap(),
+            self.epoch_store.sync_ahead_record(id).unwrap(),
             Some(SyncAheadRecord {
                 base_version,
                 latest_created,
@@ -2488,7 +2488,7 @@ async fn handler_known_transaction_writes_handler_latest_only() {
         assert_eq!(row.produced_at, 7);
         assert_eq!(row.kind, HandlerLatestObjectKind::Live);
 
-        assert_eq!(s.epoch_store.sync_record(id).unwrap(), None);
+        assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
         s.assert_not_sheltered(consumed_ref);
     }
 }
@@ -2541,11 +2541,13 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
     // Handler-known executions leave no sync-ahead trace, consumed inputs
     // included.
     assert_eq!(
-        s.epoch_store.sync_record(created_ref.object_id()).unwrap(),
+        s.epoch_store
+            .sync_ahead_record(created_ref.object_id())
+            .unwrap(),
         None
     );
     s.assert_not_sheltered(created_ref);
-    assert_eq!(s.epoch_store.sync_record(&gas_id).unwrap(), None);
+    assert_eq!(s.epoch_store.sync_ahead_record(&gas_id).unwrap(), None);
 }
 
 #[tokio::test]
@@ -2645,7 +2647,7 @@ async fn handler_known_share_records_the_initial_shared_version() {
     );
     assert_eq!(
         s.epoch_store
-            .sync_record(shared.reference.object_id())
+            .sync_ahead_record(shared.reference.object_id())
             .unwrap(),
         None
     );
@@ -2697,7 +2699,7 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
         assert_eq!(row.version, effects.lamport_version());
         assert_eq!(row.produced_at, 4);
         assert_eq!(row.kind, HandlerLatestObjectKind::Live);
-        assert_eq!(s.epoch_store.sync_record(id).unwrap(), None);
+        assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
     }
     assert_eq!(state.commit_round_of(&digest), None);
 
@@ -2742,7 +2744,7 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
         .unwrap();
     assert_eq!(s.handler_latest(&obj_id).version, first.lamport_version());
     s.assert_record(&obj_id, Some(obj_genesis_version), second.lamport_version());
-    assert_eq!(s.epoch_store.sync_record(&gas1_id).unwrap(), None);
+    assert_eq!(s.epoch_store.sync_ahead_record(&gas1_id).unwrap(), None);
 
     // Passing the second commit completes the catch-up.
     s.epoch_store
@@ -2753,8 +2755,8 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
     let row = s.handler_latest(&obj_id);
     assert_eq!(row.version, second.lamport_version());
     assert_eq!(row.produced_at, 5);
-    assert_eq!(s.epoch_store.sync_record(&obj_id).unwrap(), None);
-    assert_eq!(s.epoch_store.sync_record(&gas2_id).unwrap(), None);
+    assert_eq!(s.epoch_store.sync_ahead_record(&obj_id).unwrap(), None);
+    assert_eq!(s.epoch_store.sync_ahead_record(&gas2_id).unwrap(), None);
 }
 
 #[tokio::test]
@@ -2776,7 +2778,7 @@ async fn bookkeeping_disabled_writes_nothing() {
     s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
 
     assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
-    assert_eq!(s.epoch_store.sync_record(&obj_id).unwrap(), None);
+    assert_eq!(s.epoch_store.sync_ahead_record(&obj_id).unwrap(), None);
     s.assert_not_sheltered(obj_genesis_ref);
 }
 
@@ -2941,7 +2943,7 @@ async fn sync_ahead_creations_of_every_owner_kind_get_records() {
     for created in start_effects.created() {
         assert_eq!(
             s.epoch_store
-                .sync_record(created.reference.object_id())
+                .sync_ahead_record(created.reference.object_id())
                 .unwrap(),
             Some(SyncAheadRecord {
                 base_version: None,

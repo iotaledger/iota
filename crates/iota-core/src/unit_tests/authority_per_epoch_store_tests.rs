@@ -1974,8 +1974,8 @@ mod handler_object_state_storage {
         // Two transactions of one commit write the same id (a sender's gas
         // coin), so the commit's rows carry both versions, here out of
         // version order.
-        let v3 = live_row(Version::from_u64(3), 1);
-        let v5 = live_row(Version::from_u64(5), 1);
+        let v3 = generate_live_entry(Version::from_u64(3), 1);
+        let v5 = generate_live_entry(Version::from_u64(5), 1);
         let commit_rows = vec![(id, v5), (id, v3)];
         epoch_store
             .record_commit_fully_executed(1, &commit_rows)
@@ -1988,7 +1988,7 @@ mod handler_object_state_storage {
         epoch_store
             .flush_commit_rows_for_testing(commit_rows)
             .unwrap();
-        assert_eq!(state.overlay_lens_for_testing(), (0, 0, 0));
+        assert_eq!(state.overlay_sizes_for_testing(), (0, 0, 0));
         assert_eq!(
             epoch_store
                 .tables()
