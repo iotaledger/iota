@@ -212,10 +212,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             activates).
 //             Stop locking immutable objects in post-consensus conflict
 //             resolution.
-// Version 35: Rebuild the framework binaries to add the Move stdlib `bool`
-//             module and vector sorting functions.
-//             Scale the PTB value size limit by the value's type.
-//             Let system objects grow past the per-object size bound.
+// Version 35: Scale the PTB value size limit by the value's type.
 //             Allow objects created or mutated by system transactions to exceed
 //             the max object size limit.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -3386,8 +3383,6 @@ impl ProtocolConfig {
                     cfg.feature_flags.pcool_skip_immutable_object_locks = true;
                 }
                 35 => {
-                    // Rebuild the framework binaries to add the Move stdlib
-                    // `bool` module and vector sorting functions.
                     // Scale the PTB value size limit by the value's type.
                     cfg.feature_flags.max_ptb_value_size_v2 = true;
                     // Let system objects grow past the per-object size bound.
