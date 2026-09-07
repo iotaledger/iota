@@ -80,21 +80,29 @@ pub struct AttestorRegistryV1 {
 pub const E_INVALID_ATTESTOR_PUBKEY: u64 = 3;
 
 /// Validate a `flag || raw_key` attestor signing key, accepting only the
-/// plain schemes (ed25519 / secp256k1 / secp256r1). Backs the
+/// plain schemes (ed25519 / secp256k1 / secp256r1) in their canonical
+/// compressed encoding. Backs the
 /// `attestor_registry::validate_attestor_pubkey` native.
 pub fn verify_attestor_pubkey(pubkey: &[u8]) -> Result<(), u64> {
     let Some((&flag, key_bytes)) = pubkey.split_first() else {
         return Err(E_INVALID_ATTESTOR_PUBKEY);
     };
     let scheme = SignatureScheme::from_byte(flag).map_err(|_| E_INVALID_ATTESTOR_PUBKEY)?;
-    match scheme {
-        SignatureScheme::Ed25519 | SignatureScheme::Secp256k1 | SignatureScheme::Secp256r1 => {
-            PublicKey::try_from_bytes(scheme, key_bytes)
-                .map(|_| ())
-                .map_err(|_| E_INVALID_ATTESTOR_PUBKEY)
-        }
-        _ => Err(E_INVALID_ATTESTOR_PUBKEY),
+    let canonical_len = match scheme {
+        SignatureScheme::Ed25519 => Ed25519PublicKey::LENGTH,
+        SignatureScheme::Secp256k1 => Secp256k1PublicKey::LENGTH,
+        SignatureScheme::Secp256r1 => Secp256r1PublicKey::LENGTH,
+        _ => return Err(E_INVALID_ATTESTOR_PUBKEY),
+    };
+    // The secp parsers also accept the 65-byte uncompressed form, and Move
+    // compares keys as raw bytes, so without this check one key could be
+    // registered twice under two encodings.
+    if key_bytes.len() != canonical_len {
+        return Err(E_INVALID_ATTESTOR_PUBKEY);
     }
+    PublicKey::try_from_bytes(scheme, key_bytes)
+        .map(|_| ())
+        .map_err(|_| E_INVALID_ATTESTOR_PUBKEY)
 }
 
 /// Abort code for a proof-of-possession that does not verify; matches
