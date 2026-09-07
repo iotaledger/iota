@@ -2209,12 +2209,16 @@ impl IotaNode {
         // exposes it via `attestor_set()` for explicit-attestation
         // verification. Feature-gated: with the flag off the epoch-start
         // state keeps its previous version, decodable by older binaries.
+        // A read failure here is a storage fault or a layout mismatch; fail
+        // loudly rather than leave the node stalled on the old epoch.
         let next_epoch_start_system_state =
             match iota_types::iota_system_state::attestor_registry::epoch_start_attestors(
                 state.get_object_store().as_ref(),
                 next_epoch_start_system_state.protocol_version(),
                 state.get_chain_identifier(),
-            )? {
+            )
+            .expect("attestor registry must be readable at epoch start")
+            {
                 Some(attestors) => next_epoch_start_system_state.with_attestors(attestors),
                 None => next_epoch_start_system_state,
             };
