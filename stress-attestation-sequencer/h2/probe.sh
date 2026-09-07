@@ -27,8 +27,10 @@
 #                 host binary via the fullnode), N (validators,
 #                 default 4), NUM_CLIENT_THREADS, NUM_TRANSFER_ACCOUNTS,
 #                 IN_FLIGHT_RATIO, NUM_WORKERS, PROM, TS_STEP, DRAIN_POLL_S,
-#                 DRAIN_TIMEOUT_S, WIPE (yes|no; default: prompt interactively,
-#                 else no).
+#                 DRAIN_TIMEOUT_S, MAX_ACCUMULATED_TXN_COST (per-object
+#                 per-commit budget, applied on a COLD start only; default
+#                 50000000, above every probe point), WIPE (yes|no; default:
+#                 prompt interactively, else no).
 #
 # Example:
 #   SLOW_N=100 SLOW_SIZE=100 ./probe.sh
@@ -78,6 +80,13 @@ rel() { case "$1" in "$REPO_ROOT"/*) printf './%s' "${1#"$REPO_ROOT"/}" ;; *) pr
 }
 
 SLOW_SHARED="${SLOW_SHARED:-false}"
+# Per-object per-commit budget the network starts with. The probe must never
+# hit it: a shared-input transaction over the limit is deferred every commit
+# and cancelled, and a cancelled transaction still executes far enough to
+# record the cancellation — so it produces a full set of execution samples at
+# the cost of the bookkeeping, not of the workload. 50m is ten times the
+# per-transaction metering ceiling, so no point can reach it.
+MAX_ACCUMULATED_TXN_COST="${MAX_ACCUMULATED_TXN_COST:-50000000}"
 QPS="${QPS:-5}"
 DURATION="${DURATION:-20s}"
 # Default vehicle: the stress client runs IN-DOCKER on the private network
@@ -286,11 +295,18 @@ wait_for_checkpoint_drain() {
 }
 
 # Bring the network up ONCE, only if nothing is running. Attestation ON is
-# required to populate attested_computation_units; the mode is irrelevant for
-# this owned/low-rate probe but we keep TotalComputationUnits (start.sh default).
+# required to populate attested_computation_units. The mode does not matter at
+# this rate, but the per-object limit does once SLOW_SHARED=true, so the network
+# comes up with one no point can reach.
 ensure_network() {
   if network_is_up; then
     echo "${GREEN}Reusing the running network (fullnode RPC responded).${RESET}"
+    if [[ "$SLOW_SHARED" == true ]]; then
+      echo "${YELLOW}  - NOTE: its per-object limit is whatever it was started"
+      echo "    with, not $MAX_ACCUMULATED_TXN_COST. A point above that limit"
+      echo "    is cancelled rather than executed; probe_scrape.py refuses"
+      echo "    such a point instead of recording it.${RESET}"
+    fi
     return 0
   fi
   echo "${YELLOW}No network detected — bringing up a fresh one (attestation ON, TotalComputationUnits).${RESET}"
@@ -304,7 +320,9 @@ ensure_network() {
   banner "== bootstrap (-b, $N validators) =="
   sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N"
   banner "== start network (attestation ON) =="
-  ATTEST=true MODE=TotalComputationUnits "$TOOLS_DIR/start.sh" -n "$N" faucet
+  ATTEST=true MODE=TotalComputationUnits \
+    MAX_ACCUMULATED_TXN_COST="$MAX_ACCUMULATED_TXN_COST" \
+    "$TOOLS_DIR/start.sh" -n "$N" faucet
   wait_for_fullnode
 }
 

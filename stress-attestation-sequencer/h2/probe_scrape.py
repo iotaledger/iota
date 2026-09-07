@@ -45,6 +45,7 @@ import urllib.request
 EXEC = "authority_state_internal_execution_latency_user"
 ATTESTED = "attested_computation_units"  # scheduling input (gas units)
 ACTUAL = "actual_computation_units"  # measured after execution (gas units)
+CANCELLED = "consensus_handler_cancelled_transactions"
 # Seconds; consensus commit timestamp -> local checkpoint built. The builder
 # waits for the commit's transactions to execute before building, so this lag
 # includes the execution wait — heavier txs in a commit raise it. At low rate a
@@ -207,6 +208,23 @@ if n < min_samples:
         f"probe_scrape: only {n} execution samples (< {min_samples}) — the "
         "stress client under-delivered (check its report in the point log); "
         "re-run this point. Row NOT appended.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+# A shared-input transaction whose cost exceeds the per-object per-commit limit
+# is deferred every commit and cancelled — yet it still executes far enough to
+# record the cancellation, so it lands in the execution histogram and passes
+# min_samples above. The row would look plausible (a fraction of a millisecond
+# at the computation floor) and be wrong, so refuse the point instead. A
+# healthy calibration point cancels nothing.
+cancelled = delta(query_range(f"{CANCELLED}{JOBS}"))
+if cancelled > 0:
+    print(
+        f"probe_scrape: {cancelled:.0f} transactions cancelled in the window — "
+        "deferred past max_deferral_rounds, so the execution time and actual "
+        "units describe cancellations, not the workload. Start the network "
+        "with a per-object limit above this point's cost "
+        "(MAX_ACCUMULATED_TXN_COST) and re-run. Row NOT appended.",
         file=sys.stderr,
     )
     sys.exit(1)
