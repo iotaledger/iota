@@ -1820,8 +1820,6 @@ async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
 // === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
 
 mod handler_object_state_storage {
-    use std::sync::Arc;
-
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
     };
@@ -1964,6 +1962,43 @@ mod handler_object_state_storage {
             .record_commit_fully_executed(2, &[(id, v7)])
             .unwrap();
         assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v7));
+    }
+
+    #[tokio::test]
+    async fn flushed_rows_for_one_id_collapse_to_the_highest_version() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let id = ObjectId::random();
+
+        // Two transactions of one commit write the same id (a sender's gas
+        // coin), so the commit's rows carry both versions, here out of
+        // version order.
+        let v3 = live_row(Version::from_u64(3), 1);
+        let v5 = live_row(Version::from_u64(5), 1);
+        let commit_rows = vec![(id, v5), (id, v3)];
+        epoch_store
+            .record_commit_fully_executed(1, &commit_rows)
+            .unwrap();
+        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
+
+        // The flush leaves the highest version durable - not the last one
+        // iterated - and evicts the overlay entry without the write-through
+        // cache insert of an older row tripping the monotonicity check.
+        epoch_store
+            .flush_commit_rows_for_testing(commit_rows)
+            .unwrap();
+        assert_eq!(state.overlay_lens_for_testing(), (0, 0, 0));
+        assert_eq!(
+            epoch_store
+                .tables()
+                .unwrap()
+                .handler_latest_objects
+                .get(&id)
+                .unwrap(),
+            Some(v5)
+        );
+        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
     }
 
     #[tokio::test]
@@ -2180,7 +2215,7 @@ mod handler_object_state_storage {
             .iter()
             .map(|id| (*id, epoch_store.sync_ahead_record(id).unwrap().unwrap()))
             .collect();
-        let shelter_rows: Vec<(ObjectKey, Arc<Object>)> = [
+        let shelter_rows: Vec<(ObjectKey, Object)> = [
             ObjectKey(mutated, Version::from_u64(5)),
             ObjectKey(gas, Version::from_u64(1)),
         ]
@@ -2197,8 +2232,8 @@ mod handler_object_state_storage {
         }
         for (key, object) in &shelter_rows {
             assert_eq!(
-                epoch_store.sheltered_object(key).unwrap().as_deref(),
-                Some(object.as_ref())
+                epoch_store.sheltered_object(key).unwrap().as_ref(),
+                Some(object)
             );
         }
     }

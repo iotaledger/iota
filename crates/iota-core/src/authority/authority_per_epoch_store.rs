@@ -1812,7 +1812,7 @@ impl AuthorityPerEpochStore {
     }
 
     /// The sheltered bytes of a consumed input version.
-    pub fn sheltered_object(&self, key: &ObjectKey) -> IotaResult<Option<Arc<Object>>> {
+    pub fn sheltered_object(&self, key: &ObjectKey) -> IotaResult<Option<Object>> {
         let tables = self.tables()?;
         self.handler_object_state.sheltered_object(&tables, key)
     }
@@ -1831,6 +1831,7 @@ impl AuthorityPerEpochStore {
         handler_rows: Vec<(ObjectId, HandlerLatestObject)>,
     ) -> IotaResult {
         let tables = self.tables()?;
+        let handler_rows = handler_object_state::highest_row_per_id(&handler_rows);
         let mut batch = tables.handler_latest_objects.batch();
         self.handler_object_state
             .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
@@ -1847,7 +1848,7 @@ impl AuthorityPerEpochStore {
     pub fn flush_sync_ahead_rows_for_testing(
         &self,
         sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
-        shelter_rows: Vec<(ObjectKey, Arc<Object>)>,
+        shelter_rows: Vec<(ObjectKey, Object)>,
     ) -> IotaResult {
         let tables = self.tables()?;
         let mut batch = tables.sync_ahead_records.batch();

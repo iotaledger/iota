@@ -9,8 +9,8 @@ use std::sync::Arc;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, ObjectReference, OwnedObjectReference, Owner,
-    Transaction, TransactionDigest, TransactionEffects, Version,
+    Address, Command, Identifier, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference,
+    Owner, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, Version,
 };
 use iota_types::{
     base_types::CommitRound,
@@ -35,9 +35,12 @@ use crate::{
         authority_per_epoch_store::{
             LockDetails,
             consensus_quarantine::ConsensusCommitOutput,
-            handler_object_state::{HandlerLatestObjectKind, SyncAheadRecord},
+            handler_object_state::{
+                HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
+                handler_latest_upserts,
+            },
         },
-        authority_tests::{TestCallArg, call_move_, init_state_with_objects_and_object_basics},
+        authority_tests::init_state_with_objects_and_object_basics,
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -2112,6 +2115,22 @@ fn parent_and_child(
         .expect("start() creates a child owned by another created object's id")
 }
 
+/// The arguments of `object_basics::create` for an object owned by `owner`.
+fn create_object_args(owner: Address) -> Vec<CallArg> {
+    vec![
+        CallArg::Pure(bcs::to_bytes(&16u64).unwrap()),
+        CallArg::Pure(bcs::to_bytes(&owner).unwrap()),
+    ]
+}
+
+/// The initial shared version of a shared owner; panics for any other owner.
+fn initial_shared_version(owner: &Owner) -> Version {
+    match owner {
+        Owner::Shared(initial_shared_version) => *initial_shared_version,
+        other => panic!("expected a shared object, got owner {other:?}"),
+    }
+}
+
 impl BookkeepingSetup {
     /// The latest reference of `id` in the authority's view.
     fn latest_ref(&self, id: &ObjectId) -> ObjectReference {
@@ -2138,13 +2157,34 @@ impl BookkeepingSetup {
     /// [`Self::execute`] without asserting execution success, for scenarios
     /// exercising aborted transactions.
     fn execute_unchecked(&self, tx: VerifiedTransaction) -> TransactionEffects {
-        let executable =
-            VerifiedExecutableTransaction::new_from_checkpoint(tx, self.epoch_store.epoch(), 1);
+        self.execute_executable(&self.executable(tx), ExecutionEnv::new())
+    }
+
+    fn executable(&self, tx: VerifiedTransaction) -> VerifiedExecutableTransaction {
+        VerifiedExecutableTransaction::new_from_checkpoint(tx, self.epoch_store.epoch(), 1)
+    }
+
+    fn execute_executable(
+        &self,
+        executable: &VerifiedExecutableTransaction,
+        execution_env: ExecutionEnv,
+    ) -> TransactionEffects {
         let (effects, _) = self
             .authority
-            .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
+            .try_execute_immediately(executable, execution_env, &self.epoch_store)
             .unwrap();
         effects
+    }
+
+    /// The handler-latest row of `id`, which the handler must have written.
+    #[track_caller]
+    fn handler_latest(&self, id: &ObjectId) -> HandlerLatestObject {
+        self.epoch_store
+            .handler_latest(id)
+            .unwrap()
+            .unwrap_or_else(|| {
+                panic!("the handler must have written a handler-latest row for {id}")
+            })
     }
 
     /// Registers `tx`'s digest in the digest -> commit-round map for `round`
@@ -2158,6 +2198,21 @@ impl BookkeepingSetup {
         self.epoch_store
             .assign_commit_to_transactions(round, vec![*tx.digest()]);
         self.execute(tx)
+    }
+
+    /// [`Self::execute_as_handler_known`] of a call into the `object_basics`
+    /// module.
+    fn handler_known_object_basics_call(
+        &self,
+        function: &'static str,
+        args: Vec<CallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        round: CommitRound,
+    ) -> TransactionEffects {
+        let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
+        self.execute_as_handler_known(tx, round)
     }
 
     /// A verified call into `module::function` of the published test package
@@ -2201,34 +2256,48 @@ impl BookkeepingSetup {
         self.execute(self.build_move_call(module, function, args, gas_id, sender, sender_key))
     }
 
-    /// Builds a call into the `object_basics` module and executes it through
-    /// the certificate + consensus path.
-    async fn shared_object_basics_call(
+    /// Builds a call into the `object_basics` module taking shared-object
+    /// inputs and executes it, with the shared versions assigned directly
+    /// rather than through consensus: the digest never reaches the handler,
+    /// so the hook classifies this execution sync-ahead like every other
+    /// direct execution of the fixture.
+    fn shared_object_basics_call(
         &self,
         function: &'static str,
-        args: Vec<TestCallArg>,
+        args: Vec<CallArg>,
         gas_id: &ObjectId,
         sender: Address,
         sender_key: &AccountPrivateKey,
     ) -> TransactionEffects {
-        let effects = call_move_(
-            &self.authority,
-            None,
-            gas_id,
-            &sender,
-            sender_key,
-            &self.package_id,
-            "object_basics",
-            function,
-            vec![],
-            args,
-            true, // the call takes shared-object inputs
-        )
-        .await
-        .unwrap();
+        let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
+        let executable = self.executable(tx);
+        let assigned_versions = self
+            .epoch_store
+            .assign_shared_object_versions_for_tests(
+                self.authority.get_object_cache_reader().as_ref(),
+                std::slice::from_ref(&executable),
+            )
+            .unwrap()
+            .into_map()
+            .remove(&executable.key())
+            .expect("version assignment must cover the transaction it was given");
+        let effects = self.execute_executable(
+            &executable,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        );
         assert!(effects.status().is_success(), "{:?}", effects.status());
-
         effects
+    }
+
+    /// The argument naming the shared object `id` as a mutable input.
+    fn shared_arg(&self, id: &ObjectId) -> CallArg {
+        let initial_shared_version =
+            initial_shared_version(&self.authority.get_object(id).unwrap().owner);
+        CallArg::Shared(SharedObjectReference::new(
+            *id,
+            initial_shared_version,
+            true,
+        ))
     }
 
     /// [`Self::move_call`] into the `object_basics` module.
@@ -2253,10 +2322,7 @@ impl BookkeepingSetup {
     ) -> (ObjectReference, TransactionEffects) {
         let effects = self.object_basics_call(
             "create",
-            vec![
-                CallArg::Pure(bcs::to_bytes(&16u64).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
-            ],
+            create_object_args(sender),
             gas_id,
             sender,
             sender_key,
@@ -2411,19 +2477,284 @@ async fn handler_known_transaction_writes_handler_latest_only() {
 
     // The handler registered the digest before execution: the hook writes
     // handler-latest rows and neither sync records nor shelter bytes.
+    let gas_genesis_ref = s.latest_ref(&gas_id);
     let effects = s.execute_as_handler_known(tx, 7);
 
-    let row = s
-        .epoch_store
-        .handler_latest(&obj_id)
-        .unwrap()
-        .expect("a handler-known execution must write a handler-latest row");
-    assert_eq!(row.version, effects.lamport_version());
-    assert_eq!(row.produced_at, 7);
-    assert_eq!(row.kind, HandlerLatestObjectKind::Live);
+    // The gas coin is a written object like any other.
+    for consumed_ref in [obj_genesis_ref, gas_genesis_ref] {
+        let id = consumed_ref.object_id();
+        let row = s.handler_latest(id);
+        assert_eq!(row.version, effects.lamport_version());
+        assert_eq!(row.produced_at, 7);
+        assert_eq!(row.kind, HandlerLatestObjectKind::Live);
 
+        assert_eq!(s.epoch_store.sync_record(id).unwrap(), None);
+        s.assert_not_sheltered(consumed_ref);
+    }
+}
+
+#[tokio::test]
+async fn handler_known_delete_writes_a_deleted_tombstone_row() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let create_effects = s.handler_known_object_basics_call(
+        "create",
+        create_object_args(sender),
+        &gas_id,
+        sender,
+        &sender_key,
+        3,
+    );
+    let created_ref = create_effects.created()[0].reference;
+    assert_eq!(
+        s.handler_latest(created_ref.object_id()).kind,
+        HandlerLatestObjectKind::Live
+    );
+
+    // The deletion in a later commit replaces the live row with a tombstone
+    // at the deletion version, carrying the store's deleted-object digest.
+    let delete_effects = s.handler_known_object_basics_call(
+        "delete",
+        vec![CallArg::ImmutableOrOwned(created_ref)],
+        &gas_id,
+        sender,
+        &sender_key,
+        4,
+    );
+    assert_eq!(
+        s.handler_latest(created_ref.object_id()),
+        HandlerLatestObject {
+            version: delete_effects.lamport_version(),
+            digest: ObjectDigest::OBJECT_DELETED,
+            kind: HandlerLatestObjectKind::Deleted,
+            produced_at: 4,
+            initial_shared_version: None,
+        }
+    );
+
+    // Handler-known executions leave no sync-ahead trace, consumed inputs
+    // included.
+    assert_eq!(
+        s.epoch_store.sync_record(created_ref.object_id()).unwrap(),
+        None
+    );
+    s.assert_not_sheltered(created_ref);
+    assert_eq!(s.epoch_store.sync_record(&gas_id).unwrap(), None);
+}
+
+#[tokio::test]
+async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let (created_ref, _) = s.create_object(&gas_id, sender, &sender_key);
+    let wrap_effects = s.handler_known_object_basics_call(
+        "wrap",
+        vec![CallArg::ImmutableOrOwned(created_ref)],
+        &gas_id,
+        sender,
+        &sender_key,
+        5,
+    );
+    assert_eq!(
+        s.handler_latest(created_ref.object_id()),
+        HandlerLatestObject {
+            version: wrap_effects.lamport_version(),
+            digest: ObjectDigest::OBJECT_WRAPPED,
+            kind: HandlerLatestObjectKind::Wrapped,
+            produced_at: 5,
+            initial_shared_version: None,
+        }
+    );
+    let wrapper_ref = wrap_effects.created()[0].reference;
+    assert_eq!(
+        s.handler_latest(wrapper_ref.object_id()).kind,
+        HandlerLatestObjectKind::Live
+    );
+
+    // Unwrapping resurfaces the id at a higher version: the tombstone gives
+    // way to a live row, and the wrapper's row becomes the tombstone.
+    let unwrap_effects = s.handler_known_object_basics_call(
+        "unwrap",
+        vec![CallArg::ImmutableOrOwned(wrapper_ref)],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+    let unwrapped_ref = unwrap_effects.unwrapped()[0].reference;
+    assert_eq!(unwrapped_ref.object_id(), created_ref.object_id());
+    assert_eq!(
+        s.handler_latest(created_ref.object_id()),
+        HandlerLatestObject {
+            version: unwrapped_ref.version,
+            digest: unwrapped_ref.digest,
+            kind: HandlerLatestObjectKind::Live,
+            produced_at: 6,
+            initial_shared_version: None,
+        }
+    );
+    assert_eq!(
+        s.handler_latest(wrapper_ref.object_id()),
+        HandlerLatestObject {
+            version: unwrap_effects.lamport_version(),
+            digest: ObjectDigest::OBJECT_DELETED,
+            kind: HandlerLatestObjectKind::Deleted,
+            produced_at: 6,
+            initial_shared_version: None,
+        }
+    );
+}
+
+#[tokio::test]
+async fn handler_known_share_records_the_initial_shared_version() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+
+    // The creation row doubles as the created-shared flag: it carries the
+    // initial shared version, which the shared-input checks read.
+    assert_eq!(
+        s.handler_latest(shared.reference.object_id()),
+        HandlerLatestObject {
+            version: shared.reference.version,
+            digest: shared.reference.digest,
+            kind: HandlerLatestObjectKind::Live,
+            produced_at: 5,
+            initial_shared_version: Some(initial_shared_version(&shared.owner)),
+        }
+    );
+    assert_eq!(
+        s.epoch_store
+            .sync_record(shared.reference.object_id())
+            .unwrap(),
+        None
+    );
+    s.assert_not_sheltered(shared.reference);
+}
+
+#[tokio::test]
+async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_latest() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    // State sync executes the transfer before the handler processes the
+    // commit that kept it.
+    let obj_genesis_ref = s.latest_ref(&obj_id);
+    let gas_genesis_ref = s.latest_ref(&gas_id);
+    let effects = s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let digest = *effects.transaction_digest();
+    s.assert_record(
+        &obj_id,
+        Some(obj_genesis_ref.version),
+        effects.lamport_version(),
+    );
+    assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
+
+    // The handler reaches that commit: it registers the digest (the hook
+    // already ran, so nothing consults the entry) and, with the commit
+    // fully executed, applies the upserts derived from the durable effects.
+    let state = s.epoch_store.handler_object_state_for_testing();
+    s.epoch_store.assign_commit_to_transactions(4, vec![digest]);
+    assert_eq!(state.commit_round_of(&digest), Some(4));
+    s.epoch_store
+        .record_commit_fully_executed(4, &handler_latest_upserts(&effects, 4))
+        .unwrap();
+
+    // Handler-latest rows now answer for every written object, the sync
+    // records whose whole chain the handler passed are gone, and the
+    // commit's map entries are dropped.
+    for id in [&obj_id, &gas_id] {
+        let row = s.handler_latest(id);
+        assert_eq!(row.version, effects.lamport_version());
+        assert_eq!(row.produced_at, 4);
+        assert_eq!(row.kind, HandlerLatestObjectKind::Live);
+        assert_eq!(s.epoch_store.sync_record(id).unwrap(), None);
+    }
+    assert_eq!(state.commit_round_of(&digest), None);
+
+    // The sheltered bytes stay: a crash before this commit's output flushes
+    // replays and re-validates it, so their eviction keys off the flushed
+    // frontier, not off execution completion.
+    s.assert_sheltered(obj_genesis_ref);
+    s.assert_sheltered(gas_genesis_ref);
+}
+
+#[tokio::test]
+async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        true,
+    )
+    .await;
+
+    // Two sync-executed transfers form one chain on the object.
+    let obj_genesis_version = s.latest_ref(&obj_id).version;
+    let first = s.transfer(&obj_id, &gas1_id, address_1, &address_1_key, address_2);
+    let second = s.transfer(&obj_id, &gas2_id, address_2, &address_2_key, address_1);
+    s.assert_record(&obj_id, Some(obj_genesis_version), second.lamport_version());
+
+    // The handler passes only the first commit. The object's record stays -
+    // its chain head is above the handler-written version, so the handler
+    // has not passed the whole chain - while the gas coin's chain, which
+    // ended in that commit, is passed and its record goes.
+    s.epoch_store
+        .assign_commit_to_transactions(4, vec![*first.transaction_digest()]);
+    s.epoch_store
+        .record_commit_fully_executed(4, &handler_latest_upserts(&first, 4))
+        .unwrap();
+    assert_eq!(s.handler_latest(&obj_id).version, first.lamport_version());
+    s.assert_record(&obj_id, Some(obj_genesis_version), second.lamport_version());
+    assert_eq!(s.epoch_store.sync_record(&gas1_id).unwrap(), None);
+
+    // Passing the second commit completes the catch-up.
+    s.epoch_store
+        .assign_commit_to_transactions(5, vec![*second.transaction_digest()]);
+    s.epoch_store
+        .record_commit_fully_executed(5, &handler_latest_upserts(&second, 5))
+        .unwrap();
+    let row = s.handler_latest(&obj_id);
+    assert_eq!(row.version, second.lamport_version());
+    assert_eq!(row.produced_at, 5);
     assert_eq!(s.epoch_store.sync_record(&obj_id).unwrap(), None);
-    s.assert_not_sheltered(obj_genesis_ref);
+    assert_eq!(s.epoch_store.sync_record(&gas2_id).unwrap(), None);
 }
 
 #[tokio::test]
@@ -2840,14 +3171,13 @@ async fn sync_ahead_shared_mutation_writes_nothing_and_deletion_is_recorded() {
     s.shared_object_basics_call(
         "set_value",
         vec![
-            TestCallArg::Object(*shared_ref.object_id()),
-            TestCallArg::Pure(bcs::to_bytes(&42u64).unwrap()),
+            s.shared_arg(shared_ref.object_id()),
+            CallArg::Pure(bcs::to_bytes(&42u64).unwrap()),
         ],
         &gas_id,
         sender,
         &sender_key,
-    )
-    .await;
+    );
     s.assert_record(
         shared_ref.object_id(),
         None,
@@ -2859,15 +3189,13 @@ async fn sync_ahead_shared_mutation_writes_nothing_and_deletion_is_recorded() {
     // facts validation consults - but the consumed shared version is still
     // not sheltered.
     let shared_before_delete = s.latest_ref(shared_ref.object_id());
-    let delete_effects = s
-        .shared_object_basics_call(
-            "delete",
-            vec![TestCallArg::Object(*shared_ref.object_id())],
-            &gas_id,
-            sender,
-            &sender_key,
-        )
-        .await;
+    let delete_effects = s.shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_ref.object_id())],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
     s.assert_record(
         shared_ref.object_id(),
         None,
