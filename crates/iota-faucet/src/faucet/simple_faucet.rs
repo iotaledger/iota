@@ -774,9 +774,9 @@ impl SimpleFaucet {
             )));
         }
         assert!(
-            created
-                .iter()
-                .all(|owned_ref| matches!(owned_ref.owner, Owner::Address(addr) if addr == recipient))
+            created.iter().all(
+                |owned_ref| matches!(owned_ref.owner, Owner::Address(addr) if addr == recipient)
+            )
         );
         let coin_ids: Vec<ObjectId> = created
             .iter()
