@@ -101,3 +101,4 @@
 99: AttestationGasVectorNotEnabled
 100: AttestationCpuTimeZero
 101: AttestationRateAboveBandwidth
+102: AttestationGasVectorRequired
