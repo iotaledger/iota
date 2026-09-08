@@ -3697,6 +3697,9 @@ SmartAccount
 SmartAccountBuilder
 	public struct
 	0x2::smart_account
+SmartAccountEvent
+	public enum
+	0x2::smart_account
 builder_v1
 	public fun
 	0x2::smart_account

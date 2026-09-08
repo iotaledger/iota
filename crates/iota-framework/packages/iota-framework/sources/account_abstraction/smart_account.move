@@ -54,6 +54,11 @@ const EAddressMismatch: vector<u8> =
 
 // === Events ===
 
+public enum SmartAccountEvent has copy, drop {
+    SmartAccountClaimed(SmartAccountClaimed),
+    SmartAccountCreated(SmartAccountCreated),
+}
+
 /// Event: emitted when a smart account is claimed.
 public struct SmartAccountClaimed has copy, drop {
     addr: address,
@@ -94,7 +99,7 @@ public struct SmartAccount has key {
 /// require the transaction sender to be the account's address.
 public struct SmartAccountBuilder {
     account: SmartAccount,
-    public_key: PublicKey,
+    event: SmartAccountEvent,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
 }
 
@@ -105,13 +110,13 @@ public struct SmartAccountBuilder {
 /// Use this when you want to supply a custom `AuthenticatorFunctionRefV1`.
 /// For accounts backed by a built-in signature scheme, prefer `builtin_auth_builder_v1`.
 public fun builder_v1(
-    public_key: PublicKey,
+    event: SmartAccountEvent,
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
     ctx: &mut TxContext,
 ): SmartAccountBuilder {
     SmartAccountBuilder {
         account: SmartAccount { id: object::new(ctx) },
-        public_key,
+        event,
         authenticator,
     }
 }
@@ -132,9 +137,15 @@ public fun builtin_auth_builder_v1(
     let mut account = SmartAccount { id: object::new(ctx) };
     builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
 
+    let event = SmartAccountCreated {
+        addr: account.account_address(),
+        scheme: public_key.scheme().flag(),
+        key_id: public_key.key_id(),
+        immutable: MUTABLE_ACCOUNT,
+    };
     SmartAccountBuilder {
         account,
-        public_key,
+        event: SmartAccountEvent::SmartAccountCreated(event),
         authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
     }
 }
@@ -171,12 +182,6 @@ fun claim_account_v1(scheme_flag: u8, pk_bytes: vector<u8>, immutable: bool, ctx
     let mut account = SmartAccount { id };
     builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
 
-    let builder = SmartAccountBuilder {
-        account,
-        public_key,
-        authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
-    };
-
     let event = SmartAccountClaimed {
         addr: derived_addr,
         scheme: scheme_flag,
@@ -184,9 +189,13 @@ fun claim_account_v1(scheme_flag: u8, pk_bytes: vector<u8>, immutable: bool, ctx
         immutable,
     };
 
-    build_v1_internal(builder, immutable);
+    let builder = SmartAccountBuilder {
+        account,
+        event: SmartAccountEvent::SmartAccountClaimed(event),
+        authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
+    };
 
-    event::emit(event);
+    build_v1_internal(builder, immutable);
 }
 
 /// Adds a `Value` as a dynamic field to the account being built.
@@ -205,16 +214,7 @@ public fun with_field<Name: copy + drop + store, Value: store>(
 ///
 /// Emits an `account::MutableAccountCreated` event on success.
 public fun build_v1(self: SmartAccountBuilder): address {
-    let event = SmartAccountCreated {
-        addr: self.account.account_address(),
-        scheme: self.public_key.scheme().flag(),
-        key_id: self.public_key.key_id(),
-        immutable: MUTABLE_ACCOUNT,
-    };
-    let addr = build_v1_internal(self, MUTABLE_ACCOUNT);
-
-    event::emit(event);
-    addr
+    build_v1_internal(self, MUTABLE_ACCOUNT)
 }
 
 /// Finish building the account as an immutable object.
@@ -223,23 +223,15 @@ public fun build_v1(self: SmartAccountBuilder): address {
 ///
 /// Emits an `account::ImmutableAccountCreated` event on success.
 public fun build_immutable_v1(self: SmartAccountBuilder): address {
-    let event = SmartAccountCreated {
-        addr: self.account.account_address(),
-        scheme: self.public_key.scheme().flag(),
-        key_id: self.public_key.key_id(),
-        immutable: IMMUTABLE_ACCOUNT,
-    };
-    let addr = build_v1_internal(self, IMMUTABLE_ACCOUNT);
-    event::emit(event);
-    addr
+    build_v1_internal(self, IMMUTABLE_ACCOUNT)
 }
 
 public(package) fun build_v1_internal(self: SmartAccountBuilder, immutable: bool): address {
-    let SmartAccountBuilder { account, public_key: _public_key, authenticator } = self;
+    let SmartAccountBuilder { account, event, authenticator } = self;
     let account_address = account.account_address();
 
     account::create_account_v1_internal(account, authenticator, immutable);
-
+    event::emit(event);
     account_address
 }
 // === View Functions ===
