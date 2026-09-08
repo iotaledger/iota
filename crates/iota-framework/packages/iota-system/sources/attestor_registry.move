@@ -444,7 +444,6 @@ public(package) fun refresh_activity(
 /// is swapped in place at the next epoch boundary. Staging again before the
 /// boundary overwrites the previously staged key; re-staging the same key
 /// aborts with `EDuplicatePubkey`.
-/// Re-staging the same key aborts with `EDuplicatePubkey`.
 public(package) fun rotate_key(
     self: &mut AttestorRegistryV1,
     sender: address,
