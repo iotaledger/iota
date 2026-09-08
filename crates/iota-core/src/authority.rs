@@ -324,6 +324,7 @@ pub struct AuthorityMetrics {
     pub consensus_handler_scores: IntGaugeVec,
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
+    pub consensus_handler_deferred_transactions_by_reason: IntCounterVec,
     pub consensus_handler_cancelled_transactions: IntCounter,
     /// Number of user transactions dropped during a consensus commit because
     /// post-consensus conflict/lock validation rejected them. Distinct from
@@ -782,6 +783,14 @@ impl AuthorityMetrics {
             consensus_handler_congested_transactions: register_int_counter_with_registry!(
                 "consensus_handler_congested_transactions",
                 "Number of transactions deferred by consensus handler due to congestion",
+                registry,
+            ).unwrap(),
+            consensus_handler_deferred_transactions_by_reason: register_int_counter_vec_with_registry!(
+                "consensus_handler_deferred_transactions_by_reason",
+                "Number of transactions deferred by consensus handler, by deferral reason \
+                (shared-object congestion, execution-worker congestion, memory-bandwidth \
+                congestion, randomness not ready)",
+                &["reason"],
                 registry,
             ).unwrap(),
             consensus_handler_cancelled_transactions: register_int_counter_with_registry!(
@@ -1498,6 +1507,22 @@ impl AuthorityState {
                 write_bytes: vector.write_bytes,
                 object_versions,
             },
+            None if matches!(
+                protocol_config.per_object_congestion_control_mode(),
+                iota_protocol_config::PerObjectCongestionControlMode::GasVectorV1
+            ) =>
+            {
+                // Under GasVectorV1 congestion control only gas-vector
+                // attestations are schedulable, so an unpriceable dry-run
+                // (a native function the coefficient table does not list)
+                // cannot be attested at all — refuse instead of emitting a
+                // V1 payload the validators would drop.
+                return Err(IotaError::Execution(format!(
+                    "refusing to attest transaction {tx_digest:?}: the resource profile cannot \
+                     be priced by the gas-vector coefficient table, and the active congestion \
+                     mode admits only gas-vector attestations"
+                )));
+            }
             None => AttestationData::V1 {
                 computation_units,
                 object_versions,

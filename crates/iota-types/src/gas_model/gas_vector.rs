@@ -161,6 +161,20 @@ pub fn cpu_time_covers_moved_bytes(
     (moved_bytes as u128) * NS_PER_SEC <= (cpu_time_ns as u128) * (bandwidth_bytes_per_sec as u128)
 }
 
+/// A transaction's declared average rate through the shared memory path:
+/// `ceil(moved_bytes / cpu_time)` in bytes per second — what admission sums
+/// across concurrently executing transactions against the bandwidth ceiling.
+/// Rounded up, so the sum errs toward admitting less. `None` when `cpu_time`
+/// is zero or the rate exceeds `u64`.
+pub fn declared_rate_bytes_per_sec(cpu_time_ns: u64, moved_bytes: u64) -> Option<u64> {
+    if cpu_time_ns == 0 {
+        return None;
+    }
+    // u64 × NS_PER_SEC cannot overflow u128.
+    let rate = ((moved_bytes as u128) * NS_PER_SEC).div_ceil(cpu_time_ns as u128);
+    u64::try_from(rate).ok()
+}
+
 /// The shortest `cpu_time` a transaction moving `moved_bytes` may declare at
 /// the given bandwidth: `ceil(moved_bytes / bandwidth)` in nanoseconds.
 /// [`cpu_time_covers_moved_bytes`] holds at this value by construction.
@@ -484,6 +498,19 @@ mod tests {
             declared_gas_vector(&profile, &config_with(None, Some(1_000_000_000))),
             None
         );
+    }
+
+    #[test]
+    fn declared_rate_rounds_up_and_rejects_zero_cpu_time() {
+        // 4096 bytes in 1 µs = 4.096 GB/s; 1 byte in 3 ns rounds 333.3 MB/s
+        // up to 333_333_334.
+        assert_eq!(
+            declared_rate_bytes_per_sec(1_000, 4_096),
+            Some(4_096_000_000)
+        );
+        assert_eq!(declared_rate_bytes_per_sec(3, 1), Some(333_333_334));
+        assert_eq!(declared_rate_bytes_per_sec(1_000, 0), Some(0));
+        assert_eq!(declared_rate_bytes_per_sec(0, 1), None);
     }
 
     #[test]

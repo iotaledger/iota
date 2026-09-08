@@ -234,6 +234,12 @@ pub(crate) struct CongestionControlParameters {
     /// execution-worker congestion control; `None` disables it.
     max_concurrent_execution_workers: Option<u16>,
 
+    /// Sustained memory/store bandwidth of the reference machine, in bytes
+    /// per second. Consumed only in `GasVectorV1` mode: admission keeps the
+    /// sum of the largest declared rates (`moved_bytes / cpu_time`) across
+    /// the execution-worker pool at or below it.
+    memory_bandwidth_bytes_per_sec: Option<u64>,
+
     /// Maximum gas price that can be set in transactions. This field
     /// is only used in `SuggestedGasPriceCalculator` to prevent
     /// suggesting feedback gas price larger this value.
@@ -261,6 +267,10 @@ impl CongestionControlParameters {
             max_congestion_limit_overshoot_per_commit: protocol_config
                 .max_congestion_limit_overshoot_per_commit_as_option(),
             max_concurrent_execution_workers: protocol_config.concurrent_execution_workers(),
+            memory_bandwidth_bytes_per_sec: protocol_config
+                .gas_vector_coefficients()
+                .map(|table| table.memory_bandwidth_bytes_per_sec)
+                .filter(|bandwidth| *bandwidth != 0),
             max_gas_price: protocol_config.max_gas_price(),
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: protocol_config
                 .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
@@ -289,6 +299,10 @@ impl CongestionControlParameters {
             // congestion control opt in via
             // `set_max_concurrent_execution_workers_for_test`.
             max_concurrent_execution_workers: None,
+            // Defaults to disabled; tests that exercise the GasVectorV1
+            // bandwidth check opt in via
+            // `set_memory_bandwidth_bytes_per_sec_for_test`.
+            memory_bandwidth_bytes_per_sec: None,
             max_gas_price,
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism,
             use_separate_gas_price_feedback_mechanism_for_randomness,
@@ -299,6 +313,13 @@ impl CongestionControlParameters {
     #[cfg(test)]
     pub(crate) fn set_max_concurrent_execution_workers_for_test(&mut self, n: u16) {
         self.max_concurrent_execution_workers = Some(n);
+    }
+
+    /// Enable the GasVectorV1 bandwidth check in tests, with the given
+    /// ceiling in bytes per second.
+    #[cfg(test)]
+    pub(crate) fn set_memory_bandwidth_bytes_per_sec_for_test(&mut self, bytes_per_sec: u64) {
+        self.memory_bandwidth_bytes_per_sec = Some(bytes_per_sec);
     }
 
     /// Get per-object congestion control mode.
@@ -330,6 +351,34 @@ impl CongestionControlParameters {
                         .unwrap_or(0)
                 })
             }
+            PerObjectCongestionControlMode::GasVectorV1 => {
+                // The attested cpu_time in reference-machine nanoseconds.
+                // This mode has no derived fallback: post-consensus
+                // validation admits only gas-vector-attested transactions,
+                // so a missing vector is unreachable here — kept
+                // deterministic by a maximal duration that can never be
+                // scheduled and is cancelled through the standard deferral
+                // path.
+                transaction
+                    .attested_cpu_time()
+                    .unwrap_or(ExecutionTime::MAX)
+            }
+        }
+    }
+
+    /// The memory-bandwidth ceiling for the GasVectorV1 rate check, in bytes
+    /// per second — `Some` only when that mode is active (and congestion
+    /// control is enabled), mirroring how the execution-worker cap is gated.
+    pub(super) fn memory_bandwidth_bytes_per_sec(&self) -> Option<u64> {
+        if self.is_congestion_control_enabled()
+            && matches!(
+                self.per_object_congestion_control_mode,
+                PerObjectCongestionControlMode::GasVectorV1
+            )
+        {
+            self.memory_bandwidth_bytes_per_sec
+        } else {
+            None
         }
     }
 
@@ -466,12 +515,15 @@ pub(crate) enum SchedulingResult {
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum CancelConsensusTransactionReason {
-    /// Transaction was cancelled due to congestion: either on objects it
-    /// touches, or on the execution-worker pool.
+    /// Transaction was cancelled due to congestion: on objects it touches, or
+    /// on a shared execution resource (the execution-worker pool or the
+    /// memory-bandwidth ceiling).
     Congested {
-        /// IDs of the congested objects the transaction touches. Empty when
-        /// the execution-worker pool, rather than any object, was congested
-        /// and the transaction has no shared inputs.
+        /// IDs of the congested objects the transaction touches. For a
+        /// shared-resource cancellation this holds every shared input (the
+        /// cancellation is signalled through their assigned versions); empty
+        /// when such a transaction has no shared inputs, in which case the
+        /// gas object carries the cancellation instead.
         congested_objects: Vec<ObjectId>,
 
         /// Optional suggested gas price from the gas price feedback
@@ -2438,11 +2490,8 @@ impl AuthorityPerEpochStore {
                 previously_deferred_tx_digests,
                 commit_round,
             ) {
-                SequencingResult::Defer(deferral_key, congested_objects) => {
-                    SchedulingResult::Defer(
-                        deferral_key,
-                        DeferralReason::SharedObjectCongestion(congested_objects),
-                    )
+                SequencingResult::Defer(deferral_key, deferral_reason) => {
+                    SchedulingResult::Defer(deferral_key, deferral_reason)
                 }
                 SequencingResult::Schedule(start_time) => SchedulingResult::Schedule(start_time),
             }
@@ -5525,6 +5574,10 @@ impl AuthorityPerEpochStore {
                     "Deferring verified executable transaction {:?} until {deferral_key:?}",
                     verified_executable_tx.digest(),
                 );
+                authority_metrics
+                    .consensus_handler_deferred_transactions_by_reason
+                    .with_label_values(&[deferral_reason.metric_label()])
+                    .inc();
 
                 let deferral_result = match deferral_reason {
                     DeferralReason::RandomnessNotReady => {
@@ -5534,7 +5587,9 @@ impl AuthorityPerEpochStore {
                             suggested_gas_price: None,
                         }
                     }
-                    DeferralReason::SharedObjectCongestion(congested_objects) => {
+                    congestion_reason @ (DeferralReason::SharedObjectCongestion(_)
+                    | DeferralReason::ExecutionWorkerCongestion
+                    | DeferralReason::MemoryBandwidthCongestion) => {
                         authority_metrics
                             .consensus_handler_congested_transactions
                             .inc();
@@ -5581,32 +5636,43 @@ impl AuthorityPerEpochStore {
                                 suggested_gas_price,
                             }
                         } else {
-                            // Cancel the transaction that has been deferred for too long.
-                            //
-                            // A deferral caused by execution-worker congestion reports no
-                            // congested objects. Cancellation is signalled through assigned
-                            // versions on the transaction's shared inputs, so treat all of
-                            // them as congested; the suggested gas price is what matters to
-                            // the client either way. A transaction without shared inputs is
-                            // handled in version assignment via its gas object instead.
-                            let congested_objects = if congested_objects.is_empty() {
-                                verified_executable_tx
-                                    .shared_input_objects()
-                                    .iter()
-                                    .map(|obj| obj.object_id)
-                                    .collect()
-                            } else {
-                                congested_objects
-                            };
+                            // Cancel the transaction that has been deferred
+                            // for too long, carrying the congestion cause.
                             debug!(
                                 "Cancelling verified executable transaction {:?} with deferral \
-                                    key {deferral_key:?} due to congestion on objects \
-                                    {congested_objects:?}: actual gas price: {}, suggested gas \
+                                    key {deferral_key:?} due to {congestion_reason:?}: actual \
+                                    gas price: {}, suggested gas \
                                     price: {suggested_gas_price:?}",
                                 verified_executable_tx.digest(),
                                 verified_executable_tx.transaction().gas_price(),
                             );
 
+                            let congested_objects: Vec<ObjectId> = match congestion_reason {
+                                DeferralReason::SharedObjectCongestion(congested_objects) => {
+                                    congested_objects
+                                }
+                                // A shared-resource deferral (execution
+                                // workers, memory bandwidth) has no congested
+                                // object. Cancellation is signalled through
+                                // assigned versions on the transaction's
+                                // shared inputs, so treat all of them as
+                                // congested; the suggested gas price is what
+                                // matters to the client either way. A
+                                // transaction without shared inputs is
+                                // handled in version assignment via its gas
+                                // object instead.
+                                DeferralReason::ExecutionWorkerCongestion
+                                | DeferralReason::MemoryBandwidthCongestion => {
+                                    verified_executable_tx
+                                        .shared_input_objects()
+                                        .iter()
+                                        .map(|obj| obj.object_id)
+                                        .collect()
+                                }
+                                DeferralReason::RandomnessNotReady => {
+                                    unreachable!("outer match arm covers only congestion reasons")
+                                }
+                            };
                             ConsensusTransactionResult::Cancelled((
                                 verified_executable_tx,
                                 CancelConsensusTransactionReason::Congested {
