@@ -1125,7 +1125,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
                     &[],
                     &Arc::new(CheckpointServiceNoop {}),
                     authority.get_object_cache_reader().as_ref(),
-                    &ConsensusCommitInfo::new_for_test(round, 0, true),
+                    &ConsensusCommitInfo::new_for_test(round, round, 0, true),
                     &mut non_randomness_roots,
                     &mut randomness_roots,
                     PreviouslyDeferredTransactions::default(),
