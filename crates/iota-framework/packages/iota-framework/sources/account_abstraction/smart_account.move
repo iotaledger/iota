@@ -35,7 +35,7 @@ module iota::smart_account;
 use iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
-use iota::dynamic_field;
+use iota::dynamic_field::{Self, Self as df};
 use iota::event;
 use iota::public_key::{Self, KeyID, PublicKey};
 use iota::signature_scheme;
@@ -51,6 +51,11 @@ const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
 #[error(code = 1)]
 const EAddressMismatch: vector<u8> =
     b"The public key does not correspond to the transaction sender address.";
+
+#[error(code = 2)]
+const EPublicKeyMissing: vector<u8> = b"Public key missing.";
+#[error(code = 3)]
+const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
 
 // === Events ===
 
@@ -73,6 +78,25 @@ public struct SmartAccountCreated has copy, drop {
     addr: address,
     scheme: u8,
     immutable: bool,
+}
+
+/// Event: emitted when a public key is attached to an account.
+public struct PublicKeyAttached has copy, drop {
+    key_id: KeyID,
+    public_key: PublicKey,
+}
+
+/// Event: emitted when a public key is detached from an account.
+public struct PublicKeyDetached has copy, drop {
+    key_id: KeyID,
+    public_key: PublicKey,
+}
+
+/// Event: emitted when a public key is rotated on an account.
+public struct PublicKeyRotated has copy, drop {
+    key_id: KeyID,
+    from: PublicKey,
+    to: PublicKey,
 }
 
 // === Structs ===
@@ -103,6 +127,8 @@ public struct SmartAccountBuilder {
     authenticator: AuthenticatorFunctionRefV1<SmartAccount>,
 }
 
+public struct PublicKeyFieldName has copy, drop, store {}
+
 // === SmartAccountBuilder Public Functions ===
 
 /// Creates a `SmartAccountBuilder` for a new account with the provided authenticator.
@@ -127,7 +153,7 @@ public fun builder_v1(
 /// The public key is stored as a dynamic field on the account so the authenticator
 /// can validate future transactions.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+/// Emits a `PublicKeyAttached` event on success.
 ///
 /// Aborts if `public_key`'s signature scheme is not supported.
 public fun builtin_auth_builder_v1(
@@ -135,7 +161,7 @@ public fun builtin_auth_builder_v1(
     ctx: &mut TxContext,
 ): SmartAccountBuilder {
     let mut account = SmartAccount { id: object::new(ctx) };
-    builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
+    attach_public_key(&mut account.id, public_key);
 
     let event = SmartAccountCreated {
         addr: account.account_address(),
@@ -166,7 +192,7 @@ public fun builtin_auth_builder_v1(
 /// Takes primitives rather than a `PublicKey` so the node's PTB needs no other
 /// framework call to build its arguments.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event, and an
+/// Emits a `PublicKeyAttached` event, and an
 /// `account::MutableAccountCreated` or `account::ImmutableAccountCreated` event.
 ///
 /// Aborts if `scheme_flag` is not a known signature scheme, if `pk_bytes` is not
@@ -180,7 +206,7 @@ fun claim_account_v1(scheme_flag: u8, pk_bytes: vector<u8>, immutable: bool, ctx
     assert!(derived_addr == ctx.sender(), EAddressMismatch);
     let id = object::new_uid_from_hash(derived_addr);
     let mut account = SmartAccount { id };
-    builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
+    attach_public_key(&mut account.id, public_key);
 
     let event = SmartAccountClaimed {
         addr: derived_addr,
@@ -248,7 +274,7 @@ public fun has_field<Name: copy + drop + store>(self: &SmartAccount, name: Name)
 
 /// Returns `true` if and only if `self` has a built-in authenticator public key attached.
 public fun has_builtin_auth_public_key(self: &SmartAccount): bool {
-    builtin_authenticator_functions::has_public_key(&self.id)
+    has_public_key(&self.id)
 }
 
 /// Borrows a reference to a dynamic field from the account.
@@ -265,7 +291,7 @@ public fun borrow_field<Name: copy + drop + store, Value: store>(
 ///
 /// Aborts if no public key is currently attached.
 public fun borrow_builtin_auth_public_key(self: &SmartAccount): &PublicKey {
-    builtin_authenticator_functions::borrow_public_key(&self.id)
+    borrow_public_key(&self.id)
 }
 
 /// Borrows a reference to the attached `AuthenticatorFunctionRefV1` instance.
@@ -298,7 +324,7 @@ public fun add_field<Name: copy + drop + store, Value: store>(
 ///
 /// Use this when migrating away from a custom authenticator to a built-in one.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+/// Emits a `PublicKeyAttached` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if a public key is already attached.
@@ -309,7 +335,7 @@ public fun attach_builtin_auth_public_key(
 ) {
     ensure_tx_sender_is_smart_account(self, ctx);
 
-    builtin_authenticator_functions::attach_public_key(&mut self.id, public_key);
+    attach_public_key(&mut self.id, public_key);
 }
 
 /// Removes a dynamic field from the account.
@@ -330,14 +356,14 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
 ///
 /// Use this when migrating away from a built-in authenticator to a custom one.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyDetached` event on success.
+/// Emits a `PublicKeyDetached` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if no public key is currently attached.
 public fun detach_builtin_auth_public_key(self: &mut SmartAccount, ctx: &TxContext): PublicKey {
     ensure_tx_sender_is_smart_account(self, ctx);
 
-    builtin_authenticator_functions::detach_public_key(&mut self.id)
+    detach_public_key(&mut self.id)
 }
 
 /// Borrows a mutable reference to a dynamic field from the account.
@@ -375,7 +401,7 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Replaces the existing built-in authenticator public key with `public_key`
 /// and returns the previous key.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyRotated` event on success.
+/// Emits a `PublicKeyRotated` event on success.
 ///
 /// Aborts if the transaction sender is not the account.
 /// Aborts if no public key is currently attached.
@@ -386,7 +412,7 @@ public fun rotate_builtin_auth_public_key(
 ): PublicKey {
     ensure_tx_sender_is_smart_account(self, ctx);
 
-    builtin_authenticator_functions::rotate_public_key(&mut self.id, public_key)
+    rotate_public_key(&mut self.id, public_key)
 }
 
 /// Rotates the attached authenticator.
@@ -407,6 +433,87 @@ public fun rotate_auth_function_ref_v1(
 // === Package Functions ===
 
 // === Private Functions ===
+
+/// Attaches `public_key` to the account. Aborts if a public key is already attached.
+///
+/// Call this before obtaining an authenticator function ref and passing it to
+/// `account::create_account_v1`.
+///
+/// Emits a `PublicKeyAttached` event on success.
+public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
+    assert!(!has_public_key(account_id), EPublicKeyAlreadyAttached);
+
+    df::add(account_id, public_key_field_name(), public_key);
+
+    let event = PublicKeyAttached {
+        key_id: public_key.key_id(),
+        public_key,
+    };
+    event::emit(event);
+}
+
+/// Detaches and returns the public key attached to the account. Aborts if no public key is
+/// currently attached.
+///
+/// Use this when migrating away from a built-in authenticator to a custom one.
+///
+/// Emits a `PublicKeyDetached` event on success.
+public fun detach_public_key(account_id: &mut UID): PublicKey {
+    assert!(has_public_key(account_id), EPublicKeyMissing);
+
+    let public_key: PublicKey = df::remove(account_id, public_key_field_name());
+
+    let event = PublicKeyDetached {
+        key_id: public_key.key_id(),
+        public_key,
+    };
+    event::emit(event);
+
+    public_key
+}
+
+/// Replaces the existing public key with `public_key` and returns the previous key.
+/// Aborts if no public key is currently attached.
+///
+/// Call this before obtaining a new authenticator function ref and passing it to
+/// `account::rotate_auth_function_ref_v1`.
+///
+/// Emits a `PublicKeyRotated` event on success.
+public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): PublicKey {
+    assert!(has_public_key(account_id), EPublicKeyMissing);
+
+    let df_name = public_key_field_name();
+
+    let prev_public_key = df::remove(account_id, df_name);
+    df::add(account_id, df_name, public_key);
+
+    let event = PublicKeyRotated {
+        key_id: public_key.key_id(),
+        from: prev_public_key,
+        to: public_key,
+    };
+    event::emit(event);
+
+    prev_public_key
+}
+
+/// Returns true if the account has a public key attached.
+public fun has_public_key(account_id: &UID): bool {
+    df::exists_(account_id, public_key_field_name())
+}
+
+/// Borrows the public key attached to the account. Aborts if no public key is
+/// currently attached.
+public fun borrow_public_key(account_id: &UID): &PublicKey {
+    assert!(has_public_key(account_id), EPublicKeyMissing);
+
+    df::borrow(account_id, public_key_field_name())
+}
+
+/// A utility function to construct the dynamic field name for the public key field.
+fun public_key_field_name(): PublicKeyFieldName {
+    PublicKeyFieldName {}
+}
 
 /// Check that the sender of this transaction is the account itself.
 fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
