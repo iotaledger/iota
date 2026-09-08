@@ -253,6 +253,7 @@ pub struct MaterializedPools {
 /// CompiledScript.
 pub(crate) struct Context<'a> {
     dependencies: CompiledDependencies<'a>,
+    publishable: bool,
 
     // helpers
     aliases: HashMap<ModuleIdent, ModuleName>,
@@ -300,11 +301,13 @@ impl<'a> Context<'a> {
     /// current_module.
     pub fn new(
         decl_location: Loc,
+        publishable: bool,
         dependencies: CompiledDependencies<'a>,
         current_module: ModuleIdent,
     ) -> Result<Self> {
         let context = Self {
             dependencies,
+            publishable,
             aliases: HashMap::new(),
             modules: HashMap::new(),
             structs: HashMap::new(),
@@ -334,6 +337,10 @@ impl<'a> Context<'a> {
         };
 
         Ok(context)
+    }
+
+    pub fn publishable(&self) -> bool {
+        self.publishable
     }
 
     pub fn take_dependencies(&mut self) -> CompiledDependencies<'a> {

@@ -10,6 +10,7 @@ description = "Move bytecode verifier tests"
 [dev-dependencies]
 # external dependencies
 hex.workspace = true
+itertools.workspace = true
 petgraph.workspace = true
 
 # internal dependencies

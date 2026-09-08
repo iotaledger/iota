@@ -21,9 +21,6 @@ use crate::{
     parsing::types::{ParsedModuleId, ParsedStructType, ParsedType},
 };
 
-pub const CODE_TAG: u8 = 0;
-pub const RESOURCE_TAG: u8 = 1;
-
 /// Hex address: 0x1
 pub const CORE_CODE_ADDRESS: AccountAddress = AccountAddress::ONE;
 
@@ -158,12 +155,6 @@ pub struct StructTag {
 }
 
 impl StructTag {
-    pub fn access_vector(&self) -> Vec<u8> {
-        let mut key = vec![RESOURCE_TAG];
-        key.append(&mut bcs::to_bytes(self).unwrap());
-        key
-    }
-
     /// Returns true if this is a `StructTag` for an `std::ascii::String` struct
     /// defined in the standard library at address `move_std_addr`.
     pub fn is_ascii_string(&self, move_std_addr: &AccountAddress) -> bool {
@@ -306,12 +297,6 @@ impl ModuleId {
     /// instance.
     pub fn address(&self) -> &AccountAddress {
         &self.address
-    }
-
-    pub fn access_vector(&self) -> Vec<u8> {
-        let mut key = vec![CODE_TAG];
-        key.append(&mut bcs::to_bytes(self).unwrap());
-        key
     }
 
     pub fn to_canonical_string(&self, with_prefix: bool) -> String {

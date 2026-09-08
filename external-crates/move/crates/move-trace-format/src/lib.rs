@@ -5,3 +5,4 @@
 pub mod format;
 pub mod interface;
 pub mod memory_tracer;
+pub mod value;
