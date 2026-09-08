@@ -13,7 +13,7 @@ use iota_core::{
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
-    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, TransactionFilter,
+    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, Page, TransactionFilter,
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, Transaction,
@@ -112,13 +112,16 @@ pub trait StateRead: Send + Sync {
     // indexer_api
     fn get_subscription_handler(&self) -> Arc<SubscriptionHandler>;
 
-    fn get_owner_objects_with_limit(
+    /// Returns one page of the owner's objects. `cursor` is exclusive and, when
+    /// `has_next_page` is true, `next_cursor` is the id of the last object in
+    /// the page; otherwise it is `None`.
+    fn get_owner_objects_page(
         &self,
         owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Vec<ObjectInfo>>;
+    ) -> StateReadResult<Page<ObjectInfo, ObjectId>>;
 
     async fn get_transactions(
         &self,
@@ -211,6 +214,23 @@ pub trait StateRead: Send + Sync {
     fn get_latest_checkpoint_sequence_number(&self) -> StateReadResult<CheckpointSequenceNumber>;
 
     fn get_chain_identifier(&self) -> StateReadResult<ChainIdentifier>;
+}
+
+/// Turns a raw listing of up to `limit + 1` rows into a page of at most `limit`
+/// rows.
+fn owner_objects_page(mut objects: Vec<ObjectInfo>, limit: usize) -> Page<ObjectInfo, ObjectId> {
+    let has_next_page = objects.len() > limit && limit > 0; // limit == 0 only when RPC_QUERY_MAX_RESULT_LIMIT set to 0
+    objects.truncate(limit);
+    let next_cursor = if has_next_page {
+        objects.last().map(|object| object.object_id)
+    } else {
+        None
+    };
+    Page {
+        data: objects,
+        next_cursor,
+        has_next_page,
+    }
 }
 
 #[async_trait]
@@ -309,14 +329,15 @@ impl StateRead for AuthorityState {
         self.subscription_handler.clone()
     }
 
-    fn get_owner_objects_with_limit(
+    fn get_owner_objects_page(
         &self,
         owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Vec<ObjectInfo>> {
-        Ok(self.get_owner_objects(owner, cursor, limit, filter)?)
+    ) -> StateReadResult<Page<ObjectInfo, ObjectId>> {
+        let objects = self.get_owner_objects(owner, cursor, limit + 1, filter)?;
+        Ok(owner_objects_page(objects, limit))
     }
 
     async fn get_transactions(
@@ -615,5 +636,66 @@ impl From<TypedStoreError> for StateReadError {
     fn from(e: TypedStoreError) -> Self {
         let error: IotaError = e.into();
         StateReadError::Internal(error.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{ObjectDigest, Owner};
+    use iota_types::base_types::ObjectType;
+
+    use super::*;
+
+    /// An `ObjectInfo` for `object_id`, with placeholder metadata: these tests
+    /// only care about the object's identity, not its content.
+    fn object_info(object_id: ObjectId) -> ObjectInfo {
+        ObjectInfo {
+            object_id,
+            version: Version::from_u64(1),
+            digest: ObjectDigest::random(),
+            object_type: ObjectType::Struct(StructTag::new_uid().into()),
+            owner: Owner::Address(Address::random()),
+            previous_transaction: TransactionDigest::random(),
+        }
+    }
+
+    #[test]
+    fn owner_objects_page_reports_next_page_when_more_rows_than_limit() {
+        let limit = 2;
+        let rows: Vec<ObjectInfo> = (0..limit + 1)
+            .map(|_| object_info(ObjectId::random()))
+            .collect();
+        let last_id = rows[limit - 1].object_id;
+
+        let page = owner_objects_page(rows, limit);
+
+        assert_eq!(page.data.len(), limit);
+        assert!(page.has_next_page);
+        assert_eq!(page.next_cursor, Some(last_id));
+    }
+
+    #[test]
+    fn owner_objects_page_has_no_next_page_when_rows_equal_limit() {
+        let limit = 2;
+        let rows: Vec<ObjectInfo> = (0..limit)
+            .map(|_| object_info(ObjectId::random()))
+            .collect();
+
+        let page = owner_objects_page(rows, limit);
+
+        assert_eq!(page.data.len(), limit);
+        assert!(!page.has_next_page);
+        assert_eq!(page.next_cursor, None);
+    }
+
+    #[test]
+    fn owner_objects_page_is_empty_when_limit_is_zero() {
+        let rows = vec![object_info(ObjectId::random())];
+
+        let page = owner_objects_page(rows, 0);
+
+        assert!(page.data.is_empty());
+        assert!(!page.has_next_page);
+        assert_eq!(page.next_cursor, None);
     }
 }
