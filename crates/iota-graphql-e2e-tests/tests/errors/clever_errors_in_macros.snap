@@ -1,42 +1,47 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 7 tasks
+processed 8 tasks
 
 init:
 A: object(0,0)
 
-task 1, lines 7-35:
+task 1, lines 7-46:
 //# publish --sender A
 created: object(1,0)
 mutated: object(0,0)
 gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
-├── Storage Cost: 4180000
+├── Storage Cost: 4818400
 ├── Storage Rebate: 0
 └── Non-Refundable Storage Fee: 0
 
-task 2, line 37:
+task 2, line 48:
 //# run P0::m::t_a
-Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834268832661503
-Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834268832661503; caused by: VMError with status ABORTED with sub status 13906834268832661503 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_a at offset 1 at code offset 1 in function definition 0; at command index: 0
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834290307497983
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_a (function index 0) at offset 1, Abort Code: 13906834290307497983; caused by: VMError with status ABORTED with sub status 13906834290307497983 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_a at offset 1 at code offset 1 in function definition 0; at command index: 0
 
-task 3, line 39:
+task 3, line 50:
 //# run P0::m::t_calls_a
-Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834281717563391
-Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834281717563391; caused by: VMError with status ABORTED with sub status 13906834281717563391 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_calls_a at offset 1 at code offset 1 in function definition 1; at command index: 0
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834303192399871
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_calls_a (function index 1) at offset 1, Abort Code: 13906834303192399871; caused by: VMError with status ABORTED with sub status 13906834303192399871 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_calls_a at offset 1 at code offset 1 in function definition 1; at command index: 0
 
-task 4, line 41:
+task 4, line 52:
 //# run P0::m::t_const_assert
 Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_const_assert (function index 2) at offset 1, Abort Code: 13906834217293053953
 Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_const_assert (function index 2) at offset 1, Abort Code: 13906834217293053953; caused by: VMError with status ABORTED with sub status 13906834217293053953 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_const_assert at offset 1 at code offset 1 in function definition 2; at command index: 0
 
-task 5, line 43:
+task 5, line 54:
+//# run P0::m::t_const_assert_with_code
+Error: Transaction Effects Status: Move Runtime Abort. Location: P0::m::t_const_assert_with_code (function index 3) at offset 1, Abort Code: 13835339586093580291
+Execution Error: MoveAbort: Move Runtime Abort. Location: P0::m::t_const_assert_with_code (function index 3) at offset 1, Abort Code: 13835339586093580291; caused by: VMError with status ABORTED with sub status 13835339586093580291 at location Module ModuleId { address: P0, name: Identifier("m") } and message P0::m::t_const_assert_with_code at offset 1 at code offset 1 in function definition 3; at command index: 0
+
+task 6, line 56:
 //# create-checkpoint
 Checkpoint created: 1
 
-task 6, lines 45-55:
+task 7, lines 58-68:
 //# run-graphql
 Response: {
   "data": {
@@ -44,19 +49,25 @@ Response: {
       "nodes": [
         {
           "effects": {
-            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_a' (line 21)",
+            "errors": "Error in 1st command, from '0xf187e1912d99ad3498fe2b68b7e0173bc21bda33b9063c91860468959d449d3a::m::t_a' (line 26)",
             "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_calls_a' (line 24)",
+            "errors": "Error in 1st command, from '0xf187e1912d99ad3498fe2b68b7e0173bc21bda33b9063c91860468959d449d3a::m::t_calls_a' (line 29)",
             "status": "FAILURE"
           }
         },
         {
           "effects": {
-            "errors": "Error in 1st command, from '0x907c510b67cf9bc0cfe868250a8991c6e92eafbb1a2f10d8c6a1652c8c29ad18::m::t_const_assert' (line 10), abort 'EMsg': This is a string",
+            "errors": "Error in 1st command, from '0xf187e1912d99ad3498fe2b68b7e0173bc21bda33b9063c91860468959d449d3a::m::t_const_assert' (line 10), abort 'EMsg': This is a string",
+            "status": "FAILURE"
+          }
+        },
+        {
+          "effects": {
+            "errors": "Error in 1st command, from '0xf187e1912d99ad3498fe2b68b7e0173bc21bda33b9063c91860468959d449d3a::m::t_const_assert_with_code' (line 13), abort(code = 1) 'ECodedError': Coded clever error",
             "status": "FAILURE"
           }
         }

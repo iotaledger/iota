@@ -4,11 +4,11 @@
 //! Typed error surface for the local VM SDK.
 //!
 //! Every fallible entry point returns [`VmSdkError`], whose variants partition
-//! the failure space by phase. The validation and signature-verification phases
-//! carry the underlying [`IotaError`] as a [`std::error::Error::source`] for
-//! matching on the concrete cause; the remaining phases wrap a message because
-//! their causes (BCS / layout / VM invariant failures) are not a single
-//! matchable type.
+//! the failure space by phase. The validation, signature-verification, and
+//! trace-decoding phases carry their underlying error ([`IotaError`] or
+//! [`std::io::Error`]) as a [`std::error::Error::source`] for matching on the
+//! concrete cause; the remaining phases wrap a message because their causes
+//! (BCS / layout / VM invariant failures) are not a single matchable type.
 
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::error::IotaError;
@@ -45,6 +45,10 @@ pub enum VmSdkError {
     /// violation, executor construction failure, authenticator resolution, …).
     #[error(transparent)]
     Vm(#[from] VmError),
+    /// A captured [`ExecutionTrace`](crate::ExecutionTrace)'s encoded bytes
+    /// could not be read back into events.
+    #[error(transparent)]
+    Trace(#[from] TraceError),
     /// The requested protocol version cannot serve the request: either this
     /// build of the SDK does not know the version (typically a node running a
     /// newer protocol than this binary supports), or the version predates a
@@ -147,4 +151,14 @@ impl VmError {
             message: message.to_string(),
         }
     }
+}
+
+/// A captured execution trace's encoded bytes could not be decoded back into
+/// events.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+#[error("read execution trace: {source}")]
+pub struct TraceError {
+    #[source]
+    pub source: std::io::Error,
 }

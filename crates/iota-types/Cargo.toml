@@ -48,6 +48,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-macros.workspace = true
 iota-multiaddr.workspace = true
 iota-protocol-config.workspace = true
@@ -56,6 +57,7 @@ iota-sdk-types = { workspace = true, features = ["serde", "rand", "hash"] }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
+move-trace-format.workspace = true
 move-vm-profiler.workspace = true
 move-vm-test-utils.workspace = true
 typed-store-error.workspace = true
@@ -69,6 +71,7 @@ fastcrypto-tbls.workspace = true
 tonic.workspace = true
 
 # internal dependencies
+iota-metrics.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]

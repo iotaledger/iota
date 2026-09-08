@@ -8,7 +8,10 @@ use std::{collections::BTreeSet, fmt};
 use authenticator::AuthenticatorAttribute;
 use view::ViewAttribute;
 
-use crate::shared::known_attributes::{AttributePosition, KnownAttribute as MoveKnownAttribute};
+use crate::shared::{
+    ast_debug::{AstDebug, AstWriter},
+    known_attributes::{AttributeKind_, AttributePosition, KnownAttribute as MoveKnownAttribute},
+};
 
 pub mod authenticator;
 pub mod view;
@@ -22,14 +25,6 @@ pub enum KnownAttribute {
 }
 
 impl KnownAttribute {
-    pub fn resolve(attribute_str: impl AsRef<str>) -> Option<MoveKnownAttribute> {
-        Some(match attribute_str.as_ref() {
-            AuthenticatorAttribute::AUTHENTICATOR => AuthenticatorAttribute.into(),
-            ViewAttribute::VIEW => ViewAttribute.into(),
-            _ => return None,
-        })
-    }
-
     pub const fn name(&self) -> &str {
         match self {
             Self::Authenticator(a) => a.name(),
@@ -43,6 +38,35 @@ impl KnownAttribute {
             Self::View(a) => a.expected_positions(),
         }
     }
+
+    pub fn attribute_kind(&self) -> AttributeKind_ {
+        match self {
+            Self::Authenticator(a) => a.attribute_kind(),
+            Self::View(a) => a.attribute_kind(),
+        }
+    }
+}
+
+//**************************************************************************************************
+// From
+//**************************************************************************************************
+
+impl From<AuthenticatorAttribute> for KnownAttribute {
+    fn from(a: AuthenticatorAttribute) -> Self {
+        Self::Authenticator(a)
+    }
+}
+
+impl From<ViewAttribute> for KnownAttribute {
+    fn from(a: ViewAttribute) -> Self {
+        Self::View(a)
+    }
+}
+
+impl From<KnownAttribute> for MoveKnownAttribute {
+    fn from(a: KnownAttribute) -> Self {
+        MoveKnownAttribute::Flavored(a)
+    }
 }
 
 //**************************************************************************************************
@@ -54,6 +78,19 @@ impl fmt::Display for KnownAttribute {
         match self {
             Self::Authenticator(a) => a.fmt(f),
             Self::View(a) => a.fmt(f),
+        }
+    }
+}
+
+//**************************************************************************************************
+// AstDebug
+//**************************************************************************************************
+
+impl AstDebug for KnownAttribute {
+    fn ast_debug(&self, w: &mut AstWriter) {
+        match self {
+            Self::Authenticator(a) => a.ast_debug(w),
+            Self::View(a) => a.ast_debug(w),
         }
     }
 }
