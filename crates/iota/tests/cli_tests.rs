@@ -5329,7 +5329,6 @@ async fn test_balance() -> Result<(), anyhow::Error> {
 async fn test_faucet() -> Result<(), anyhow::Error> {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_rpc_port(9000)
-        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
