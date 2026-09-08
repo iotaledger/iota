@@ -74,14 +74,6 @@ use crate::{
     },
 };
 
-/// A cursor representing the global order position of transaction according to
-/// tx_global_order table
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TxGlobalOrderCursor {
-    pub global_sequence_number: i64,
-    pub optimistic_sequence_number: i64,
-}
-
 /// Lower bounds of one epoch
 struct EpochLowerBounds {
     first_checkpoint_id: u64,
