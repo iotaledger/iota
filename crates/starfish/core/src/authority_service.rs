@@ -58,19 +58,21 @@ const MAX_FILTER_SIZE: u32 = 100000;
 
 /// Author, round and timestamp of a filtered header, recorded when it was
 /// inserted so a re-delivered copy is sampled without deserializing it again.
-type FilteredHeaderInfo = (AuthorityIndex, Round, BlockTimestampMs);
+pub(crate) type FilteredHeaderInfo = (AuthorityIndex, Round, BlockTimestampMs);
 
 fn filtered_header_info(header: &VerifiedBlockHeader) -> FilteredHeaderInfo {
     (header.author(), header.round(), header.timestamp_ms())
 }
 
-struct FilterForHeaders {
+/// Digests of the most recently received block headers, used to drop headers
+/// delivered more than once and to skip fetching headers that already arrived.
+pub(crate) struct FilterForHeaders {
     header_digests: DashMap<BlockHeaderDigest, FilteredHeaderInfo>,
     queue: Mutex<VecDeque<BlockHeaderDigest>>,
 }
 
 impl FilterForHeaders {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             header_digests: DashMap::new(),
             queue: Mutex::new(VecDeque::new()),
@@ -82,7 +84,7 @@ impl FilterForHeaders {
         self.header_digests.len()
     }
 
-    async fn add_batch(
+    pub(crate) async fn add_batch(
         &self,
         digests: Vec<(BlockHeaderDigest, FilteredHeaderInfo)>,
     ) -> Vec<BlockHeaderDigest> {
@@ -109,6 +111,10 @@ impl FilterForHeaders {
             .get(header_digest)
             .map(|info| *info.value())
     }
+
+    pub(crate) fn contains(&self, header_digest: &BlockHeaderDigest) -> bool {
+        self.header_digests.contains_key(header_digest)
+    }
 }
 
 /// Authority's network service implementation, agnostic to the actual
@@ -125,11 +131,10 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     dag_state: Arc<RwLock<DagState>>,
     store: Arc<dyn Store>,
     misbehavior_store: Arc<MisbehaviorStore>,
-    /// A set contains BlockHeaderDigests for block headers, received from
-    /// streaming. It is used to filter the headers if they are received
-    /// multiple times. The size is limited by MAX_FILTER_SIZE, elements are
-    /// evicted when the threshold is exceeded
-    received_block_headers: FilterForHeaders,
+    /// Digests of the block headers received from streaming, used to drop
+    /// headers delivered more than once. Shared with the header synchronizer,
+    /// which owns it.
+    received_block_headers: Arc<FilterForHeaders>,
     /// Sender to send received transaction messages to the shard reconstructor
     transaction_message_sender: Sender<Vec<TransactionMessage>>,
     /// CordialKnowledge allows to update cordial knowledge about the DAG (which
@@ -163,6 +168,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context,
             block_verifier,
             commit_vote_monitor,
+            received_block_headers: header_synchronizer.received_block_headers().clone(),
             synchronizer: header_synchronizer,
             transactions_synchronizer,
             core_dispatcher,
@@ -171,7 +177,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             misbehavior_store,
-            received_block_headers: FilterForHeaders::new(),
             transaction_message_sender,
             cordial_knowledge,
         }
@@ -1239,12 +1244,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             ));
         }
 
-        // This method is used for both commit sync and periodic/live synchronizer.
-        // For commit sync, we do not use highest_accepted_rounds and the fetch size is
-        // larger.
+        // An empty frontier asks for the requested headers only: commit sync and
+        // the live synchronizer send it, the periodic synchronizer sends its
+        // highest accepted rounds to also receive the gap-fill below the requested
+        // headers.
         let commit_sync_handle = highest_accepted_rounds.is_empty();
 
-        // For commit sync, the fetch size is larger. For periodic/live synchronizer,
+        // For commit sync, the fetch size is larger. For the periodic synchronizer,
         // the fetch size is smaller. Instead of rejecting the request, we truncate
         // the size to allow an easy update of this parameter in the future.
         let max_fetch_size = self
