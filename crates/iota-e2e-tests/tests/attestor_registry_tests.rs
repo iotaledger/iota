@@ -75,7 +75,7 @@ async fn test_attestor_registry_lifecycle() {
     let sender = test_cluster.get_address_0();
 
     // One gas coin for gas and a separate whole coin as the bond (each default
-    // test coin far exceeds MIN_ATTESTOR_JOINING_BOND).
+    // test coin far exceeds the joining bond derived from the protocol config).
     let gas_objects = test_cluster
         .wallet
         .get_all_gas_objects_owned_by_address(sender)

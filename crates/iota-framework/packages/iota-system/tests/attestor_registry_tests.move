@@ -597,9 +597,13 @@ fun test_threshold_raise_refunds_unslashed_and_burns_slashed() {
     // A2: slashed one below it.
     registry.slash(@0xA1, min_joining_bond() - frozen_threshold).destroy_for_testing();
     registry.slash(@0xA2, min_joining_bond() - frozen_threshold + 1).destroy_for_testing();
-    // Raise the threshold above the old joining bond (25% vs 10% of stake).
-    protocol_config::set_attr_for_testing(b"attestor_low_bond_threshold_rate", 2500u64);
-    assert!(low_bond_threshold() > min_joining_bond());
+    // Triple the validator joining stake: both bond levels scale with it, and
+    // the new threshold (15% of the old stake) lands above the old joining
+    // bond (10%).
+    let old_joining_bond = min_joining_bond();
+    let stake: u64 = protocol_config::get_attr(b"min_validator_joining_stake");
+    protocol_config::set_attr_for_testing(b"min_validator_joining_stake", 3 * stake);
+    assert!(low_bond_threshold() > old_joining_bond);
 
     let (evicted, _departed) = registry.advance_epoch(7, true, &mut ctx);
     _departed.unpack_for_testing();

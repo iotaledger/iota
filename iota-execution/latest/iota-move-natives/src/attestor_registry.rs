@@ -7,8 +7,10 @@ use iota_sdk_types::Address;
 use iota_types::iota_system_state::attestor_registry::{
     verify_attestor_pop, verify_attestor_pubkey,
 };
-use move_binary_format::errors::PartialVMResult;
-use move_core_types::account_address::AccountAddress;
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{
+    account_address::AccountAddress, gas_algebra::InternalGas, vm_status::StatusCode,
+};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
@@ -16,6 +18,13 @@ use move_vm_types::{
 use smallvec::smallvec;
 
 use crate::NativesCostTable;
+
+#[derive(Clone)]
+pub struct AttestorValidatePubkeyCostParams {
+    /// Base cost for one key parse plus one signature verification; the
+    /// inputs are fixed-size, so there is no per-byte term.
+    pub attestor_validate_pubkey_cost_base: Option<InternalGas>,
+}
 
 /// ****************************************************************************
 /// native fun validate_attestor_pubkey
@@ -31,10 +40,7 @@ use crate::NativesCostTable;
 /// `validator::validate_metadata_bcs` delegating to
 /// `ValidatorMetadataV1::verify`.
 ///
-/// gas cost: reuses the validator metadata validation cost params
-///   validator_validate_metadata_cost_base
-///     + validator_validate_metadata_data_cost_per_byte * (pubkey.len() +
-///       proof_of_possession.len())
+/// gas cost: attestor_validate_pubkey_cost_base
 /// ****************************************************************************
 pub fn validate_attestor_pubkey(
     context: &mut NativeContext,
@@ -47,21 +53,24 @@ pub fn validate_attestor_pubkey(
     let cost_params = context
         .extensions_mut()
         .get::<NativesCostTable>()?
-        .validator_validate_metadata_bcs_cost_params
+        .attestor_validate_pubkey_cost_params
         .clone();
 
-    native_charge_gas_early_exit!(context, cost_params.validator_validate_metadata_cost_base);
+    native_charge_gas_early_exit!(
+        context,
+        cost_params
+            .attestor_validate_pubkey_cost_base
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost base for validate_attestor_pubkey not available".to_string(),
+                )
+            })?
+    );
 
     // Args are popped in reverse declaration order.
     let sender = pop_arg!(args, AccountAddress);
     let pop = pop_arg!(args, Vec<u8>);
     let pubkey = pop_arg!(args, Vec<u8>);
-
-    native_charge_gas_early_exit!(
-        context,
-        cost_params.validator_validate_metadata_data_cost_per_byte
-            * ((pubkey.len() + pop.len()) as u64).into()
-    );
 
     let cost = context.gas_used();
 

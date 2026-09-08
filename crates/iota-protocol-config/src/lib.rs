@@ -1606,6 +1606,10 @@ pub struct ProtocolConfig {
     /// bond level implied by `attestor_low_bond_threshold_rate` so the refund
     /// cannot underflow.
     attestor_inactivity_penalty: Option<u64>,
+
+    /// Cost of the `attestor_registry::validate_attestor_pubkey` native: one
+    /// key parse plus one signature verification.
+    attestor_validate_pubkey_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -2215,6 +2219,17 @@ impl ProtocolConfig {
                 }),
             "deny_rule_update_max_entries_per_tx must be positive, at most {DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING}, and within the system transaction object limits"
         );
+        // An attestor is evicted below the threshold, so a threshold above the
+        // joining bond would evict every attestor at the first boundary.
+        if let (Some(joining_rate), Some(threshold_rate)) = (
+            ret.attestor_joining_bond_rate,
+            ret.attestor_low_bond_threshold_rate,
+        ) {
+            assert!(
+                threshold_rate <= joining_rate,
+                "attestor_low_bond_threshold_rate must not exceed attestor_joining_bond_rate"
+            );
+        }
 
         ret
     }
@@ -2772,6 +2787,7 @@ impl ProtocolConfig {
             max_attestor_count: None,
             attestor_max_inactivity_epochs: None,
             attestor_inactivity_penalty: None,
+            attestor_validate_pubkey_cost_base: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3432,6 +3448,9 @@ impl ProtocolConfig {
                         cfg.attestor_max_inactivity_epochs = Some(7);
                         cfg.attestor_inactivity_penalty = Some(500_000_000_000);
                     }
+                    // Sized like the most expensive ecdsa verification native;
+                    // to be retuned with the crypto native costs.
+                    cfg.attestor_validate_pubkey_cost_base = Some(4225);
                 }
                 // Use this template when making changes:
                 //

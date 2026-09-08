@@ -366,3 +366,4 @@ attestor_low_bond_threshold_rate: 500
 max_attestor_count: 1000
 attestor_max_inactivity_epochs: 7
 attestor_inactivity_penalty: 500000000000
+attestor_validate_pubkey_cost_base: 4225

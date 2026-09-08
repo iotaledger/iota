@@ -231,8 +231,10 @@ fun load_attestor_registry_mut(self: &mut IotaSystemState): &mut AttestorRegistr
 
 /// Register the sender as an attestor with a dedicated signing key
 /// (`flag || raw pubkey`, plain schemes only) and its proof of possession,
-/// locking `bond` (>= MIN_ATTESTOR_JOINING_BOND). Takes effect at the next
-/// epoch boundary. `name`/`description` must be ASCII and every metadata
+/// locking `bond`, which must cover the joining bond derived from the
+/// protocol config (see `attestor_registry::min_joining_bond`). Takes effect
+/// at the next epoch boundary. `name`/`description` must be ASCII and every
+/// metadata
 /// field at most 256 bytes; the metadata is stored per attestor and can be
 /// changed later via the `update_attestor_*` functions.
 public entry fun register_attestor(
