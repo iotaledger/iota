@@ -17,7 +17,6 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
-    base_types::CommitRound,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
@@ -40,7 +39,7 @@ use crate::{
             LockDetails,
             consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::{
-                HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
+                CommitIndex, HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
                 handler_latest_upserts,
             },
         },
@@ -2286,16 +2285,17 @@ impl BookkeepingSetup {
             })
     }
 
-    /// Registers `tx`'s digest in the digest -> commit-round map for `round`
-    /// before executing - the handler-known classification, under which the
-    /// hook writes handler-latest rows instead of sync-ahead records.
+    /// Registers `tx`'s key in the transaction-key -> commit-index map for
+    /// `index` before executing - the handler-known classification, under
+    /// which the hook writes handler-latest rows instead of sync-ahead
+    /// records.
     fn execute_as_handler_known(
         &self,
         tx: VerifiedTransaction,
-        round: CommitRound,
+        index: CommitIndex,
     ) -> TransactionEffects {
         self.epoch_store
-            .assign_commit_to_transactions(round, vec![TransactionKey::Digest(*tx.digest())]);
+            .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
         self.execute(tx)
     }
 
@@ -2308,10 +2308,10 @@ impl BookkeepingSetup {
         gas_id: &ObjectId,
         sender: Address,
         sender_key: &AccountPrivateKey,
-        round: CommitRound,
+        index: CommitIndex,
     ) -> TransactionEffects {
         let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
-        self.execute_as_handler_known(tx, round)
+        self.execute_as_handler_known(tx, index)
     }
 
     /// A verified call into `module::function` of the published test package
@@ -2786,7 +2786,7 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
     let state = s.epoch_store.handler_object_state_for_testing();
     let key = TransactionKey::Digest(digest);
     s.epoch_store.assign_commit_to_transactions(4, vec![key]);
-    assert_eq!(state.commit_round_of(&key), Some(4));
+    assert_eq!(state.commit_index_of(&key), Some(4));
     s.epoch_store
         .record_commit_fully_executed(4, &handler_latest_upserts(&effects, 4))
         .unwrap();
@@ -2801,7 +2801,7 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
         assert_eq!(row.kind, HandlerLatestObjectKind::Live);
         assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
     }
-    assert_eq!(state.commit_round_of(&key), None);
+    assert_eq!(state.commit_index_of(&key), None);
 
     // The sheltered bytes stay: a crash before this commit's output flushes
     // replays and re-validates it, so their eviction keys off the flushed
