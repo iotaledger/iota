@@ -443,6 +443,7 @@ public(package) fun refresh_activity(
 /// Stage a replacement signing key for the sender's active entry; the key
 /// is swapped in place at the next epoch boundary. Staging again before the
 /// boundary overwrites the previously staged key.
+/// Re-staging the same key aborts with `EDuplicatePubkey`.
 public(package) fun rotate_key(
     self: &mut AttestorRegistryV1,
     sender: address,
