@@ -213,30 +213,20 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             self.metrics.get_owned_objects_limit.observe(limit as f64);
             let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
             let options = options.unwrap_or_default();
-            let mut objects =
-                self.state
-                    .get_owner_objects_with_limit(address, cursor, limit + 1, filter)?;
-
-            // objects here are of size (limit + 1), where the last one is the cursor for
-            // the next page
-            let has_next_page = objects.len() > limit && limit > 0;
-            objects.truncate(limit);
-            let next_cursor = (has_next_page).then_some(
-                objects
-                    .last()
-                    .map(|obj| obj.object_id)
-                    .unwrap_or(ObjectId::ZERO),
-            );
+            let page = self
+                .state
+                .get_owner_objects_page(address, cursor, limit, filter)?;
 
             let data = match options.is_not_in_object_info() {
                 true => {
-                    let object_ids = objects.iter().map(|obj| obj.object_id).collect();
+                    let object_ids = page.data.iter().map(|obj| obj.object_id).collect();
                     self.read_api
                         .multi_get_objects(object_ids, Some(options))
                         .await
                         .map_err(|e| Error::Internal(anyhow!(e)))?
                 }
-                false => objects
+                false => page
+                    .data
                     .into_iter()
                     .map(|o_info| IotaObjectResponse::try_from((o_info, options.clone())))
                     .collect::<Result<Vec<IotaObjectResponse>, _>>()?,
@@ -250,8 +240,8 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 .inc_by(data.len() as u64);
             Ok(Page {
                 data,
-                next_cursor,
-                has_next_page,
+                next_cursor: page.next_cursor,
+                has_next_page: page.has_next_page,
             })
         }
         .trace()
