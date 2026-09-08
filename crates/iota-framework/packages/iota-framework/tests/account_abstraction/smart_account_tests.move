@@ -138,7 +138,7 @@ fun claim_immutable_account_v1_creates_immutable_account_at_sender_address() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::claim_registry::EAddressMismatch)]
+#[expected_failure(abort_code = iota::claim::EAddressMismatch)]
 fun claim_account_v1_aborts_on_address_mismatch() {
     let public_key = ed25519_public_key();
     let mut scenario = test_scenario::begin(@0x1);
@@ -149,7 +149,7 @@ fun claim_account_v1_aborts_on_address_mismatch() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::claim_registry::EAddressMismatch)]
+#[expected_failure(abort_code = iota::claim::EAddressMismatch)]
 fun claim_immutable_account_v1_aborts_on_address_mismatch() {
     let public_key = ed25519_public_key();
     let mut scenario = test_scenario::begin(@0x1);

@@ -37,7 +37,8 @@ module iota::smart_account;
 use iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
-use iota::claim_registry::{Self, ClaimRegistry};
+use iota::claim;
+use iota::claim_registry::ClaimRegistry;
 use iota::dynamic_field;
 use iota::public_key::PublicKey;
 
@@ -147,8 +148,7 @@ public fun claim_builder_v1(
 /// from the node's own PTB, which runs in an execution mode that bypasses
 /// visibility, and from nowhere else — not from a user PTB, and not from
 /// another package, which could otherwise wrap a public entry point. See the
-/// `iota::clock::consensus_commit_prologue` and `iota::claim_registry::create`
-/// functions for the same idiom.
+/// `iota::clock::consensus_commit_prologue` function for the same idiom.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
 /// `account::MutableAccountCreated` event.
@@ -396,7 +396,7 @@ fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
 /// address, backed by the built-in authenticator for `public_key`'s signature
 /// scheme.
 fun claim_builder(public_key: PublicKey, ctx: &TxContext): SmartAccountBuilder {
-    let mut account = SmartAccount { id: claim_registry::claim_address(public_key, ctx) };
+    let mut account = SmartAccount { id: claim::claim_address(public_key, ctx) };
     builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
 
     SmartAccountBuilder {

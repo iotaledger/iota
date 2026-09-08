@@ -2401,6 +2401,9 @@ public_key_field_name
 check_builtin_authenticators_enabled
 	fun
 	0x2::builtin_authenticator_functions
+claim_address
+	public(package) fun
+	0x2::claim
 Receiving
 	public struct
 	0x2::transfer
@@ -2450,9 +2453,6 @@ create
 	fun
 	0x2::claim_registry
 claim
-	public(package) fun
-	0x2::claim_registry
-claim_address
 	public(package) fun
 	0x2::claim_registry
 is_claimed
