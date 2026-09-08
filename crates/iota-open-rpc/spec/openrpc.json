@@ -9374,7 +9374,7 @@
         ]
       },
       "IotaTransactionKind": {
-        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` and `ClaimAccount` are considered system transactions.",
         "oneOf": [
           {
             "type": "string",
@@ -9383,7 +9383,8 @@
               "Genesis",
               "ConsensusCommitPrologueV1",
               "RandomnessStateUpdate",
-              "EndOfEpochTransaction"
+              "EndOfEpochTransaction",
+              "ClaimAccount"
             ]
           },
           {

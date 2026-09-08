@@ -1469,7 +1469,14 @@ impl IndexerReader {
                 // The `SystemTransaction` variant can be used to filter for all types of system
                 // transactions.
                 if kind == IotaTransactionKind::SystemTransaction {
-                    ("tx_kinds".into(), "tx_kind != 1".to_string())
+                    (
+                        "tx_kinds".into(),
+                        format!(
+                            "tx_kind NOT IN ({}, {})",
+                            IotaTransactionKind::ProgrammableTransaction as u8,
+                            IotaTransactionKind::ClaimAccount as u8,
+                        ),
+                    )
                 } else {
                     ("tx_kinds".into(), format!("tx_kind = {}", kind as u8))
                 }
@@ -1502,10 +1509,14 @@ impl IndexerReader {
                     // Case: If `SystemTransaction` is present but `ProgrammableTransaction` is not,
                     // we need to filter out `ProgrammableTransaction`.
                     if !has_programmable_transaction {
-                        "tx_kind != 1".to_string()
+                        format!(
+                            "tx_kind NOT IN ({}, {})",
+                            IotaTransactionKind::ProgrammableTransaction as u8,
+                            IotaTransactionKind::ClaimAccount as u8,
+                        )
                     } else {
-                        // No filter applied if both exist
-                        "1 = 1".to_string()
+                        // Both cover every kind but the other user kinds
+                        format!("tx_kind != {}", IotaTransactionKind::ClaimAccount as u8)
                     }
                 } else {
                     // Case: `ProgrammableTransaction` is present

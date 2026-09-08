@@ -3019,7 +3019,8 @@ impl Filter<EffectsWithInput> for TransactionFilterV2 {
 }
 
 /// Represents the type of a transaction. All transactions except
-/// `ProgrammableTransaction` are considered system transactions.
+/// `ProgrammableTransaction` and `ClaimAccount` are considered system
+/// transactions.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, EnumString, Display, Serialize, Deserialize, JsonSchema,
 )]
@@ -3033,12 +3034,13 @@ pub enum IotaTransactionKind {
     ConsensusCommitPrologueV1 = 3,
     RandomnessStateUpdate = 5,
     EndOfEpochTransaction = 6,
+    ClaimAccount = 7,
 }
 
 impl IotaTransactionKind {
     /// Returns true if the transaction is a system transaction.
     pub fn is_system_transaction(&self) -> bool {
-        !matches!(self, Self::ProgrammableTransaction)
+        !matches!(self, Self::ProgrammableTransaction | Self::ClaimAccount)
     }
 }
 
@@ -3052,6 +3054,7 @@ impl From<&TransactionKind> for IotaTransactionKind {
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
             TransactionKind::EndOfEpoch(_) => Self::EndOfEpochTransaction,
             TransactionKind::Programmable(_) => Self::ProgrammableTransaction,
+            TransactionKind::ClaimAccount(_) => Self::ClaimAccount,
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
