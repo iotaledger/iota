@@ -7,13 +7,15 @@ use std::{cmp::Ordering, collections::HashMap};
 use iota_sdk_types::{ObjectId, SharedObjectReference};
 use iota_types::{
     base_types::CommitRound,
+    gas_model::gas_vector::declared_rate_bytes_per_sec,
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use super::{
-    authority_per_epoch_store::PreviouslyDeferredTransactions, transaction_deferral::DeferralKey,
+    authority_per_epoch_store::PreviouslyDeferredTransactions,
+    transaction_deferral::{DeferralKey, DeferralReason},
 };
 use crate::{
     authority::authority_per_epoch_store::CongestionControlParameters,
@@ -27,14 +29,17 @@ const MAX_EXECUTION_TIME: ExecutionTime = ExecutionTime::MAX;
 /// Represents a sequencing result: schedule transaction, or defer it
 /// due to shared object congestion. Sequencing result is returned by
 /// the `try_schedule` method of the `SharedObjectCongestionTracker`.
+#[derive(Debug)]
 pub(super) enum SequencingResult {
     /// Sequencing result indicating that a transaction is scheduled to be
     /// executed at start time
     Schedule(/* start_time */ ExecutionTime),
 
-    /// Sequencing result indicating that a transaction is deferred.
-    /// The list of objects are congested objects.
-    Defer(DeferralKey, Vec<ObjectId>),
+    /// Sequencing result indicating that a transaction is deferred, and why:
+    /// congested shared objects (with the congested IDs), the saturated
+    /// execution-worker pool, or the memory-bandwidth ceiling. The tracker
+    /// never emits `DeferralReason::RandomnessNotReady`.
+    Defer(DeferralKey, DeferralReason),
 }
 
 /// An execution slot represents the allocated time slot for a transaction to be
@@ -205,21 +210,28 @@ impl ObjectExecutionSlots {
 }
 
 /// A contiguous interval `[start_time, end_time)` during which `worker_count`
-/// transactions are scheduled to occupy an execution worker concurrently.
+/// transactions are scheduled to run concurrently, together declaring
+/// `rate_in_use` bytes per second of memory bandwidth.
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
 struct WorkerSlot {
     start_time: ExecutionTime,
     end_time: ExecutionTime,
     worker_count: u16,
+    /// Sum of the declared memory-bandwidth rates (`moved_bytes / cpu_time`)
+    /// of the transactions scheduled over this interval, in bytes per second.
+    /// Zero outside `GasVectorV1` mode.
+    rate_in_use: u64,
 }
 
-/// `WorkerSlots` models the execution-worker pool as a concurrency profile
-/// over the per-commit timeline: a sparse, sorted list of contiguous busy
-/// slots (gaps between slots have worker count `0`). It mirrors
-/// `ObjectExecutionSlots` but tracks a worker count (multiplicity) per slot
-/// instead of a single free/busy lane, so it can enforce "at most `N`
-/// transactions overlapping at any instant". The representation is sparse —
-/// at most two breakpoints per scheduled transaction — so it is suitable for
+/// `WorkerSlots` models the shared execution resources as one profile over
+/// the per-commit timeline: a sparse, sorted list of contiguous busy slots
+/// (gaps between slots have worker count `0` and rate `0`), each carrying how
+/// many transactions overlap it and the sum of their declared
+/// memory-bandwidth rates. It mirrors `ObjectExecutionSlots` but tracks
+/// multiplicities per slot instead of a single free/busy lane, so it can
+/// enforce "at most `N` transactions, and at most the bandwidth ceiling,
+/// overlapping at any instant". The representation is sparse — at
+/// most two breakpoints per scheduled transaction — so it is suitable for
 /// `TotalGasBudget` mode where durations are large.
 #[derive(PartialEq, Eq, Clone, Debug)]
 struct WorkerSlots(Vec<WorkerSlot>);
@@ -230,21 +242,24 @@ impl WorkerSlots {
         Self(Vec::new())
     }
 
-    /// Appends `[start, end)` with `count` to a slot list, coalescing with
-    /// the previous slot when they are adjacent and share a count, and
-    /// dropping empty or zero-count pieces. Inputs must arrive in ascending
+    /// Appends `[start, end)` with `count` and `rate` to a slot list,
+    /// coalescing with the previous slot when they are adjacent and share
+    /// both quantities, and dropping empty or zero-count pieces (a slot's
+    /// rate can only be nonzero where at least one transaction is scheduled,
+    /// so `count == 0` implies `rate == 0`). Inputs must arrive in ascending
     /// time order.
     fn push_slot(
         slots: &mut Vec<WorkerSlot>,
         start: ExecutionTime,
         end: ExecutionTime,
         count: u16,
+        rate: u64,
     ) {
         if count == 0 || start >= end {
             return;
         }
         if let Some(last) = slots.last_mut() {
-            if last.end_time == start && last.worker_count == count {
+            if last.end_time == start && last.worker_count == count && last.rate_in_use == rate {
                 last.end_time = end;
                 return;
             }
@@ -253,24 +268,39 @@ impl WorkerSlots {
             start_time: start,
             end_time: end,
             worker_count: count,
+            rate_in_use: rate,
         });
     }
 
     /// Returns the free execution slots in which a new transaction can be
-    /// scheduled without exceeding `n` concurrent workers, i.e. the intervals
-    /// of `[0, MAX)` where the worker count is strictly below `n`. The result
-    /// is a valid free-list (sorted, non-overlapping) and can be
-    /// intersected with object free-lists during scheduling.
+    /// scheduled without exceeding `n` concurrent workers — and, when the
+    /// transaction declares a memory-bandwidth demand `(rate, ceiling)`,
+    /// without the summed declared rates exceeding the ceiling: the intervals
+    /// of `[0, MAX)` where the worker count is strictly below `n` and
+    /// `rate_in_use + rate <= ceiling`. Empty when the rate alone exceeds the
+    /// ceiling. The result is a valid free-list (sorted, non-overlapping) and
+    /// can be intersected with object free-lists during scheduling.
     ///
     /// Single pass over the (sorted, disjoint) slots: the free-list is the
-    /// complement of the saturated (`count >= n`) slots within `[0, MAX)`.
-    fn slots_with_worker_available(&self, max_concurrent_workers: u16) -> ObjectExecutionSlots {
+    /// complement of the saturated slots within `[0, MAX)`.
+    fn slots_with_capacity(
+        &self,
+        max_concurrent_workers: u16,
+        bandwidth_demand: Option<(u64, u64)>,
+    ) -> ObjectExecutionSlots {
         let mut free_slots = Vec::new();
+        if bandwidth_demand.is_some_and(|(rate, ceiling)| rate > ceiling) {
+            return ObjectExecutionSlots(free_slots);
+        }
         let mut cursor = 0;
         for slot in &self.0 {
-            // Slots below the cap (and the implicit gaps between slots)
-            // remain free, so only saturated slots break the free region.
-            if slot.worker_count >= max_concurrent_workers {
+            // Slots with room for the transaction (and the implicit gaps
+            // between slots) remain free, so only saturated slots break the
+            // free region.
+            let saturated = slot.worker_count >= max_concurrent_workers
+                || bandwidth_demand
+                    .is_some_and(|(rate, ceiling)| slot.rate_in_use.saturating_add(rate) > ceiling);
+            if saturated {
                 if cursor < slot.start_time {
                     free_slots.push(ExecutionSlot::new(cursor, slot.start_time));
                 }
@@ -290,16 +320,41 @@ impl WorkerSlots {
         self.0.last().map_or(0, |slot| slot.end_time)
     }
 
+    /// Whether the bandwidth demand `rate` removes room before `limit` that
+    /// the worker count alone would have offered: some stored slot starting
+    /// below `limit` has a worker free but not enough bandwidth headroom.
+    /// Used only to attribute a deferral — one linear pass, no slot search
+    /// (gaps between stored slots carry no rate, so they are never clipped
+    /// once `rate <= ceiling`).
+    fn demand_clips_before(
+        &self,
+        max_concurrent_workers: u16,
+        rate: u64,
+        ceiling: u64,
+        limit: ExecutionTime,
+    ) -> bool {
+        if rate > ceiling {
+            // Nothing fits anywhere, stored slot or gap.
+            return true;
+        }
+        self.0.iter().any(|slot| {
+            slot.start_time < limit
+                && slot.worker_count < max_concurrent_workers
+                && slot.rate_in_use.saturating_add(rate) > ceiling
+        })
+    }
+
     /// Increments the worker count over `[start_time, start_time + duration)`,
     /// maintaining the invariant (sorted, disjoint, adjacent-equal-count
     /// slots merged, no zero-count slots).
     ///
     /// Single pass over the existing (sorted, disjoint) slots: each is split
     /// into its before-, within- and after-`[start, end)` portions (the within
-    /// portion getting `+1`), and gaps inside `[start, end)` are emitted with
-    /// count `1`. `filled` tracks how far the `[start, end)` region has been
-    /// covered so the inter-slot gaps can be filled in order.
-    fn occupy(&mut self, start_time: ExecutionTime, duration: ExecutionTime) {
+    /// portion getting `+1` worker and `+rate` bandwidth), and gaps inside
+    /// `[start, end)` are emitted with count `1` and `rate`. `filled` tracks
+    /// how far the `[start, end)` region has been covered so the inter-slot
+    /// gaps can be filled in order.
+    fn occupy(&mut self, start_time: ExecutionTime, duration: ExecutionTime, rate: u64) {
         let end_time = start_time.saturating_add(duration);
         if start_time >= end_time {
             return;
@@ -316,28 +371,35 @@ impl WorkerSlots {
                 start_time: a,
                 end_time: b,
                 worker_count: c,
+                rate_in_use: r,
             } = slot;
 
             // Gap inside `[start_time, end_time)` preceding this slot.
             if a > filled && filled < end_time {
                 let gap_end = a.min(end_time);
-                Self::push_slot(&mut merged, filled, gap_end, 1);
+                Self::push_slot(&mut merged, filled, gap_end, 1, rate);
                 filled = filled.max(gap_end);
             }
-            // Portion before the occupied range: count unchanged.
-            Self::push_slot(&mut merged, a, b.min(start_time), c);
-            // Portion within the occupied range: count + 1.
+            // Portion before the occupied range: quantities unchanged.
+            Self::push_slot(&mut merged, a, b.min(start_time), c, r);
+            // Portion within the occupied range: count + 1, rate added.
             let within_start = a.max(start_time);
             let within_end = b.min(end_time);
             if within_start < within_end {
-                Self::push_slot(&mut merged, within_start, within_end, c.saturating_add(1));
+                Self::push_slot(
+                    &mut merged,
+                    within_start,
+                    within_end,
+                    c.saturating_add(1),
+                    r.saturating_add(rate),
+                );
                 filled = filled.max(within_end);
             }
-            // Portion after the occupied range: count unchanged.
-            Self::push_slot(&mut merged, a.max(end_time), b, c);
+            // Portion after the occupied range: quantities unchanged.
+            Self::push_slot(&mut merged, a.max(end_time), b, c, r);
         }
         // Trailing gap inside `[start_time, end_time)` after the last slot.
-        Self::push_slot(&mut merged, filled, end_time, 1);
+        Self::push_slot(&mut merged, filled, end_time, 1, rate);
 
         self.0 = merged;
     }
@@ -345,7 +407,9 @@ impl WorkerSlots {
     /// Reconstructs a profile from a stored debt (`(start, end, count)`
     /// slots). The input is assumed to already satisfy the invariant
     /// (sorted, disjoint, merged), as produced by [`Self::overshoot`] and
-    /// [`Self::decay`].
+    /// [`Self::decay`]. Carried-over slots start with rate `0`: the memory
+    /// path carries no bandwidth debt across commits, and the debt's stored
+    /// form (which would need a new version to carry rates) is unchanged.
     fn from_debt(slots: WorkerDebtSlots) -> Self {
         Self(
             slots
@@ -354,6 +418,7 @@ impl WorkerSlots {
                     start_time,
                     end_time,
                     worker_count,
+                    rate_in_use: 0,
                 })
                 .collect(),
         )
@@ -468,10 +533,11 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    /// Given a list of shared input objects and the estimated execution
-    /// duration of a transaction that operates on these objects, returns
-    /// the starting time of the transaction if the transaction can be
-    /// scheduled. Otherwise, returns None.
+    /// Given a list of shared input objects, the estimated execution
+    /// duration of a transaction that operates on these objects, and its
+    /// declared memory-bandwidth rate, returns the starting time of the
+    /// transaction if the transaction can be scheduled. Otherwise, returns
+    /// None.
     ///
     /// Starting time is determined by all the input shared objects' last write.
     ///
@@ -483,22 +549,34 @@ impl SharedObjectCongestionTracker {
         &self,
         shared_input_objects: &[SharedObjectReference],
         tx_duration: ExecutionTime,
-        check_worker_limit: bool,
+        declared_rate: u64,
+        check_shared_resources: bool,
     ) -> Option<ExecutionTime> {
-        let worker_free_slots = if check_worker_limit {
+        let worker_free_slots = if check_shared_resources {
+            // The memory-bandwidth ceiling rides the worker profile: it binds
+            // only while execution-worker congestion control is active, which
+            // `GasVectorV1`'s config invariants guarantee.
+            let bandwidth_demand = (declared_rate > 0)
+                .then(|| {
+                    self.congestion_control_parameters
+                        .memory_bandwidth_bytes_per_sec()
+                        .map(|ceiling| (declared_rate, ceiling))
+                })
+                .flatten();
             self.worker_slots
                 .as_ref()
                 .zip(
                     self.congestion_control_parameters
                         .max_concurrent_execution_workers(),
                 )
-                .map(|(worker_slots, n)| worker_slots.slots_with_worker_available(n))
+                .map(|(worker_slots, n)| worker_slots.slots_with_capacity(n, bandwidth_demand))
         } else {
             None
         };
         // Collect the free-list of every resource the transaction must fit in:
-        // one per shared input object, plus the execution-worker pool when
-        // worker congestion control is active and `check_worker_limit` is set.
+        // one per shared input object, plus — when `check_shared_resources` is
+        // set and worker congestion control is active — the shared
+        // execution-resource profile (worker pool and memory bandwidth).
         let resources: Vec<&ObjectExecutionSlots> = shared_input_objects
             .iter()
             .map(|obj| {
@@ -617,7 +695,8 @@ impl SharedObjectCongestionTracker {
         let shared_input_objects = transaction.shared_input_objects();
         if shared_input_objects.is_empty() && self.worker_slots.is_none() {
             // This is an owned-object-only transaction and execution-worker
-            // congestion control is disabled. No need to defer.
+            // congestion control is disabled (which the memory-bandwidth
+            // ceiling requires too). No need to defer.
             return SequencingResult::Schedule(0);
         }
 
@@ -632,10 +711,26 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(0);
         };
 
-        // Try to compute a scheduling start time that fits both the shared
-        // objects and (when active) the execution-worker pool.
+        // The transaction's declared memory-bandwidth rate, consulted only
+        // when the bandwidth profile is active. A transaction that reaches
+        // this point without a representable rate (no attested gas vector)
+        // could never be scheduled against the profile; the maximal rate
+        // keeps that deterministic.
+        let declared_rate = if self
+            .congestion_control_parameters
+            .memory_bandwidth_bytes_per_sec()
+            .is_some()
+        {
+            Self::declared_rate(transaction).unwrap_or(u64::MAX)
+        } else {
+            0
+        };
+
+        // Try to compute a scheduling start time that fits the shared objects
+        // and (when active) the execution-worker pool and the
+        // memory-bandwidth profile.
         if let Some(start_time) =
-            self.compute_tx_start_time(&shared_input_objects, tx_duration, true)
+            self.compute_tx_start_time(&shared_input_objects, tx_duration, declared_rate, true)
         {
             // `compute_tx_start_time` returns None if the transaction cannot be scheduled,
             // so no need to check for overflow when adding `tx_duration` here.
@@ -645,56 +740,93 @@ impl SharedObjectCongestionTracker {
             }
         }
 
-        // The transaction cannot be scheduled. Determine whether the shared
-        // objects are the bottleneck (so we can report them as congested), or
-        // whether the transaction fits the objects but is shed by the
-        // execution-worker pool. Without worker congestion control the attempt
-        // above already checked the objects alone, so they are known not to
-        // fit and this probe would only repeat that work.
+        // The transaction cannot be scheduled. Attribute the deferral:
+        // congested shared objects (reported by ID), the execution-worker
+        // pool, or the memory-bandwidth ceiling — told apart by re-probing
+        // with the wider constraints removed. Without worker congestion
+        // control the attempt above already checked the objects alone, so
+        // they are known not to fit and the first probe would only repeat
+        // that work.
         let objects_fit = self.worker_slots.is_some()
             && self
-                .compute_tx_start_time(&shared_input_objects, tx_duration, false)
+                .compute_tx_start_time(&shared_input_objects, tx_duration, 0, false)
                 .is_some_and(|start_time| start_time + tx_duration <= congestion_limit);
 
-        let congested_objects: Vec<ObjectId> = if objects_fit {
-            // The shared objects fit within the congestion limit; the
-            // execution-worker pool is the bottleneck. There is no specific
-            // congested object to report.
-            Vec::new()
-        } else if self
-            .congestion_control_parameters
-            .congestion_control_min_free_execution_slot()
-        {
-            // If `congestion_control_min_free_execution_slot` is true, we return all the
-            // shared input objects as no individual object can be identified as
-            // the cause of congestion.
-            shared_input_objects
-                .iter()
-                .map(|obj| obj.object_id)
-                .collect()
-        } else {
-            // If `congestion_control_min_free_execution_slot` is false, we return
-            // only shared objects that can be identified as the cause of congestion.
-            shared_input_objects
-                .iter()
-                .filter(|obj| {
-                    let (end_time, overflow) = self
-                        .object_execution_slots
-                        .get(&obj.object_id)
-                        .expect("object should have been inserted before.")
-                        .max_object_occupied_slot_end_time()
-                        .overflowing_add(tx_duration);
-                    overflow || end_time > congestion_limit
+        let deferral_reason = if !objects_fit {
+            let congested_objects: Vec<ObjectId> = if self
+                .congestion_control_parameters
+                .congestion_control_min_free_execution_slot()
+            {
+                // If `congestion_control_min_free_execution_slot` is true, we return all the
+                // shared input objects as no individual object can be identified as
+                // the cause of congestion.
+                shared_input_objects
+                    .iter()
+                    .map(|obj| obj.object_id)
+                    .collect()
+            } else {
+                // If `congestion_control_min_free_execution_slot` is false, we return
+                // only shared objects that can be identified as the cause of congestion.
+                shared_input_objects
+                    .iter()
+                    .filter(|obj| {
+                        let (end_time, overflow) = self
+                            .object_execution_slots
+                            .get(&obj.object_id)
+                            .expect("object should have been inserted before.")
+                            .max_object_occupied_slot_end_time()
+                            .overflowing_add(tx_duration);
+                        overflow || end_time > congestion_limit
+                    })
+                    .map(|obj| obj.object_id)
+                    .collect()
+            };
+            DeferralReason::SharedObjectCongestion(congested_objects)
+        } else if declared_rate > 0
+            && self
+                .worker_slots
+                .as_ref()
+                .zip(
+                    self.congestion_control_parameters
+                        .max_concurrent_execution_workers(),
+                )
+                .zip(
+                    self.congestion_control_parameters
+                        .memory_bandwidth_bytes_per_sec(),
+                )
+                .is_some_and(|((worker_slots, n), ceiling)| {
+                    worker_slots.demand_clips_before(n, declared_rate, ceiling, congestion_limit)
                 })
-                .map(|obj| obj.object_id)
-                .collect()
+        {
+            // The bandwidth demand removed room the worker count alone would
+            // have offered, so the ceiling is (at least jointly) the binding
+            // constraint. This is a one-pass classification, not a
+            // counterfactual re-search: the worker-vs-bandwidth attribution
+            // only labels the metric and the cancellation variant — both
+            // variants assign identical cancellation versions — so it does
+            // not need to be exact where the two constraints bind together.
+            DeferralReason::MemoryBandwidthCongestion
+        } else {
+            DeferralReason::ExecutionWorkerCongestion
         };
 
-        let deferral_key = if let Some(previous_key_suggested_gas_price_pair) =
+        let deferral_key =
+            Self::deferral_key(transaction, previously_deferred_tx_digests, commit_round);
+        SequencingResult::Defer(deferral_key, deferral_reason)
+    }
+
+    /// The deferral key for a transaction that cannot be scheduled in this
+    /// commit: deferred to the next round, keeping the original
+    /// `deferred_from_round` when the transaction was already deferred in a
+    /// previous commit.
+    fn deferral_key(
+        transaction: &VerifiedExecutableAttestedTransaction,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
+        commit_round: CommitRound,
+    ) -> DeferralKey {
+        if let Some(previous_key_suggested_gas_price_pair) =
             previously_deferred_tx_digests.get(transaction.digest())
         {
-            // This transaction has been deferred in previous consensus commit. Use its
-            // previous deferred_from_round.
             DeferralKey::new_for_consensus_round(
                 commit_round + 1,
                 previous_key_suggested_gas_price_pair
@@ -702,11 +834,16 @@ impl SharedObjectCongestionTracker {
                     .deferred_from_round(),
             )
         } else {
-            // This transaction has not been deferred before. Use the current commit round
-            // as the deferred_from_round.
             DeferralKey::new_for_consensus_round(commit_round + 1, commit_round)
-        };
-        SequencingResult::Defer(deferral_key, congested_objects)
+        }
+    }
+
+    /// The transaction's declared average rate through the shared memory
+    /// path, from its attested gas vector.
+    fn declared_rate(transaction: &VerifiedExecutableAttestedTransaction) -> Option<u64> {
+        let cpu_time = transaction.attested_cpu_time()?;
+        let moved_bytes = transaction.attested_moved_bytes()?;
+        declared_rate_bytes_per_sec(cpu_time, moved_bytes)
     }
 
     /// Update shared objects' execution slots used in `transaction` using
@@ -750,9 +887,20 @@ impl SharedObjectCongestionTracker {
 
         // Every scheduled transaction — including owned-object-only ones —
         // occupies an execution worker over its execution interval when
-        // execution-worker congestion control is active.
+        // execution-worker congestion control is active; under the
+        // memory-bandwidth ceiling it also adds its declared rate over the
+        // same interval, in the same pass.
+        let rate = if self
+            .congestion_control_parameters
+            .memory_bandwidth_bytes_per_sec()
+            .is_some()
+        {
+            Self::declared_rate(transaction).unwrap_or(0)
+        } else {
+            0
+        };
         if let Some(worker_slots) = self.worker_slots.as_mut() {
-            worker_slots.occupy(start_time, estimated_execution_duration);
+            worker_slots.occupy(start_time, estimated_execution_duration, rate);
         }
 
         Some(BumpObjectExecutionSlotsResult::new(
@@ -1137,6 +1285,7 @@ pub mod shared_object_test_utils {
         shared_object_congestion_tracker.compute_tx_start_time(
             shared_input_objects,
             tx_duration,
+            0,
             false,
         )
     }
@@ -1384,14 +1533,16 @@ mod object_cost_tests {
 
         let (max_execution_duration_per_commit, max_overshoot_per_commit) = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => (12, 0),
             PerObjectCongestionControlMode::TotalTxCount => (3, 0),
         };
 
         let (initial_debt_obj_0, initial_debt_obj_1) = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
                 // Initial debts for TotalGasBudget mode are set such that
                 // the object execution slots are constructed as follows:
@@ -1442,7 +1593,8 @@ mod object_cost_tests {
             &tx,
             match mode {
                 PerObjectCongestionControlMode::None
-                | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+                | PerObjectCongestionControlMode::TotalComputationUnits
+                | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
                 // in TotalGasBudget mode, the object execution slots becomes:
                 //    object 0       object 1
                 //  0| xxxxxxxx     | xxxxxxxx
@@ -1474,8 +1626,10 @@ mod object_cost_tests {
                 tx_gas_budget,
                 TEST_ONLY_GAS_PRICE,
             );
-            if let SequencingResult::Defer(_, congested_objects) =
-                shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
+            if let SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) = shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
             {
                 assert_eq!(congested_objects.len(), 1);
                 assert_eq!(congested_objects[0], shared_obj_0);
@@ -1500,7 +1654,11 @@ mod object_cost_tests {
             );
             if assign_min_free_execution_slot {
                 assert!(matches!(sequencing_result, SequencingResult::Schedule(1)));
-            } else if let SequencingResult::Defer(_, congested_objects) = sequencing_result {
+            } else if let SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) = sequencing_result
+            {
                 assert_eq!(congested_objects.len(), 1);
                 assert_eq!(congested_objects[0], shared_obj_1);
             } else {
@@ -1517,14 +1675,15 @@ mod object_cost_tests {
                     tx_gas_budget,
                     TEST_ONLY_GAS_PRICE,
                 );
-                if let SequencingResult::Defer(_, congested_objects) =
-                    initialize_tracker_and_try_schedule(
-                        &mut shared_object_congestion_tracker,
-                        &tx,
-                        &HashMap::new(),
-                        0,
-                    )
-                {
+                if let SequencingResult::Defer(
+                    _,
+                    DeferralReason::SharedObjectCongestion(congested_objects),
+                ) = initialize_tracker_and_try_schedule(
+                    &mut shared_object_congestion_tracker,
+                    &tx,
+                    &HashMap::new(),
+                    0,
+                ) {
                     // both objects should be reported as congested.
                     assert_eq!(congested_objects.len(), 2);
                     assert_eq!(congested_objects[0], shared_obj_0);
@@ -1740,7 +1899,8 @@ mod object_cost_tests {
         shared_object_congestion_tracker.bump_object_execution_slots(&transaction, start_time);
         let expected_object_0_duration = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 20,
             PerObjectCongestionControlMode::TotalTxCount => 11,
         };
@@ -1778,7 +1938,8 @@ mod object_cost_tests {
         );
         let expected_object_duration = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 30,
             PerObjectCongestionControlMode::TotalTxCount => 12,
         };
@@ -1897,7 +2058,10 @@ mod object_cost_tests {
             1,
             TEST_ONLY_GAS_PRICE,
         );
-        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
+        if let SequencingResult::Defer(
+            _,
+            DeferralReason::SharedObjectCongestion(congested_objects),
+        ) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
             &HashMap::new(),
@@ -1948,7 +2112,10 @@ mod object_cost_tests {
             MAX_EXECUTION_TIME - 1,
             TEST_ONLY_GAS_PRICE,
         );
-        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
+        if let SequencingResult::Defer(
+            _,
+            DeferralReason::SharedObjectCongestion(congested_objects),
+        ) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
             &HashMap::new(),
@@ -1995,7 +2162,10 @@ mod object_cost_tests {
             );
 
         let tx = build_transaction(&[(object_id_0, true)], u64::MAX, TEST_ONLY_GAS_PRICE);
-        if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
+        if let SequencingResult::Defer(
+            _,
+            DeferralReason::SharedObjectCongestion(congested_objects),
+        ) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
             &HashMap::new(),
@@ -2036,14 +2206,16 @@ mod object_cost_tests {
 
         let max_execution_duration_per_commit = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 100,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
         let max_overshoot_per_commit = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 200,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
@@ -2063,7 +2235,8 @@ mod object_cost_tests {
         // object 0 can be scheduled.
         let shared_object_congestion_tracker = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
                 // Construct object execution cost as following
                 //          object 0    object 1
@@ -2107,8 +2280,10 @@ mod object_cost_tests {
                 tx_gas_budget,
                 TEST_ONLY_GAS_PRICE,
             );
-            if let SequencingResult::Defer(_, congested_objects) =
-                shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
+            if let SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) = shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
             {
                 assert_eq!(congested_objects.len(), 1);
                 assert_eq!(congested_objects[0], shared_obj_0);
@@ -2144,8 +2319,10 @@ mod object_cost_tests {
                     tx_gas_budget,
                     1,
                 );
-                if let SequencingResult::Defer(_, congested_objects) =
-                    shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
+                if let SequencingResult::Defer(
+                    _,
+                    DeferralReason::SharedObjectCongestion(congested_objects),
+                ) = shared_object_congestion_tracker.try_schedule(&tx, &HashMap::new(), 0)
                 {
                     if assign_min_free_execution_slot {
                         assert_eq!(congested_objects.len(), 2);
@@ -2179,14 +2356,16 @@ mod object_cost_tests {
         // such that a single transaction will cause an overshoot.
         let max_execution_duration_per_commit = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 90,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
         let initial_object_debt = match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => 70,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
@@ -2233,7 +2412,8 @@ mod object_cost_tests {
         assert_eq!(accumulated_object_debts.len(), 1);
         match mode {
             PerObjectCongestionControlMode::None
-            | PerObjectCongestionControlMode::TotalComputationUnits => unreachable!(),
+            | PerObjectCongestionControlMode::TotalComputationUnits
+            | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
                 assert_eq!(accumulated_object_debts[0], (shared_obj_0, 80)); // overshoot = initial_debt (70) + tx_duration (100) - max_execution_duration_per_commit (90) = 80
             }
@@ -2247,28 +2427,28 @@ mod object_cost_tests {
     fn test_worker_slots_occupy_and_free_slots() {
         let mut worker_slots = WorkerSlots::new();
 
-        worker_slots.occupy(0, 10); // [0, 10) -> count 1
+        worker_slots.occupy(0, 10, 0); // [0, 10) -> count 1
         // With a cap of 2 workers, worker count 1 is below the cap everywhere.
         assert_eq!(
-            worker_slots.slots_with_worker_available(2).0,
+            worker_slots.slots_with_capacity(2, None).0,
             vec![ExecutionSlot::new(0, MAX_EXECUTION_TIME)]
         );
         // With a cap of 1 worker, [0, 10) is saturated.
         assert_eq!(
-            worker_slots.slots_with_worker_available(1).0,
+            worker_slots.slots_with_capacity(1, None).0,
             vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
         );
 
-        worker_slots.occupy(0, 10); // [0, 10) -> count 2
+        worker_slots.occupy(0, 10, 0); // [0, 10) -> count 2
         assert_eq!(
-            worker_slots.slots_with_worker_available(2).0,
+            worker_slots.slots_with_capacity(2, None).0,
             vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
         );
 
         // Overlapping worker counts: [0, 5) -> 2, [5, 10) -> 3, [10, 15) -> 1.
-        worker_slots.occupy(5, 10);
+        worker_slots.occupy(5, 10, 0);
         assert_eq!(
-            worker_slots.slots_with_worker_available(3).0,
+            worker_slots.slots_with_capacity(3, None).0,
             vec![
                 ExecutionSlot::new(0, 5),
                 ExecutionSlot::new(10, MAX_EXECUTION_TIME),
@@ -2280,14 +2460,14 @@ mod object_cost_tests {
     fn test_worker_slots_gap_fill_and_coalesce() {
         let mut worker_slots = WorkerSlots::new();
         // Two busy regions separated by a gap [5, 10).
-        worker_slots.occupy(0, 5); // [0, 5) -> 1
-        worker_slots.occupy(10, 5); // [10, 15) -> 1
+        worker_slots.occupy(0, 5, 0); // [0, 5) -> 1
+        worker_slots.occupy(10, 5, 0); // [10, 15) -> 1
 
         // Occupy across the gap: the gap is filled at count 1 and the existing
         // regions rise to 2 -> [0, 5):2, [5, 10):1, [10, 15):2.
-        worker_slots.occupy(0, 15);
+        worker_slots.occupy(0, 15, 0);
         assert_eq!(
-            worker_slots.slots_with_worker_available(2).0,
+            worker_slots.slots_with_capacity(2, None).0,
             vec![
                 ExecutionSlot::new(5, 10),
                 ExecutionSlot::new(15, MAX_EXECUTION_TIME),
@@ -2296,18 +2476,80 @@ mod object_cost_tests {
 
         // Raising the middle to 2 makes all of [0, 15) count 2, which must
         // coalesce into a single slot.
-        worker_slots.occupy(5, 5); // [5, 10) -> 2
+        worker_slots.occupy(5, 5, 0); // [5, 10) -> 2
         assert_eq!(
             worker_slots.0,
             vec![WorkerSlot {
                 start_time: 0,
                 end_time: 15,
                 worker_count: 2,
+                rate_in_use: 0,
             }]
         );
         assert_eq!(
-            worker_slots.slots_with_worker_available(2).0,
+            worker_slots.slots_with_capacity(2, None).0,
             vec![ExecutionSlot::new(15, MAX_EXECUTION_TIME)]
+        );
+    }
+
+    #[test]
+    fn test_worker_slots_track_bandwidth_alongside_worker_count() {
+        let mut worker_slots = WorkerSlots::new();
+        worker_slots.occupy(0, 10, 600);
+        worker_slots.occupy(5, 10, 300);
+        // One pass maintains both quantities: [0, 5) one worker at 600 B/s,
+        // [5, 10) two workers at 900 B/s, [10, 15) one worker at 300 B/s.
+        assert_eq!(
+            worker_slots.0,
+            vec![
+                WorkerSlot {
+                    start_time: 0,
+                    end_time: 5,
+                    worker_count: 1,
+                    rate_in_use: 600,
+                },
+                WorkerSlot {
+                    start_time: 5,
+                    end_time: 10,
+                    worker_count: 2,
+                    rate_in_use: 900,
+                },
+                WorkerSlot {
+                    start_time: 10,
+                    end_time: 15,
+                    worker_count: 1,
+                    rate_in_use: 300,
+                },
+            ]
+        );
+        // Without a bandwidth demand only the worker count constrains.
+        assert_eq!(
+            worker_slots.slots_with_capacity(2, None).0,
+            vec![
+                ExecutionSlot::new(0, 5),
+                ExecutionSlot::new(10, MAX_EXECUTION_TIME)
+            ]
+        );
+        // A demand is blocked exactly where the summed rate would exceed the
+        // ceiling: 400 B/s fits alongside 600 but not 900.
+        assert_eq!(
+            worker_slots.slots_with_capacity(10, Some((400, 1_000))).0,
+            vec![
+                ExecutionSlot::new(0, 5),
+                ExecutionSlot::new(10, MAX_EXECUTION_TIME)
+            ]
+        );
+        // 650 B/s fits only alongside the trailing 300 B/s.
+        assert_eq!(
+            worker_slots.slots_with_capacity(10, Some((650, 1_000))).0,
+            vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
+        );
+        // A rate above the ceiling has no free slot at all.
+        assert!(
+            worker_slots
+                .slots_with_capacity(10, Some((1_001, 1_000)))
+                .0
+                .is_empty()
         );
     }
 
@@ -2315,9 +2557,9 @@ mod object_cost_tests {
     fn test_worker_slots_debt_and_decay() {
         // Worker counts: [0, 5) -> 1, [5, 15) -> 2.
         let mut worker_slots = WorkerSlots::new();
-        worker_slots.occupy(0, 5);
-        worker_slots.occupy(5, 10);
-        worker_slots.occupy(5, 10);
+        worker_slots.occupy(0, 5, 0);
+        worker_slots.occupy(5, 10, 0);
+        worker_slots.occupy(5, 10, 0);
 
         // Only the part beyond the per-commit limit (10) carries over, shifted to start
         // at 0: [10, 15) -> 2 becomes [0, 5) -> 2.
@@ -2364,8 +2606,11 @@ mod object_cost_tests {
         // worker on [0, 1); it is shed for worker congestion.
         let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
-            SequencingResult::Defer(_, congested_objects) => {
-                assert!(congested_objects.is_empty());
+            SequencingResult::Defer(_, reason) => {
+                assert!(
+                    matches!(reason, DeferralReason::ExecutionWorkerCongestion),
+                    "expected a worker shed, got {reason:?}"
+                );
             }
             SequencingResult::Schedule(_) => {
                 panic!("expected the tx to be shed due to carried-over worker debt")
@@ -2406,10 +2651,10 @@ mod object_cost_tests {
         // for execution-worker congestion (no specific congested object).
         let tx1 = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx1, &previously_deferred, 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(_, reason) => {
                 assert!(
-                    congested_objects.is_empty(),
-                    "worker congestion should not report a congested object"
+                    matches!(reason, DeferralReason::ExecutionWorkerCongestion),
+                    "expected a worker shed, got {reason:?}"
                 );
             }
             SequencingResult::Schedule(_) => {
@@ -2508,8 +2753,11 @@ mod object_cost_tests {
         // whole per-commit limit, so it is shed for worker congestion.
         let tx2 = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx2, &previously_deferred, 0) {
-            SequencingResult::Defer(_, congested_objects) => {
-                assert!(congested_objects.is_empty());
+            SequencingResult::Defer(_, reason) => {
+                assert!(
+                    matches!(reason, DeferralReason::ExecutionWorkerCongestion),
+                    "expected a worker shed, got {reason:?}"
+                );
             }
             SequencingResult::Schedule(_) => panic!("expected the owned-object-only tx to be shed"),
         }
@@ -2520,11 +2768,10 @@ mod object_cost_tests {
         let tx3 = build_transaction(&[(shared_obj_b, true)], 0, TEST_ONLY_GAS_PRICE);
         tracker.initialize_object_execution_slots(&tx3.shared_input_objects());
         match tracker.try_schedule(&tx3, &previously_deferred, 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(_, reason) => {
                 assert!(
-                    congested_objects.is_empty(),
-                    "worker-bound shed of a shared-object tx should not report \
-                    congested objects, got {congested_objects:?}"
+                    matches!(reason, DeferralReason::ExecutionWorkerCongestion),
+                    "expected a worker shed, got {reason:?}"
                 );
             }
             SequencingResult::Schedule(_) => panic!("expected the shared-object tx to be shed"),
@@ -2578,6 +2825,7 @@ mod object_cost_tests {
                 start_time: 0,
                 end_time: 3,
                 worker_count: 2,
+                rate_in_use: 0,
             }]
         );
 
@@ -2585,8 +2833,11 @@ mod object_cost_tests {
         // with no congested object to report.
         let tx = build_transaction(&[], 0, TEST_ONLY_GAS_PRICE);
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
-            SequencingResult::Defer(_, congested_objects) => {
-                assert!(congested_objects.is_empty());
+            SequencingResult::Defer(_, reason) => {
+                assert!(
+                    matches!(reason, DeferralReason::ExecutionWorkerCongestion),
+                    "expected a worker shed, got {reason:?}"
+                );
             }
             SequencingResult::Schedule(_) => panic!("the seventh transaction should be deferred"),
         }
@@ -2698,10 +2949,10 @@ mod object_cost_tests {
         let tx = build_transaction(&[(free_object, true)], 0, TEST_ONLY_GAS_PRICE);
         tracker.initialize_object_execution_slots(&tx.shared_input_objects());
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(_, reason) => {
                 assert!(
-                    congested_objects.is_empty(),
-                    "worker-bound shed should not report objects, got {congested_objects:?}"
+                    matches!(reason, DeferralReason::ExecutionWorkerCongestion),
+                    "expected a worker shed, got {reason:?}"
                 );
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
@@ -2711,8 +2962,14 @@ mod object_cost_tests {
         let tx = build_transaction(&[(congested_object, true)], 0, TEST_ONLY_GAS_PRICE);
         tracker.initialize_object_execution_slots(&tx.shared_input_objects());
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) => {
                 assert_eq!(congested_objects, vec![congested_object]);
+            }
+            SequencingResult::Defer(_, reason) => {
+                panic!("expected object congestion, got {reason:?}")
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
         }
@@ -2727,8 +2984,14 @@ mod object_cost_tests {
         let tx = build_transaction(&[(congested_object, true)], 0, TEST_ONLY_GAS_PRICE);
         tracker.initialize_object_execution_slots(&tx.shared_input_objects());
         match tracker.try_schedule(&tx, &previously_deferred, 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) => {
                 assert_eq!(congested_objects, vec![congested_object]);
+            }
+            SequencingResult::Defer(_, reason) => {
+                panic!("expected object congestion, got {reason:?}")
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
         }

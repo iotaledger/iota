@@ -28,7 +28,9 @@ use fastcrypto::{
 use iota_core::authority_client::validator_v2::ValidatorV2API;
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_protocol_config::{GasVectorCoefficientsV1, ProtocolConfig};
+use iota_protocol_config::{
+    GasVectorCoefficientsV1, PerObjectCongestionControlMode, ProtocolConfig,
+};
 use iota_sdk_types::{
     Address, Argument, Identifier, MoveAuthenticator, MoveAuthenticatorV1, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, Transaction,
@@ -247,12 +249,13 @@ async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Erro
 }
 
 /// A plain transfer submitted with the gas vector fully active on every node:
-/// the `attestation_gas_vector` flag, a coefficient table, and the
-/// memory-bandwidth ceiling. The attestor prices its dry-run and attests
-/// `AttestationData::V2` (the payload identity is asserted at the authority
-/// level in `validator_v2_tests`); here the claim is that the whole cluster
-/// accepts and sequences such a submission — the producer, the flag-gated
-/// acceptance, and the rate rule all active at once.
+/// the `attestation_gas_vector` flag, a coefficient table, the
+/// memory-bandwidth ceiling, and `GasVectorV1` congestion control. The
+/// attestor prices its dry-run and attests `AttestationData::V2` (the payload
+/// identity is asserted at the authority level in `validator_v2_tests`); here
+/// the claim is that the whole cluster accepts, sequences, and schedules such
+/// a submission — the producer, the flag-gated acceptance, the rate rule, and
+/// the time-denominated admission all active at once.
 ///
 /// The nested coefficient table cannot be expressed through the flat env
 /// variables the other tests use, so this test installs the process-wide
@@ -276,6 +279,18 @@ async fn test_tx_accepted_with_gas_vector_active() -> Result<(), anyhow::Error> 
             safety_multiplier_bps: 15_000,
             ..Default::default()
         });
+        // GasVectorV1 congestion control: the per-commit budget switches to
+        // nanoseconds, the worker pool and gas-price feedback must be active,
+        // and only gas-vector-attested transactions are admitted.
+        config.set_congestion_control_gas_price_feedback_mechanism_for_testing(true);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
+            2_000_000_000, // 2 s of attested cpu_time per commit
+        );
+        config.set_max_concurrent_execution_workers_for_testing(4);
+        config.set_per_object_congestion_control_mode_for_testing(
+            PerObjectCongestionControlMode::GasVectorV1,
+        );
         config
     });
 

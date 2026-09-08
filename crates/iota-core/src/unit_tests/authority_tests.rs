@@ -6688,7 +6688,9 @@ async fn test_consensus_handler_per_object_congestion_control(
     let shared_objects = create_shared_objects(2);
 
     let non_congested_tx_count = match mode {
-        PerObjectCongestionControlMode::None => unreachable!(),
+        PerObjectCongestionControlMode::None | PerObjectCongestionControlMode::GasVectorV1 => {
+            unreachable!()
+        }
         PerObjectCongestionControlMode::TotalGasBudget
         | PerObjectCongestionControlMode::TotalComputationUnits => 5,
         PerObjectCongestionControlMode::TotalTxCount => 2,
@@ -6702,7 +6704,9 @@ async fn test_consensus_handler_per_object_congestion_control(
     protocol_config.set_per_object_congestion_control_mode_for_testing(mode);
 
     match mode {
-        PerObjectCongestionControlMode::None => unreachable!(),
+        PerObjectCongestionControlMode::None | PerObjectCongestionControlMode::GasVectorV1 => {
+            unreachable!()
+        }
         PerObjectCongestionControlMode::TotalGasBudget
         | PerObjectCongestionControlMode::TotalComputationUnits => {
             protocol_config

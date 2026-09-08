@@ -100,8 +100,9 @@ impl VerifiedExecutableAttestedTransaction {
     /// transaction was not attested — or was attested with the gas vector
     /// (`AttestationData::V2`), whose `cpu_time` is nanoseconds, not units;
     /// mixing the two in the unit-denominated congestion tracker would be
-    /// meaningless. V2 falls back to the unattested path until admission is
-    /// time-denominated.
+    /// meaningless. In the unit-denominated modes V2 falls back to the
+    /// unattested path; the time-denominated mode (`GasVectorV1`) reads
+    /// [`Self::attested_cpu_time`] instead.
     pub fn attested_computation_units(&self) -> Option<u64> {
         self.attestation
             .as_ref()
@@ -110,11 +111,22 @@ impl VerifiedExecutableAttestedTransaction {
 
     /// Returns the attested gas vector's lane-time in reference-hardware
     /// nanoseconds, or `None` for unattested or V1-attested transactions.
-    /// The consumer is the time-denominated admission check when it lands.
+    /// Under `PerObjectCongestionControlMode::GasVectorV1` this is the
+    /// transaction's estimated execution duration.
     pub fn attested_cpu_time(&self) -> Option<u64> {
         self.attestation
             .as_ref()
             .and_then(|a| a.declared_cpu_time())
+    }
+
+    /// Returns the attested gas vector's moved bytes, or `None` for
+    /// unattested or V1-attested transactions. Together with
+    /// [`Self::attested_cpu_time`] it gives the declared memory-bandwidth
+    /// rate the `GasVectorV1` admission check sums across workers.
+    pub fn attested_moved_bytes(&self) -> Option<u64> {
+        self.attestation
+            .as_ref()
+            .and_then(|a| a.declared_moved_bytes())
     }
 
     /// Consume the wrapper and return its parts.

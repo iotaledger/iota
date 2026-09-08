@@ -763,6 +763,13 @@ pub enum IotaError {
          for the declared bytes"
     )]
     AttestationRateAboveBandwidth { cpu_time: u64, moved_bytes: u64 },
+
+    #[error(
+        "the active congestion control mode admits only gas-vector-attested \
+         transactions (AttestationData::V2); an unattested or V1-attested \
+         transaction has no declared cpu_time and could never be scheduled"
+    )]
+    AttestationGasVectorRequired,
 }
 
 #[repr(u64)]

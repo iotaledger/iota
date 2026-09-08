@@ -60,6 +60,7 @@ use std::{
 };
 
 use iota_common::fatal;
+use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
@@ -291,6 +292,15 @@ pub async fn validate_and_resolve_conflicts(
                 AttestationData::V1 {
                     computation_units, ..
                 } => {
+                    if matches!(
+                        protocol_config.per_object_congestion_control_mode(),
+                        PerObjectCongestionControlMode::GasVectorV1
+                    ) {
+                        // The mode schedules by the attested gas vector only;
+                        // a V1 payload carries no cpu_time and would sit in
+                        // deferral until cancelled, so drop it here.
+                        return Some(IotaError::AttestationGasVectorRequired);
+                    }
                     let min_attested_units = protocol_config
                         .base_tx_cost_fixed()
                         .min(protocol_config.gas_rounding_step());
@@ -369,6 +379,24 @@ pub async fn validate_and_resolve_conflicts(
                 keep[i] = false;
                 continue;
             }
+        } else if matches!(
+            epoch_store
+                .protocol_config()
+                .per_object_congestion_control_mode(),
+            PerObjectCongestionControlMode::GasVectorV1
+        ) {
+            // Under GasVectorV1 an unattested transaction has no declared
+            // cpu_time and could never be scheduled — drop it here instead of
+            // letting it sit in deferral until cancellation.
+            let e = IotaError::AttestationGasVectorRequired;
+            warn!(
+                ?digest,
+                error = ?e,
+                "unattested transaction dropped: the congestion mode requires the gas vector"
+            );
+            dropped.push((digest, e));
+            keep[i] = false;
+            continue;
         }
 
         // Check #4: Extract owned input objects for lock conflict detection.

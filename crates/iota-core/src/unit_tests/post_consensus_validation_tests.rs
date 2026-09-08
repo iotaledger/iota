@@ -8,7 +8,9 @@ use std::{path::PathBuf, sync::Arc};
 
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
-use iota_protocol_config::{GasVectorCoefficientsV1, OverrideGuard, ProtocolConfig};
+use iota_protocol_config::{
+    GasVectorCoefficientsV1, OverrideGuard, PerObjectCongestionControlMode, ProtocolConfig,
+};
 use iota_sdk_types::{
     Address, Command, Identifier, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
     Version,
@@ -3000,5 +3002,98 @@ async fn test_gas_vector_attestation_rate_within_bandwidth_kept() {
     // above is accepted when no ceiling is configured.
     let (kept, dropped, _) = run_gas_vector_case(true, 1_000, None).await;
     assert_eq!(kept, 1, "rule must be dormant without B_mem: {dropped:?}");
+    assert!(dropped.is_empty());
+}
+
+/// Protocol overrides activating `GasVectorV1` congestion control, satisfying
+/// every invariant the mode's getter asserts.
+fn activate_gas_vector_mode(mut config: ProtocolConfig) -> ProtocolConfig {
+    config.set_enable_pcool_flow_for_testing(true);
+    config.set_enable_validator_attestation_for_testing(true);
+    config.set_attestation_gas_vector_for_testing(true);
+    config.set_gas_vector_coefficients_for_testing(GasVectorCoefficientsV1 {
+        fixed_overhead_fs: 1_000_000_000, // 1 µs
+        safety_multiplier_bps: 10_000,
+        memory_bandwidth_bytes_per_sec: 1_000_000_000,
+        ..Default::default()
+    });
+    config.set_congestion_control_gas_price_feedback_mechanism_for_testing(true);
+    config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+    config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(2_000_000_000);
+    config.set_max_concurrent_execution_workers_for_testing(4);
+    config.set_per_object_congestion_control_mode_for_testing(
+        PerObjectCongestionControlMode::GasVectorV1,
+    );
+    config
+}
+
+/// Runs validation over one transfer wrapped by `wrap`, under GasVectorV1
+/// congestion control, and returns (kept, dropped-errors).
+async fn run_under_gas_vector_mode(
+    wrap: impl FnOnce(TransactionEnvelope) -> VerifiedSequencedConsensusTransaction,
+) -> (usize, Vec<IotaError>) {
+    let _guard =
+        ProtocolConfig::apply_overrides_for_testing(|_, config| activate_gas_vector_mode(config));
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = get_key_pair::<AccountPrivateKey>().0;
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+
+    let mut transactions = vec![wrap(tx)];
+    let (dropped, _locks, _digests) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    (
+        transactions.len(),
+        dropped.into_iter().map(|(_, e)| e).collect(),
+    )
+}
+
+/// Under GasVectorV1 congestion control a V1 attestation payload is dropped:
+/// it carries no cpu_time and could never be scheduled.
+#[sim_test]
+async fn test_gas_vector_mode_drops_v1_payload() {
+    let (kept, dropped) = run_under_gas_vector_mode(|tx| make_user_tx_v2(tx, 0, 1_000)).await;
+    assert_eq!(kept, 0);
+    assert!(
+        matches!(dropped[..], [IotaError::AttestationGasVectorRequired]),
+        "expected AttestationGasVectorRequired, got {dropped:?}",
+    );
+}
+
+/// Under GasVectorV1 congestion control an unattested transaction is dropped
+/// for the same reason.
+#[sim_test]
+async fn test_gas_vector_mode_drops_unattested() {
+    let (kept, dropped) = run_under_gas_vector_mode(make_user_tx_v1).await;
+    assert_eq!(kept, 0);
+    assert!(
+        matches!(dropped[..], [IotaError::AttestationGasVectorRequired]),
+        "expected AttestationGasVectorRequired, got {dropped:?}",
+    );
+}
+
+/// A gas-vector attestation passes validation unchanged under the mode.
+#[sim_test]
+async fn test_gas_vector_mode_keeps_v2_payload() {
+    let (kept, dropped) =
+        run_under_gas_vector_mode(|tx| make_user_tx_v2_gas_vector(tx, 0, 1_000_000)).await;
+    assert_eq!(kept, 1, "V2 payload must be kept: {dropped:?}");
     assert!(dropped.is_empty());
 }

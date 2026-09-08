@@ -474,3 +474,89 @@ async fn test_divergence_recomputation_flags_tampered_attestation() {
         "expected exactly one divergent outcome"
     );
 }
+
+/// Under `GasVectorV1` congestion control an unpriceable dry-run cannot fall
+/// back to a V1 attestation — the validators would drop it — so the attestor
+/// refuses the transaction outright. An all-zero coefficient table makes
+/// every profile unpriceable (a zero prediction is not attestable).
+#[tokio::test]
+async fn test_attestation_refused_when_unpriceable_under_gas_vector_mode() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_attestation_gas_vector_for_testing(true);
+        config.set_gas_vector_coefficients_for_testing(
+            iota_protocol_config::GasVectorCoefficientsV1 {
+                memory_bandwidth_bytes_per_sec: 1_000_000_000,
+                ..Default::default()
+            },
+        );
+        config.set_congestion_control_gas_price_feedback_mechanism_for_testing(true);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
+        config
+            .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(2_000_000_000);
+        config.set_max_concurrent_execution_workers_for_testing(4);
+        config.set_per_object_congestion_control_mode_for_testing(
+            iota_protocol_config::PerObjectCongestionControlMode::GasVectorV1,
+        );
+        config
+    });
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    // Consensus must never be reached — any submit call panics the test.
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().never();
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(mock),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+        50,
+    ));
+
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+    let tx_data = Transaction::new_transfer(
+        dbg_addr(2),
+        object.object_ref(),
+        sender,
+        gas.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+
+    let (update, _weight) = ValidatorService::submit_single_tx(
+        &authority_state,
+        &consensus_adapter,
+        &metrics,
+        &epoch_store,
+        &soft_locks,
+        tx,
+    )
+    .await;
+    assert!(
+        matches!(update, TxStatusUpdate::Rejected { .. }),
+        "expected Rejected for an unpriceable dry-run under GasVectorV1, got {update:?}",
+    );
+}
