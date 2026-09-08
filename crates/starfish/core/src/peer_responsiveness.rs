@@ -211,12 +211,22 @@ impl PeerResponsiveness {
         })
     }
 
-    /// Records the latency of a primary block received on `peer`'s stream. The
-    /// latency is measured from the block's own timestamp, so the peer's clock
-    /// offset is part of the sample and, unlike the per-author header latency,
-    /// does not cancel across peers.
-    pub(crate) fn record_streaming_block_delivery(&self, peer: AuthorityIndex, latency: Duration) {
-        let sample = (latency.as_secs_f64() * 1_000.0).max(MIN_LATENCY_MS);
+    /// Records the delivery of a primary block received on `peer`'s stream,
+    /// measured from the block's own timestamp to `now_ms`. The peer sets that
+    /// timestamp, so its clock offset is part of the sample and, unlike the
+    /// per-author header latency, does not cancel across peers. A timestamp
+    /// ahead of `now_ms` is dropped rather than floored, or a clock running
+    /// ahead would read as the fastest peer.
+    pub(crate) fn record_streaming_block_delivery(
+        &self,
+        peer: AuthorityIndex,
+        now_ms: BlockTimestampMs,
+        timestamp_ms: BlockTimestampMs,
+    ) {
+        if timestamp_ms > now_ms {
+            return;
+        }
+        let sample = ((now_ms - timestamp_ms) as f64).max(MIN_LATENCY_MS);
         let mut streaming_blocks = self.streaming_blocks.lock();
         let Some(previous) = streaming_blocks.get_mut(peer.value()) else {
             return;
@@ -881,15 +891,26 @@ mod tests {
     #[test]
     fn streaming_block_delivery_seeds_then_smooths_ewma() {
         let pr = responsiveness(4);
-        pr.record_streaming_block_delivery(idx(1), ms(100));
+        pr.record_streaming_block_delivery(idx(1), 100, 0);
         assert_eq!(pr.streaming_block_latency_ms(idx(1)), Some(100.0));
 
-        pr.record_streaming_block_delivery(idx(1), ms(200));
+        pr.record_streaming_block_delivery(idx(1), 200, 0);
         let latency = pr.streaming_block_latency_ms(idx(1)).unwrap();
         assert!((latency - 130.0).abs() < 1e-6, "got {latency}");
 
         pr.clear_streaming_block_delivery(idx(1));
         assert_eq!(pr.streaming_block_latency_ms(idx(1)), None);
+    }
+
+    #[test]
+    fn streaming_block_delivery_ahead_of_now_is_dropped() {
+        let pr = responsiveness(4);
+        pr.record_streaming_block_delivery(idx(1), 1_000, 1_001);
+        assert_eq!(pr.streaming_block_latency_ms(idx(1)), None);
+
+        pr.record_streaming_block_delivery(idx(1), 1_000, 900);
+        pr.record_streaming_block_delivery(idx(1), 1_000, 1_001);
+        assert_eq!(pr.streaming_block_latency_ms(idx(1)), Some(100.0));
     }
 
     #[test]
@@ -899,7 +920,7 @@ mod tests {
         let own_index = idx(0);
         let author = idx(29);
         for peer in 1..29u8 {
-            pr.record_streaming_block_delivery(idx(peer), ms(peer as u64));
+            pr.record_streaming_block_delivery(idx(peer), peer as u64, 0);
         }
 
         let selection = pr
@@ -917,7 +938,7 @@ mod tests {
             starfish_config::local_committee_and_keys(0, vec![1, 1, 1, 1, 100, 100, 1]);
         let pr = PeerResponsiveness::new(&committee, test_metrics());
         for peer in 1..=5u8 {
-            pr.record_streaming_block_delivery(idx(peer), ms(peer as u64 * 10));
+            pr.record_streaming_block_delivery(idx(peer), peer as u64 * 10, 0);
         }
 
         let selection = pr.select_shard_peers(&committee, idx(0), idx(6)).unwrap();
@@ -931,8 +952,8 @@ mod tests {
     fn shard_peer_selection_requires_enough_measurements() {
         let (committee, _) = starfish_config::local_committee_and_keys(0, vec![1; 7]);
         let pr = PeerResponsiveness::new(&committee, test_metrics());
-        pr.record_streaming_block_delivery(idx(1), ms(10));
-        pr.record_streaming_block_delivery(idx(2), ms(20));
+        pr.record_streaming_block_delivery(idx(1), 10, 0);
+        pr.record_streaming_block_delivery(idx(2), 20, 0);
 
         assert!(pr.select_shard_peers(&committee, idx(0), idx(6)).is_none());
     }

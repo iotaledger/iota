@@ -1485,7 +1485,7 @@ impl ConnectionKnowledge {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::sync::Arc;
 
     use parking_lot::RwLock;
     use starfish_config::Parameters;
@@ -1659,7 +1659,8 @@ mod tests {
                 .peer_responsiveness
                 .record_streaming_block_delivery(
                     AuthorityIndex::new_for_test(peer),
-                    Duration::from_millis(peer as u64 * 10),
+                    peer as u64 * 10,
+                    0,
                 );
         }
         cordial_knowledge.handle_useful_shards_from(BTreeMap::from([(author, 10)]));
@@ -1691,7 +1692,8 @@ mod tests {
                 .peer_responsiveness
                 .record_streaming_block_delivery(
                     AuthorityIndex::new_for_test(peer),
-                    Duration::from_millis(peer as u64 * 10),
+                    peer as u64 * 10,
+                    0,
                 );
         }
         cordial_knowledge.handle_useful_shards_from(BTreeMap::from([(author, 10)]));
@@ -1729,7 +1731,8 @@ mod tests {
                 .peer_responsiveness
                 .record_streaming_block_delivery(
                     AuthorityIndex::new_for_test(peer),
-                    Duration::from_millis(peer as u64 * 10),
+                    peer as u64 * 10,
+                    0,
                 );
         }
         cordial_knowledge.handle_useful_shards_from(BTreeMap::from([(author, 10)]));

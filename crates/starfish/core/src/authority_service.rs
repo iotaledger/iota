@@ -924,7 +924,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .observe(latency_to_process_stream.as_secs_f64());
         self.context
             .peer_responsiveness
-            .record_streaming_block_delivery(peer, latency_to_process_stream);
+            .record_streaming_block_delivery(peer, now, block_timestamp_ms);
 
         // 3. Create block headers from bytes from a bundle
 

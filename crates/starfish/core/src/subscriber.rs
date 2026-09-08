@@ -557,7 +557,7 @@ mod test {
         let f = fixture(test_context(4), TestService::new(), StreamMode::Pending);
         f.context
             .peer_responsiveness
-            .record_streaming_block_delivery(f.peer, Duration::from_millis(10));
+            .record_streaming_block_delivery(f.peer, 10, 0);
 
         f.subscriber.unsubscribe(f.peer);
 
