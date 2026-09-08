@@ -234,9 +234,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) accepted_block_headers_round_gap: HistogramVec,
     pub(crate) core_skipped_headers: IntCounterVec,
     pub(crate) core_skipped_transactions: IntCounterVec,
-    pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
     pub(crate) cordial_knowledge_missing_authors: IntGauge,
+    pub(crate) cordial_knowledge_selected_peers: IntGaugeVec,
+    pub(crate) cordial_knowledge_unselected_useful_peers: IntGaugeVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
@@ -368,6 +369,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) dropped_slot_cap_headers_total: IntCounterVec,
     pub(crate) synchronizer_fetch_window_violations: IntCounterVec,
     pub(crate) shard_reconstructor_dropped_shards: IntCounterVec,
+    pub(crate) dropped_out_of_order_streamed_blocks_total: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -770,13 +772,6 @@ impl NodeMetrics {
                 &["peer", "method"],
                 registry,
             ).unwrap(),
-            cordial_knowledge_useful_headers_authors: register_int_counter_vec_with_registry!(
-                "cordial_knowledge_useful_headers_authors",
-                "Useful authors for pushing headers to the local node",
-                &["peer", "author"],
-                registry;
-                MetricLevel::Warn,
-            ).unwrap(),
             cordial_knowledge_useful_shards_authors: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_useful_shards_authors",
                 "Useful authors for pushing shards to the local node",
@@ -787,6 +782,20 @@ impl NodeMetrics {
             cordial_knowledge_missing_authors: register_int_gauge_with_registry!(
                 "cordial_knowledge_missing_authors",
                 "Authors whose blocks are currently missing and whose headers peers are asked to push",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            cordial_knowledge_selected_peers: register_int_gauge_vec_with_registry!(
+                "cordial_knowledge_selected_peers",
+                "Peers currently selected to push this author's headers",
+                &["author"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            cordial_knowledge_unselected_useful_peers: register_int_gauge_vec_with_registry!(
+                "cordial_knowledge_unselected_useful_peers",
+                "Useful peers not selected to push this author's headers",
+                &["author"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
@@ -1419,7 +1428,7 @@ impl NodeMetrics {
             ).unwrap(),
             equivocations_by_authority: register_int_gauge_vec_with_registry!(
                 "equivocations_by_authority",
-                "Equivocations per authority (source: persisted or in_memory)",
+                "Rounds with more than one signed header per authority (source: persisted or in_memory)",
                 &["authority", "source"],
                 registry;
                 MetricLevel::Warn,
@@ -1510,6 +1519,13 @@ impl NodeMetrics {
                 "shard_reconstructor_dropped_shards",
                 "Number of shards dropped by the reconstructor's admission rules, by reason: the relaying peer already contributed a shard in the slot, the slot already holds the maximum number of accumulators, the slot is already resolved, or the peer's retained-shard budget evicted its oldest shard",
                 &["reason"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            dropped_out_of_order_streamed_blocks_total: register_int_counter_vec_with_registry!(
+                "dropped_out_of_order_streamed_blocks_total",
+                "Number of streamed primary blocks dropped because their round did not increase over the subscription stream, by peer",
+                &["peer"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

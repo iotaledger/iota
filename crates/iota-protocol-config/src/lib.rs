@@ -212,6 +212,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             activates).
 //             Stop locking immutable objects in post-consensus conflict
 //             resolution.
+//             Disable Move-based sponsor account authentication on mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3362,6 +3363,15 @@ impl ProtocolConfig {
                     // resolution. Set on all chains; inert where the P-COOL flow
                     // is off.
                     cfg.feature_flags.pcool_skip_immutable_object_locks = true;
+
+                    if chain == Chain::Mainnet {
+                        // Disable Move-based sponsor account authentication.
+                        cfg.feature_flags.enable_move_authentication_for_sponsor = false;
+                        // The pre-consensus sponsor-only flag requires
+                        // `enable_move_authentication_for_sponsor`, so clear it too.
+                        cfg.feature_flags
+                            .pre_consensus_sponsor_only_move_authentication = false;
+                    }
                 }
                 // Use this template when making changes:
                 //

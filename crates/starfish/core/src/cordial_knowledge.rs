@@ -11,6 +11,7 @@ use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
 use iota_metrics::monitored_mpsc::{self, Receiver, Sender};
 use parking_lot::RwLock;
+use rand::{Rng as _, SeedableRng, prelude::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{Mutex, mpsc::error::TrySendError},
@@ -25,6 +26,7 @@ use crate::{
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER,
     network::{BlockBundle, SerializedBlockBundleParts},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
@@ -47,7 +49,7 @@ const EVICTION_CHECK_INTERVAL: usize = 10_000;
 pub type Ancestors = Arc<[BlockRef]>;
 
 /// Tracks one author for which recent peer block bundles contained an accepted
-/// header or referenced a missing ancestor. Those peers are asked to keep
+/// header or referenced a missing ancestor, and the peers asked to keep
 /// including the author's headers in block bundles.
 #[derive(Clone, Default)]
 struct MissingAuthor {
@@ -58,6 +60,8 @@ struct MissingAuthor {
     /// exposed one as a missing ancestor, and the latest local own-block round
     /// when that happened. Does not contain the author.
     useful_peers: BTreeMap<AuthorityIndex, Round>,
+    /// Useful peers selected to push this author's headers.
+    selected_peers: BTreeSet<AuthorityIndex>,
 }
 
 /// Manages the global cordial knowledge state.
@@ -97,6 +101,7 @@ pub(crate) struct CordialKnowledge {
     /// Whether headers are currently requested from each peer. This ensures an
     /// empty set is sent once when the last request is removed.
     has_useful_headers_from_peer: Vec<bool>,
+    rng: StdRng,
 }
 
 /// High-level messages sent to the CordialKnowledge task.
@@ -116,11 +121,10 @@ pub enum CordialKnowledgeMessage {
     /// Update internal state about shards from which authorities are useful for
     /// the local node
     UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
-    /// Authors for which the peer's block bundle contained an accepted header
-    /// or referenced a missing ancestor.
+    /// Useful header information from one peer's block bundle.
     UsefulHeadersFromPeer {
         peer: AuthorityIndex,
-        authors: BTreeSet<AuthorityIndex>,
+        useful_header_authors: BTreeSet<AuthorityIndex>,
     },
 }
 
@@ -231,6 +235,8 @@ impl CordialKnowledgeHandle {
             }
         }
 
+        // Report what this peer's bundle said about headers, so the task can
+        // pick who to ask for the missing authors.
         // Accepted headers remain useful input even when they arrive before the
         // block that references them and therefore prevent a missing ancestor.
         let useful_header_authors = additional_block_headers
@@ -241,7 +247,7 @@ impl CordialKnowledgeHandle {
         if !useful_header_authors.is_empty() {
             let cordial_knowledge_message = CordialKnowledgeMessage::UsefulHeadersFromPeer {
                 peer,
-                authors: useful_header_authors,
+                useful_header_authors,
             };
             if let Err(TrySendError::Closed(_)) =
                 cordial_knowledge_sender.try_send(cordial_knowledge_message)
@@ -278,10 +284,8 @@ impl CordialKnowledge {
 
         let mut connection_knowledges = Vec::with_capacity(num_authorities);
 
-        for peer_index in 0..num_authorities {
-            let peer = AuthorityIndex::from(peer_index as u8);
-            let connection_knowledge =
-                ConnectionKnowledge::new(context.clone(), peer, dag_state.clone());
+        for _ in 0..num_authorities {
+            let connection_knowledge = ConnectionKnowledge::new(context.clone(), dag_state.clone());
 
             let connection_knowledge = Arc::new(RwLock::new(connection_knowledge));
 
@@ -299,6 +303,7 @@ impl CordialKnowledge {
                 missing_authors: vec![None; num_authorities],
                 latest_own_block_round: Round::MIN,
                 has_useful_headers_from_peer: vec![false; num_authorities],
+                rng: StdRng::from_entropy(),
             },
             connection_knowledges,
             cordial_knowledge_sender,
@@ -313,8 +318,9 @@ impl CordialKnowledge {
         context: Arc<Context>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> (Self, Vec<Arc<RwLock<ConnectionKnowledge>>>) {
-        let (cordial_knowledge, connection_knowledges, _sender, _eviction_sender) =
+        let (mut cordial_knowledge, connection_knowledges, _sender, _eviction_sender) =
             Self::new(context, dag_state);
+        cordial_knowledge.rng = StdRng::seed_from_u64(0);
         (cordial_knowledge, connection_knowledges)
     }
 
@@ -470,8 +476,11 @@ impl CordialKnowledge {
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
             }
-            CordialKnowledgeMessage::UsefulHeadersFromPeer { peer, authors } => {
-                self.handle_useful_headers_from_peer(peer, authors);
+            CordialKnowledgeMessage::UsefulHeadersFromPeer {
+                peer,
+                useful_header_authors,
+            } => {
+                self.handle_useful_headers_from_peer(peer, useful_header_authors);
                 None
             }
         }
@@ -513,23 +522,24 @@ impl CordialKnowledge {
         }
     }
 
-    /// Records authors for which the peer's block bundle contained an accepted
-    /// header or referenced a missing ancestor.
+    /// Record useful header information from one peer's block bundle.
     fn handle_useful_headers_from_peer(
         &mut self,
         peer: AuthorityIndex,
-        authors: BTreeSet<AuthorityIndex>,
+        useful_header_authors: BTreeSet<AuthorityIndex>,
     ) {
         let own_index = self.context.own_index;
         let latest_own_block_round = self.latest_own_block_round;
-        for author in authors {
+        for author in useful_header_authors {
             if author == own_index {
                 continue;
             }
-            let state = self.missing_authors[author].get_or_insert_default();
-            state.last_useful_round = latest_own_block_round;
+            let missing_author = self.missing_authors[author].get_or_insert_default();
+            missing_author.last_useful_round = latest_own_block_round;
             if peer != author && peer != own_index {
-                state.useful_peers.insert(peer, latest_own_block_round);
+                missing_author
+                    .useful_peers
+                    .insert(peer, latest_own_block_round);
             }
         }
     }
@@ -540,33 +550,57 @@ impl CordialKnowledge {
         &mut self,
         vec_connection_knowledge_msgs_batch: &mut [Vec<ConnectionKnowledgeMessage>],
     ) {
-        let own_index = self.context.own_index;
-        let latest_own_block_round = self.latest_own_block_round;
-        let is_stale = |round: Round| {
-            latest_own_block_round.saturating_sub(round) > MAX_ROUND_GAP_FOR_USEFUL_PARTS
-        };
+        self.refresh_missing_authors_and_peers();
 
-        let mut missing_authors: i64 = 0;
+        let bounded = self.context.parameters.enable_bounded_header_advertisement;
+        let latest_own_block_round = self.latest_own_block_round;
+        let mut missing_authors = 0;
         let mut useful_headers_from_peer: Vec<BTreeMap<AuthorityIndex, Round>> =
             vec![BTreeMap::new(); self.context.committee.size()];
-        for (author_index, state) in self.missing_authors.iter_mut().enumerate() {
-            if state
-                .as_ref()
-                .is_some_and(|missing| is_stale(missing.last_useful_round))
-            {
-                *state = None;
-            }
-            let Some(missing) = state else { continue };
-            missing.useful_peers.retain(|_, round| !is_stale(*round));
+        for (author_index, missing_author) in self.missing_authors.iter().enumerate() {
+            let Some(missing_author) = missing_author else {
+                continue;
+            };
             missing_authors += 1;
+            let asked_count = if bounded {
+                missing_author.selected_peers.len()
+            } else {
+                missing_author.useful_peers.len()
+            };
+            let unselected_useful_count = if bounded {
+                missing_author
+                    .useful_peers
+                    .len()
+                    .saturating_sub(missing_author.selected_peers.len())
+            } else {
+                0
+            };
             let author = AuthorityIndex::from(author_index as u8);
-            for peer in missing.useful_peers.keys() {
-                useful_headers_from_peer[peer.value()].insert(author, latest_own_block_round);
+            self.context
+                .metrics
+                .node_metrics
+                .cordial_knowledge_selected_peers
+                .with_label_values(&[self.context.authority_hostname(author)])
+                .set(asked_count as i64);
+            self.context
+                .metrics
+                .node_metrics
+                .cordial_knowledge_unselected_useful_peers
+                .with_label_values(&[self.context.authority_hostname(author)])
+                .set(unselected_useful_count as i64);
+            // Bounding asks the selected subset; otherwise every useful peer is asked.
+            if bounded {
+                for peer in &missing_author.selected_peers {
+                    useful_headers_from_peer[peer.value()].insert(author, latest_own_block_round);
+                }
+            } else {
+                for peer in missing_author.useful_peers.keys() {
+                    useful_headers_from_peer[peer.value()].insert(author, latest_own_block_round);
+                }
             }
         }
-
         for (peer_index, authors) in useful_headers_from_peer.into_iter().enumerate() {
-            if peer_index == own_index.value() {
+            if peer_index == self.context.own_index.value() {
                 continue;
             }
             let non_empty = !authors.is_empty();
@@ -583,6 +617,132 @@ impl CordialKnowledge {
             .node_metrics
             .cordial_knowledge_missing_authors
             .set(missing_authors);
+    }
+
+    /// Remove stale authors and useful peers. When bounded, retain selected
+    /// useful peers and fill free places. With ranking enabled, keep the
+    /// fastest measured useful peer selected and occasionally try another
+    /// useful peer.
+    fn refresh_missing_authors_and_peers(&mut self) {
+        let bounded = self.context.parameters.enable_bounded_header_advertisement;
+        let latest_own_block_round = self.latest_own_block_round;
+        let committee_size = self.context.committee.size();
+        let is_stale = |round: Round| {
+            latest_own_block_round.saturating_sub(round) > MAX_ROUND_GAP_FOR_USEFUL_PARTS
+        };
+
+        for author_index in 0..committee_size {
+            let author = AuthorityIndex::from(author_index as u8);
+            let Some(missing_author) = self.missing_authors[author_index].as_mut() else {
+                continue;
+            };
+
+            if is_stale(missing_author.last_useful_round) {
+                self.missing_authors[author_index] = None;
+                self.context
+                    .metrics
+                    .node_metrics
+                    .cordial_knowledge_selected_peers
+                    .with_label_values(&[self.context.authority_hostname(author)])
+                    .set(0);
+                self.context
+                    .metrics
+                    .node_metrics
+                    .cordial_knowledge_unselected_useful_peers
+                    .with_label_values(&[self.context.authority_hostname(author)])
+                    .set(0);
+                continue;
+            }
+
+            missing_author
+                .useful_peers
+                .retain(|_, round| !is_stale(*round));
+            if !bounded {
+                continue;
+            }
+
+            missing_author
+                .selected_peers
+                .retain(|peer| missing_author.useful_peers.contains_key(peer));
+            for peer in missing_author.useful_peers.keys() {
+                if missing_author.selected_peers.len() == MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER
+                {
+                    break;
+                }
+                missing_author.selected_peers.insert(*peer);
+            }
+            if self.context.parameters.enable_peer_responsiveness_ranking {
+                Self::select_fastest_useful_peer(&self.context, author, missing_author);
+                Self::explore_header_peer(&self.context, &mut self.rng, author, missing_author);
+            }
+        }
+    }
+
+    fn select_fastest_useful_peer(
+        context: &Context,
+        author: AuthorityIndex,
+        missing_author: &mut MissingAuthor,
+    ) {
+        let useful_peers: Vec<_> = missing_author.useful_peers.keys().copied().collect();
+        let Some((fastest_peer, fastest_latency)) = context
+            .peer_responsiveness
+            .fastest_peer_for_header_delivery(author, &useful_peers)
+        else {
+            return;
+        };
+        if missing_author.selected_peers.contains(&fastest_peer) {
+            return;
+        }
+
+        if missing_author.selected_peers.len() == MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER {
+            let selected_peers: Vec<_> = missing_author.selected_peers.iter().copied().collect();
+            let Some((slowest_peer, slowest_latency)) = context
+                .peer_responsiveness
+                .slowest_peer_for_header_delivery(author, &selected_peers)
+            else {
+                return;
+            };
+            if slowest_latency.is_some_and(|latency| fastest_latency >= latency) {
+                return;
+            }
+            missing_author.selected_peers.remove(&slowest_peer);
+        }
+
+        missing_author.selected_peers.insert(fastest_peer);
+    }
+
+    fn explore_header_peer(
+        context: &Context,
+        rng: &mut StdRng,
+        author: AuthorityIndex,
+        missing_author: &mut MissingAuthor,
+    ) {
+        if missing_author.selected_peers.len() != MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER
+            || !context.peer_responsiveness.should_explore(rng)
+        {
+            return;
+        }
+
+        let candidates: Vec<_> = missing_author
+            .useful_peers
+            .keys()
+            .filter(|peer| !missing_author.selected_peers.contains(peer))
+            .copied()
+            .collect();
+        if candidates.is_empty() {
+            return;
+        }
+        let peer = candidates[rng.gen_range(0..candidates.len())];
+        let selected_peers: Vec<_> = missing_author.selected_peers.iter().copied().collect();
+        let Some((slowest_peer, _)) = context
+            .peer_responsiveness
+            .slowest_peer_for_header_delivery(author, &selected_peers)
+        else {
+            return;
+        };
+
+        missing_author.selected_peers.remove(&slowest_peer);
+        missing_author.selected_peers.insert(peer);
     }
 
     /// Prepare useful authors message for each connection knowledge.
@@ -834,7 +994,6 @@ pub enum ConnectionKnowledgeMessage {
 /// Receives updates from the global cordial knowledge
 pub struct ConnectionKnowledge {
     context: Arc<Context>,
-    peer: AuthorityIndex,
     dag_state: Arc<RwLock<DagState>>,
     /// Keeps track of which headers are not known by the peer yet.
     headers_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
@@ -855,16 +1014,11 @@ pub struct ConnectionKnowledge {
 }
 
 impl ConnectionKnowledge {
-    pub fn new(
-        context: Arc<Context>,
-        peer: AuthorityIndex,
-        dag_state: Arc<RwLock<DagState>>,
-    ) -> Self {
+    pub fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
         let num_authorities = context.committee.size();
 
         Self {
             dag_state,
-            peer,
             last_useful_headers_to_peer_round: vec![None; num_authorities],
             last_useful_shards_to_peer_round: vec![None; num_authorities],
             last_useful_headers_from_peer_round: vec![None; num_authorities],
@@ -1196,17 +1350,6 @@ impl ConnectionKnowledge {
             .collect::<BTreeSet<AuthorityIndex>>();
 
         // Report useful authors
-        let peer_hostname = self.context.authority_hostname(self.peer);
-        for author in &useful_headers_authors_from_peer {
-            let author_hostname = self.context.authority_hostname(*author);
-            self.context
-                .metrics
-                .node_metrics
-                .cordial_knowledge_useful_headers_authors
-                .with_label_values(&[peer_hostname, author_hostname])
-                .inc();
-        }
-
         for author in &useful_shards_authors_from_peer {
             let author_hostname = self.context.authority_hostname(*author);
             self.context
@@ -1310,6 +1453,7 @@ mod tests {
     use std::sync::Arc;
 
     use parking_lot::RwLock;
+    use starfish_config::Parameters;
     use tokio::time::sleep;
 
     use super::*;
@@ -1358,6 +1502,69 @@ mod tests {
             AuthorityIndex::new_for_test(peer),
             BTreeSet::from([AuthorityIndex::new_for_test(missing_author)]),
         );
+    }
+
+    /// A worker with bounded peer selection.
+    fn bounded_cordial_knowledge_for_test(
+        validators: usize,
+    ) -> (CordialKnowledge, Vec<Arc<RwLock<ConnectionKnowledge>>>) {
+        let (context, _key_pairs) = Context::new_for_test(validators);
+        let parameters = Parameters {
+            enable_bounded_header_advertisement: true,
+            ..context.parameters.clone()
+        };
+        let context = Arc::new(context.with_parameters(parameters));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        CordialKnowledge::new_for_test(context, dag_state)
+    }
+
+    fn ranked_cordial_knowledge_for_test(
+        validators: usize,
+    ) -> (CordialKnowledge, Vec<Arc<RwLock<ConnectionKnowledge>>>) {
+        let (context, _key_pairs) = Context::new_for_test(validators);
+        let parameters = Parameters {
+            enable_bounded_header_advertisement: true,
+            enable_peer_responsiveness_ranking: true,
+            ..context.parameters.clone()
+        };
+        let context = Arc::new(context.with_parameters(parameters));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        CordialKnowledge::new_for_test(context, dag_state)
+    }
+
+    fn selected_peers_gauge(cordial_knowledge: &CordialKnowledge, author: AuthorityIndex) -> i64 {
+        cordial_knowledge
+            .context
+            .metrics
+            .node_metrics
+            .cordial_knowledge_selected_peers
+            .with_label_values(&[cordial_knowledge.context.authority_hostname(author)])
+            .get()
+    }
+
+    fn unselected_useful_peers_gauge(
+        cordial_knowledge: &CordialKnowledge,
+        author: AuthorityIndex,
+    ) -> i64 {
+        cordial_knowledge
+            .context
+            .metrics
+            .node_metrics
+            .cordial_knowledge_unselected_useful_peers
+            .with_label_values(&[cordial_knowledge.context.authority_hostname(author)])
+            .get()
+    }
+
+    fn selected_peers(
+        cordial_knowledge: &CordialKnowledge,
+        author: AuthorityIndex,
+    ) -> Vec<AuthorityIndex> {
+        cordial_knowledge.missing_authors[author]
+            .as_ref()
+            .map(|missing_author| missing_author.selected_peers.iter().copied().collect())
+            .unwrap_or_default()
     }
 
     fn asks_nothing(connection_knowledge: &Arc<RwLock<ConnectionKnowledge>>) -> bool {
@@ -1473,8 +1680,8 @@ mod tests {
         report_missing(&mut cordial_knowledge, 3, own_index.value() as u8);
 
         assert!(cordial_knowledge.missing_authors[own_index].is_none());
-        let state = cordial_knowledge.missing_authors[author].as_ref().unwrap();
-        assert!(!state.useful_peers.contains_key(&author));
+        let missing_author = cordial_knowledge.missing_authors[author].as_ref().unwrap();
+        assert!(!missing_author.useful_peers.contains_key(&author));
         let batch = recompute(&mut cordial_knowledge);
         assert!(batch.iter().all(|msgs| msgs.is_empty()));
     }
@@ -1496,11 +1703,14 @@ mod tests {
                 .process_vec_messages(msgs);
         }
         assert!(!asks_nothing(&connection_knowledges[1]));
+        assert_eq!(selected_peers_gauge(&cordial_knowledge, author), 2);
 
         cordial_knowledge.latest_own_block_round = 10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS + 1;
         let mut batch = recompute(&mut cordial_knowledge);
 
         assert!(cordial_knowledge.missing_authors[author].is_none());
+        assert_eq!(selected_peers_gauge(&cordial_knowledge, author), 0);
+        assert_eq!(unselected_useful_peers_gauge(&cordial_knowledge, author), 0);
         for index in [1, 2] {
             assert_eq!(asked_authors(&batch[index]), Some(BTreeSet::new()));
             let msgs = std::mem::take(&mut batch[index]);
@@ -1545,9 +1755,12 @@ mod tests {
 
         report_missing(&mut cordial_knowledge, 1, 4);
 
-        let state = cordial_knowledge.missing_authors[author].as_ref().unwrap();
-        assert_eq!(state.last_useful_round, 42);
-        assert_eq!(state.useful_peers[&AuthorityIndex::new_for_test(1)], 42);
+        let missing_author = cordial_knowledge.missing_authors[author].as_ref().unwrap();
+        assert_eq!(missing_author.last_useful_round, 42);
+        assert_eq!(
+            missing_author.useful_peers[&AuthorityIndex::new_for_test(1)],
+            42
+        );
         let batch = recompute(&mut cordial_knowledge);
         match &batch[1][..] {
             [ConnectionKnowledgeMessage::SetUsefulHeadersFromPeer(set)] => {
@@ -1555,6 +1768,296 @@ mod tests {
             }
             other => panic!("unexpected messages: {other:?}"),
         }
+    }
+
+    /// At most MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER useful peers are asked
+    /// for one author.
+    #[tokio::test]
+    async fn test_at_most_three_peers_are_asked_for_one_author() {
+        let (mut cordial_knowledge, _connection_knowledges) =
+            bounded_cordial_knowledge_for_test(10);
+        cordial_knowledge.latest_own_block_round = 10;
+        let author = AuthorityIndex::new_for_test(9);
+
+        for peer in 1..9 {
+            report_missing(&mut cordial_knowledge, peer, 9);
+        }
+        let batch = recompute(&mut cordial_knowledge);
+
+        let missing_author = cordial_knowledge.missing_authors[author].as_ref().unwrap();
+        assert_eq!(
+            missing_author.selected_peers.len(),
+            MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER
+        );
+        assert!(
+            missing_author
+                .selected_peers
+                .iter()
+                .all(|peer| missing_author.useful_peers.contains_key(peer))
+        );
+        assert_eq!(
+            selected_peers_gauge(&cordial_knowledge, author),
+            MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER as i64
+        );
+        assert_eq!(unselected_useful_peers_gauge(&cordial_knowledge, author), 5);
+        let asked = batch
+            .iter()
+            .filter(|msgs| asked_authors(msgs).is_some_and(|set| set.contains(&author)))
+            .count();
+        assert_eq!(asked, MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER);
+    }
+
+    /// Without the bound every referencing peer is asked, as before.
+    #[tokio::test]
+    async fn test_every_referencing_peer_is_asked_when_unbounded() {
+        let (mut cordial_knowledge, _connection_knowledges) = cordial_knowledge_for_test(10);
+        cordial_knowledge.latest_own_block_round = 10;
+        let author = AuthorityIndex::new_for_test(9);
+
+        for peer in 1..9 {
+            report_missing(&mut cordial_knowledge, peer, 9);
+        }
+        let batch = recompute(&mut cordial_knowledge);
+
+        assert!(selected_peers(&cordial_knowledge, author).is_empty());
+        assert_eq!(selected_peers_gauge(&cordial_knowledge, author), 8);
+        assert_eq!(unselected_useful_peers_gauge(&cordial_knowledge, author), 0);
+        let asked = batch
+            .iter()
+            .filter(|msgs| asked_authors(msgs).is_some_and(|set| set.contains(&author)))
+            .count();
+        assert_eq!(asked, 8);
+    }
+
+    /// Only peers that supplied or referenced an author's headers are selected.
+    #[tokio::test]
+    async fn test_only_useful_peers_are_selected() {
+        let (mut cordial_knowledge, _connection_knowledges) =
+            bounded_cordial_knowledge_for_test(10);
+        cordial_knowledge.latest_own_block_round = 10;
+        let author = AuthorityIndex::new_for_test(9);
+
+        report_missing(&mut cordial_knowledge, 4, 9);
+        report_missing(&mut cordial_knowledge, 6, 9);
+        recompute(&mut cordial_knowledge);
+
+        assert_eq!(
+            selected_peers(&cordial_knowledge, author),
+            [4, 6].map(AuthorityIndex::new_for_test)
+        );
+        assert_eq!(unselected_useful_peers_gauge(&cordial_knowledge, author), 0);
+
+        let (mut cordial_knowledge, _connection_knowledges) =
+            bounded_cordial_knowledge_for_test(10);
+        cordial_knowledge.latest_own_block_round = 10;
+        for peer in [2, 4, 6, 8] {
+            report_missing(&mut cordial_knowledge, peer, 9);
+        }
+        recompute(&mut cordial_knowledge);
+
+        let chosen = selected_peers(&cordial_knowledge, author);
+        assert_eq!(chosen.len(), MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER);
+        assert!(
+            chosen
+                .iter()
+                .all(|peer| [2, 4, 6, 8].contains(&(peer.value() as u8)))
+        );
+        assert_eq!(unselected_useful_peers_gauge(&cordial_knowledge, author), 1);
+    }
+
+    /// A selected peer is removed when it is no longer useful.
+    #[tokio::test]
+    async fn test_selected_peer_is_replaced_after_usefulness_expires() {
+        let (mut cordial_knowledge, _connection_knowledges) = bounded_cordial_knowledge_for_test(6);
+        cordial_knowledge.latest_own_block_round = 10;
+        let author = AuthorityIndex::new_for_test(5);
+
+        report_missing(&mut cordial_knowledge, 1, 5);
+        report_missing(&mut cordial_knowledge, 2, 5);
+        report_missing(&mut cordial_knowledge, 3, 5);
+        recompute(&mut cordial_knowledge);
+        assert_eq!(
+            selected_peers(&cordial_knowledge, author),
+            [1, 2, 3].map(AuthorityIndex::new_for_test)
+        );
+
+        cordial_knowledge.latest_own_block_round = 30;
+        report_missing(&mut cordial_knowledge, 2, 5);
+        report_missing(&mut cordial_knowledge, 3, 5);
+        report_missing(&mut cordial_knowledge, 4, 5);
+        cordial_knowledge.latest_own_block_round = 10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS + 1;
+        recompute(&mut cordial_knowledge);
+
+        assert_eq!(
+            selected_peers(&cordial_knowledge, author),
+            [2, 3, 4].map(AuthorityIndex::new_for_test)
+        );
+    }
+
+    /// Selected useful peers are not redrawn from one own block to the next.
+    #[tokio::test]
+    async fn test_a_healthy_choice_is_not_redrawn() {
+        let (mut cordial_knowledge, _connection_knowledges) = bounded_cordial_knowledge_for_test(8);
+        cordial_knowledge.latest_own_block_round = 10;
+        let author = AuthorityIndex::new_for_test(7);
+
+        for peer in 1..=4 {
+            report_missing(&mut cordial_knowledge, peer, 7);
+        }
+        recompute(&mut cordial_knowledge);
+        let chosen = selected_peers(&cordial_knowledge, author);
+
+        for round in 11..=20 {
+            cordial_knowledge.latest_own_block_round = round;
+            for peer in 1..=4 {
+                report_missing(&mut cordial_knowledge, peer, 7);
+            }
+            let batch = recompute(&mut cordial_knowledge);
+            assert_eq!(selected_peers(&cordial_knowledge, author), chosen);
+            for peer in &chosen {
+                assert_eq!(
+                    asked_authors(&batch[peer.value()]),
+                    Some(BTreeSet::from([author]))
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_full_selection_explores_another_peer() {
+        let (mut cordial_knowledge, _connection_knowledges) = ranked_cordial_knowledge_for_test(8);
+        let context = cordial_knowledge.context.clone();
+        let author = AuthorityIndex::new_for_test(7);
+        for (peer, latency_ms) in [(1, 10), (2, 20), (3, 30), (4, 40)] {
+            context
+                .peer_responsiveness
+                .record_streaming_header_deliveries(
+                    AuthorityIndex::new_for_test(peer),
+                    latency_ms,
+                    [(author, 1, 0)],
+                );
+            report_missing(&mut cordial_knowledge, peer, 7);
+        }
+        cordial_knowledge.latest_own_block_round = 10;
+        recompute(&mut cordial_knowledge);
+        let initial = selected_peers(&cordial_knowledge, author);
+        assert_eq!(initial, [1, 2, 3].map(AuthorityIndex::new_for_test));
+
+        let mut explored = false;
+        for round in 11..=200 {
+            cordial_knowledge.latest_own_block_round = round;
+            for peer in 1..=4 {
+                report_missing(&mut cordial_knowledge, peer, 7);
+            }
+            recompute(&mut cordial_knowledge);
+            let selected = selected_peers(&cordial_knowledge, author);
+            if selected != initial {
+                assert_eq!(selected.len(), MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER);
+                assert!(selected.contains(&AuthorityIndex::new_for_test(1)));
+                assert!(
+                    selected
+                        .iter()
+                        .all(|peer| [1, 2, 3, 4].contains(&(peer.value() as u8)))
+                );
+                explored = true;
+                break;
+            }
+        }
+        assert!(explored);
+    }
+
+    #[tokio::test]
+    async fn test_fastest_useful_peer_is_selected() {
+        let (mut cordial_knowledge, _connection_knowledges) = ranked_cordial_knowledge_for_test(8);
+        let context = cordial_knowledge.context.clone();
+        let author = AuthorityIndex::new_for_test(7);
+        let fastest_peer = AuthorityIndex::new_for_test(1);
+        for peer in 1..=6u8 {
+            let latency_ms = if peer == 1 { 10 } else { 1_000 };
+            context
+                .peer_responsiveness
+                .record_streaming_header_deliveries(
+                    AuthorityIndex::new_for_test(peer),
+                    latency_ms,
+                    [(author, 1, 0)],
+                );
+        }
+
+        cordial_knowledge.latest_own_block_round = 10;
+        for peer in 1..=6 {
+            report_missing(&mut cordial_knowledge, peer, 7);
+        }
+        recompute(&mut cordial_knowledge);
+
+        assert!(selected_peers(&cordial_knowledge, author).contains(&fastest_peer));
+    }
+
+    #[tokio::test]
+    async fn test_faster_useful_peer_replaces_slowest_selected_peer() {
+        let (mut cordial_knowledge, _connection_knowledges) = ranked_cordial_knowledge_for_test(8);
+        let context = cordial_knowledge.context.clone();
+        let author = AuthorityIndex::new_for_test(7);
+        for (peer, latency_ms) in [(1, 100), (2, 200), (3, 300)] {
+            context
+                .peer_responsiveness
+                .record_streaming_header_deliveries(
+                    AuthorityIndex::new_for_test(peer),
+                    latency_ms,
+                    [(author, 1, 0)],
+                );
+        }
+        cordial_knowledge.latest_own_block_round = 10;
+        for peer in 1..=3 {
+            report_missing(&mut cordial_knowledge, peer, 7);
+        }
+        recompute(&mut cordial_knowledge);
+        assert_eq!(
+            selected_peers(&cordial_knowledge, author),
+            [1, 2, 3].map(AuthorityIndex::new_for_test)
+        );
+
+        let faster_peer = AuthorityIndex::new_for_test(4);
+        context
+            .peer_responsiveness
+            .record_streaming_header_deliveries(faster_peer, 10, [(author, 1, 0)]);
+        cordial_knowledge.latest_own_block_round = 11;
+        report_missing(&mut cordial_knowledge, 4, 7);
+        recompute(&mut cordial_knowledge);
+
+        let selected = selected_peers(&cordial_knowledge, author);
+        assert!(selected.contains(&faster_peer));
+        assert!(!selected.contains(&AuthorityIndex::new_for_test(3)));
+    }
+
+    #[tokio::test]
+    async fn test_slower_useful_peer_does_not_replace_selected_peer() {
+        let (mut cordial_knowledge, _connection_knowledges) = ranked_cordial_knowledge_for_test(8);
+        let context = cordial_knowledge.context.clone();
+        let author = AuthorityIndex::new_for_test(7);
+        for (peer, latency_ms) in [(1, 10), (2, 20), (3, 30), (4, 100)] {
+            context
+                .peer_responsiveness
+                .record_streaming_header_deliveries(
+                    AuthorityIndex::new_for_test(peer),
+                    latency_ms,
+                    [(author, 1, 0)],
+                );
+        }
+        cordial_knowledge.latest_own_block_round = 10;
+        for peer in 1..=3 {
+            report_missing(&mut cordial_knowledge, peer, 7);
+        }
+        recompute(&mut cordial_knowledge);
+        let selected = selected_peers(&cordial_knowledge, author);
+
+        cordial_knowledge.latest_own_block_round = 51;
+        for peer in &selected {
+            report_missing(&mut cordial_knowledge, peer.value() as u8, 7);
+        }
+        report_missing(&mut cordial_knowledge, 4, 7);
+        recompute(&mut cordial_knowledge);
+
+        assert_eq!(selected_peers(&cordial_knowledge, author), selected);
     }
 
     /// Test that cordial knowledge correctly tracks blocks from a byzantine

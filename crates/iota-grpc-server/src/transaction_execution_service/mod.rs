@@ -4,12 +4,13 @@
 
 mod simulate;
 mod transaction;
+mod view;
 
 use std::{sync::Arc, time::Duration};
 
 use futures::stream::{FuturesUnordered, StreamExt as _};
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil, MessageFields},
+    field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
     proto::timestamp_ms_to_proto,
     read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
@@ -19,7 +20,8 @@ use iota_grpc_types::{
         transaction_execution_service::{
             self as grpc_tx_service, ExecuteTransactionItem, ExecuteTransactionResult,
             ExecuteTransactionsRequest, ExecuteTransactionsResponse, SimulateTransactionsRequest,
-            SimulateTransactionsResponse, execute_transaction_result, simulate_transaction_result,
+            SimulateTransactionsResponse, ViewFunctionCallsRequest, ViewFunctionCallsResponse,
+            execute_transaction_result, simulate_transaction_result, view_function_call_result,
         },
     },
 };
@@ -30,11 +32,14 @@ use iota_types::{
     quorum_driver_types::{ExecuteTransactionRequestV1, ExecuteTransactionResponseV1},
     transaction_executor::TransactionExecutor,
 };
-use prost_types::FieldMask;
 use tonic::{Request, Response};
+pub(crate) use transaction::CommandOutputsReadSource;
 pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
-use crate::{error::RpcError, merge::Merge, traffic_control::TallyHandle, types::GrpcReader};
+use crate::{
+    error::RpcError, merge::Merge, traffic_control::TallyHandle, types::GrpcReader,
+    validation::validate_read_mask,
+};
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
@@ -122,6 +127,37 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         }
         Ok(append_info_headers!(response, self.reader.clone()))
     }
+
+    async fn view_function_calls(
+        &self,
+        request: Request<ViewFunctionCallsRequest>,
+    ) -> Result<Response<ViewFunctionCallsResponse>, tonic::Status> {
+        let tally_handle = request.extensions().get::<TallyHandle>().cloned();
+        let response = view::view_function_calls(
+            &self.reader,
+            &self.executor,
+            &self.builder_client,
+            &self.config,
+            request.into_inner(),
+        )
+        .await
+        .map(Response::new)
+        .map_err(tonic::Status::from)?;
+        // Each batch item is invisible to the transport-level traffic control:
+        // account for every item so a batch is charged per item, and its
+        // embedded per-item errors feed the error policy.
+        if let Some(tally_handle) = &tally_handle {
+            tally_handle.tally_items(response.get_ref().call_results.iter().map(|result| {
+                match &result.result {
+                    Some(view_function_call_result::Result::Error(error)) => {
+                        tonic::Code::from(error.code)
+                    }
+                    _ => tonic::Code::Ok,
+                }
+            }));
+        }
+        Ok(append_info_headers!(response, self.reader.clone()))
+    }
 }
 
 // === Shared helpers for execute and simulate ===
@@ -131,7 +167,7 @@ fn validate_batch_size(items_len: usize, max_batch: usize) -> Result<(), RpcErro
     if items_len == 0 {
         return Err(RpcError::new(
             tonic::Code::InvalidArgument,
-            "transactions list must not be empty",
+            "batch must not be empty",
         ));
     }
     if items_len > max_batch {
@@ -141,20 +177,6 @@ fn validate_batch_size(items_len: usize, max_batch: usize) -> Result<(), RpcErro
         ));
     }
     Ok(())
-}
-
-/// Parse, validate, and convert a field mask with a default fallback.
-fn parse_read_mask<T: MessageFields>(
-    mask: Option<FieldMask>,
-    default: &str,
-) -> Result<FieldMaskTree, RpcError> {
-    let read_mask = mask.unwrap_or_else(|| FieldMask::from_str(default));
-    read_mask.validate::<T>().map_err(|path| {
-        FieldViolation::new("read_mask")
-            .with_description(format!("invalid read_mask path: {path}"))
-            .with_reason(ErrorReason::FieldInvalid)
-    })?;
-    Ok(FieldMaskTree::from(read_mask))
 }
 
 /// Extract, deserialize, and validate a transaction from its proto
@@ -298,8 +320,10 @@ pub async fn execute_transactions(
         request.transactions.len(),
         config.max_execute_transaction_batch_size as usize,
     )?;
-    let read_mask =
-        parse_read_mask::<ExecutedTransaction>(request.read_mask, EXECUTE_TRANSACTIONS_READ_MASK)?;
+    let read_mask = validate_read_mask::<ExecutedTransaction>(
+        request.read_mask,
+        EXECUTE_TRANSACTIONS_READ_MASK,
+    )?;
 
     // Parse and clamp checkpoint inclusion timeout.
     // If None or 0 is provided, we won't wait for checkpoint inclusion and the

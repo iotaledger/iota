@@ -2,16 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
 use iota_grpc_client::{Client as GrpcClient, read_mask_fields::SimulateField};
 use iota_json::IotaJsonValue;
-use iota_json_rpc::{
-    IotaRpcModule, ObjectProvider, get_balance_changes_from_effect, get_object_changes,
-};
+use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
@@ -22,22 +20,15 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, SenderSignedTransaction, Transaction, TransactionEffects,
-    TransactionExpiration, TransactionKind, TransactionV1, UserSignature, Version,
+    Address, GasPayment, SenderSignedTransaction, Transaction, TransactionEffects,
+    TransactionExpiration, TransactionKind, TransactionV1, UserSignature,
 };
 use iota_transaction_builder::TransactionBuilder;
-use iota_types::{
-    effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    error::ExecutionError,
-    iota_serde::BigInt,
-    object::{Object, PastObjectRead},
-    transaction::TransactionAPI,
-};
+use iota_types::{effects::TransactionEffectsAPI, error::ExecutionError, iota_serde::BigInt};
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
-    ingestion::primary::prepare::InMemObjectCache,
     models::transactions::{StoredTransaction, tx_events_to_iota_tx_events},
     optimistic_indexing::{IngestionPath, OptimisticTransactionExecutor},
     read::IndexerReader,
@@ -52,9 +43,11 @@ const DRY_RUN_TRANSACTION_READ_MASK: &[SimulateField] = &[
     SimulateField::EXECUTED_TRANSACTION_TRANSACTION_BCS,
     SimulateField::EXECUTED_TRANSACTION_SIGNATURES_BCS,
     SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
-    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
-    SimulateField::EXECUTED_TRANSACTION_INPUT_OBJECTS_BCS,
+    // Needed to resolve types against a package the simulated transaction published.
     SimulateField::EXECUTED_TRANSACTION_OUTPUT_OBJECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_BALANCE_CHANGES,
+    SimulateField::EXECUTED_TRANSACTION_OBJECT_CHANGES,
     SimulateField::SUGGESTED_GAS_PRICE,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
 ];
@@ -75,7 +68,6 @@ pub struct WriteApi {
     fullnode_grpc_client: GrpcClient,
     transaction_builder: TransactionBuilder,
     package_resolver: Arc<Resolver<IndexerStorePackageResolver>>,
-    reader: Arc<IndexerReader>,
 }
 
 #[derive(Clone)]
@@ -87,11 +79,9 @@ pub struct OptimisticWriteApi {
 impl WriteApi {
     pub fn new(fullnode_grpc_client: GrpcClient, reader: IndexerReader) -> Self {
         let package_resolver = IndexerStorePackageResolver::new(reader.get_pool());
-        let data_reader = Arc::new(reader);
         Self {
-            reader: data_reader.clone(),
             fullnode_grpc_client,
-            transaction_builder: TransactionBuilder::new(data_reader),
+            transaction_builder: TransactionBuilder::new(Arc::new(reader)),
             package_resolver: Arc::new(Resolver::new(package_resolver)),
         }
     }
@@ -101,7 +91,7 @@ impl WriteApi {
         tx_bytes: Base64,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
-        let tx: Transaction = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
+        let tx = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
 
         let simulate_tx_response = self
             .fullnode_grpc_client
@@ -115,13 +105,11 @@ impl WriteApi {
             .and_then(|e| e.source.clone());
         let suggested_gas_price = simulate_tx_response.suggested_gas_price;
 
-        let input_objects = grpc_conversion::objects(executed_transaction.input_objects()?)?;
         let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
-
-        let objects = input_objects
-            .iter()
-            .chain(output_objects.iter())
-            .collect::<Vec<_>>();
+        let balance_changes =
+            grpc_conversion::balance_changes(executed_transaction.balance_changes()?)?;
+        let object_changes =
+            grpc_conversion::object_changes(executed_transaction.object_changes()?)?;
 
         let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
 
@@ -146,8 +134,6 @@ impl WriteApi {
 
         let tx_events = executed_transaction.events()?.events()?;
 
-        let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
-
         // Resolve types against the packages the simulation published before falling
         // back to the database, so that a transaction publishing a package can decode
         // the types it introduces — an event from its `init`, for one.
@@ -156,33 +142,7 @@ impl WriteApi {
             package_resolver.clone(),
         )));
 
-        // A transaction that carries no gas payment is simulated against a mock gas
-        // coin, which the response names in the payment it ran with. That coin is not
-        // the caller's, so neither is the balance change of paying gas out of it —
-        // exclude it, the way the node's own JSON-RPC dry run does.
-        let mocked_coin = tx
-            .gas()
-            .is_empty()
-            .then(|| sender_signed_tx.transaction().gas().first())
-            .flatten()
-            .map(|gas_ref| gas_ref.object_id);
-
-        // Derived from the transaction as sent, whose inputs are the ones the caller
-        // is asking about; a mock gas coin is not among them. Object changes do keep
-        // the mock coin, which is what the node and gRPC both report.
-        let input_objs = tx.input_objects()?;
-        let sender = tx.sender();
-
-        // as a minor optimization we will run concurrently the following five futures
-        let fut1 = get_balance_changes_from_effect(
-            &in_mem_tx_changes,
-            &tx_effects,
-            input_objs,
-            mocked_coin,
-        )
-        .map_err(Into::into);
-
-        let fut2 = IotaTransactionBlock::try_from_with_package_resolver(
+        let fut1 = IotaTransactionBlock::try_from_with_package_resolver(
             sender_signed_tx,
             &package_resolver,
             tx_digest,
@@ -191,25 +151,16 @@ impl WriteApi {
 
         // timestamp is None because it represent a checkpoint one, on a dry run
         // operation we don't have this information.
-        let fut3 = tx_events_to_iota_tx_events(tx_events, &package_resolver, tx_digest, None);
+        let fut2 = tx_events_to_iota_tx_events(tx_events, &package_resolver, tx_digest, None);
 
-        let fut4 = IotaTransactionBlockEffects::from_native_with_clever_error(
-            tx_effects.clone(),
+        let fut3 = IotaTransactionBlockEffects::from_native_with_clever_error(
+            tx_effects,
             &package_resolver,
         )
         .map(Ok);
 
-        let fut5 = get_object_changes(
-            &in_mem_tx_changes,
-            sender,
-            tx_effects.modified_at_versions(),
-            tx_effects.all_changed_objects(),
-            tx_effects.all_removed_objects(),
-        )
-        .map_err(Into::<IndexerError>::into);
-
-        let (balance_changes, transaction_block, events, effects, object_changes) =
-            futures::future::try_join5(fut1, fut2, fut3, fut4, fut5).await?;
+        let (transaction_block, events, effects) =
+            futures::future::try_join3(fut1, fut2, fut3).await?;
 
         Ok(DryRunTransactionBlockResponse {
             effects,
@@ -522,91 +473,5 @@ impl IotaRpcModule for OptimisticWriteApi {
 
     fn rpc_doc_module() -> Module {
         iota_json_rpc_api::WriteApiOpenRpc::module_doc()
-    }
-}
-
-/// Resolves balance and object changes in dry_run.
-///
-/// Checks the in-memory cache (from the simulate
-/// response) first, then falls back to the indexer's `objects` table for
-/// dynamically loaded objects not included in the response.
-pub struct TxObjectResolver {
-    object_cache: InMemObjectCache,
-    reader: Arc<IndexerReader>,
-}
-
-impl TxObjectResolver {
-    pub fn new(objects: &[&Object], reader: Arc<IndexerReader>) -> Self {
-        let mut object_cache = InMemObjectCache::new();
-        for obj in objects {
-            object_cache.insert_object(<&Object>::clone(obj).clone());
-        }
-        Self {
-            object_cache,
-            reader,
-        }
-    }
-
-    async fn get_past_object_read_with_retry(
-        &self,
-        id: ObjectId,
-        version: Version,
-    ) -> IndexerResult<PastObjectRead> {
-        let backoff = backoff::ExponentialBackoff {
-            initial_interval: Duration::from_millis(100),
-            max_elapsed_time: Some(Duration::from_secs(3)),
-            multiplier: 2.0,
-            ..Default::default()
-        };
-
-        backoff::future::retry(backoff, || async {
-            self.reader
-                .get_past_object_read_with_fallback(id, version, false)
-                .await
-                .map_err(backoff::Error::transient)
-        })
-        .await
-    }
-}
-
-#[async_trait]
-impl ObjectProvider for TxObjectResolver {
-    type Error = IndexerError;
-
-    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
-        // try in-memory cache first
-        if let Some(o) = self.object_cache.get(id, Some(version)) {
-            return Ok(o.clone());
-        }
-
-        let past_read = self.get_past_object_read_with_retry(*id, *version).await?;
-
-        past_read.into_object().map_err(|e| {
-            IndexerError::Generic(format!(
-                "object {id} at version {version} not found in cache or indexer DB: {e}"
-            ))
-        })
-    }
-
-    async fn find_object_lt_or_eq_version(
-        &self,
-        id: &ObjectId,
-        version: &Version,
-    ) -> Result<Option<Object>, Self::Error> {
-        // try exact version in cache
-        if let Some(o) = self.object_cache.get(id, Some(version)) {
-            return Ok(Some(o.clone()));
-        }
-
-        // try latest in cache
-        if let Some(o) = self.object_cache.get(id, None) {
-            if o.version() <= *version {
-                return Ok(Some(o.clone()));
-            }
-        }
-
-        self.get_past_object_read_with_retry(*id, *version)
-            .await
-            .map(|past_read| past_read.into_object().ok())
     }
 }

@@ -1085,7 +1085,6 @@ mod tests {
     };
     use iota_types::{
         committee::Committee,
-        effects::TransactionEffectsExt as _,
         error::{IotaError, UserInputError},
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},

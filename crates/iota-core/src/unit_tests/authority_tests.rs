@@ -3,13 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{HashMap, HashSet},
-    convert::TryInto,
-    path::PathBuf,
-    str::FromStr,
-    sync::Arc,
-};
+use std::{collections::HashSet, convert::TryInto, path::PathBuf, str::FromStr, sync::Arc};
 
 use bcs;
 use fastcrypto::traits::KeyPair;
@@ -29,8 +23,8 @@ use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference,
-    OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, StructTag,
-    Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference,
+    StructTag, Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
     TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
     crypto::{Intent, IntentScope},
 };
@@ -60,8 +54,8 @@ use iota_types::{
     transaction::{
         CallArg, CancelledObjects, SenderSignedTransactionAPI,
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope, VerifiedCertificate,
-        VerifiedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope, TransactionKey,
+        VerifiedCertificate, VerifiedTransaction,
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
@@ -80,9 +74,11 @@ use rand::{
 use serde_json::json;
 
 pub use crate::authority::authority_test_utils::*;
+#[cfg(msim)]
+use crate::authority::shared_object_version_manager::Schedulable;
 use crate::{
     authority::{
-        AuthorityState, AuthorityStore,
+        AuthorityState, AuthorityStore, ExecutionEnv,
         authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
         authority_store_tables::AuthorityPerpetualTables,
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
@@ -2511,12 +2507,12 @@ async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
     );
 
     // A certified effects digest that cannot match what this transfer produces.
-    let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
+    let bogus_effects_digest = TransactionEffectsDigest::new([255; 32]);
     let executable =
         VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
     let _ = authority_state.try_execute_immediately(
         &executable,
-        Some(bogus_effects_digest),
+        ExecutionEnv::new().with_expected_effects_digest(bogus_effects_digest),
         &authority_state.epoch_store_for_testing(),
     );
 }
@@ -2551,14 +2547,14 @@ async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
     authority_state
         .try_execute_immediately(
             &executable,
-            None,
+            ExecutionEnv::new(),
             &authority_state.epoch_store_for_testing(),
         )
         .unwrap();
-    let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
+    let bogus_effects_digest = TransactionEffectsDigest::new([255; 32]);
     let _ = authority_state.try_execute_immediately(
         &executable,
-        Some(bogus_effects_digest),
+        ExecutionEnv::new().with_expected_effects_digest(bogus_effects_digest),
         &authority_state.epoch_store_for_testing(),
     );
 }
@@ -3780,7 +3776,10 @@ async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<Dyn
 
     let add_cert = init_certified_transaction(add_txn, &authority_state);
 
-    let add_effects = authority_state.execute_for_test(&add_cert).0.into_message();
+    let add_effects = authority_state
+        .execute_for_test(&add_cert, ExecutionEnv::new())
+        .0
+        .into_message();
 
     assert!(
         add_effects.status().is_success(),
@@ -4938,13 +4937,61 @@ async fn prepare_authority_and_shared_object_cert()
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-#[should_panic]
-async fn test_shared_object_transaction_shared_locks_not_set() {
+#[should_panic(expected = "Shared object version should have been assigned")]
+async fn test_shared_object_transaction_no_shared_version_assignments() {
     let (authority, certificate, _) = prepare_authority_and_shared_object_cert().await;
 
-    // Executing the certificate now panics since it was not sequenced and shared
-    // locks are not set
-    let _ = authority.execute_for_test(&certificate);
+    // Executing the certificate now panics since it has never been assigned shared
+    // versions.
+    let _ = authority.execute_for_test(&certificate, ExecutionEnv::new());
+}
+
+/// Executing a randomness state update must record the mapping from its
+/// `TransactionKey::RandomnessRound` to its digest. The round's transaction can
+/// reach execution without this node having generated the round locally — the
+/// checkpoint executor executes it from a synced checkpoint and reports the
+/// round complete, after which the randomness manager never regenerates it, so
+/// the local generation path that also records the mapping never runs. Without
+/// the mapping, a checkpoint root naming that round waits for a digest nothing
+/// would ever write, and checkpoint building stalls for the rest of the epoch.
+#[tokio::test]
+async fn test_execute_randomness_state_update_records_key_to_digest() {
+    let authority = TestAuthorityBuilder::new().build().await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let randomness_obj_version =
+        get_randomness_state_obj_initial_shared_version(authority.get_object_store().as_ref())
+            .unwrap();
+
+    // Round 0 is the only round the on-chain state accepts as the first update.
+    let round = RandomnessRound::new(0);
+    let transaction = VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_randomness_state_update(
+            epoch_store.epoch(),
+            round,
+            vec![0; 32],
+            randomness_obj_version,
+        ),
+        epoch_store.epoch(),
+    );
+    let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
+    assert_eq!(epoch_store.tx_key_to_digest(&key).unwrap(), None);
+
+    authority
+        .try_execute_immediately(
+            &transaction,
+            ExecutionEnv::new().with_assigned_versions(vec![VersionAssignment::new(
+                ObjectId::RANDOMNESS_STATE,
+                randomness_obj_version,
+            )]),
+            &epoch_store,
+        )
+        .unwrap();
+
+    assert_eq!(
+        epoch_store.tx_key_to_digest(&key).unwrap(),
+        Some(*transaction.digest()),
+        "executing a randomness state update must make its round key resolvable"
+    );
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -4953,17 +5000,14 @@ async fn test_shared_object_transaction_ok() {
         prepare_authority_and_shared_object_cert().await;
 
     // Sequence the certificate to assign a sequence number to the shared object.
-    send_consensus(&authority, &certificate).await;
+    let assigned_versions = send_consensus(&authority, &certificate).await;
 
     // Verify shared locks are now set for the transaction.
-    let shared_object_version = authority
-        .epoch_store_for_testing()
-        .get_assigned_shared_object_versions(&certificate.key())
-        .expect("Versions should be set")
-        .into_iter()
+    let shared_object_version = assigned_versions
+        .iter()
         .find_map(|VersionAssignment { object_id, version }| {
-            if object_id == shared_object_id {
-                Some(version)
+            if *object_id == shared_object_id {
+                Some(*version)
             } else {
                 None
             }
@@ -4972,7 +5016,10 @@ async fn test_shared_object_transaction_ok() {
     assert_eq!(shared_object_version, OBJECT_START_VERSION);
 
     // Finally (Re-)execute the contract should succeed.
-    authority.execute_for_test(&certificate);
+    authority.execute_for_test(
+        &certificate,
+        ExecutionEnv::new().with_assigned_versions(assigned_versions),
+    );
 
     // Ensure transaction effects are available.
     authority
@@ -5063,7 +5110,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     .unwrap();
     let clock_tx = to_sender_signed_transaction(clock_tx, &sender_key);
 
-    let processed_consensus_transactions = if pcool {
+    let (processed_consensus_transactions, assigned_versions) = if pcool {
         // Submit as UserTransactionV1 — no certificates needed.
         let transactions = vec![
             SequencedConsensusTransaction::new_test(ConsensusTransaction {
@@ -5081,7 +5128,6 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
                 transactions,
                 &Arc::new(CheckpointServiceNoop {}),
                 authority_state.get_object_cache_reader().as_ref(),
-                authority_state.get_transaction_cache_reader().as_ref(),
                 &authority_state.metrics,
                 false,
                 &authority_state,
@@ -5104,11 +5150,15 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         send_batch_consensus_no_execution(&authority_state, &certificates, false).await
     };
 
+    let assigned_versions = assigned_versions.into_map();
+
     // Tests that new consensus commit prologue transaction is added to the batch,
     // and it is the first transaction.
     assert_eq!(processed_consensus_transactions.len(), 3);
     assert!(matches!(
         processed_consensus_transactions[0]
+            .as_tx()
+            .unwrap()
             .data()
             .transaction()
             .kind(),
@@ -5118,9 +5168,8 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     // Tests that the system clock object is updated by the new consensus commit
     // prologue transaction.
     let get_assigned_version = |txn_key: &TransactionKey| -> Version {
-        authority_state
-            .epoch_store_for_testing()
-            .get_assigned_shared_object_versions(txn_key)
+        assigned_versions
+            .get(txn_key)
             .expect("versions should be set")
             .iter()
             .filter_map(|VersionAssignment { object_id, version }| {
@@ -5201,29 +5250,43 @@ async fn test_consensus_message_processed() {
         let transaction_digest = certificate.digest();
 
         // on authority1, we always sequence via consensus
-        send_consensus(&authority1, &certificate).await;
-        let (effects1, _execution_error_opt) = authority1.execute_for_test(&certificate);
+        let assigned_versions = send_consensus(&authority1, &certificate).await;
+        let (effects1, _execution_error_opt) = authority1.execute_for_test(
+            &certificate,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        );
 
         // now, on authority2, we send 0 or 1 consensus messages, then we either
         // sequence and execute via effects or via handle_certificate_v1, then
         // send 0 or 1 consensus messages.
         let send_first = rng.gen_bool(0.5);
-        if send_first {
-            send_consensus(&authority2, &certificate).await;
-        }
+        let assigned_versions2 = if send_first {
+            Some(send_consensus(&authority2, &certificate).await)
+        } else {
+            None
+        };
 
         let effects2 = if send_first && rng.gen_bool(0.5) {
-            authority2.execute_for_test(&certificate).0.into_message()
+            authority2
+                .execute_for_test(
+                    &certificate,
+                    ExecutionEnv::new().with_assigned_versions(assigned_versions2.unwrap()),
+                )
+                .0
+                .into_message()
         } else {
             let epoch_store = authority2.epoch_store_for_testing();
-            epoch_store
+            let assigned_versions = epoch_store
                 .acquire_shared_version_assignments_from_effects(
                     &VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
                     &effects1,
                     authority2.get_object_cache_reader().as_ref(),
                 )
                 .unwrap();
-            authority2.execute_for_test(&certificate);
+            authority2.execute_for_test(
+                &certificate,
+                ExecutionEnv::new().with_assigned_versions(assigned_versions),
+            );
             authority2
                 .get_transaction_cache_reader()
                 .get_executed_effects(transaction_digest)
@@ -6629,8 +6692,9 @@ async fn test_consensus_handler_per_object_congestion_control(
     // operate on the cheaper object should go through. We also check that the
     // scheduled transactions on the expensive object have the highest gas price.
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &certificates, true).await;
-    assert_eq!(scheduled_txns.len(), 2 + non_congested_tx_count as usize);
-    for cert in scheduled_txns.iter() {
+    assert_eq!(scheduled_txns.0.len(), 2 + non_congested_tx_count as usize);
+    for cert in scheduled_txns.0.iter() {
+        let cert = cert.as_tx().unwrap();
         assert!(
             cert.data().transaction().gas_price() >= 4000
                 || cert
@@ -6687,8 +6751,9 @@ async fn test_consensus_handler_per_object_congestion_control(
     // the cheaper object should go through.
     let scheduled_txns =
         send_batch_consensus_no_execution(&authority, &new_certificates, true).await;
-    assert_eq!(scheduled_txns.len(), 2 + non_congested_tx_count as usize);
-    for cert in scheduled_txns.iter() {
+    assert_eq!(scheduled_txns.0.len(), 2 + non_congested_tx_count as usize);
+    for cert in scheduled_txns.0.iter() {
+        let cert = cert.as_tx().unwrap();
         assert!(
             cert.data().transaction().gas_price() >= 2000
                 || cert
@@ -6722,7 +6787,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     // Sends the last batch with no new transaction. The last deferred transactions
     // should go through.
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], true).await;
-    assert_eq!(scheduled_txns.len(), 1);
+    assert_eq!(scheduled_txns.0.len(), 1);
     assert!(
         authority
             .epoch_store_for_testing()
@@ -6850,27 +6915,55 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
 
     // Sends all transactions to consensus. Expect first 2 rounds with 1 user
     // transaction per round going through.
-    let scheduled_txns = send_batch_consensus_no_execution(&authority, &certificates, false).await;
+    let (scheduled_txns, _) =
+        send_batch_consensus_no_execution(&authority, &certificates, false).await;
     assert_eq!(scheduled_txns.len(), 2);
     // Note that consensus handler also generates consensus commit prologue
     // transaction, and it must be the first one.
     assert!(matches!(
-        scheduled_txns[0].data().transaction().kind(),
+        scheduled_txns[0]
+            .as_tx()
+            .unwrap()
+            .data()
+            .transaction()
+            .kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(scheduled_txns[1].data().transaction().gas_price() == gas_price_of_non_cancelled_txs);
+    assert!(
+        scheduled_txns[1]
+            .as_tx()
+            .unwrap()
+            .data()
+            .transaction()
+            .gas_price()
+            == gas_price_of_non_cancelled_txs
+    );
 
-    let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], false).await;
+    let (scheduled_txns, _) = send_batch_consensus_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 2);
     assert!(matches!(
-        scheduled_txns[0].data().transaction().kind(),
+        scheduled_txns[0]
+            .as_tx()
+            .unwrap()
+            .data()
+            .transaction()
+            .kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(scheduled_txns[1].data().transaction().gas_price() == gas_price_of_non_cancelled_txs);
+    assert!(
+        scheduled_txns[1]
+            .as_tx()
+            .unwrap()
+            .data()
+            .transaction()
+            .gas_price()
+            == gas_price_of_non_cancelled_txs
+    );
 
     // Run consensus round 3. 2 user transactions will come out with 1 transaction
     // being cancelled.
-    let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], false).await;
+    let (scheduled_txns, assigned_versions) =
+        send_batch_consensus_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 3); // 3 = 2 user transactions + 1 consensus commit prologue transaction.
     assert!(
         authority
@@ -6879,38 +6972,33 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             .is_empty()
     );
 
-    // Check cancelled transaction shared locks.
-    let shared_object_version = authority
-        .epoch_store_for_testing()
-        .get_assigned_shared_object_versions(&cancelled_txn.key())
-        .expect("Versions should be set")
-        .into_iter()
-        .map(|VersionAssignment { object_id, version }| (object_id, version))
-        .collect::<HashMap<_, _>>();
+    // Check cancelled transaction shared object version assignments. Compared as
+    // an ordered list: the order is what reaches the consensus commit prologue.
+    let assigned_versions = assigned_versions.into_map();
+    let cancelled_txn_assigned_versions =
+        assigned_versions.get(&cancelled_txn.key()).unwrap().clone();
     assert_eq!(
-        [
-            (
+        vec![
+            VersionAssignment::new(
                 shared_objects[0].id(),
                 Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             ),
-            (
+            VersionAssignment::new(
                 shared_objects[1].id(),
                 Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
             )
-        ]
-        .into_iter()
-        .collect::<HashMap<_, _>>(),
-        shared_object_version
+        ],
+        cancelled_txn_assigned_versions
     );
 
     // Load shared objects.
     let input_loader = TransactionInputLoader::new(authority.get_object_cache_reader().clone());
     let input_objects = input_loader
         .read_objects_for_execution(
-            &authority.epoch_store_for_testing(),
             &cancelled_txn.key(),
             &TxLockGuard::guard_for_tests(),
             &cancelled_txn.data().transaction().input_objects().unwrap(),
+            &cancelled_txn_assigned_versions,
             authority.epoch_store_for_testing().epoch(),
         )
         .unwrap();
@@ -6947,8 +7035,12 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
 
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
-    if let TransactionKind::ConsensusCommitPrologueV1(prologue_txn) =
-        scheduled_txns[0].data().transaction().kind()
+    if let TransactionKind::ConsensusCommitPrologueV1(prologue_txn) = scheduled_txns[0]
+        .as_tx()
+        .unwrap()
+        .data()
+        .transaction()
+        .kind()
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
@@ -7067,12 +7159,11 @@ async fn test_post_consensus_white_flag_simple_conflict() {
 
     // Process through consensus
     let checkpoint_service = Arc::new(CheckpointServiceNoop {});
-    let executable_txs = epoch_store
+    let (executable_txs, _) = epoch_store
         .process_consensus_transactions_for_tests(
             sequenced_txs,
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
@@ -7087,7 +7178,12 @@ async fn test_post_consensus_white_flag_simple_conflict() {
         "Only tx1 should be executable, tx2 dropped"
     );
     assert_eq!(
-        executable_txs[0].inner().transaction().digest(),
+        executable_txs[0]
+            .as_tx()
+            .unwrap()
+            .inner()
+            .transaction()
+            .digest(),
         *verified_tx1.digest(),
         "The executable transaction should be tx1"
     );
@@ -7188,12 +7284,11 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // Run the full post-consensus pipeline (validation + owned-object conflict
     // resolution). Only the winner (tx1) survives.
     let checkpoint_service = Arc::new(CheckpointServiceNoop {});
-    let executable_txs = epoch_store
+    let (executable_txs, assigned_versions) = epoch_store
         .process_consensus_transactions_for_tests(
             sequenced_txs,
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
@@ -7207,7 +7302,7 @@ async fn survivor_executes(use_execution_scheduler: bool) {
         "only the conflict winner should survive post-consensus validation"
     );
     assert_eq!(
-        executable_txs[0].digest(),
+        executable_txs[0].as_tx().unwrap().digest(),
         verified_tx1.digest(),
         "the survivor should be tx1 (first in consensus order)"
     );
@@ -7221,6 +7316,19 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     // Hand the survivor to the execution scheduler via the `enqueue` seam. In
     // production the consensus handler submits through AsyncTransactionScheduler;
     // here we enqueue directly to keep the test focused on the seam.
+    let assigned_versions = assigned_versions.into_map();
+    let executable_txs: Vec<_> = executable_txs
+        .into_iter()
+        .map(|txn| {
+            let key = txn.key();
+            (
+                txn,
+                ExecutionEnv::new().with_assigned_versions(
+                    assigned_versions.get(&key).cloned().unwrap_or_default(),
+                ),
+            )
+        })
+        .collect();
     authority
         .execution_scheduler()
         .enqueue(executable_txs, &epoch_store);
@@ -7332,9 +7440,13 @@ async fn execution_scheduler_counts_executing_transaction() {
 
     // The input is available, so the scheduler dispatches immediately and the
     // transaction blocks at the fail point mid-execution.
-    authority
-        .execution_scheduler()
-        .enqueue_certificates(vec![cert], &epoch_store);
+    authority.execution_scheduler().enqueue(
+        vec![(
+            Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(cert)),
+            ExecutionEnv::new(),
+        )],
+        &epoch_store,
+    );
 
     // Wait until the transaction is executing (blocked at the fail point).
     tokio::time::timeout(std::time::Duration::from_secs(20), entered.notified())
@@ -7423,9 +7535,13 @@ async fn execution_scheduler_drops_executing_guard_on_epoch_termination() {
         gas.object_ref(),
         &authority,
     );
-    authority
-        .execution_scheduler()
-        .enqueue_certificates(vec![cert], &epoch_store);
+    authority.execution_scheduler().enqueue(
+        vec![(
+            Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(cert)),
+            ExecutionEnv::new(),
+        )],
+        &epoch_store,
+    );
 
     // Wait until the transaction is executing (blocked at the fail point).
     tokio::time::timeout(std::time::Duration::from_secs(20), entered.notified())
@@ -7505,9 +7621,21 @@ async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
     let digest = *cert.digest();
 
     // Enqueue the same certificate twice in one batch.
-    authority
-        .execution_scheduler()
-        .enqueue_certificates(vec![cert.clone(), cert], &epoch_store);
+    authority.execution_scheduler().enqueue(
+        vec![
+            (
+                Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
+                    cert.clone(),
+                )),
+                ExecutionEnv::new(),
+            ),
+            (
+                Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(cert)),
+                ExecutionEnv::new(),
+            ),
+        ],
+        &epoch_store,
+    );
 
     // It executes, and successfully: a failed status here would mean the
     // duplicate dispatch corrupted execution rather than being absorbed.
@@ -7620,12 +7748,11 @@ async fn test_post_consensus_white_flag_no_conflict() {
 
     // Process through consensus
     let checkpoint_service = Arc::new(CheckpointServiceNoop {});
-    let executable_txs = epoch_store
+    let (executable_txs, _) = epoch_store
         .process_consensus_transactions_for_tests(
             sequenced_txs,
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
@@ -7641,7 +7768,7 @@ async fn test_post_consensus_white_flag_no_conflict() {
     );
     let executable_digests: std::collections::HashSet<_> = executable_txs
         .iter()
-        .map(|tx| tx.inner().transaction().digest())
+        .map(|tx| tx.as_tx().unwrap().inner().transaction().digest())
         .collect();
     assert!(executable_digests.contains(verified_tx1.digest()));
     assert!(executable_digests.contains(verified_tx2.digest()));
@@ -7711,12 +7838,11 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     };
 
     let checkpoint_service = Arc::new(CheckpointServiceNoop {});
-    let executable_txs = epoch_store
+    let (executable_txs, _) = epoch_store
         .process_consensus_transactions_for_tests(
             vec![SequencedConsensusTransaction::new_test(consensus_tx1)],
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
@@ -7727,7 +7853,12 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
     // Verify tx1 was executable
     assert_eq!(executable_txs.len(), 1);
     assert_eq!(
-        executable_txs[0].inner().transaction().digest(),
+        executable_txs[0]
+            .as_tx()
+            .unwrap()
+            .inner()
+            .transaction()
+            .digest(),
         *verified_tx1.digest()
     );
 
@@ -7753,12 +7884,11 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
         tracking_id: Default::default(),
     };
 
-    let executable_txs2 = epoch_store
+    let (executable_txs2, _) = epoch_store
         .process_consensus_transactions_for_tests(
             vec![SequencedConsensusTransaction::new_test(consensus_tx2)],
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
@@ -7896,15 +8026,15 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
                     txns,
                     &Arc::new(CheckpointServiceNoop {}),
                     authority.get_object_cache_reader().as_ref(),
-                    authority.get_transaction_cache_reader().as_ref(),
                     &authority.metrics,
                     true,
                     authority,
                 )
                 .await
                 .unwrap()
+                .0
                 .iter()
-                .map(|tx| *tx.digest())
+                .map(|tx| *tx.as_tx().unwrap().digest())
                 .collect::<Vec<_>>()
         }
     };
@@ -8181,7 +8311,6 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
             vec![sequenced],
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
@@ -8215,7 +8344,6 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
             vec![sequenced],
             &checkpoint_service,
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
@@ -8260,7 +8388,6 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
             vec![sequenced],
             &Arc::new(CheckpointServiceNoop {}),
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
             authority.as_ref(),
@@ -8336,7 +8463,7 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
     // Execution must not consult previously signed effects: it succeeds even
     // though the resulting effects differ from the previously signed digest.
     let (effects, execution_error) = authority_state
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
     assert!(execution_error.is_none());
     assert_ne!(effects.digest(), previously_signed_digest);

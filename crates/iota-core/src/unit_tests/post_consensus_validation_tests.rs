@@ -28,6 +28,7 @@ use iota_types::{
 
 use crate::{
     authority::{
+        ExecutionEnv,
         authority_per_epoch_store::{LockDetails, consensus_quarantine::ConsensusCommitOutput},
         authority_tests::init_state_with_objects_and_object_basics,
     },
@@ -1228,7 +1229,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         1,
     );
     authority
-        .try_execute_immediately(&executable, None, &epoch_store)
+        .try_execute_immediately(&executable, ExecutionEnv::new(), &epoch_store)
         .unwrap();
     assert!(
         authority
@@ -1251,7 +1252,6 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
             vec![seq_tx],
             &Arc::new(CheckpointServiceNoop {}),
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             // skip_consensus_commit_prologue_in_test
             true,
@@ -1356,7 +1356,6 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
             vec![seq(tx_winner), seq(tx_loser)],
             &Arc::new(CheckpointServiceNoop {}),
             authority.get_object_cache_reader().as_ref(),
-            authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             // skip_consensus_commit_prologue_in_test
             true,
@@ -1482,7 +1481,7 @@ impl LockTierSetup {
             1,
         );
         self.authority
-            .try_execute_immediately(&executable, None, &self.epoch_store)
+            .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap();
     }
 
@@ -2120,7 +2119,7 @@ impl ImmutableInputSetup {
             1,
         );
         self.authority
-            .try_execute_immediately(&executable, None, &self.epoch_store)
+            .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap();
     }
 

@@ -376,6 +376,11 @@ pub struct GrpcApiConfig {
     #[serde(default = "default_grpc_api_max_get_transactions_batch_size")]
     pub max_get_transactions_batch_size: u32,
 
+    /// Maximum number of view function calls allowed in a single
+    /// ViewFunctionCalls batch request.
+    #[serde(default = "default_grpc_api_max_view_function_call_batch_size")]
+    pub max_view_function_call_batch_size: u32,
+
     /// Maximum allowed timeout in milliseconds for waiting for checkpoint
     /// inclusion in ExecuteTransactions requests. Client-specified timeouts
     /// are clamped to this value.
@@ -419,6 +424,10 @@ fn default_grpc_api_max_get_transactions_batch_size() -> u32 {
     1000
 }
 
+fn default_grpc_api_max_view_function_call_batch_size() -> u32 {
+    20
+}
+
 fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
     60_000 // 60 seconds
 }
@@ -438,6 +447,7 @@ impl Default for GrpcApiConfig {
                 default_grpc_api_max_simulate_transaction_batch_size(),
             max_get_objects_batch_size: default_grpc_api_max_get_objects_batch_size(),
             max_get_transactions_batch_size: default_grpc_api_max_get_transactions_batch_size(),
+            max_view_function_call_batch_size: default_grpc_api_max_view_function_call_batch_size(),
             max_checkpoint_inclusion_timeout_ms:
                 default_grpc_api_max_checkpoint_inclusion_timeout_ms(),
         }
@@ -1218,10 +1228,6 @@ fn default_checkpoint_archive_verify_concurrency() -> NonZeroUsize {
     std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(4).unwrap())
 }
 
-fn default_checkpoint_archive_max_checkpoints_ahead_of_execution() -> NonZeroUsize {
-    NonZeroUsize::new(100_000).unwrap()
-}
-
 /// Configuration for backfilling checkpoint contents from the
 /// checkpoint archive when peers no longer serve the required range.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -1236,13 +1242,6 @@ pub struct CheckpointArchiveConfig {
     /// Defaults to the number of CPU cores.
     #[serde(default = "default_checkpoint_archive_verify_concurrency")]
     pub verify_concurrency: NonZeroUsize,
-    /// Pause downloading from the archive while the synced watermark is this
-    /// many checkpoints ahead of the executed watermark, and resume once
-    /// execution catches up. Bounds the disk space held by checkpoints that
-    /// are synced but not yet executed, since only executed checkpoints can
-    /// be pruned.
-    #[serde(default = "default_checkpoint_archive_max_checkpoints_ahead_of_execution")]
-    pub max_checkpoints_ahead_of_execution: NonZeroUsize,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.

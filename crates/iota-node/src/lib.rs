@@ -28,7 +28,7 @@ use iota_config::{
 };
 use iota_core::{
     authority::{
-        AuthorityState, AuthorityStore, RandomnessRoundReceiver,
+        AuthorityState, AuthorityStore, ExecutionEnv, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store_pruner::ObjectsCompactionFilter,
         authority_store_tables::{
@@ -36,6 +36,7 @@ use iota_core::{
         },
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
+        shared_object_version_manager::Schedulable,
     },
     authority_aggregator::{
         AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
@@ -64,6 +65,7 @@ use iota_core::{
         reconfiguration::ReconfigurationInitiator,
     },
     execution_cache::build_execution_cache,
+    execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStore,
@@ -1642,9 +1644,12 @@ impl IotaNode {
                         .get_signed_effects_digest(tx.digest())
                         .expect("db error")
                     {
-                        pending_consensus_certificates.push((tx, fx_digest));
+                        pending_consensus_certificates.push((
+                            Schedulable::Transaction(tx),
+                            ExecutionEnv::new().with_expected_effects_digest(fx_digest),
+                        ));
                     } else {
-                        additional_certs.push(tx);
+                        additional_certs.push((Schedulable::Transaction(tx), ExecutionEnv::new()));
                     }
                 }
                 _ => (),
@@ -1653,7 +1658,9 @@ impl IotaNode {
 
         let digests = pending_consensus_certificates
             .iter()
-            .map(|(tx, _)| *tx.digest())
+            // unwrap_digest okay because only user certs are in
+            // pending_consensus_certificates
+            .map(|(tx, _)| *tx.key().unwrap_digest())
             .collect::<Vec<_>>();
 
         info!(
@@ -1662,8 +1669,12 @@ impl IotaNode {
             digests
         );
 
-        state.enqueue_with_expected_effects_digest(pending_consensus_certificates, epoch_store);
-        state.enqueue_transactions_for_execution(additional_certs, epoch_store);
+        state
+            .execution_scheduler()
+            .enqueue(pending_consensus_certificates, epoch_store);
+        state
+            .execution_scheduler()
+            .enqueue(additional_certs, epoch_store);
 
         // If this times out, the validator will still almost certainly start up fine.
         // But, it is possible that it may temporarily "forget" about
@@ -2256,7 +2267,7 @@ impl IotaNode {
                 ),
             );
         state
-            .try_execute_immediately(&transaction, None, epoch_store)
+            .try_execute_immediately(&transaction, ExecutionEnv::new(), epoch_store)
             .unwrap();
     }
 

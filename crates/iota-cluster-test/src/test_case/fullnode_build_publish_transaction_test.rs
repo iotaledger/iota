@@ -5,8 +5,8 @@
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_move_build::test_utils::compile_basics_package;
-use iota_sdk_types::{ObjectId, Owner};
-use jsonrpsee::rpc_params;
+use iota_sdk_types::{MovePackageData, Owner};
+use iota_test_transaction_builder::select_gas_coin;
 
 use crate::{TestCaseImpl, TestContext};
 
@@ -24,22 +24,18 @@ impl TestCaseImpl for FullNodeBuildPublishTransactionTest {
 
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {
         let compiled_package = compile_basics_package();
-        let all_module_bytes =
-            compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-        let dependencies = compiled_package.get_dependency_storage_package_ids();
+        let package_data = MovePackageData::new(
+            compiled_package.get_package_bytes(/* with_unpublished_deps */ false),
+            compiled_package.get_dependency_storage_package_ids(),
+        );
 
-        let params = rpc_params![
-            ctx.get_wallet_address(),
-            all_module_bytes,
-            dependencies,
-            None::<ObjectId>,
-            // Doesn't need to be scaled by RGP since most of the cost is storage
-            50_000_000.to_string()
-        ];
-
-        let data = ctx
-            .build_transaction_remotely("unsafe_publish", params)
-            .await?;
+        let sender = ctx.get_wallet_address();
+        let grpc_client = ctx.get_fullnode_grpc_client();
+        let mut builder = grpc_client.transaction_builder(sender);
+        let upgrade_cap = builder.publish_package(package_data).result();
+        builder.transfer_objects(sender, [upgrade_cap]);
+        builder.gas([select_gas_coin(&grpc_client, sender).await]);
+        let data = builder.finish().await?;
         let response = ctx.sign_and_execute(data, "publish basics package").await;
         response
             .effects

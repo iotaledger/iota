@@ -90,9 +90,38 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
 async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let handle = test_cluster.spawn_new_fullnode().await;
+    run_full_node_shared_objects(&test_cluster.wallet, &handle.iota_node).await
+}
 
-    let context = &mut test_cluster.wallet;
+// The same scenario with every node on the ExecutionScheduler. The cold-sync
+// variant below only covers the checkpoint-executor path, where envs come from
+// certified effects, so without this the live consensus path would run under
+// the default TransactionManager only.
+#[sim_test]
+async fn test_full_node_shared_objects_execution_scheduler() -> Result<(), anyhow::Error> {
+    // Selected at node construction; set before the cluster and fullnode are
+    // built. The opt-out variable is cleared too since it takes precedence.
+    // Process-per-test isolation keeps this from leaking to other tests.
+    std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+    let handle = test_cluster.spawn_new_fullnode().await;
+    for node in test_cluster.all_node_handles() {
+        node.with(|node| {
+            assert!(
+                node.state().uses_execution_scheduler(),
+                "every node must run the ExecutionScheduler for this test to exercise the \
+                 live consensus scheduling path"
+            );
+        });
+    }
+    run_full_node_shared_objects(&test_cluster.wallet, &handle.iota_node).await
+}
 
+async fn run_full_node_shared_objects(
+    context: &WalletContext,
+    fullnode: &IotaNodeHandle,
+) -> Result<(), anyhow::Error> {
     let sender = context
         .config()
         .keystore()
@@ -112,12 +141,17 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     )
     .await;
     let digest = response.digest;
-    handle
-        .iota_node
-        .state()
-        .get_transaction_cache_reader()
-        .notify_read_executed_effects_for_testing("", &[digest])
-        .await;
+    // Bounded: a lost or mismatched shared version assignment leaves the
+    // transaction waiting forever; fail clearly instead of hanging.
+    tokio::time::timeout(
+        Duration::from_secs(60),
+        fullnode
+            .state()
+            .get_transaction_cache_reader()
+            .notify_read_executed_effects_for_testing("", &[digest]),
+    )
+    .await
+    .expect("shared-object transaction did not execute on the fullnode");
 
     Ok(())
 }
