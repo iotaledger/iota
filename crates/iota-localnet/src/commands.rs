@@ -697,7 +697,7 @@ async fn start(
 
     // the faucet communicates with the fullnode via gRPC, we must enable it by
     // default.
-    if with_faucet.is_some() {
+    if faucet_address.is_some() {
         // the gRPC api uses default values if config is not provided,
         // allowing to not override it when provided in fullnode config.
         swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
