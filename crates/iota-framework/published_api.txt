@@ -2296,6 +2296,75 @@ from_flag
 flag
 	public fun
 	0x2::signature_scheme
+is_feature_enabled
+	public(package) fun
+	0x2::protocol_config
+PublicKeyFieldName
+	public struct
+	0x2::builtin_authenticator_functions
+ed25519_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+secp256k1_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+secp256r1_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+multisig_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+passkey_authenticator_function_ref_v1
+	public fun
+	0x2::builtin_authenticator_functions
+from_signature_scheme
+	public fun
+	0x2::builtin_authenticator_functions
+check_builtin_authenticators_enabled
+	fun
+	0x2::builtin_authenticator_functions
+Receiving
+	public struct
+	0x2::transfer
+transfer
+	public fun
+	0x2::transfer
+public_transfer
+	public fun
+	0x2::transfer
+freeze_object
+	public fun
+	0x2::transfer
+public_freeze_object
+	public fun
+	0x2::transfer
+share_object
+	public fun
+	0x2::transfer
+public_share_object
+	public fun
+	0x2::transfer
+receive
+	public fun
+	0x2::transfer
+public_receive
+	public fun
+	0x2::transfer
+receiving_object_id
+	public fun
+	0x2::transfer
+freeze_object_impl
+	public(package) fun
+	0x2::transfer
+share_object_impl
+	public(package) fun
+	0x2::transfer
+transfer_impl
+	public(package) fun
+	0x2::transfer
+receive_impl
+	fun
+	0x2::transfer
 multisig_validate_pubkey
 	public fun
 	0x2::multisig
@@ -2356,102 +2425,6 @@ validate_public_key
 to_iota_address_impl
 	fun
 	0x2::public_key
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
-PublicKeyAttached
-	public struct
-	0x2::builtin_authenticator_functions
-PublicKeyDetached
-	public struct
-	0x2::builtin_authenticator_functions
-PublicKeyRotated
-	public struct
-	0x2::builtin_authenticator_functions
-PublicKeyFieldName
-	public struct
-	0x2::builtin_authenticator_functions
-ed25519_authenticator_function_ref_v1
-	public fun
-	0x2::builtin_authenticator_functions
-secp256k1_authenticator_function_ref_v1
-	public fun
-	0x2::builtin_authenticator_functions
-secp256r1_authenticator_function_ref_v1
-	public fun
-	0x2::builtin_authenticator_functions
-multisig_authenticator_function_ref_v1
-	public fun
-	0x2::builtin_authenticator_functions
-passkey_authenticator_function_ref_v1
-	public fun
-	0x2::builtin_authenticator_functions
-from_signature_scheme
-	public fun
-	0x2::builtin_authenticator_functions
-attach_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-detach_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-rotate_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-has_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-borrow_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-public_key_field_name
-	fun
-	0x2::builtin_authenticator_functions
-check_builtin_authenticators_enabled
-	fun
-	0x2::builtin_authenticator_functions
-Receiving
-	public struct
-	0x2::transfer
-transfer
-	public fun
-	0x2::transfer
-public_transfer
-	public fun
-	0x2::transfer
-freeze_object
-	public fun
-	0x2::transfer
-public_freeze_object
-	public fun
-	0x2::transfer
-share_object
-	public fun
-	0x2::transfer
-public_share_object
-	public fun
-	0x2::transfer
-receive
-	public fun
-	0x2::transfer
-public_receive
-	public fun
-	0x2::transfer
-receiving_object_id
-	public fun
-	0x2::transfer
-freeze_object_impl
-	public(package) fun
-	0x2::transfer
-share_object_impl
-	public(package) fun
-	0x2::transfer
-transfer_impl
-	public(package) fun
-	0x2::transfer
-receive_impl
-	fun
-	0x2::transfer
 ClaimRegistry
 	public struct
 	0x2::claim_registry
@@ -3694,10 +3667,22 @@ SmartAccountClaimed
 SmartAccountCreated
 	public struct
 	0x2::smart_account
+PublicKeyAttached
+	public struct
+	0x2::smart_account
+PublicKeyDetached
+	public struct
+	0x2::smart_account
+PublicKeyRotated
+	public struct
+	0x2::smart_account
 SmartAccount
 	public struct
 	0x2::smart_account
 SmartAccountBuilder
+	public struct
+	0x2::smart_account
+PublicKeyFieldName
 	public struct
 	0x2::smart_account
 SmartAccountEvent
@@ -3765,6 +3750,24 @@ rotate_builtin_auth_public_key
 	0x2::smart_account
 rotate_auth_function_ref_v1
 	public fun
+	0x2::smart_account
+attach_public_key
+	public fun
+	0x2::smart_account
+detach_public_key
+	public fun
+	0x2::smart_account
+rotate_public_key
+	public fun
+	0x2::smart_account
+has_public_key
+	public fun
+	0x2::smart_account
+borrow_public_key
+	public fun
+	0x2::smart_account
+public_key_field_name
+	fun
 	0x2::smart_account
 ensure_tx_sender_is_smart_account
 	fun

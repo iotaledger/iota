@@ -37,10 +37,7 @@
 module iota::builtin_authenticator_functions;
 
 use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
-use iota::dynamic_field as df;
-use iota::event;
 use iota::protocol_config;
-use iota::public_key::{KeyID, PublicKey};
 use iota::signature_scheme::{Self, SignatureScheme};
 use std::ascii;
 
