@@ -40,7 +40,7 @@ use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::dynamic_field as df;
 use iota::event;
 use iota::protocol_config;
-use iota::public_key::PublicKey;
+use iota::public_key::{KeyID, PublicKey};
 use iota::signature_scheme::{Self, SignatureScheme};
 use std::ascii;
 
@@ -70,19 +70,19 @@ const PASSKEY_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"passkey_authenticator_fu
 
 /// Event: emitted when a public key is attached to an account.
 public struct PublicKeyAttached has copy, drop {
-    account_id: ID,
+    key_id: KeyID,
     public_key: PublicKey,
 }
 
 /// Event: emitted when a public key is detached from an account.
 public struct PublicKeyDetached has copy, drop {
-    account_id: ID,
+    key_id: KeyID,
     public_key: PublicKey,
 }
 
 /// Event: emitted when a public key is rotated on an account.
 public struct PublicKeyRotated has copy, drop {
-    account_id: ID,
+    key_id: KeyID,
     from: PublicKey,
     to: PublicKey,
 }
@@ -268,7 +268,7 @@ public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
     df::add(account_id, public_key_field_name(), public_key);
 
     let event = PublicKeyAttached {
-        account_id: account_id.to_inner(),
+        key_id: public_key.key_id(),
         public_key,
     };
     event::emit(event);
@@ -286,7 +286,7 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
     let public_key = df::remove(account_id, public_key_field_name());
 
     let event = PublicKeyDetached {
-        account_id: account_id.to_inner(),
+        key_id: public_key.key_id(),
         public_key,
     };
     event::emit(event);
@@ -310,7 +310,7 @@ public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): Publi
     df::add(account_id, df_name, public_key);
 
     let event = PublicKeyRotated {
-        account_id: account_id.to_inner(),
+        key_id: public_key.key_id(),
         from: prev_public_key,
         to: public_key,
     };

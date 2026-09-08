@@ -37,7 +37,7 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
 use iota::dynamic_field;
 use iota::event;
-use iota::public_key::{Self, PublicKey};
+use iota::public_key::{Self, KeyID, PublicKey};
 use iota::signature_scheme;
 
 const IMMUTABLE_ACCOUNT: bool = true;
@@ -61,17 +61,17 @@ public enum SmartAccountEvent has copy, drop {
 
 /// Event: emitted when a smart account is claimed.
 public struct SmartAccountClaimed has copy, drop {
+    key_id: KeyID,
     addr: address,
     scheme: u8,
-    key_id: address,
     immutable: bool,
 }
 
 /// Event: emitted when a smart account is created from scratch.
 public struct SmartAccountCreated has copy, drop {
+    key_id: KeyID,
     addr: address,
     scheme: u8,
-    key_id: address,
     immutable: bool,
 }
 
