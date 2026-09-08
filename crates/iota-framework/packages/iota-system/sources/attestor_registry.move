@@ -585,7 +585,7 @@ public(package) fun advance_epoch(
                     refunded_amount: bond.value(),
                     burned_amount: penalty_amount,
                 });
-                transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
+                refund(bond, attestor_address, ctx);
             } else {
                 exited.push_back(AttestorExitInfo {
                     attestor_address,
@@ -593,7 +593,7 @@ public(package) fun advance_epoch(
                     refunded_amount: bond.value(),
                     burned_amount: 0,
                 });
-                transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
+                refund(bond, attestor_address, ctx);
             }
         };
     };
@@ -649,7 +649,7 @@ public(package) fun advance_epoch(
                     refunded_amount: bond.value(),
                     burned_amount: 0,
                 });
-                transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
+                refund(bond, attestor_address, ctx);
             } else {
                 rebalance(&mut entry, min_joining_bond, low_bond_threshold);
                 // Activation may lag registration by more than one epoch
@@ -671,6 +671,16 @@ public(package) fun advance_epoch(
     };
 
     (evicted_bonds, DepartedAttestors { addresses: departed })
+}
+
+/// Return `bond` to `to`; a zero balance is destroyed instead of being sent
+/// as an empty coin object.
+fun refund(bond: Balance<IOTA>, to: address, ctx: &mut TxContext) {
+    if (bond.value() > 0) {
+        transfer::public_transfer(coin::from_balance(bond, ctx), to);
+    } else {
+        bond.destroy_zero();
+    }
 }
 
 /// Restore the boundary invariant: at-stake = min(total escrow, the

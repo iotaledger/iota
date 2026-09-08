@@ -100,6 +100,9 @@ rotate_key
 advance_epoch
 	public(package) fun
 	0x3::attestor_registry
+refund
+	fun
+	0x3::attestor_registry
 rebalance
 	fun
 	0x3::attestor_registry
