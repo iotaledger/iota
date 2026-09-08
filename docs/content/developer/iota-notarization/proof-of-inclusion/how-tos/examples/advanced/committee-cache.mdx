@@ -62,7 +62,7 @@ Prefer `from_genesis_with_cache()` when your application already has the network
 <div className={'hide-code-block-extras'}>
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/poi-implementation/poi-rs/src/committee.rs#L225-L257
+https://github.com/iotaledger/notarization/tree/v0.1/poi-rs/src/committee.rs#L225-L257
 ```
 
 </div>
@@ -74,7 +74,7 @@ The `CommitteeCache` trait has one lookup operation and one store operation. Bot
 <div className={'hide-code-block-extras'}>
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/poi-implementation/poi-rs/src/cache.rs#L13-L80
+https://github.com/iotaledger/notarization/tree/v0.1/poi-rs/src/cache.rs#L13-L80
 ```
 
 </div>
@@ -102,7 +102,7 @@ Create the file cache and pass it to `CommitteeResolution::from_genesis_with_cac
 <div className={'hide-code-block-extras'}>
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs#L31-L66
+https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/advanced/01_committee_cache.rs#L31-L66
 ```
 
 </div>
@@ -114,7 +114,7 @@ Preserve the complete `CommitteeCacheKey`. The example derives a separate direct
 <div className={'hide-code-block-extras'}>
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs#L82-L122
+https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/advanced/01_committee_cache.rs#L82-L122
 ```
 
 </div>
@@ -126,7 +126,7 @@ Return `Ok(None)` for a missing file. Decode an existing file and reject any com
 <div className={'hide-code-block-extras'}>
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs#L124-L140
+https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/advanced/01_committee_cache.rs#L124-L140
 ```
 
 </div>
@@ -138,7 +138,7 @@ Return success when an identical committee already exists, but reject a differen
 <div className={'hide-code-block-extras'}>
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs#L142-L175
+https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/advanced/01_committee_cache.rs#L142-L175
 ```
 
 </div>
@@ -156,5 +156,5 @@ Run it again against the same network to reuse the committees stored during the 
 ## Full Example Code
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/01_committee_cache.rs
+https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/advanced/01_committee_cache.rs
 ```
