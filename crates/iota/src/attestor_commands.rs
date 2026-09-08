@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::{
     fmt::{Debug, Display, Formatter, Write as _},
     fs,
+    io::{ErrorKind, Write as _},
     path::{Path, PathBuf},
 };
 
@@ -17,11 +18,11 @@ use iota_json_rpc_types::{
     IotaData, IotaObjectDataOptions, IotaProtocolConfigValue, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
-use iota_keys::keypair_file::{read_keypair_from_file, write_keypair_to_file};
+use iota_keys::keypair_file::read_keypair_from_file;
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
-    simple::SimpleKeypair,
+    ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, ObjectReference, SignatureScheme, Transaction,
@@ -349,11 +350,28 @@ fn attestor_key_path(context: &WalletContext) -> Result<PathBuf> {
     Ok(config_dir.join("attestor.key"))
 }
 
+/// Same encoding as `write_keypair_to_file`, but the file is created with
+/// mode 0600 so the private key is never readable by others, not even
+/// between creation and a later chmod.
 fn write_attestor_key(path: &Path, keypair: &SimpleKeypair, allow_overwrite: bool) -> Result<()> {
-    if !allow_overwrite && path.exists() {
-        bail!("an attestor key already exists at {path:?}; move it away if you are re-registering");
+    let contents = keypair.to_bech32().map_err(|e| anyhow!(e))?;
+    let mut options = fs::OpenOptions::new();
+    options.write(true).truncate(true).mode(0o600);
+    if allow_overwrite {
+        options.create(true);
+    } else {
+        options.create_new(true);
     }
-    write_keypair_to_file(keypair, path)?;
+    let mut file = match options.open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => bail!(
+            "an attestor key already exists at {path:?}; move it away if you are re-registering"
+        ),
+        Err(e) => return Err(e.into()),
+    };
+    file.write_all(contents.as_bytes())?;
+    // `mode` applies only to a newly created file; an overwritten one keeps
+    // whatever mode it had.
     set_key_file_permissions(path)?;
     Ok(())
 }
