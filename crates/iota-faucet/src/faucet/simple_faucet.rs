@@ -109,7 +109,7 @@ const RECV_TIMEOUT: Duration = Duration::from_secs(5);
 const BATCH_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long the fullnode should wait for an executed transaction to be
 /// included in a checkpoint before returning.
-const CHECKPOINT_INCLUSION_TIMEOUT_MS: u64 = 60_000;
+const CHECKPOINT_INCLUSION_TIMEOUT: Duration = Duration::from_secs(60);
 
 const MAX_TRACKED_ADDRESSES: usize = 100_000;
 
@@ -694,7 +694,7 @@ impl SimpleFaucet {
             .grpc_client
             .execute_transaction(
                 signed_tx,
-                CHECKPOINT_INCLUSION_TIMEOUT_MS,
+                CHECKPOINT_INCLUSION_TIMEOUT.as_millis() as u64,
                 [TransactionField::EFFECTS_BCS, TransactionField::CHECKPOINT],
             )
             .await
@@ -715,7 +715,7 @@ impl SimpleFaucet {
         if executed.checkpoint.is_none() {
             anyhow::bail!(
                 "transaction {tx_digest} was executed but not included in a checkpoint within \
-                 {CHECKPOINT_INCLUSION_TIMEOUT_MS} ms"
+                 {CHECKPOINT_INCLUSION_TIMEOUT:?}"
             );
         }
 
@@ -776,11 +776,11 @@ impl SimpleFaucet {
         assert!(
             created
                 .iter()
-                .all(|(_, owner)| matches!(owner, Owner::Address(addr) if *addr == recipient))
+                .all(|owned_ref| matches!(owned_ref.owner, Owner::Address(addr) if addr == recipient))
         );
         let coin_ids: Vec<ObjectId> = created
             .iter()
-            .map(|(object_ref, _)| *object_ref.object_id())
+            .map(|owned_ref| *owned_ref.reference.object_id())
             .collect();
         Ok((digest, coin_ids))
     }
@@ -825,12 +825,12 @@ impl SimpleFaucet {
         let created = effects.created();
 
         let mut address_coins_map: HashMap<Address, Vec<ObjectReference>> = HashMap::new();
-        created.iter().for_each(|(object_ref, owner)| {
+        created.iter().for_each(|owned_ref| {
             // Insert the coins into the map based on the destination address
             address_coins_map
-                .entry(*owner.address_or_object().unwrap())
+                .entry(*owned_ref.owner.address_or_object().unwrap())
                 .or_default()
-                .push(*object_ref);
+                .push(owned_ref.reference);
         });
 
         // Assert that the number of times a iota_address occurs is the number of times
