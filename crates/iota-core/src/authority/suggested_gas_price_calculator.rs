@@ -412,7 +412,8 @@ pub mod suggested_gas_price_calculator_test_utils {
 
         for (object_id, duration, gas_price) in init_values {
             match congestion_control_parameters.per_object_congestion_control_mode_for_test() {
-                PerObjectCongestionControlMode::None => {}
+                PerObjectCongestionControlMode::None
+                | PerObjectCongestionControlMode::GasVectorV1 => {}
                 PerObjectCongestionControlMode::TotalGasBudget
                 | PerObjectCongestionControlMode::TotalComputationUnits => {
                     let transaction =
@@ -483,6 +484,7 @@ mod tests {
                 PerCommitCongestionInfo, PerObjectCongestionInfo,
                 ScheduledTransactionCongestionInfo,
             },
+            transaction_deferral::DeferralReason,
         },
         execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
     };
@@ -602,7 +604,11 @@ mod tests {
     ) -> Option<(Vec<ObjectId>, u64)> {
         let (transaction, sequencing_result) =
             build_and_try_sequencing_transaction(tx, shared_object_congestion_tracker);
-        if let SequencingResult::Defer(_key, congested_objects) = sequencing_result {
+        if let SequencingResult::Defer(_key, reason) = sequencing_result {
+            let congested_objects = match reason {
+                DeferralReason::SharedObjectCongestion(congested_objects) => congested_objects,
+                _ => Vec::new(),
+            };
             Some((
                 congested_objects,
                 suggested_gas_price_calculator.calculate_suggested_gas_price(&transaction),
@@ -2381,7 +2387,9 @@ mod tests {
         // `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let max_execution_duration_per_commit = match per_object_congestion_control_mode {
-            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::None | PerObjectCongestionControlMode::GasVectorV1 => {
+                unreachable!()
+            }
             PerObjectCongestionControlMode::TotalTxCount => 0,
             PerObjectCongestionControlMode::TotalGasBudget
             | PerObjectCongestionControlMode::TotalComputationUnits => 2_999_999,
@@ -2466,7 +2474,8 @@ mod tests {
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
         let (max_execution_duration_per_commit, max_congestion_limit_overshoot_per_commit) =
             match per_object_congestion_control_mode {
-                PerObjectCongestionControlMode::None => unreachable!(),
+                PerObjectCongestionControlMode::None
+                | PerObjectCongestionControlMode::GasVectorV1 => unreachable!(),
                 PerObjectCongestionControlMode::TotalTxCount => (1, 2),
                 PerObjectCongestionControlMode::TotalGasBudget
                 | PerObjectCongestionControlMode::TotalComputationUnits => (1_000_000, 2_000_000),
@@ -2731,8 +2740,14 @@ mod tests {
         let shed = build_transaction(&[(object, true)], 1, 900);
         tracker.initialize_object_execution_slots(&shed.shared_input_objects());
         match tracker.try_schedule(&shed, &PreviouslyDeferredTransactions::new(), 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) => {
                 assert_eq!(congested_objects, vec![object]);
+            }
+            SequencingResult::Defer(_, reason) => {
+                panic!("expected object congestion, got {reason:?}")
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
         }
@@ -2784,8 +2799,14 @@ mod tests {
         let shed = build_transaction(&[(object, true)], 2, 900);
         tracker.initialize_object_execution_slots(&shed.shared_input_objects());
         match tracker.try_schedule(&shed, &PreviouslyDeferredTransactions::new(), 0) {
-            SequencingResult::Defer(_, congested_objects) => {
+            SequencingResult::Defer(
+                _,
+                DeferralReason::SharedObjectCongestion(congested_objects),
+            ) => {
                 assert_eq!(congested_objects, vec![object]);
+            }
+            SequencingResult::Defer(_, reason) => {
+                panic!("expected object congestion, got {reason:?}")
             }
             SequencingResult::Schedule(_) => panic!("should defer"),
         }
