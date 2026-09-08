@@ -20,7 +20,7 @@
 //!   so content reads survive aggressive pruning. Empty in normal operation.
 //!
 //! [`HandlerObjectState`] owns the overlays, the transaction-key ->
-//! commit-round map,
+//! commit-index map,
 //! and every invariant on them: overlay-first reads, version-monotone
 //! upserts, and eviction only after the corresponding table row is durable.
 //!
@@ -28,7 +28,7 @@
 //! commit's kept transaction keys before they can be scheduled
 //! ([`HandlerObjectState::assign_commit_to_transactions`], via the epoch
 //! store); each execution records its writes before they become readable -
-//! handler-latest rows when the key is in the round map, sync-ahead records
+//! handler-latest rows when the key is in the index map, sync-ahead records
 //! and sheltered bytes when it is not
 //! ([`HandlerObjectState::record_executed_transaction`]); a fully executed
 //! commit applies its remaining upserts, queues durable deletions for the sync
@@ -60,7 +60,6 @@ use iota_sdk_types::{
     Version, WriteKind,
 };
 use iota_types::{
-    base_types::CommitRound,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
     object::Object,
@@ -74,6 +73,13 @@ use typed_store::{Map, rocks::DBBatch};
 
 use super::AuthorityEpochTables;
 use crate::execution_cache::cache_types::{IsNewer, MonotonicCache, Ticket};
+
+/// Position of a consensus commit in the epoch's commit sequence: dense,
+/// starting at 1, identical on every validator. The node-side counterpart of
+/// consensus's `CommitIndex`, widened like `ExecutionIndices::sub_dag_index`
+/// so this module's persisted rows do not depend on the consensus crate's
+/// representation.
+pub type CommitIndex = u64;
 
 /// Whether a handler-latest row describes a live object or a tombstone.
 ///
@@ -94,9 +100,9 @@ pub struct HandlerLatestObject {
     pub version: Version,
     pub digest: ObjectDigest,
     pub kind: HandlerLatestObjectKind,
-    /// Round of the commit whose execution produced this row; reads at commit
+    /// Index of the commit whose execution produced this row; reads at commit
     /// C treat rows above the horizon (C − K) as missing
-    pub produced_at: CommitRound,
+    pub produced_at: CommitIndex,
     /// `Some` iff the object was created as shared this epoch; doubles as the
     /// created-shared flag for the shared-input checks.
     pub initial_shared_version: Option<Version>,
@@ -147,7 +153,7 @@ pub struct SyncAheadWrite {
 /// `Live` rows, deletions and wraps become tombstone rows.
 pub fn handler_latest_upserts(
     effects: &TransactionEffects,
-    produced_at: CommitRound,
+    produced_at: CommitIndex,
 ) -> Vec<(ObjectId, HandlerLatestObject)> {
     let changed = effects.all_changed_objects();
     let mut rows = Vec::with_capacity(changed.len());
@@ -282,7 +288,7 @@ pub fn consumed_input_keys_to_shelter(old_metadata: &[OwnedObjectReference]) -> 
 /// can mark the commit fully executed once every root has effects.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssignedCommit {
-    pub round: CommitRound,
+    pub index: CommitIndex,
     /// The commit's roots: the same keys written to its pending checkpoints,
     /// cancelled transactions included.
     pub roots: Vec<TransactionKey>,
@@ -294,7 +300,7 @@ pub struct AssignedCommit {
 /// durable, and the read paths check the overlay first, so the transient
 /// both-present state is harmless.
 pub struct HandlerObjectState {
-    /// Transaction key → producing commit round for every kept transaction of
+    /// Transaction key → producing commit index for every kept transaction of
     /// commits the handler has processed but whose executions have not all
     /// completed. The execution hook consults it: hit → handler-latest upsert;
     /// miss → sync-ahead execution. Keyed by [`TransactionKey`] rather than
@@ -303,11 +309,11 @@ pub struct HandlerObjectState {
     /// exists. Never persisted: replay after restart re-runs
     /// `assign_commit_to_transactions` before any (re-)execution can ask, and
     /// commits below the durable resume point never consult it again.
-    commit_round_by_key: DashMap<TransactionKey, CommitRound>,
+    commit_index_by_key: DashMap<TransactionKey, CommitIndex>,
 
-    /// The keys assigned per round, so a fully executed commit can drop its
-    /// map entries.
-    keys_by_commit: Mutex<BTreeMap<CommitRound, Vec<TransactionKey>>>,
+    /// The keys assigned per commit index, so a fully executed commit can drop
+    /// its map entries.
+    keys_by_commit: Mutex<BTreeMap<CommitIndex, Vec<TransactionKey>>>,
     /// Hands each assigned commit to the execution watcher in processing
     /// order. Unbounded so commit processing never blocks on execution lag;
     /// the backlog is one entry per commit not yet fully executed.
@@ -354,7 +360,7 @@ impl HandlerObjectState {
         let (assigned_commits, assigned_commits_receiver) =
             unbounded_channel("handler_assigned_commits");
         Self {
-            commit_round_by_key: DashMap::with_shard_amount(2048),
+            commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
             assigned_commits,
             assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
@@ -367,27 +373,27 @@ impl HandlerObjectState {
         }
     }
 
-    /// Records the roots of commit `round`, before any of them can be
+    /// Records the roots of commit `index`, before any of them can be
     /// scheduled for execution, and hands the commit to the execution
     /// watcher. Called exactly once per commit: the watcher marks the commit
     /// fully executed after awaiting the roots it was handed, so a second
-    /// call for the same round would let it drop entries it never awaited.
-    pub fn assign_commit_to_transactions(&self, round: CommitRound, roots: Vec<TransactionKey>) {
+    /// call for the same index would let it drop entries it never awaited.
+    pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
         for key in &roots {
-            self.commit_round_by_key.insert(*key, round);
+            self.commit_index_by_key.insert(*key, index);
         }
         if self
             .keys_by_commit
             .lock()
-            .insert(round, roots.clone())
+            .insert(index, roots.clone())
             .is_some()
         {
-            debug_fatal!("commit round {round} assigned twice");
+            debug_fatal!("commit index {index} assigned twice");
         }
         // A closed receiver means the watcher has exited with the epoch;
         // nothing is left to complete.
         self.assigned_commits
-            .send(AssignedCommit { round, roots })
+            .send(AssignedCommit { index, roots })
             .ok();
     }
 
@@ -397,18 +403,18 @@ impl HandlerObjectState {
         self.assigned_commits_receiver.lock().take()
     }
 
-    /// The commit round that kept this transaction, if the handler has
+    /// The commit index that kept this transaction, if the handler has
     /// processed that commit and it is not fully executed yet.
-    pub fn commit_round_of(&self, key: &TransactionKey) -> Option<CommitRound> {
-        self.commit_round_by_key.get(key).map(|round| *round)
+    pub fn commit_index_of(&self, key: &TransactionKey) -> Option<CommitIndex> {
+        self.commit_index_by_key.get(key).map(|index| *index)
     }
 
-    /// Drops the key → round entries of a fully executed commit, keeping the
+    /// Drops the key → index entries of a fully executed commit, keeping the
     /// map bounded.
-    pub fn drop_commit_assignments(&self, round: CommitRound) {
-        if let Some(keys) = self.keys_by_commit.lock().remove(&round) {
+    pub fn drop_commit_assignments(&self, index: CommitIndex) {
+        if let Some(keys) = self.keys_by_commit.lock().remove(&index) {
             for key in keys {
-                self.commit_round_by_key.remove(&key);
+                self.commit_index_by_key.remove(&key);
             }
         }
     }
@@ -437,8 +443,8 @@ impl HandlerObjectState {
         effects: &TransactionEffects,
         loaded_input_objects: &dyn ObjectStore,
     ) -> IotaResult {
-        if let Some(round) = self.commit_round_of(key) {
-            self.upsert_handler_latest_rows(tables, &handler_latest_upserts(effects, round))
+        if let Some(index) = self.commit_index_of(key) {
+            self.upsert_handler_latest_rows(tables, &handler_latest_upserts(effects, index))
         } else {
             let old_metadata = effects.old_object_metadata();
             self.upsert_sync_ahead_writes(tables, sync_ahead_writes(effects, &old_metadata))?;
@@ -450,10 +456,10 @@ impl HandlerObjectState {
         }
     }
 
-    /// Marks commit `round` fully executed: applies the commit's
+    /// Marks commit `index` fully executed: applies the commit's
     /// handler-latest upserts (covering executions that raced the map
     /// registration), removes sync-ahead records whose chains the handler has
-    /// now caught up past, and drops the commit's digest → round map entries.
+    /// now caught up past, and drops the commit's key → index map entries.
     ///
     /// Sheltered bytes are deliberately not evicted here: their eviction keys
     /// off the *flushed* frontier, because a crash before this commit's
@@ -462,7 +468,7 @@ impl HandlerObjectState {
     pub fn record_commit_fully_executed(
         &self,
         tables: &AuthorityEpochTables,
-        round: CommitRound,
+        index: CommitIndex,
         upserts: &[(ObjectId, HandlerLatestObject)],
     ) -> IotaResult {
         // The upserts must be visible to readers before the sync records are
@@ -470,14 +476,14 @@ impl HandlerObjectState {
         // is untouched this epoch and consults epoch-start state.
         self.upsert_handler_latest_rows(tables, upserts)?;
         self.remove_handled_sync_ahead_records(tables, upserts)?;
-        self.drop_commit_assignments(round);
+        self.drop_commit_assignments(index);
         Ok(())
     }
 
     /// The latest state of `id` as of the handler frontier, from the overlay
     /// or the durable table.
     ///
-    /// Returns the row unconditionally; a caller validating at a commit round
+    /// Returns the row unconditionally; a caller validating at a commit index
     /// must apply the reading condition itself (`produced_at` above its
     /// horizon answers missing). Writers and cleanup need the unfiltered
     /// frontier row, so no horizon is applied here.
@@ -910,16 +916,16 @@ mod tests {
     fn handler_latest_upserts_map_every_write_kind() {
         let fixture = effects_fixture();
         let lamport = fixture.effects.lamport_version();
-        let round: CommitRound = 9;
+        let index: CommitIndex = 9;
         let rows: BTreeMap<ObjectId, HandlerLatestObject> =
-            handler_latest_upserts(&fixture.effects, round)
+            handler_latest_upserts(&fixture.effects, index)
                 .into_iter()
                 .collect();
 
         let created_owned = &rows[&fixture.created_owned];
         assert_eq!(created_owned.kind, HandlerLatestObjectKind::Live);
         assert_eq!(created_owned.version, lamport);
-        assert_eq!(created_owned.produced_at, round);
+        assert_eq!(created_owned.produced_at, index);
         assert_eq!(created_owned.initial_shared_version, None);
 
         let created_shared = &rows[&fixture.created_shared];
@@ -1042,10 +1048,10 @@ mod tests {
     }
 
     #[test]
-    fn commit_round_map_assign_and_drop() {
+    fn commit_index_map_assign_and_drop() {
         let (assigned_commits, assigned_commits_receiver) = unbounded_channel("test");
         let state = HandlerObjectState {
-            commit_round_by_key: DashMap::with_shard_amount(2048),
+            commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
             assigned_commits,
             assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
@@ -1061,14 +1067,14 @@ mod tests {
         let key_c = TransactionKey::RandomnessRound(0, RandomnessRound::new(1));
         state.assign_commit_to_transactions(3, vec![key_a]);
         state.assign_commit_to_transactions(4, vec![key_b, key_c]);
-        assert_eq!(state.commit_round_of(&key_a), Some(3));
-        assert_eq!(state.commit_round_of(&key_b), Some(4));
-        assert_eq!(state.commit_round_of(&key_c), Some(4));
+        assert_eq!(state.commit_index_of(&key_a), Some(3));
+        assert_eq!(state.commit_index_of(&key_b), Some(4));
+        assert_eq!(state.commit_index_of(&key_c), Some(4));
         state.drop_commit_assignments(3);
-        assert_eq!(state.commit_round_of(&key_a), None);
-        assert_eq!(state.commit_round_of(&key_b), Some(4));
+        assert_eq!(state.commit_index_of(&key_a), None);
+        assert_eq!(state.commit_index_of(&key_b), Some(4));
         state.drop_commit_assignments(4);
-        assert_eq!(state.commit_round_of(&key_b), None);
-        assert_eq!(state.commit_round_of(&key_c), None);
+        assert_eq!(state.commit_index_of(&key_b), None);
+        assert_eq!(state.commit_index_of(&key_c), None);
     }
 }

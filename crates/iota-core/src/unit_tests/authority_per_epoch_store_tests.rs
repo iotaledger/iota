@@ -1079,7 +1079,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     let address = Address::new([1u8; 32]);
 
     // The object does not exist this epoch: nothing to update.
-    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
@@ -1341,7 +1341,7 @@ async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
     // The epoch is closing: no transaction is accepted any more.
     store.get_reconfig_state_write_lock_guard().close_all_tx();
 
-    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 1, 0, false);
     let mut output = ConsensusCommitOutput::default();
     let mut transactions = VecDeque::new();
     let mut roots = std::collections::BTreeSet::new();
@@ -1432,7 +1432,7 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
             &mut output,
             &mut transactions,
             &mut roots,
-            &ConsensusCommitInfo::new_for_test(1, 0, false),
+            &ConsensusCommitInfo::new_for_test(1, 1, 0, false),
         )
         .unwrap();
 
@@ -1825,7 +1825,6 @@ mod handler_object_state_storage {
     };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::CommitRound,
         effects::{TestEffectsBuilder, TransactionEffectsAPI},
         object::Object,
         storage::{ObjectKey, ObjectStore},
@@ -1834,7 +1833,7 @@ mod handler_object_state_storage {
 
     use super::*;
     use crate::authority::authority_per_epoch_store::handler_object_state::{
-        HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
+        CommitIndex, HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
     };
 
     /// An [`ObjectStore`] for the map-hit arm: a handler-known transaction
@@ -1904,7 +1903,7 @@ mod handler_object_state_storage {
         (effects, inputs)
     }
 
-    fn generate_live_entry(version: Version, produced_at: CommitRound) -> HandlerLatestObject {
+    fn generate_live_entry(version: Version, produced_at: CommitIndex) -> HandlerLatestObject {
         HandlerLatestObject {
             version,
             digest: ObjectDigest::random(),

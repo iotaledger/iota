@@ -37,7 +37,7 @@ use crate::{
         authority_per_epoch_store::{
             AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndices,
             ExecutionIndicesWithStats,
-            handler_object_state::{AssignedCommit, handler_latest_upserts},
+            handler_object_state::{AssignedCommit, CommitIndex, handler_latest_upserts},
         },
         backpressure::{BackpressureManager, BackpressureSubscriber},
         shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
@@ -581,16 +581,16 @@ impl ExecutionWatcher {
         epoch_store: &AuthorityPerEpochStore,
         effects_store: Arc<dyn TransactionCacheRead>,
     ) -> IotaResult {
-        while let Some(AssignedCommit { round, roots }) = receiver.recv().await {
+        while let Some(AssignedCommit { index, roots }) = receiver.recv().await {
             let digests = epoch_store.notify_read_tx_key_to_digest(&roots).await?;
             let effects = effects_store
                 .try_notify_read_executed_effects(EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME, &digests)
                 .await?;
             let upserts: Vec<_> = effects
                 .iter()
-                .flat_map(|effects| handler_latest_upserts(effects, round))
+                .flat_map(|effects| handler_latest_upserts(effects, index))
                 .collect();
-            epoch_store.record_commit_fully_executed(round, &upserts)?;
+            epoch_store.record_commit_fully_executed(index, &upserts)?;
         }
         Ok(())
     }
@@ -955,6 +955,7 @@ impl SequencedConsensusTransaction {
 
 /// Represents the information from the current consensus commit.
 pub struct ConsensusCommitInfo {
+    pub index: CommitIndex,
     pub round: u64,
     pub timestamp: u64,
     pub consensus_commit_digest: ConsensusCommitDigest,
@@ -965,6 +966,7 @@ pub struct ConsensusCommitInfo {
 impl ConsensusCommitInfo {
     fn new(consensus_output: &impl ConsensusOutputAPI) -> Self {
         Self {
+            index: consensus_output.commit_sub_dag_index(),
             round: consensus_output.leader_round(),
             timestamp: consensus_output.commit_timestamp_ms(),
             consensus_commit_digest: consensus_output.consensus_digest(),
@@ -974,11 +976,13 @@ impl ConsensusCommitInfo {
     }
 
     pub fn new_for_test(
+        commit_index: CommitIndex,
         commit_round: u64,
         commit_timestamp: u64,
         skip_consensus_commit_prologue_in_test: bool,
     ) -> Self {
         Self {
+            index: commit_index,
             round: commit_round,
             timestamp: commit_timestamp,
             consensus_commit_digest: ConsensusCommitDigest::default(),

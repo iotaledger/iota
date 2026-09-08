@@ -174,7 +174,7 @@ use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
 use handler_object_state::{
-    AssignedCommit, HandlerLatestObject, HandlerObjectState, SyncAheadRecord,
+    AssignedCommit, CommitIndex, HandlerLatestObject, HandlerObjectState, SyncAheadRecord,
 };
 use iota_types::crypto::AuthorityPublicKey;
 use scorer::Scoreboard;
@@ -1760,15 +1760,15 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Registers the roots of commit `round` in the transaction-key ->
-    /// commit-round map and hands the commit to the execution watcher. Must
+    /// Registers the roots of commit `index` in the transaction-key ->
+    /// commit-index map and hands the commit to the execution watcher. Must
     /// be called once per commit while the handler processes it, before any
     /// of its transactions can be scheduled: the execution hook classifies
     /// each execution by this map - hit means the handler has passed the
     /// producing commit, miss means state sync is running ahead.
-    pub fn assign_commit_to_transactions(&self, round: CommitRound, roots: Vec<TransactionKey>) {
+    pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
         self.handler_object_state
-            .assign_commit_to_transactions(round, roots);
+            .assign_commit_to_transactions(index, roots);
     }
 
     /// The execution watcher's end of the assigned-commit channel; `None`
@@ -1796,16 +1796,16 @@ impl AuthorityPerEpochStore {
         )
     }
 
-    /// Marks commit `round` fully executed; see
+    /// Marks commit `index` fully executed; see
     /// [`HandlerObjectState::record_commit_fully_executed`].
     pub fn record_commit_fully_executed(
         &self,
-        round: CommitRound,
+        index: CommitIndex,
         upserts: &[(ObjectId, HandlerLatestObject)],
     ) -> IotaResult {
         let tables = self.tables()?;
         self.handler_object_state
-            .record_commit_fully_executed(&tables, round, upserts)
+            .record_commit_fully_executed(&tables, index, upserts)
     }
 
     /// The latest state of `id` as of the handler frontier.
@@ -4286,7 +4286,7 @@ impl AuthorityPerEpochStore {
                 if should_write_random_checkpoint {
                     commit_roots.extend(randomness_roots.iter().copied());
                 }
-                self.assign_commit_to_transactions(consensus_commit_info.round, commit_roots);
+                self.assign_commit_to_transactions(consensus_commit_info.index, commit_roots);
             }
 
             let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
@@ -4646,6 +4646,7 @@ impl AuthorityPerEpochStore {
             checkpoint_service,
             cache_reader,
             &ConsensusCommitInfo::new_for_test(
+                self.get_highest_pending_checkpoint_height() / 2 + 1,
                 self.get_highest_pending_checkpoint_height() / 2 + 1,
                 0,
                 skip_consensus_commit_prologue_in_test,
