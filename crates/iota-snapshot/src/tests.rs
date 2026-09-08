@@ -1242,6 +1242,9 @@ async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyho
             epoch: 0,
             perpetual_tables: perpetual_db,
             view_taken,
+            writer_idle: Arc::new(tokio::sync::Semaphore::new(1))
+                .try_acquire_owned()
+                .expect("a fresh permit"),
         })
         .await?;
 

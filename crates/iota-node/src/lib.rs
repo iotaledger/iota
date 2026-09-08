@@ -73,7 +73,7 @@ use iota_core::{
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
-    state_snapshot::EpochSnapshotRequest,
+    state_snapshot::{EpochSnapshotHandle, EpochSnapshotRequest},
     storage::{GrpcReadStore, RocksDbStore},
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
@@ -672,9 +672,9 @@ impl IotaNode {
             checkpoint_store.clone(),
             state_snapshot_receiver,
         )?;
-        let state_snapshot_requests = state_snapshot_handle
+        let state_snapshots = state_snapshot_handle
             .is_some()
-            .then_some(state_snapshot_requests);
+            .then(|| EpochSnapshotHandle::new(state_snapshot_requests));
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
@@ -714,7 +714,7 @@ impl IotaNode {
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),
-            state_snapshot_requests,
+            state_snapshots,
         )
         .await;
 

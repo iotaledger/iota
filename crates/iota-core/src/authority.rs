@@ -174,7 +174,7 @@ use crate::{
         overload_monitor_accept_tx,
     },
     stake_aggregator::StakeAggregator,
-    state_snapshot::EpochSnapshotRequest,
+    state_snapshot::EpochSnapshotHandle,
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
@@ -945,7 +945,7 @@ pub struct AuthorityState {
     /// Set on a node that publishes state snapshots: the epoch boundary hands
     /// each epoch's live object set to the writer through it. See
     /// [`Self::begin_state_snapshot`].
-    state_snapshot_requests: Option<mpsc::Sender<EpochSnapshotRequest>>,
+    state_snapshots: Option<EpochSnapshotHandle>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -3051,7 +3051,7 @@ impl AuthorityState {
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
-        state_snapshot_requests: Option<mpsc::Sender<EpochSnapshotRequest>>,
+        state_snapshots: Option<EpochSnapshotHandle>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3124,7 +3124,7 @@ impl AuthorityState {
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
-            state_snapshot_requests,
+            state_snapshots,
         });
 
         // Start a task to execute ready transactions.
@@ -3644,32 +3644,16 @@ impl AuthorityState {
     /// Waits only until the writer has taken its read view of the perpetual
     /// store, which is what makes the scan behind it see the state this epoch
     /// ended with. The scan and the upload run while the node executes the
-    /// next epoch.
-    ///
-    /// Never holds reconfiguration up for longer than that: if the writer is
-    /// still busy with an earlier epoch, or has stopped, this epoch simply
-    /// goes without a snapshot and the next one is written as usual.
+    /// next epoch, and a writer that is busy or gone costs this epoch its
+    /// snapshot rather than holding reconfiguration up.
     async fn begin_state_snapshot(&self, epoch: EpochId) {
-        let Some(requests) = &self.state_snapshot_requests else {
+        let Some(snapshots) = &self.state_snapshots else {
             return;
         };
         let _metrics_guard = self.metrics.state_snapshot_handover_latency.start_timer();
-        let (view_taken, view_is_taken) = oneshot::channel();
-        let request = EpochSnapshotRequest {
-            epoch,
-            perpetual_tables: self.get_reconfig_api().perpetual_tables(),
-            view_taken,
-        };
-        if let Err(err) = requests.try_send(request) {
-            warn!(epoch, "not writing a state snapshot for this epoch: {err}");
-            return;
-        }
-        if view_is_taken.await.is_err() {
-            warn!(
-                epoch,
-                "the state snapshot writer stopped before taking its read view"
-            );
-        }
+        snapshots
+            .hand_over(epoch, self.get_reconfig_api().perpetual_tables())
+            .await;
     }
 
     /// Load the current epoch store. This can change during reconfiguration. To

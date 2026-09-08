@@ -74,17 +74,25 @@ pub(crate) enum Storage {
 
 /// A consistent read view of a database, as of the moment it was taken.
 ///
+/// This is a RocksDB snapshot — the sequence number a read is pinned to, not a
+/// copy of anything. The name keeps it apart from the two other snapshots in
+/// this codebase: the formal state snapshot a node publishes, and the
+/// hard-linked directory `Database::checkpoint` writes.
+///
 /// Reads made through the view ignore every write that lands after it, so a
-/// scan lasting minutes still sees a single point in time.
+/// scan lasting minutes still sees a single point in time. A view lives only
+/// as long as the process: nothing about it survives a restart.
 ///
 /// RocksDB keeps every superseded version an open view still needs, so a view
 /// holds that data on disk for as long as it lives, and compaction cannot
 /// reclaim it: take one as late as possible and drop it as soon as the read is
 /// done.
 ///
-/// The view borrows its database and is neither `Send` nor `Sync`, so it
-/// cannot outlive the data it pins, cross a thread, or be held across an
-/// `.await`.
+/// The view borrows its database, so it cannot outlive the handle that keeps
+/// the versions it pins alive. It is `Send` and `Sync` in itself — a RocksDB
+/// snapshot is just a sequence number — but the borrow keeps it inside the
+/// scope holding that handle, which is why a scan takes its own view where it
+/// runs rather than being handed one.
 pub struct DbReadView<'db> {
     /// `None` for the in-memory backend, which has no multi-version reads: a
     /// view over it sees writes made after it was taken.

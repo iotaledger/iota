@@ -106,9 +106,15 @@ impl StateSnapshotUploader {
         requests: mpsc::Receiver<EpochSnapshotRequest>,
     ) -> tokio::sync::broadcast::Sender<()> {
         let (kill_sender, _kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
-        tokio::task::spawn(Self::run_upload_loop(
+        tokio::task::spawn(Self::run_write_loop(
             self.clone(),
             requests,
+            kill_sender.subscribe(),
+        ));
+        // On its own task: a remote listing that hangs must not delay taking
+        // the read view an epoch boundary is waiting for.
+        tokio::task::spawn(Self::run_missing_epochs_metric_loop(
+            self.clone(),
             kill_sender.subscribe(),
         ));
         tokio::task::spawn(run_manifest_update_loop(
@@ -129,6 +135,9 @@ impl StateSnapshotUploader {
             epoch,
             perpetual_tables,
             view_taken,
+            // Held until this function returns, which is what frees the next
+            // epoch boundary to hand its own snapshot over.
+            writer_idle: _writer_idle,
         } = request;
         // Chain identifier = genesis checkpoint digest; tags each manifest.
         let chain_id = ChainIdentifier::from(
@@ -200,15 +209,13 @@ impl StateSnapshotUploader {
         Ok(())
     }
 
-    /// Main loop: writes the state snapshot of each epoch as the node hands
-    /// it over, and refreshes the first-missing-epoch metric in between.
-    async fn run_upload_loop(
+    /// Writes the state snapshot of each epoch as the node hands it over.
+    async fn run_write_loop(
         self: Arc<Self>,
         mut requests: mpsc::Receiver<EpochSnapshotRequest>,
         mut recv: tokio::sync::broadcast::Receiver<()>,
     ) -> Result<()> {
-        let mut interval = tokio::time::interval(self.interval);
-        info!("State snapshot uploader loop started");
+        info!("State snapshot writer loop started");
         loop {
             tokio::select! {
                 request = requests.recv() => {
@@ -219,6 +226,21 @@ impl StateSnapshotUploader {
                         error!("Failed to write the state snapshot for epoch {epoch}: {err:?}");
                     }
                 },
+                _ = recv.recv() => break,
+            }
+        }
+        Ok(())
+    }
+
+    /// Keeps the first-missing-epoch metric current, for alerting on a node
+    /// that has stopped publishing.
+    async fn run_missing_epochs_metric_loop(
+        self: Arc<Self>,
+        mut recv: tokio::sync::broadcast::Receiver<()>,
+    ) -> Result<()> {
+        let mut interval = tokio::time::interval(self.interval);
+        loop {
+            tokio::select! {
                 _now = interval.tick() => {
                     match self.get_missing_epochs().await {
                         Ok(epochs) => {
