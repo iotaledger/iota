@@ -6684,6 +6684,7 @@ dependencies = [
  "iota-simulator",
  "iota-swarm-config",
  "iota-test-transaction-builder",
+ "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
  "move-core-types",
