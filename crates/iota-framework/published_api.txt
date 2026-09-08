@@ -2329,6 +2329,9 @@ secp256k1_verify
 PublicKey
 	public struct
 	0x2::public_key
+KeyID
+	public struct
+	0x2::public_key
 from_prefixed_bytes
 	public fun
 	0x2::public_key
