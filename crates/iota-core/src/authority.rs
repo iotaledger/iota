@@ -68,7 +68,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{Attestation, AttestationJudge},
+    attestation::Attestation,
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -1307,7 +1307,6 @@ impl AuthorityState {
                         signer,
                         tx_digest,
                         auth_context_data,
-                        None,
                         &mut None,
                     );
                 (
@@ -2310,9 +2309,9 @@ impl AuthorityState {
             let (
                 inner_temp_store,
                 gas_status,
-                effects,
-                execution_error_opt,
-                _authentication_failed,
+                mut effects,
+                mut execution_error_opt,
+                authentication_failed,
             ) = epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
@@ -2333,11 +2332,25 @@ impl AuthorityState {
                     signer,
                     tx_digest,
                     auth_context_data,
-                    attestation_verdict_context
-                        .as_ref()
-                        .map(|context| context as &dyn AttestationJudge),
                     &mut None,
                 );
+
+            // A failure that refutes the attestation is charged to the
+            // attestor; the issuer's error is kept as the cause. The verdict
+            // only changes the failure status, so the effects the executor
+            // produced are adjusted in place.
+            if authentication_failed
+                && attestation_verdict_context.is_some_and(|context| context.is_refuted())
+            {
+                let mut effects_v1 = effects.into_v1();
+                effects_v1.status =
+                    ExecutionStatus::new_failure(ExecutionErrorKind::InvalidAttestation, None);
+                effects = TransactionEffects::V1(Box::new(effects_v1));
+                execution_error_opt = execution_error_opt.map_err(|error| {
+                    ExecutionError::new_with_source(ExecutionErrorKind::InvalidAttestation, error)
+                });
+            }
+
             (inner_temp_store, gas_status, effects, execution_error_opt)
         };
 

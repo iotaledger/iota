@@ -94,14 +94,6 @@ impl Attestation {
     }
 }
 
-/// Judges an attestation whose transaction failed Move authentication at
-/// execution.
-pub trait AttestationJudge {
-    /// Whether the failure refutes the attestation, so it is charged to the
-    /// attestor instead of the issuer.
-    fn is_refuted(&self) -> bool;
-}
-
 impl AttestedTransaction {
     pub fn new(transaction: Transaction, attestation: Attestation) -> Self {
         Self {
