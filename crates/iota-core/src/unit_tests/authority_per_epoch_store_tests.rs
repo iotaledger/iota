@@ -12,7 +12,7 @@ use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
     base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
-    messages_consensus::TransactionDenyRuleProposal,
+    messages_consensus::TransactionDenyRuleProposal, transaction::TransactionKey,
 };
 use tokio::time::timeout;
 use typed_store::{Map, rocks::DBBatch};
@@ -2011,7 +2011,11 @@ mod handler_object_state_storage {
         let mutated = ObjectId::random();
         let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
+            .record_executed_transaction(
+                &TransactionKey::Digest(*effects.transaction_digest()),
+                &effects,
+                &loaded_inputs.as_slice(),
+            )
             .unwrap();
         let first_chain_head = effects.lamport_version();
         let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
@@ -2036,7 +2040,11 @@ mod handler_object_state_storage {
         let (next_effects, next_inputs) =
             executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
         epoch_store
-            .record_executed_transaction(&next_effects, &next_inputs.as_slice())
+            .record_executed_transaction(
+                &TransactionKey::Digest(*next_effects.transaction_digest()),
+                &next_effects,
+                &next_inputs.as_slice(),
+            )
             .unwrap();
         let record = SyncAheadRecord {
             base_version: Some(first_chain_head),
@@ -2070,9 +2078,10 @@ mod handler_object_state_storage {
         let mutated = ObjectId::random();
         let (effects, _) = executed_owned_tx_effects(mutated, 5, 1);
 
-        epoch_store.assign_commit_to_transactions(6, vec![*effects.transaction_digest()]);
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(6, vec![key]);
         epoch_store
-            .record_executed_transaction(&effects, &NoShelterFetch)
+            .record_executed_transaction(&key, &effects, &NoShelterFetch)
             .unwrap();
 
         let row = epoch_store
@@ -2100,7 +2109,11 @@ mod handler_object_state_storage {
         let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
         let gas = loaded_inputs[1].id();
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
+            .record_executed_transaction(
+                &TransactionKey::Digest(*effects.transaction_digest()),
+                &effects,
+                &loaded_inputs.as_slice(),
+            )
             .unwrap();
 
         // Flush everything the sync execution wrote, then verify the reads

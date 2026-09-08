@@ -1844,7 +1844,7 @@ impl AuthorityState {
                 primary: &inner_temporary_store.input_objects,
                 fallback: self.get_object_store().as_ref(),
             };
-            epoch_store.record_executed_transaction(effects, &loaded_input_objects)?;
+            epoch_store.record_executed_transaction(&key, effects, &loaded_input_objects)?;
         }
 
         // Allow testing what happens if we crash here.

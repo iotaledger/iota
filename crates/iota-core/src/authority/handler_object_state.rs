@@ -19,15 +19,16 @@
 //!   sync-driven execution, kept until the handler passes the consuming commit,
 //!   so content reads survive aggressive pruning. Empty in normal operation.
 //!
-//! [`HandlerObjectState`] owns the overlays, the digest -> commit-round map,
+//! [`HandlerObjectState`] owns the overlays, the transaction-key ->
+//! commit-round map,
 //! and every invariant on them: overlay-first reads, version-monotone
 //! upserts, and eviction only after the corresponding table row is durable.
 //!
 //! The in-memory state changes at five points: the handler registers a
-//! commit's kept digests before they can be scheduled
+//! commit's kept transaction keys before they can be scheduled
 //! ([`HandlerObjectState::assign_commit`], via the epoch store); each
 //! execution records its writes before they become readable - handler-latest
-//! rows when the digest is in the round map, sync-ahead records and sheltered
+//! rows when the key is in the round map, sync-ahead records and sheltered
 //! bytes when it is not ([`HandlerObjectState::record_executed_transaction`]);
 //! a fully executed commit applies its remaining upserts, queues durable
 //! deletions for the sync records it caught up past, and drops its map
@@ -62,6 +63,7 @@ use iota_types::{
     error::IotaResult,
     object::Object,
     storage::{ObjectKey, ObjectStore},
+    transaction::TransactionKey,
 };
 use itertools::chain;
 use parking_lot::{Mutex, RwLock};
@@ -280,16 +282,19 @@ pub fn consumed_input_keys_to_shelter(old_metadata: &[OwnedObjectReference]) -> 
 /// durable, and the read paths check the overlay first, so the transient
 /// both-present state is harmless.
 pub struct HandlerObjectState {
-    /// Digest → producing commit round for every kept transaction of commits
-    /// the handler has processed but whose executions have not all completed.
-    /// The execution hook consults it: hit → handler-latest upsert; miss →
-    /// sync-ahead execution. Never persisted: replay after restart re-runs
+    /// Transaction key → producing commit round for every kept transaction of
+    /// commits the handler has processed but whose executions have not all
+    /// completed. The execution hook consults it: hit → handler-latest upsert;
+    /// miss → sync-ahead execution. Keyed by [`TransactionKey`] rather than
+    /// digest because the handler registers a commit's roots, and a
+    /// randomness-round root has no digest until its state update transaction
+    /// exists. Never persisted: replay after restart re-runs
     /// `assign_commit_to_transactions` before any (re-)execution can ask, and
     /// commits below the durable resume point never consult it again.
-    commit_round_by_digest: DashMap<TransactionDigest, CommitRound>,
-    /// The digests assigned per round, so a fully executed commit can drop
-    /// its map entries.
-    digests_by_commit: Mutex<BTreeMap<CommitRound, Vec<TransactionDigest>>>,
+    commit_round_by_key: DashMap<TransactionKey, CommitRound>,
+    /// The keys assigned per round, so a fully executed commit can drop its
+    /// map entries.
+    keys_by_commit: Mutex<BTreeMap<CommitRound, Vec<TransactionKey>>>,
 
     handler_latest_overlay: RwLock<BTreeMap<ObjectId, HandlerLatestObject>>,
     sync_ahead_overlay: RwLock<BTreeMap<ObjectId, SyncAheadRecord>>,
@@ -327,8 +332,8 @@ impl HandlerObjectState {
             .try_fold(0u64, |count, entry| entry.map(|_| count + 1))
             .expect("AuthorityEpochTables should contain valid sync-ahead records");
         Self {
-            commit_round_by_digest: DashMap::with_shard_amount(2048),
-            digests_by_commit: Mutex::new(BTreeMap::new()),
+            commit_round_by_key: DashMap::with_shard_amount(2048),
+            keys_by_commit: Mutex::new(BTreeMap::new()),
             handler_latest_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_overlay: RwLock::new(BTreeMap::new()),
             sheltered_overlay: RwLock::new(BTreeMap::new()),
@@ -339,26 +344,32 @@ impl HandlerObjectState {
     }
 
     /// Records the kept transactions of commit `round`, before any of them
-    /// can be scheduled for execution.
-    pub fn assign_commit(&self, round: CommitRound, digests: Vec<TransactionDigest>) {
-        for digest in &digests {
-            self.commit_round_by_digest.insert(*digest, round);
+    /// can be scheduled for execution. May be called more than once per round
+    /// (the handler registers a commit's regular and randomness roots
+    /// separately); later calls add to the round's set.
+    pub fn assign_commit(&self, round: CommitRound, keys: Vec<TransactionKey>) {
+        for key in &keys {
+            self.commit_round_by_key.insert(*key, round);
         }
-        self.digests_by_commit.lock().insert(round, digests);
+        self.keys_by_commit
+            .lock()
+            .entry(round)
+            .or_default()
+            .extend(keys);
     }
 
     /// The commit round that kept this transaction, if the handler has
     /// processed that commit and it is not fully executed yet.
-    pub fn commit_round_of(&self, digest: &TransactionDigest) -> Option<CommitRound> {
-        self.commit_round_by_digest.get(digest).map(|round| *round)
+    pub fn commit_round_of(&self, key: &TransactionKey) -> Option<CommitRound> {
+        self.commit_round_by_key.get(key).map(|round| *round)
     }
 
-    /// Drops the digest → round entries of a fully executed commit, keeping
-    /// the map bounded.
+    /// Drops the key → round entries of a fully executed commit, keeping the
+    /// map bounded.
     pub fn drop_commit_assignments(&self, round: CommitRound) {
-        if let Some(digests) = self.digests_by_commit.lock().remove(&round) {
-            for digest in digests {
-                self.commit_round_by_digest.remove(&digest);
+        if let Some(keys) = self.keys_by_commit.lock().remove(&round) {
+            for key in keys {
+                self.commit_round_by_key.remove(&key);
             }
         }
     }
@@ -371,6 +382,10 @@ impl HandlerObjectState {
     /// it wrote and shelters the bytes of the owned input versions it
     /// consumed.
     ///
+    /// `key` is the executed transaction's [`TransactionKey`], the identity
+    /// the handler registered for it; a digest lookup would miss a
+    /// randomness state update, registered under its randomness round.
+    ///
     /// `loaded_input_objects` must serve every consumed owned input at its
     /// consumed version - including dynamic-field children and received
     /// objects, which are not part of the transaction's declared input objects;
@@ -379,10 +394,11 @@ impl HandlerObjectState {
     pub fn record_executed_transaction(
         &self,
         tables: &AuthorityEpochTables,
+        key: &TransactionKey,
         effects: &TransactionEffects,
         loaded_input_objects: &dyn ObjectStore,
     ) -> IotaResult {
-        if let Some(round) = self.commit_round_of(effects.transaction_digest()) {
+        if let Some(round) = self.commit_round_of(key) {
             self.upsert_handler_latest_rows(tables, &handler_latest_upserts(effects, round))
         } else {
             let old_metadata = effects.old_object_metadata();
@@ -779,7 +795,7 @@ impl HandlerObjectState {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectReference, SenderSignedTransaction};
+    use iota_sdk_types::{Address, ObjectReference, RandomnessRound, SenderSignedTransaction};
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{effects::TestEffectsBuilder, transaction::TransactionAPI};
 
@@ -989,8 +1005,8 @@ mod tests {
     #[test]
     fn commit_round_map_assign_and_drop() {
         let state = HandlerObjectState {
-            commit_round_by_digest: DashMap::with_shard_amount(2048),
-            digests_by_commit: Mutex::new(BTreeMap::new()),
+            commit_round_by_key: DashMap::with_shard_amount(2048),
+            keys_by_commit: Mutex::new(BTreeMap::new()),
             handler_latest_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_overlay: RwLock::new(BTreeMap::new()),
             sheltered_overlay: RwLock::new(BTreeMap::new()),
@@ -998,14 +1014,21 @@ mod tests {
             live_sync_ahead_records_count: AtomicU64::new(0),
             handler_latest_cache: MonotonicCache::new(100),
         };
-        let digest_a = TransactionDigest::random();
-        let digest_b = TransactionDigest::random();
-        state.assign_commit(3, vec![digest_a]);
-        state.assign_commit(4, vec![digest_b]);
-        assert_eq!(state.commit_round_of(&digest_a), Some(3));
-        assert_eq!(state.commit_round_of(&digest_b), Some(4));
+        let key_a = TransactionKey::Digest(TransactionDigest::random());
+        let key_b = TransactionKey::Digest(TransactionDigest::random());
+        let key_c = TransactionKey::RandomnessRound(0, RandomnessRound::new(1));
+        state.assign_commit(3, vec![key_a]);
+        state.assign_commit(4, vec![key_b]);
+        // A second registration for the same round adds to its set.
+        state.assign_commit(4, vec![key_c]);
+        assert_eq!(state.commit_round_of(&key_a), Some(3));
+        assert_eq!(state.commit_round_of(&key_b), Some(4));
+        assert_eq!(state.commit_round_of(&key_c), Some(4));
         state.drop_commit_assignments(3);
-        assert_eq!(state.commit_round_of(&digest_a), None);
-        assert_eq!(state.commit_round_of(&digest_b), Some(4));
+        assert_eq!(state.commit_round_of(&key_a), None);
+        assert_eq!(state.commit_round_of(&key_b), Some(4));
+        state.drop_commit_assignments(4);
+        assert_eq!(state.commit_round_of(&key_b), None);
+        assert_eq!(state.commit_round_of(&key_c), None);
     }
 }

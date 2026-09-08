@@ -1758,17 +1758,14 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Registers the kept transactions of commit `round` in the digest ->
-    /// commit-round map. Must be called while the handler processes the
-    /// commit, before any of its transactions can be scheduled: the execution
-    /// hook classifies each execution by this map - hit means the handler has
-    /// passed the producing commit, miss means state sync is running ahead.
-    pub fn assign_commit_to_transactions(
-        &self,
-        round: CommitRound,
-        digests: Vec<TransactionDigest>,
-    ) {
-        self.handler_object_state.assign_commit(round, digests);
+    /// Registers the kept transactions of commit `round` in the
+    /// transaction-key -> commit-round map. Must be called while the handler
+    /// processes the commit, before any of its transactions can be scheduled:
+    /// the execution hook classifies each execution by this map - hit means
+    /// the handler has passed the producing commit, miss means state sync is
+    /// running ahead.
+    pub fn assign_commit_to_transactions(&self, round: CommitRound, keys: Vec<TransactionKey>) {
+        self.handler_object_state.assign_commit(round, keys);
     }
 
     /// Records one executed transaction's object writes for the P-COOL
@@ -1776,12 +1773,14 @@ impl AuthorityPerEpochStore {
     /// [`HandlerObjectState::record_executed_transaction`].
     pub fn record_executed_transaction(
         &self,
+        key: &TransactionKey,
         effects: &TransactionEffects,
         loaded_input_objects: &dyn ObjectStore,
     ) -> IotaResult {
         let tables = self.tables()?;
         self.handler_object_state.record_executed_transaction(
             &tables,
+            key,
             effects,
             loaded_input_objects,
         )

@@ -2196,7 +2196,7 @@ impl BookkeepingSetup {
         round: CommitRound,
     ) -> TransactionEffects {
         self.epoch_store
-            .assign_commit_to_transactions(round, vec![*tx.digest()]);
+            .assign_commit_to_transactions(round, vec![TransactionKey::Digest(*tx.digest())]);
         self.execute(tx)
     }
 
@@ -2685,8 +2685,9 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
     // already ran, so nothing consults the entry) and, with the commit
     // fully executed, applies the upserts derived from the durable effects.
     let state = s.epoch_store.handler_object_state_for_testing();
-    s.epoch_store.assign_commit_to_transactions(4, vec![digest]);
-    assert_eq!(state.commit_round_of(&digest), Some(4));
+    let key = TransactionKey::Digest(digest);
+    s.epoch_store.assign_commit_to_transactions(4, vec![key]);
+    assert_eq!(state.commit_round_of(&key), Some(4));
     s.epoch_store
         .record_commit_fully_executed(4, &handler_latest_upserts(&effects, 4))
         .unwrap();
@@ -2701,7 +2702,7 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
         assert_eq!(row.kind, HandlerLatestObjectKind::Live);
         assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
     }
-    assert_eq!(state.commit_round_of(&digest), None);
+    assert_eq!(state.commit_round_of(&key), None);
 
     // The sheltered bytes stay: a crash before this commit's output flushes
     // replays and re-validates it, so their eviction keys off the flushed
@@ -2737,8 +2738,10 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
     // its chain head is above the handler-written version, so the handler
     // has not passed the whole chain - while the gas coin's chain, which
     // ended in that commit, is passed and its record goes.
-    s.epoch_store
-        .assign_commit_to_transactions(4, vec![*first.transaction_digest()]);
+    s.epoch_store.assign_commit_to_transactions(
+        4,
+        vec![TransactionKey::Digest(*first.transaction_digest())],
+    );
     s.epoch_store
         .record_commit_fully_executed(4, &handler_latest_upserts(&first, 4))
         .unwrap();
@@ -2747,8 +2750,10 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
     assert_eq!(s.epoch_store.sync_ahead_record(&gas1_id).unwrap(), None);
 
     // Passing the second commit completes the catch-up.
-    s.epoch_store
-        .assign_commit_to_transactions(5, vec![*second.transaction_digest()]);
+    s.epoch_store.assign_commit_to_transactions(
+        5,
+        vec![TransactionKey::Digest(*second.transaction_digest())],
+    );
     s.epoch_store
         .record_commit_fully_executed(5, &handler_latest_upserts(&second, 5))
         .unwrap();
