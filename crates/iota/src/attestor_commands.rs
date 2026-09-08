@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(unix)]
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::OpenOptionsExt;
 use std::{
     fmt::{Debug, Display, Formatter, Write as _},
     fs,
@@ -176,7 +176,7 @@ impl IotaAttestorCommand {
                 // generated key, and an existing file aborts before any transaction.
                 let keypair = generate_attestor_keypair(key_scheme)?;
                 let key_path = attestor_key_path(context)?;
-                write_attestor_key(&key_path, &keypair, false)?;
+                write_attestor_key(&key_path, &keypair)?;
                 // Round-trip through disk so the key used below is provably the one
                 // that ended up in `attestor.key`, not just the in-memory copy.
                 let keypair = read_attestor_key(&key_path)?;
@@ -254,7 +254,7 @@ impl IotaAttestorCommand {
                 // Written before submitting so a failed or ambiguous submit never loses the
                 // freshly generated key.
                 let keypair = generate_attestor_keypair(key_scheme)?;
-                write_attestor_key(&key_path, &keypair, true)?;
+                write_attestor_key(&key_path, &keypair)?;
                 let keypair = read_attestor_key(&key_path)?;
 
                 let pubkey = flagged_pubkey(&keypair);
@@ -350,19 +350,17 @@ fn attestor_key_path(context: &WalletContext) -> Result<PathBuf> {
     Ok(config_dir.join("attestor.key"))
 }
 
-/// Same encoding as `write_keypair_to_file`, but the file is created with
-/// mode 0600 so the private key is never readable by others, not even
-/// between creation and a later chmod.
-fn write_attestor_key(path: &Path, keypair: &SimpleKeypair, allow_overwrite: bool) -> Result<()> {
+/// Same encoding as `write_keypair_to_file`, but the file is always newly
+/// created with mode 0600, so the private key is never readable by others
+/// and an existing file is never overwritten.
+fn write_attestor_key(path: &Path, keypair: &SimpleKeypair) -> Result<()> {
     let contents = keypair.to_bech32().map_err(|e| anyhow!(e))?;
-    let mut options = fs::OpenOptions::new();
-    options.write(true).truncate(true).mode(0o600);
-    if allow_overwrite {
-        options.create(true);
-    } else {
-        options.create_new(true);
-    }
-    let mut file = match options.open(path) {
+    let mut file = match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+    {
         Ok(file) => file,
         Err(e) if e.kind() == ErrorKind::AlreadyExists => bail!(
             "an attestor key already exists at {path:?}; move it away if you are re-registering"
@@ -370,9 +368,6 @@ fn write_attestor_key(path: &Path, keypair: &SimpleKeypair, allow_overwrite: boo
         Err(e) => return Err(e.into()),
     };
     file.write_all(contents.as_bytes())?;
-    // `mode` applies only to a newly created file; an overwritten one keeps
-    // whatever mode it had.
-    set_key_file_permissions(path)?;
     Ok(())
 }
 
@@ -404,17 +399,6 @@ fn warn_if_key_not_confirmed(key_path: &Path, result: &Result<IotaTransactionBlo
             key_path.display()
         ),
     }
-}
-
-#[cfg(unix)]
-fn set_key_file_permissions(path: &Path) -> Result<()> {
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn set_key_file_permissions(_path: &Path) -> Result<()> {
-    Ok(())
 }
 
 fn read_attestor_key(path: &Path) -> Result<SimpleKeypair> {
@@ -731,28 +715,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn attestor_key_roundtrip_and_overwrite_protection() {
+    fn attestor_key_roundtrip_and_no_overwrite() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("attestor.key");
         let kp = SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut OsRng).1);
-        write_attestor_key(&path, &kp, false).unwrap();
+        write_attestor_key(&path, &kp).unwrap();
         let read = read_attestor_key(&path).unwrap();
         assert_eq!(read.public_key(), kp.public_key());
-        // second write without overwrite permission must fail: this is what makes both
-        // register and rotate-key refuse to run while a key file is already present.
-        assert!(write_attestor_key(&path, &kp, false).is_err());
-        // callers that have already made their own overwrite decision may still force
-        // it.
-        write_attestor_key(&path, &kp, true).unwrap();
+        // A second write must fail: this is what makes both register and
+        // rotate-key refuse to run while a key file is already present.
+        assert!(write_attestor_key(&path, &kp).is_err());
     }
 
     #[cfg(unix)]
     #[test]
     fn attestor_key_file_is_owner_read_write_only() {
+        use std::os::unix::fs::PermissionsExt;
+
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("attestor.key");
         let kp = SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut OsRng).1);
-        write_attestor_key(&path, &kp, false).unwrap();
+        write_attestor_key(&path, &kp).unwrap();
         let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
     }
