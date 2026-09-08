@@ -702,11 +702,11 @@ fun advance_epoch(
     // cannot freeze escrowed bonds. The flag gates everything else
     // (eviction, inactivity, rebalance, activations) and creates the empty
     // registry on the first boundary once enabled.
-    let feature_enabled = attestor_registry::is_feature_enabled();
+    let attestor_registry_enabled = attestor_registry::is_feature_enabled();
     let has_registry = dynamic_field::exists_(&wrapper.id, attestor_registry::registry_key());
-    let attestor_evicted_bonds = if (feature_enabled || has_registry) {
+    let attestor_evicted_bonds = if (attestor_registry_enabled || has_registry) {
         let registry = load_attestor_registry_mut(wrapper);
-        if (feature_enabled) {
+        if (attestor_registry_enabled) {
             // The per-attestor activity feed is not threaded into this
             // transaction yet; until it is, report every attestor as active
             // so none are dropped for inactivity.
@@ -714,7 +714,11 @@ fun advance_epoch(
             registry.active_count().do!(|i| all_indices.push_back(i));
             registry.refresh_activity(all_indices, new_epoch - 1);
         };
-        let (evicted_bonds, departed) = registry.advance_epoch(new_epoch, feature_enabled, ctx);
+        let (evicted_bonds, departed) = registry.advance_epoch(
+            new_epoch,
+            attestor_registry_enabled,
+            ctx,
+        );
         attestor_registry::remove_departed_metadata(departed, &mut wrapper.id);
         evicted_bonds
     } else {

@@ -304,12 +304,12 @@ public(package) fun register(
             < protocol_config::get_attr(MAX_ATTESTOR_COUNT_PARAM),
         ETooManyAttestors,
     );
-    validate_attestor_pubkey(attestor_pubkey, proof_of_possession, sender);
     // An entry scheduled for removal is still in `active_attestors` until
     // the boundary, so this also blocks re-registering while exiting.
     assert!(find_active(self, sender).is_none(), EAlreadyRegistered);
     assert!(find_pending(self, sender).is_none(), EAlreadyRegistered);
     assert!(!pubkey_in_use(self, &attestor_pubkey), EDuplicatePubkey);
+    validate_attestor_pubkey(attestor_pubkey, proof_of_possession, sender);
 
     let activation_epoch = current_epoch + 1;
     let bond_amount = bond.value();
@@ -442,7 +442,8 @@ public(package) fun refresh_activity(
 
 /// Stage a replacement signing key for the sender's active entry; the key
 /// is swapped in place at the next epoch boundary. Staging again before the
-/// boundary overwrites the previously staged key.
+/// boundary overwrites the previously staged key; re-staging the same key
+/// aborts with `EDuplicatePubkey`.
 /// Re-staging the same key aborts with `EDuplicatePubkey`.
 public(package) fun rotate_key(
     self: &mut AttestorRegistryV1,
@@ -463,7 +464,8 @@ public(package) fun rotate_key(
 // === Epoch boundary processing ===
 
 /// Process the epoch boundary for the registry. Order:
-/// 0. (Reserved) slashing executes before exits — see the design doc.
+/// 0. (Reserved) `slash` has no on-chain trigger yet; once it does, it runs
+///    before the exits so the eviction check below sees its effect.
 /// 1. Combined exits, one pass so the stored indices stay valid; per-entry
 ///    reason precedence: low-bond eviction (whole escrow burned, excess
 ///    included) > inactivity drop (penalty burned, rest refunded) >
@@ -490,7 +492,7 @@ public(package) fun rotate_key(
 public(package) fun advance_epoch(
     self: &mut AttestorRegistryV1,
     new_epoch: u64,
-    feature_enabled: bool,
+    attestor_registry_enabled: bool,
     ctx: &mut TxContext,
 ): (Balance<IOTA>, DepartedAttestors) {
     let mut evicted_bonds = balance::zero<IOTA>();
@@ -509,7 +511,7 @@ public(package) fun advance_epoch(
         let mut inactivity_penalty: u64 = 0;
         let mut exit_indices = vector<u64>[];
         let mut exit_reasons = vector<u8>[];
-        if (feature_enabled) {
+        if (attestor_registry_enabled) {
             let low_bond_threshold = low_bond_threshold();
             let max_inactivity_epochs: u64 = protocol_config::get_attr(
                 ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM,
@@ -602,7 +604,7 @@ public(package) fun advance_epoch(
     // The param read is guarded like the exit pass: an active entry exists
     // only if register() read the same params.
     let len = self.active_attestors.length();
-    if (feature_enabled && len > 0) {
+    if (attestor_registry_enabled && len > 0) {
         let min_joining_bond = min_joining_bond();
         let low_bond_threshold = low_bond_threshold();
         let mut k = 0;
@@ -623,7 +625,7 @@ public(package) fun advance_epoch(
     // read is guarded like the exit pass above: a pending entry exists only
     // if register() read the same params, so the read cannot abort here.
     let mut activated = vector<address>[];
-    if (feature_enabled && !self.pending_active.is_empty()) {
+    if (attestor_registry_enabled && !self.pending_active.is_empty()) {
         let min_joining_bond = min_joining_bond();
         let low_bond_threshold = low_bond_threshold();
         self.pending_active.reverse();
