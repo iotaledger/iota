@@ -26,7 +26,7 @@ use iota_common::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::{fail_point, fail_point_arg};
-use iota_metrics::monitored_scope;
+use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
@@ -173,7 +173,9 @@ pub(crate) mod scorer;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
-use handler_object_state::{HandlerLatestObject, HandlerObjectState, SyncAheadRecord};
+use handler_object_state::{
+    AssignedCommit, HandlerLatestObject, HandlerObjectState, SyncAheadRecord,
+};
 use iota_types::crypto::AuthorityPublicKey;
 use scorer::Scoreboard;
 
@@ -1758,14 +1760,22 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Registers the kept transactions of commit `round` in the
-    /// transaction-key -> commit-round map. Must be called while the handler
-    /// processes the commit, before any of its transactions can be scheduled:
-    /// the execution hook classifies each execution by this map - hit means
-    /// the handler has passed the producing commit, miss means state sync is
-    /// running ahead.
-    pub fn assign_commit_to_transactions(&self, round: CommitRound, keys: Vec<TransactionKey>) {
-        self.handler_object_state.assign_commit(round, keys);
+    /// Registers the roots of commit `round` in the transaction-key ->
+    /// commit-round map and hands the commit to the execution watcher. Must
+    /// be called once per commit while the handler processes it, before any
+    /// of its transactions can be scheduled: the execution hook classifies
+    /// each execution by this map - hit means the handler has passed the
+    /// producing commit, miss means state sync is running ahead.
+    pub fn assign_commit_to_transactions(&self, round: CommitRound, roots: Vec<TransactionKey>) {
+        self.handler_object_state
+            .assign_commit_to_transactions(round, roots);
+    }
+
+    /// The execution watcher's end of the assigned-commit channel; `None`
+    /// once a watcher has taken it. See
+    /// [`HandlerObjectState::take_assigned_commits_receiver`].
+    pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
+        self.handler_object_state.take_assigned_commits_receiver()
     }
 
     /// Records one executed transaction's object writes for the P-COOL
@@ -4268,6 +4278,16 @@ impl AuthorityPerEpochStore {
             //   for randomness tx that are canceled.
             let should_write_random_checkpoint =
                 randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
+
+            // The deterministic-validation bookkeeping tracks exactly the
+            // roots written to this commit's pending checkpoints.
+            if self.protocol_config.pcool_deterministic_validation() {
+                let mut commit_roots = non_randomness_roots.clone();
+                if should_write_random_checkpoint {
+                    commit_roots.extend(randomness_roots.iter().copied());
+                }
+                self.assign_commit_to_transactions(consensus_commit_info.round, commit_roots);
+            }
 
             let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
                 roots: non_randomness_roots,

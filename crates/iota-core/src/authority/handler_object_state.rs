@@ -26,12 +26,13 @@
 //!
 //! The in-memory state changes at five points: the handler registers a
 //! commit's kept transaction keys before they can be scheduled
-//! ([`HandlerObjectState::assign_commit`], via the epoch store); each
-//! execution records its writes before they become readable - handler-latest
-//! rows when the key is in the round map, sync-ahead records and sheltered
-//! bytes when it is not ([`HandlerObjectState::record_executed_transaction`]);
-//! a fully executed commit applies its remaining upserts, queues durable
-//! deletions for the sync records it caught up past, and drops its map
+//! ([`HandlerObjectState::assign_commit_to_transactions`], via the epoch
+//! store); each execution records its writes before they become readable -
+//! handler-latest rows when the key is in the round map, sync-ahead records
+//! and sheltered bytes when it is not
+//! ([`HandlerObjectState::record_executed_transaction`]); a fully executed
+//! commit applies its remaining upserts, queues durable deletions for the sync
+//! records it caught up past, and drops its map
 //! entries ([`HandlerObjectState::record_commit_fully_executed`]); and the
 //! two eviction methods below clear overlay entries once their rows are
 //! durable.
@@ -53,6 +54,7 @@ use std::{
 
 use dashmap::DashMap;
 use iota_common::{debug_fatal, random_util::randomize_cache_capacity_in_tests};
+use iota_metrics::monitored_mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use iota_sdk_types::{
     ObjectDigest, ObjectId, OwnedObjectReference, Owner, TransactionDigest, TransactionEffects,
     Version, WriteKind,
@@ -276,6 +278,16 @@ pub fn consumed_input_keys_to_shelter(old_metadata: &[OwnedObjectReference]) -> 
         .collect()
 }
 
+/// A commit the handler has processed, handed to the execution watcher so it
+/// can mark the commit fully executed once every root has effects.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedCommit {
+    pub round: CommitRound,
+    /// The commit's roots: the same keys written to its pending checkpoints,
+    /// cancelled transactions included.
+    pub roots: Vec<TransactionKey>,
+}
+
 /// In-memory side of the bookkeeping plus every operation composing it with
 /// the durable tables. Overlays hold entries of commits whose rows are not
 /// yet durable; an entry leaves only after the corresponding table row is
@@ -292,9 +304,17 @@ pub struct HandlerObjectState {
     /// `assign_commit_to_transactions` before any (re-)execution can ask, and
     /// commits below the durable resume point never consult it again.
     commit_round_by_key: DashMap<TransactionKey, CommitRound>,
+
     /// The keys assigned per round, so a fully executed commit can drop its
     /// map entries.
     keys_by_commit: Mutex<BTreeMap<CommitRound, Vec<TransactionKey>>>,
+    /// Hands each assigned commit to the execution watcher in processing
+    /// order. Unbounded so commit processing never blocks on execution lag;
+    /// the backlog is one entry per commit not yet fully executed.
+    assigned_commits: UnboundedSender<AssignedCommit>,
+    /// The watcher's end of `assigned_commits`, taken once when the watcher
+    /// starts.
+    assigned_commits_receiver: Mutex<Option<UnboundedReceiver<AssignedCommit>>>,
 
     handler_latest_overlay: RwLock<BTreeMap<ObjectId, HandlerLatestObject>>,
     sync_ahead_overlay: RwLock<BTreeMap<ObjectId, SyncAheadRecord>>,
@@ -331,9 +351,13 @@ impl HandlerObjectState {
             .safe_iter()
             .try_fold(0u64, |count, entry| entry.map(|_| count + 1))
             .expect("AuthorityEpochTables should contain valid sync-ahead records");
+        let (assigned_commits, assigned_commits_receiver) =
+            unbounded_channel("handler_assigned_commits");
         Self {
             commit_round_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
+            assigned_commits,
+            assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
             handler_latest_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_overlay: RwLock::new(BTreeMap::new()),
             sheltered_overlay: RwLock::new(BTreeMap::new()),
@@ -343,19 +367,34 @@ impl HandlerObjectState {
         }
     }
 
-    /// Records the kept transactions of commit `round`, before any of them
-    /// can be scheduled for execution. May be called more than once per round
-    /// (the handler registers a commit's regular and randomness roots
-    /// separately); later calls add to the round's set.
-    pub fn assign_commit(&self, round: CommitRound, keys: Vec<TransactionKey>) {
-        for key in &keys {
+    /// Records the roots of commit `round`, before any of them can be
+    /// scheduled for execution, and hands the commit to the execution
+    /// watcher. Called exactly once per commit: the watcher marks the commit
+    /// fully executed after awaiting the roots it was handed, so a second
+    /// call for the same round would let it drop entries it never awaited.
+    pub fn assign_commit_to_transactions(&self, round: CommitRound, roots: Vec<TransactionKey>) {
+        for key in &roots {
             self.commit_round_by_key.insert(*key, round);
         }
-        self.keys_by_commit
+        if self
+            .keys_by_commit
             .lock()
-            .entry(round)
-            .or_default()
-            .extend(keys);
+            .insert(round, roots.clone())
+            .is_some()
+        {
+            debug_fatal!("commit round {round} assigned twice");
+        }
+        // A closed receiver means the watcher has exited with the epoch;
+        // nothing is left to complete.
+        self.assigned_commits
+            .send(AssignedCommit { round, roots })
+            .ok();
+    }
+
+    /// The watcher's end of the assigned-commit channel; `None` once a
+    /// watcher has taken it.
+    pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
+        self.assigned_commits_receiver.lock().take()
     }
 
     /// The commit round that kept this transaction, if the handler has
@@ -1004,9 +1043,12 @@ mod tests {
 
     #[test]
     fn commit_round_map_assign_and_drop() {
+        let (assigned_commits, assigned_commits_receiver) = unbounded_channel("test");
         let state = HandlerObjectState {
             commit_round_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
+            assigned_commits,
+            assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
             handler_latest_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_overlay: RwLock::new(BTreeMap::new()),
             sheltered_overlay: RwLock::new(BTreeMap::new()),
@@ -1017,10 +1059,8 @@ mod tests {
         let key_a = TransactionKey::Digest(TransactionDigest::random());
         let key_b = TransactionKey::Digest(TransactionDigest::random());
         let key_c = TransactionKey::RandomnessRound(0, RandomnessRound::new(1));
-        state.assign_commit(3, vec![key_a]);
-        state.assign_commit(4, vec![key_b]);
-        // A second registration for the same round adds to its set.
-        state.assign_commit(4, vec![key_c]);
+        state.assign_commit_to_transactions(3, vec![key_a]);
+        state.assign_commit_to_transactions(4, vec![key_b, key_c]);
         assert_eq!(state.commit_round_of(&key_a), Some(3));
         assert_eq!(state.commit_round_of(&key_b), Some(4));
         assert_eq!(state.commit_round_of(&key_c), Some(4));
