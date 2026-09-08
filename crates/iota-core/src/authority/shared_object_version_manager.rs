@@ -221,26 +221,29 @@ impl SharedObjVerManager {
         })
     }
 
+    /// Returns the shared object versions each transaction was executed with,
+    /// taken from its effects. For a shared object with no
+    /// `next_shared_object_versions` entry yet in this epoch, this also
+    /// initializes one, so it must be called before these transactions are
+    /// executed locally.
     pub fn assign_versions_from_effects(
         transactions_and_effects: &[(&VerifiedExecutableTransaction, &TransactionEffects)],
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
-    ) -> AssignedTxAndVersions {
-        // We don't care about the results since we can use effects to assign versions.
-        // But we must call it to make sure whenever a shared object is touched the
-        // first time during an epoch, either through consensus or through
-        // checkpoint executor, its next version must be initialized. This is
-        // because we initialize the next version of a shared object in an epoch
-        // by reading the current version from the object store. This must be
-        // done before we mutate it the first time, otherwise we would be initializing
-        // it with the wrong version.
-        let _ = get_or_init_versions(
+    ) -> IotaResult<AssignedTxAndVersions> {
+        // The versions returned here are unused - the assignments below come
+        // from the effects. The call is made for its side effect: initializing
+        // each shared object's next version for this epoch from the version the
+        // object holds now. These transactions are about to bump that version,
+        // so an initialization that fails and runs on a later call instead
+        // records a version no other validator counts from.
+        get_or_init_versions(
             transactions_and_effects
                 .iter()
                 .flat_map(|(tx, _)| tx.shared_input_objects()),
             epoch_store,
             cache_reader,
-        );
+        )?;
 
         let mut assigned_versions = Vec::new();
         for (transaction, effects) in transactions_and_effects {
@@ -275,7 +278,7 @@ impl SharedObjVerManager {
             );
             assigned_versions.push((tx_key, tx_assigned_versions));
         }
-        AssignedTxAndVersions::new(assigned_versions)
+        Ok(AssignedTxAndVersions::new(assigned_versions))
     }
 
     pub fn assign_versions_for_transaction(
@@ -1079,7 +1082,8 @@ mod tests {
                 .as_slice(),
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-        );
+        )
+        .unwrap();
         // Check that the shared object's next version is always initialized in the
         // epoch store.
         assert_eq!(
@@ -1187,7 +1191,8 @@ mod tests {
             &[(&transaction, &effects)],
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-        );
+        )
+        .unwrap();
         assert_eq!(
             replay_assignment.0,
             vec![(transaction.key(), expected_assignment)]

@@ -2463,7 +2463,7 @@ impl AuthorityPerEpochStore {
             &[(transaction, effects)],
             self,
             cache_reader,
-        );
+        )?;
         let (_, assigned_versions) = assigned_versions.0.into_iter().next().unwrap();
         Ok(assigned_versions)
     }
