@@ -283,7 +283,7 @@ public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
 public fun detach_public_key(account_id: &mut UID): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
-    let public_key = df::remove(account_id, public_key_field_name());
+    let public_key: PublicKey = df::remove(account_id, public_key_field_name());
 
     let event = PublicKeyDetached {
         key_id: public_key.key_id(),
