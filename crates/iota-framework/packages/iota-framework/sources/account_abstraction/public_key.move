@@ -53,6 +53,11 @@ public struct PublicKey has copy, drop, store {
     raw_bytes: vector<u8>,
 }
 
+/// A canonical identity hash of this key: `blake2b256(flag || raw_bytes)` as an address.
+public struct KeyID has copy, drop, store {
+    id: address,
+}
+
 // === Public Functions ===
 
 /// Constructs a `PublicKey` from a `scheme`-prefixed byte vector.
@@ -82,10 +87,10 @@ public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
 ///   Secp256r1: Blake2b256([0x02] || pubkey_raw_bytes)
 ///   MultiSig:  Blake2b256([0x03] || pubkey_raw_bytes)
 ///   Passkey:   Blake2b256([0x06] || pubkey_raw_bytes)
-public fun key_id(self: &PublicKey): address {
+public fun key_id(self: &PublicKey): KeyID {
     let mut data = vector[self.scheme.flag()];
     data.append(self.raw_bytes);
-    iota_address::from_bytes(hash::blake2b256(&data))
+    KeyID { id: iota_address::from_bytes(hash::blake2b256(&data)) }
 }
 
 /// Constructs a `PublicKey` from an explicit `scheme` and raw key `raw_bytes`.
