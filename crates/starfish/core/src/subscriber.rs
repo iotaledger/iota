@@ -552,8 +552,8 @@ mod test {
         VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, peer.value() as u8).build())
     }
 
-    #[test]
-    fn unsubscribe_clears_streaming_block_latency() {
+    #[tokio::test]
+    async fn unsubscribe_clears_streaming_block_latency() {
         let f = fixture(test_context(4), TestService::new(), StreamMode::Pending);
         f.context
             .peer_responsiveness

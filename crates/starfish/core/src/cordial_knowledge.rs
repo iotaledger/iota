@@ -1647,8 +1647,8 @@ mod tests {
             .all(|round| round.is_none())
     }
 
-    #[test]
-    fn test_shards_are_requested_from_fastest_sufficient_peers() {
+    #[tokio::test]
+    async fn test_shards_are_requested_from_fastest_sufficient_peers() {
         let (mut cordial_knowledge, _connection_knowledges) =
             shard_selection_cordial_knowledge_for_test(7);
         let author = AuthorityIndex::new_for_test(6);
@@ -1680,8 +1680,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_shard_requests_wait_for_enough_latency_samples() {
+    #[tokio::test]
+    async fn test_shard_requests_wait_for_enough_latency_samples() {
         let (mut cordial_knowledge, _connection_knowledges) =
             shard_selection_cordial_knowledge_for_test(7);
         let author = AuthorityIndex::new_for_test(6);
@@ -1705,8 +1705,8 @@ mod tests {
         assert_eq!(metrics.cordial_knowledge_selected_shard_peers.get(), 0);
     }
 
-    #[test]
-    fn test_disabling_shard_peer_selection_asks_every_peer() {
+    #[tokio::test]
+    async fn test_disabling_shard_peer_selection_asks_every_peer() {
         let (mut cordial_knowledge, _connection_knowledges) = cordial_knowledge_for_test(7);
         let author = AuthorityIndex::new_for_test(6);
         cordial_knowledge.latest_own_block_round = 10;
@@ -1719,8 +1719,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_expired_shard_requests_are_cleared() {
+    #[tokio::test]
+    async fn test_expired_shard_requests_are_cleared() {
         let (mut cordial_knowledge, _connection_knowledges) =
             shard_selection_cordial_knowledge_for_test(7);
         let author = AuthorityIndex::new_for_test(6);
