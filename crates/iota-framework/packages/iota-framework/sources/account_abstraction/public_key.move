@@ -130,6 +130,10 @@ public fun to_iota_address(self: &PublicKey): address {
     to_iota_address_impl(self.scheme.flag(), &self.raw_bytes)
 }
 
+public fun id(self: &KeyID): address {
+    self.id
+}
+
 // === Admin Functions ===
 
 // === Package Functions ===

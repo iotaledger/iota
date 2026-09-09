@@ -2419,6 +2419,9 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
+id
+	public fun
+	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
@@ -3052,6 +3055,45 @@ burn_balance
 total_supply
 	public fun
 	0x2::iota
+PublicKeyAttached
+	public struct
+	0x2::key_management
+PublicKeyDetached
+	public struct
+	0x2::key_management
+PublicKeyRotated
+	public struct
+	0x2::key_management
+PublicKeyFieldName
+	public struct
+	0x2::key_management
+attach_public_key
+	public fun
+	0x2::key_management
+detach_public_key
+	public fun
+	0x2::key_management
+rotate_public_key
+	public fun
+	0x2::key_management
+has_public_key
+	public fun
+	0x2::key_management
+borrow_public_key
+	public fun
+	0x2::key_management
+attach_public_key_pkg
+	public(package) fun
+	0x2::key_management
+detach_public_key_pkg
+	public(package) fun
+	0x2::key_management
+rotate_public_key_pkg
+	public(package) fun
+	0x2::key_management
+public_key_field_name
+	fun
+	0x2::key_management
 VecSet
 	public struct
 	0x2::vec_set
@@ -3667,13 +3709,13 @@ SmartAccountClaimed
 SmartAccountCreated
 	public struct
 	0x2::smart_account
-PublicKeyAttached
+SmartAccountPublicKeyAttached
 	public struct
 	0x2::smart_account
-PublicKeyDetached
+SmartAccountPublicKeyDetached
 	public struct
 	0x2::smart_account
-PublicKeyRotated
+SmartAccountPublicKeyRotated
 	public struct
 	0x2::smart_account
 SmartAccount
@@ -3718,6 +3760,12 @@ has_field
 has_builtin_auth_public_key
 	public fun
 	0x2::smart_account
+has_public_key
+	public fun
+	0x2::smart_account
+borrow_public_key
+	public fun
+	0x2::smart_account
 borrow_field
 	public fun
 	0x2::smart_account
@@ -3749,21 +3797,6 @@ rotate_builtin_auth_public_key
 	public fun
 	0x2::smart_account
 rotate_auth_function_ref_v1
-	public fun
-	0x2::smart_account
-attach_public_key
-	public fun
-	0x2::smart_account
-detach_public_key
-	public fun
-	0x2::smart_account
-rotate_public_key
-	public fun
-	0x2::smart_account
-has_public_key
-	public fun
-	0x2::smart_account
-borrow_public_key
 	public fun
 	0x2::smart_account
 public_key_field_name

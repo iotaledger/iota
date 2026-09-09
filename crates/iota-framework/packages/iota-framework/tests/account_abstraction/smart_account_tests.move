@@ -147,7 +147,7 @@ fun borrow_field_aborts_if_missing() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::key_management::EPublicKeyMissing)]
 fun borrow_builtin_auth_public_key_aborts_if_missing() {
     let mut scenario = test_scenario::begin(@0x0);
     smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
@@ -294,7 +294,7 @@ fun attach_builtin_auth_public_key_aborts_if_sender_not_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyAlreadyAttached)]
+#[expected_failure(abort_code = iota::key_management::EPublicKeyAlreadyAttached)]
 fun attach_builtin_auth_public_key_aborts_if_already_attached() {
     account_test_mut!(|account, scenario| {
         account.attach_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
@@ -310,7 +310,7 @@ fun detach_builtin_auth_public_key_aborts_if_sender_not_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::key_management::EPublicKeyMissing)]
 fun detach_builtin_auth_public_key_aborts_if_missing() {
     let mut scenario = test_scenario::begin(@0x0);
     let addr = smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
@@ -343,7 +343,7 @@ fun rotate_builtin_auth_public_key_aborts_if_sender_not_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::key_management::EPublicKeyMissing)]
 fun rotate_builtin_auth_public_key_aborts_if_missing() {
     let mut scenario = test_scenario::begin(@0x0);
     let addr = smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
