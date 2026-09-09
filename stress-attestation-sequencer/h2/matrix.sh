@@ -79,17 +79,18 @@
 # so those configs are the control. The mix configs at the end give transactions
 # in one commit DIFFERENT costs, which is the only way the modes can differ.
 #
-# 85 configs total. Use the substring FILTER to run one cost point, one limit,
+# 105 configs total. Use the substring FILTER to run one cost point, one limit,
 # or the mixed-cost configs (FILTER=mix) at a time.
 #
 # Every config runs on 4 validators; N=4 is not in the label since nothing else
 # is planned.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 85 configs
+#   ITERS=5 ./matrix.sh             # run all 105 configs
 #   ITERS=5 ./matrix.sh cu10k       # one cost point, its whole limit ladder
 #   ITERS=5 ./matrix.sh lim100k     # one limit, every cost point that uses it
 #   ITERS=1 ./matrix.sh mix         # the mixed-cost configs only
+#   SKIP_AT_LEAST=10 ITERS=6 ./matrix.sh mix   # mixes with < 10 iterations
 #
 # A failed config does not abort the matrix. Re-running appends iterations to an
 # existing label rather than overwriting (run.sh's config gate).
@@ -99,6 +100,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ITERS="${ITERS:-5}"
 FILTER="${1:-}"
+# Skip a config that already has this many iter-* dirs under results/matrix/.
+# Unset (the default) runs every filter-matching config. Lets one invocation add
+# new rows to a grid without re-running the finished ones next to them.
+SKIP_AT_LEAST="${SKIP_AT_LEAST:-}"
 LOGDIR="$SCRIPT_DIR/logs"
 mkdir -p "$LOGDIR"
 
@@ -140,6 +145,15 @@ MIX3700="WORKLOAD=slow SLOW_MIX=1:7,160:3 SLOW_SIZE=100 SLOW_SHARED=true"   # 3,
 MIX10900="WORKLOAD=slow SLOW_MIX=1:9,350:1 SLOW_SIZE=100 SLOW_SHARED=true"  # 10,900 mean units/tx
 MIX20800="WORKLOAD=slow SLOW_MIX=1:4,350:1 SLOW_SIZE=100 SLOW_SHARED=true"  # 20,800 mean units/tx
 MIX50900="WORKLOAD=slow SLOW_MIX=1:9,1015:1 SLOW_SIZE=100 SLOW_SHARED=true" # 50,900 mean units/tx
+# Second round of mixes: the cost gap at a fixed mean, the share of expensive
+# transactions at fixed levels, and one three-level mix.
+MIX9500="WORKLOAD=slow SLOW_MIX=120:9,267:1 SLOW_SIZE=100 SLOW_SHARED=true"      # 9,500: 5K/50K, 9:1
+MIX11800="WORKLOAD=slow SLOW_MIX=70:9,350:1 SLOW_SIZE=100 SLOW_SHARED=true"      # 11,800: 2K/100K, 9:1
+MIX13600="WORKLOAD=slow SLOW_MIX=1:6,160:3,350:1 SLOW_SIZE=100 SLOW_SHARED=true" # 13,600: 1K/10K/100K, 6:3:1
+MIX30700="WORKLOAD=slow SLOW_MIX=1:7,350:3 SLOW_SIZE=100 SLOW_SHARED=true"       # 30,700: 1K/100K, 7:3
+MIX50500="WORKLOAD=slow SLOW_MIX=1:1,350:1 SLOW_SIZE=100 SLOW_SHARED=true"       # 50,500: 1K/100K, 1:1
+MIX54500="WORKLOAD=slow SLOW_MIX=120:9,1015:1 SLOW_SIZE=100 SLOW_SHARED=true"    # 54,500: 5K/500K, 9:1
+MIX68000="WORKLOAD=slow SLOW_MIX=217:9,1015:1 SLOW_SIZE=100 SLOW_SHARED=true"    # 68,000: 20K/500K, 9:1
 # Run A's reference in every config: production's count limit, burst off in both
 # runs. The duration is pinned: run.sh's own default is shorter, for ad-hoc test
 # runs.
@@ -278,12 +292,53 @@ configs=(
   #      limit falls BELOW one expensive transaction, which Run B could then
   #      never schedule at all; above 40% the mean cost is high enough that
   #      fewer than 10 transactions arrive per commit, so neither limit binds
-  #      and the arms are identical.
+  #      and the arms are identical. mix50500 (50%) is past that on purpose,
+  #      to mark where the gain ends.
   "mix1900-w10-lim19k-qps1000   | $MIX1900 $REF LIMIT_B=19000  TARGET_QPS=1000"
   "mix3700-w30-lim37k-qps1000   | $MIX3700 $REF LIMIT_B=37000  TARGET_QPS=1000"
   "mix10900-w10-lim109k-qps1000 | $MIX10900 $REF LIMIT_B=109000 TARGET_QPS=1000"
   "mix20800-w20-lim208k-qps1000 | $MIX20800 $REF LIMIT_B=208000 TARGET_QPS=1000"
   "mix50900-w10-lim509k-qps1000 | $MIX50900 $REF LIMIT_B=509000 TARGET_QPS=1000"
+  # ---- limit ladders on the mixes above. The rows so far ran each mix at one
+  #      limit, 10x its mean; these vary the limit where the modes actually
+  #      differ. A limit below the expensive cost (mix10900 at lim50k, mix50900
+  #      at lim200k) makes Run B drop every expensive transaction: few
+  #      cancellations and no lag, one class starved. mix20800 at lim100k is
+  #      the one to watch: at most one expensive transaction per commit instead
+  #      of two, so does its lag go away while cancellations stay below Run A's?
+  #      mix50900 has no rung between 509k and 1m — every limit from 500k up
+  #      admits exactly one expensive transaction per commit.
+  "mix20800-w20-lim100k-qps1000 | $MIX20800 $REF LIMIT_B=100000  TARGET_QPS=1000"
+  "mix20800-w20-lim150k-qps1000 | $MIX20800 $REF LIMIT_B=150000  TARGET_QPS=1000"
+  "mix20800-w20-lim500k-qps1000 | $MIX20800 $REF LIMIT_B=500000  TARGET_QPS=1000"
+  "mix10900-w10-lim50k-qps1000  | $MIX10900 $REF LIMIT_B=50000   TARGET_QPS=1000"
+  "mix10900-w10-lim200k-qps1000 | $MIX10900 $REF LIMIT_B=200000  TARGET_QPS=1000"
+  "mix10900-w10-lim500k-qps1000 | $MIX10900 $REF LIMIT_B=500000  TARGET_QPS=1000"
+  "mix3700-w30-lim10k-qps1000   | $MIX3700 $REF LIMIT_B=10000   TARGET_QPS=1000"
+  "mix3700-w30-lim20k-qps1000   | $MIX3700 $REF LIMIT_B=20000   TARGET_QPS=1000"
+  "mix3700-w30-lim100k-qps1000  | $MIX3700 $REF LIMIT_B=100000  TARGET_QPS=1000"
+  "mix50900-w10-lim200k-qps1000 | $MIX50900 $REF LIMIT_B=200000  TARGET_QPS=1000"
+  "mix50900-w10-lim1m-qps1000   | $MIX50900 $REF LIMIT_B=1000000 TARGET_QPS=1000"
+  # ---- the cost gap at a fixed mean. The same expensive level with a
+  #      cheaper or dearer cheap side, near the 10k mean (with mix10900) and
+  #      the 55k mean (with mix50900), so the gap is the only change.
+  "mix9500-w10-lim95k-qps1000   | $MIX9500 $REF LIMIT_B=95000   TARGET_QPS=1000"
+  "mix11800-w10-lim118k-qps1000 | $MIX11800 $REF LIMIT_B=118000  TARGET_QPS=1000"
+  "mix54500-w10-lim545k-qps1000 | $MIX54500 $REF LIMIT_B=545000  TARGET_QPS=1000"
+  "mix68000-w10-lim680k-qps1000 | $MIX68000 $REF LIMIT_B=680000  TARGET_QPS=1000"
+  # ---- the share of expensive transactions at fixed levels: 1K/100K at 30%
+  #      and 50%, completing mix10900 (10%) and mix20800 (20%).
+  "mix30700-w30-lim307k-qps1000 | $MIX30700 $REF LIMIT_B=307000  TARGET_QPS=1000"
+  "mix50500-w50-lim505k-qps1000 | $MIX50500 $REF LIMIT_B=505000  TARGET_QPS=1000"
+  # ---- three cost levels, closer to real traffic than two.
+  "mix13600-w40-lim136k-qps1000 | $MIX13600 $REF LIMIT_B=136000  TARGET_QPS=1000"
+  # ---- 300 s runs at the two likely recommended points. A 60 s window cannot
+  #      tell a queue that is high but stable from one that keeps growing.
+  #      RUN_DURATION after $REF overrides the 60 s it pins (env takes the last
+  #      assignment); the -dur300 suffix keeps the label distinct from the 60 s
+  #      one, which the config gate would otherwise reject.
+  "mix10900-w10-lim109k-qps1000-dur300 | $MIX10900 $REF RUN_DURATION=300s LIMIT_B=109000 TARGET_QPS=1000"
+  "mix20800-w20-lim100k-qps1000-dur300 | $MIX20800 $REF RUN_DURATION=300s LIMIT_B=100000 TARGET_QPS=1000"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the
@@ -299,12 +354,25 @@ sudo -v || {
 done) &
 trap 'kill %1 2>/dev/null' EXIT
 
+# Iterations a label already has on disk.
+have_iters() {
+  ls -d "$SCRIPT_DIR/results/matrix/$1"/iter-* 2>/dev/null | wc -l
+}
+# True when SKIP_AT_LEAST is set and the label has reached it.
+skip_done() {
+  [[ -n "$SKIP_AT_LEAST" ]] && (($(have_iters "$1") >= SKIP_AT_LEAST))
+}
+
 # Count filter-matching configs up front so the progress display knows the total.
 nconf=0
 for row in "${configs[@]}"; do
   l="${row%%|*}"
   l="${l// /}"
   [[ -n "$FILTER" && "$l" != *"$FILTER"* ]] && continue
+  if skip_done "$l"; then
+    echo "skip $l: already has $(have_iters "$l") iterations (SKIP_AT_LEAST=$SKIP_AT_LEAST)"
+    continue
+  fi
   nconf=$((nconf + 1))
 done
 total=$((nconf * ITERS))
@@ -321,6 +389,7 @@ for ((round = 1; round <= ITERS; round++)); do
     label="${label// /}" # strip alignment padding around |
     envs="${row#*|}"
     [[ -n "$FILTER" && "$label" != *"$FILTER"* ]] && continue
+    skip_done "$label" && continue
     n=$((n + 1))
     log="$LOGDIR/$label.log"
     # Fresh per-config log on this invocation's first round, then append rounds 2..N.
