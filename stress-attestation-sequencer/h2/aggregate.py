@@ -21,7 +21,9 @@ Reported per arm:
     validator pipeline, including time spent deferred) and user VM execution,
     each as an exact mean plus p50/p95.
   - admitted per commit: what the arm actually let onto the hot object, the
-    check that a limit enforced what it was set to.
+    check that a limit enforced what it was set to. Its whole distribution
+    also goes to admits_hist.csv, since for a mixed-cost cell the mean hides
+    the point: a count limit pins the number, a unit limit spreads it.
   - deferral rounds above max_deferral_rounds: should be 0; every such
     observation is the signature of a skipped leader round (the deferral
     budget is a commit-round difference, so a skipped round spends budget
@@ -240,6 +242,15 @@ def aggregate_arm(runs):
         # — the check that each limit enforced what it was set to: Run A should
         # sit at LIMIT_A, Run B at LIMIT_B / units-per-tx.
         "admits": hmean(
+            series,
+            "consensus_handler_scheduled_transactions_per_object_per_commit",
+            "validator",
+        ),
+        # The whole distribution behind that mean, for the mixed-cost cells:
+        # a count limit pins the number admitted per commit, a unit limit
+        # lets it swing with how many expensive transactions a commit holds,
+        # and only the histogram shows that.
+        "admits_buckets": pooled_buckets(
             series,
             "consensus_handler_scheduled_transactions_per_object_per_commit",
             "validator",
@@ -551,8 +562,29 @@ def main():
                 + [int(not safety_failed(r))]
             )
 
+    # The admitted-per-commit distribution per arm, one row per histogram
+    # bucket: (label, arm, upper edge, count in that bucket). plot.py reads it
+    # for the mixed-cost figure.
+    hist_path = os.path.join(os.path.dirname(csv_path), "admits_hist.csv")
+    with open(hist_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["label", "arm", "le", "count"])
+        for r in rows:
+            for arm in "ab":
+                by_le = r[arm]["admits_buckets"]
+                edges = sorted(
+                    by_le, key=lambda x: float("inf") if x == "+Inf" else float(x)
+                )
+                prev = 0.0
+                for le in edges:
+                    count = by_le[le] - prev
+                    prev = by_le[le]
+                    if count > 0:
+                        w.writerow([r["label"], arm, le, cell(count)])
+
     print(f"{len(rows)} label(s) -> {out}", file=sys.stderr)
     print(f"scalar table -> {csv_path}", file=sys.stderr)
+    print(f"admitted-per-commit buckets -> {hist_path}", file=sys.stderr)
     if failed:
         print(f"SAFETY: {len(failed)} label(s) flagged", file=sys.stderr)
 

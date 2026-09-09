@@ -20,6 +20,16 @@ pooling arithmetic) and renders into <results>/summary_plots/:
                       is executed - cancelled - commits (aggregate.py owns
                       the definition), so it excludes both the transactions
                       that were cancelled and the per-commit system ones.
+  modes_mix.png       the mixed-cost cells (labels starting "mix"), which the
+                      figures above leave out: their tx/commit would be
+                      LIMIT_B over a MEAN cost, and the point of a mix is the
+                      spread around that mean. Top row, one panel per cell:
+                      how many transactions each commit admitted, as the
+                      share of commits per histogram bucket, Run A next to
+                      Run B — a count limit pins it, a unit limit spreads it.
+                      Bottom row: success tps, cancellations and checkpoint
+                      lag, A next to B. Reads admits_hist.csv, which
+                      aggregate.py writes alongside summary.csv.
 
 The x-axis collapse works because tx/commit = LIMIT_B / units-per-tx: the
 grid's two axes only act through their ratio, so cost points become curves
@@ -59,6 +69,10 @@ MUTED = "#898781"
 GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
 RAMP5 = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#0d366b"]
+# The two arms side by side: categorical slots 1 and 2 of the same reference
+# palette (blue, orange), validated as a pair on this surface.
+A_COLOR = RAMP5[2]
+B_COLOR = "#eb6834"
 
 plt.rcParams.update(
     {
@@ -475,6 +489,146 @@ def plot_utilization(points, outdir):
     plt.close(fig)
 
 
+def load_hist(path):
+    """admits_hist.csv -> {label: {arm: {le: count}}} (per-bucket counts)."""
+    hist = {}
+    if not os.path.exists(path):
+        return hist
+    for r in csv.DictReader(open(path)):
+        hist.setdefault(r["label"], {}).setdefault(r["arm"], {})[r["le"]] = float(
+            r["count"]
+        )
+    return hist
+
+
+def bucket_labels(edges):
+    """Histogram upper edges -> range labels: ≤1, 1–2, ..., >700."""
+    out, prev = [], None
+    for le in edges:
+        if le == "+Inf":
+            out.append(f">{prev:g}")
+        elif prev is None:
+            out.append(f"≤{float(le):g}")
+        else:
+            out.append(f"{prev:g}–{float(le):g}")
+        prev = None if le == "+Inf" else float(le)
+    return out
+
+
+def plot_mix(cells, hist, outdir):
+    """One panel per mixed-cost cell: the share of commits admitting each
+    number of transactions, Run A next to Run B; below, the outcome."""
+    cells = sorted(cells, key=lambda c: c["units_per_tx"] or 0)
+    edges = sorted(
+        {le for c in cells for arm in hist.get(c["label"], {}).values() for le in arm},
+        key=lambda x: float("inf") if x == "+Inf" else float(x),
+    )
+    labels = bucket_labels(edges)
+    n = len(cells)
+    fig, axes = plt.subplots(
+        2, n, figsize=(2.9 * n, 7.6), gridspec_kw={"height_ratios": [1.35, 1]}
+    )
+    ys = list(range(len(edges)))
+    for j, c in enumerate(cells):
+        ax = axes[0][j]
+        for arm, color, off in (("a", A_COLOR, 0.19), ("b", B_COLOR, -0.19)):
+            by = hist.get(c["label"], {}).get(arm, {})
+            total = sum(by.values()) or 1.0
+            shares = [by.get(le, 0.0) / total for le in edges]
+            ax.barh(
+                [y + off for y in ys], shares, height=0.36, color=color, linewidth=0
+            )
+            for y, s in zip(ys, shares):
+                if s >= 0.03:
+                    ax.text(
+                        s + 0.02,
+                        y + off,
+                        f"{100 * s:.0f}%",
+                        va="center",
+                        fontsize=7,
+                        color=INK2,
+                    )
+        ax.set_yticks(ys)
+        ax.set_yticklabels(labels if j == 0 else [])
+        ax.set_xlim(0, 1.18)
+        ax.set_xticks([0, 0.5, 1.0])
+        ax.set_xticklabels(["0", "50%", "100%"])
+        ax.invert_yaxis()
+        weight = c["label"].split("-")[1].lstrip("w")
+        ax.set_title(
+            f"{c['point']}\n{c['units_per_tx'] / 1e3:.1f}K units mean · "
+            f"{weight}% expensive",
+            fontsize=9,
+        )
+        style_axes(ax)
+        ax.grid(False, axis="y")
+    axes[0][0].set_ylabel("transactions admitted per commit")
+    axes[0][0].set_xlabel("share of commits")
+
+    # Bottom row: the outcome per cell, A next to B. The remaining panels of
+    # the row are removed so the three metrics can share the row's width.
+    for ax in axes[1]:
+        ax.remove()
+    gs = axes[1][0].get_gridspec()
+    bottom = fig.add_subplot(gs[1, :]).get_gridspec()
+    fig.axes[-1].remove()
+    sub = gs[1, :].subgridspec(1, 3, wspace=0.35)
+    panels = (
+        ("succ_tps", "success tps", "{:.0f}"),
+        ("cancelled_per_s", "cancelled / s", "{:.0f}"),
+        ("lag_mean_s", "checkpoint lag mean (s)", "{:.2f}"),
+    )
+    xs = list(range(n))
+    for k, (key, title, valfmt) in enumerate(panels):
+        ax = fig.add_subplot(sub[0, k])
+        for arm, color, off in (("a", A_COLOR, -0.18), ("b", B_COLOR, 0.18)):
+            vals = [c[f"{arm}_{key}"] or 0.0 for c in cells]
+            ax.bar([x + off for x in xs], vals, width=0.34, color=color, linewidth=0)
+            for x, v in zip(xs, vals):
+                ax.text(
+                    x + off,
+                    v,
+                    valfmt.format(v),
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color=INK2,
+                )
+        ax.set_xticks(xs)
+        ax.set_xticklabels([c["point"] for c in cells], fontsize=8)
+        ax.set_title(title)
+        ax.set_ylim(0, ax.get_ylim()[1] * 1.12)
+        style_axes(ax)
+        ax.grid(False, axis="x")
+
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, color=A_COLOR),
+        plt.Rectangle((0, 0), 1, 1, color=B_COLOR),
+    ]
+    fig.legend(
+        handles,
+        [
+            "Run A — TotalTxCount, limit 10",
+            "Run B — TotalComputationUnits, limit 10 × mean cost",
+        ],
+        loc="upper right",
+        frameon=False,
+        fontsize=8,
+        ncol=2,
+        bbox_to_anchor=(0.99, 0.985),
+    )
+    fig.suptitle(
+        "Mixed cost: a count limit pins the number admitted per commit,\n"
+        "a unit limit lets it swing — and admits more",
+        x=0.01,
+        ha="left",
+        fontsize=12,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.965), h_pad=2.0)
+    fig.savefig(os.path.join(outdir, "modes_mix.png"), dpi=150)
+    plt.close(fig)
+
+
 def main():
     results = sys.argv[1] if len(sys.argv) > 1 else "."
     path = os.path.join(results, "summary.csv")
@@ -485,6 +639,10 @@ def main():
     unsafe = [r["label"] for r in rows if not r["safety_ok"]]
     if unsafe:
         print(f"WARN: safety-flagged labels included: {unsafe}", file=sys.stderr)
+    # Mixed-cost labels get their own figure: their tx/commit is LIMIT_B over
+    # a mean cost, so the cost-point figures would place them wrongly.
+    mix = [r for r in rows if r["point"].startswith("mix")]
+    rows = [r for r in rows if not r["point"].startswith("mix")]
     by_point = {}
     for r in rows:
         by_point.setdefault(r["point"], []).append(r)
@@ -498,8 +656,11 @@ def main():
     plot_heatmaps(points, outdir)
     plot_tradeoff(points, outdir)
     plot_utilization(points, outdir)
+    if mix:
+        plot_mix(mix, load_hist(os.path.join(results, "admits_hist.csv")), outdir)
     print(
-        f"{len(points)} cost point(s), {len(rows)} cells -> {outdir}/modes_*.png",
+        f"{len(points)} cost point(s), {len(rows)} cells, {len(mix)} mixed-cost"
+        f" cell(s) -> {outdir}/modes_*.png",
         file=sys.stderr,
     )
 
