@@ -69,29 +69,42 @@ fn format_count(count: u64) -> String {
 #[derive(Default)]
 struct HistoryExecutionRate {
     last_wall: Option<Instant>,
-    last_chain_ms: CheckpointTimestamp,
+    last_executed_timestamp_ms: CheckpointTimestamp,
     rate: f64,
 }
 
 impl HistoryExecutionRate {
-    /// Folds this tick's chain timestamp into the estimate and returns it.
-    fn update(&mut self, now: Instant, chain_ms: CheckpointTimestamp) -> f64 {
-        if let Some(last_wall) = self.last_wall {
-            let wall_secs = now.duration_since(last_wall).as_secs_f64();
-            let chain_secs = chain_ms.saturating_sub(self.last_chain_ms) as f64 / 1000.0;
-            if wall_secs > 0.0 && chain_secs > 0.0 {
-                let sample = chain_secs / wall_secs;
-                // Seeded rather than averaged from zero, so the first line
-                // after a restart reports a usable figure.
-                self.rate = if self.rate == 0.0 {
-                    sample
-                } else {
-                    self.rate * 0.9 + sample * 0.1
-                };
-            }
+    /// Records the timestamp of the newest executed checkpoint at `now` and
+    /// returns the updated rate. Returns 0.0 until two ticks with advancing
+    /// chain time have been seen; a tick whose chain time did not advance
+    /// leaves the estimate unchanged. The estimate follows changes in speed
+    /// gradually over several ticks.
+    fn update(&mut self, now: Instant, executed_timestamp_ms: CheckpointTimestamp) -> f64 {
+        let Some(last_wall) = self.last_wall else {
+            self.last_wall = Some(now);
+            self.last_executed_timestamp_ms = executed_timestamp_ms;
+            return self.rate;
+        };
+        let wall_elapsed_secs = now.duration_since(last_wall).as_secs_f64();
+        let chain_elapsed_secs =
+            executed_timestamp_ms.saturating_sub(self.last_executed_timestamp_ms) as f64 / 1000.0;
+        // Leaving the mark where it is, so that the next tick measures across
+        // the whole stall rather than reading the rate as though it had not
+        // happened.
+        if wall_elapsed_secs <= 0.0 || chain_elapsed_secs <= 0.0 {
+            return self.rate;
         }
+
+        let sample = chain_elapsed_secs / wall_elapsed_secs;
+        // Seeded rather than averaged up from zero, so the first line after a
+        // restart reports a usable figure.
+        self.rate = if self.rate == 0.0 {
+            sample
+        } else {
+            self.rate * 0.9 + sample * 0.1
+        };
         self.last_wall = Some(now);
-        self.last_chain_ms = chain_ms;
+        self.last_executed_timestamp_ms = executed_timestamp_ms;
         self.rate
     }
 }
