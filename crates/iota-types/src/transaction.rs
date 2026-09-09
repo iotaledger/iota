@@ -17,12 +17,12 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CanceledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
-    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
-    Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
-    MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
-    Owner, ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction,
+    AccountClaimKind, Address, Argument, CanceledTransaction, CertificateDigest, Command,
+    ConsensusCommitDigest, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+    EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
+    Input, MakeMoveVector, MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest,
+    ObjectId, ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
+    RandomnessStateUpdate, SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction,
     TransactionDenyRulesUpdate, TransactionDigest, TransactionExpiration, TransactionKind,
     TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
@@ -36,10 +36,12 @@ use tracing::{instrument, trace};
 use super::{base_types::*, error::*};
 use crate::{
     IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+    account_abstraction::public_key::MovePublicKey,
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, Signer, zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, SignatureScheme, Signer,
+        zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -841,7 +843,8 @@ impl TransactionKindExt for TransactionKind {
             | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::TransactionDenyRulesUpdate(_)
-            | TransactionKind::EndOfEpoch(_) => vec![],
+            | TransactionKind::EndOfEpoch(_)
+            | TransactionKind::ClaimAccount(_) => vec![],
             TransactionKind::Programmable(pt) => pt.receiving_objects(),
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
@@ -897,6 +900,7 @@ impl TransactionKindExt for TransactionKind {
                 after_dedup
             }
             Self::Programmable(p) => return p.input_objects(),
+            Self::ClaimAccount(_) => vec![],
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -946,6 +950,49 @@ impl TransactionKindExt for TransactionKind {
                     ));
                 }
             }
+            TransactionKind::ClaimAccount(claim) => {
+                fp_ensure!(
+                    config.enable_claim_account_transaction(),
+                    UserInputError::Unsupported(
+                        "claim account transactions are not enabled on this network".to_string()
+                    )
+                );
+                match &claim.kind {
+                    AccountClaimKind::SmartAccount(smart) => {
+                        // A smart account is authenticated by the built-in authenticator
+                        // for its key's scheme, so without them the claim would create an
+                        // account that can never authenticate a transaction — and an
+                        // address can only be claimed once.
+                        fp_ensure!(
+                            config.enable_builtin_move_authenticators(),
+                            UserInputError::Unsupported(
+                                "smart account claims require built-in Move authenticators"
+                                    .to_string()
+                            )
+                        );
+                        // The claim carries the key as raw bytes and execution
+                        // builds the Move `PublicKey` from them without going
+                        // through `public_key::create`, so apply that
+                        // function's validation here.
+                        let scheme = SignatureScheme::from_flag_byte(&smart.public_key_scheme)
+                            .map_err(|e| {
+                                UserInputError::Unsupported(format!(
+                                    "invalid claim account public key scheme: {e}"
+                                ))
+                            })?;
+                        MovePublicKey::new(scheme, smart.public_key_raw_bytes.clone()).map_err(
+                            |e| {
+                                UserInputError::Unsupported(format!(
+                                    "invalid claim account public key: {e}"
+                                ))
+                            },
+                        )?;
+                    }
+                    _ => unimplemented!(
+                        "a new AccountClaimKind enum variant was added and needs to be handled"
+                    ),
+                }
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -970,6 +1017,7 @@ impl TransactionKindExt for TransactionKind {
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::TransactionDenyRulesUpdate(_) => "TransactionDenyRulesUpdate",
             Self::EndOfEpoch(_) => "EndOfEpoch",
+            Self::ClaimAccount(_) => "ClaimAccount",
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -1418,7 +1466,10 @@ impl TransactionAPI for Transaction {
         if self.gas_owner() == self.sender() {
             return Ok(());
         }
-        if matches!(self.kind(), TransactionKind::Programmable(_)) {
+        if matches!(
+            self.kind(),
+            TransactionKind::Programmable(_) | TransactionKind::ClaimAccount(_)
+        ) {
             return Ok(());
         }
         Err(UserInputError::UnsupportedSponsoredTransactionKind)
