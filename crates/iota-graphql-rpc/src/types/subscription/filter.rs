@@ -93,6 +93,7 @@ impl From<&TransactionBlockKindInput> for IotaTransactionKind {
                 IotaTransactionKind::RandomnessStateUpdate
             }
             TransactionBlockKindInput::EndOfEpochTx => IotaTransactionKind::EndOfEpochTransaction,
+            TransactionBlockKindInput::ClaimAccount => IotaTransactionKind::ClaimAccount,
         }
     }
 }

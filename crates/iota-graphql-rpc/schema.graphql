@@ -4668,6 +4668,10 @@ enum TransactionBlockKindInput {
 	The end of epoch transaction block.
 	"""
 	END_OF_EPOCH_TX
+	"""
+	A claim of the sender's address as an account object.
+	"""
+	CLAIM_ACCOUNT
 }
 
 """

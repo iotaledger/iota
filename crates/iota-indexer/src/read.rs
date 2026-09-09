@@ -1509,8 +1509,8 @@ impl IndexerReader {
 
                 use IotaTransactionKind::*;
                 let query = if has_system_transaction {
-                    // Case: If `SystemTransaction` is present but `ProgrammableTransaction` is not,
-                    // we need to filter out `ProgrammableTransaction`.
+                    // `SystemTransaction` stands for every system kind, so each arm keeps
+                    // those and excludes the user kinds that were not requested.
                     match (has_programmable_transaction, has_claim_account) {
                         (true, true) => "1 = 1".to_string(),
                         (false, false) => {
@@ -1519,8 +1519,8 @@ impl IndexerReader {
                                 ProgrammableTransaction as u8, ClaimAccount as u8,
                             )
                         }
-                        (true, false) => format!("tx_kind != {}", ProgrammableTransaction as u8),
-                        (false, true) => format!("tx_kind != {}", ClaimAccount as u8),
+                        (true, false) => format!("tx_kind != {}", ClaimAccount as u8),
+                        (false, true) => format!("tx_kind != {}", ProgrammableTransaction as u8),
                     }
                 } else {
                     let mut all_requested_kinds = system_kinds;
