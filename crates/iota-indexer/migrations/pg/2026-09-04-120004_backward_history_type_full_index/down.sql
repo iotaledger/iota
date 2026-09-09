@@ -1,1 +1,0 @@
-DROP INDEX CONCURRENTLY IF EXISTS objects_backward_history_type_full;

@@ -1,6 +1,4 @@
--- Restore the superseded-leading indexes and primary key. Runs in one
--- transaction, so the indexes are rebuilt non-concurrently (this holds a lock
--- for the duration - acceptable for a rollback).
+-- Recreate the original superseded-leading indexes.
 CREATE INDEX IF NOT EXISTS objects_backward_history_owner
     ON objects_backward_history (superseded_at_checkpoint, owner_type, owner_id)
     WHERE owner_type >= 1 AND owner_type <= 2 AND owner_id IS NOT NULL;
@@ -19,10 +17,18 @@ CREATE INDEX IF NOT EXISTS objects_backward_history_coin_only
 CREATE INDEX IF NOT EXISTS objects_backward_history_coin_owner
     ON objects_backward_history (superseded_at_checkpoint, owner_id, coin_type, object_id)
     WHERE coin_type IS NOT NULL AND owner_type = 1;
-CREATE UNIQUE INDEX IF NOT EXISTS objects_backward_history_pk_orig
-    ON objects_backward_history (superseded_at_checkpoint, object_id, object_version);
+
+-- Restore the original superseded-leading primary key and the id_version index.
 ALTER TABLE objects_backward_history DROP CONSTRAINT IF EXISTS objects_backward_history_pk;
 ALTER TABLE objects_backward_history
-    ADD CONSTRAINT objects_backward_history_pk PRIMARY KEY USING INDEX objects_backward_history_pk_orig;
+    ADD CONSTRAINT objects_backward_history_pk PRIMARY KEY (superseded_at_checkpoint, object_id, object_version);
 CREATE INDEX IF NOT EXISTS objects_backward_history_id_version
     ON objects_backward_history (object_id, object_version, superseded_at_checkpoint);
+
+-- Drop the value-leading indexes.
+DROP INDEX IF EXISTS objects_backward_history_owner_value;
+DROP INDEX IF EXISTS objects_backward_history_coin_value;
+DROP INDEX IF EXISTS objects_backward_history_coin_owner_value;
+DROP INDEX IF EXISTS objects_backward_history_type_generic;
+DROP INDEX IF EXISTS objects_backward_history_type_full;
+DROP INDEX IF EXISTS objects_backward_history_superseded;
