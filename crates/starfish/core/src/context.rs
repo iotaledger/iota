@@ -41,8 +41,9 @@ pub(crate) struct Context {
     pub metrics: Arc<Metrics>,
     /// Access to local clock
     pub clock: Arc<Clock>,
-    /// Tracks per-peer responsiveness and ranks candidates for synchronizer
-    /// peer selection. Shared per epoch.
+    /// Tracks per-peer responsiveness to select peers for the transactions
+    /// synchronizer, the commit syncer, the header synchronizer, and header
+    /// and shard pushes. Shared per epoch.
     pub peer_responsiveness: Arc<PeerResponsiveness>,
     /// Commitment over an empty transaction list for this committee.
     pub(crate) empty_transactions_commitment: TransactionsCommitment,
@@ -119,6 +120,8 @@ impl Context {
                 enable_peer_responsiveness_ranking: false,
                 // Tests enable bounded peer selection explicitly when needed.
                 enable_bounded_header_advertisement: false,
+                // Preserve ask-every-peer behavior in tests without stream samples.
+                enable_shard_peer_selection: false,
                 ..Default::default()
             },
             ProtocolConfig::get_for_max_version_UNSAFE(),
