@@ -109,7 +109,7 @@ converted from `LIMIT_A`.
 LABEL=cu10k-lim100k-qps1000 ITERS=3 WORKLOAD=slow SLOW_N=160 SLOW_SIZE=100 \
   LIMIT_A=10 LIMIT_B=100000 TARGET_QPS=1000 ./run.sh
 
-# the whole grid, or one cost point / limit / the mixed cells at a time
+# the whole grid, or one cost point / limit / the mixed configs at a time
 ITERS=5 ./matrix.sh
 ITERS=5 ./matrix.sh cu10k
 ITERS=5 ./matrix.sh lim100k
@@ -140,8 +140,9 @@ start at or above its own per-transaction cost, and why the tightest meaningful
 limit for `cu5m` is one transaction per commit.
 
 The rate is the second knob: it sets how many transactions are available per
-commit, and a limit only binds when demand exceeds what it admits, so each cell
-pairs a limit with a rate high enough to saturate it. The limits that match Run
+commit, and a limit only binds when demand exceeds what it admits, so each
+config pairs a limit with a rate high enough to saturate it. The limits that
+match Run
 A's capacity run the whole 250/500/1000/2000 ladder.
 
 Computation units are machine-independent, but execution time is not, so the
@@ -154,7 +155,7 @@ under what the fullnode can push, and that path keeps the client's latency in
 Prometheus. `DIRECT=true` switches to a client in docker submitting straight
 to the validators, and its throughput and latency then come only from the
 report it prints (`run-*-stress-report.log`), which every run saves either
-way. The one cell that may need it is `cu1k`, whose object can drain thousands
+way. The one config that may need it is `cu1k`, whose object can drain thousands
 of transactions a second.
 
 The grid uses `slow` (W5) throughout. It publishes one `slow::Obj` and every
@@ -163,8 +164,8 @@ object; the workload has no setting for more objects.
 
 The plan's W1 (`shared`, `--shared-counter`) is not in the grid. With
 `NUM_SHARED_COUNTERS=1` every transaction increments the same counter at a cost
-that also lands on the 1,000-unit floor, which is what the `cu1k` cells already
-run — same one hot object, same uniform cost. `run.sh` still takes
+that also lands on the 1,000-unit floor, which is what the `cu1k` configs
+already run — same one hot object, same uniform cost. `run.sh` still takes
 `WORKLOAD=shared`, so it is available as an independent workload to cross-check
 against if the `slow` numbers look surprising.
 
@@ -173,7 +174,7 @@ against if the `slow` numbers look surprising.
 With one fixed cost per transaction the two modes are the same scheduler: if
 every transaction costs C, a unit limit L admits `L / C` of them, which is
 exactly what a count limit of `L / C` admits. The grid measures that — across
-its twelve matched cells, spanning a 5000× cost range, Run B lands within 1.6%
+its twelve matched configs, spanning a 5000× cost range, Run B lands within 1.6%
 of Run A on throughput and latency alike.
 
 The modes can only differ when transactions in ONE commit cost different
@@ -205,8 +206,8 @@ Two constraints pin the usable weights to 10-40% for the expensive level:
   arrive per commit. Run A admits `min(LIMIT_A, arrivals)`, so its count limit
   stops binding, Run B's budget stops filling, and the arms become identical.
 
-Each mixed cell's control is the `cu` cell of the same mean cost, already run:
-same mean cost, same mean admitted work, uniform against spread.
+Each mixed config's control is the `cu` config of the same mean cost, already
+run: same mean cost, same mean admitted work, uniform against spread.
 
 Results follow the H1 layout: `results/matrix/<LABEL>/iter-NNN/`, one config
 per label, enforced by the same config gate (`../exp_dir.py`). The probe's own
@@ -247,9 +248,9 @@ results/matrix/<LABEL>/
   `results/matrix/summary_plots/`: checkpoint lag and cancelled fraction
   against the
   admitted rate (tx/commit × commits/s, with Run A as one vertical line),
-  annotated per-cell heatmaps of the same scalars, the throughput-vs-lag
+  annotated per-config heatmaps of the same scalars, the throughput-vs-lag
   tradeoff, and lag against admitted/drain utilization — all over the
-  fixed-cost cells. The mixed-cost cells get `modes_mix.png`: how many
+  fixed-cost configs. The mixed-cost configs get `modes_mix.png`: how many
   transactions each commit admitted, Run A next to Run B, with the
   throughput, cancellation and lag outcome below.
   Needs matplotlib, so run it from a `venv` such as `../h1/.venv`.
@@ -285,13 +286,13 @@ The calibration is written up in `probe-test.md`; the mode comparison in
   cancelled after 11–12 rounds instead of 10. Small here, but the budget is
   not what it says; worth an upstream issue proposing to count evaluations
   (`RESULTS.md`, finding 6).
-- **Per-cell time series for the marginal cells.** A pooled lag statistic
+- **Per-config time series for the marginal configs.** A pooled lag statistic
   cannot distinguish a queue that is high but stable from one growing
   without bound — a lag-over-time curve can. Worth adapting `../h1/plot.py`'s
-  dashboard replay as a drill-down for a few chosen cells, not for the whole
+  dashboard replay as a drill-down for a few chosen configs, not for the whole
   grid. `consensus_handler_transaction_deferral_rounds` is also still
   unplotted.
 - **Vary the cost ratio at a fixed mean.** The mixed-cost effect is set by
-  the ratio between the two costs, not the mean, and the five cells vary
-  both at once. Cells that hold the mean and change only the ratio would
+  the ratio between the two costs, not the mean, and the five configs vary
+  both at once. Configs that hold the mean and change only the ratio would
   isolate it.

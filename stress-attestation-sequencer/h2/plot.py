@@ -7,23 +7,23 @@ pooling arithmetic) and renders into <results>/summary_plots/:
   modes_knee.png      checkpoint lag and cancelled fraction against the
                       admitted rate (tx/commit x commits/s), one curve per
                       cost point. Run A is the same admitted rate in every
-                      cell, so it collapses to one vertical line — where that
+                      config, so it collapses to one vertical line — where that
                       line sits right of a curve's knee the count limit
                       over-admits, left of it under-admits.
-  modes_heatmaps.png  the read-any-cell view: annotated values (success tps,
+  modes_heatmaps.png  the read-any-config view: annotated values (success tps,
                       cancelled fraction, lag mean, lag >30s share) for Run A
                       and every Run B
-                      cell, colored by magnitude on one scale per panel so
+                      config, colored by magnitude on one scale per panel so
                       equal values are equal colors everywhere.
-  modes_tradeoff.png  success tps vs lag mean per cell; Run A starred. The
+  modes_tradeoff.png  success tps vs lag mean per config; Run A starred. The
                       lower-right frontier is "fast and stable". Success tps
                       is executed - cancelled - commits (aggregate.py owns
                       the definition), so it excludes both the transactions
                       that were cancelled and the per-commit system ones.
-  modes_mix.png       the mixed-cost cells (labels starting "mix"), which the
+  modes_mix.png       the mixed-cost configs (labels starting "mix"), which the
                       figures above leave out: their tx/commit would be
                       LIMIT_B over a MEAN cost, and the point of a mix is the
-                      spread around that mean. Top row, one panel per cell:
+                      spread around that mean. Top row, one panel per config:
                       how many transactions each commit admitted, as the
                       share of commits per histogram bucket, Run A next to
                       Run B — a count limit pins it, a unit limit spreads it.
@@ -117,13 +117,13 @@ def load_rows(path):
 
 
 class Point:
-    """One cost point: its cells across limits, plus the Run A reference."""
+    """One cost point: its configs across limits, plus the Run A reference."""
 
     def __init__(self, name, cells):
         self.name = name
         self.cells = sorted(cells, key=lambda c: c["limit_b"])
         self.units = self.cells[0]["units_per_tx"]
-        # Run A is one measurement per cell of the same config; average them.
+        # Run A is one measurement per config of the same config; average them.
         self.a = {
             k: self._mean(f"a_{k}")
             for k in (
@@ -144,14 +144,14 @@ class Point:
         return c["tx_per_commit"] * rate
 
     def curve(self):
-        """(admitted, cell) for cells that admit anything, x-sorted."""
+        """(admitted, config) for configs that admit anything, x-sorted."""
         pts = [(self.admitted(c), c) for c in self.cells if c["tx_per_commit"]]
         return sorted(pts, key=lambda t: t[0])
 
     def drain(self):
         """Execution-bound plateau: success well below what the limit admits
         while cancellations are quiet means execution is the constraint, and
-        the success rate IS the per-object drain rate. Cells whose limit
+        the success rate IS the per-object drain rate. Configs whose limit
         admits more than the client offers are excluded — there the shortfall
         is the offered rate, not execution (cu1k's whole ladder)."""
         vs = []
@@ -217,7 +217,7 @@ def plot_knee(points, outdir):
             d = p.drain()
             if d:
                 top.axvline(d, color=c, ls=":", lw=1, alpha=0.6)
-            # Run A: same config measured in every cell of this point.
+            # Run A: same config measured in every config of this point.
             if p.a["commit_rate"] and p.a["lag_mean_s"] is not None:
                 xa = 10 * p.a["commit_rate"]
                 top.plot(
@@ -389,7 +389,7 @@ def plot_heatmaps(points, outdir):
         for side in ax.spines.values():
             side.set_visible(False)
     fig.suptitle(
-        "Per-cell values; color = magnitude, one scale per panel (lag mean\n"
+        "Per-config values; color = magnitude, one scale per panel (lag mean\n"
         "on a log scale); dark outline = admits 10/commit like Run A",
         fontsize=11,
     )
@@ -454,7 +454,7 @@ def plot_tradeoff(points, outdir):
 def plot_utilization(points, outdir):
     """The collapse test: lag vs admitted/drain. If cost only enters through
     utilization, the per-cost curves land on one master curve. Points with no
-    execution-bound cell (nothing to measure drain from) are left out."""
+    execution-bound config (nothing to measure drain from) are left out."""
     withd = [(p, p.drain()) for p in points]
     withd = [(p, d) for p, d in withd if d]
     if len(withd) < 2:
@@ -516,7 +516,7 @@ def bucket_labels(edges):
 
 
 def plot_mix(cells, hist, outdir):
-    """One panel per mixed-cost cell: the share of commits admitting each
+    """One panel per mixed-cost config: the share of commits admitting each
     number of transactions, Run A next to Run B; below, the outcome."""
     cells = sorted(cells, key=lambda c: c["units_per_tx"] or 0)
     edges = sorted(
@@ -565,7 +565,7 @@ def plot_mix(cells, hist, outdir):
     axes[0][0].set_ylabel("transactions admitted per commit")
     axes[0][0].set_xlabel("share of commits")
 
-    # Bottom row: the outcome per cell, A next to B. The remaining panels of
+    # Bottom row: the outcome per config, A next to B. The remaining panels of
     # the row are removed so the three metrics can share the row's width.
     for ax in axes[1]:
         ax.remove()

@@ -24,7 +24,7 @@ where the modes part (finding 7).
 ## TL;DR
 
 **The two limits enforce exactly what they are set to, and at one cost per
-cell the two modes are the same mode.** Across the 12 cells where Run B's
+config the two modes are the same mode.** Across the 12 configs where Run B's
 limit is ten times the transaction cost — the unit-limit equivalent of Run
 A's count limit of 10 — success throughput agrees to B/A = 1.005 (0.984 to
 1.025), and cancellations, checkpoint lag and settlement latency agree the
@@ -63,7 +63,7 @@ checkpoint lag rises from 0.7–2.3 s to 3.9–8.1 s and median settlement from
 new transaction only when one of its 2,000 in-flight ones completes, so at
 heavy cost the offered load falls with the network's own latency — from the
 1,000 tx/s target at 1,000 units to ≈40 tx/s at 5,000,000 — and "1000 QPS"
-describes the light cells only (finding 3). And the deferral budget is
+describes the light configs only (finding 3). And the deferral budget is
 counted in leader rounds, not scheduling attempts: a skipped leader round
 spends budget without a retry, so 1–4 % of deferred transactions are
 cancelled after 11–12 rounds instead of the configured 10, in both modes
@@ -101,16 +101,16 @@ per run):
   Per cost point the limits step geometrically from one rung *below* the
   transaction's own cost (which admits nothing) to where the limit stops
   binding, capped at 50,000,000 (ten ceiling-cost transactions): 4 to 8
-  rungs per point, 80 cells. The rung at `10 × cost` is the count limit's
+  rungs per point, 80 configs. The rung at `10 × cost` is the count limit's
   equivalent, one per cost point.
-- **Mixed-cost cells** (5): `SLOW_MIX` draws each transaction's `n` from two
+- **Mixed-cost configs** (5): `SLOW_MIX` draws each transaction's `n` from two
   levels with fixed weights, so one commit holds transactions of two costs.
   Named by their mean cost: `mix1900` (1,000 and 10,000 units, 9:1),
   `mix3700` (1,000 and 10,000, 7:3), `mix10900` (1,000 and 100,000, 9:1),
   `mix20800` (1,000 and 100,000, 4:1), `mix50900` (1,000 and 500,000, 9:1).
   `LIMIT_B` is ten times the mean cost, so Run B's budget is the work Run
   A's count limit admits on average and the spread is the only difference
-  between the arms. Their control is the fixed-cost cell of the same mean.
+  between the arms. Their control is the fixed-cost config of the same mean.
 - **Both runs**: attestation on, `max_deferral_rounds = 10`, 4 validators.
 - **Client**: via the fullnode (`DIRECT=false`), target 1,000 tx/s for 60 s,
   24 workers on 12 threads, 4 gas accounts, at most `2 × 1000 = 2,000`
@@ -119,10 +119,10 @@ per run):
 - **Machine**: all runs on one AMD EPYC 9454P server (48 cores / 96 threads,
   251 GiB RAM, Ubuntu 24.04), running the private network in docker — 4
   validators plus 1 fullnode — with the stress client on the same host.
-- **85 configurations**: the 80 fixed-cost cells at **10 iterations** each
-  (800 iterations, 1,600 runs, 4–7 August 2026) and the 5 mixed-cost cells
+- **85 configurations**: the 80 fixed-cost configs at **10 iterations** each
+  (800 iterations, 1,600 runs, 4–7 August 2026) and the 5 mixed-cost configs
   at **11 iterations** each (55 iterations, 110 runs, 9 September 2026 —
-  the first iteration was the accept/reject pass on each cell, same
+  the first iteration was the accept/reject pass on each config, same
   configuration, kept). Labels read `cu<cost>-lim<LIMIT_B>-qps1000`, e.g.
   `cu10k-lim100k-qps1000`, and `mix<mean>-w<weight>-lim<LIMIT_B>-qps1000`.
 
@@ -131,11 +131,11 @@ Aggregation and reporting tooling (in this directory, sharing
 `../dump_timeseries.py` and `../exp_dir.py` with H1):
 
 - `aggregate.py` pools every label's iterations (histogram buckets summed
-  before quantiles; rates averaged over runs) into one A-vs-B row per cell:
+  before quantiles; rates averaged over runs) into one A-vs-B row per config:
   `results/matrix/summary.md` for reading, `results/matrix/summary.csv` for
   plotting.
-- `plot.py` renders the cross-cell figures into
-  `results/matrix/summary_plots/`, the mixed-cost cells in their own figure
+- `plot.py` renders the cross-config figures into
+  `results/matrix/summary_plots/`, the mixed-cost configs in their own figure
   from the per-commit admission histogram `aggregate.py` writes to
   `results/matrix/admits_hist.csv`.
 
@@ -157,8 +157,8 @@ Aggregation and reporting tooling (in this directory, sharing
 
 Numbers below are means over all iterations; latencies are exact histogram
 means or quantiles over buckets combined across the 4 validators and all
-iterations. Run A is the same configuration in every cell of a cost point,
-so its spread across those cells is the run-to-run noise: within ±3 % of the
+iterations. Run A is the same configuration in every config of a cost point,
+so its spread across those configs is the run-to-run noise: within ±3 % of the
 mean everywhere except `cu2k` (156–176 tx/s).
 
 Two effects shape every heavy-cost number and are worth holding in mind:
@@ -177,7 +177,7 @@ Two effects shape every heavy-cost number and are worth holding in mind:
 
 In the figures, one curve per cost point, coloured light to dark by cost;
 Run A is drawn as a star or a vertical line, since it is the same admitted
-rate in every cell of a point.
+rate in every config of a point.
 
 ---
 
@@ -196,9 +196,9 @@ rate in every cell of a point.
 
 `admits/cmt` is the transactions each run actually let onto the object per
 commit. Run A sits at its limit wherever enough transactions arrive:
-9.98–10.00 in every `cu1k` and `cu2k` cell. Run B sits at `LIMIT_B / cost`,
+9.98–10.00 in every `cu1k` and `cu2k` config. Run B sits at `LIMIT_B / cost`,
 rounded down — a limit of 50,000 units admits exactly 2.000 transactions of
-20,000 units, never a partial third — in all 25 cells where that quotient is
+20,000 units, never a partial third — in all 25 configs where that quotient is
 at or below what the object can execute per commit:
 
 | cost point | `LIMIT_B / cost` → measured B admits/cmt |
@@ -217,14 +217,14 @@ at or below what the object can execute per commit:
 The worst deviation is 0.69 % (`cu1k-lim50k`, 49.65 for 50, where 50 per
 commit is also all that arrives); most are exact to three decimals. The
 scheduler's rule is `start_time + cost <= limit` with a start time of at
-least 0, so the 8 cells whose limit is below one transaction's cost admit
+least 0, so the 8 configs whose limit is below one transaction's cost admit
 nothing at all: Run B there cancels everything that arrives after ten
 rounds — 740–950/s in six of the eight, fewer in the two heaviest for the
-reason below — and completes 0.4–1.7 tx/s, while Run A in the same cell is
+reason below — and completes 0.4–1.7 tx/s, while Run A in the same config is
 unaffected. Above the object's capacity the limit stops mattering and Run
 B's admits track Run A's instead (finding 3).
 
-Two of those admit-nothing cells show something else: in `cu2m-lim1m` and
+Two of those admit-nothing configs show something else: in `cu2m-lim1m` and
 `cu5m-lim2m`, Run B's consensus handler processed only 11.6 and 7.2 commits
 per second against Run A's 19.7 and 18.5, with skipped leader rounds
 climbing to 74–77 per run from Run A's 24–45 (finding 6). Every transaction
@@ -234,10 +234,10 @@ grid where the mode changed the commit rate; the cause is a follow-up.
 
 ---
 
-**2. At one cost per cell, the two modes agree — the control holds at every
+**2. At one cost per config, the two modes agree — the control holds at every
 cost point.**
 
-The 12 cells where `LIMIT_B = 10 × cost` are the unit-limit equivalent of
+The 12 configs where `LIMIT_B = 10 × cost` are the unit-limit equivalent of
 Run A's count limit of 10. In every one of them the two runs admit the same
 number of transactions per commit and complete the same throughput:
 
@@ -261,12 +261,12 @@ B/A on success throughput averages 1.005 over the twelve, between 0.984 and
 agrees the same way (finding 5). This is the expected result, and it is the
 one that makes the rest of the grid usable: it shows that a limit in units
 and a limit in count are interchangeable at uniform cost, so any difference
-in a mixed-cost cell is the cost spread and nothing else. The other 68 cells
+in a mixed-cost config is the cost spread and nothing else. The other 68 configs
 vary `LIMIT_B` away from that equivalence and are read in findings 3 and 4.
 
-![Per-cell values for Run A and every Run B cell](results/matrix/summary_plots/modes_heatmaps.png)
+![Per-config values for Run A and every Run B config](results/matrix/summary_plots/modes_heatmaps.png)
 
-*Every cell at a glance: success tps, cancelled share, checkpoint lag mean
+*Every config at a glance: success tps, cancelled share, checkpoint lag mean
 and share past 30 s, one panel each, Run A in the top row and each `LIMIT_B`
 rung below it, coloured on one scale per panel so equal values look equal
 everywhere. The `10 × cost` column matches the Run A row in every panel.*
@@ -288,7 +288,7 @@ and from 5,000 units up neither limit reaches it.**
 </details>
 
 Transactions on one mutable shared object execute one after another, so the
-object has a top speed for each cost: the success rate in the cells whose
+object has a top speed for each cost: the success rate in the configs whose
 limit admits more than that. Read off the grid, it falls 50-fold across the
 cost range while the count limit stays at 10 per commit throughout:
 
@@ -316,7 +316,7 @@ Three things follow.
 *The offered load collapses with cost.* The client can only offer 2,000
 transactions divided by how long each takes. At 1,000 units that is the
 full 1,000 tx/s (943 arrive); by 5,000 units settlement takes 6.6 s at the
-median and about 200 tx/s arrive; at 5,000,000 units, 40 tx/s. So the cells
+median and about 200 tx/s arrive; at 5,000,000 units, 40 tx/s. So the configs
 from `cu5k` up do not measure the network under a 1,000 tx/s load — they
 measure it under whatever load its own latency lets through. The target
 rate describes the two lightest cost points only.
@@ -403,10 +403,10 @@ latency and the network as checkpoint lag. Success throughput is the same
 either way once the object is saturated, so there is no setting of either
 mode that raises it — only a choice of failure mode.
 
-![Success tps against checkpoint lag per cell](results/matrix/summary_plots/modes_tradeoff.png)
+![Success tps against checkpoint lag per config](results/matrix/summary_plots/modes_tradeoff.png)
 
-*Success tps against checkpoint lag mean, one point per cell, Run A starred.
-Lower-right is fast and stable; the cells arc up and right as the limit
+*Success tps against checkpoint lag mean, one point per config, Run A starred.
+Lower-right is fast and stable; the configs arc up and right as the limit
 loosens: no extra throughput, more lag.*
 
 ![The same curves over admitted rate divided by drain rate](results/matrix/summary_plots/modes_knee_utilization.png)
@@ -431,7 +431,7 @@ backlog, not the mode.**
 
 </details>
 
-At the twelve matched cells the client-facing latency is the same in both
+At the twelve matched configs the client-facing latency is the same in both
 modes at every cost point:
 
 | cost point | settlement p50 ms A → B | settlement p95 ms A → B | receipt→executed p95 ms A → B | VM exec mean ms A → B |
@@ -487,7 +487,7 @@ cancels transactions a round early — in both modes.**
 
 With `max_deferral_rounds = 10` a deferred transaction should be cancelled
 on its tenth round, so the deferral-rounds histogram should never exceed 10.
-It does, in every cell of both modes: 1 % of deferral resolutions at
+It does, in every config of both modes: 1 % of deferral resolutions at
 `cu1k` under Run A land in the (10, 20] bucket, 4 % under Run B, 1–3 % at
 the heavy points — 496,000 observations in Run A and 1,594,000 in Run B
 over the whole grid. The excess is small (the real values are 11–12) and it
@@ -519,14 +519,14 @@ difference would make the two the same; this is worth an upstream issue.
 number admitted, the unit limit pins the work — and admits more.**
 
 The six findings above hold cost fixed within a run, so the two modes could
-only agree. The five `SLOW_MIX` cells give the transactions in one commit two
+only agree. The five `SLOW_MIX` configs give the transactions in one commit two
 costs. Measured over 11 iterations, the mix is what was configured — 90.0 %
 cheap at `mix1900`, `mix10900` and `mix50900`, 70.0 % at `mix3700`, 79.8 %
 at `mix20800`, mean cost within 1.7 % of design — and Run A's count limit
-binds in every cell (`admits/cmt` 10.00), so every cell measures what it
+binds in every config (`admits/cmt` 10.00), so every config measures what it
 was meant to.
 
-| cell | costs (units), ratio | admits/cmt A → B | success tps A → B | B/A | cancelled/s A → B | ckpt lag mean s A → B |
+| config | costs (units), ratio | admits/cmt A → B | success tps A → B | B/A | cancelled/s A → B | ckpt lag mean s A → B |
 | --- | --- | --- | --- | --- | --- | --- |
 | `mix1900` | 1K / 10K, 9:1 | 10.00 → 13.3 | 200.9 → 265.9 | 1.32 | 793 → 719 | 0.42 → 0.44 |
 | `mix3700` | 1K / 10K, 7:3 | 10.00 → 13.6 | 198.4 → 272.9 | 1.38 | 788 → 727 | 0.55 → 0.34 |
@@ -535,7 +535,7 @@ was meant to.
 | `mix50900` | 1K / 500K, 9:1 | 10.0 → 14.8 | 181.9 → 265.0 | 1.46 | 788 → 31 | 2.34 → 8.06 |
 
 *How the number swings.* Run A admits exactly 10 in every commit of every
-cell — 100 % of its commits sit in the 7–10 bucket of the admission
+config — 100 % of its commits sit in the 7–10 bucket of the admission
 histogram. Run B's budget is `10 × mean cost` in units, so what it admits
 depends on what the commit holds. At `mix1900` the budget is 19,000 units: a
 commit holding one 10,000-unit transaction has room for 9 cheap ones (10 in
@@ -546,8 +546,8 @@ commits at 7–10 and 22 % at 100–200, mean 31.5. The all-cheap commits are
 the ones where no expensive transaction was waiting; with 20 % expensive
 (`mix20800`) they are rarer, 11 %, and the mean drops to 21.6. So the size
 of the effect is set by the **ratio** between the two costs, which sets how
-far the number can swing, not by the mean: the two 10:1 cells gain a third,
-the two 100:1 cells double and triple.
+far the number can swing, not by the mean: the two 10:1 configs gain a third,
+the two 100:1 configs double and triple.
 
 *What the extra admissions are.* Cheap transactions that a count of 10
 would have deferred and, mostly, cancelled after ten rounds. Under the count
@@ -575,10 +575,10 @@ commit that schedules one has room for nine cheap ones at most, and the
 client's offered load at that latency (≈300 tx/s) leaves some commits with
 few cheap ones eligible.
 
-![Admitted per commit, and the outcome, for the five mixed-cost cells](results/matrix/summary_plots/modes_mix.png)
+![Admitted per commit, and the outcome, for the five mixed-cost configs](results/matrix/summary_plots/modes_mix.png)
 
 *Top: the share of commits that admitted each number of transactions to the
-object, Run A (blue) next to Run B (orange), one panel per cell. Bottom:
+object, Run A (blue) next to Run B (orange), one panel per config. Bottom:
 success throughput, cancellations and checkpoint lag, A next to B.*
 
 This is the answer to the question the stress plan poses for H2. At uniform
@@ -609,7 +609,7 @@ event.
 
 ## Summary
 
-The takeaway is the TL;DR at the top of this document. Full per-cell
+The takeaway is the TL;DR at the top of this document. Full per-config
 numbers: `results/matrix/summary.md` and `summary.csv`; figures:
 `results/matrix/summary_plots/`; the cost calibration behind the grid:
 `probe-test.md`.

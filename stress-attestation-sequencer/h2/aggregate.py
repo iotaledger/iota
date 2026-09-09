@@ -22,7 +22,7 @@ Reported per arm:
     each as an exact mean plus p50/p95.
   - admitted per commit: what the arm actually let onto the hot object, the
     check that a limit enforced what it was set to. Its whole distribution
-    also goes to admits_hist.csv, since for a mixed-cost cell the mean hides
+    also goes to admits_hist.csv, since for a mixed-cost config the mean hides
     the point: a count limit pins the number, a unit limit spreads it.
   - deferral rounds above max_deferral_rounds: should be 0; every such
     observation is the signature of a skipped leader round (the deferral
@@ -108,7 +108,7 @@ LATENCIES = [
     # The unqualified variant, kept for runs dumped before the _user one was
     # captured. It blends in the per-commit system transactions AND the
     # cancelled transactions, which do no Move work — so in a cancel-heavy
-    # cell its mean describes the cancellations, not the workload. Never
+    # config its mean describes the cancellations, not the workload. Never
     # headline it; it is in the CSV for continuity only.
     (
         "vmall",
@@ -246,7 +246,7 @@ def aggregate_arm(runs):
             "consensus_handler_scheduled_transactions_per_object_per_commit",
             "validator",
         ),
-        # The whole distribution behind that mean, for the mixed-cost cells:
+        # The whole distribution behind that mean, for the mixed-cost configs:
         # a count limit pins the number admitted per commit, a unit limit
         # lets it swing with how many expensive transactions a commit holds,
         # and only the histogram shows that.
@@ -391,7 +391,7 @@ def main():
         "  because the fullnode reports its checkpoint replays under the same",
         "  metric. It is blank for runs dumped before that metric was",
         "  captured — better empty than the blended value, which in a",
-        "  cancel-heavy cell describes the cancellations, not the workload.",
+        "  cancel-heavy config describes the cancellations, not the workload.",
         "- units/tx is measured from Run B's attested computation units;",
         "  B tx/commit = LIMIT_B / units-per-tx, what Run B admits where",
         "  Run A always admits LIMIT_A transactions.",
