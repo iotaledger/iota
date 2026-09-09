@@ -73,5 +73,6 @@
 71: MutableSharedIsInMoveAuthenticatorInput
 72: ImmutableAccountObjectNotSupported
 73: RandomnessStateIsInMoveAuthenticatorInput
-74: InvalidArgumentIndex
-75: InputObjectNotAvailableAtCommit
+74: UnableToGetAccountPublicKeyId
+75: AccountPublicKeyNotFound
+76: InvalidAccountPublicKeyField

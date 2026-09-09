@@ -13,6 +13,9 @@
 /// - `builtin_auth_builder_v1`: allocates a new object ID; selects the built-in
 ///   authenticator matching the provided `PublicKey`'s signature scheme.
 ///
+/// Claiming an existing address through the `ClaimAccount` transaction kind does
+/// not go through that API: it drives the private `claim_account_v1` below.
+///
 /// After optionally adding fields with `with_field`, finalize with
 /// `build_v1` (mutable) or `build_immutable_v1` (immutable).
 ///
@@ -31,6 +34,7 @@ module iota::smart_account;
 use iota::account;
 use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
+use iota::claim;
 use iota::dynamic_field;
 use iota::public_key::PublicKey;
 
@@ -354,4 +358,36 @@ fun claim_immutable_account_v1(public_key: PublicKey, ctx: &TxContext) {
     claim_builder(public_key, ctx).build_immutable_v1();
 }
 
+/// Creates a `SmartAccountBuilder` whose account ID is the claimed sender
+/// address, backed by the built-in authenticator for `public_key`'s signature
+/// scheme.
+fun claim_builder(public_key: PublicKey, ctx: &TxContext): SmartAccountBuilder {
+    let mut account = SmartAccount { id: claim::claim_address(public_key, ctx) };
+    builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
+
+    SmartAccountBuilder {
+        account,
+        authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
+    }
+}
+
+/// Check that the sender of this transaction is the account itself.
+fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
+    assert!(self.account_address() == ctx.sender(), ETransactionSenderIsNotTheSmartAccount);
+}
+
 // === Test Functions ===
+
+/// Test-only entry to `claim_account_v1`, which is private so that only the
+/// node's `ClaimAccount` pipeline can reach it.
+#[test_only]
+public fun claim_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
+    claim_account_v1(public_key, ctx)
+}
+
+/// Test-only entry to `claim_immutable_account_v1`, which is private so that
+/// only the node's `ClaimAccount` pipeline can reach it.
+#[test_only]
+public fun claim_immutable_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
+    claim_immutable_account_v1(public_key, ctx)
+}
