@@ -216,6 +216,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 35: Scale the PTB value size limit by the value's type.
 //             Allow objects created or mutated by system transactions to exceed
 //             the max object size limit.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3397,6 +3399,9 @@ impl ProtocolConfig {
                     cfg.feature_flags.max_ptb_value_size_v2 = true;
                     // Let system objects grow past the per-object size bound.
                     cfg.feature_flags.allow_unbounded_system_objects = true;
+                    // Enable the optimistic commit rule (StarfishSpeed) in
+                    // Starfish consensus.
+                    cfg.feature_flags.consensus_starfish_speed = true;
                 }
                 // Use this template when making changes:
                 //
