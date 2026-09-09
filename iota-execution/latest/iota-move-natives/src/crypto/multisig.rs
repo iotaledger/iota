@@ -3,12 +3,8 @@
 
 use std::collections::VecDeque;
 
-use fastcrypto::{
-    ed25519::Ed25519PublicKey, secp256k1::Secp256k1PublicKey, secp256r1::Secp256r1PublicKey,
-    traits::ToFromBytes,
-};
 use iota_sdk_types::crypto::PublicKey;
-use iota_types::multisig::MultiSigPublicKey;
+use iota_types::{account_abstraction::public_key, multisig::MultiSigPublicKey};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -65,12 +61,13 @@ pub fn multisig_validate_pubkey(
     let public_key = pop_arg!(args, VectorRef);
     let public_key_ref = public_key.as_bytes_ref();
 
-    // A valid MultiSig public key must deserialize cleanly (BCS rejects trailing
-    // bytes), pass committee validation, and have every member key on its
-    // curve. Committee validation alone does not check curve points, so we
-    // verify each member explicitly, charging that member's per-scheme cost
-    // just before checking it. We stop at the first invalid member, so gas
-    // covers only the members actually checked — never the ones past it.
+    // A valid MultiSig public key must deserialize cleanly (BCS rejects
+    // trailing bytes), pass committee validation, and have every member key
+    // on its curve. Committee validation alone does not check curve points,
+    // so we verify each member explicitly, charging that member's
+    // per-scheme cost just before checking it. We stop at the first invalid
+    // member, so gas covers only the members actually checked — never the
+    // ones past it.
     let is_valid = match bcs::from_bytes::<MultiSigPublicKey>(&public_key_ref) {
         Ok(committee) if committee.validate().is_ok() => {
             let mut all_on_curve = true;
@@ -79,7 +76,7 @@ pub fn multisig_validate_pubkey(
                     member_validation_cost(cost_params, member.public_key())?;
                 native_charge_gas_early_exit!(context, member_validation_cost);
 
-                if !member_pubkey_is_on_curve(member.public_key()) {
+                if !public_key::member_public_key_is_on_curve(member.public_key()) {
                     all_on_curve = false;
                     break;
                 }
@@ -114,21 +111,6 @@ fn member_validation_cost(
         _ => InternalGas::new(0),
     };
     Ok(cost)
-}
-
-/// Returns `true` if `public_key` is a valid point on its curve. Mirrors the
-/// per-scheme curve checks the single-key `*_validate_pubkey` natives perform,
-/// applied to each MultiSig member.
-fn member_pubkey_is_on_curve(public_key: &PublicKey) -> bool {
-    match public_key {
-        PublicKey::Ed25519(pk) => Ed25519PublicKey::from_bytes(pk.inner()).is_ok(),
-        PublicKey::Secp256k1(pk) => Secp256k1PublicKey::from_bytes(pk.inner()).is_ok(),
-        PublicKey::Secp256r1(pk) => Secp256r1PublicKey::from_bytes(pk.inner()).is_ok(),
-        PublicKey::Passkey(pk) => Secp256r1PublicKey::from_bytes(pk.inner().inner()).is_ok(),
-        // `PublicKey` is `#[non_exhaustive]`; any future member scheme is rejected until
-        // explicitly supported here.
-        _ => false,
-    }
 }
 
 /// The invariant-violation error raised when a `multisig_validate_pubkey` gas

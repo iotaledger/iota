@@ -130,9 +130,12 @@ impl TransactionHandler {
                         _ => others += 1,
                     }
                 }
+            } else if let TransactionKind::ClaimAccount(_) = kind {
+                // A claim account transaction carries no commands, so every
+                // command counter stays at zero.
             } else {
                 error!(
-                    "transaction kind [{kind}] is not programmable transaction and not a system transaction"
+                    "transaction kind [{kind}] is neither a programmable, a system, nor a claim account transaction"
                 );
             }
             if move_calls_count != move_calls {

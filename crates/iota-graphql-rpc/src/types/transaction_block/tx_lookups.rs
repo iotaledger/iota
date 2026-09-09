@@ -464,7 +464,13 @@ fn select_kind(
         _ => filter!(
             select_tx(None, bound, "tx_kinds"),
             if TransactionBlockKindInput::SystemTx == kind {
-                "tx_kind != 1".to_string()
+                // `ClaimAccount` is a user transaction as well, so a system kind is
+                // neither programmable nor claim-account.
+                format!(
+                    "tx_kind NOT IN ({}, {})",
+                    TransactionBlockKindInput::ProgrammableTx as i16,
+                    TransactionBlockKindInput::ClaimAccount as i16,
+                )
             } else {
                 format!("tx_kind = {}", kind as i16)
             }

@@ -548,6 +548,12 @@ struct FeatureFlags {
     // Used to gate genesis creation and epoch-change creation for existing networks.
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_registry: bool,
+
+    // If true, the `ClaimAccount` user transaction kind is accepted. It creates an
+    // account object whose id is the sender's address, so a usable account also
+    // requires `enable_builtin_move_authenticators`.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_claim_account_transaction: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1849,6 +1855,10 @@ impl ProtocolConfig {
     pub fn enable_claim_registry(&self) -> bool {
         self.feature_flags.enable_claim_registry
     }
+
+    pub fn enable_claim_account_transaction(&self) -> bool {
+        self.feature_flags.enable_claim_account_transaction
+    }
 }
 
 #[cfg(not(msim))]
@@ -3022,6 +3032,9 @@ impl ProtocolConfig {
                         cfg.builtin_move_authenticator_cost_base = Some(0);
                         // Enable claim registry in devnet only.
                         cfg.feature_flags.enable_claim_registry = true;
+                        // Enable claiming an account for the sender's address in
+                        // devnet only.
+                        cfg.feature_flags.enable_claim_account_transaction = true;
                     }
 
                     cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
@@ -3151,6 +3164,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_claim_registry_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_claim_registry = val;
+    }
+
+    pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_claim_account_transaction = val;
     }
 
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {

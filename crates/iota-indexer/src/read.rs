@@ -1469,7 +1469,14 @@ impl IndexerReader {
                 // The `SystemTransaction` variant can be used to filter for all types of system
                 // transactions.
                 if kind == IotaTransactionKind::SystemTransaction {
-                    ("tx_kinds".into(), "tx_kind != 1".to_string())
+                    (
+                        "tx_kinds".into(),
+                        format!(
+                            "tx_kind NOT IN ({}, {})",
+                            IotaTransactionKind::ProgrammableTransaction as u8,
+                            IotaTransactionKind::ClaimAccount as u8,
+                        ),
+                    )
                 } else {
                     ("tx_kinds".into(), format!("tx_kind = {}", kind as u8))
                 }
@@ -1484,7 +1491,8 @@ impl IndexerReader {
 
                 let mut has_system_transaction = false;
                 let mut has_programmable_transaction = false;
-                let mut other_kinds = HashSet::new();
+                let mut has_claim_account = false;
+                let mut system_kinds = HashSet::new();
 
                 for kind in kind_vec.iter() {
                     match kind {
@@ -1492,34 +1500,44 @@ impl IndexerReader {
                         IotaTransactionKind::ProgrammableTransaction => {
                             has_programmable_transaction = true
                         }
-                        other => {
-                            other_kinds.insert(*other as u8);
+                        IotaTransactionKind::ClaimAccount => has_claim_account = true,
+                        concrete_system_kind => {
+                            system_kinds.insert(*concrete_system_kind as u8);
                         }
                     }
                 }
 
+                use IotaTransactionKind::*;
                 let query = if has_system_transaction {
-                    // Case: If `SystemTransaction` is present but `ProgrammableTransaction` is not,
-                    // we need to filter out `ProgrammableTransaction`.
-                    if !has_programmable_transaction {
-                        "tx_kind != 1".to_string()
-                    } else {
-                        // No filter applied if both exist
-                        "1 = 1".to_string()
+                    // `SystemTransaction` stands for every system kind, so each arm keeps
+                    // those and excludes the user kinds that were not requested.
+                    match (has_programmable_transaction, has_claim_account) {
+                        (true, true) => "1 = 1".to_string(),
+                        (false, false) => {
+                            format!(
+                                "tx_kind NOT IN ({}, {})",
+                                ProgrammableTransaction as u8, ClaimAccount as u8,
+                            )
+                        }
+                        (true, false) => format!("tx_kind != {}", ClaimAccount as u8),
+                        (false, true) => format!("tx_kind != {}", ProgrammableTransaction as u8),
                     }
                 } else {
-                    // Case: `ProgrammableTransaction` is present
+                    let mut all_requested_kinds = system_kinds;
                     if has_programmable_transaction {
-                        other_kinds.insert(IotaTransactionKind::ProgrammableTransaction as u8);
+                        all_requested_kinds.insert(ProgrammableTransaction as u8);
+                    }
+                    if has_claim_account {
+                        all_requested_kinds.insert(ClaimAccount as u8);
                     }
 
-                    if other_kinds.is_empty() {
+                    if all_requested_kinds.is_empty() {
                         // If there's nothing to filter on, return an empty query
                         "1 = 1".to_string()
                     } else {
                         let mut query = String::from("tx_kind IN (");
                         query.push_str(
-                            &other_kinds
+                            &all_requested_kinds
                                 .iter()
                                 .map(ToString::to_string)
                                 .collect::<Vec<_>>()

@@ -103,7 +103,8 @@ static_symbols!(
     "create_immutable_account_v1",
     "rotate_auth_function_ref_v1",
     "claim_registry",
-    "claim"
+    "claim",
+    "claim_address"
 );
 
 /// The global, unique cache of strings.
