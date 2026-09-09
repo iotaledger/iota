@@ -268,7 +268,7 @@ results/matrix/<LABEL>/
   `../h1/.venv`.
 
 The calibration is written up in `probe-test.md`; the mode comparison in
-the H2 section of `../stress-test.md`.
+`RESULTS.md`.
 
 ## Next steps
 
@@ -279,12 +279,12 @@ the H2 section of `../stress-test.md`.
   not affect the comparison, but the scheduler is leaving capacity unused
   while transactions wait to be cancelled. Slot debt is ruled out (overshoot
   0) and the suggested-gas-price code is advisory on this path; the cause is
-  open (stress-test.md, H2 finding 3).
+  open (`RESULTS.md`, finding 3).
 - **The deferral budget is counted in leader rounds.** A skipped leader round
   spends budget without a scheduling attempt, so 1–4 % of deferrals are
   cancelled after 11–12 rounds instead of 10. Small here, but the budget is
   not what it says; worth an upstream issue proposing to count evaluations
-  (H2 finding 6).
+  (`RESULTS.md`, finding 6).
 - **Per-cell time series for the marginal cells.** A pooled lag statistic
   cannot distinguish a queue that is high but stable from one growing
   without bound — a lag-over-time curve can. Worth adapting `../h1/plot.py`'s

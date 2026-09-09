@@ -383,7 +383,7 @@ They are needed for the testing only, not to be merged to upstream branches.
   - Note: H4 caught a real fork on the attested path -
     `check_coin_deny_list_for_attested_tx` dropped transactions on a transient
     post-consensus input-load race, diverging checkpoints. Root-caused and
-    fixed (see stress-test.md H4 warning); tracked in iota-private#438.
+    fixed (see h1/RESULTS.md, H4); tracked in iota-private#438.
 
 ---
 
