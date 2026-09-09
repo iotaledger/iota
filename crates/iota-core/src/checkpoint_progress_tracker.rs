@@ -61,17 +61,19 @@ fn format_count(count: u64) -> String {
     }
 }
 
-/// Tracks how fast the checkpoints being executed move through the chain's own
-/// timeline, in chain-seconds per wall-clock second, smoothed over recent
-/// ticks.
+/// Tracks how fast the node executes chain history, in seconds of checkpoint
+/// timestamps per wall-clock second.
+///
+/// For example, rate = 376.0 means execution of 376 seconds of history every
+/// real second. A node keeping pace with the chain sits at 1.0.
 #[derive(Default)]
-struct ChainTimeRate {
+struct HistoryExecutionRate {
     last_wall: Option<Instant>,
     last_chain_ms: CheckpointTimestamp,
     rate: f64,
 }
 
-impl ChainTimeRate {
+impl HistoryExecutionRate {
     /// Folds this tick's chain timestamp into the estimate and returns it.
     fn update(&mut self, now: Instant, chain_ms: CheckpointTimestamp) -> f64 {
         if let Some(last_wall) = self.last_wall {
@@ -227,7 +229,7 @@ impl CheckpointProgressTracker {
             let mut prev_total_tx: u64 = 0;
             let mut prev_obj_pruned: u64 = 0;
             let mut prev_ckpt_pruned: u64 = 0;
-            let mut chain_time_rate = ChainTimeRate::default();
+            let mut history_rate = HistoryExecutionRate::default();
 
             loop {
                 interval.tick().await;
@@ -306,7 +308,7 @@ impl CheckpointProgressTracker {
                         String::new()
                     };
 
-                    let rate = chain_time_rate.update(Instant::now(), chain_ms);
+                    let rate = history_rate.update(Instant::now(), chain_ms);
                     let eta =
                         sync_eta(&checkpoint_store, epoch, chain_ms, rate).unwrap_or_default();
 
@@ -366,7 +368,7 @@ mod tests {
     /// checkpoints in a second is moving at 3600x.
     #[test]
     fn the_rate_measures_chain_time_against_wall_time() {
-        let mut rate = ChainTimeRate::default();
+        let mut rate = HistoryExecutionRate::default();
         let start = Instant::now();
         assert_eq!(
             rate.update(start, 0),
@@ -384,7 +386,7 @@ mod tests {
     /// can be made from it.
     #[test]
     fn a_stalled_node_reports_no_rate() {
-        let mut rate = ChainTimeRate::default();
+        let mut rate = HistoryExecutionRate::default();
         let start = Instant::now();
         rate.update(start, 5_000);
         assert_eq!(
@@ -398,7 +400,7 @@ mod tests {
     /// replacing it — otherwise the line would swing with every archive file.
     #[test]
     fn the_rate_is_smoothed_across_ticks() {
-        let mut rate = ChainTimeRate::default();
+        let mut rate = HistoryExecutionRate::default();
         let start = Instant::now();
         rate.update(start, 0);
         let first = rate.update(start + Duration::from_secs(1), 100_000);
