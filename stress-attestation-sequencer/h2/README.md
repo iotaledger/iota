@@ -239,15 +239,19 @@ results/matrix/<LABEL>/
   histogram mean and the exact share over 30s, plus the pooled p95),
   skipped leader rounds, and the safety verdict (counters +
   validator crash scan). The same rows land as scalars in
-  `results/matrix/summary.csv` for `plot.py`. Standard library only; the
-  machinery
-  shared with `../h1/aggregate.py` lives in `../aggregate.py`.
+  `results/matrix/summary.csv` for `plot.py`, and the per-commit admission
+  histogram of every arm in `results/matrix/admits_hist.csv`, for the
+  mixed-cost figure. Standard library only; the machinery shared with
+  `../h1/aggregate.py` lives in `../aggregate.py`.
 - `plot.py` — renders the mode-comparison figures from `summary.csv` into
   `results/matrix/summary_plots/`: checkpoint lag and cancelled fraction
   against the
   admitted rate (tx/commit × commits/s, with Run A as one vertical line),
   annotated per-cell heatmaps of the same scalars, the throughput-vs-lag
-  tradeoff, and lag against admitted/drain utilization.
+  tradeoff, and lag against admitted/drain utilization — all over the
+  fixed-cost cells. The mixed-cost cells get `modes_mix.png`: how many
+  transactions each commit admitted, Run A next to Run B, with the
+  throughput, cancellation and lag outcome below.
   Needs matplotlib, so run it from a `venv` such as `../h1/.venv`.
 - `probe.sh` — run one `(SLOW_N, SLOW_SIZE)` point: start the network or reuse a
   running one, scrape metrics, append a CSV row, and optionally tear down
@@ -263,37 +267,31 @@ results/matrix/<LABEL>/
   `results/probe/`. Needs matplotlib, so run it from a `venv` such as
   `../h1/.venv`.
 
-The results so far are written up in `probe-test.md`.
+The calibration is written up in `probe-test.md`; the mode comparison in
+the H2 section of `../stress-test.md`.
 
 ## Next steps
 
-- **Re-measure the shared-object execution times.** The shared-object probe
-  runs measured the attested units (they are in `matrix.sh`'s cost table) but
-  not the execution times: the probe started its network with the default
-  per-object limit of 10 units, below any transaction's cost, so every
-  shared-input transaction was deferred and cancelled instead of executed.
-  `probe.sh` needs to start the network with a limit no probe transaction can
-  reach (e.g. `MAX_ACCUMULATED_TXN_COST=50000000`), then the sweep re-run and
-  the `drains` column in `matrix.sh` filled in.
+- **Admission falls short of the limit under overload.** From 5,000 units up,
+  Run A admits 7.4 down to 3.8 transactions per commit against a limit of 10
+  while dozens sit deferred, and the share of commits that schedule anything
+  falls to 25 % at the heaviest point. Both modes do it equally, so it does
+  not affect the comparison, but the scheduler is leaving capacity unused
+  while transactions wait to be cancelled. Slot debt is ruled out (overshoot
+  0) and the suggested-gas-price code is advisory on this path; the cause is
+  open (stress-test.md, H2 finding 3).
+- **The deferral budget is counted in leader rounds.** A skipped leader round
+  spends budget without a scheduling attempt, so 1–4 % of deferrals are
+  cancelled after 11–12 rounds instead of 10. Small here, but the budget is
+  not what it says; worth an upstream issue proposing to count evaluations
+  (H2 finding 6).
 - **Per-cell time series for the marginal cells.** A pooled lag statistic
   cannot distinguish a queue that is high but stable from one growing
   without bound — a lag-over-time curve can. Worth adapting `../h1/plot.py`'s
-  dashboard replay as a drill-down for a few chosen cells (the knife-edge
-  ones), not for the whole grid. Also still unplotted:
-  `consensus_handler_transaction_deferral_rounds` and
-  `consensus_handler_scheduled_transactions_per_object_per_commit`.
-- **Run the mixed-cost cells.** `SLOW_MIX` and the five `mix` cells are in
-  place but have not been run. Start with `ITERS=1 ./matrix.sh mix` (about 50
-  minutes) and check `admits/cmt` for Run A in the summary: at 9.5 or above
-  the count limit is binding and the cell is sound, while 7 or 8 means the
-  cell is arrival-limited and wants a lower weight or a cheaper expensive
-  level. `mix50900` sits closest to that edge, at an estimated ten arrivals
-  per commit. Then the full campaign, five cells at `ITERS=10`, about eight
-  hours.
-- **Give the mixed cells their own figure.** `plot.py` places a cell on the
-  admitted-rate axis from `LIMIT_B / units-per-tx`, which for a mix is an
-  average, and the knee plot cannot show a spread at all. The mixed story is
-  the distribution of admitted transactions per commit — pinned for a count
-  limit, wide for a unit limit — which wants a different figure and the
-  `consensus_handler_scheduled_transactions_per_object_per_commit` histogram
-  read per arm rather than reduced to a mean.
+  dashboard replay as a drill-down for a few chosen cells, not for the whole
+  grid. `consensus_handler_transaction_deferral_rounds` is also still
+  unplotted.
+- **Vary the cost ratio at a fixed mean.** The mixed-cost effect is set by
+  the ratio between the two costs, not the mean, and the five cells vary
+  both at once. Cells that hold the mean and change only the ratio would
+  isolate it.
