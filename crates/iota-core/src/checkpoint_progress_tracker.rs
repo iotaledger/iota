@@ -73,6 +73,10 @@ struct HistoryExecutionRate {
     rate: f64,
 }
 
+/// How many ticks the rate takes to follow a change in speed, so that the
+/// estimates hold steady while the per-second throughput swings.
+const SMOOTHING_TICKS: f64 = 10.0;
+
 impl HistoryExecutionRate {
     /// Records the timestamp of the newest executed checkpoint at `now` and
     /// returns the updated rate. Returns 0.0 until two ticks with advancing
@@ -101,7 +105,7 @@ impl HistoryExecutionRate {
         self.rate = if self.rate == 0.0 {
             sample
         } else {
-            self.rate * 0.9 + sample * 0.1
+            self.rate * (1.0 - 1.0 / SMOOTHING_TICKS) + sample / SMOOTHING_TICKS
         };
         self.last_wall = Some(now);
         self.last_executed_timestamp_ms = executed_timestamp_ms;
