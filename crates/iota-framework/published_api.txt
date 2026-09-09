@@ -1480,6 +1480,9 @@ create_account_v1
 create_immutable_account_v1
 	public fun
 	0x2::account
+create_account_v1_internal
+	public(package) fun
+	0x2::account
 rotate_auth_function_ref_v1
 	public fun
 	0x2::account
@@ -2293,72 +2296,9 @@ from_flag
 flag
 	public fun
 	0x2::signature_scheme
-ed25519_validate_pubkey
-	public fun
-	0x2::ed25519
-ed25519_verify
-	public fun
-	0x2::ed25519
-secp256r1_ecrecover
-	public fun
-	0x2::ecdsa_r1
-secp256r1_validate_pubkey
-	public fun
-	0x2::ecdsa_r1
-secp256r1_verify
-	public fun
-	0x2::ecdsa_r1
-secp256k1_ecrecover
-	public fun
-	0x2::ecdsa_k1
-secp256k1_validate_pubkey
-	public fun
-	0x2::ecdsa_k1
-decompress_pubkey
-	public fun
-	0x2::ecdsa_k1
-secp256k1_verify
-	public fun
-	0x2::ecdsa_k1
-PublicKey
-	public struct
-	0x2::public_key
-from_prefixed_bytes
-	public fun
-	0x2::public_key
-create
-	public fun
-	0x2::public_key
-scheme
-	public fun
-	0x2::public_key
-raw_bytes
-	public fun
-	0x2::public_key
-to_iota_address
-	public fun
-	0x2::public_key
-multisig_to_hash_input
-	fun
-	0x2::public_key
-validate_public_key
-	fun
-	0x2::public_key
-validate_multisig_public_key
-	fun
-	0x2::public_key
 is_feature_enabled
 	public(package) fun
 	0x2::protocol_config
-PublicKeyAttached
-	public struct
-	0x2::builtin_authenticator_functions
-PublicKeyDetached
-	public struct
-	0x2::builtin_authenticator_functions
-PublicKeyRotated
-	public struct
-	0x2::builtin_authenticator_functions
 PublicKeyFieldName
 	public struct
 	0x2::builtin_authenticator_functions
@@ -2379,24 +2319,6 @@ passkey_authenticator_function_ref_v1
 	0x2::builtin_authenticator_functions
 from_signature_scheme
 	public fun
-	0x2::builtin_authenticator_functions
-attach_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-detach_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-rotate_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-has_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-borrow_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-public_key_field_name
-	fun
 	0x2::builtin_authenticator_functions
 check_builtin_authenticators_enabled
 	fun
@@ -2443,6 +2365,69 @@ transfer_impl
 receive_impl
 	fun
 	0x2::transfer
+multisig_validate_pubkey
+	public fun
+	0x2::multisig
+ed25519_validate_pubkey
+	public fun
+	0x2::ed25519
+ed25519_verify
+	public fun
+	0x2::ed25519
+secp256r1_ecrecover
+	public fun
+	0x2::ecdsa_r1
+secp256r1_validate_pubkey
+	public fun
+	0x2::ecdsa_r1
+secp256r1_verify
+	public fun
+	0x2::ecdsa_r1
+secp256k1_ecrecover
+	public fun
+	0x2::ecdsa_k1
+secp256k1_validate_pubkey
+	public fun
+	0x2::ecdsa_k1
+decompress_pubkey
+	public fun
+	0x2::ecdsa_k1
+secp256k1_verify
+	public fun
+	0x2::ecdsa_k1
+PublicKey
+	public struct
+	0x2::public_key
+KeyID
+	public struct
+	0x2::public_key
+from_prefixed_bytes
+	public fun
+	0x2::public_key
+key_id
+	public fun
+	0x2::public_key
+create
+	public fun
+	0x2::public_key
+scheme
+	public fun
+	0x2::public_key
+raw_bytes
+	public fun
+	0x2::public_key
+to_iota_address
+	public fun
+	0x2::public_key
+id
+	public fun
+	0x2::public_key
+validate_public_key
+	fun
+	0x2::public_key
+to_iota_address_impl
+	fun
+	0x2::public_key
 ClaimRegistry
 	public struct
 	0x2::claim_registry
@@ -3070,6 +3055,45 @@ burn_balance
 total_supply
 	public fun
 	0x2::iota
+PublicKeyAttached
+	public struct
+	0x2::key_management
+PublicKeyDetached
+	public struct
+	0x2::key_management
+PublicKeyRotated
+	public struct
+	0x2::key_management
+PublicKeyFieldName
+	public struct
+	0x2::key_management
+attach_public_key
+	public fun
+	0x2::key_management
+detach_public_key
+	public fun
+	0x2::key_management
+rotate_public_key
+	public fun
+	0x2::key_management
+has_public_key
+	public fun
+	0x2::key_management
+borrow_public_key
+	public fun
+	0x2::key_management
+attach_public_key_pkg
+	public(package) fun
+	0x2::key_management
+detach_public_key_pkg
+	public(package) fun
+	0x2::key_management
+rotate_public_key_pkg
+	public(package) fun
+	0x2::key_management
+public_key_field_name
+	fun
+	0x2::key_management
 VecSet
 	public struct
 	0x2::vec_set
@@ -3679,11 +3703,32 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
+SmartAccountClaimed
+	public struct
+	0x2::smart_account
+SmartAccountCreated
+	public struct
+	0x2::smart_account
+SmartAccountPublicKeyAttached
+	public struct
+	0x2::smart_account
+SmartAccountPublicKeyDetached
+	public struct
+	0x2::smart_account
+SmartAccountPublicKeyRotated
+	public struct
+	0x2::smart_account
 SmartAccount
 	public struct
 	0x2::smart_account
 SmartAccountBuilder
 	public struct
+	0x2::smart_account
+PublicKeyFieldName
+	public struct
+	0x2::smart_account
+SmartAccountEvent
+	public enum
 	0x2::smart_account
 builder_v1
 	public fun
@@ -3703,6 +3748,9 @@ build_v1
 build_immutable_v1
 	public fun
 	0x2::smart_account
+build_v1_internal
+	public(package) fun
+	0x2::smart_account
 account_address
 	public fun
 	0x2::smart_account
@@ -3710,6 +3758,12 @@ has_field
 	public fun
 	0x2::smart_account
 has_builtin_auth_public_key
+	public fun
+	0x2::smart_account
+has_public_key
+	public fun
+	0x2::smart_account
+borrow_public_key
 	public fun
 	0x2::smart_account
 borrow_field
@@ -3744,6 +3798,9 @@ rotate_builtin_auth_public_key
 	0x2::smart_account
 rotate_auth_function_ref_v1
 	public fun
+	0x2::smart_account
+public_key_field_name
+	fun
 	0x2::smart_account
 ensure_tx_sender_is_smart_account
 	fun

@@ -5,6 +5,7 @@
 module iota::builtin_authenticator_functions_tests;
 
 use iota::builtin_authenticator_functions;
+use iota::key_management;
 use iota::public_key;
 use iota::signature_scheme;
 use iota::test_scenario;
@@ -122,45 +123,45 @@ fun from_signature_scheme_aborts_on_unsupported_scheme() {
 fun attach_borrow_detach_lifecycle() {
     account_test_mut!(|account| {
         let public_key = ed25519_public_key();
-        assert_eq(builtin_authenticator_functions::has_public_key(account.id()), false);
+        assert_eq(key_management::has_public_key(account.id()), false);
 
-        builtin_authenticator_functions::attach_public_key(account.id_mut(), public_key);
+        key_management::attach_public_key(account.id_mut(), public_key);
 
-        assert_eq(builtin_authenticator_functions::has_public_key(account.id()), true);
+        assert_eq(key_management::has_public_key(account.id()), true);
         assert_ref_eq(
-            builtin_authenticator_functions::borrow_public_key(account.id()),
+            key_management::borrow_public_key(account.id()),
             &public_key,
         );
 
-        let returned = builtin_authenticator_functions::detach_public_key(account.id_mut());
+        let returned = key_management::detach_public_key(account.id_mut());
 
         assert_eq(returned, public_key);
-        assert_eq(builtin_authenticator_functions::has_public_key(account.id()), false);
+        assert_eq(key_management::has_public_key(account.id()), false);
     });
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyAlreadyAttached)]
+#[expected_failure(abort_code = iota::key_management::EPublicKeyAlreadyAttached)]
 fun attach_twice_aborts() {
     account_test_mut!(|account| {
-        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
-        builtin_authenticator_functions::attach_public_key(account.id_mut(), ed25519_public_key());
+        key_management::attach_public_key(account.id_mut(), ed25519_public_key());
+        key_management::attach_public_key(account.id_mut(), ed25519_public_key());
     });
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::key_management::EPublicKeyMissing)]
 fun borrow_without_attach_aborts() {
     account_test!(|account| {
-        builtin_authenticator_functions::borrow_public_key(account.id());
+        key_management::borrow_public_key(account.id());
     });
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::key_management::EPublicKeyMissing)]
 fun detach_without_attach_aborts() {
     account_test_mut!(|account| {
-        builtin_authenticator_functions::detach_public_key(account.id_mut());
+        key_management::detach_public_key(account.id_mut());
     });
 }
 
@@ -172,25 +173,25 @@ fun rotate_returns_old_key_and_stores_new() {
         let old_public_key = ed25519_public_key();
         let new_public_key = secp256k1_public_key();
 
-        builtin_authenticator_functions::attach_public_key(account.id_mut(), old_public_key);
-        let returned = builtin_authenticator_functions::rotate_public_key(
+        key_management::attach_public_key(account.id_mut(), old_public_key);
+        let returned = key_management::rotate_public_key(
             account.id_mut(),
             new_public_key,
         );
 
         assert_eq(returned, old_public_key);
         assert_ref_eq(
-            builtin_authenticator_functions::borrow_public_key(account.id()),
+            key_management::borrow_public_key(account.id()),
             &new_public_key,
         );
     });
 }
 
 #[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::key_management::EPublicKeyMissing)]
 fun rotate_without_attach_aborts() {
     account_test_mut!(|account| {
-        builtin_authenticator_functions::rotate_public_key(account.id_mut(), ed25519_public_key());
+        key_management::rotate_public_key(account.id_mut(), ed25519_public_key());
     });
 }
 

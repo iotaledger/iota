@@ -7,6 +7,9 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::dynamic_field;
 use iota::event;
 
+const IMMUTABLE_ACCOUNT: bool = true;
+const MUTABLE_ACCOUNT: bool = false;
+
 #[error(code = 0)]
 const EAuthenticatorFunctionRefV1AlreadyAttached: vector<u8> =
     b"An `AuthenticatorFunctionRefV1` instance is already attached to the account.";
@@ -45,7 +48,7 @@ public struct AuthenticatorFunctionRefV1Key has copy, drop, store {}
 /// that `Account` is an object defined in the module where `create_account_v1` is invoked.
 /// Emits an `MutableAccountCreated` event upon success.
 public fun create_account_v1<Account: key>(
-    mut account: Account,
+    account: Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
     let event = MutableAccountCreated {
@@ -53,10 +56,7 @@ public fun create_account_v1<Account: key>(
         authenticator,
     };
 
-    attach_auth_function_ref_v1(&mut account, authenticator);
-
-    create_account_v1_impl(account);
-
+    create_account_v1_internal(account, authenticator, MUTABLE_ACCOUNT);
     event::emit(event);
 }
 
@@ -66,7 +66,7 @@ public fun create_account_v1<Account: key>(
 /// that `Account` is an object defined in the module where `create_immutable_account_v1` is invoked.
 /// Emits an `ImmutableAccountCreated` event upon success.
 public fun create_immutable_account_v1<Account: key>(
-    mut account: Account,
+    account: Account,
     authenticator: AuthenticatorFunctionRefV1<Account>,
 ) {
     let event = ImmutableAccountCreated {
@@ -74,11 +74,22 @@ public fun create_immutable_account_v1<Account: key>(
         authenticator,
     };
 
+    create_account_v1_internal(account, authenticator, IMMUTABLE_ACCOUNT);
+    event::emit(event);
+}
+
+public(package) fun create_account_v1_internal<Account: key>(
+    mut account: Account,
+    authenticator: AuthenticatorFunctionRefV1<Account>,
+    immutable: bool,
+) {
     attach_auth_function_ref_v1(&mut account, authenticator);
 
-    create_immutable_account_v1_impl(account);
-
-    event::emit(event);
+    if (immutable) {
+        create_immutable_account_v1_impl(account);
+    } else {
+        create_account_v1_impl(account);
+    };
 }
 
 /// Rotate the account-related authenticator.
