@@ -324,7 +324,10 @@ dump_timeseries() {
   echo "${BLUE}Dumping raw timeseries (step=${TS_STEP}s)...${RESET}"
   echo "  - timeseries -> $(rel "$out")"
 
-  PROM="$PROM" \
+  # `env` is required, not decoration: bash decides what is an assignment
+  # prefix when it parses the command, so a CFG_* word that arrives from
+  # expanding "${_slow_mix_cfg[@]}" would be taken as the command name.
+  env PROM="$PROM" \
     CFG_target_qps="$TARGET_QPS" CFG_num_workers="$NUM_WORKERS" \
     CFG_in_flight_ratio="$IN_FLIGHT_RATIO" CFG_num_client_threads="$NUM_CLIENT_THREADS" \
     CFG_num_transfer_accounts="$NUM_TRANSFER_ACCOUNTS" CFG_run_duration="$RUN_DURATION" \
