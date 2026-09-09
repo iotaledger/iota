@@ -265,6 +265,12 @@ impl MoveTypeTagTrait for Address {
     }
 }
 
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::object::ID {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_id()))
+    }
+}
+
 impl<T: MoveTypeTagTrait> MoveTypeTagTrait for Vec<T> {
     fn get_type_tag() -> TypeTag {
         TypeTag::Vector(Box::new(T::get_type_tag()))
