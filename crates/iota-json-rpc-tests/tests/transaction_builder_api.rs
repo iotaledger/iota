@@ -3,9 +3,13 @@
 
 #[cfg(not(msim))]
 use std::str::FromStr;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 use iota_json::{call_arg, call_args, type_args};
+use iota_json_rpc::transaction_builder_api::AuthorityStateDataReader;
 use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
@@ -18,6 +22,8 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{ObjectDigest, ObjectId, Owner, StructTag, Version};
+use iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT;
+use iota_transaction_builder::DataReader;
 use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -774,6 +780,83 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
         .unwrap();
 
     matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 1);
+    Ok(())
+}
+
+#[sim_test]
+async fn test_get_owned_objects_paginates_without_dropping_objects() -> Result<(), anyhow::Error> {
+    let cluster = TestClusterBuilder::new().build().await;
+    let address = cluster.get_address_0();
+
+    let state = cluster.fullnode_handle.iota_node.with(|node| node.state());
+    let reader = AuthorityStateDataReader::new(state);
+    let gas_coins = |cursor, limit| {
+        reader.get_owned_objects(
+            address,
+            StructTag::new_gas_coin(),
+            cursor,
+            limit,
+            IotaObjectDataOptions::new(),
+        )
+    };
+
+    let full_page = gas_coins(None, None).await?;
+    assert!(!full_page.has_next_page);
+    assert!(full_page.next_cursor.is_none());
+    assert_eq!(full_page.data.len(), DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT);
+
+    let page_size = 2;
+    let expected_pages = DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT.div_ceil(page_size);
+    assert!(expected_pages > 1, "the walk must cross a page boundary");
+    let mut paginated = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut cursor = None;
+    let mut pages = 0;
+    loop {
+        assert!(
+            pages < expected_pages,
+            "cursor did not advance to completion within {expected_pages} pages"
+        );
+        let page = gas_coins(cursor, Some(page_size)).await?;
+        pages += 1;
+        for object in &page.data {
+            let object_id = object.object_id()?;
+            assert!(
+                seen.insert(object_id),
+                "object {object_id} was returned by more than one page"
+            );
+        }
+        paginated.extend(page.data);
+
+        if !page.has_next_page {
+            assert!(page.next_cursor.is_none());
+            break;
+        }
+        cursor = page.next_cursor;
+    }
+
+    let full_ids = full_page
+        .data
+        .iter()
+        .map(|object| object.object_id())
+        .collect::<Result<Vec<_>, _>>()?;
+    let paginated_ids = paginated
+        .iter()
+        .map(|object| object.object_id())
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(paginated_ids, full_ids);
+    assert_eq!(pages, expected_pages);
+
+    let exact_page = gas_coins(None, Some(DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT)).await?;
+    assert!(!exact_page.has_next_page);
+    assert!(exact_page.next_cursor.is_none());
+
+    // A zero limit means the default page size, not an empty page that claims
+    // a successor.
+    let zero_limit = gas_coins(None, Some(0)).await?;
+    assert_eq!(zero_limit.data.len(), DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT);
+    assert!(!zero_limit.has_next_page);
+
     Ok(())
 }
 
