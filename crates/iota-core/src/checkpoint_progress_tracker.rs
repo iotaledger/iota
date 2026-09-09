@@ -95,12 +95,26 @@ impl ChainTimeRate {
 }
 
 /// Wall-clock time to close `behind` while moving through chain time at
-/// `rate`, or `None` when the node is not gaining.
+/// `rate`, or `None` when the node is not gaining, or is gaining so slowly
+/// that the wait is longer than a [`Duration`] can hold.
 ///
 /// Hint: The chain keeps producing a second of history per second, so the gap
 /// closes at whatever `rate` exceeds chain pace by — not at `rate` itself.
 fn time_to_catch_up(behind: Duration, rate: f64) -> Option<Duration> {
-    (rate > 1.0).then(|| Duration::from_secs_f64(behind.as_secs_f64() / (rate - 1.0)))
+    if rate <= 1.0 {
+        return None;
+    }
+    Duration::try_from_secs_f64(behind.as_secs_f64() / (rate - 1.0)).ok()
+}
+
+/// Wall-clock time to reach the end of the current epoch, whose remaining
+/// history is `remaining`, at `rate`. `None` when the rate is not yet known,
+/// or the wait is longer than a [`Duration`] can hold.
+fn time_to_epoch_end(remaining: Duration, rate: f64) -> Option<Duration> {
+    if rate <= 0.0 {
+        return None;
+    }
+    Duration::try_from_secs_f64(remaining.as_secs_f64() / rate).ok()
 }
 
 /// Returns how far behind the node is, how long until the current epoch ends,
@@ -128,13 +142,14 @@ fn sync_eta(
         .get_epoch_info(epoch)
         .ok()
         .flatten()
-        .map(|info| {
+        .and_then(|info| {
             let ends_ms = info
                 .start_timestamp_ms
                 .saturating_add(info.system_state.epoch_duration_ms());
-            let remaining_secs = ends_ms.saturating_sub(chain_ms) as f64 / 1000.0;
-            format_duration(Duration::from_secs_f64(remaining_secs / rate))
+            let remaining = Duration::from_millis(ends_ms.saturating_sub(chain_ms));
+            time_to_epoch_end(remaining, rate)
         })
+        .map(format_duration)
         .unwrap_or_else(|| "unknown".to_string());
 
     let sync_eta = time_to_catch_up(behind, rate)
@@ -403,6 +418,26 @@ mod tests {
         let a_day = Duration::from_secs(86_400);
         assert_eq!(time_to_catch_up(a_day, 2.0), Some(a_day));
         assert_eq!(time_to_catch_up(a_day, 3.0), Some(a_day / 2));
+    }
+
+    /// A rate a hair above chain pace divides by nearly nothing, overflowing
+    /// the `Duration` the estimate is held in. That has to report no estimate
+    /// rather than panic: this runs in the node's logging task, and the
+    /// smoothed rate passes through chain pace whenever a node arrives at or
+    /// falls back from it.
+    #[test]
+    fn a_rate_barely_above_chain_pace_reports_no_estimate() {
+        let behind = Duration::from_secs(658 * 86_400);
+        assert_eq!(time_to_catch_up(behind, 1.0 + f64::EPSILON), None);
+    }
+
+    /// The same overflow reaches the epoch estimate through a rate that has
+    /// barely got going.
+    #[test]
+    fn a_rate_barely_above_zero_reports_no_epoch_estimate() {
+        let remaining = Duration::from_secs(86_400);
+        assert_eq!(time_to_epoch_end(remaining, f64::MIN_POSITIVE), None);
+        assert_eq!(time_to_epoch_end(remaining, 0.0), None);
     }
 
     /// A node moving at chain pace or slower never arrives, so no estimate is
