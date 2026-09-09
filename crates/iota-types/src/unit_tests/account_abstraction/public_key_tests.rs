@@ -128,6 +128,94 @@ fn new_error_on_invalid_key_bytes() {
     );
 }
 
+#[test]
+fn new_error_on_multisig_zero_threshold() {
+    let committee = MultisigCommittee::new_unchecked(multisig_members(), 0);
+    assert_eq!(
+        multisig_error(committee),
+        "Invalid MultisigCommittee: Multisig threshold must be non-zero"
+    );
+}
+
+#[test]
+fn new_error_on_multisig_empty_committee() {
+    let committee = MultisigCommittee::new_unchecked(vec![], 1);
+    assert_eq!(
+        multisig_error(committee),
+        "Invalid MultisigCommittee: Multisig committee must have at least one member"
+    );
+}
+
+#[test]
+fn new_error_on_multisig_duplicate_member() {
+    let mut members = multisig_members();
+    members[1] = members[0].clone();
+    let committee = MultisigCommittee::new_unchecked(members, 1);
+    assert_eq!(
+        multisig_error(committee),
+        "Invalid MultisigCommittee: Duplicate public key"
+    );
+}
+
+#[test]
+fn new_error_on_multisig_weight_below_threshold() {
+    // Two members of weight 1 each, so a threshold of 3 cannot be met.
+    let committee = MultisigCommittee::new_unchecked(multisig_members(), 3);
+    assert_eq!(
+        multisig_error(committee),
+        "Invalid MultisigCommittee: Insufficient total weight 2 for threshold 3"
+    );
+}
+
+#[test]
+fn new_error_on_multisig_member_not_on_curve() {
+    // A compressed secp256k1 key must start with 0x02 or 0x03, so these bytes
+    // are the right length but off the curve. Committee validation ignores key
+    // bytes, so only the per-member curve check rejects this.
+    let committee = MultisigCommittee::new_unchecked(
+        vec![MultisigMember::new(Secp256k1PublicKey::new([0xff; 33]), 1)],
+        1,
+    );
+    assert_eq!(
+        multisig_error(committee),
+        "Invalid MultiSig member public key"
+    );
+}
+
+#[test]
+fn new_error_on_multisig_trailing_bytes() {
+    let committee = MultisigCommittee::new(multisig_members(), 1).unwrap();
+    let mut bytes = bcs::to_bytes(&committee).unwrap();
+    bytes.push(0x00);
+
+    let err = MovePublicKey::new(SignatureScheme::Multisig, bytes)
+        .unwrap_err()
+        .to_string();
+    assert_eq!(err, "Invalid MultisigCommittee: remaining input");
+}
+
+#[test]
+fn new_error_on_multisig_mixed_ed25519() {
+    // Ed25519 members carry no scheme flag in the address preimage, so two
+    // different committees mixing Ed25519 with other key schemes can derive
+    // the same address. The SDK's committee validation rejects such committees.
+    let ed25519_pk =
+        Ed25519PublicKey::new(hex::decode(ED25519_PK_HEX).unwrap().try_into().unwrap());
+    let secp256k1_pk =
+        Secp256k1PublicKey::new(hex::decode(SECP256K1_PK_HEX).unwrap().try_into().unwrap());
+    let committee = MultisigCommittee::new_unchecked(
+        vec![
+            MultisigMember::new(ed25519_pk, 1),
+            MultisigMember::new(secp256k1_pk, 1),
+        ],
+        1,
+    );
+    assert_eq!(
+        multisig_error(committee),
+        "Invalid MultisigCommittee: Multisig committee mixes Ed25519 with other key schemes"
+    );
+}
+
 // === address() ===
 
 #[test]
@@ -299,6 +387,28 @@ fn address_multisig_secp256k1_secp256r1_matches_move_vector() {
 }
 
 // === Helpers ===
+
+/// The error from building a `MovePublicKey` around `committee`.
+fn multisig_error(committee: MultisigCommittee) -> String {
+    MovePublicKey::new(
+        SignatureScheme::Multisig,
+        bcs::to_bytes(&committee).unwrap(),
+    )
+    .unwrap_err()
+    .to_string()
+}
+
+/// A valid two-member committee's members, for tests that need to assemble an
+/// invalid committee around them.
+fn multisig_members() -> Vec<MultisigMember> {
+    let mut rng = seeded_rng();
+    let kp1 = Secp256k1PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256r1PrivateKey::random_with(&mut rng);
+    vec![
+        MultisigMember::new(kp1.public_key(), 1),
+        MultisigMember::new(kp2.public_key(), 1),
+    ]
+}
 
 fn seeded_rng() -> StdRng {
     StdRng::from_seed([0; 32])

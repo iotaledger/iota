@@ -288,9 +288,13 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             `ecdsa_r1::secp256r1_ecrecover` rejects a signature whose
 //             restored x-coordinate is not below the field modulus.
 //             Enable built-in Move authenticators in devnet.
+//             Accept the `ClaimAccount` transaction kind in devnet, which
+//             creates an account object at the sender's address.
 //             Introduce Move native functions for validating public keys for
 //             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
 //             and deriving IOTA addresses from public keys.
+//             Set the gas costs of those natives and of the built-in Move
+//             authenticators on all networks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -597,10 +601,6 @@ struct FeatureFlags {
     // If true, enables the authentication of a sponsor account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication_for_sponsor: bool,
-
-    // If true, enables the authentication with built-in Move authenticators.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_builtin_move_authenticators: bool,
 
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
@@ -1867,6 +1867,7 @@ pub struct ProtocolConfig {
     /// larger bound than `max_move_package_size`. When unset, system packages
     /// are bound by `max_move_package_size` like any other package.
     max_move_system_package_size: Option<u64>,
+
     // Cost params for built-in Move authenticators
     builtin_move_authenticator_cost_base: Option<u64>,
 
@@ -2207,22 +2208,6 @@ impl ProtocolConfig {
         enable_move_authentication_for_sponsor
     }
 
-    pub fn enable_builtin_move_authenticators(&self) -> bool {
-        let enable_builtin_move_authenticators =
-            self.feature_flags.enable_builtin_move_authenticators;
-        if enable_builtin_move_authenticators {
-            assert!(
-                self.enable_move_authentication(),
-                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
-            );
-            assert!(
-                self.builtin_move_authenticator_cost_base.is_some(),
-                "enable_builtin_move_authenticators requires builtin_move_authenticator_cost_base to be set"
-            );
-        }
-        enable_builtin_move_authenticators
-    }
-
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
         self.feature_flags.pass_validator_scores_to_advance_epoch
     }
@@ -2464,6 +2449,41 @@ impl ProtocolConfig {
 
     pub fn allow_dkg_completion_after_timeout(&self) -> bool {
         self.feature_flags.allow_dkg_completion_after_timeout
+    }
+
+    pub fn disallow_self_identifier_in_transactions(&self) -> bool {
+        self.feature_flags.disallow_self_identifier_in_transactions
+    }
+
+    pub fn enable_builtin_move_authenticators(&self) -> bool {
+        let enable_builtin_move_authenticators =
+            self.feature_flags.enable_builtin_move_authenticators;
+        if enable_builtin_move_authenticators {
+            assert!(
+                self.enable_move_authentication(),
+                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.builtin_move_authenticator_cost_base.is_some(),
+                "enable_builtin_move_authenticators requires builtin_move_authenticator_cost_base to be set"
+            );
+        }
+        enable_builtin_move_authenticators
+    }
+
+    pub fn enable_claim_account_transaction(&self) -> bool {
+        let enable_claim_account_transaction = self.feature_flags.enable_claim_account_transaction;
+        if enable_claim_account_transaction {
+            // The validity check rejects a claim whose budget cannot cover the
+            // pipeline, so the bounds that define that floor must be set.
+            assert!(
+                self.claim_account_max_computation_units.is_some()
+                    && self.claim_account_storage_bytes_bound.is_some(),
+                "enable_claim_account_transaction requires claim_account_max_computation_units \
+                 and claim_account_storage_bytes_bound to be set"
+            );
+        }
+        enable_claim_account_transaction
     }
 
     pub fn disallow_self_identifier_in_transactions(&self) -> bool {
@@ -3270,6 +3290,7 @@ impl ProtocolConfig {
             consensus_leader_schedule_window_size: None,
 
             max_move_system_package_size: None,
+
             // Built-in Move authenticators
             builtin_move_authenticator_cost_base: None,
 
@@ -4093,12 +4114,18 @@ impl ProtocolConfig {
                         cfg.feature_flags.enable_validator_attestation = true;
                         cfg.checkpoint_summary_version_specific_data = Some(2);
                     }
+                }
+                41 => {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
-                        // Set the cost for built-in Move authenticators to 0 for now.
-                        cfg.builtin_move_authenticator_cost_base = Some(0);
+                        // Enable claiming an account for the sender's address in
+                        // devnet only.
+                        cfg.feature_flags.enable_claim_account_transaction = true;
                     }
+
+                    // Set the cost for built-in Move authenticators to 0 for now.
+                    cfg.builtin_move_authenticator_cost_base = Some(0);
 
                     cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
                     cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
@@ -4338,6 +4365,10 @@ impl ProtocolConfig {
         self.feature_flags.passkey_auth = val
     }
 
+    pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_claim_account_transaction = val;
+    }
+
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
         self.feature_flags
             .disallow_new_modules_in_deps_only_packages = val;
@@ -4469,10 +4500,6 @@ impl ProtocolConfig {
 
     pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication_for_sponsor = val;
-    }
-
-    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_builtin_move_authenticators = val;
     }
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {

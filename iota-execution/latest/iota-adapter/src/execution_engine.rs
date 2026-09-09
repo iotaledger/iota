@@ -17,11 +17,13 @@ mod checked {
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
-        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction,
-        Identifier, MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
-        SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
-        TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
+        AccountClaimKind, Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+        ChangeEpochV4, ClaimAccountTransaction, Command, EndOfEpochTransactionKind,
+        ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction, Identifier,
+        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        SharedObjectReference, SignatureScheme, SmartAccountBuildKind, StructTag, SystemPackage,
+        TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionKind,
+        TypeTag, Version,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -32,6 +34,7 @@ mod checked {
                 AuthenticatorFunctionRefForSigning, AuthenticatorFunctionRefV1,
             },
             builtin_authenticator_functions::{self, PreloadedBuiltinAuthenticatorData},
+            public_key::MovePublicKey,
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
@@ -1883,6 +1886,20 @@ mod checked {
                 .map_err(|e| (e, vec![]))?;
                 Ok((Mode::empty_results(), vec![]))
             }
+            TransactionKind::ClaimAccount(claim_tx) => {
+                setup_claim_account(
+                    &claim_tx,
+                    temporary_store,
+                    tx_ctx,
+                    move_vm,
+                    gas_charger,
+                    protocol_config,
+                    metrics,
+                    trace_builder_opt,
+                )
+                .map_err(|e| (e, vec![]))?;
+                Ok((Mode::empty_results(), vec![]))
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -2434,6 +2451,80 @@ mod checked {
                 res.is_ok(),
                 "Unable to generate consensus_commit_prologue transaction!"
             );
+            builder.finish()
+        };
+        programmable_transactions::execution::execute::<execution_mode::System>(
+            protocol_config,
+            metrics,
+            move_vm,
+            temporary_store,
+            tx_ctx,
+            gas_charger,
+            pt,
+            trace_builder_opt,
+        )
+        .map_err(|(e, _)| e)?;
+        Ok(())
+    }
+
+    /// Executes a [`ClaimAccountTransaction`] by calling the framework's
+    /// private claim function for the requested account kind.
+    ///
+    /// This runs in [`execution_mode::System`] because those claim functions
+    /// are private on purpose: a claimed account object has an id equal to a
+    /// signature-derivable address, and the `ClaimAccount` transaction kind
+    /// must stay the only way such an object can be created.
+    #[allow(clippy::too_many_arguments)]
+    fn setup_claim_account(
+        claim_tx: &ClaimAccountTransaction,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: Rc<RefCell<TxContext>>,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let AccountClaimKind::SmartAccount(claim) = &claim_tx.kind else {
+            unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+        };
+
+        let claim_function = match claim.build_kind {
+            SmartAccountBuildKind::Mutable => Identifier::from_static("claim_account_v1"),
+            SmartAccountBuildKind::Immutable => {
+                Identifier::from_static("claim_immutable_account_v1")
+            }
+            _ => unimplemented!(
+                "a new SmartAccountBuildKind enum variant was added and needs to be handled"
+            ),
+        };
+
+        let pt = {
+            // System mode accepts an arbitrary BCS value as a pure argument, so
+            // the Move `PublicKey` is built here rather than through
+            // `signature_scheme::from_flag` and `public_key::create`.
+            // `TransactionKind::validity_check` already applied the same
+            // validation, so a failure at this point is a bug.
+            let Some(public_key) = SignatureScheme::from_byte(claim.public_key_scheme)
+                .ok()
+                .and_then(|scheme| {
+                    MovePublicKey::new(scheme, claim.public_key_raw_bytes.clone()).ok()
+                })
+            else {
+                invariant_violation!(
+                    "claim account public key should have been validated before execution"
+                )
+            };
+
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let res = builder.move_call(
+                ObjectId::FRAMEWORK,
+                Identifier::SMART_ACCOUNT_MODULE,
+                claim_function,
+                vec![],
+                vec![CallArg::pure(&public_key)],
+            );
+            assert_invariant!(res.is_ok(), "Unable to generate claim_account transaction!");
             builder.finish()
         };
         programmable_transactions::execution::execute::<execution_mode::System>(
