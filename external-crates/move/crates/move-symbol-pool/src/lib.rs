@@ -104,6 +104,8 @@ static_symbols!(
     "rotate_auth_function_ref_v1",
     "transaction_deny_rules",
     "TransactionDenyRules",
+    "claim",
+    "claim_address",
 );
 
 /// The global, unique cache of strings.
