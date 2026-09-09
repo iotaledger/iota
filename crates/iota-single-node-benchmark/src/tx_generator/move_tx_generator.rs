@@ -167,7 +167,7 @@ impl TxGenerator for MoveTxGenerator {
             DEFAULT_VALIDATOR_GAS_PRICE,
         )
         .programmable(pt)
-        .build_and_sign(account.keypair.as_ref())
+        .build_and_sign(account.private_key.as_ref())
     }
 
     fn name(&self) -> &'static str {

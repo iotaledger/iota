@@ -19,15 +19,14 @@ use iota_sdk::{
     },
     types::{
         dynamic_field::DynamicFieldName,
-        gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        stardust::output::NftOutput,
         transaction::{CallArg, TransactionEnvelope},
     },
 };
 use iota_sdk_types::{
-    Argument, Identifier, ObjectId, SignatureScheme, Transaction, TypeTag, crypto::Intent,
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
+    crypto::Intent,
 };
 use iota_types::transaction::TransactionAPI;
 
@@ -93,7 +92,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // object.
     // The dynamic field name for the Alias object is "alias", of type vector<u8>
     let df_name = DynamicFieldName {
-        type_: TypeTag::Vector(Box::new(TypeTag::U8)),
+        type_tag: TypeTag::Vector(Box::new(TypeTag::U8)),
         value: serde_json::Value::String("alias".to_string()),
     };
     let alias_object = iota_client
@@ -107,7 +106,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Some objects are owned by the Alias object. In this case we filter them by
     // type using the NftOutput type.
     let owned_objects_query_filter =
-        IotaObjectDataFilter::StructType(NftOutput::tag(GAS::type_tag()));
+        IotaObjectDataFilter::StructType(StructTag::new_nft_output(StructTag::new_gas()));
     let owned_objects_query = IotaObjectResponseQuery::new(Some(owned_objects_query_filter), None);
 
     // Get the first NftOutput found
@@ -133,7 +132,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
         // Extract alias output assets
-        let type_arguments = vec![GAS::type_tag()];
+        let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         if let Argument::Result(extracted_alias_output_assets) = builder.programmable_move_call(
             ObjectId::STARDUST,
@@ -147,7 +146,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 Argument::NestedResult(extracted_alias_output_assets, 1);
             let alias = Argument::NestedResult(extracted_alias_output_assets, 2);
 
-            let type_arguments = vec![GAS::type_tag()];
+            let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
             let arguments = vec![extracted_base_token];
 
             // Extract the IOTA balance.
@@ -173,7 +172,7 @@ async fn main() -> Result<(), anyhow::Error> {
             );
 
             // Unlock the nft output.
-            let type_arguments = vec![GAS::type_tag()];
+            let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
             let arguments = vec![
                 alias,
                 builder.obj(CallArg::Receiving(nft_output_object_ref))?,
@@ -191,7 +190,7 @@ async fn main() -> Result<(), anyhow::Error> {
             builder.transfer_arg(sender, alias);
 
             // Extract nft assets(base token, native tokens bag, nft asset itself).
-            let type_arguments = vec![GAS::type_tag()];
+            let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
             let arguments = vec![nft_output];
             // Finally call the nft_output::extract_assets function
             if let Argument::Result(extracted_assets) = builder.programmable_move_call(
@@ -208,7 +207,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 let extracted_native_tokens_bag = Argument::NestedResult(extracted_assets, 1);
                 let nft_asset = Argument::NestedResult(extracted_assets, 2);
 
-                let type_arguments = vec![GAS::type_tag()];
+                let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
                 let arguments = vec![extracted_base_token];
 
                 // Extract the IOTA balance.

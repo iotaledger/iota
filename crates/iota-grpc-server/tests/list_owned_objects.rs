@@ -83,7 +83,7 @@ fn make_large_gas_coin(
 fn make_owned_entry(
     owner: Address,
     object_id: ObjectId,
-    type_: MoveObjectType,
+    object_type: MoveObjectType,
     type_id_hash: u64,
     params_hash: u64,
     balance: Option<u64>,
@@ -92,7 +92,7 @@ fn make_owned_entry(
         owner,
         object_id,
         version: OBJECT_START_VERSION,
-        type_,
+        object_type,
     };
     let cursor = OwnedObjectCursor {
         object_type_identifier: type_id_hash,
@@ -556,7 +556,7 @@ async fn type_filter_with_pagination() {
     let total_all: usize = all_responses.iter().map(|r| r.objects.len()).sum();
     assert_eq!(total_all, 5, "unfiltered should return all 5 objects");
 
-    // With type filter → only 3 coin objects matching the `GasCoin::type_()`.
+    // With type filter → only 3 coin objects matching the GasCoin type.
     let filtered_base = ListOwnedObjectsRequest::default()
         .with_owner(owner_proto(owner))
         .with_page_size(2)

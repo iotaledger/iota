@@ -175,9 +175,9 @@ fn get_registry() -> Result<Registry> {
     let sig: AuthoritySignature = Signer::sign(&kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
-    let kp2 = Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32]));
-    let kp3 = Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32]));
+    let kp1 = Ed25519PrivateKey::random_with(StdRng::from_seed([0; 32]));
+    let kp2 = Secp256k1PrivateKey::random_with(StdRng::from_seed([0; 32]));
+    let kp3 = Secp256r1PrivateKey::random_with(StdRng::from_seed([0; 32]));
 
     // ... and the user signature which does
     let sig: SimpleSignature = kp1.sign(b"hello world");
@@ -199,9 +199,9 @@ fn get_registry() -> Result<Registry> {
     )
     .signing_digest();
 
-    let sig1: SimpleSignature = kp1.sign(&*digest);
-    let sig2: SimpleSignature = kp2.sign(&*digest);
-    let sig3: SimpleSignature = kp3.sign(&*digest);
+    let sig1: SimpleSignature = kp1.sign(&digest);
+    let sig2: SimpleSignature = kp2.sign(&digest);
+    let sig3: SimpleSignature = kp3.sign(&digest);
 
     let multi_sig = MultisigAggregatedSignature::new(
         vec![
@@ -277,7 +277,7 @@ fn get_registry() -> Result<Registry> {
         package_id: ObjectId::random(),
         module: Identifier::from_static("foo"),
         sender: Address::ZERO,
-        type_: struct_tag.clone(),
+        struct_tag: struct_tag.clone(),
         contents: vec![0],
     };
     tracer.trace_value(&mut samples, &event).unwrap();
@@ -461,7 +461,7 @@ fn get_registry() -> Result<Registry> {
         package_id: ObjectId::ZERO,
         module: Identifier::from_static("foo"),
         sender: Address::ZERO,
-        type_: struct_tag.clone(),
+        struct_tag: struct_tag.clone(),
         contents: vec![0],
     }]);
     tracer.trace_value(&mut samples, &sample_events).unwrap();

@@ -90,6 +90,11 @@ const IOTA_DENY_LIST_CREATE: FunctionIdent = (
     ident_str!("deny_list"),
     ident_str!("create"),
 );
+const IOTA_TRANSACTION_DENY_RULES_CREATE: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
+    ident_str!("transaction_deny_rules"),
+    ident_str!("create"),
+);
 
 const IOTA_BRIDGE_CREATE: FunctionIdent = (
     &GENESIS_BRIDGE_ADDRESS,
@@ -103,6 +108,7 @@ const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_AUTHENTICATOR_STATE_CREATE,
     IOTA_RANDOMNESS_STATE_CREATE,
     IOTA_DENY_LIST_CREATE,
+    IOTA_TRANSACTION_DENY_RULES_CREATE,
     IOTA_BRIDGE_CREATE,
 ];
 

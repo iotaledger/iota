@@ -74,7 +74,6 @@ async fn main() -> Result<(), IndexerError> {
     match opts.command {
         Command::Indexer {
             ingestion_config,
-            snapshot_config,
             pruning_options,
             reset_db,
         } => {
@@ -91,15 +90,6 @@ async fn main() -> Result<(), IndexerError> {
                 if retention_config.is_some() {
                     check_prunable_tables_valid(&mut pool_conn).await?;
                 }
-            }
-
-            if snapshot_config.is_set() {
-                warn!(
-                    "the --objects-snapshot-min-checkpoint-lag / --objects-snapshot-sleep-duration arguments \
-                     (and the OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG env var) are deprecated. \
-                     These arguments will be removed in v1.31.0. \
-                     The objects_snapshot pipeline has been removed; these flags are now no-ops."
-                );
             }
 
             let store = PgIndexerStore::new(connection_pool, indexer_metrics.clone());

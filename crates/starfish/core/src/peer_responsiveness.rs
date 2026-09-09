@@ -4,10 +4,11 @@
 //! Per-peer responsiveness tracking and ranking for synchronizer peer
 //! selection.
 //!
-//! The transactions synchronizer and the commit syncer pick peers to fetch
-//! from. On a node with slow or asymmetric inbound links a uniform choice
-//! regularly draws slow-but-not-failing peers, adding avoidable latency to
-//! payload and commit retrieval. Each fetch source in
+//! The transactions synchronizer, the commit syncer and the header
+//! synchronizer pick peers to fetch from. On a node with slow or asymmetric
+//! inbound links a uniform choice regularly draws slow-but-not-failing peers,
+//! adding avoidable latency to payload, commit and header retrieval. Each fetch
+//! source in
 //! [`DataSource::RESPONSIVENESS_SOURCES`] is tracked separately, so a peer's
 //! record on one kind of fetch does not decide its rank on another. Until a
 //! source has a sample of its own for a peer, it places that peer by what the
@@ -36,6 +37,9 @@
 //! ranking (including the failure state) and shuffles uniformly, so every peer
 //! keeps being sampled and a failed peer re-enters the ranked draw as soon as
 //! a fetch succeeds again.
+//!
+//! The block-bundle streaming path is tracked separately, per (peer, author)
+//! pair; see [`PeerResponsiveness::record_streaming_header_deliveries`].
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -43,38 +47,40 @@ use parking_lot::Mutex;
 use rand::{Rng, seq::SliceRandom as _};
 use starfish_config::{AuthorityIndex, Committee};
 
-use crate::{dag_state::DataSource, metrics::Metrics};
+use crate::{Round, block_header::BlockTimestampMs, dag_state::DataSource, metrics::Metrics};
 
 impl DataSource {
     /// Fetch sources ranked by peer responsiveness. Sources not listed here are
     /// not ranked, and every [`PeerResponsiveness`] call for them is a no-op.
-    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 3] = [
+    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 4] = [
         DataSource::TransactionSynchronizer,
         DataSource::CommitSyncer,
         DataSource::FastCommitSyncer,
+        DataSource::HeaderSynchronizerRequested,
     ];
 
     /// Sources whose measurements order the peers this source has no sample
     /// for yet, tried in this order until one of them has measured the peer.
     ///
-    /// The other commit syncer comes first: it fetches the same commits and
-    /// headers over the same links, so what it measured is already on this
-    /// source's scale, and at the handoff between the two flavors it has just
-    /// measured the very peers this one is about to choose between. The
-    /// transactions synchronizer comes last because it fetches continuously and
-    /// so has a reading even when both commit-sync tracks are empty - the state
-    /// of a node that is only starting to recover - but it measures much
-    /// lighter fetches, making it the coarser of the two.
+    /// A commit syncer reads the other flavor first (same fetches, same
+    /// scale), then the header synchronizer (same endpoint, and seeded for
+    /// every peer by the startup probe), then the transactions synchronizer
+    /// (always populated, but its fetches are the lightest). The transactions
+    /// and header synchronizers read each other, the closest scale either has.
     fn responsiveness_fallbacks(self) -> &'static [DataSource] {
         match self {
             DataSource::CommitSyncer => &[
                 DataSource::FastCommitSyncer,
+                DataSource::HeaderSynchronizerRequested,
                 DataSource::TransactionSynchronizer,
             ],
             DataSource::FastCommitSyncer => &[
                 DataSource::CommitSyncer,
+                DataSource::HeaderSynchronizerRequested,
                 DataSource::TransactionSynchronizer,
             ],
+            DataSource::TransactionSynchronizer => &[DataSource::HeaderSynchronizerRequested],
+            DataSource::HeaderSynchronizerRequested => &[DataSource::TransactionSynchronizer],
             _ => &[],
         }
     }
@@ -86,6 +92,7 @@ impl DataSource {
         match self {
             DataSource::CommitSyncer => COMMIT_SYNC_NEUTRAL_LATENCY_MS,
             DataSource::FastCommitSyncer => FAST_COMMIT_SYNC_NEUTRAL_LATENCY_MS,
+            DataSource::HeaderSynchronizerRequested => HEADER_SYNC_NEUTRAL_LATENCY_MS,
             _ => TRANSACTIONS_SYNC_NEUTRAL_LATENCY_MS,
         }
     }
@@ -130,9 +137,23 @@ const COMMIT_SYNC_NEUTRAL_LATENCY_MS: f64 = 4_000.0;
 /// and so measures quicker than regular sync on the same networks.
 const FAST_COMMIT_SYNC_NEUTRAL_LATENCY_MS: f64 = 2_000.0;
 
+/// Neutral prior for the header synchronizer, rarely reached: the startup
+/// probe seeds this track for every reachable peer before the first header
+/// goes missing.
+const HEADER_SYNC_NEUTRAL_LATENCY_MS: f64 = 500.0;
+
 /// EWMA weight for a successful sample. Small, so the score is "slow to
 /// trust".
 const ALPHA_SUCCESS: f64 = 0.3;
+
+/// First sample seeds the value; later ones are EWMA-blended with weight
+/// `alpha`.
+fn blend_latency_ms(prev: Option<f64>, sample_ms: f64, alpha: f64) -> f64 {
+    match prev {
+        None => sample_ms,
+        Some(prev) => (1.0 - alpha) * prev + alpha * sample_ms,
+    }
+}
 
 #[derive(Clone, Default)]
 struct PeerStat {
@@ -156,7 +177,10 @@ struct Tracks {
 /// selection. Shared per epoch.
 pub(crate) struct PeerResponsiveness {
     metrics: Arc<Metrics>,
+    committee_size: usize,
     inner: Mutex<Tracks>,
+    /// Smoothed streaming-delivery latency, indexed `[peer][author]`.
+    streaming_headers: Mutex<Vec<Vec<Option<f64>>>>,
 }
 
 impl PeerResponsiveness {
@@ -164,12 +188,14 @@ impl PeerResponsiveness {
         let size = committee.size();
         Arc::new(Self {
             metrics,
+            committee_size: size,
             inner: Mutex::new(Tracks {
                 per_kind: DataSource::RESPONSIVENESS_SOURCES
                     .into_iter()
                     .map(|source| (source, vec![PeerStat::default(); size]))
                     .collect(),
             }),
+            streaming_headers: Mutex::new(vec![vec![None; size]; size]),
         })
     }
 
@@ -179,7 +205,10 @@ impl PeerResponsiveness {
     /// a response that returned nothing (or a small fraction of what was
     /// requested) should be reported via [`Self::record_failure_with_timeout`]
     /// (or with a latency scaled up by the shortfall), so a peer cannot look
-    /// fast by replying quickly with little.
+    /// fast by replying quickly with little. A shortfall-scaled latency must be
+    /// capped at the operation's failure penalty: the failure is the ceiling of
+    /// the scale, and a peer that delivered something must never record worse
+    /// than one that failed.
     pub(crate) fn record_success(
         &self,
         source: DataSource,
@@ -205,6 +234,41 @@ impl PeerResponsiveness {
         self.update_failure(source, peer, sample);
     }
 
+    /// Records one bundle's header deliveries from `peer`, duplicates
+    /// included — sampling only first deliveries would leave a consistently
+    /// second peer unmeasured. One sample per author, from its newest header,
+    /// measured from the header's own timestamp to `now_ms`: the author's
+    /// clock bias cancels across peers and a re-delivery cannot read fast.
+    /// The lock is taken once per bundle.
+    pub(crate) fn record_streaming_header_deliveries(
+        &self,
+        peer: AuthorityIndex,
+        now_ms: BlockTimestampMs,
+        headers: impl IntoIterator<Item = (AuthorityIndex, Round, BlockTimestampMs)>,
+    ) {
+        let mut newest_per_author: Vec<Option<(Round, BlockTimestampMs)>> =
+            vec![None; self.committee_size];
+        for (author, round, timestamp_ms) in headers {
+            let Some(newest) = newest_per_author.get_mut(author.value()) else {
+                continue;
+            };
+            if newest.is_none_or(|(current_round, _)| current_round < round) {
+                *newest = Some((round, timestamp_ms));
+            }
+        }
+        let mut table = self.streaming_headers.lock();
+        let Some(row) = table.get_mut(peer.value()) else {
+            return;
+        };
+        for (author, newest) in newest_per_author.into_iter().enumerate() {
+            let Some((_, timestamp_ms)) = newest else {
+                continue;
+            };
+            let sample = (now_ms.saturating_sub(timestamp_ms) as f64).max(MIN_LATENCY_MS);
+            row[author] = Some(blend_latency_ms(row[author], sample, ALPHA_SUCCESS));
+        }
+    }
+
     fn update(&self, source: DataSource, peer: AuthorityIndex, sample: f64, alpha: f64) {
         let snapshot = {
             let mut tracks = self.inner.lock();
@@ -214,11 +278,8 @@ impl PeerResponsiveness {
             let Some(stat) = track.get_mut(peer.value()) else {
                 return;
             };
-            let new = match stat.effective_latency_ms {
-                None => sample,
-                Some(prev) => (1.0 - alpha) * prev + alpha * sample,
-            };
-            stat.effective_latency_ms = Some(new);
+            stat.effective_latency_ms =
+                Some(blend_latency_ms(stat.effective_latency_ms, sample, alpha));
             stat.last_fetch_failed = false;
             Self::snapshot(track)
         };
@@ -335,15 +396,20 @@ impl PeerResponsiveness {
             })
             .collect();
 
-        // Healthy peers are sorted by latency (ties broken by a random key so
-        // an all-equal set, e.g. cold start, is ordered uniformly). The window
-        // of the best peers is permuted by draws with probability proportional
-        // to `1 / latency`; the rest keep their latency order. Peers whose
-        // most recent fetch failed always go last, fastest first, and re-enter
-        // the randomized draw with their next success.
+        Self::reorder_by_latency(candidates, &stats, rng);
+    }
+
+    /// Writes the ranked order back into `candidates` from per-candidate
+    /// `(effective latency, last fetch failed)` stats; the ordering rules are
+    /// described on [`Self::prioritize`].
+    fn reorder_by_latency<R: Rng>(
+        candidates: &mut [AuthorityIndex],
+        stats: &[(f64, bool)],
+        rng: &mut R,
+    ) {
         let mut healthy: Vec<(f64, f64, AuthorityIndex)> = Vec::new();
         let mut failed: Vec<(f64, f64, AuthorityIndex)> = Vec::new();
-        for (peer, (latency, last_fetch_failed)) in candidates.iter().zip(&stats) {
+        for (peer, (latency, last_fetch_failed)) in candidates.iter().zip(stats) {
             let entry = (*latency, rng.gen::<f64>(), *peer);
             if *last_fetch_failed {
                 failed.push(entry);
@@ -456,6 +522,19 @@ impl PeerResponsiveness {
             .get(peer.value())
             .and_then(|stat| stat.effective_latency_ms)
     }
+
+    #[cfg(test)]
+    pub(crate) fn streaming_header_latency_ms(
+        &self,
+        peer: AuthorityIndex,
+        author: AuthorityIndex,
+    ) -> Option<f64> {
+        *self
+            .streaming_headers
+            .lock()
+            .get(peer.value())?
+            .get(author.value())?
+    }
 }
 
 #[cfg(test)]
@@ -566,6 +645,51 @@ mod tests {
             .effective_latency_ms(DataSource::TransactionSynchronizer, idx(1))
             .unwrap();
         assert!((v - 130.0).abs() < 1e-6, "got {v}");
+    }
+
+    #[test]
+    fn streaming_delivery_seeds_then_smooths_ewma() {
+        let pr = responsiveness(4);
+        pr.record_streaming_header_deliveries(idx(1), 1_000, [(idx(2), 1, 900)]);
+        assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(2)), Some(100.0));
+        // Second sample blends with ALPHA_SUCCESS: 0.7*100 + 0.3*200 = 130.
+        pr.record_streaming_header_deliveries(idx(1), 1_400, [(idx(2), 2, 1_200)]);
+        let v = pr.streaming_header_latency_ms(idx(1), idx(2)).unwrap();
+        assert!((v - 130.0).abs() < 1e-6, "got {v}");
+    }
+
+    #[test]
+    fn streaming_delivery_samples_newest_header_per_author() {
+        let pr = responsiveness(4);
+        // One sample per author, from its newest header, regardless of order.
+        pr.record_streaming_header_deliveries(idx(1), 1_000, [(idx(2), 5, 950), (idx(2), 2, 100)]);
+        assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(2)), Some(50.0));
+    }
+
+    #[test]
+    fn streaming_cells_are_independent() {
+        let pr = responsiveness(4);
+        // Each (peer, author) cell is a separate measurement.
+        pr.record_streaming_header_deliveries(idx(1), 1_000, [(idx(2), 1, 700), (idx(3), 1, 950)]);
+        pr.record_streaming_header_deliveries(idx(3), 1_000, [(idx(2), 1, 300)]);
+
+        assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(2)), Some(300.0));
+        assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(3)), Some(50.0));
+        assert_eq!(pr.streaming_header_latency_ms(idx(3), idx(2)), Some(700.0));
+        assert_eq!(pr.streaming_header_latency_ms(idx(2), idx(1)), None);
+        // The table does not leak into the per-source fetch tracks.
+        assert_eq!(
+            pr.effective_latency_ms(DataSource::TransactionSynchronizer, idx(1)),
+            None
+        );
+    }
+
+    #[test]
+    fn streaming_delivery_out_of_range_is_noop() {
+        let pr = responsiveness(4);
+        pr.record_streaming_header_deliveries(idx(200), 1_000, [(idx(1), 1, 900)]);
+        pr.record_streaming_header_deliveries(idx(1), 1_000, [(idx(200), 1, 900)]);
+        assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(1)), None);
     }
 
     #[test]
@@ -731,6 +855,59 @@ mod tests {
             assert!(
                 leads > 0.9,
                 "{source:?} should rank by what {other:?} measured, got {counts:?}"
+            );
+        }
+    }
+
+    /// A transactions-synchronizer track that is still empty orders peers by
+    /// what the header synchronizer saw.
+    #[test]
+    fn transactions_cold_start_follows_header_synchronizer_order() {
+        let pr = responsiveness(5);
+        for (peer, latency) in [(1, 400), (2, 300), (3, 200), (4, 100)] {
+            pr.record_success(
+                DataSource::HeaderSynchronizerRequested,
+                idx(peer),
+                ms(latency),
+            );
+        }
+
+        let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
+        let counts = lead_counts(
+            &pr,
+            DataSource::TransactionSynchronizer,
+            &candidates,
+            10_000,
+            7,
+        );
+
+        let lead = |peer| *counts.get(&idx(peer)).unwrap_or(&0);
+        assert!(
+            lead(4) > lead(3) && lead(3) > lead(2) && lead(2) > lead(1),
+            "lead counts should follow the header-synchronizer order, got {counts:?}"
+        );
+    }
+
+    /// Both commit syncers read the header synchronizer before the
+    /// transactions synchronizer.
+    #[test]
+    fn commit_sync_reads_the_header_synchronizer_before_transactions() {
+        for source in [DataSource::CommitSyncer, DataSource::FastCommitSyncer] {
+            let pr = responsiveness(4);
+            // Peer 1 is slow on header fetches but quick on transaction
+            // fetches; peer 2 is only known to the latter.
+            pr.record_success(DataSource::HeaderSynchronizerRequested, idx(1), ms(5_000));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(2), ms(10));
+
+            let counts = lead_counts(&pr, source, &[idx(1), idx(2)], 10_000, 5);
+
+            // Reading the transactions synchronizer first would place both peers
+            // at 10ms and split the lead evenly between them.
+            let leads = *counts.get(&idx(2)).unwrap_or(&0) as f64 / 10_000.0;
+            assert!(
+                leads > 0.9,
+                "{source:?} should rank by what the header synchronizer measured, got {counts:?}"
             );
         }
     }

@@ -161,7 +161,7 @@ impl GasEffects {
     /// `GasEffects` so that when viewing that entity's state, it will be as
     /// if it was read at the same checkpoint.
     pub(crate) fn from(effects: &NativeTransactionEffects, checkpoint_viewed_at: u64) -> Self {
-        let (object_ref, _owner) = effects.gas_object();
+        let object_ref = effects.gas_object().reference;
         Self {
             summary: GasCostSummary::from(effects.gas_cost_summary()),
             object_id: IotaAddress::from(object_ref.object_id),

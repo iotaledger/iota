@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::effects::InputSharedObject as NativeInputSharedObject;
+use iota_sdk_types::InputSharedObject;
 
 use crate::types::{iota_address::IotaAddress, object_read::ObjectRead, uint53::UInt53};
 
@@ -58,10 +58,10 @@ pub(crate) struct SharedObjectChanged;
 
 impl UnchangedSharedObject {
     pub fn try_from(
-        input: NativeInputSharedObject,
+        input: InputSharedObject,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, SharedObjectChanged> {
-        use NativeInputSharedObject as I;
+        use InputSharedObject as I;
         use UnchangedSharedObject as U;
 
         match input {
@@ -74,21 +74,21 @@ impl UnchangedSharedObject {
                 },
             })),
 
-            I::ReadDeleted(id, v) => Ok(U::Delete(SharedObjectDelete {
-                address: id.into(),
-                version: v.as_u64().into(),
+            I::ReadDeleted(object) => Ok(U::Delete(SharedObjectDelete {
+                address: object.object_id.into(),
+                version: object.version.as_u64().into(),
                 mutable: false,
             })),
 
-            I::MutateDeleted(id, v) => Ok(U::Delete(SharedObjectDelete {
-                address: id.into(),
-                version: v.as_u64().into(),
+            I::MutateDeleted(object) => Ok(U::Delete(SharedObjectDelete {
+                address: object.object_id.into(),
+                version: object.version.as_u64().into(),
                 mutable: true,
             })),
 
-            I::Cancelled(id, v) => Ok(U::Cancelled(SharedObjectCancelled {
-                address: id.into(),
-                version: v.as_u64().into(),
+            I::Canceled(object) => Ok(U::Cancelled(SharedObjectCancelled {
+                address: object.object_id.into(),
+                version: object.version.as_u64().into(),
             })),
         }
     }

@@ -14,7 +14,6 @@ use iota_core::{
     authority_aggregator::AggregatorSendCapabilityNotificationError,
     consensus_adapter::position_submit_certificate,
 };
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
@@ -157,7 +156,7 @@ async fn reconfig_with_revert_end_to_end_test() {
             .build(),
     );
     let effects1 = test_cluster.execute_transaction(tx).await;
-    assert_eq!(0, effects1.effects.unwrap().executed_epoch());
+    assert_eq!(0, effects1.epoch());
 
     // gas2 transaction is (most likely) reverted
     let gas2 = gas_objects.pop().unwrap();
@@ -508,12 +507,8 @@ async fn test_validator_resign_effects() {
     // form a new effects certificate in the new epoch.
     let test_cluster = TestClusterBuilder::new().build().await;
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
-    let effects0 = test_cluster
-        .execute_transaction(tx.clone())
-        .await
-        .effects
-        .unwrap();
-    assert_eq!(effects0.executed_epoch(), 0);
+    let effects0 = test_cluster.execute_transaction(tx.clone()).await;
+    assert_eq!(effects0.epoch(), 0);
     test_cluster.force_new_epoch().await;
 
     let net = test_cluster
@@ -1082,8 +1077,9 @@ async fn test_epoch_flag_upgrade() {
 #[cfg(msim)]
 #[sim_test]
 async fn safe_mode_reconfig_test() {
+    use iota_grpc_client::read_mask_fields::EpochField;
     use iota_test_transaction_builder::make_staking_transaction;
-    use iota_types::iota_system_state::advance_epoch_result_injection;
+    use iota_types::iota_system_state::{IotaSystemState, advance_epoch_result_injection};
 
     const EPOCH_DURATION: u64 = 10000;
 
@@ -1095,23 +1091,20 @@ async fn safe_mode_reconfig_test() {
         .build()
         .await;
 
-    let (system_state_version, epoch) = match test_cluster
-        .iota_client()
-        .governance_api()
-        .get_latest_iota_system_state()
+    let system_state = test_cluster
+        .grpc_client()
+        .get_epoch(None, EpochField::BCS_SYSTEM_STATE)
         .await
         .unwrap()
-    {
-        IotaSystemStateSummary::V1(v1) => (v1.system_state_version, v1.epoch),
-        IotaSystemStateSummary::V2(v2) => (v2.system_state_version, v2.epoch),
-        _ => unimplemented!(
-            "a new IotaSystemStateSummary enum variant was added and needs to be handled"
-        ),
-    };
+        .into_inner()
+        .bcs_system_state
+        .unwrap()
+        .deserialize::<IotaSystemState>()
+        .unwrap();
 
     // On startup, we should be at V1.
-    assert_eq!(system_state_version, 1);
-    assert_eq!(epoch, 0);
+    assert_eq!(system_state.system_state_version(), 1);
+    assert_eq!(system_state.epoch(), 0);
 
     // Wait for regular epoch change to happen once.
     let system_state = test_cluster.wait_for_epoch(Some(1)).await;

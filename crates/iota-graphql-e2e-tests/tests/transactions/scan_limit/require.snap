@@ -1,7 +1,7 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 25 tasks
+processed 23 tasks
 
 init:
 A: object(0,0), B: object(0,1)
@@ -481,126 +481,6 @@ task 20, lines 161-180:
 Response: {
   "data": {
     "transactionBlocks": {
-      "nodes": [
-        {
-          "digest": "HwRcMnKbBuAC1co626aK74p6SbC78rmXT2qN7jxiKzJ3",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 2
-            }
-          }
-        },
-        {
-          "digest": "5PjriUj23FMCUEANkp4iCqHnTqLfzRMozMVepcswSxP6",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 2
-            }
-          }
-        },
-        {
-          "digest": "EJdcQCAxwG93tqorEwuB8aSxs1JN4714PUYXczSnKsvE",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 2
-            }
-          }
-        },
-        {
-          "digest": "HW6pcLT6wCiEvVmUEhCH1g4L9rJZXSH9FP5aMmk9Eoqh",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 2
-            }
-          }
-        },
-        {
-          "digest": "BqRHXGyWZyqpPUTgAFFQjsJ3gNaHNEKkEjJBCLp31486",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 2
-            }
-          }
-        },
-        {
-          "digest": "67H4RdM1W8syC8vXnbhr6b6gJaV2zB9rFpfPMN3GMqU4",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 3
-            }
-          }
-        },
-        {
-          "digest": "3urahk5sycRMHoT6N6xFAoH3N8n7NsFDgttb6AEY4oy6",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 3
-            }
-          }
-        },
-        {
-          "digest": "HZ9hakoXhrwtuBFPtpaw2qfxZ4qZzXJDPa7hfzQpzuCE",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 3
-            }
-          }
-        },
-        {
-          "digest": "FY7ZEP9PCRcPSgXhkGKe9CDEBLw8nHDeRrrjA4kEjRxk",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 3
-            }
-          }
-        },
-        {
-          "digest": "7ibLbGJPEvCHu5KHnBQcpQz6uRANZhUM1VborB8dszJJ",
-          "effects": {
-            "checkpoint": {
-              "sequenceNumber": 3
-            }
-          }
-        }
-      ],
-      "pageInfo": {
-        "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "startCursor": "eyJjIjozLCJ0IjoyLCJpIjp0cnVlfQ"
-      }
-    }
-  }
-}
-
-task 21, lines 182-201:
-//# run-graphql
-Response: {
-  "data": null,
-  "errors": [
-    {
-      "message": "A scan limit must be specified for the given filter combination",
-      "locations": [
-        {
-          "line": 3,
-          "column": 3
-        }
-      ],
-      "path": [
-        "transactionBlocks"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
-}
-
-task 22, lines 203-222:
-//# run-graphql
-Response: {
-  "data": {
-    "transactionBlocks": {
       "nodes": [],
       "pageInfo": {
         "endCursor": "eyJjIjozLCJ0IjoxMSwiaSI6dHJ1ZX0",
@@ -612,7 +492,7 @@ Response: {
   }
 }
 
-task 23, lines 225-244:
+task 21, lines 183-202:
 //# run-graphql
 Response: {
   "data": null,
@@ -635,7 +515,7 @@ Response: {
   ]
 }
 
-task 24, lines 246-270:
+task 22, lines 204-228:
 //# run-graphql
 Response: {
   "data": {

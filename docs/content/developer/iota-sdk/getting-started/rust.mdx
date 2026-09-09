@@ -1,7 +1,7 @@
 ---
 title: Getting Started with Rust
 description: Get started with the IOTA Rust SDK to interact with the IOTA network natively.
-tags: [ rust, mainnet, testnet, devnet, setup, install, getting-started ]
+tags: [ tutorial, rust, mainnet, testnet, devnet, setup, install, getting-started ]
 ---
 
 import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
@@ -69,7 +69,7 @@ For more details on the project structure and development setup, refer to the [R
 
 ## Quick Start Example
 
-The following example demonstrates how to connect to the IOTA Devnet and retrieve the Chain ID.
+The following example demonstrates how to connect to the IOTA Testnet and retrieve the Chain ID.
 
 ### 1. Create a new project
 
@@ -87,7 +87,7 @@ Install the SDK as mentioned above and also add `tokio` as a dependency for asyn
 Replace the contents of `src/main.rs` with the following:
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/chain_id.rs#L1-L14
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/chain_id.rs#L4-L14
 ```
 
 ### 4. Run the code
@@ -100,8 +100,8 @@ cargo run
 
 Now that you have connected to the network, you can explore more advanced features:
 
-* **Accounts & Wallets**: Manage keypairs and derive IOTA addresses.
-* **Transactions**: Build and sign Programmable Transaction Blocks (PTBs).
-* **Events**: Subscribe to real-time on-chain events.
+* [Accounts and Addresses](/developer/iota-sdk/how-tos/accounts-and-addresses): create a mnemonic, derive addresses, and check coin balances.
+* [Transactions](/developer/iota-sdk/how-tos/transactions): build, sign, and send Programmable Transaction Blocks (PTBs), including staking and reusing command results.
+* [Queries](/developer/iota-sdk/how-tos/queries): query owned objects, events, and transactions with the GraphQL client.
 
-View more comprehensive examples in the official [Rust examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/examples).
+View more comprehensive examples in the official [Rust examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/crates/iota-sdk/examples).

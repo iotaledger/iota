@@ -1,0 +1,97 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
+---
+processed 5 tasks
+
+task 1, line 10:
+//# view-object 0xDE9
+No object at id 0x0000000000000000000000000000000000000000000000000000000000000de9
+
+task 2, line 12:
+//# advance-epoch --create-deny-rules-object
+Epoch advanced: 1
+
+task 3, line 14:
+//# view-object 0xDE9
+Owner: Shared(2)
+Version: 2
+Contents: iota::transaction_deny_rules::TransactionDenyRules {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: 0x0000000000000000000000000000000000000000000000000000000000000de9,
+        },
+    },
+    inner: iota::versioned::Versioned {
+        id: iota::object::UID {
+            id: iota::object::ID {
+                bytes: _,
+            },
+        },
+        version: 1u64,
+    },
+}
+
+task 4, line 16:
+//# view-object 2,0
+Owner: Object(_)
+Version: 2
+Contents: iota::dynamic_field::Field<u64, iota::transaction_deny_rules::TransactionDenyRulesInnerV1> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    name: 1u64,
+    value: iota::transaction_deny_rules::TransactionDenyRulesInnerV1 {
+        version: 1u64,
+        denied_addresses: iota::linked_table::LinkedTable<address, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+            head: std::option::Option<address> {
+                vec: vector[],
+            },
+            tail: std::option::Option<address> {
+                vec: vector[],
+            },
+        },
+        denied_objects: iota::linked_table::LinkedTable<iota::object::ID, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+            head: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+            tail: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+        },
+        denied_packages: iota::linked_table::LinkedTable<iota::object::ID, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+            head: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+            tail: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+        },
+        package_publish_disabled: false,
+        package_upgrade_disabled: false,
+        shared_object_disabled: false,
+        user_transaction_disabled: false,
+        receiving_objects_disabled: false,
+        move_authenticator_disabled: false,
+    },
+}

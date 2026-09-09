@@ -734,7 +734,7 @@ impl IndexStore {
             &self.tables.event_by_move_event,
             events.iter().enumerate().map(|(i, e)| {
                 (
-                    (e.type_.clone(), (sequence, i)),
+                    (e.struct_tag.clone(), (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
                 )
             }),
@@ -756,8 +756,8 @@ impl IndexStore {
                 (
                     (
                         ModuleId::new(
-                            AccountAddress::new(e.type_.address().into_bytes()),
-                            Identifier::new(e.type_.module().as_str()).unwrap(),
+                            AccountAddress::new(e.struct_tag.address().into_bytes()),
+                            Identifier::new(e.struct_tag.module().as_str()).unwrap(),
                         ),
                         (sequence, i),
                     ),
@@ -1677,10 +1677,11 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
-    use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest, TransactionEvents};
+    use iota_sdk_types::{
+        Address, ObjectId, Owner, StructTag, TransactionDigest, TransactionEvents, TypeTag,
+    };
     use iota_types::{
         base_types::{ObjectInfo, ObjectType},
-        gas_coin::GAS,
         object,
     };
     use prometheus_filtered::Registry;
@@ -1715,7 +1716,7 @@ mod tests {
                     object_id: object.id(),
                     version: object.version(),
                     digest: object.digest(),
-                    type_: ObjectType::Struct(object.type_().unwrap().clone()),
+                    object_type: ObjectType::Struct(object.data.opt_object_type().unwrap().clone()),
                     owner: Owner::Address(address),
                     previous_transaction: object.previous_transaction,
                 },
@@ -1747,15 +1748,17 @@ mod tests {
             index_store.metrics.clone(),
             index_store.tables.coin_index.clone(),
             address,
-            GAS::type_tag(),
+            TypeTag::from(StructTag::new_gas()),
         )?;
-        let balance = index_store.get_balance(address, GAS::type_tag())?;
+        let balance = index_store.get_balance(address, TypeTag::from(StructTag::new_gas()))?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 1000);
         assert_eq!(balance.num_coins, 10);
 
         let all_balance = index_store.get_all_balance(address)?;
-        let balance = all_balance.get(&GAS::type_tag()).unwrap();
+        let balance = all_balance
+            .get(&TypeTag::from(StructTag::new_gas()))
+            .unwrap();
         assert_eq!(*balance, balance_from_db);
         assert_eq!(balance.balance, 1000);
         assert_eq!(balance.num_coins, 10);
@@ -1788,9 +1791,9 @@ mod tests {
             index_store.metrics.clone(),
             index_store.tables.coin_index.clone(),
             address,
-            GAS::type_tag(),
+            TypeTag::from(StructTag::new_gas()),
         )?;
-        let balance = index_store.get_balance(address, GAS::type_tag())?;
+        let balance = index_store.get_balance(address, TypeTag::from(StructTag::new_gas()))?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 700);
         assert_eq!(balance.num_coins, 7);
@@ -1799,11 +1802,23 @@ mod tests {
         index_store
             .caches
             .per_coin_type_balance
-            .invalidate(&(address, GAS::type_tag()));
+            .invalidate(&(address, TypeTag::from(StructTag::new_gas())));
         let all_balance = index_store.get_all_balance(address)?;
-        assert_eq!(all_balance.get(&GAS::type_tag()).unwrap().balance, 700);
-        assert_eq!(all_balance.get(&GAS::type_tag()).unwrap().num_coins, 7);
-        let balance = index_store.get_balance(address, GAS::type_tag())?;
+        assert_eq!(
+            all_balance
+                .get(&TypeTag::from(StructTag::new_gas()))
+                .unwrap()
+                .balance,
+            700
+        );
+        assert_eq!(
+            all_balance
+                .get(&TypeTag::from(StructTag::new_gas()))
+                .unwrap()
+                .num_coins,
+            7
+        );
+        let balance = index_store.get_balance(address, TypeTag::from(StructTag::new_gas()))?;
         assert_eq!(balance, balance_from_db);
         assert_eq!(balance.balance, 700);
         assert_eq!(balance.num_coins, 7);

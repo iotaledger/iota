@@ -14,6 +14,7 @@ use iota_names::error::IotaNamesError;
 pub(crate) mod code {
     pub const BAD_REQUEST: &str = "BAD_REQUEST";
     pub const BAD_USER_INPUT: &str = "BAD_USER_INPUT";
+    pub const DATA_PRUNED: &str = "DATA_PRUNED";
     pub const INTERNAL_SERVER_ERROR: &str = "INTERNAL_SERVER_ERROR";
     pub const REQUEST_TIMEOUT: &str = "REQUEST_TIMEOUT";
     pub const UNKNOWN: &str = "UNKNOWN";
@@ -77,6 +78,8 @@ pub enum Error {
     // Catch-all for client-fault errors
     #[error("{0}")]
     Client(String),
+    #[error("Requested data has been pruned: {0}")]
+    DataPruned(String),
     #[error("Internal error occurred while processing request: {0}")]
     Internal(String),
     #[error(transparent)]
@@ -96,6 +99,9 @@ impl ErrorExtensions for Error {
             | Error::Client(_) => {
                 e.set("code", code::BAD_USER_INPUT);
             }
+            Error::DataPruned(_) => {
+                e.set("code", code::DATA_PRUNED);
+            }
             Error::Internal(_) => {
                 e.set("code", code::INTERNAL_SERVER_ERROR);
             }
@@ -114,7 +120,10 @@ impl ErrorExtensions for Error {
 
 impl From<IndexerError> for Error {
     fn from(e: IndexerError) -> Self {
-        Error::Internal(e.to_string())
+        match e {
+            IndexerError::DataPruned(msg) => Error::DataPruned(msg),
+            _ => Error::Internal(e.to_string()),
+        }
     }
 }
 

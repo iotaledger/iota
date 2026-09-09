@@ -5,7 +5,7 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk_types::{Address, Identifier, ObjectData, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectData, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -50,16 +50,6 @@ pub struct BasicOutput {
 }
 
 impl BasicOutput {
-    /// Returns the struct tag of the BasicOutput struct
-    pub fn tag(type_param: TypeTag) -> StructTag {
-        StructTag::new(
-            Address::STARDUST,
-            BASIC_OUTPUT_MODULE_NAME,
-            BASIC_OUTPUT_STRUCT_NAME,
-            vec![type_param],
-        )
-    }
-
     /// Create a `BasicOutput` from BCS bytes.
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {

@@ -6,12 +6,12 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use iota_core::traffic_controller::TrafficController;
 use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
     service_methods, state_service as grpc_state_service,
     transaction_execution_service as grpc_tx_service,
 };
+use iota_traffic_controller::TrafficController;
 use iota_types::{traffic_control::ClientIdSource, transaction_executor::TransactionExecutor};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;

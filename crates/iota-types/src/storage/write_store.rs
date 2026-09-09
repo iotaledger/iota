@@ -22,20 +22,20 @@ pub trait WriteStore: ReadStore {
             .expect("storage access failed")
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
-
-    /// Non-fallible version of `try_update_highest_synced_checkpoint`.
-    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
-        self.try_update_highest_synced_checkpoint(checkpoint)
-            .expect("storage access failed")
-    }
-
     fn try_update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint)
     -> Result<()>;
 
     /// Non-fallible version of `try_update_highest_verified_checkpoint`.
     fn update_highest_verified_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
         self.try_update_highest_verified_checkpoint(checkpoint)
+            .expect("storage access failed")
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;
+
+    /// Non-fallible version of `try_update_highest_synced_checkpoint`.
+    fn update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) {
+        self.try_update_highest_synced_checkpoint(checkpoint)
             .expect("storage access failed")
     }
 
@@ -114,15 +114,15 @@ impl<T: WriteStore + ?Sized> WriteStore for &T {
         (*self).try_insert_checkpoint(checkpoint)
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (*self).try_update_highest_synced_checkpoint(checkpoint)
-    }
-
     fn try_update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<()> {
         (*self).try_update_highest_verified_checkpoint(checkpoint)
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (*self).try_update_highest_synced_checkpoint(checkpoint)
     }
 
     fn try_insert_checkpoint_contents(
@@ -163,15 +163,15 @@ impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
         (**self).try_insert_checkpoint(checkpoint)
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (**self).try_update_highest_synced_checkpoint(checkpoint)
-    }
-
     fn try_update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<()> {
         (**self).try_update_highest_verified_checkpoint(checkpoint)
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (**self).try_update_highest_synced_checkpoint(checkpoint)
     }
 
     fn try_insert_checkpoint_contents(
@@ -212,15 +212,15 @@ impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
         (**self).try_insert_checkpoint(checkpoint)
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        (**self).try_update_highest_synced_checkpoint(checkpoint)
-    }
-
     fn try_update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<()> {
         (**self).try_update_highest_verified_checkpoint(checkpoint)
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        (**self).try_update_highest_synced_checkpoint(checkpoint)
     }
 
     fn try_insert_checkpoint_contents(

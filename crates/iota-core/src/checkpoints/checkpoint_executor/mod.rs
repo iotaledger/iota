@@ -53,6 +53,7 @@ use crate::{
     authority::{
         AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
         backpressure::BackpressureManager,
+        shared_object_version_manager::gas_object_cancellation_version_from_effects,
     },
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
@@ -923,7 +924,13 @@ impl CheckpointExecutor {
             );
 
         for ((tx, _), effects) in itertools::izip!(unexecuted_txns.iter(), unexecuted_effects) {
-            if tx.contains_shared_object() {
+            // A transaction without shared inputs normally needs no version
+            // assignments, but one cancelled for congestion carries its
+            // cancellation version on the gas object, which re-execution
+            // must reproduce.
+            if tx.contains_shared_object()
+                || gas_object_cancellation_version_from_effects(effects).is_some()
+            {
                 self.epoch_store
                     .acquire_shared_version_assignments_from_effects(
                         tx,

@@ -225,7 +225,7 @@ pub async fn advance_epoch(
 
     let old_epoch = simulacrum.get_highest_verified_checkpoint().data().epoch;
 
-    simulacrum.advance_epoch();
+    simulacrum.advance_epoch(false);
 
     let new_epoch = simulacrum.get_highest_verified_checkpoint().data().epoch;
 

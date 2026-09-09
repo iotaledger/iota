@@ -53,6 +53,7 @@ async fn main() {
         Command::StartServer {
             ide,
             connection,
+            historic_fallback,
             config,
             tx_exec_full_node,
         } => {
@@ -69,6 +70,7 @@ async fn main() {
                 service: service_config,
                 ide,
                 tx_exec_full_node,
+                historic_fallback: *historic_fallback,
                 ..ServerConfig::default()
             };
 

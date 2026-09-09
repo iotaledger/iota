@@ -8,6 +8,7 @@ use iota_sdk_types::TransactionKind as NativeTransactionKind;
 use self::{
     consensus_commit_prologue::ConsensusCommitPrologueTransaction, genesis::GenesisTransaction,
     randomness_state_update::RandomnessStateUpdateTransaction,
+    transaction_deny_rules_update::TransactionDenyRulesUpdateTransaction,
 };
 use crate::{
     error::Error,
@@ -21,6 +22,7 @@ pub(crate) mod end_of_epoch;
 pub(crate) mod genesis;
 pub(crate) mod programmable;
 pub(crate) mod randomness_state_update;
+pub(crate) mod transaction_deny_rules_update;
 
 /// The kind of transaction block, either a programmable transaction or a system
 /// transaction.
@@ -30,6 +32,7 @@ pub(crate) enum TransactionBlockKind {
     Genesis(GenesisTransaction),
     Programmable(ProgrammableTransactionBlock),
     Randomness(RandomnessStateUpdateTransaction),
+    TransactionDenyRulesUpdate(TransactionDenyRulesUpdateTransaction),
     EndOfEpoch(EndOfEpochTransaction),
 }
 
@@ -73,6 +76,12 @@ impl TransactionBlockKind {
                 native: rsu,
                 checkpoint_viewed_at,
             })),
+            K::TransactionDenyRulesUpdate(update) => Ok(T::TransactionDenyRulesUpdate(
+                TransactionDenyRulesUpdateTransaction {
+                    native: update,
+                    checkpoint_viewed_at,
+                },
+            )),
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),

@@ -1,7 +1,7 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 16 tasks
+processed 17 tasks
 
 init:
 A: object(0,0), B: object(0,1), C: object(0,2), D: object(0,3), E: object(0,4)
@@ -276,4 +276,27 @@ Response: {
       }
     }
   }
+}
+
+task 16, lines 176-195:
+//# run-graphql
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "The provided filter combination is not supported",
+      "locations": [
+        {
+          "line": 3,
+          "column": 3
+        }
+      ],
+      "path": [
+        "transactionBlocks"
+      ],
+      "extensions": {
+        "code": "BAD_USER_INPUT"
+      }
+    }
+  ]
 }

@@ -19,7 +19,7 @@ use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, Version};
 use iota_types::{
-    messages_checkpoint::CheckpointSequenceNumber,
+    effects::TransactionEffectsAPI, messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::CallArg,
 };
 use jsonrpsee::types::error::INVALID_PARAMS_CODE;
@@ -63,7 +63,7 @@ impl MatchesResponseOptions for IotaObjectResponse {
             .as_ref()
             .map(|iota_obj| {
                 let derived_options = Self::Options {
-                    show_type: iota_obj.type_.is_some(),
+                    show_type: iota_obj.object_type.is_some(),
                     show_owner: iota_obj.owner.is_some(),
                     show_previous_transaction: iota_obj.previous_transaction.is_some(),
                     show_display: iota_obj.display.is_some(),
@@ -84,7 +84,7 @@ impl MatchesResponseOptions for IotaPastObjectResponse {
         self.object()
             .map(|iota_obj| {
                 let derived_options = Self::Options {
-                    show_type: iota_obj.type_.is_some(),
+                    show_type: iota_obj.object_type.is_some(),
                     show_owner: iota_obj.owner.is_some(),
                     show_previous_transaction: iota_obj.previous_transaction.is_some(),
                     show_display: iota_obj.display.is_some(),
@@ -563,7 +563,7 @@ async fn get_transaction_block() {
 async fn is_transaction_not_present() {
     let cluster = TestClusterBuilder::new().build().await;
     let rng = StdRng::from_seed([1; 32]);
-    let digest = TransactionDigest::generate(rng);
+    let digest = TransactionDigest::random_with(rng);
 
     assert!(
         !cluster
@@ -1573,15 +1573,7 @@ async fn try_get_past_object_deleted() {
         )
         .await;
 
-    let created_object_id = tx_block_response
-        .object_changes
-        .unwrap()
-        .iter()
-        .filter_map(|obj_change| match obj_change {
-            ObjectChange::Created { object_id, .. } => Some(*object_id),
-            _ => None,
-        })
-        .collect::<Vec<ObjectId>>()[0];
+    let created_object_id = tx_block_response.created()[0].reference.object_id;
 
     let objects = cluster
         .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
@@ -1619,10 +1611,7 @@ async fn try_get_past_object_deleted() {
         )
         .await;
 
-    assert_eq!(
-        tx_block_response.effects.as_ref().unwrap().deleted().len(),
-        1
-    );
+    assert_eq!(tx_block_response.deleted().len(), 1);
 
     let seq_num = Version::from_u64(4);
     let rpc_past_obj = http_client

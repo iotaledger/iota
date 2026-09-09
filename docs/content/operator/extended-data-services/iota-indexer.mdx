@@ -243,7 +243,7 @@ Several tables hold data that is retained for the full lifetime of the database.
 
 ## Restoring from a formal snapshot
 
-The IOTA Indexer has the ability to initialize the database from a [formal snapshot](../common/snapshots.mdx#formal-snapshots) of the network instead of ingesting every checkpoint from genesis. A formal snapshot is a minimal, cryptographically verifiable capture of the end-of-epoch object state. Full nodes bootstrap from the same snapshots (see [formal-snapshot restore](../common/snapshots.mdx#restoring-from-formal-snapshots)).
+The IOTA Indexer has the ability to initialize the database from a [formal snapshot](../common/snapshots.mdx#formal-snapshots) of the network instead of ingesting every checkpoint from genesis. A formal snapshot is a minimal, cryptographically verifiable capture of the end-of-epoch object state. Full nodes bootstrap from the same snapshots (see [formal-snapshot restore](../common/snapshots.mdx#restoring-a-full-node-from-snapshots)).
 
 For a target epoch, restoring the Indexer involves downloading the snapshot, verifying it against the committee chain, and writing the live object state plus the epoch, protocol, and other data derived from it (display, packages, object-version mapping).
 

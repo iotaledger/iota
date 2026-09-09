@@ -33,8 +33,17 @@ pub(crate) fn query(
 /// Returns active objects from `checkpointed_objects` that were consistent
 /// also at the given checkpoint.
 ///
-/// Uses a LEFT JOIN against `objects_backward_history` to exclude objects
-/// that have any entry with `superseded_at_checkpoint > checkpoint_viewed_at`.
+/// Uses a NOT EXISTS subquery against `objects_backward_history` to exclude
+/// objects that have any entry with
+/// `superseded_at_checkpoint > checkpoint_viewed_at`.
+///
+/// # Implementation notes
+///
+/// NOT EXISTS lets Postgres answer "did this object change?" row by row,
+/// with one index lookup each. A LEFT JOIN on a `SELECT DISTINCT` subquery
+/// takes that option away: the full list of changed objects must always be
+/// built first, and in the worst plans it is then also scanned for every
+/// row.
 fn consistent_checkpointed_objects(
     checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
@@ -47,17 +56,19 @@ fn consistent_checkpointed_objects(
         format!("object_status = {ACTIVE}")
     );
 
-    let changed_subquery = query!(format!(
-        "SELECT DISTINCT object_id FROM objects_backward_history \
-         WHERE superseded_at_checkpoint > {checkpoint_viewed_at}"
-    ));
     let mut source = query!(
-        r#"SELECT candidates.* FROM ({}) candidates
-           LEFT JOIN ({}) changed ON candidates.object_id = changed.object_id"#,
-        checkpointed_filtered,
-        changed_subquery
+        "SELECT candidates.* FROM ({}) candidates",
+        checkpointed_filtered
     );
-    source = filter!(source, "changed.object_id IS NULL");
+    source = filter!(
+        source,
+        format!(
+            "NOT EXISTS (\
+                 SELECT 1 FROM objects_backward_history changed \
+                 WHERE changed.object_id = candidates.object_id \
+                   AND changed.superseded_at_checkpoint > {checkpoint_viewed_at})"
+        )
+    );
     page.apply::<StoredBackwardObject>(source)
 }
 

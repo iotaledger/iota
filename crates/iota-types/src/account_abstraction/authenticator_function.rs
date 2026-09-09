@@ -123,7 +123,7 @@ pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
     let account_object_id = account_object_id.into();
     dynamic_field::derive_dynamic_field_id(
         account_object_id,
-        &AuthenticatorFunctionRefV1Key::tag().into(),
+        &StructTag::new_authenticator_function_ref_v1_key().into(),
         &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
     )
     .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId { account_object_id })

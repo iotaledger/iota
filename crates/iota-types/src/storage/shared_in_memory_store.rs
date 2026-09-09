@@ -73,6 +73,20 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        self.inner()
+            .get_highest_verified_checkpoint_seq_number()
+            .expect("storage should have been initialized with genesis checkpoint")
+            .pipe(Ok)
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        self.inner()
+            .get_highest_synced_checkpoint_seq_number()
+            .expect("storage should have been initialized with genesis checkpoint")
+            .pipe(Ok)
+    }
+
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
         Ok(self.inner().get_lowest_available_checkpoint())
     }
@@ -172,18 +186,18 @@ impl WriteStore for SharedInMemoryStore {
         Ok(())
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.inner_mut()
-            .update_highest_synced_checkpoint(checkpoint);
-        Ok(())
-    }
-
     fn try_update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<()> {
         self.inner_mut()
             .update_highest_verified_checkpoint(checkpoint);
+        Ok(())
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        self.inner_mut()
+            .update_highest_synced_checkpoint(checkpoint);
         Ok(())
     }
 
@@ -308,6 +322,16 @@ impl InMemoryStore {
             .and_then(|(_, digest)| self.get_checkpoint_by_digest(digest))
     }
 
+    pub fn get_highest_verified_checkpoint_seq_number(&self) -> Option<CheckpointSequenceNumber> {
+        self.highest_verified_checkpoint
+            .map(|(sequence_number, _digest)| sequence_number)
+    }
+
+    pub fn get_highest_synced_checkpoint_seq_number(&self) -> Option<CheckpointSequenceNumber> {
+        self.highest_synced_checkpoint
+            .map(|(sequence_number, _digest)| sequence_number)
+    }
+
     pub fn get_lowest_available_checkpoint(&self) -> CheckpointSequenceNumber {
         self.lowest_checkpoint_number
     }
@@ -399,18 +423,6 @@ impl InMemoryStore {
         Ok(())
     }
 
-    pub fn update_highest_synced_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
-        if !self.checkpoints.contains_key(checkpoint.digest()) {
-            panic!("store should already contain checkpoint");
-        }
-        if let Some(highest_synced_checkpoint) = self.highest_synced_checkpoint {
-            if highest_synced_checkpoint.0 >= checkpoint.sequence_number {
-                return;
-            }
-        }
-        self.highest_synced_checkpoint = Some((checkpoint.sequence_number(), *checkpoint.digest()));
-    }
-
     pub fn update_highest_verified_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
         if !self.checkpoints.contains_key(checkpoint.digest()) {
             panic!("store should already contain checkpoint");
@@ -422,6 +434,18 @@ impl InMemoryStore {
         }
         self.highest_verified_checkpoint =
             Some((checkpoint.sequence_number(), *checkpoint.digest()));
+    }
+
+    pub fn update_highest_synced_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
+        if !self.checkpoints.contains_key(checkpoint.digest()) {
+            panic!("store should already contain checkpoint");
+        }
+        if let Some(highest_synced_checkpoint) = self.highest_synced_checkpoint {
+            if highest_synced_checkpoint.0 >= checkpoint.sequence_number {
+                return;
+            }
+        }
+        self.highest_synced_checkpoint = Some((checkpoint.sequence_number(), *checkpoint.digest()));
     }
 
     pub fn checkpoints(&self) -> &HashMap<CheckpointDigest, VerifiedCheckpoint> {
@@ -529,6 +553,14 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
         self.0.try_get_highest_synced_checkpoint()
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        self.0.try_get_highest_verified_checkpoint_seq_number()
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        self.0.try_get_highest_synced_checkpoint_seq_number()
+    }
+
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
         self.0.try_get_lowest_available_checkpoint()
     }
@@ -600,16 +632,16 @@ impl WriteStore for SingleCheckpointSharedInMemoryStore {
         Ok(())
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.0.try_update_highest_synced_checkpoint(checkpoint)?;
-        Ok(())
-    }
-
     fn try_update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<()> {
         self.0.try_update_highest_verified_checkpoint(checkpoint)?;
+        Ok(())
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        self.0.try_update_highest_synced_checkpoint(checkpoint)?;
         Ok(())
     }
 

@@ -72,12 +72,13 @@ pub use authority_node::ConsensusAuthority;
 pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
 pub use block_header::{
-    BlockTimestampMs, TestBlockHeader, Transaction, VerifiedBlockHeader, VerifiedTransactions,
+    BlockTimestampMs, CommitmentVerifiedTransactions, TestBlockHeader, Transaction,
+    VerifiedBlockHeader,
 };
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use context::Clock;
-pub use misbehavior_store::{MisbehaviorCounts, MisbehaviorCountsV1};
+pub use misbehavior_store::{MisbehaviorCounts, MisbehaviorCountsV1, MisbehaviorCountsV2};
 pub use network::tonic_network::to_socket_addr;
 #[cfg(msim)]
 pub use storage::delete_all_transactions_from_store;

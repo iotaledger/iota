@@ -52,6 +52,7 @@ iota-multiaddr.workspace = true
 iota-names.workspace = true
 iota-network.workspace = true
 iota-network-stack.workspace = true
+iota-node-transaction-builder.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-snapshot.workspace = true

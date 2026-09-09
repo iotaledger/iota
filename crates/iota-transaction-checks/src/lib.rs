@@ -561,7 +561,7 @@ mod checked {
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
                 // We skip checking shared objects from cancelled transactions since we are not
                 // reading it.
-                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
+                ObjectReadResultKind::CancelledTransactionObject(_) => (),
             }
         }
 
@@ -691,6 +691,20 @@ mod checked {
                 }
             }
             InputObjectKind::SharedMoveObject {
+                id: ObjectId::TRANSACTION_DENY_RULES,
+                ..
+            } => {
+                // The deny rules object is written only by system
+                // transactions and has no user-callable readers.
+                if system_transaction {
+                    return Ok(());
+                } else {
+                    return Err(UserInputError::InaccessibleSystemObject {
+                        object_id: ObjectId::TRANSACTION_DENY_RULES,
+                    });
+                }
+            }
+            InputObjectKind::SharedMoveObject {
                 initial_shared_version: input_initial_shared_version,
                 ..
             } => {
@@ -736,7 +750,7 @@ mod checked {
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
                 // We skip checking shared objects from cancelled transactions since we are not
                 // reading it.
-                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
+                ObjectReadResultKind::CancelledTransactionObject(_) => (),
             }
         }
 

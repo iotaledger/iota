@@ -14,11 +14,14 @@ use async_graphql::{
 };
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, SelectableHelper, sql_types};
 use iota_indexer::{
+    ingestion::common::CommitterTables,
     models::objects::{StoredHistoryObject, StoredObject},
     schema::objects,
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
-use iota_sdk_types::{MoveStruct as NativeMoveStruct, Owner as NativeOwner, StructTag, TypeTag};
+use iota_sdk_types::{
+    MoveStruct as NativeMoveStruct, ObjectId, Owner as NativeOwner, StructTag, TypeTag, Version,
+};
 use iota_types::object::{Object as NativeObject, bounded_visitor::BoundedVisitor};
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
@@ -282,7 +285,11 @@ pub(crate) struct HistoricalObjectCursor {
         arg(name = "last", ty = "Option<u64>"),
         arg(name = "before", ty = "Option<transaction_block::Cursor>"),
         arg(name = "filter", ty = "Option<TransactionBlockFilter>"),
-        arg(name = "scan_limit", ty = "Option<u64>"),
+        arg(
+            name = "scan_limit",
+            ty = "Option<u64>",
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        ),
         ty = "ScanConnection<String, TransactionBlock>",
         desc = "The transaction blocks that sent objects to this object."
     ),
@@ -492,10 +499,11 @@ impl Object {
     /// The transaction blocks that sent objects to this object.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, affected address, recipient, input
+    /// object, changed object, or wrapped or deleted object), and can be at
+    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+    /// combined with any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
@@ -514,6 +522,10 @@ impl Object {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
+    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -525,6 +537,9 @@ impl Object {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         ObjectImpl(self)
@@ -663,7 +678,7 @@ impl ObjectImpl<'_> {
         let digest = native.previous_transaction;
         let key = transaction_block::DigestKey::new(digest.into(), self.0.checkpoint_viewed_at);
 
-        TransactionBlock::query(ctx, key.into()).await.extend()
+        TransactionBlock::query(ctx, key).await.extend()
     }
 
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
@@ -918,32 +933,31 @@ impl Object {
             ObjectLookup::VersionAt {
                 version,
                 checkpoint_viewed_at,
-            } => {
-                loader
-                    .load_one(HistoricalKey {
-                        id,
-                        version,
-                        checkpoint_viewed_at,
-                    })
-                    .await
-            }
+            } => loader
+                .load_one(HistoricalKey {
+                    id,
+                    version,
+                    checkpoint_viewed_at,
+                })
+                .await?
+                .transpose(),
 
-            ObjectLookup::OptimisticVersion { version } => {
-                loader.load_one(OptimisticKey { id, version }).await
-            }
+            ObjectLookup::OptimisticVersion { version } => loader
+                .load_one(OptimisticKey { id, version })
+                .await?
+                .transpose(),
 
             ObjectLookup::UnderParent {
                 parent_version,
                 checkpoint_viewed_at,
-            } => {
-                loader
-                    .load_one(ParentVersionKey {
-                        id,
-                        parent_version,
-                        checkpoint_viewed_at,
-                    })
-                    .await
-            }
+            } => loader
+                .load_one(ParentVersionKey {
+                    id,
+                    parent_version,
+                    checkpoint_viewed_at,
+                })
+                .await?
+                .transpose(),
 
             ObjectLookup::LatestAt {
                 checkpoint_viewed_at,
@@ -1009,6 +1023,7 @@ impl Object {
     pub(crate) fn try_from_stored_object(
         stored_object: StoredObject,
         checkpoint_viewed_at: u64,
+        root_version: Option<u64>,
     ) -> Result<Self, Error> {
         let active_object = ActiveObject {
             native: NativeObject::try_from(&stored_object)?,
@@ -1018,7 +1033,7 @@ impl Object {
         Ok(Self::from_active_object(
             active_object,
             checkpoint_viewed_at,
-            None,
+            root_version,
         ))
     }
 }
@@ -1392,11 +1407,121 @@ impl Target<Cursor> for StoredBackwardObject {
     }
 }
 
+/// Synthetic `object_status` for object versions that still exist in
+/// `objects_version` table, but are already pruned from
+/// `objects_backward_history`.
+const OBJECT_STATUS_PRUNED: i16 = -1;
+
+const OBJECT_STATUS_WRAPPED_OR_DELETED: i16 = NativeObjectStatus::WrappedOrDeleted as i16;
+
+const OBJECT_STATUS_ACTIVE: i16 = NativeObjectStatus::Active as i16;
+
+/// Supplies the parameters needed to build an [`Object`] from a row fetched
+/// from the historical fallback: the checkpoint it is viewed at, and the root
+/// version to record on it.
+trait FallbackObjectKey: Eq + std::hash::Hash {
+    /// The checkpoint the object is viewed at.
+    fn checkpoint_viewed_at(&self) -> u64;
+    /// The root version to record on the resulting object, if any.
+    fn root_version(&self) -> Option<u64>;
+}
+
+impl FallbackObjectKey for HistoricalKey {
+    fn checkpoint_viewed_at(&self) -> u64 {
+        self.checkpoint_viewed_at
+    }
+    fn root_version(&self) -> Option<u64> {
+        None
+    }
+}
+
+impl FallbackObjectKey for ParentVersionKey {
+    fn checkpoint_viewed_at(&self) -> u64 {
+        self.checkpoint_viewed_at
+    }
+    fn root_version(&self) -> Option<u64> {
+        Some(self.parent_version)
+    }
+}
+
+/// Checks if `objects_version` table covers the whole chain history.
+///
+/// This function currently returns false for indexer restored from snapshot.
+fn objects_version_complete(db: &Db) -> bool {
+    db.inner
+        .ensure_data_not_pruned_for_checkpoint(0, &[CommitterTables::ObjectsVersion])
+        .is_ok()
+}
+
+/// Fills the missing `results` entries with objects fetched from the
+/// historical fallback.
+///
+/// It stores nothing when the object does not exist at the requested version
+/// (e.g. when the object is wrapped or deleted). It stores
+/// [`Error::DataPruned`] per key when the historical fallback is not
+/// configured.
+async fn fill_missing_objects_from_fallback<K: FallbackObjectKey>(
+    db: &Db,
+    keys_with_refs: Vec<(K, (ObjectId, Version))>,
+    results: &mut HashMap<K, Result<Object, Error>>,
+) -> Result<(), Error> {
+    if keys_with_refs.is_empty() {
+        return Ok(());
+    }
+
+    let object_refs: Vec<(ObjectId, Version)> =
+        keys_with_refs.iter().map(|(_, obj_ref)| *obj_ref).collect();
+
+    let fetched: Vec<Result<Option<StoredObject>, Error>> = if db.inner.is_fallback_enabled() {
+        db.inner
+            .multi_get_fallback_objects(&object_refs, false)
+            .await
+            .map_err(Error::from)?
+            .into_iter()
+            .map(Ok)
+            .collect()
+    } else {
+        object_refs
+            .iter()
+            .map(|(id, _)| {
+                Err(Error::DataPruned(format!(
+                    "data for object {id} potentially pruned"
+                )))
+            })
+            .collect()
+    };
+
+    for ((key, _), fetched) in keys_with_refs.into_iter().zip(fetched) {
+        match fetched {
+            Ok(Some(stored)) => {
+                let object = Object::try_from_stored_object(
+                    stored,
+                    key.checkpoint_viewed_at(),
+                    key.root_version(),
+                )?;
+                results.insert(key, Ok(object));
+            }
+            // The object does not exist at the requested version.
+            Ok(None) => {}
+            // Only this key cannot be served.
+            Err(e) => {
+                results.insert(key, Err(e));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 impl Loader<HistoricalKey> for Db {
-    type Value = Object;
+    /// Error stored per key, e.g. when object version is pruned.
+    type Value = Result<Object, Error>;
     type Error = Error;
 
-    async fn load(&self, keys: &[HistoricalKey]) -> Result<HashMap<HistoricalKey, Object>, Error> {
+    async fn load(
+        &self,
+        keys: &[HistoricalKey],
+    ) -> Result<HashMap<HistoricalKey, Result<Object, Error>>, Error> {
         if keys.is_empty() {
             return Ok(HashMap::new());
         }
@@ -1408,22 +1533,27 @@ impl Loader<HistoricalKey> for Db {
             .into_iter()
             .unzip();
 
-        let active = NativeObjectStatus::Active as i16;
-
         // For each `(object_id, object_version)` pair, locate the row content
         // in `checkpointed_objects` (current state of the object) or
         // `objects_backward_history` (a superseded prior state). The
         // `objects_version` join confirms the version is real and supplies the
         // checkpoint at which it became current.
         //
-        // Only active rows are returned: wrapped or deleted tombstones (and
-        // versions present only in `objects_version`) fail the active status
-        // check, so such versions resolve as non-existent.
+        // A row is returned for every version found in `objects_version`.
+        // Wrapped-or-deleted status is reported for versions without row
+        // content that are in the retention window of
+        // `objects_backward_history`. Versions outside of this retention
+        // window are returned with the synthetic `OBJECT_STATUS_PRUNED`
+        // status.
         let sql = "SELECT \
                 v.object_id, \
                 v.object_version, \
                 v.cp_sequence_number AS checkpoint_sequence_number, \
-                COALESCE(co.object_status, bh.object_status) AS object_status, \
+                COALESCE(co.object_status, bh.object_status, \
+                    CASE WHEN v.cp_sequence_number >= COALESCE((\
+                        SELECT min_available_cp FROM watermarks \
+                        WHERE entity = 'objects_backward_history'), 0) \
+                    THEN $3 ELSE $4 END) AS object_status, \
                 COALESCE(co.object_digest, bh.object_digest) AS object_digest, \
                 COALESCE(co.owner_type, bh.owner_type) AS owner_type, \
                 COALESCE(co.owner_id, bh.owner_id) AS owner_id, \
@@ -1444,8 +1574,7 @@ impl Loader<HistoricalKey> for Db {
                   AND co.object_version = v.object_version \
             LEFT JOIN objects_backward_history bh \
                    ON bh.object_id = v.object_id \
-                  AND bh.object_version = v.object_version \
-            WHERE COALESCE(co.object_status, bh.object_status) = $3";
+                  AND bh.object_version = v.object_version";
 
         let objects: Vec<StoredHistoryObject> = self
             .execute(move |conn| {
@@ -1453,7 +1582,8 @@ impl Loader<HistoricalKey> for Db {
                     diesel::sql_query(sql)
                         .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
                         .bind::<sql_types::Array<sql_types::BigInt>, _>(versions.clone())
-                        .bind::<sql_types::SmallInt, _>(active)
+                        .bind::<sql_types::SmallInt, _>(OBJECT_STATUS_WRAPPED_OR_DELETED)
+                        .bind::<sql_types::SmallInt, _>(OBJECT_STATUS_PRUNED)
                 })
             })
             .await
@@ -1466,8 +1596,12 @@ impl Loader<HistoricalKey> for Db {
         }
 
         let mut result = HashMap::new();
+        let mut fallback_keys = Vec::new();
+        // Keys with no `objects_version` entry at all.
+        let mut unresolved_keys = Vec::new();
         for key in keys {
             let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) else {
+                unresolved_keys.push(*key);
                 continue;
             };
 
@@ -1478,22 +1612,47 @@ impl Loader<HistoricalKey> for Db {
                 continue;
             }
 
-            let active_object = ActiveObject::try_from(stored.clone())?;
+            let active_object = match stored.object_status {
+                OBJECT_STATUS_PRUNED => {
+                    fallback_keys.push(*key);
+                    continue;
+                }
+                OBJECT_STATUS_ACTIVE => ActiveObject::try_from(stored.clone())?,
+                // Wrapped, deleted, or not yet created: resolve as non-existent.
+                _ => continue,
+            };
             // This conversion will use the object's own version as the
             // `Object::root_version`.
             let object = Object::from_active_object(active_object, key.checkpoint_viewed_at, None);
-            result.insert(*key, object);
+            result.insert(*key, Ok(object));
         }
+
+        // When version history is complete, unresolved key = nonexisting object
+        // version. When history is incomplete we have to query the KV to know
+        // if object exists or not.
+        if !objects_version_complete(self) {
+            fallback_keys.append(&mut unresolved_keys);
+        }
+
+        let keys_with_refs = fallback_keys
+            .into_iter()
+            .map(|key| (key, (key.id.into(), Version::from(key.version))))
+            .collect();
+        fill_missing_objects_from_fallback(self, keys_with_refs, &mut result).await?;
 
         Ok(result)
     }
 }
 
 impl Loader<OptimisticKey> for Db {
-    type Value = Object;
+    /// Error stored per key, e.g. when object version is pruned.
+    type Value = Result<Object, Error>;
     type Error = Error;
 
-    async fn load(&self, keys: &[OptimisticKey]) -> Result<HashMap<OptimisticKey, Object>, Error> {
+    async fn load(
+        &self,
+        keys: &[OptimisticKey],
+    ) -> Result<HashMap<OptimisticKey, Result<Object, Error>>, Error> {
         use objects::dsl as o;
 
         if keys.is_empty() {
@@ -1531,8 +1690,8 @@ impl Loader<OptimisticKey> for Db {
         let mut missing_keys = Vec::new();
         for key in keys {
             if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
-                let object = Object::try_from_stored_object(stored.clone(), u64::MAX)?;
-                result.insert(*key, object);
+                let object = Object::try_from_stored_object(stored.clone(), u64::MAX, None)?;
+                result.insert(*key, Ok(object));
             } else {
                 missing_keys.push(*key);
             }
@@ -1549,7 +1708,7 @@ impl Loader<OptimisticKey> for Db {
                 })
                 .collect();
 
-            let historical_result: HashMap<HistoricalKey, Object> =
+            let historical_result: HashMap<HistoricalKey, Result<Object, Error>> =
                 self.load(&historical_keys).await?;
 
             for (historical_key, object) in historical_result {
@@ -1566,13 +1725,14 @@ impl Loader<OptimisticKey> for Db {
 }
 
 impl Loader<ParentVersionKey> for Db {
-    type Value = Object;
+    /// Error stored per key, e.g. when object version is pruned.
+    type Value = Result<Object, Error>;
     type Error = Error;
 
     async fn load(
         &self,
         keys: &[ParentVersionKey],
-    ) -> Result<HashMap<ParentVersionKey, Object>, Error> {
+    ) -> Result<HashMap<ParentVersionKey, Result<Object, Error>>, Error> {
         // Group keys by checkpoint viewed at and parent version -- we'll issue a
         // separate query for each group.
         #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
@@ -1594,18 +1754,18 @@ impl Loader<ParentVersionKey> for Db {
                 .insert(key.id.into_vec());
         }
 
-        let active = NativeObjectStatus::Active as i16;
-
         // For each id, pick the largest version `≤ parent_version` from
         // `objects_version` (versions table contains all current and past versions of
         // objects), then locate the row content in `checkpointed_objects`
         // (current state of the object) or `objects_backward_history` (a
         // superseded prior state).
         //
-        // Only active rows are returned: when the latest version `≤
-        // parent_version` is a wrapped or deleted tombstone (or exists only in
-        // `objects_version`), it fails the active status check and the object
-        // resolves as non-existent at `parent_version`.
+        // A row is returned for the largest version `≤ parent_version` found
+        // in `objects_version`. Wrapped-or-deleted status is reported for
+        // versions without row content that are in the retention window of
+        // `objects_backward_history`. Versions outside of this retention
+        // window are returned with the synthetic `OBJECT_STATUS_PRUNED`
+        // status.
         let sql = "WITH ids AS (SELECT unnest($1::bytea[]) AS object_id), \
                         latest_per_id AS (\
                        SELECT i.object_id, o.object_version, o.cp_sequence_number \
@@ -1621,7 +1781,11 @@ impl Loader<ParentVersionKey> for Db {
                        v.object_id, \
                        v.object_version, \
                        v.cp_sequence_number AS checkpoint_sequence_number, \
-                       COALESCE(co.object_status, bh.object_status) AS object_status, \
+                       COALESCE(co.object_status, bh.object_status, \
+                           CASE WHEN v.cp_sequence_number >= COALESCE((\
+                               SELECT min_available_cp FROM watermarks \
+                               WHERE entity = 'objects_backward_history'), 0) \
+                           THEN $3 ELSE $4 END) AS object_status, \
                        COALESCE(co.object_digest, bh.object_digest) AS object_digest, \
                        COALESCE(co.owner_type, bh.owner_type) AS owner_type, \
                        COALESCE(co.owner_id, bh.owner_id) AS owner_id, \
@@ -1639,8 +1803,7 @@ impl Loader<ParentVersionKey> for Db {
                          AND co.object_version = v.object_version \
                    LEFT JOIN objects_backward_history bh \
                           ON bh.object_id = v.object_id \
-                         AND bh.object_version = v.object_version \
-                   WHERE COALESCE(co.object_status, bh.object_status) = $3";
+                         AND bh.object_version = v.object_version";
 
         // Issue concurrent reads for each group of keys.
         let futures = keys_by_cursor_and_parent_version
@@ -1654,7 +1817,8 @@ impl Loader<ParentVersionKey> for Db {
                         diesel::sql_query(sql)
                             .bind::<sql_types::Array<sql_types::Binary>, _>(ids.clone())
                             .bind::<sql_types::BigInt, _>(parent_version)
-                            .bind::<sql_types::SmallInt, _>(active)
+                            .bind::<sql_types::SmallInt, _>(OBJECT_STATUS_WRAPPED_OR_DELETED)
+                            .bind::<sql_types::SmallInt, _>(OBJECT_STATUS_PRUNED)
                     })?;
 
                     Ok::<_, diesel::result::Error>(
@@ -1669,35 +1833,74 @@ impl Loader<ParentVersionKey> for Db {
         // Wait for the reads to all finish, and gather them into the result map.
         let groups = futures::future::join_all(futures).await;
 
-        let mut results = HashMap::new();
+        let mut key_to_stored = HashMap::new();
         for group in groups {
             for (group_key, stored) in
                 group.map_err(|e| Error::Internal(format!("Failed to fetch objects: {e}")))?
             {
-                // This particular object is invalid -- it didn't exist at the checkpoint we are
-                // viewing at.
-                if group_key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
-                    continue;
-                }
-
-                let active_object = ActiveObject::try_from(stored)?;
-                // If `LatestAtKey::parent_version` is set, it must have been correctly
-                // propagated from the `Object::root_version` of some object.
-                let object = Object::from_active_object(
-                    active_object,
-                    group_key.checkpoint_viewed_at,
-                    Some(group_key.parent_version),
-                );
-
                 let key = ParentVersionKey {
-                    id: object.address,
+                    id: addr(&stored.object_id)?,
                     checkpoint_viewed_at: group_key.checkpoint_viewed_at,
                     parent_version: group_key.parent_version,
                 };
-
-                results.insert(key, object);
+                key_to_stored.insert(key, stored);
             }
         }
+
+        let mut results = HashMap::new();
+        let mut fallback_keys = Vec::new();
+        // Keys with no version `≤ parent_version` in `objects_version` at all.
+        let mut unresolved_keys = Vec::new();
+        for key in keys {
+            let Some(stored) = key_to_stored.get(key) else {
+                unresolved_keys.push(*key);
+                continue;
+            };
+
+            // This version didn't exist at the checkpoint we are viewing at.
+            if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                continue;
+            }
+
+            let active_object = match stored.object_status {
+                OBJECT_STATUS_PRUNED => {
+                    let object_ref = (key.id.into(), Version::from(stored.object_version as u64));
+                    fallback_keys.push((*key, object_ref));
+                    continue;
+                }
+                OBJECT_STATUS_ACTIVE => ActiveObject::try_from(stored.clone())?,
+                // Wrapped, deleted, or not yet created: resolve as non-existent.
+                _ => continue,
+            };
+            // If `LatestAtKey::parent_version` is set, it must have been correctly
+            // propagated from the `Object::root_version` of some object.
+            let object = Object::from_active_object(
+                active_object,
+                key.checkpoint_viewed_at,
+                Some(key.parent_version),
+            );
+
+            results.insert(*key, Ok(object));
+        }
+
+        // When version history is complete, unresolved key = nonexisting object
+        // version. When history is incomplete we return DataPruned for such
+        // cases, since this cannot be handled by KV currently: before_version
+        // query will not work properly since we don't store wrapped-or-deleted
+        // version in the KV.
+        if !objects_version_complete(self) {
+            for key in unresolved_keys {
+                let id = key.id;
+                results.insert(
+                    key,
+                    Err(Error::DataPruned(format!(
+                        "data for object {id} potentially pruned"
+                    ))),
+                );
+            }
+        }
+
+        fill_missing_objects_from_fallback(self, fallback_keys, &mut results).await?;
 
         Ok(results)
     }

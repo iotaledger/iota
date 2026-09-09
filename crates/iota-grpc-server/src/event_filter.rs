@@ -142,10 +142,11 @@ impl EventFilter {
                     && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.module))
             }
             EventFilter::MoveEventPackageAndModule { package, module } => {
-                &item.type_.address() == package.as_address()
-                    && (module.is_none() || matches!(module, Some(m2) if m2 == item.type_.module()))
+                &item.struct_tag.address() == package.as_address()
+                    && (module.is_none()
+                        || matches!(module, Some(m2) if m2 == item.struct_tag.module()))
             }
-            EventFilter::MoveEventType(event_type) => item.type_ == *event_type,
+            EventFilter::MoveEventType(event_type) => item.struct_tag == *event_type,
         }
     }
 

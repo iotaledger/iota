@@ -19,7 +19,7 @@ use iota_sdk_types::{Address, Event, Identifier, MoveStruct, ObjectId, Owner, St
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
-    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
+    crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     object::{MoveStructExt, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
@@ -55,7 +55,7 @@ fn random_event() -> Event {
         package_id: ObjectId::random(),
         module: Identifier::new("test").unwrap(),
         sender: Address::random(),
-        type_: StructTag::new(
+        struct_tag: StructTag::new(
             Address::random(),
             Identifier::new("test").unwrap(),
             Identifier::new("test").unwrap(),
@@ -157,14 +157,14 @@ impl Scenario {
 
     fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
-        let (sender, keypair): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
         let receiver = Address::random();
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
         // is that it has a unique digest every time.
         let tx = TestTransactionBuilder::new(sender, random_object_ref(), 100)
             .transfer(random_object_ref(), receiver)
-            .build_and_sign(&keypair);
+            .build_and_sign(&sender_key);
 
         let tx = VerifiedTransaction::new_unchecked(tx);
         let events: TransactionEvents = Default::default();
@@ -186,7 +186,7 @@ impl Scenario {
 
     fn new_object() -> Object {
         let id = ObjectId::random();
-        let (owner, _) = deterministic_random_account_key();
+        let (owner, _) = deterministic_random_account_private_key();
         Object::new_move(
             MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 100),
             Owner::Address(owner),

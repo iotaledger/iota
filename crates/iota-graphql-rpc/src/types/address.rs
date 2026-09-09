@@ -29,13 +29,17 @@ pub(crate) struct Address {
     pub checkpoint_viewed_at: u64,
 }
 
-/// The possible relationship types for a transaction block: sent or received.
+/// The possible relationship types for a transaction block: sent, received,
+/// or affected.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum AddressTransactionBlockRelationship {
     /// Transactions this address has sent.
     Sent,
     /// Transactions that sent objects to this address.
     Recv,
+    /// Transactions that affected this address (the address is the sender,
+    /// a recipient, or the owner of the gas payment).
+    Affected,
 }
 
 /// The 32-byte address that is an account address (corresponding to a public
@@ -149,10 +153,11 @@ impl Address {
     /// defaults to `SENT`.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, affected address, recipient, input
+    /// object, changed object, or wrapped or deleted object), and can be at
+    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+    /// combined with any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
@@ -171,6 +176,10 @@ impl Address {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
+    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -183,6 +192,9 @@ impl Address {
         before: Option<transaction_block::Cursor>,
         relation: Option<AddressTransactionBlockRelationship>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         use AddressTransactionBlockRelationship as R;
@@ -197,6 +209,11 @@ impl Address {
 
             Some(R::Recv) => TransactionBlockFilter {
                 recv_address: Some(self.address),
+                ..Default::default()
+            },
+
+            Some(R::Affected) => TransactionBlockFilter {
+                affected_address: Some(self.address),
                 ..Default::default()
             },
         }) else {

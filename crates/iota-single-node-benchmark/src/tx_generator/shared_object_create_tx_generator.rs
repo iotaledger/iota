@@ -31,7 +31,7 @@ impl TxGenerator for SharedObjectCreateTxGenerator {
             "create_shared_counter",
             vec![],
         )
-        .build_and_sign(account.keypair.as_ref())
+        .build_and_sign(account.private_key.as_ref())
     }
 
     fn name(&self) -> &'static str {

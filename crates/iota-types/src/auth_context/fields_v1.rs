@@ -91,7 +91,7 @@ impl From<&Command> for MoveCommand {
                 MoveCommand::Publish(cmd.modules.clone(), cmd.dependencies.clone())
             }
             Command::MakeMoveVector(cmd) => {
-                MoveCommand::MakeMoveVec(cmd.type_.clone(), cmd.elements.clone())
+                MoveCommand::MakeMoveVec(cmd.type_tag.clone(), cmd.elements.clone())
             }
             Command::Upgrade(cmd) => MoveCommand::Upgrade(
                 cmd.modules.clone(),

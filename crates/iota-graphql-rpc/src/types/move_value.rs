@@ -111,12 +111,7 @@ impl MoveValue {
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
-        let Some(layout) = self.type_.layout_impl(resolver).await.extend()? else {
-            return Err(Error::Internal(
-                "Move value must have valid layout".to_string(),
-            ))
-            .extend();
-        };
+        let layout = self.type_.layout_impl(resolver).await.extend()?;
 
         // Factor out into its own non-GraphQL, non-async function for better
         // testability
@@ -143,12 +138,7 @@ impl MoveValue {
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
-        let Some(layout) = self.type_.layout_impl(resolver).await.extend()? else {
-            return Err(Error::Internal(
-                "Move value must have valid layout".to_string(),
-            ))
-            .extend();
-        };
+        let layout = self.type_.layout_impl(resolver).await.extend()?;
 
         // Factor out into its own non-GraphQL, non-async function for better
         // testability

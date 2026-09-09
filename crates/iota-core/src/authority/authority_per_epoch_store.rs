@@ -31,9 +31,10 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, CanceledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
-    SenderSignedTransaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionKind, UserSignature, Version, VersionAssignment,
+    Address, CanceledTransaction, CheckpointTimestamp, DenyRuleSet, ObjectId, ObjectReference,
+    RandomnessRound, SenderSignedTransaction, TransactionDenyRulesUpdate, TransactionDigest,
+    TransactionEffects, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
+    VersionAssignment,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
@@ -41,7 +42,6 @@ use iota_types::{
     base_types::{AuthorityName, CommitRound, ConciseableName, EpochId},
     committee::{Committee, CommitteeTrait, StakeUnit},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
-    deny_rule_governance::DenyRuleSet,
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::{
@@ -102,7 +102,7 @@ use crate::{
             report_aggregator::ReportAggregator,
         },
         epoch_start_configuration::EpochStartConfiguration,
-        shared_object_congestion_tracker::CongestionPerObjectDebt,
+        shared_object_congestion_tracker::{CongestionPerObjectDebt, CongestionWorkerDebt},
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
@@ -227,6 +227,11 @@ pub(crate) struct CongestionControlParameters {
     /// congestion limit overshoot is disabled.
     max_congestion_limit_overshoot_per_commit: Option<ExecutionTime>,
 
+    /// Maximum number of transactions from a commit that may execute
+    /// concurrently (the execution-worker pool size). `Some(n)` activates
+    /// execution-worker congestion control; `None` disables it.
+    max_concurrent_execution_workers: Option<u16>,
+
     /// Maximum gas price that can be set in transactions. This field
     /// is only used in `SuggestedGasPriceCalculator` to prevent
     /// suggesting feedback gas price larger this value.
@@ -253,6 +258,7 @@ impl CongestionControlParameters {
                 .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option(),
             max_congestion_limit_overshoot_per_commit: protocol_config
                 .max_congestion_limit_overshoot_per_commit_as_option(),
+            max_concurrent_execution_workers: protocol_config.concurrent_execution_workers(),
             max_gas_price: protocol_config.max_gas_price(),
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism: protocol_config
                 .congestion_limit_overshoot_in_gas_price_feedback_mechanism(),
@@ -277,10 +283,20 @@ impl CongestionControlParameters {
             congestion_control_min_free_execution_slot,
             max_execution_duration_per_commit,
             max_congestion_limit_overshoot_per_commit,
+            // Defaults to disabled; tests that exercise execution-worker
+            // congestion control opt in via
+            // `set_max_concurrent_execution_workers_for_test`.
+            max_concurrent_execution_workers: None,
             max_gas_price,
             use_congestion_limit_overshoot_in_gas_price_feedback_mechanism,
             use_separate_gas_price_feedback_mechanism_for_randomness,
         }
+    }
+
+    /// Enable execution-worker congestion control in tests, with `n` workers.
+    #[cfg(test)]
+    pub(crate) fn set_max_concurrent_execution_workers_for_test(&mut self, n: u16) {
+        self.max_concurrent_execution_workers = Some(n);
     }
 
     /// Get per-object congestion control mode.
@@ -313,9 +329,21 @@ impl CongestionControlParameters {
         self.congestion_control_min_free_execution_slot
     }
 
-    /// Check whether shared-object congestion control is enabled.
+    /// Check whether congestion control is enabled.
     fn is_congestion_control_enabled(&self) -> bool {
         self.max_execution_duration_per_commit.is_some()
+    }
+
+    /// The execution-worker concurrency cap, or `None` when execution-worker
+    /// congestion control is not active. Active only when the cap is set and
+    /// per-object congestion control is enabled; the protocol config
+    /// guarantees the PCOOL flow is enabled whenever the cap is set.
+    pub(super) fn max_concurrent_execution_workers(&self) -> Option<u16> {
+        if self.is_congestion_control_enabled() {
+            self.max_concurrent_execution_workers
+        } else {
+            None
+        }
     }
 
     /// Get maximum execution duration per shared object per commit.
@@ -417,7 +445,7 @@ pub(crate) enum SchedulingResult {
 ///
 /// Cancelled transactions still pass through the execution engine to unlock
 /// owned objects, but they are not executed as normally. The reason is used by
-/// `SharedObjVerManager` when assigning shared object versions to determine
+/// `SharedObjVerManager` when assigning cancellation versions to determine
 /// the appropriate cancellation behavior (e.g., whether to include a suggested
 /// gas price in the cancellation error).
 ///
@@ -428,9 +456,12 @@ pub(crate) enum SchedulingResult {
 /// certificates. The renaming is safe and backward-compatible since this is a
 /// fully internal type.
 pub enum CancelConsensusTransactionReason {
-    /// Transaction was cancelled due to shared-object congestion.
-    CongestionOnObjects {
-        /// List of IDs of congested shared objects.
+    /// Transaction was cancelled due to congestion: either on objects it
+    /// touches, or on the execution-worker pool.
+    Congested {
+        /// IDs of the congested objects the transaction touches. Empty when
+        /// the execution-worker pool, rather than any object, was congested
+        /// and the transaction has no shared inputs.
         congested_objects: Vec<ObjectId>,
 
         /// Optional suggested gas price from the gas price feedback
@@ -698,12 +729,22 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
-    /// The active deny rule set: the stake-weighted aggregate of the recorded
-    /// deny rule proposals. Recomputed via
-    /// `store_active_transaction_deny_rules` in
-    /// `ConsensusOutputQuarantine::push_consensus_output` and seeded from the
-    /// `deny_rule_proposals` table on construction.
+    /// The active deny rule set: the union of the mirrored on-chain state
+    /// and the stake-weighted aggregate of the recorded deny rule proposals.
+    /// Recomputed via `store_active_transaction_deny_rules` in
+    /// `ConsensusOutputQuarantine::push_consensus_output`; seeded on
+    /// construction from the epoch-start object state and the
+    /// `deny_rule_proposals` table, so enforcement carries across the epoch
+    /// boundary before any announcement of the new epoch lands.
     active_transaction_deny_rules: ArcSwap<DenyRuleSet>,
+
+    /// The state the scheduled deny-rule updates bring the
+    /// `TransactionDenyRules` object to, and the base of the injection diff:
+    /// seeded from the object at epoch start, advanced when a commit
+    /// schedules updates — the only commit-deterministic point; execution
+    /// completion is not and must not feed back in. A failed update leaves
+    /// the object behind until the epoch boundary re-seeds the mirror.
+    mirrored_transaction_deny_rules: ArcSwap<DenyRuleSet>,
 
     /// Pre-consensus soft locks for owned objects (P-COOL flow).
     ///
@@ -887,6 +928,11 @@ pub struct AuthorityEpochTables {
     /// generation overwrites an older one from the same authority.
     deny_rule_proposals: DBMap<AuthorityName, TransactionDenyRuleProposal>,
 
+    /// The mirrored deny-rule state as of the last flushed commit, written
+    /// in the flush batch so a restart resumes there and replays the rest.
+    /// Present from epoch-store construction whenever the object exists.
+    deny_rule_mirror: DBMap<(), DenyRuleSet>,
+
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
     override_protocol_upgrade_buffer_stake: DBMap<u64, u64>,
@@ -950,6 +996,10 @@ pub struct AuthorityEpochTables {
 
     /// Accumulated per-object debts for randomness congestion control.
     congestion_control_randomness_object_debts: DBMap<ObjectId, CongestionPerObjectDebt>,
+
+    /// Execution-worker debt carried over from the latest commit
+    /// (singleton, keyed by `SINGLETON_KEY`); covers all transactions.
+    congestion_control_worker_debt: DBMap<u64, CongestionWorkerDebt>,
 
     /// Per-validator received misbehavior reports state. Keyed by the
     /// reporter's `AuthorityIndex` truncated to `u8` (committees are bounded
@@ -1243,9 +1293,12 @@ impl AuthorityPerEpochStore {
                 .safe_iter()
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .expect("AuthorityEpochTables should contain valid deny rule proposals");
-        let active_transaction_deny_rules = ArcSwap::from_pointee(
+        let deny_rule_mirror = Self::initial_deny_rule_mirror(&tables, &epoch_start_configuration)?;
+        let active_transaction_deny_rules = ArcSwap::from_pointee(union_deny_rule_sets(
             Self::compute_active_transaction_deny_rules(&cached_deny_rule_proposals, &committee),
-        );
+            &deny_rule_mirror,
+        ));
+        let mirrored_transaction_deny_rules = ArcSwap::from_pointee(deny_rule_mirror);
 
         let committee_size = committee.num_members();
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
@@ -1294,6 +1347,7 @@ impl AuthorityPerEpochStore {
             signed_effects_digests_cache,
             dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
             active_transaction_deny_rules,
+            mirrored_transaction_deny_rules,
             soft_locks: OnceCell::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
@@ -1880,6 +1934,11 @@ impl AuthorityPerEpochStore {
         self.dropped_tx_status_cache
             .notify_read_dropped(digest)
             .await
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pending_dropped_digest_requests_for_testing(&self) -> usize {
+        self.dropped_tx_status_cache.num_pending_for_testing()
     }
 
     /// Sets the pre-consensus soft lock table. Called once during validator
@@ -3023,6 +3082,31 @@ impl AuthorityPerEpochStore {
             .remove(authority)
     }
 
+    /// The total stake of committee members with a recorded deny rule
+    /// proposal this epoch, empty proposals included. Every committee member
+    /// announces its configuration each epoch, so this converges towards the
+    /// full committee stake as announcements arrive.
+    pub fn announced_deny_rule_stake(&self) -> StakeUnit {
+        Self::announced_stake(
+            &self
+                .consensus_quarantine
+                .read()
+                .current_deny_rule_proposals(),
+            self.committee(),
+        )
+    }
+
+    /// The total committee stake behind the given proposals.
+    fn announced_stake(
+        proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+        committee: &Committee,
+    ) -> StakeUnit {
+        proposals
+            .keys()
+            .map(|authority| committee.weight(authority))
+            .sum()
+    }
+
     /// Whether `proposal` is newer than the recorded proposal (if any) from
     /// the same authority and should therefore be recorded.
     pub fn should_record_deny_rule_proposal(&self, proposal: &TransactionDenyRuleProposal) -> bool {
@@ -3033,9 +3117,51 @@ impl AuthorityPerEpochStore {
             .is_some_and(|generation| generation >= proposal.generation)
     }
 
-    /// Returns the active deny rule set derived from the recorded proposals.
+    /// Returns the active deny rule set: the union of the mirrored on-chain
+    /// state and the aggregate of the recorded proposals.
     pub fn get_active_transaction_deny_rules(&self) -> Arc<DenyRuleSet> {
         self.active_transaction_deny_rules.load_full()
+    }
+
+    /// Returns the state the scheduled deny-rule updates bring the
+    /// `TransactionDenyRules` object to.
+    pub fn get_mirrored_transaction_deny_rules(&self) -> Arc<DenyRuleSet> {
+        self.mirrored_transaction_deny_rules.load_full()
+    }
+
+    /// Test access to the epoch metrics.
+    #[cfg(any(test, msim))]
+    pub fn metrics_for_testing(&self) -> &Arc<EpochMetrics> {
+        &self.metrics
+    }
+
+    /// The mirrored deny-rule state to start from when the epoch store
+    /// opens: a persisted row (mid-epoch restart) wins over the epoch-start
+    /// seed. A fresh epoch persists the seed immediately when the object
+    /// exists, so a row absent although commits have flushed is a lost row,
+    /// and the node fails rather than derive updates its peers do not.
+    fn initial_deny_rule_mirror(
+        tables: &AuthorityEpochTables,
+        epoch_start_configuration: &EpochStartConfiguration,
+    ) -> IotaResult<DenyRuleSet> {
+        if let Some(row) = tables.deny_rule_mirror.get(&())? {
+            return Ok(row);
+        }
+        let Some(seed) = epoch_start_configuration.transaction_deny_rules_state() else {
+            return Ok(DenyRuleSet::default());
+        };
+        if tables
+            .last_consensus_stats
+            .get(&LAST_CONSENSUS_STATS_ADDR)?
+            .is_some()
+        {
+            fatal!(
+                "deny_rule_mirror row is missing although commits have flushed — the epoch \
+                 database is corrupted; restore or state-sync before rejoining"
+            );
+        }
+        tables.deny_rule_mirror.insert(&(), seed)?;
+        Ok(seed.clone())
     }
 
     /// Recomputes the active deny rule set from the current proposals and
@@ -3055,7 +3181,10 @@ impl AuthorityPerEpochStore {
         &self,
         proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
     ) -> bool {
-        let rules = Self::compute_active_transaction_deny_rules(proposals, self.committee());
+        let rules = union_deny_rule_sets(
+            Self::compute_active_transaction_deny_rules(proposals, self.committee()),
+            &self.mirrored_transaction_deny_rules.load(),
+        );
         if **self.active_transaction_deny_rules.load() == rules {
             return false;
         }
@@ -3700,8 +3829,9 @@ impl AuthorityPerEpochStore {
         // current_commit_sequenced_consensus_transactions to preserve consensus
         // DAG ordering during conflict resolution. The deferred-loading paths
         // below do the same. After validate_and_resolve_conflicts runs on the
-        // combined list, we partition back into regular/randomness for downstream
-        // processing (separate reordering and congestion tracking).
+        // combined list, we partition back into regular/randomness — unless the
+        // combined congestion tracker schedules all transactions, in which
+        // case the list stays combined and only the outputs are split.
         let total_user_tx_count = current_commit_sequenced_consensus_transactions.len()
             + current_commit_sequenced_randomness_transactions.len()
             + previously_deferred_tx_digests.len();
@@ -3783,6 +3913,15 @@ impl AuthorityPerEpochStore {
         // already have persistent locks, giving them natural precedence.
         // Also collects all UserTransactionV1 digests for soft lock release
         // after the consensus output is quarantined.
+        let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
+
+        // When execution-worker congestion control is active, one combined
+        // tracker schedules ALL transactions (regular and randomness-using)
+        // from a combined list in one gas-price order.
+        let use_combined_congestion_tracker = congestion_control_parameters
+            .max_concurrent_execution_workers()
+            .is_some();
+
         let mut soft_lock_release_tx_digests = Vec::new();
         if enable_pcool {
             // Invariant: P-COOL flow categorization funnels all user transactions
@@ -3820,20 +3959,37 @@ impl AuthorityPerEpochStore {
                     .inc_by(dropped.len() as u64);
             }
 
-            // Split back for downstream processing (separate reordering
-            // and congestion tracking).
-            let (regular, randomness): (Vec<_>, Vec<_>) = sequenced_transactions
-                .into_iter()
-                .partition(|tx| !tx.0.is_user_tx_with_randomness());
-            sequenced_transactions = regular;
-            sequenced_randomness_transactions = randomness;
+            // Split back for downstream processing (separate reordering and
+            // congestion tracking) — unless the combined tracker schedules
+            // all transactions, in which case the combined, conflict-resolved
+            // list continues through scheduling as-is.
+            if !use_combined_congestion_tracker {
+                let (regular, randomness): (Vec<_>, Vec<_>) = sequenced_transactions
+                    .into_iter()
+                    .partition(|tx| !tx.0.is_user_tx_with_randomness());
+                sequenced_transactions = regular;
+                sequenced_randomness_transactions = randomness;
+            }
         }
+        // The combined tracker implies the P-COOL flow (enforced by the
+        // protocol config), under which all user transactions are in
+        // `sequenced_transactions` and the partition-back is skipped.
+        debug_assert!(
+            !use_combined_congestion_tracker || sequenced_randomness_transactions.is_empty(),
+            "with the combined congestion tracker all transactions are scheduled from one list"
+        );
 
-        // Save roots for checkpoint generation. One set for most tx, one for randomness
-        // tx.
+        // Save roots for checkpoint generation. One set for most tx, one for
+        // randomness tx. Classified per transaction because with the combined
+        // tracker, randomness transactions are scheduled from the combined
+        // list but still belong in the randomness checkpoint.
         let mut roots: BTreeSet<_> = system_transactions
             .iter()
-            .chain(sequenced_transactions.iter())
+            .chain(
+                sequenced_transactions
+                    .iter()
+                    .filter(|transaction| !transaction.0.is_user_tx_with_randomness()),
+            )
             // no need to include end_of_publish_transactions here because they would be
             // filtered out below by `executable_transaction_digest` anyway
             .filter_map(|transaction| {
@@ -3844,8 +4000,10 @@ impl AuthorityPerEpochStore {
                     .map(TransactionKey::Digest)
             })
             .collect();
-        let mut randomness_roots: BTreeSet<_> = sequenced_randomness_transactions
+        let mut randomness_roots: BTreeSet<_> = sequenced_transactions
             .iter()
+            .filter(|transaction| transaction.0.is_user_tx_with_randomness())
+            .chain(sequenced_randomness_transactions.iter())
             .filter_map(|transaction| {
                 transaction
                     .0
@@ -3855,7 +4013,9 @@ impl AuthorityPerEpochStore {
             })
             .collect();
 
-        // We always order transactions using randomness last.
+        // Order transactions by gas price. With the combined congestion
+        // tracker this is one order across regular and randomness-using
+        // transactions.
         PostConsensusTxReorder::reorder(
             &mut sequenced_transactions,
             self.protocol_config.consensus_transaction_ordering(),
@@ -3864,11 +4024,16 @@ impl AuthorityPerEpochStore {
             &mut sequenced_randomness_transactions,
             self.protocol_config.consensus_transaction_ordering(),
         );
-
-        let congestion_control_parameters = CongestionControlParameters::new(&self.protocol_config);
-
-        // We track transaction shared object congestion separately for regular
-        // transactions and transactions using randomness.
+        // Worker debt exists only when execution-worker congestion control
+        // is active; without it, the tracker ignores the debt, so skip the
+        // quarantine scan and DB read entirely.
+        let initial_worker_debt = if use_combined_congestion_tracker {
+            self.consensus_quarantine
+                .read()
+                .load_initial_worker_debt(self, consensus_commit_info.round)?
+        } else {
+            Vec::new()
+        };
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
@@ -3876,17 +4041,25 @@ impl AuthorityPerEpochStore {
                 false,
                 &sequenced_transactions,
             )?,
+            initial_worker_debt,
             congestion_control_parameters.clone(),
         );
-        let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
-            self.consensus_quarantine.read().load_initial_object_debts(
-                self,
-                consensus_commit_info.round,
-                true,
-                &sequenced_randomness_transactions,
-            )?,
-            congestion_control_parameters,
-        );
+        let shared_object_using_randomness_congestion_tracker = if use_combined_congestion_tracker {
+            None
+        } else {
+            Some(SharedObjectCongestionTracker::new(
+                self.consensus_quarantine.read().load_initial_object_debts(
+                    self,
+                    consensus_commit_info.round,
+                    true,
+                    &sequenced_randomness_transactions,
+                )?,
+                // No worker debt: worker congestion control implies a single
+                // tracker, so the randomness tracker never carries one.
+                Vec::new(),
+                congestion_control_parameters,
+            ))
+        };
 
         system_transactions.extend(sequenced_transactions);
         let sequenced_non_randomness_transactions = system_transactions;
@@ -4107,6 +4280,118 @@ impl AuthorityPerEpochStore {
         consensus_round * 2
     }
 
+    /// Injects `TransactionDenyRulesUpdate` system transactions bringing the
+    /// on-chain object to the current proposal aggregate, chunked and gated
+    /// by `compute_deny_rule_update_chunks`. Advances the mirrored state to
+    /// the injected target in the same commit output that persists it. Each
+    /// scheduled update becomes a checkpoint root: nothing else in the commit
+    /// can depend on the object, so an unrooted update would never be
+    /// checkpointed.
+    pub(crate) fn add_deny_rule_update_transactions(
+        &self,
+        output: &mut ConsensusCommitOutput,
+        transactions: &mut VecDeque<VerifiedExecutableTransaction>,
+        roots: &mut BTreeSet<TransactionKey>,
+        consensus_commit_info: &ConsensusCommitInfo,
+    ) -> IotaResult<()> {
+        if !self.protocol_config().deny_rule_governance_on_chain() {
+            return Ok(());
+        }
+        // Mirroring starts the epoch after the object is created: without the
+        // object there is nothing to update.
+        let Some(initial_shared_version) = self
+            .epoch_start_config()
+            .transaction_deny_rules_obj_initial_shared_version()
+        else {
+            return Ok(());
+        };
+
+        // The aggregate from every recorded proposal, this commit's included.
+        let mut proposals = self
+            .consensus_quarantine
+            .read()
+            .current_deny_rule_proposals();
+        proposals.extend(
+            output
+                .deny_rule_proposals()
+                .iter()
+                .map(|(authority, proposal)| (*authority, proposal.clone())),
+        );
+        // No proposals means an empty aggregate and zero announced stake.
+        // The diff can produce no chunk from that.
+        if proposals.is_empty() {
+            return Ok(());
+        }
+        let aggregate = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
+        let mirror = self.mirrored_transaction_deny_rules.load_full();
+
+        // Removals wait for enough of the committee to re-announce, so entries
+        // do not drop out while announcements are still arriving.
+        let announced_stake = Self::announced_stake(&proposals, self.committee());
+        let removals_unlocked = announced_stake >= self.committee().quorum_threshold()
+            && consensus_commit_info.round
+                >= self.protocol_config().deny_rule_removal_grace_round_floor();
+        self.metrics
+            .deny_rule_removals_unlocked
+            .set(removals_unlocked as i64);
+
+        let (chunks, target) = compute_deny_rule_update_chunks(
+            &aggregate,
+            &mirror,
+            removals_unlocked,
+            self.protocol_config().deny_rule_update_max_entries_per_tx() as usize,
+            self.epoch(),
+            consensus_commit_info.round,
+            initial_shared_version,
+        );
+        if chunks.is_empty() {
+            return Ok(());
+        }
+        let chunk_count = chunks.len();
+
+        let mut all_scheduled = true;
+        for chunk in chunks {
+            let transaction = VerifiedExecutableTransaction::new_system(
+                VerifiedTransaction::new_transaction_deny_rules_update(chunk),
+                self.epoch(),
+            );
+            match self.process_consensus_system_transaction(&transaction) {
+                ConsensusTransactionResult::Scheduled {
+                    transaction,
+                    start_time: _,
+                } => {
+                    roots.insert(transaction.key());
+                    transactions.push_front(transaction);
+                }
+                ConsensusTransactionResult::IgnoredSystem => {
+                    all_scheduled = false;
+                }
+                _ => unreachable!(
+                    "process_consensus_system_transaction returned unexpected ConsensusTransactionResult."
+                ),
+            }
+            output.record_consensus_message_processed(SequencedConsensusTransactionKey::System(
+                *transaction.digest(),
+            ));
+        }
+        // Holding the mirror back when a chunk was skipped (epoch closing) makes
+        // the next commit re-derive the same delta; re-application is a no-op.
+        if all_scheduled {
+            self.metrics.deny_rule_updates_injected.inc();
+            self.metrics
+                .deny_rule_update_transactions_injected
+                .inc_by(chunk_count as u64);
+            output.record_deny_rule_mirror(target.clone());
+            self.mirrored_transaction_deny_rules.store(Arc::new(target));
+            // The recompute in `push_consensus_output` only runs for commits
+            // that record proposals, so a removal unlocking on a proposal-free
+            // commit would otherwise stay enforced after the object dropped it.
+            self.store_active_transaction_deny_rules(&proposals);
+        }
+
+        Ok(())
+    }
+
     // Adds the consensus commit prologue transaction to the beginning of input
     // `transactions` to update the system clock used in all transactions in the
     // current consensus commit. Returns the root of the consensus commit
@@ -4129,7 +4414,7 @@ impl AuthorityPerEpochStore {
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
             match cancelled_txns.get(txn.digest()) {
-                Some(CancelConsensusTransactionReason::CongestionOnObjects { .. })
+                Some(CancelConsensusTransactionReason::Congested { .. })
                 | Some(CancelConsensusTransactionReason::DkgFailed) => {
                     let version_assignments = SharedObjVerManager::assign_versions_for_transaction(
                         txn,
@@ -4315,6 +4600,10 @@ impl AuthorityPerEpochStore {
     pub(crate) async fn process_consensus_transactions<C: CheckpointServiceNotify>(
         &self,
         output: &mut ConsensusCommitOutput,
+        // With the combined congestion tracker, this contains ALL
+        // transactions (including those using randomness) and
+        // `randomness_transactions` is empty. The returned lists are always
+        // split by randomness use.
         non_randomness_transactions: &[VerifiedSequencedConsensusTransaction],
         randomness_transactions: &[VerifiedSequencedConsensusTransaction],
         end_of_publish_transactions: &[VerifiedSequencedConsensusTransaction],
@@ -4329,7 +4618,10 @@ impl AuthorityPerEpochStore {
         randomness_round: Option<RandomnessRound>,
         authority_metrics: &Arc<AuthorityMetrics>,
         mut shared_object_congestion_tracker: SharedObjectCongestionTracker,
-        mut shared_object_using_randomness_congestion_tracker: SharedObjectCongestionTracker,
+        // `None` when the combined tracker schedules all transactions.
+        mut shared_object_using_randomness_congestion_tracker: Option<
+            SharedObjectCongestionTracker,
+        >,
     ) -> IotaResult<(
         Vec<VerifiedExecutableTransaction>, // non-randomness transactions to schedule
         Vec<VerifiedExecutableTransaction>, // randomness transactions to schedule
@@ -4366,8 +4658,10 @@ impl AuthorityPerEpochStore {
                 .clone(),
             self.reference_gas_price(),
         );
+        // Only used when a separate randomness tracker exists (both trackers
+        // share the same congestion control parameters).
         let mut suggested_gas_price_calculator_for_randomness = SuggestedGasPriceCalculator::new(
-            shared_object_using_randomness_congestion_tracker
+            shared_object_congestion_tracker
                 .congestion_control_parameters()
                 .clone(),
             self.reference_gas_price(),
@@ -4393,16 +4687,23 @@ impl AuthorityPerEpochStore {
             .map(Either::Left)
             .chain(randomness_transactions.iter().map(Either::Right))
         {
-            let (tx, congestion_tracker, sgp_calculator, sequenced_txns) = match entry {
+            let (tx, congestion_tracker, sgp_calculator) = match entry {
                 Either::Left(tx) => (
                     tx,
                     &mut shared_object_congestion_tracker,
                     &mut suggested_gas_price_calculator,
-                    &mut sequenced_non_randomness,
                 ),
+                // Randomness transactions arm is only reached in the two-tracker mode because the
+                // sgp calculator is directly linked to the congestion tracker, so the combined
+                // tracker uses one combined calculator.
                 Either::Right(tx) => (
                     tx,
-                    &mut shared_object_using_randomness_congestion_tracker,
+                    shared_object_using_randomness_congestion_tracker
+                        .as_mut()
+                        .expect(
+                            "randomness transactions are processed separately only when the \
+                            randomness congestion tracker exists",
+                        ),
                     if self
                         .protocol_config
                         .separate_gas_price_feedback_mechanism_for_randomness()
@@ -4411,7 +4712,6 @@ impl AuthorityPerEpochStore {
                     } else {
                         &mut suggested_gas_price_calculator
                     },
-                    &mut sequenced_randomness,
                 ),
             };
             let key = tx.0.transaction.key();
@@ -4438,7 +4738,14 @@ impl AuthorityPerEpochStore {
                     start_time,
                 } => {
                     notifications.push(key.clone());
-                    sequenced_txns.push((transaction, start_time));
+                    // Transactions using randomness execute in the separate
+                    // randomness phase and checkpoint, whichever list they
+                    // were scheduled from.
+                    if transaction.uses_randomness() {
+                        sequenced_randomness.push((transaction, start_time));
+                    } else {
+                        sequenced_non_randomness.push((transaction, start_time));
+                    }
                 }
                 ConsensusTransactionResult::Deferred {
                     deferral_key,
@@ -4464,8 +4771,12 @@ impl AuthorityPerEpochStore {
                             .insert(*transaction.digest(), reason)
                             .is_none()
                     );
-                    sequenced_txns
-                        .push((transaction, congestion_tracker.max_occupied_slot_end_time()));
+                    let start_time = congestion_tracker.max_occupied_slot_end_time();
+                    if transaction.uses_randomness() {
+                        sequenced_randomness.push((transaction, start_time));
+                    } else {
+                        sequenced_non_randomness.push((transaction, start_time));
+                    }
                 }
                 ConsensusTransactionResult::RandomnessConsensusMessage => {
                     randomness_state_updated = true;
@@ -4548,13 +4859,21 @@ impl AuthorityPerEpochStore {
             .consensus_handler_max_object_costs
             .with_label_values(&["regular_commit"])
             .set(shared_object_congestion_tracker.max_occupied_slot_end_time() as i64);
-        authority_metrics
-            .consensus_handler_max_object_costs
-            .with_label_values(&["randomness_commit"])
-            .set(
-                shared_object_using_randomness_congestion_tracker.max_occupied_slot_end_time()
-                    as i64,
-            );
+        if let Some(randomness_tracker) = &shared_object_using_randomness_congestion_tracker {
+            authority_metrics
+                .consensus_handler_max_object_costs
+                .with_label_values(&["randomness_commit"])
+                .set(randomness_tracker.max_occupied_slot_end_time() as i64);
+        } else {
+            // The combined tracker schedules randomness-using transactions
+            // together with the rest, so there is no separate randomness
+            // tracker to report. Report zero rather than leaving the last
+            // value from before the combined tracker was enabled.
+            authority_metrics
+                .consensus_handler_max_object_costs
+                .with_label_values(&["randomness_commit"])
+                .set(0);
+        }
 
         // Record accumulated debts from this consensus commit following sequencing.
         // This output will be written to consensus quarantine so the debts can be
@@ -4563,14 +4882,23 @@ impl AuthorityPerEpochStore {
             .congestion_control_parameters()
             .max_execution_duration_per_commit()
         {
+            // Carry over the execution-worker debt that runs past the
+            // per-commit limit (computed before the tracker is consumed for
+            // the per-object debts below). `None` when worker control is off.
+            if let Some(debt) = shared_object_congestion_tracker
+                .accumulated_worker_debt(max_execution_duration_per_commit)
+            {
+                output.set_congestion_control_worker_debt(debt);
+            }
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker
-                    .accumulated_debts(max_execution_duration_per_commit),
+                    .accumulated_object_debts(max_execution_duration_per_commit),
             );
-            output.set_congestion_control_randomness_object_debts(
-                shared_object_using_randomness_congestion_tracker
-                    .accumulated_debts(max_execution_duration_per_commit),
-            );
+            if let Some(randomness_tracker) = shared_object_using_randomness_congestion_tracker {
+                output.set_congestion_control_randomness_object_debts(
+                    randomness_tracker.accumulated_object_debts(max_execution_duration_per_commit),
+                );
+            }
         }
 
         // Advance the DKG state machine on every commit while it is still
@@ -4591,6 +4919,15 @@ impl AuthorityPerEpochStore {
                     .await?;
             }
         }
+
+        // Inject deny-rule updates before the prologue is prepended, so the
+        // prologue stays the first transaction of the commit.
+        self.add_deny_rule_update_transactions(
+            output,
+            &mut verified_non_randomness_transactions,
+            non_randomness_roots,
+            consensus_commit_info,
+        )?;
 
         // Add the consensus commit prologue transaction to the beginning of
         // `verified_non_randomness_transactions`.
@@ -5220,6 +5557,22 @@ impl AuthorityPerEpochStore {
                             }
                         } else {
                             // Cancel the transaction that has been deferred for too long.
+                            //
+                            // A deferral caused by execution-worker congestion reports no
+                            // congested objects. Cancellation is signalled through assigned
+                            // versions on the transaction's shared inputs, so treat all of
+                            // them as congested; the suggested gas price is what matters to
+                            // the client either way. A transaction without shared inputs is
+                            // handled in version assignment via its gas object instead.
+                            let congested_objects = if congested_objects.is_empty() {
+                                verified_executable_tx
+                                    .shared_input_objects()
+                                    .iter()
+                                    .map(|obj| obj.object_id)
+                                    .collect()
+                            } else {
+                                congested_objects
+                            };
                             debug!(
                                 "Cancelling verified executable transaction {:?} with deferral \
                                     key {deferral_key:?} due to congestion on objects \
@@ -5231,7 +5584,7 @@ impl AuthorityPerEpochStore {
 
                             ConsensusTransactionResult::Cancelled((
                                 verified_executable_tx,
-                                CancelConsensusTransactionReason::CongestionOnObjects {
+                                CancelConsensusTransactionReason::Congested {
                                     congested_objects,
                                     suggested_gas_price,
                                 },
@@ -5256,18 +5609,25 @@ impl AuthorityPerEpochStore {
                     )));
                 }
 
-                // This transaction will be scheduled. If it contains shared object(s),
-                // we have to update the following:
-                // - shared object execution slots (for congestion tracker);
-                // - shared object congestion info (for suggested gas price calculator).
-                if verified_executable_tx.contains_shared_object()
-                    && shared_object_congestion_tracker
-                        .congestion_control_parameters()
-                        .is_congestion_control_enabled()
+                // This transaction will be scheduled. We update the congestion
+                // tracker (execution slots / worker slots) and the suggested
+                // gas price calculator when it touches a shared object, or — when
+                // execution-worker congestion control is active — for every
+                // transaction (including owned-object-only ones, which still
+                // occupy an execution worker).
+                let worker_congestion_control_active = shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .max_concurrent_execution_workers()
+                    .is_some();
+                if shared_object_congestion_tracker
+                    .congestion_control_parameters()
+                    .is_congestion_control_enabled()
+                    && (verified_executable_tx.contains_shared_object()
+                        || worker_congestion_control_active)
                 {
-                    // We only need to do this if shared-object congestion control is
-                    // enabled, since otherwise this bumping will panic as object
-                    // execution slots are only initialized if
+                    // We only need to do this if congestion control is enabled,
+                    // since otherwise this bumping will panic as object execution
+                    // slots are only initialized if
                     // `max_execution_duration_per_commit` is not `None`.
                     let bump_result = shared_object_congestion_tracker
                         .bump_object_execution_slots(&verified_executable_tx, start_time);
@@ -5699,4 +6059,207 @@ impl From<LockDetails> for LockDetailsWrapper {
         // always use latest version.
         LockDetailsWrapper::V1(details)
     }
+}
+
+/// The union of two deny rule sets: an entry or switch is active when it is
+/// active in either. Enforcement combines the mirrored on-chain state with
+/// the current epoch's aggregate this way, so on-chain rules keep applying
+/// before their supporters have re-announced.
+pub(crate) fn union_deny_rule_sets(mut rules: DenyRuleSet, other: &DenyRuleSet) -> DenyRuleSet {
+    rules
+        .denied_addresses
+        .extend(other.denied_addresses.iter().copied());
+    rules
+        .denied_objects
+        .extend(other.denied_objects.iter().copied());
+    rules
+        .denied_packages
+        .extend(other.denied_packages.iter().copied());
+    rules.package_publish_disabled |= other.package_publish_disabled;
+    rules.package_upgrade_disabled |= other.package_upgrade_disabled;
+    rules.shared_object_disabled |= other.shared_object_disabled;
+    rules.user_transaction_disabled |= other.user_transaction_disabled;
+    rules.receiving_objects_disabled |= other.receiving_objects_disabled;
+    rules.move_authenticator_disabled |= other.move_authenticator_disabled;
+    rules
+}
+
+/// Computes the `TransactionDenyRulesUpdate` transactions that bring the
+/// on-chain object from `mirror` to `aggregate`: additions and switch
+/// activations always, removals and switch deactivations only when
+/// `removals_unlocked`. A delta larger than `max_entries_per_tx` is split into
+/// disjoint chunks of the sorted delta, each carrying the absolute switch
+/// states. Returns the chunks (empty when the object is up to date) and the
+/// state the object holds once they have executed — the next mirror. Pure, so
+/// every validator derives the same transactions at the same commit.
+pub(crate) fn compute_deny_rule_update_chunks(
+    aggregate: &DenyRuleSet,
+    mirror: &DenyRuleSet,
+    removals_unlocked: bool,
+    max_entries_per_tx: usize,
+    epoch: EpochId,
+    round: u64,
+    deny_rules_obj_initial_shared_version: Version,
+) -> (Vec<TransactionDenyRulesUpdate>, DenyRuleSet) {
+    let switch = |aggregate_switch: bool, mirror_switch: bool| {
+        if removals_unlocked {
+            aggregate_switch
+        } else {
+            aggregate_switch || mirror_switch
+        }
+    };
+    let mut delta = TransactionDenyRulesUpdate {
+        epoch,
+        round,
+        added_addresses: aggregate
+            .denied_addresses
+            .difference(&mirror.denied_addresses)
+            .copied()
+            .collect(),
+        removed_addresses: BTreeSet::new(),
+        added_objects: aggregate
+            .denied_objects
+            .difference(&mirror.denied_objects)
+            .copied()
+            .collect(),
+        removed_objects: BTreeSet::new(),
+        added_packages: aggregate
+            .denied_packages
+            .difference(&mirror.denied_packages)
+            .copied()
+            .collect(),
+        removed_packages: BTreeSet::new(),
+        package_publish_disabled: switch(
+            aggregate.package_publish_disabled,
+            mirror.package_publish_disabled,
+        ),
+        package_upgrade_disabled: switch(
+            aggregate.package_upgrade_disabled,
+            mirror.package_upgrade_disabled,
+        ),
+        shared_object_disabled: switch(
+            aggregate.shared_object_disabled,
+            mirror.shared_object_disabled,
+        ),
+        user_transaction_disabled: switch(
+            aggregate.user_transaction_disabled,
+            mirror.user_transaction_disabled,
+        ),
+        receiving_objects_disabled: switch(
+            aggregate.receiving_objects_disabled,
+            mirror.receiving_objects_disabled,
+        ),
+        move_authenticator_disabled: switch(
+            aggregate.move_authenticator_disabled,
+            mirror.move_authenticator_disabled,
+        ),
+        deny_rules_obj_initial_shared_version,
+    };
+    if removals_unlocked {
+        delta.removed_addresses = mirror
+            .denied_addresses
+            .difference(&aggregate.denied_addresses)
+            .copied()
+            .collect();
+        delta.removed_objects = mirror
+            .denied_objects
+            .difference(&aggregate.denied_objects)
+            .copied()
+            .collect();
+        delta.removed_packages = mirror
+            .denied_packages
+            .difference(&aggregate.denied_packages)
+            .copied()
+            .collect();
+    }
+
+    // The object state once the delta has executed.
+    let target = DenyRuleSet {
+        denied_addresses: mirror
+            .denied_addresses
+            .union(&delta.added_addresses)
+            .filter(|key| !delta.removed_addresses.contains(key))
+            .copied()
+            .collect(),
+        denied_objects: mirror
+            .denied_objects
+            .union(&delta.added_objects)
+            .filter(|key| !delta.removed_objects.contains(key))
+            .copied()
+            .collect(),
+        denied_packages: mirror
+            .denied_packages
+            .union(&delta.added_packages)
+            .filter(|key| !delta.removed_packages.contains(key))
+            .copied()
+            .collect(),
+        package_publish_disabled: delta.package_publish_disabled,
+        package_upgrade_disabled: delta.package_upgrade_disabled,
+        shared_object_disabled: delta.shared_object_disabled,
+        user_transaction_disabled: delta.user_transaction_disabled,
+        receiving_objects_disabled: delta.receiving_objects_disabled,
+        move_authenticator_disabled: delta.move_authenticator_disabled,
+    };
+
+    let switches_changed = delta.package_publish_disabled != mirror.package_publish_disabled
+        || delta.package_upgrade_disabled != mirror.package_upgrade_disabled
+        || delta.shared_object_disabled != mirror.shared_object_disabled
+        || delta.user_transaction_disabled != mirror.user_transaction_disabled
+        || delta.receiving_objects_disabled != mirror.receiving_objects_disabled
+        || delta.move_authenticator_disabled != mirror.move_authenticator_disabled;
+    let entry_count = delta.added_addresses.len()
+        + delta.removed_addresses.len()
+        + delta.added_objects.len()
+        + delta.removed_objects.len()
+        + delta.added_packages.len()
+        + delta.removed_packages.len();
+    if entry_count == 0 && !switches_changed {
+        return (Vec::new(), target);
+    }
+
+    // Deterministic chunking: cut each (already sorted) delta set into runs,
+    // filling one chunk to the limit before starting the next.
+    let max_entries_per_tx = max_entries_per_tx.max(1);
+    let chunk_count = entry_count.div_ceil(max_entries_per_tx).max(1);
+    let empty = TransactionDenyRulesUpdate {
+        added_addresses: BTreeSet::new(),
+        removed_addresses: BTreeSet::new(),
+        added_objects: BTreeSet::new(),
+        removed_objects: BTreeSet::new(),
+        added_packages: BTreeSet::new(),
+        removed_packages: BTreeSet::new(),
+        ..delta
+    };
+    let mut chunks = vec![empty; chunk_count];
+    let mut slot = 0;
+    {
+        let mut fill =
+            |set: BTreeSet<Address>,
+             select: fn(&mut TransactionDenyRulesUpdate) -> &mut BTreeSet<Address>| {
+                for key in set {
+                    select(&mut chunks[slot / max_entries_per_tx]).insert(key);
+                    slot += 1;
+                }
+            };
+        fill(delta.added_addresses, |chunk| &mut chunk.added_addresses);
+        fill(delta.removed_addresses, |chunk| {
+            &mut chunk.removed_addresses
+        });
+    }
+    {
+        let mut fill =
+            |set: BTreeSet<ObjectId>,
+             select: fn(&mut TransactionDenyRulesUpdate) -> &mut BTreeSet<ObjectId>| {
+                for key in set {
+                    select(&mut chunks[slot / max_entries_per_tx]).insert(key);
+                    slot += 1;
+                }
+            };
+        fill(delta.added_objects, |chunk| &mut chunk.added_objects);
+        fill(delta.removed_objects, |chunk| &mut chunk.removed_objects);
+        fill(delta.added_packages, |chunk| &mut chunk.added_packages);
+        fill(delta.removed_packages, |chunk| &mut chunk.removed_packages);
+    }
+
+    (chunks, target)
 }

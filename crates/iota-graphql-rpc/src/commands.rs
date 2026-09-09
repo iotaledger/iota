@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use clap::*;
 
-use crate::config::{ConnectionConfig, Ide, TxExecFullNodeConfig};
+use crate::config::{ConnectionConfig, HistoricFallbackOptions, Ide, TxExecFullNodeConfig};
 
 #[derive(Parser)]
 #[command(name = "iota-graphql-rpc", about = "IOTA GraphQL RPC", author)]
@@ -28,6 +28,9 @@ pub enum Command {
 
         #[command(flatten)]
         connection: ConnectionConfig,
+
+        #[command(flatten)]
+        historic_fallback: Box<HistoricFallbackOptions>,
 
         /// Path to TOML file containing configuration for service.
         #[arg(short, long)]

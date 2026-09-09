@@ -98,11 +98,19 @@ impl TimeDecayEwma {
         }
     }
 
+    /// `now` is not guaranteed to be at or after [`Self::last_update`]:
+    /// feedback is stamped with `Instant::now()` before its recorder contends
+    /// for the stats lock, so two recorders reporting on the same validator can
+    /// reach the stats in the opposite order to their timestamps. A late sample
+    /// saturates to Δt ≈ 0, which folds it in with a negligible weight rather
+    /// than letting it rewrite the estimate.
     fn interval_alpha(&self, tau: f64, now: Instant) -> (f64, f64) {
-        debug_assert!(now >= self.last_update, "Timestamps must be non-decreasing");
         // α_t = 1 - exp(-Δt / τ)
         // avoid zero Δt, otherwise (α_t = 0) observation won't be updated
-        let dt = now.duration_since(self.last_update).as_secs_f64().max(1e-9);
+        let dt = now
+            .saturating_duration_since(self.last_update)
+            .as_secs_f64()
+            .max(1e-9);
         let interval = dt / tau;
         (interval, 1.0 - (-interval).exp())
     }
@@ -111,7 +119,9 @@ impl TimeDecayEwma {
         let (interval, alpha) = self.interval_alpha(tau, now);
         // Update the value EWMA with time-derived alpha.
         self.ewma.update(observation, alpha);
-        self.last_update = now;
+        // Never move the clock backwards: a sample that arrived late must not
+        // make the samples that already landed look newer than they are.
+        self.last_update = self.last_update.max(now);
         // Update the interval EWMA with a fixed weight of 0.1.
         const ALPHA: f64 = 0.1;
         self.interval_ewma = Some(

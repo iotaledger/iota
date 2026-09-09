@@ -6,47 +6,56 @@ use core::panic;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
+use rstest::rstest;
 
 use crate::{
-    base_committer::base_committer_builder::BaseCommitterBuilder, block_header::BlockHeaderAPI,
-    commit::LeaderStatus, context::Context, dag_state::DagState, storage::mem_store::MemStore,
+    base_committer::base_committer_builder::BaseCommitterBuilder,
+    block_header::BlockHeaderAPI,
+    commit::{CommitMetastate, LeaderStatus},
+    dag_state::DagState,
+    storage::mem_store::MemStore,
     test_dag_parser::parse_dag,
 };
 
+#[rstest]
 #[tokio::test]
-async fn direct_commit() {
+async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
     telemetry_subscribers::init_for_testing();
-    let context = Arc::new(Context::new_for_test(4).0);
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
     // Round 4 is a voting round
     // Round 5 is a certifying round (acknowledge)
+    //
+    // The round 4 votes acknowledge D3 alone, but they already acknowledged the
+    // data D3 acknowledges at round 3, so they are strong votes and the round 5
+    // certificates are strong.
     let dag_str = "DAG {
         Round 0 : { 4 },
         Round 1 : { * },
         Round 2 : { * },
         Round 3 : { * },
-        Round 4 : { 
+        Round 4 : {
             A -> [D3],
             B -> [D3],
             C -> [D3],
-            D -> [], 
+            D -> [],
         },
-        Round 5 : { 
+        Round 5 : {
             A -> [A4, B4, C4],
             B -> [A4, B4, C4],
             C -> [A4, B4, C4],
-            D -> [], 
+            D -> [],
         },
         }";
 
-    let dag_builder = parse_dag(dag_str, false).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str, starfish_speed).expect("a DAG should be valid");
+    let dag_state = Arc::new(RwLock::new(DagState::new(
+        dag_builder.context.clone(),
+        Arc::new(MemStore::new()),
+    )));
+    let committer =
+        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
@@ -55,22 +64,21 @@ async fn direct_commit() {
         .elect_leader(leader_round)
         .expect("there should be a leader at wave 1");
     let leader_status = committer.try_direct_decide(leader);
-    if let LeaderStatus::Commit(..) = leader_status {
+    if let LeaderStatus::Commit(_, metastate, _) = &leader_status {
         tracing::info!("Committed: {leader_status}");
+        assert_eq!(
+            *metastate,
+            starfish_speed.then_some(CommitMetastate::Optimistic)
+        );
     } else {
         panic!("Expected a committed leader, got {leader_status}");
     }
 }
 
+#[rstest]
 #[tokio::test]
-async fn direct_skip() {
+async fn direct_skip(#[values(false, true)] starfish_speed: bool) {
     telemetry_subscribers::init_for_testing();
-    let context = Arc::new(Context::new_for_test(4).0);
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
@@ -90,7 +98,13 @@ async fn direct_skip() {
         Round 5 : { * },
         }";
 
-    let dag_builder = parse_dag(dag_str, false).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str, starfish_speed).expect("a DAG should be valid");
+    let dag_state = Arc::new(RwLock::new(DagState::new(
+        dag_builder.context.clone(),
+        Arc::new(MemStore::new()),
+    )));
+    let committer =
+        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
@@ -106,15 +120,10 @@ async fn direct_skip() {
     }
 }
 
+#[rstest]
 #[tokio::test]
-async fn direct_undecided() {
+async fn direct_undecided(#[values(false, true)] starfish_speed: bool) {
     telemetry_subscribers::init_for_testing();
-    let context = Arc::new(Context::new_for_test(4).0);
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
@@ -134,7 +143,13 @@ async fn direct_undecided() {
         Round 5 : { * },
         }";
 
-    let dag_builder = parse_dag(dag_str, false).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str, starfish_speed).expect("a DAG should be valid");
+    let dag_state = Arc::new(RwLock::new(DagState::new(
+        dag_builder.context.clone(),
+        Arc::new(MemStore::new()),
+    )));
+    let committer =
+        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
@@ -150,15 +165,10 @@ async fn direct_undecided() {
     }
 }
 
+#[rstest]
 #[tokio::test]
-async fn indirect_commit() {
+async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
     telemetry_subscribers::init_for_testing();
-    let context = Arc::new(Context::new_for_test(4).0);
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // Wave 1
     // Round 3 is a leader round
@@ -171,6 +181,10 @@ async fn indirect_commit() {
     // C6 is an elected leader for wave 2
     // Round 7 is a voting round
     // Round 8 is a certifying round (acknowledge)
+    //
+    // Blocks with no ancestors acknowledge nothing either, so only A holds A5,
+    // the block C6 acknowledges. B7 and D7 therefore vote for C6 while blaming
+    // it, and wave 2 commits with neither a strong-vote nor a strong-blame quorum.
     let dag_str = "DAG {
         Round 0 : { 4 },
         Round 1 : { * },
@@ -208,7 +222,13 @@ async fn indirect_commit() {
         },
     }";
 
-    let dag_builder = parse_dag(dag_str, false).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str, starfish_speed).expect("a DAG should be valid");
+    let dag_state = Arc::new(RwLock::new(DagState::new(
+        dag_builder.context.clone(),
+        Arc::new(MemStore::new()),
+    )));
+    let committer =
+        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
@@ -237,8 +257,12 @@ async fn indirect_commit() {
     tracing::info!("Leader index wave 2: {leader_index_wave2}");
 
     let leader_status_wave_2 = committer.try_direct_decide(leader_wave2);
-    if let LeaderStatus::Commit(committed, _, _) = leader_status_wave_2.clone() {
+    if let LeaderStatus::Commit(committed, metastate, _) = leader_status_wave_2.clone() {
         tracing::info!("Direct committed leader at wave 2: {committed}");
+        assert_eq!(
+            metastate,
+            starfish_speed.then_some(CommitMetastate::Pending)
+        );
     } else {
         panic!(
             "Expected LeaderStatus::Commit for a leader in wave 2, applying a direct decicion rule, got {leader_status_wave_2}"
@@ -250,8 +274,12 @@ async fn indirect_commit() {
         [leader_status_wave_2].iter(),
     );
 
-    if let LeaderStatus::Commit(committed, _, _) = leader_status_wave1_indirect {
+    if let LeaderStatus::Commit(ref committed, metastate, _) = leader_status_wave1_indirect {
         tracing::info!("Indirect committed leader at wave 1: {committed}");
+        assert_eq!(
+            metastate,
+            starfish_speed.then_some(CommitMetastate::Optimistic)
+        );
     } else {
         panic!(
             "Expected LeaderStatus::Commit for a leader in wave 1, applying an indirect decicion rule, got {leader_status_wave1_indirect}"
@@ -260,15 +288,10 @@ async fn indirect_commit() {
 }
 
 /// Commit the first leader, indirectly skip the 2nd, and commit the 3rd leader.
+#[rstest]
 #[tokio::test]
-async fn indirect_skip() {
+async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
     telemetry_subscribers::init_for_testing();
-    let context = Arc::new(Context::new_for_test(4).0);
-    let dag_state = Arc::new(RwLock::new(DagState::new(
-        context.clone(),
-        Arc::new(MemStore::new()),
-    )));
-    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // There are 3 rounds. Every block is connected except
     // that only f+1 validators connect to the leader of wave 2
@@ -292,7 +315,13 @@ async fn indirect_skip() {
         Round 11 : { * },
     }";
 
-    let dag_builder = parse_dag(dag_str, false).expect("a DAG should be valid");
+    let dag_builder = parse_dag(dag_str, starfish_speed).expect("a DAG should be valid");
+    let dag_state = Arc::new(RwLock::new(DagState::new(
+        dag_builder.context.clone(),
+        Arc::new(MemStore::new()),
+    )));
+    let committer =
+        BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
@@ -304,8 +333,12 @@ async fn indirect_skip() {
     tracing::info!("Leader index wave 1: {leader_index}");
 
     let leader_status_wave1 = committer.try_direct_decide(leader);
-    if let LeaderStatus::Commit(committed, _, _) = leader_status_wave1 {
+    if let LeaderStatus::Commit(ref committed, metastate, _) = leader_status_wave1 {
         tracing::info!("Direct undecided leader at wave 1: {committed}");
+        assert_eq!(
+            metastate,
+            starfish_speed.then_some(CommitMetastate::Optimistic)
+        );
     } else {
         panic!(
             "Expected LeaderStatus::Commit for a leader in wave 1, applying a direct decicion rule, got {leader_status_wave1}"
@@ -341,8 +374,12 @@ async fn indirect_skip() {
     tracing::info!("Leader commit status: {leader_status}");
 
     let mut decided_leaders = vec![];
-    if let LeaderStatus::Commit(ref committed_block, _, _) = leader_status {
+    if let LeaderStatus::Commit(ref committed_block, metastate, _) = leader_status {
         assert_eq!(committed_block.author(), leader_wave_3.authority);
+        assert_eq!(
+            metastate,
+            starfish_speed.then_some(CommitMetastate::Optimistic)
+        );
         decided_leaders.push(leader_status);
     } else {
         panic!("Expected a committed leader")

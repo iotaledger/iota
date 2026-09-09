@@ -369,7 +369,7 @@ async fn simulate_transaction_gasless_reports_the_transaction_that_ran() {
     );
     assert_eq!(
         returned_tx.gas_data().objects[0].object_id,
-        effects.gas_object().0.object_id,
+        effects.gas_object().reference.object_id,
         "the reported gas payment should name the object the effects charged"
     );
 }

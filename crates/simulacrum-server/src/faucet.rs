@@ -57,10 +57,10 @@ async fn request_gas_internal(
 
             // Extract created gas objects from effects
             let mut sent_coins = Vec::new();
-            for (obj_ref, _) in effects.created().iter() {
+            for created in effects.created().iter() {
                 sent_coins.push(CoinInfo {
                     amount,
-                    id: obj_ref.object_id,
+                    id: created.reference.object_id,
                     transfer_tx_digest: *effects.transaction_digest(),
                 });
             }

@@ -14,7 +14,6 @@
 
 use anyhow::{Context, Result};
 use iota_sdk_graphql_client::Client;
-use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::Address;
 use iota_vm_sdk::{ExecuteOptions, LocalVm, Transaction, graphql::GraphQLStore};
 
@@ -30,7 +29,7 @@ async fn main() -> Result<()> {
 
     // Build the staking transaction.
     let client = Client::new_testnet();
-    let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
+    let mut builder = client.transaction_builder(sender);
     builder.stake(stake_amount_nanos, validator);
     let tx: Transaction = builder.finish().await.context("resolve staking tx")?;
 

@@ -1,16 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Identifier, ObjectData, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectData, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{balance::Balance, collection_types::Bag, error::IotaError, id::UID, object::Object};
 
-pub const ALIAS_MODULE_NAME: Identifier = Identifier::from_static("alias");
 pub const ALIAS_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("alias_output");
 pub const ALIAS_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("AliasOutput");
-pub const ALIAS_STRUCT_NAME: Identifier = Identifier::from_static("Alias");
 pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"alias";
 pub const ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
@@ -39,19 +37,6 @@ pub struct Alias {
     pub immutable_metadata: Option<Vec<u8>>,
 }
 
-impl Alias {
-    /// Returns the struct tag that represents the fully qualified path of an
-    /// [`Alias`] in its move package.
-    pub fn tag() -> StructTag {
-        StructTag::new(
-            Address::STARDUST,
-            ALIAS_MODULE_NAME,
-            ALIAS_STRUCT_NAME,
-            Vec::new(),
-        )
-    }
-}
-
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AliasOutput {
@@ -67,17 +52,6 @@ pub struct AliasOutput {
 }
 
 impl AliasOutput {
-    /// Returns the struct tag that represents the fully qualified path of an
-    /// [`AliasOutput`] in its move package.
-    pub fn tag(type_param: TypeTag) -> StructTag {
-        StructTag::new(
-            Address::STARDUST,
-            ALIAS_OUTPUT_MODULE_NAME,
-            ALIAS_OUTPUT_STRUCT_NAME,
-            vec![type_param],
-        )
-    }
-
     /// Create an `AliasOutput` from BCS bytes.
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {

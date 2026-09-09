@@ -115,11 +115,11 @@ impl Client {
             bail!("It is a package, not an object.");
         };
 
-        if raw.type_.name().as_str() != "Game" {
-            bail!("It is not a Game object, it has type {}.", raw.type_);
+        if raw.struct_tag.name().as_str() != "Game" {
+            bail!("It is not a Game object, it has type {}.", raw.struct_tag);
         }
 
-        let package = ObjectId::new(raw.type_.address().into_bytes());
+        let package = ObjectId::new(raw.struct_tag.address().into_bytes());
         if package != self.package {
             bail!(
                 "It is expected to be from package {} but is from package {}.",
@@ -129,7 +129,7 @@ impl Client {
         }
 
         // (3) Deserialize contents
-        let kind = match raw.type_.module().as_str() {
+        let kind = match raw.struct_tag.module().as_str() {
             "shared" => GameKind::Shared(
                 bcs::from_bytes(&raw.bcs_bytes).context("Failed to deserialize contents.")?,
             ),
@@ -157,7 +157,7 @@ impl Client {
 
         builder.programmable_move_call(
             self.package,
-            raw.type_.module().clone(),
+            raw.struct_tag.module().clone(),
             Identifier::from_static("ended"),
             vec![],
             vec![g],
@@ -256,7 +256,7 @@ impl Client {
                     continue;
                 };
 
-                if raw.type_ != turn_cap_type {
+                if raw.struct_tag != turn_cap_type {
                     continue;
                 }
 

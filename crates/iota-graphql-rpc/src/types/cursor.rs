@@ -411,7 +411,11 @@ impl<C: CursorType + ScanLimited + Eq + Clone + Send + Sync + 'static> Page<C> {
     /// in the range, followed by an iterator of values in the page, fetched
     /// from the database. The values returned implement `Target<C>`, so are
     /// able to compute their own cursors.
-    fn paginate_results<T>(
+    ///
+    /// `results` must be sorted in ascending cursor order and fetched with
+    /// inclusive cursor bounds, so that the rows at the `after`/`before`
+    /// cursors are part of the result set (see [`Page::apply`]).
+    pub(crate) fn paginate_results<T>(
         &self,
         f_cursor: Option<C>,
         l_cursor: Option<C>,

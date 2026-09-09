@@ -242,8 +242,8 @@ impl AuthorityStorePruner {
         let mut live_object_keys_to_prune = vec![];
         let mut object_tombstones_to_prune = vec![];
         for effects in &transaction_effects {
-            for (object_id, seq_number) in effects.modified_at_versions() {
-                live_object_keys_to_prune.push(ObjectKey(object_id, seq_number));
+            for modified in effects.modified_at_versions() {
+                live_object_keys_to_prune.push(ObjectKey(modified.object_id, modified.version));
             }
 
             for deleted_object_key in effects.all_tombstones() {
@@ -767,13 +767,17 @@ impl AuthorityStorePruner {
         );
 
         // Periodic background compaction of aged SST files, independent of the
-        // execution-driven pruning loop below.
-        let perpetual_db_for_compaction = perpetual_db.clone();
+        // execution-driven pruning loop below. The task holds the db weakly so
+        // that it cannot keep a dropped node's database open, and exits once
+        // the db is gone.
+        let perpetual_db_for_compaction = Arc::downgrade(&perpetual_db);
         if let Some(delay_days) = config.periodic_compaction_threshold_days {
             spawn_monitored_task!(async move {
                 let last_processed = Arc::new(Mutex::new(HashMap::new()));
                 loop {
-                    let db = perpetual_db_for_compaction.clone();
+                    let Some(db) = perpetual_db_for_compaction.upgrade() else {
+                        break;
+                    };
                     let state = Arc::clone(&last_processed);
                     let result = tokio::task::spawn_blocking(move || {
                         Self::compact_next_sst_file(db, delay_days, state)

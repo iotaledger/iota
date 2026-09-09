@@ -100,6 +100,26 @@ pub trait ReadStore: ObjectStore {
             .expect("storage access failed")
     }
 
+    /// The sequence number of the highest verified checkpoint, without the
+    /// checkpoint itself.
+    ///
+    /// For a caller that only compares positions. An implementation holding
+    /// the watermark should override this to read it directly, which is a
+    /// lookup cheaper and cannot fail to find a checkpoint the watermark
+    /// names; the default resolves the checkpoint and so does neither.
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        Ok(self
+            .try_get_highest_verified_checkpoint()?
+            .sequence_number())
+    }
+
+    /// Non-fallible version of
+    /// `try_get_highest_verified_checkpoint_seq_number`.
+    fn get_highest_verified_checkpoint_seq_number(&self) -> CheckpointSequenceNumber {
+        self.try_get_highest_verified_checkpoint_seq_number()
+            .expect("storage access failed")
+    }
+
     /// Get the highest synced checkpoint. This is the highest checkpoint that
     /// has been synced from state-synce. The checkpoint header, contents,
     /// transactions, and effects of this checkpoint are guaranteed to be
@@ -109,6 +129,19 @@ pub trait ReadStore: ObjectStore {
     /// Non-fallible version of `try_get_highest_synced_checkpoint`.
     fn get_highest_synced_checkpoint(&self) -> VerifiedCheckpoint {
         self.try_get_highest_synced_checkpoint()
+            .expect("storage access failed")
+    }
+
+    /// The sequence number of the highest synced checkpoint, without the
+    /// checkpoint itself. See
+    /// [`Self::try_get_highest_verified_checkpoint_seq_number`].
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        Ok(self.try_get_highest_synced_checkpoint()?.sequence_number())
+    }
+
+    /// Non-fallible version of `try_get_highest_synced_checkpoint_seq_number`.
+    fn get_highest_synced_checkpoint_seq_number(&self) -> CheckpointSequenceNumber {
+        self.try_get_highest_synced_checkpoint_seq_number()
             .expect("storage access failed")
     }
 
@@ -476,8 +509,16 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).try_get_highest_verified_checkpoint()
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (*self).try_get_highest_verified_checkpoint_seq_number()
+    }
+
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         (*self).try_get_highest_synced_checkpoint()
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (*self).try_get_highest_synced_checkpoint_seq_number()
     }
 
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
@@ -595,8 +636,16 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).try_get_highest_verified_checkpoint()
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (**self).try_get_highest_verified_checkpoint_seq_number()
+    }
+
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         (**self).try_get_highest_synced_checkpoint()
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (**self).try_get_highest_synced_checkpoint_seq_number()
     }
 
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
@@ -714,8 +763,16 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
         (**self).try_get_highest_verified_checkpoint()
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (**self).try_get_highest_verified_checkpoint_seq_number()
+    }
+
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         (**self).try_get_highest_synced_checkpoint()
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (**self).try_get_highest_synced_checkpoint_seq_number()
     }
 
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
@@ -935,7 +992,7 @@ pub struct AccountOwnedObjectInfo {
     pub owner: Address,
     pub object_id: ObjectId,
     pub version: Version,
-    pub type_: MoveObjectType,
+    pub object_type: MoveObjectType,
 }
 
 /// Opaque cursor for seeking in the `owner` index.

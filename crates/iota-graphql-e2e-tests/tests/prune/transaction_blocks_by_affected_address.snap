@@ -1,0 +1,261 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 23 tasks
+
+init:
+A: object(0,0), B: object(0,1)
+
+task 1, lines 11-18:
+//# publish
+created: object(1,0)
+mutated: object(0,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5099600
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
+
+task 2, line 20:
+//# run Test::M::send --sender A --args @B
+created: object(2,0)
+mutated: object(0,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2257200
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
+
+task 3, line 22:
+//# create-checkpoint
+Checkpoint created: 1
+
+task 4, line 24:
+//# advance-epoch
+Epoch advanced: 1
+
+task 5, line 26:
+//# create-checkpoint
+Checkpoint created: 3
+
+task 6, line 28:
+//# advance-epoch
+Epoch advanced: 2
+
+task 7, line 30:
+//# create-checkpoint
+Checkpoint created: 5
+
+task 8, line 32:
+//# advance-epoch
+Epoch advanced: 3
+
+task 9, line 34:
+//# create-checkpoint
+Checkpoint created: 7
+
+task 10, line 36:
+//# run Test::M::send --sender A --args @B
+created: object(10,0)
+mutated: object(0,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2257200
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
+
+task 11, line 38:
+//# run Test::M::send --sender A --args @B
+created: object(11,0)
+mutated: object(0,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2257200
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
+
+task 12, line 40:
+//# run Test::M::send --sender A --args @B
+created: object(12,0)
+mutated: object(0,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2257200
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
+
+task 13, line 42:
+//# create-checkpoint
+Checkpoint created: 8
+
+task 14, line 44:
+//# create-checkpoint
+Checkpoint created: 9
+
+task 15, line 46:
+//# create-checkpoint
+Checkpoint created: 10
+
+task 16, lines 48-56:
+//# run-graphql --wait-for-checkpoint-pruned 6
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: DB may be missing earliest history for address 0x8cca4e1ce0ba5904cea61df9242da2f7d29e3ef328fb7ec07c086b3bf47ca61a due to pruning",
+      "locations": [
+        {
+          "line": 5,
+          "column": 3
+        }
+      ],
+      "path": [
+        "transactionBlocks"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
+    }
+  ]
+}
+
+task 17, lines 58-67:
+//# run-graphql
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "digest": "AdhXLxRHeWpRMVc5eQUZ3D4t9vFbQUnre9uQYp4Jidyj"
+        },
+        {
+          "digest": "DqfAehDoUapzpCYwh6HjJDhGWj6TAxsDZeYg7MfdTxEM"
+        },
+        {
+          "digest": "4r2EosDh4SAmuDk5qEMm19z8Yqi7kPtNTLxdmPdtuJwr"
+        }
+      ],
+      "pageInfo": {
+        "endCursor": "eyJjIjoxMCwidCI6OCwiaSI6ZmFsc2V9",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "eyJjIjoxMCwidCI6NiwiaSI6ZmFsc2V9"
+      }
+    }
+  }
+}
+
+task 18, lines 69-78:
+//# run-graphql
+Response: {
+  "data": {
+    "address": {
+      "transactionBlocks": {
+        "nodes": [
+          {
+            "digest": "DqfAehDoUapzpCYwh6HjJDhGWj6TAxsDZeYg7MfdTxEM"
+          },
+          {
+            "digest": "4r2EosDh4SAmuDk5qEMm19z8Yqi7kPtNTLxdmPdtuJwr"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": true
+        }
+      }
+    }
+  }
+}
+
+task 19, lines 80-90:
+//# run-graphql --cursors {"c":10,"t":6,"i":false} {"c":10,"t":8,"i":false}
+Response: {
+  "data": {
+    "transactionBlocks": {
+      "nodes": [
+        {
+          "digest": "DqfAehDoUapzpCYwh6HjJDhGWj6TAxsDZeYg7MfdTxEM"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": true,
+        "hasPreviousPage": true
+      }
+    }
+  }
+}
+
+task 20, lines 92-99:
+//# run-graphql --cursors {"c":10,"t":2,"i":false}
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: transaction 2 has been pruned (min available: 6)",
+      "locations": [
+        {
+          "line": 4,
+          "column": 3
+        }
+      ],
+      "path": [
+        "transactionBlocks"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
+    }
+  ]
+}
+
+task 21, lines 101-108:
+//# run-graphql --cursors {"c":10,"t":2,"i":false}
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: transaction 2 has been pruned (min available: 6)",
+      "locations": [
+        {
+          "line": 4,
+          "column": 3
+        }
+      ],
+      "path": [
+        "transactionBlocks"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
+    }
+  ]
+}
+
+task 22, lines 110-117:
+//# run-graphql --cursors {"c":1,"t":1,"i":false}
+Response: {
+  "data": null,
+  "errors": [
+    {
+      "message": "Requested data has been pruned: checkpoint 1 has been pruned",
+      "locations": [
+        {
+          "line": 4,
+          "column": 3
+        }
+      ],
+      "path": [
+        "transactionBlocks"
+      ],
+      "extensions": {
+        "code": "DATA_PRUNED"
+      }
+    }
+  ]
+}

@@ -136,7 +136,7 @@ mod checked {
             );
             // Turn the content into an object
             let package_metadata = context.make_object_value(
-                metadata.type_(),
+                metadata.struct_tag(),
                 // used_in_non_entry_move_call
                 false,
                 &metadata.to_bcs_bytes(),

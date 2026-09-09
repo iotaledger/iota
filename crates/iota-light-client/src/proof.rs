@@ -219,7 +219,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
             // Has this object been created in these effects?
             changed_objects
                 .iter()
-                .find(|effects_object_ref| &effects_object_ref.0 == object_ref)
+                .find(|(changed, _)| &changed.reference == object_ref)
                 .ok_or_else(|| anyhow!("Object not found"))?;
         }
 

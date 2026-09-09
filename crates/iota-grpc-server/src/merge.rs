@@ -232,7 +232,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::EVENT_TYPE_FIELD.name) {
-            self.event_type = Some(source.type_.to_string());
+            self.event_type = Some(source.struct_tag.to_string());
         }
 
         if mask.contains(Self::BCS_CONTENTS_FIELD.name) {

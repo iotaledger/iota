@@ -92,6 +92,7 @@ pub mod test_checkpoint_data_builder;
 pub mod timelock;
 pub mod traffic_control;
 pub mod transaction;
+pub mod transaction_deny_rules;
 pub mod transaction_driver_types;
 pub mod transaction_executor;
 pub mod transfer;
@@ -130,6 +131,7 @@ built_in_ids! {
     IOTA_RANDOMNESS_STATE_ADDRESS / IOTA_RANDOMNESS_STATE_OBJECT_ID = 0x8;
     GENESIS_IOTA_BRIDGE_ADDRESS / GENESIS_IOTA_BRIDGE_OBJECT_ID = 0x9;
     IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
+    IOTA_TRANSACTION_DENY_RULES_ADDRESS / IOTA_TRANSACTION_DENY_RULES_OBJECT_ID = 0xde9;
 }
 
 pub const SYSTEM_PACKAGE_ADDRESSES: [Address; 5] = [

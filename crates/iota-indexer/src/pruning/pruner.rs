@@ -75,7 +75,6 @@ pub enum PrunableTable {
     TxCallsMod,
     TxCallsFun,
     TxChangedObjects,
-    TxDigests,
     TxInputObjects,
     TxKinds,
     TxRecipients,
@@ -169,7 +168,6 @@ impl PrunableTable {
             | PrunableTable::TxCallsMod
             | PrunableTable::TxCallsFun
             | PrunableTable::TxChangedObjects
-            | PrunableTable::TxDigests
             | PrunableTable::TxInputObjects
             | PrunableTable::TxKinds
             | PrunableTable::TxRecipients

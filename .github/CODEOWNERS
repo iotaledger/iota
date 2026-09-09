@@ -23,6 +23,7 @@
 /crates/iota-faucet/ @iotaledger/infrastructure
 /crates/iota-framework/ @iotaledger/vm-language
 /crates/iota-framework-snapshot/ @iotaledger/vm-language
+/crates/iota-framework-snapshot-manifest/ @iotaledger/vm-language
 /crates/iota-framework-tests/ @iotaledger/vm-language
 /crates/iota-genesis-builder/ @iotaledger/vm-language
 /crates/iota-genesis-common/ @iotaledger/vm-language
@@ -52,6 +53,7 @@
 /crates/iota-network-stack/ @iotaledger/node
 /crates/iota-node/ @iotaledger/node
 /crates/iota-node-storage/ @iotaledger/node
+/crates/iota-node-transaction-builder/ @iotaledger/node
 /crates/iota-open-rpc/ @iotaledger/infrastructure
 /crates/iota-open-rpc-macros/ @iotaledger/dev-tools
 /crates/iota-package-alt/ @iotaledger/vm-language
@@ -80,6 +82,7 @@
 /crates/iota-test-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-tls/ @iotaledger/core-protocol
 /crates/iota-tool/ @iotaledger/node
+/crates/iota-traffic-controller/ @iotaledger/node
 /crates/iota-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-transaction-checks/ @iotaledger/core-protocol
 /crates/iota-transactional-test-runner/ @iotaledger/vm-language

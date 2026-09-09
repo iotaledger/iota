@@ -89,7 +89,12 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         duration: std::time::Duration,
     ) -> anyhow::Result<TransactionEffects>;
 
-    async fn advance_epoch(&mut self) -> anyhow::Result<()>;
+    /// Returns the effects of the end-of-epoch transaction when the executor
+    /// exposes them (the simulator does, the validator setup does not).
+    async fn advance_epoch(
+        &mut self,
+        create_deny_rules_object: bool,
+    ) -> anyhow::Result<Option<TransactionEffects>>;
 
     async fn request_gas(
         &mut self,
@@ -206,10 +211,17 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         unimplemented!("advance_clock not supported")
     }
 
-    async fn advance_epoch(&mut self) -> anyhow::Result<()> {
+    async fn advance_epoch(
+        &mut self,
+        create_deny_rules_object: bool,
+    ) -> anyhow::Result<Option<TransactionEffects>> {
+        anyhow::ensure!(
+            !create_deny_rules_object,
+            "--create-deny-rules-object is only supported in simulator mode"
+        );
         self.validator.reconfigure_for_testing().await;
         self.fullnode.reconfigure_for_testing().await;
-        Ok(())
+        Ok(None)
     }
 
     async fn request_gas(
@@ -442,9 +454,14 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         Ok(Simulacrum::advance_clock(self, duration))
     }
 
-    async fn advance_epoch(&mut self) -> anyhow::Result<()> {
-        Simulacrum::advance_epoch(self);
-        Ok(())
+    async fn advance_epoch(
+        &mut self,
+        create_deny_rules_object: bool,
+    ) -> anyhow::Result<Option<TransactionEffects>> {
+        Ok(Some(Simulacrum::advance_epoch(
+            self,
+            create_deny_rules_object,
+        )))
     }
 
     async fn request_gas(

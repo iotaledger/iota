@@ -27,7 +27,7 @@ use iota_types::{
     base_types::{AuthorityName, EpochId, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
+        AccountPrivateKey, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
         IotaAuthoritySignature, KeypairTraits, Signer, get_key_pair, get_key_pair_from_rng,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsExtForTesting},
@@ -296,7 +296,7 @@ async fn execute_transaction_with_fault_configs(
     configs_before_process_transaction: &[(usize, LocalAuthorityClientFaultConfig)],
     configs_before_process_certificate: &[(usize, LocalAuthorityClientFaultConfig)],
 ) -> bool {
-    let (addr1, key1): (_, AccountKeyPair) = get_key_pair();
+    let (addr1, key1): (_, AccountPrivateKey) = get_key_pair();
     let addr2 = Address::random();
     let gas_object1 = Object::with_owner_for_testing(addr1);
     let gas_object2 = Object::with_owner_for_testing(addr1);
@@ -388,7 +388,7 @@ async fn test_quorum_map_and_reduce_timeout() {
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();
-    let (addr1, key1): (_, AccountKeyPair) = get_key_pair();
+    let (addr1, key1): (_, AccountPrivateKey) = get_key_pair();
     let gas_object1 = Object::with_owner_for_testing(addr1);
     let genesis_objects = vec![pkg.clone(), gas_object1.clone()];
     let (mut authorities, _, genesis, _) = init_local_authorities(4, genesis_objects).await;
@@ -761,14 +761,14 @@ fn sign_tx_effects(
 async fn test_handle_transaction_fork() {
     let (authorities, mut clients, authority_keys) = make_fake_authorities();
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = random_object_ref();
     let tx = make_transfer_iota_transaction(
         gas_object,
         Address::ZERO,
         None,
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     );
 
@@ -833,14 +833,14 @@ async fn test_handle_certificate_response() {
     telemetry_subscribers::init_for_testing();
     let (authorities, mut clients, authority_keys) = make_fake_authorities();
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = random_object_ref();
     let tx = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         gas_object,
         Address::ZERO,
         None,
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     ));
     // All Validators gives signed-tx
@@ -902,14 +902,14 @@ async fn test_handle_transaction_response() {
     telemetry_subscribers::init_for_testing();
     let (authorities, mut clients, authority_keys) = make_fake_authorities();
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = random_object_ref();
     let tx = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         gas_object,
         Address::ZERO,
         None,
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     ));
     let tx2 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
@@ -917,7 +917,7 @@ async fn test_handle_transaction_response() {
         Address::ZERO,
         Some(1),
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     ));
     let package_not_found_error = IotaError::UserInput {
@@ -1514,14 +1514,14 @@ async fn test_handle_transaction_response() {
 async fn test_handle_conflicting_transaction_response() {
     let (authorities, mut clients, authority_keys) = make_fake_authorities();
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let conflicting_object = random_object_ref();
     let tx1 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
         conflicting_object,
         Address::ZERO,
         Some(1),
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     ));
     let conflicting_tx2 = VerifiedTransaction::new_unchecked(make_transfer_iota_transaction(
@@ -1529,7 +1529,7 @@ async fn test_handle_conflicting_transaction_response() {
         Address::ZERO,
         Some(2),
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     ));
     let conflicting_error = IotaError::ObjectLockConflict {
@@ -1668,7 +1668,7 @@ async fn test_handle_conflicting_transaction_response() {
         Address::ZERO,
         Some(3),
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     );
     let conflicting_error_2 = IotaError::ObjectLockConflict {
@@ -1724,7 +1724,7 @@ async fn test_handle_conflicting_transaction_response() {
         Address::ZERO,
         Some(3),
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     );
     let conflicting_error_2 = IotaError::ObjectLockConflict {
@@ -1941,14 +1941,14 @@ async fn test_handle_conflicting_transaction_response() {
 async fn test_handle_overload_response() {
     let (authorities, mut clients, authority_keys) = make_fake_authorities();
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = random_object_ref();
     let txn = make_transfer_iota_transaction(
         gas_object,
         Address::ZERO,
         None,
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     );
 
@@ -2020,14 +2020,14 @@ async fn test_handle_overload_response() {
 async fn test_handle_overload_retry_response() {
     let (authorities, mut clients, authority_keys) = make_fake_authorities();
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = random_object_ref();
     let txn = make_transfer_iota_transaction(
         gas_object,
         Address::ZERO,
         None,
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     );
 
@@ -2127,13 +2127,13 @@ async fn test_handle_overload_retry_response() {
 async fn test_early_exit_with_too_many_conflicts() {
     let (authorities, mut clients, authority_keys) = make_fake_authorities();
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let txn = make_transfer_iota_transaction(
         random_object_ref(),
         Address::ZERO,
         None,
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     );
 
@@ -2254,14 +2254,14 @@ async fn test_process_transaction_again() {
 
     telemetry_subscribers::init_for_testing();
     let (authorities, clients, authority_keys) = make_fake_authorities();
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = random_object_ref();
     let tx = make_transfer_iota_transaction(
         gas_object,
         Address::ZERO,
         None,
         sender,
-        &sender_kp,
+        &sender_key,
         666, // this is a dummy value which does not matter
     );
 

@@ -1,7 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::Path, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl};
 use fastcrypto::encoding::Base64;
@@ -17,17 +20,19 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     IotaData, IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
-    IotaSystemStateSummary, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
+    IotaSystemStateSummary, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, TypeTag,
+    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
+    TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -57,14 +62,14 @@ const NON_DETERMINISTIC_TESTS_REPETITIONS: usize = 20;
 
 async fn prepare_and_sign_object_transfer_tx(
     sender: Address,
-    sender_key_pair: AccountKeyPair,
+    sender_key: AccountPrivateKey,
     receiver: Address,
     object_to_transfer: ObjectReference,
     gas: ObjectReference,
 ) -> (TxBytes, Signatures) {
     let tx_builder = TestTransactionBuilder::new(sender, gas, 1000);
     let tx_data = tx_builder.transfer(object_to_transfer, receiver).build();
-    let signed_transaction = to_sender_signed_transaction(tx_data, &sender_key_pair);
+    let signed_transaction = to_sender_signed_transaction(tx_data, &sender_key);
     signed_transaction.to_tx_bytes_and_signatures()
 }
 
@@ -118,7 +123,7 @@ fn dry_run_transaction_block() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let gas_ref = cluster
@@ -146,7 +151,7 @@ fn dry_run_transaction_block() {
 
         let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
             sender,
-            key_pair,
+            sender_key,
             receiver,
             object_to_transfer,
             gas_ref,
@@ -206,6 +211,155 @@ fn dry_run_transaction_block() {
             indexer_tx_response.transaction.unwrap().data,
             dry_run_tx_block_resp.input
         );
+    });
+}
+
+/// A transaction carrying no gas payment is simulated against a mock gas coin
+/// the node mints, and the response reports the transaction that ran rather
+/// than the one that was sent: the mock coin in the payment, the epoch's
+/// reference gas price, and the gas charged in place of the zero budget.
+///
+/// The mock coin is not the caller's, so no balance change is attributed to it
+/// — the same way the node's own JSON-RPC reports it.
+#[test]
+fn dry_run_transaction_block_without_gas_payment() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let sender = Address::random();
+        let receiver = Address::random();
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(receiver, Some(1_000));
+        let pt = builder.finish();
+
+        // No gas payment, no price and no budget: the node resolves all of it.
+        let tx_data = Transaction::V1(TransactionV1 {
+            kind: TransactionKind::new_programmable(pt),
+            sender,
+            gas_payment: GasPayment {
+                objects: vec![],
+                owner: sender,
+                price: 0,
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        });
+        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_data).unwrap());
+
+        let response = client.dry_run_transaction_block(tx_bytes).await.unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+        // The gas the simulation resolved comes back in place of the zeros.
+        let reported_gas = response.input.gas_data();
+        assert_eq!(
+            reported_gas.payment.len(),
+            1,
+            "the mock gas coin should be reported in the gas payment"
+        );
+        assert_eq!(
+            reported_gas.price,
+            cluster.get_reference_gas_price().await,
+            "the reported price should be the one the simulation charged at"
+        );
+        let gas_used = response.effects.gas_cost_summary().gas_used();
+        assert_ne!(gas_used, 0, "a successful transfer has to cost something");
+        assert_eq!(
+            reported_gas.budget, gas_used,
+            "a zero budget should come back as the gas the simulation charged"
+        );
+
+        // The mock coin pays the gas, but it is not the caller's coin, so its
+        // balance change is not reported.
+        let mock_coin = reported_gas.payment[0].object_id;
+        assert!(
+            !response
+                .balance_changes
+                .iter()
+                .any(|change| change.owner == Owner::Address(sender)),
+            "no balance change should be attributed to the mock gas coin's owner, got {:?}",
+            response.balance_changes
+        );
+        assert!(
+            response
+                .object_changes
+                .iter()
+                .any(|change| change.object_id() == mock_coin),
+            "object changes should still report the mock gas coin, got {:?}",
+            response.object_changes
+        );
+    });
+}
+
+/// Dry-running a publish decodes an event the new package's `init` emits.
+///
+/// The event's type is defined only by the package being published, which was
+/// never committed and so is not in the database. Decoding it requires
+/// resolving the type against the objects the simulation wrote. Without that
+/// the payload comes back undecoded.
+///
+/// Uses the test smart contract under `tests/data/publish_with_event`.
+#[test]
+fn dry_run_publish_resolves_events_of_the_published_package() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (address, _): (_, AccountPrivateKey) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10 * NANOS_PER_IOTA),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
+
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.extend(["tests", "data", "publish_with_event"]);
+        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+        let compiled_modules_bytes = compiled_package.get_package_base64(false);
+        let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+        let transaction_bytes: TransactionBlockBytes = client
+            .publish(
+                address,
+                compiled_modules_bytes,
+                dependencies,
+                Some(gas_ref.object_id),
+                100_000_000.into(),
+            )
+            .await
+            .unwrap();
+
+        let response = client
+            .dry_run_transaction_block(transaction_bytes.tx_bytes)
+            .await
+            .unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+        assert_eq!(
+            response.events.data.len(),
+            1,
+            "`init` emits exactly one event, got {:?}",
+            response.events.data
+        );
+        let event = &response.events.data[0];
+        assert_eq!(event.struct_tag.name().to_string(), "PublishEvent");
+        // An unresolved type would leave the payload undecoded.
+        assert_eq!(event.parsed_json, serde_json::json!({ "foo": "bar" }));
     });
 }
 
@@ -315,7 +469,7 @@ fn execute_transaction_block() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let gas_ref = cluster
@@ -345,7 +499,7 @@ fn execute_transaction_block() {
 
         let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
             sender,
-            key_pair,
+            sender_key,
             receiver,
             object_to_transfer,
             gas_ref,
@@ -404,7 +558,7 @@ fn optimistic_objects_are_finalized() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let gas_ref = cluster
@@ -432,7 +586,7 @@ fn optimistic_objects_are_finalized() {
 
         let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
             sender,
-            key_pair,
+            sender_key,
             receiver,
             object_to_transfer,
             gas_ref,
@@ -500,7 +654,7 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -531,7 +685,7 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
                 .await?
                 .to_data()
                 .unwrap();
-            let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+            let signed_transaction = to_sender_signed_transaction(tx_data, &key);
             let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
             let res = client
                 .execute_transaction_block(
@@ -565,7 +719,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -576,7 +730,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let (res, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
 
         let upgrade_cap = res
             .object_changes
@@ -590,11 +744,11 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
             .exactly_one()
             .unwrap();
 
-        let basic_obj = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let basic_obj = create_basic_object(sender, &sender_key, client, &package_id).await?;
 
         for _ in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
             let (res, wrapped_obj_id) =
-                wrap_basic_object(sender, &sender_kp, client, &package_id, &basic_obj)
+                wrap_basic_object(sender, &sender_key, client, &package_id, &basic_obj)
                     .await
                     .unwrap();
             assert_transaction_success(&res);
@@ -615,9 +769,10 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
                     .collect::<Vec<_>>()
             );
 
-            let res = unwrap_basic_object(sender, &sender_kp, client, &package_id, &wrapped_obj_id)
-                .await
-                .unwrap();
+            let res =
+                unwrap_basic_object(sender, &sender_key, client, &package_id, &wrapped_obj_id)
+                    .await
+                    .unwrap();
             assert_transaction_success(&res);
 
             let objects = client
@@ -652,7 +807,7 @@ fn test_execute_transactions_with_shared_objects() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -664,18 +819,18 @@ fn test_execute_transactions_with_shared_objects() {
 
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
 
-        let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
+        let (_, counter_obj) = create_counter_object(sender, &sender_key, client, &package_id)
             .await
             .unwrap();
 
-        let res_1 = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
+        let res_1 = increment_counter(sender, &sender_key, client, &package_id, &counter_obj, None)
             .await
             .unwrap();
         assert_eq!(res_1.status_ok(), Some(true));
 
-        let res_2 = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
+        let res_2 = increment_counter(sender, &sender_key, client, &package_id, &counter_obj, None)
             .await
             .unwrap();
         assert_eq!(res_2.status_ok(), Some(true));
@@ -697,7 +852,7 @@ fn test_parallel_shared_object_updates() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
             let rgp = cluster.get_reference_gas_price().await;
             let range = 0..NON_DETERMINISTIC_TESTS_REPETITIONS;
             let gas_objs: Vec<_> = range
@@ -710,10 +865,10 @@ fn test_parallel_shared_object_updates() {
                 indexer_wait_for_object(client, gas.object_id, gas.version).await;
             }
 
-            let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+            let (res, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
             assert_transaction_success(&res);
 
-            let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
+            let (_, counter_obj) = create_counter_object(sender, &sender_key, client, &package_id)
                 .await
                 .unwrap();
 
@@ -723,7 +878,7 @@ fn test_parallel_shared_object_updates() {
                     .map(|gas| {
                         increment_counter(
                             sender,
-                            &sender_kp,
+                            &sender_key,
                             client,
                             &package_id,
                             &counter_obj,
@@ -764,7 +919,7 @@ fn test_repeated_tx_execution() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
             let gas_ref = cluster
                 .fund_address_and_return_gas(
@@ -775,10 +930,10 @@ fn test_repeated_tx_execution() {
                 .await;
             indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-            let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+            let (res, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
             assert_transaction_success(&res);
 
-            let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
+            let (_, counter_obj) = create_counter_object(sender, &sender_key, client, &package_id)
                 .await
                 .unwrap();
 
@@ -797,7 +952,7 @@ fn test_repeated_tx_execution() {
                 .await
                 .unwrap();
             let signed_transaction =
-                to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &sender_kp);
+                to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &sender_key);
             let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 
             let res_1 = client
@@ -842,7 +997,7 @@ fn test_parallel_repeated_tx_execution() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
             let gas_ref = cluster
                 .fund_address_and_return_gas(
@@ -853,10 +1008,10 @@ fn test_parallel_repeated_tx_execution() {
                 .await;
             indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-            let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+            let (res, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
             assert_transaction_success(&res);
 
-            let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
+            let (_, counter_obj) = create_counter_object(sender, &sender_key, client, &package_id)
                 .await
                 .unwrap();
 
@@ -875,7 +1030,7 @@ fn test_parallel_repeated_tx_execution() {
                 .await
                 .unwrap();
             let signed_transaction =
-                to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &sender_kp);
+                to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &sender_key);
             let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 
             let range = 0..NON_DETERMINISTIC_TESTS_REPETITIONS;
@@ -923,7 +1078,7 @@ fn test_repeatedly_update_display() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -934,7 +1089,7 @@ fn test_repeatedly_update_display() {
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (res, package_id) = deploy_bear_pkg(sender, &sender_kp, client).await;
+        let (res, package_id) = deploy_bear_pkg(sender, &sender_key, client).await;
         let display_obj_id = ObjectId::from_prefixed_short_hex(
             res.events.unwrap().data[0].parsed_json.as_object().unwrap()["id"]
                 .as_str()
@@ -942,7 +1097,7 @@ fn test_repeatedly_update_display() {
         )
         .unwrap();
 
-        let (_, bear_id) = create_new_bear(sender, &sender_kp, client, &package_id, "bear name")
+        let (_, bear_id) = create_new_bear(sender, &sender_key, client, &package_id, "bear name")
             .await
             .unwrap();
 
@@ -958,7 +1113,7 @@ fn test_repeatedly_update_display() {
 
             let res = update_display_object(
                 sender,
-                &sender_kp,
+                &sender_key,
                 client,
                 &display_obj_id,
                 bear_type_tag.clone(),
@@ -971,7 +1126,7 @@ fn test_repeatedly_update_display() {
 
             let res = bump_display_object_version(
                 sender,
-                &sender_kp,
+                &sender_key,
                 client,
                 &display_obj_id,
                 bear_type_tag.clone(),
@@ -1009,7 +1164,7 @@ fn test_display_indexed_without_version_update() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1021,7 +1176,7 @@ fn test_display_indexed_without_version_update() {
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (_, _, nft_id) =
-            deploy_display_no_version_update_pkg_and_mint_nft(sender, &sender_kp, client, "gift")
+            deploy_display_no_version_update_pkg_and_mint_nft(sender, &sender_key, client, "gift")
                 .await
                 .unwrap();
 
@@ -1050,7 +1205,7 @@ fn test_version_update_overrides_display_indexed_from_object() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1062,7 +1217,7 @@ fn test_version_update_overrides_display_indexed_from_object() {
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
         let (package_id, display_obj_id, nft_id) =
-            deploy_display_no_version_update_pkg_and_mint_nft(sender, &sender_kp, client, "gift")
+            deploy_display_no_version_update_pkg_and_mint_nft(sender, &sender_key, client, "gift")
                 .await
                 .unwrap();
 
@@ -1075,7 +1230,7 @@ fn test_version_update_overrides_display_indexed_from_object() {
 
         let res = update_display_object(
             sender,
-            &sender_kp,
+            &sender_key,
             client,
             &display_obj_id,
             nft_type_tag.clone(),
@@ -1087,7 +1242,7 @@ fn test_version_update_overrides_display_indexed_from_object() {
         assert_transaction_success(&res);
 
         let res =
-            bump_display_object_version(sender, &sender_kp, client, &display_obj_id, nft_type_tag)
+            bump_display_object_version(sender, &sender_key, client, &display_obj_id, nft_type_tag)
                 .await
                 .unwrap();
         assert_transaction_success(&res);
@@ -1115,7 +1270,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
 
     let txs_per_epoch = [16u64, 22, 18];
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     let gas = cluster
         .fund_address_and_return_gas(
@@ -1126,8 +1281,8 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
         .await;
     indexer_wait_for_object(client, gas.object_id, gas.version).await;
 
-    let (deploy_res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-    let (create_res, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
+    let (deploy_res, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
+    let (create_res, counter_obj) = create_counter_object(sender, &sender_key, client, &package_id)
         .await
         .unwrap();
     // Count how many of the setup txs were optimistically indexed
@@ -1147,7 +1302,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
         let mut optimistic_in_epoch = 0u64;
         for _ in 0..tx_count {
             let res =
-                increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
+                increment_counter(sender, &sender_key, client, &package_id, &counter_obj, None)
                     .await
                     .unwrap();
             assert_transaction_success(&res);
@@ -1173,14 +1328,14 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
 
 pub(crate) async fn create_basic_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
 ) -> Result<ObjectId, anyhow::Error> {
     let res = execute_move_call(
         client,
         address,
-        address_kp,
+        address_key,
         *package_id,
         "object_basics".to_string(),
         "create".to_string(),
@@ -1203,7 +1358,7 @@ pub(crate) async fn create_basic_object(
 
 async fn wrap_basic_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
     object_id: &ObjectId,
@@ -1211,7 +1366,7 @@ async fn wrap_basic_object(
     let res = execute_move_call(
         client,
         address,
-        address_kp,
+        address_key,
         *package_id,
         "object_basics".to_string(),
         "wrap".to_string(),
@@ -1236,7 +1391,7 @@ async fn wrap_basic_object(
 
 async fn unwrap_basic_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
     object_id: &ObjectId,
@@ -1244,7 +1399,7 @@ async fn unwrap_basic_object(
     execute_move_call(
         client,
         address,
-        address_kp,
+        address_key,
         *package_id,
         "object_basics".to_string(),
         "unwrap".to_string(),
@@ -1257,7 +1412,7 @@ async fn unwrap_basic_object(
 
 async fn update_display_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     display_object_id: &ObjectId,
     display_obj_type_tag: TypeTag,
@@ -1267,7 +1422,7 @@ async fn update_display_object(
     execute_move_call(
         client,
         address,
-        address_kp,
+        address_key,
         ObjectId::FRAMEWORK,
         "display".to_string(),
         "edit".to_string(),
@@ -1285,7 +1440,7 @@ async fn update_display_object(
 
 async fn bump_display_object_version(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     display_object_id: &ObjectId,
     display_obj_type_tag: TypeTag,
@@ -1293,7 +1448,7 @@ async fn bump_display_object_version(
     execute_move_call(
         client,
         address,
-        address_kp,
+        address_key,
         ObjectId::FRAMEWORK,
         "display".to_string(),
         "update_version".to_string(),
@@ -1306,14 +1461,14 @@ async fn bump_display_object_version(
 
 async fn create_counter_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
 ) -> Result<(IotaTransactionBlockResponse, ObjectId), anyhow::Error> {
     let res = execute_move_call(
         client,
         address,
-        address_kp,
+        address_key,
         *package_id,
         "counter".to_string(),
         "create".to_string(),
@@ -1337,7 +1492,7 @@ async fn create_counter_object(
 
 async fn increment_counter(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
     counter_id: &ObjectId,
@@ -1346,7 +1501,7 @@ async fn increment_counter(
     execute_move_call(
         client,
         address,
-        address_kp,
+        address_key,
         *package_id,
         "counter".to_string(),
         "increment".to_string(),
@@ -1359,7 +1514,7 @@ async fn increment_counter(
 
 async fn create_new_bear(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
     name: &str,
@@ -1390,7 +1545,7 @@ async fn create_new_bear(
 
     let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
     let tx_data = tx_builder.programmable(pt).build();
-    let signed_transaction = to_sender_signed_transaction(tx_data, address_kp);
+    let signed_transaction = to_sender_signed_transaction(tx_data, address_key);
     let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 
     let res = client
@@ -1418,20 +1573,20 @@ async fn create_new_bear(
 
 pub(crate) async fn deploy_basics_pkg(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
 ) -> (IotaTransactionBlockResponse, ObjectId) {
-    deploy_package(address, address_kp, client, "../../examples/move/basics").await
+    deploy_package(address, address_key, client, "../../examples/move/basics").await
 }
 
 async fn deploy_bear_pkg(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
 ) -> (IotaTransactionBlockResponse, ObjectId) {
     deploy_package(
         address,
-        address_kp,
+        address_key,
         client,
         "../../examples/trading/contracts/demo",
     )
@@ -1445,13 +1600,13 @@ async fn deploy_bear_pkg(
 /// Returns the package id, the `Display<Nft>` object id and the `Nft` id.
 async fn deploy_display_no_version_update_pkg_and_mint_nft(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     name: &str,
 ) -> Result<(ObjectId, ObjectId, ObjectId), anyhow::Error> {
     let (publish_res, package_id) = deploy_package(
         address,
-        address_kp,
+        address_key,
         client,
         "tests/data/display_no_version_update",
     )
@@ -1472,7 +1627,7 @@ async fn deploy_display_no_version_update_pkg_and_mint_nft(
     let res = execute_move_call(
         client,
         address,
-        address_kp,
+        address_key,
         package_id,
         "display_no_version_update".to_string(),
         "mint".to_string(),
@@ -1498,7 +1653,7 @@ async fn deploy_display_no_version_update_pkg_and_mint_nft(
 
 async fn deploy_package(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_key: &AccountPrivateKey,
     client: &HttpClient,
     pkg_path: &str,
 ) -> (IotaTransactionBlockResponse, ObjectId) {
@@ -1520,7 +1675,7 @@ async fn deploy_package(
         .await
         .unwrap();
 
-    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), address_kp);
+    let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), address_key);
 
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
     let res = client
@@ -1560,8 +1715,8 @@ fn move_view_function_call() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = SimpleKeypair::from(keypair);
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
+        let keypair = SimpleKeypair::from(key);
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1612,10 +1767,14 @@ fn move_view_function_call() {
         let return_values = view_results.into_return_values();
         assert_eq!(return_values.len(), 1);
         let wat = &return_values[0];
-        let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
+        let IotaMoveValue::Struct(IotaMoveStruct::WithTypes {
+            struct_tag: tag,
+            fields,
+        }) = wat
+        else {
             panic!("return value should have been a struct");
         };
-        assert_eq!(type_.name().to_string(), "Wat");
+        assert_eq!(tag.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
 
         // Test mixed object, bool and address arguments.
@@ -1681,8 +1840,8 @@ fn clever_errors() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = SimpleKeypair::from(keypair);
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
+        let keypair = SimpleKeypair::from(key);
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

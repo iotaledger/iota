@@ -9,62 +9,9 @@ use std::{
     path::PathBuf,
 };
 
-use iota_framework::{SystemPackage, SystemPackageMetadata};
+use iota_framework::SystemPackage;
+pub use iota_framework_snapshot_manifest::*;
 use iota_sdk_types::ObjectId;
-use serde::{Deserialize, Serialize};
-
-pub type SnapshotManifest = BTreeMap<u64, Snapshot>;
-
-/// Encapsulation of an entry in the manifest file corresponding to a single
-/// version of the system packages.
-// Note: the [Snapshot] and [SnapshotPackage] types are similar to the
-// [iota_framework::{SystemPackageMetadata, SystemPackage}] types,
-// and also to the [iota::framework_versions::{FrameworkVersion, FrameworkPackage}] types.
-// They are sort of a stepping stone from one to the other - the [iota_framework] types contain
-// additional information about the compiled bytecode of the package, while the
-// [framework_versions] types do not contain information about the object IDs of the packages.
-//
-// These types serve as a kind of stepping stone; they are constructed from the [iota_framework]
-// types and serialized in the manifest, and then the build script for the [iota] crate reads them
-// from the manifest file and encodes them in the `iota` binary. A little information is dropped in
-// each of these steps.
-#[derive(Serialize, Deserialize)]
-pub struct Snapshot {
-    /// Git revision that this snapshot is taken on.
-    pub git_revision: String,
-
-    /// List of system packages in this version.
-    pub packages: Vec<SnapshotPackage>,
-}
-
-/// Entry in the manifest file corresponding to a specific version of a specific
-/// system package.
-#[derive(Serialize, Deserialize)]
-pub struct SnapshotPackage {
-    /// Name of the package (e.g. "MoveStdLib").
-    pub name: String,
-    /// Path to the package in the monorepo (e.g.
-    /// "crates/iota-framework/packages/move-stdlib").
-    pub path: String,
-    /// Object ID of the published package.
-    pub id: ObjectId,
-}
-
-impl Snapshot {
-    pub fn package_ids(&self) -> impl Iterator<Item = ObjectId> + '_ {
-        self.packages.iter().map(|p| p.id)
-    }
-}
-
-impl SnapshotPackage {
-    pub fn from_system_package_metadata(value: &SystemPackageMetadata) -> Self {
-        Self {
-            name: value.name.clone(),
-            path: value.path.clone(),
-            id: value.compiled.id,
-        }
-    }
-}
 
 const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectId] = &[
     ObjectId::STD,
@@ -81,34 +28,6 @@ pub fn get_system_package_publish_order(protocol_version: u64) -> Vec<ObjectId> 
         publish_order.insert(3, ObjectId::GENESIS_BRIDGE);
     }
     publish_order
-}
-
-pub fn load_bytecode_snapshot_manifest() -> SnapshotManifest {
-    let Ok(bytes) = fs::read(manifest_path()) else {
-        return SnapshotManifest::default();
-    };
-    serde_json::from_slice::<SnapshotManifest>(&bytes)
-        .expect("Could not deserialize SnapshotManifest")
-}
-
-pub fn update_bytecode_snapshot_manifest(
-    git_revision: &str,
-    version: u64,
-    files: Vec<SnapshotPackage>,
-) {
-    let mut snapshot = load_bytecode_snapshot_manifest();
-
-    snapshot.insert(
-        version,
-        Snapshot {
-            git_revision: git_revision.to_string(),
-            packages: files,
-        },
-    );
-
-    let json =
-        serde_json::to_string_pretty(&snapshot).expect("Could not serialize SnapshotManifest");
-    fs::write(manifest_path(), json).expect("Could not update manifest file");
 }
 
 pub fn load_bytecode_snapshot(protocol_version: u64) -> anyhow::Result<Vec<SystemPackage>> {
@@ -135,10 +54,6 @@ pub fn load_bytecode_snapshot(protocol_version: u64) -> anyhow::Result<Vec<Syste
         }
     }
     Ok(snapshot_objects)
-}
-
-pub fn manifest_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("manifest.json")
 }
 
 /// Given a protocol version:

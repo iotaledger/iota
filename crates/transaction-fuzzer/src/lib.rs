@@ -15,7 +15,7 @@ use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, GasPayment, MoveStruct, ObjectId, Owner, TransactionDigest};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
 };
@@ -43,7 +43,7 @@ fn generate_random_gas_data(
     // was implemented.
     const MAX_GAS_BALANCE: u64 = 4_600_000_000 * NANOS_PER_IOTA;
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let mut rng = StdRng::from_seed(seed);
     let mut gas_objects = vec![];
     let mut object_refs = vec![];
@@ -98,7 +98,7 @@ fn generate_random_gas_data(
 #[derive(Debug)]
 pub struct GasDataWithObjects {
     pub gas_data: GasPayment,
-    pub sender_key: AccountKeyPair,
+    pub sender_key: AccountPrivateKey,
     pub objects: Vec<Object>,
 }
 

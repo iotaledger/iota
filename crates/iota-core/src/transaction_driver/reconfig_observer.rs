@@ -87,12 +87,10 @@ impl ReconfigObserver<NetworkAuthorityClient> for OnsiteReconfigObserver {
                     continue;
                 }
                 Err(RecvError::Closed) => {
-                    // Closing the channel only happens in simtest when a node is shut down.
-                    if cfg!(msim) {
-                        return;
-                    } else {
-                        panic!("Do not expect the channel to be closed")
-                    }
+                    // The sender lives in `IotaNode`, so a closed channel means the node
+                    // was dropped.
+                    warn!("Reconfig channel closed, exiting reconfig observer");
+                    return;
                 }
             }
         }

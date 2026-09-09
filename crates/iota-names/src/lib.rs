@@ -42,7 +42,7 @@ pub trait IotaNamesNft {
     const MODULE: Identifier;
     const TYPE_NAME: Identifier;
 
-    fn type_(package_id: Address) -> StructTag {
+    fn struct_tag(package_id: Address) -> StructTag {
         StructTag::new(package_id, Self::MODULE, Self::TYPE_NAME, vec![])
     }
 

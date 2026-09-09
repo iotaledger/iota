@@ -24,7 +24,7 @@ The GraphQL service holds no state of its own. Multiple instances can run in par
 
 - An indexer Postgres database. The schema version in the database must match the one compiled into the GraphQL binary; otherwise the GraphQL service refuses to start. For the `executeTransactionBlock` operation to work properly the indexer writer should be running and synced with the tip of the network. See [IOTA Indexer](./iota-indexer.mdx) for details on running the indexer writer.
 - A fullnode gRPC endpoint. Required at start-up — the server fails to start if `--node-rpc-url` is not set, even when no client issues a mutation or a dry run.
-- Note that currently fallback service cannot be configured for GraphQL, so data pruned by indexer writer is not accessible through GraphQL. See [Pruning](./iota-indexer.mdx#pruning) for the indexer-side retention model.
+- An optional REST KV store for historic fallback. When configured, it lets the GraphQL service serve data already pruned by the indexer writer. Currently experimental. See [Pruned data](#pruned-data) below and [Pruning](./iota-indexer.mdx#pruning) for the indexer-side retention model.
 
 ## Hardware requirements
 
@@ -71,6 +71,34 @@ The most important settings are covered in subsections below. All settings are l
 ### Fullnode endpoint
 
 `--node-rpc-url` is the gRPC URL of a fullnode that the GraphQL service forwards `executeTransactionBlock` and `dryRunTransactionBlock` to. It is required at start-up.
+
+### Pruned data
+
+:::warning Experimental
+
+The historic fallback depends on the API from the `iota-rest-kv` crate which is still being finalised. Treat the flags below as experimental — they may change or be replaced.
+
+:::
+
+Data already [pruned](./iota-indexer.mdx#pruning) by the indexer writer can be served by the GraphQL service using a historic fallback feature.
+To use it, the operator runs a separate self-hosted REST KV store and points the GraphQL service at it via `--fallback-kv-url`.
+When `--fallback-kv-url` is unset (the default), no fallback is performed and pruned data is unreachable via GraphQL.
+
+These queries fall back to the KV store when their data has been pruned from the database:
+
+- `checkpoint`, `checkpoints`, `Epoch.checkpoints`
+- `transactionBlock`, `transactionBlocksByDigests`
+- `transactionBlocks` with filter `atCheckpoint`, `affectedAddress`, or `transactionIds`, and the matching `Checkpoint.transactionBlocks` and `Address.transactionBlocks` (`AFFECTED` relation)
+- `events` with filter `transactionDigest`
+- `object` at a past version, including dynamic fields resolved at a parent object's version
+
+:::note
+
+Resolving a dynamic field or dynamic object field at a parent object's version needs that version recorded in the indexer's `objects_version` table. On indexers restored from a snapshot, versions below the restore point cannot be served this way and return `DATA_PRUNED`.
+
+:::
+
+The `--fallback-kv-multi-fetch-batch-size`, `--fallback-kv-concurrent-fetches`, and `--fallback-kv-cache-size` knobs tune the KV client's request batching, concurrency, and in-memory cache.
 
 ### HTTP server
 
@@ -158,6 +186,10 @@ reverse-registry-id = "0x..."
 | `--skip-migration-consistency-check`  | `false`                                                  | Skip the start-up check that local migrations match the database.                                 |
 | `--max-available-range`               | `9000`                                                   | Maximum window (in checkpoints) in which consistent view on objects can be served. Also `MAX_AVAILABLE_RANGE` env var. |
 | `--node-rpc-url`                      | _(required)_                                             | Fullnode gRPC URL used for `executeTransactionBlock` and `dryRunTransactionBlock`.                |
+| `--fallback-kv-url`                   | _(none)_                                                 | Experimental. REST KV store URL for historic fallback. Disabled when unset.                       |
+| `--fallback-kv-multi-fetch-batch-size` | `100`                                                   | Experimental. Maximum number of keys per batch request to the fallback KV store. Also `FALLBACK_KV_MULTI_FETCH_BATCH_SIZE` env var. |
+| `--fallback-kv-concurrent-fetches`    | `10`                                                     | Experimental. Maximum number of concurrent batch requests to the fallback KV store. Also `FALLBACK_KV_CONCURRENT_FETCHES` env var. |
+| `--fallback-kv-cache-size`            | `100000`                                                 | Experimental. In-memory cache size for historic fallback. Also `FALLBACK_KV_CACHE_SIZE` env var.  |
 | `--ide-title`, `-i`                   | `IOTA GraphQL IDE`                                       | Title displayed at the top of the GraphiQL IDE.                                                   |
 | `--config`, `-c`                      | _(none)_                                                 | Path to a TOML file with service configuration; see below.                                        |
 

@@ -123,6 +123,52 @@ To run it with the `iota-localnet start` subcommand, switch to the root director
 `cargo run --features indexer --bin iota-localnet start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:8000`
 ```
 
+## Historic fallback (REST KV store)
+
+The GraphQL server supports an experimental historic fallback feature via the `--fallback-kv-url` flag.
+The Indexer prunes historical data below a retention watermark, so by default the server cannot read checkpoints, transactions, events, or object versions older than that watermark.
+When a [REST KV store](../../dev-tools/iota-rest-kv/README.md) is configured, the server falls back to it for reads that miss the pruned Postgres data, so pruned history stays queryable.
+It depends on the API served by the `iota-rest-kv` crate, which is still being finalized and subject to change.
+
+> [!WARNING]
+> This is an experimental feature and is subject to change without notice.
+
+### Enabling
+
+Pass the REST KV store URL when starting the server:
+
+```sh
+iota-graphql-rpc start-server \
+  --db-url postgres://<user>:<password>@<host>:5432/<db> \
+  --node-rpc-url http://<fullnode>:<grpc-port> \
+  --fallback-kv-url http://<rest-kv-host>:<port>
+```
+
+Without `--fallback-kv-url` (the default), no fallback is performed and pruned data is unreachable.
+
+The remaining options tune batching, concurrency, and caching of the fallback requests:
+
+| Flag                                   | Env var                              | Default  | Description                                                  |
+| -------------------------------------- | ------------------------------------ | -------- | ------------------------------------------------------------ |
+| `--fallback-kv-url`                    | —                                    | _(none)_ | REST KV store URL. Enables the fallback when set.            |
+| `--fallback-kv-multi-fetch-batch-size` | `FALLBACK_KV_MULTI_FETCH_BATCH_SIZE` | `100`    | Maximum number of keys per batch request to the KV store.    |
+| `--fallback-kv-concurrent-fetches`     | `FALLBACK_KV_CONCURRENT_FETCHES`     | `10`     | Maximum number of concurrent batch requests to the KV store. |
+| `--fallback-kv-cache-size`             | `FALLBACK_KV_CACHE_SIZE`             | `100000` | Number of entries cached from the KV store.                  |
+
+### Queries with fallback
+
+These queries use the fallback when the requested data has been pruned from Postgres:
+
+- Checkpoints: `checkpoint(id)` (by sequence number or digest), `checkpoints`, `Epoch.checkpoints`
+- Transactions by digest: `transactionBlock(digest)`, `transactionBlocksByDigests`
+- Transactions by filter: `transactionBlocks(filter: { atCheckpoint })` and `Checkpoint.transactionBlocks`; `transactionBlocks(filter: { affectedAddress })` and `Address.transactionBlocks(relation: AFFECTED)`; `transactionBlocks(filter: { transactionIds })`
+- Events of a transaction: `events(filter: { transactionDigest })`
+- Objects at a past version: `object(address, version)`, including dynamic fields resolved at a parent object's version
+
+Resolving a dynamic field or dynamic object field at a parent object's version needs that version recorded in the indexer's `objects_version` table. On indexers restored from a snapshot, versions below the restore point cannot be served this way and return `DATA_PRUNED`.
+
+Other read paths are served only from Postgres and cannot see pruned data.
+
 ## Running tests
 
 The crate provides test coverage for server functionality, covering client validation, query validation, reading and writing data, query limits, and health checks.

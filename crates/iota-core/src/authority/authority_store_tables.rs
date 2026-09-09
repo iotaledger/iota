@@ -100,12 +100,6 @@ pub struct AuthorityPerpetualTables {
     /// table. When we revert transactions, we remove them from both tables.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
-    /// Deprecated: events keyed by events digest moved to `events_2`.
-    /// TODO: <https://github.com/iotaledger/iota/issues/12423>
-    #[allow(dead_code)]
-    #[deprecated_db_map]
-    events: Option<DBMap<(), ()>>,
-
     // Events keyed by the digest of the transaction that produced them.
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 

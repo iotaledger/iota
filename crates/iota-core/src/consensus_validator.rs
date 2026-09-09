@@ -366,12 +366,13 @@ mod tests {
     async fn validate_transactions_feature_gating() {
         use iota_protocol_config::ProtocolConfig;
         use iota_types::crypto::{
-            AccountKeyPair, AuthorityPublicKeyBytes, deterministic_random_account_key,
+            AccountPrivateKey, AuthorityPublicKeyBytes, deterministic_random_account_private_key,
         };
 
         use crate::test_utils::make_transfer_iota_transaction;
 
-        let (sender, sender_key): (_, AccountKeyPair) = deterministic_random_account_key();
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            deterministic_random_account_private_key();
         let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
 

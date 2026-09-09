@@ -9,7 +9,7 @@ use clap::Parser;
 use iota_storage::blob::Blob;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::get_account_key_pair, effects::TransactionEffectsAPI,
+    crypto::get_account_private_key, effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointData, gas_coin::NANOS_PER_IOTA,
     utils::to_sender_signed_transaction,
 };
@@ -72,12 +72,12 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
     sim.set_data_ingestion_path(ingestion_dir.clone());
 
     let gas_price = sim.reference_gas_price();
-    let (sender, keypair) = get_account_key_pair();
+    let (sender, sender_key) = get_account_private_key();
     let mut gas_object = {
         let effects = sim.request_gas(sender, NANOS_PER_IOTA * 1000000)?;
         // Generate `1.chk` and includes the gas request transaction.
         sim.create_checkpoint();
-        effects.created()[0].0
+        effects.created()[0].reference
     };
 
     // When generating a workload that includes the genesis state, retain the
@@ -97,9 +97,9 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
             let tx_data = TestTransactionBuilder::new(sender, gas_object, gas_price)
                 .transfer_iota(Some(1), sender)
                 .build();
-            let tx = to_sender_signed_transaction(tx_data, &keypair);
+            let tx = to_sender_signed_transaction(tx_data, &sender_key);
             let (effects, _) = sim.execute_transaction(tx)?;
-            gas_object = effects.gas_object().0;
+            gas_object = effects.gas_object().reference;
             tx_count += 1;
         }
 

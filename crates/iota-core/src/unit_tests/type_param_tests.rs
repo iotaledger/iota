@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
 };
 
@@ -18,7 +18,7 @@ use crate::authority::{
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_same_module_type_param() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -50,7 +50,7 @@ async fn test_same_module_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.object_id;
+    let created_object_id = effects.created()[0].reference.object_id;
     let type_param =
         TypeTag::from_str(format!("{}::m1::Object", package.object_id).as_str()).unwrap();
 
@@ -77,7 +77,7 @@ async fn test_same_module_type_param() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_different_module_type_param() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -109,7 +109,7 @@ async fn test_different_module_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.object_id;
+    let created_object_id = effects.created()[0].reference.object_id;
     let type_param =
         TypeTag::from_str(format!("{}::m2::AnotherObject", package.object_id).as_str()).unwrap();
 
@@ -137,7 +137,7 @@ async fn test_different_module_type_param() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -169,7 +169,7 @@ async fn test_nested_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.object_id;
+    let created_object_id = effects.created()[0].reference.object_id;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
@@ -203,7 +203,7 @@ async fn test_nested_type_param() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param_different_module() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -235,7 +235,7 @@ async fn test_nested_type_param_different_module() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.object_id;
+    let created_object_id = effects.created()[0].reference.object_id;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
@@ -269,7 +269,7 @@ async fn test_nested_type_param_different_module() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_different_package_type_param() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -312,7 +312,7 @@ async fn test_different_package_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.object_id;
+    let created_object_id = effects.created()[0].reference.object_id;
     let type_param =
         TypeTag::from_str(format!("{}::m2::AnotherObject", package.object_id).as_str()).unwrap();
 
@@ -340,7 +340,7 @@ async fn test_different_package_type_param() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param_different_package() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -383,7 +383,7 @@ async fn test_nested_type_param_different_package() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0.object_id;
+    let created_object_id = effects.created()[0].reference.object_id;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",

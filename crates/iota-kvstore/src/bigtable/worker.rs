@@ -220,7 +220,7 @@ pub fn transactions_by_address<'a>(
                 std::iter::once(txn.sender())
                     .chain(std::iter::once(txn.gas_owner()))
                     .chain(tx.effects.all_changed_objects().into_iter().filter_map(
-                        |(_, owner, _)| match owner {
+                        |(changed, _)| match changed.owner {
                             Owner::Address(a) => Some(a),
                             _ => None,
                         },

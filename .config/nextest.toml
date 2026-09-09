@@ -20,6 +20,13 @@ or (package(iota-indexer) and (binary(ingestion_tests)))
 '''
 
 [[profile.default.overrides]]
+# Tests that start a local network on its fixed ports, so they cannot run next to each other
+threads-required = "num-test-threads"
+filter = '''
+package(iota-localnet) and (test(test_start) or test(start_works_with_a_committee_of_two))
+'''
+
+[[profile.default.overrides]]
 # Slow tests that should run single threaded and only get 1 retry (like the default) but a longer timeout
 threads-required = "num-test-threads"
 slow-timeout = { period = "120s", terminate-after = 5 }

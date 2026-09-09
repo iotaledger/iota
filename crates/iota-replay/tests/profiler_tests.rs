@@ -26,6 +26,7 @@ async fn test_profiler() {
 
     use iota_replay::ReplayToolCommand;
     use iota_test_transaction_builder::publish_basics_package;
+    use iota_types::effects::TransactionEffectsAPI;
     use test_cluster::TestClusterBuilder;
 
     let tmp_dir = iota_common::tempdir();
@@ -48,7 +49,7 @@ async fn test_profiler() {
     let tx_digest = test_cluster
         .sign_and_execute_transaction(&tx_data)
         .await
-        .digest
+        .transaction_digest()
         .to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {

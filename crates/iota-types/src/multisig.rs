@@ -36,7 +36,7 @@ impl AuthenticatorTrait for MultisigAggregatedSignature {
             .with_additional_multisig_checks(verify_params.additional_multisig_checks);
 
         verifier
-            .verify(&*digest, self)
+            .verify(&digest, self)
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Invalid multisig: {e}"),
             })

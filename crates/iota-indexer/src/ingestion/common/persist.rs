@@ -92,7 +92,6 @@ pub enum CommitterTables {
     TxCallsMod,
     TxCallsFun,
     TxChangedObjects,
-    TxDigests,
     TxInputObjects,
     TxKinds,
     TxRecipients,

@@ -22,9 +22,9 @@ use iota_sdk_types::{
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
     MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
     Owner, ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction, TransactionDigest,
-    TransactionExpiration, TransactionKind, TransactionV1, TransferObjects, TypeTag, Upgrade,
-    UserSignature, Version,
+    SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction,
+    TransactionDenyRulesUpdate, TransactionDigest, TransactionExpiration, TransactionKind,
+    TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use itertools::Either;
@@ -39,8 +39,7 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, IotaSignature, Signer,
-        zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, Signer, zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -156,6 +155,9 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
+            // Creates the TransactionDenyRules object; there is no input to
+            // reference yet.
+            Self::TransactionDenyRulesCreate => vec![],
             _ => unimplemented!(
                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
             ),
@@ -244,6 +246,14 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                 if !config.pass_validator_scores_to_advance_epoch() {
                     return Err(UserInputError::Unsupported(
                         "passing of validator scores required".to_string(),
+                    ));
+                }
+            }
+            Self::TransactionDenyRulesCreate => {
+                if !config.deny_rule_governance_on_chain() {
+                    return Err(UserInputError::Unsupported(
+                        "on-chain deny rule governance not supported at current protocol version"
+                            .to_string(),
                     ));
                 }
             }
@@ -425,7 +435,9 @@ impl CommandExt for Command {
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
                 .collect(),
-            Command::MakeMoveVector(MakeMoveVector { type_: Some(t), .. }) => {
+            Command::MakeMoveVector(MakeMoveVector {
+                type_tag: Some(t), ..
+            }) => {
                 let mut packages = BTreeSet::new();
                 add_type_tag_packages(&mut packages, t);
                 packages
@@ -433,7 +445,7 @@ impl CommandExt for Command {
                     .map(InputObjectKind::MovePackage)
                     .collect()
             }
-            Command::MakeMoveVector(MakeMoveVector { type_: None, .. })
+            Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
             | Command::TransferObjects(_)
             | Command::SplitCoins(_)
             | Command::MergeCoins(_) => vec![],
@@ -461,7 +473,7 @@ impl CommandExt for Command {
                 );
             }
             Command::MakeMoveVector(MakeMoveVector {
-                type_: ty_opt,
+                type_tag: ty_opt,
                 elements: args,
             }) => {
                 // ty_opt.is_none() ==> !args.is_empty()
@@ -764,6 +776,9 @@ impl TransactionKindExt for TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
+                    // Never the last end-of-epoch kind; a change-epoch kind
+                    // always follows it.
+                    EndOfEpochTransactionKind::TransactionDenyRulesCreate => None,
                     _ => unimplemented!(
                         "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                     ),
@@ -796,6 +811,13 @@ impl TransactionKindExt for TransactionKind {
                     true,
                 ))))
             }
+            Self::TransactionDenyRulesUpdate(update) => {
+                Either::Left(Either::Left(iter::once(SharedObjectReference::new(
+                    ObjectId::TRANSACTION_DENY_RULES,
+                    update.deny_rules_obj_initial_shared_version,
+                    true,
+                ))))
+            }
             Self::EndOfEpoch(txns) => Either::Left(Either::Right(
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
@@ -818,6 +840,7 @@ impl TransactionKindExt for TransactionKind {
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
+            | TransactionKind::TransactionDenyRulesUpdate(_)
             | TransactionKind::EndOfEpoch(_) => vec![],
             TransactionKind::Programmable(pt) => pt.receiving_objects(),
             _ => unimplemented!(
@@ -849,6 +872,13 @@ impl TransactionKindExt for TransactionKind {
                 vec![InputObjectKind::SharedMoveObject {
                     id: ObjectId::RANDOMNESS_STATE,
                     initial_shared_version: update.randomness_obj_initial_shared_version,
+                    mutable: true,
+                }]
+            }
+            Self::TransactionDenyRulesUpdate(update) => {
+                vec![InputObjectKind::SharedMoveObject {
+                    id: ObjectId::TRANSACTION_DENY_RULES,
+                    initial_shared_version: update.deny_rules_obj_initial_shared_version,
                     mutable: true,
                 }]
             }
@@ -908,6 +938,14 @@ impl TransactionKindExt for TransactionKind {
                 ));
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
+            TransactionKind::TransactionDenyRulesUpdate(_) => {
+                if !config.deny_rule_governance_on_chain() {
+                    return Err(UserInputError::Unsupported(
+                        "on-chain deny rule governance not supported at current protocol version"
+                            .to_string(),
+                    ));
+                }
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -930,6 +968,7 @@ impl TransactionKindExt for TransactionKind {
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => "AuthenticatorStateUpdateV1Deprecated",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
+            Self::TransactionDenyRulesUpdate(_) => "TransactionDenyRulesUpdate",
             Self::EndOfEpoch(_) => "EndOfEpoch",
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
@@ -1952,12 +1991,14 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn add_signature(&mut self, new_signature: SimpleSignature) {
-        self.0.signatures.push(new_signature.into());
+        self.signed_transaction_mut()
+            .signatures
+            .push(new_signature.into());
     }
 
     fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>> {
         let mut mapping = BTreeMap::new();
-        for sig in &self.0.signatures {
+        for sig in &self.signed_transaction().signatures {
             let address = sig.derive_address();
             mapping.insert(address, sig);
         }
@@ -1969,11 +2010,11 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn transaction_mut_for_testing(&mut self) -> &mut Transaction {
-        &mut self.0.transaction
+        &mut self.signed_transaction_mut().transaction
     }
 
     fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature> {
-        &mut self.0.signatures
+        &mut self.signed_transaction_mut().signatures
     }
 
     fn serialized_size(&self) -> IotaResult<usize> {
@@ -2058,7 +2099,7 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
             .map(|o| (&o.input_object_kind, o))
             .collect::<HashMap<_, _>>();
 
-        let tx_input_objects = self
+        let mut tx_input_objects: InputObjects = self
             .transaction()
             .input_objects()?
             .iter()
@@ -2070,6 +2111,9 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
             })
             .collect::<Vec<_>>()
             .into();
+        if let Some((gas_object_id, version)) = input_objects.gas_object_cancellation() {
+            tx_input_objects.set_gas_object_cancellation(gas_object_id, version);
+        }
 
         let per_authenticator_inputs =
             self.move_authenticators()
@@ -2339,11 +2383,8 @@ impl TransactionEnvelope {
         signers: Vec<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
     ) -> Self {
         let signatures = {
-            let intent_msg = tx.intent_message();
-            signers
-                .into_iter()
-                .map(|s| SimpleSignature::new_secure(&intent_msg, s))
-                .collect()
+            let digest = tx.signing_digest();
+            signers.into_iter().map(|s| s.sign(&digest)).collect()
         };
         Self::from_data(tx, signatures)
     }
@@ -2358,8 +2399,8 @@ impl TransactionEnvelope {
         intent: Intent,
         signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
     ) -> SimpleSignature {
-        let intent_msg = IntentMessage::new(intent, tx);
-        SimpleSignature::new_secure(&intent_msg, signer)
+        let digest = IntentMessage::new(intent, tx).signing_digest();
+        signer.sign(&digest)
     }
 
     pub fn from_user_sig_data(tx: Transaction, signatures: Vec<UserSignature>) -> Self {
@@ -2428,6 +2469,10 @@ impl VerifiedTransaction {
 
     pub fn new_end_of_epoch_transaction(txns: Vec<EndOfEpochTransactionKind>) -> Self {
         TransactionKind::EndOfEpoch(txns).pipe(Self::new_system_transaction)
+    }
+
+    pub fn new_transaction_deny_rules_update(update: TransactionDenyRulesUpdate) -> Self {
+        TransactionKind::TransactionDenyRulesUpdate(update).pipe(Self::new_system_transaction)
     }
 
     fn new_system_transaction(system_transaction: TransactionKind) -> Self {
@@ -2730,7 +2775,7 @@ pub enum ObjectReadResultKind {
     // that deleted it.
     DeletedSharedObject(Version, TransactionDigest),
     // A shared object in a cancelled transaction. The sequence number embeds cancellation reason.
-    CancelledTransactionSharedObject(Version),
+    CancelledTransactionObject(Version),
 }
 
 impl std::fmt::Debug for ObjectReadResultKind {
@@ -2742,8 +2787,8 @@ impl std::fmt::Debug for ObjectReadResultKind {
             ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
                 write!(f, "DeletedSharedObject({seq}, {digest})")
             }
-            ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
-                write!(f, "CancelledTransactionSharedObject({seq})")
+            ObjectReadResultKind::CancelledTransactionObject(seq) => {
+                write!(f, "CancelledTransactionObject({seq})")
             }
         }
     }
@@ -2767,10 +2812,10 @@ impl ObjectReadResult {
 
         if let (
             InputObjectKind::ImmOrOwnedMoveObject(_),
-            ObjectReadResultKind::CancelledTransactionSharedObject(_),
+            ObjectReadResultKind::CancelledTransactionObject(_),
         ) = (&input_object_kind, &object)
         {
-            panic!("only shared objects can be CancelledTransactionSharedObject");
+            panic!("only shared objects can be CancelledTransactionObject");
         }
 
         Self {
@@ -2787,7 +2832,7 @@ impl ObjectReadResult {
         match &self.object {
             ObjectReadResultKind::Object(object) => Some(object),
             ObjectReadResultKind::DeletedSharedObject(_, _) => None,
-            ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
+            ObjectReadResultKind::CancelledTransactionObject(_) => None,
         }
     }
 
@@ -2811,7 +2856,7 @@ impl ObjectReadResult {
             ) => unreachable!(),
             (
                 InputObjectKind::ImmOrOwnedMoveObject(_),
-                ObjectReadResultKind::CancelledTransactionSharedObject(_),
+                ObjectReadResultKind::CancelledTransactionObject(_),
             ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { mutable, .. }, _) => *mutable,
         }
@@ -2853,7 +2898,7 @@ impl ObjectReadResult {
             ) => unreachable!(),
             (
                 InputObjectKind::ImmOrOwnedMoveObject(_),
-                ObjectReadResultKind::CancelledTransactionSharedObject(_),
+                ObjectReadResultKind::CancelledTransactionObject(_),
             ) => unreachable!(),
             (InputObjectKind::SharedMoveObject { .. }, _) => None,
         }
@@ -2872,7 +2917,7 @@ impl ObjectReadResult {
                 ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
                     SharedInput::Deleted((id, *seq, mutable, *digest))
                 }
-                ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
+                ObjectReadResultKind::CancelledTransactionObject(seq) => {
                     SharedInput::Cancelled((id, *seq))
                 }
             }),
@@ -2883,19 +2928,46 @@ impl ObjectReadResult {
         match &self.object {
             ObjectReadResultKind::Object(obj) => Some(obj.previous_transaction),
             ObjectReadResultKind::DeletedSharedObject(_, digest) => Some(*digest),
-            ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
+            ObjectReadResultKind::CancelledTransactionObject(_) => None,
         }
     }
+}
+
+/// The input objects that carry a cancelled transaction's cancellation
+/// version, and therefore the objects reported to the client as the cause.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CancelledObjects {
+    /// The transaction's shared inputs, reported as the congested objects.
+    SharedObjects(Vec<ObjectId>),
+    /// The gas object of a transaction without shared inputs. Consensus only
+    /// assigns a cancellation version there when the execution workers are
+    /// congested, so no individual object is responsible and none is
+    /// reported.
+    GasObject,
 }
 
 #[derive(Clone)]
 pub struct InputObjects {
     objects: Vec<ObjectReadResult>,
+    /// Cancellation version assigned to the gas object when a transaction
+    /// without shared inputs is cancelled by consensus (execution-worker
+    /// congestion). Transactions with shared inputs carry cancellation
+    /// versions on their shared object read results instead. Unlike those,
+    /// the gas object itself is still read normally, because the cancelled
+    /// execution must charge gas to it.
+    gas_object_cancellation: Option<(ObjectId, Version)>,
 }
 
 impl std::fmt::Debug for InputObjects {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_list().entries(self.objects.iter()).finish()
+        match &self.gas_object_cancellation {
+            None => f.debug_list().entries(self.objects.iter()).finish(),
+            Some(gas_object_cancellation) => f
+                .debug_struct("InputObjects")
+                .field("objects", &self.objects)
+                .field("gas_object_cancellation", gas_object_cancellation)
+                .finish(),
+        }
     }
 }
 
@@ -2941,7 +3013,30 @@ impl From<Vec<ObjectReadResult>> for InputObjects {
 
 impl InputObjects {
     pub fn new(objects: Vec<ObjectReadResult>) -> Self {
-        Self { objects }
+        Self {
+            objects,
+            gas_object_cancellation: None,
+        }
+    }
+
+    /// Marks this transaction as cancelled via the version assigned to its
+    /// gas object. Only valid for transactions without shared inputs; a
+    /// transaction with shared inputs carries cancellation versions on its
+    /// shared object read results.
+    pub fn set_gas_object_cancellation(&mut self, gas_object_id: ObjectId, version: Version) {
+        assert!(
+            version.is_canceled(),
+            "gas object cancellation must use a cancellation version, got {version:?}"
+        );
+        assert!(
+            !self.objects.iter().any(|obj| obj.is_shared_object()),
+            "transactions with shared inputs carry cancellation on their shared objects"
+        );
+        self.gas_object_cancellation = Some((gas_object_id, version));
+    }
+
+    pub fn gas_object_cancellation(&self) -> Option<(ObjectId, Version)> {
+        self.gas_object_cancellation
     }
 
     pub fn len(&self) -> usize {
@@ -2958,14 +3053,18 @@ impl InputObjects {
             .any(|obj| obj.is_deleted_shared_object())
     }
 
-    // Returns IDs of objects responsible for a transaction being cancelled, and the
+    // Returns the objects responsible for a transaction being cancelled, and the
     // corresponding reason for cancellation.
-    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectId>, Version)> {
+    pub fn get_cancelled_objects(&self) -> Option<(CancelledObjects, Version)> {
+        if let Some((_, version)) = &self.gas_object_cancellation {
+            return Some((CancelledObjects::GasObject, *version));
+        }
+
         let mut contains_cancelled = false;
         let mut cancel_reason = None;
         let mut cancelled_objects = Vec::new();
         for obj in &self.objects {
-            if let ObjectReadResultKind::CancelledTransactionSharedObject(version) = obj.object {
+            if let ObjectReadResultKind::CancelledTransactionObject(version) = obj.object {
                 contains_cancelled = true;
                 if version.is_congested() || version == Version::RANDOMNESS_UNAVAILABLE {
                     // Verify we don't have multiple cancellation reasons.
@@ -2978,7 +3077,7 @@ impl InputObjects {
 
         if !cancelled_objects.is_empty() {
             Some((
-                cancelled_objects,
+                CancelledObjects::SharedObjects(cancelled_objects),
                 cancel_reason
                     .expect("there should be a cancel reason if there are cancelled objects"),
             ))
@@ -3066,13 +3165,13 @@ impl InputObjects {
                     }
                     (
                         InputObjectKind::ImmOrOwnedMoveObject(_),
-                        ObjectReadResultKind::CancelledTransactionSharedObject(_),
+                        ObjectReadResultKind::CancelledTransactionObject(_),
                     ) => {
                         unreachable!()
                     }
                     (
                         InputObjectKind::SharedMoveObject { .. },
-                        ObjectReadResultKind::CancelledTransactionSharedObject(_),
+                        ObjectReadResultKind::CancelledTransactionObject(_),
                     ) => None,
                 },
             )
@@ -3091,7 +3190,7 @@ impl InputObjects {
                     object.data.as_opt_struct().map(MoveStruct::version)
                 }
                 ObjectReadResultKind::DeletedSharedObject(v, _) => Some(*v),
-                ObjectReadResultKind::CancelledTransactionSharedObject(_) => None,
+                ObjectReadResultKind::CancelledTransactionObject(_) => None,
             })
             .chain(
                 receiving_objects

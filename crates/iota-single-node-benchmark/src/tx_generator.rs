@@ -16,7 +16,7 @@ mod root_object_create_tx_generator;
 mod shared_object_create_tx_generator;
 
 pub(crate) trait TxGenerator: Send + Sync {
-    /// Given an account that contains a sender address, a keypair for that
+    /// Given an account that contains a sender address, a private key for that
     /// address, and a list of gas objects owned by this address, generate a
     /// single transaction.
     fn generate_tx(&self, account: Account) -> TransactionEnvelope;

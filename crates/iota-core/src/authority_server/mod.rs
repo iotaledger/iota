@@ -18,6 +18,9 @@ use std::{
 };
 
 use iota_network::tonic;
+use iota_traffic_controller::{
+    ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+};
 use iota_types::{
     error::*,
     traffic_control::{ClientIdSource, Weight},
@@ -29,12 +32,8 @@ use tokio_stream::StreamExt;
 use tracing::error;
 
 use crate::{
-    authority::AuthorityState,
-    authority_server::soft_lock::PreConsensusSoftLocks,
+    authority::AuthorityState, authority_server::soft_lock::PreConsensusSoftLocks,
     consensus_adapter::ConsensusAdapter,
-    traffic_controller::{
-        ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
-    },
 };
 
 type WrappedServiceResponse<T> = Result<(tonic::Response<T>, Weight), tonic::Status>;
@@ -390,7 +389,9 @@ macro_rules! handle_with_decoration {
 mod client_ip_forwarding_tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-    use crate::{authority_client::insert_metadata, traffic_controller::parse_ip};
+    use iota_traffic_controller::parse_ip;
+
+    use crate::authority_client::insert_metadata;
 
     /// Verifies that `insert_metadata` on the client side sets the
     /// `x-forwarded-for` header such that the server-side

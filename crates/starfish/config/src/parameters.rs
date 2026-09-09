@@ -145,6 +145,14 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
     pub enable_fast_commit_syncer: bool,
 
+    /// Reconnect block streams after fast commit sync reinitializes consensus,
+    /// discarding bundles buffered against the previous state. Enabled by
+    /// default; operators can disable it locally. Has no effect unless
+    /// `enable_fast_commit_syncer` is also enabled, since only fast sync
+    /// signals the reset.
+    #[serde(default = "Parameters::default_enable_block_stream_reset_on_fast_sync_exit")]
+    pub enable_block_stream_reset_on_fast_sync_exit: bool,
+
     /// Ask commit-sync peers that have voted for the end of the requested
     /// range before those that have not, since a vote means the peer has
     /// solidified every commit in the range. Peers without an observed vote
@@ -163,13 +171,14 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
-    /// Prefer more responsive peers when the transactions synchronizer and the
-    /// commit syncer select peers to fetch from. Responses are verified the
-    /// same way regardless, so it cannot affect safety. Enabled by default;
-    /// disabling it restores the previous selection: for the transactions
-    /// synchronizer a uniform random order that excludes the most recently
-    /// failed peers (up to less than f+1 by stake), and for the commit syncer a
-    /// uniform random order.
+    /// Prefer more responsive peers when the transactions synchronizer, the
+    /// commit syncer and the header synchronizer select peers to fetch from.
+    /// Responses are verified the same way regardless, so it cannot affect
+    /// safety. Enabled by default; disabling it restores the previous
+    /// selection: for the transactions synchronizer a uniform random order
+    /// that excludes the most recently failed peers (up to less than f+1 by
+    /// stake), and for the commit syncer and the header synchronizer a uniform
+    /// random order.
     #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
     pub enable_peer_responsiveness_ranking: bool,
 
@@ -179,6 +188,20 @@ pub struct Parameters {
     /// Disabled by default (None).
     #[serde(default)]
     pub dag_visualizer_port: Option<u16>,
+
+    /// Maximum number of rounds the last commit's leader may run ahead of the
+    /// last solid commit's leader before the node stops accepting new block
+    /// bundles and restricts header fetching, until solidification catches up.
+    #[serde(default = "Parameters::default_solid_commit_lag_threshold")]
+    pub solid_commit_lag_threshold: u32,
+
+    /// Maximum number of shards from one relaying authority retained across
+    /// all pending shard accumulators. At the budget, admitting a new shard
+    /// from the authority evicts its oldest retained one, so reconstructor
+    /// memory stays bounded by `committee size × budget × shard size`
+    /// regardless of how far commits run ahead of solidification.
+    #[serde(default = "Parameters::default_shard_budget_per_authority")]
+    pub shard_budget_per_authority: u32,
 }
 
 impl Parameters {
@@ -310,6 +333,10 @@ impl Parameters {
                 "tonic.keepalive_interval",
                 self.tonic.keepalive_interval.as_nanos(),
             ),
+            (
+                "shard_budget_per_authority",
+                self.shard_budget_per_authority as u128,
+            ),
         ];
         for (name, value) in positive_fields {
             if value == 0 {
@@ -417,9 +444,11 @@ impl Parameters {
             // Exercise fast commit sync.
             5
         } else {
-            // With ~10KB per commit and 4MB max message size, 1000 commits (~10MB) requires
-            // chunking. The server will chunk commits across multiple response messages.
-            1000
+            // Sized so that commit_sync_parallel_fetches ranges fit under the
+            // unhandled-commits threshold (8 x 400 <= 3200), letting fast sync
+            // actually run its fetches in parallel. The server chunks larger
+            // responses across multiple messages either way.
+            400
         }
     }
 
@@ -440,6 +469,10 @@ impl Parameters {
         true
     }
 
+    pub(crate) fn default_enable_block_stream_reset_on_fast_sync_exit() -> bool {
+        true
+    }
+
     pub(crate) fn default_enable_commit_sync_peer_selection_by_commit_votes() -> bool {
         // Enabled by default. Ordering only, so it cannot diverge consensus.
         true
@@ -451,6 +484,20 @@ impl Parameters {
 
     pub(crate) fn default_enable_peer_responsiveness_ranking() -> bool {
         true
+    }
+
+    pub(crate) fn default_solid_commit_lag_threshold() -> u32 {
+        // The healthy gap is a few rounds at most; 500 rounds (a few minutes of
+        // commits) is far above live jitter yet caps how long a solidification
+        // stall can keep widening the shard/payload retention window.
+        500
+    }
+
+    pub(crate) fn default_shard_budget_per_authority() -> u32 {
+        // Honest need per authority is one shard per slot times a few rounds
+        // until decode, well under the budget at any realistic committee size.
+        // Worst-case total pool ≈ 3 × budget × the maximum payload size.
+        1000
     }
 }
 
@@ -484,6 +531,8 @@ impl Default for Parameters {
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
             commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
+            enable_block_stream_reset_on_fast_sync_exit:
+                Parameters::default_enable_block_stream_reset_on_fast_sync_exit(),
             enable_commit_sync_peer_selection_by_commit_votes:
                 Parameters::default_enable_commit_sync_peer_selection_by_commit_votes(),
             enable_starfish_speed_adaptive_acknowledgments:
@@ -491,6 +540,8 @@ impl Default for Parameters {
             enable_peer_responsiveness_ranking:
                 Parameters::default_enable_peer_responsiveness_ranking(),
             dag_visualizer_port: None,
+            solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
+            shard_budget_per_authority: Parameters::default_shard_budget_per_authority(),
         }
     }
 }

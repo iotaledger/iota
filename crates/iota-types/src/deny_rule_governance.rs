@@ -1,10 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeSet;
-
-use iota_sdk_types::{Address, ObjectId};
-use serde::{Deserialize, Serialize};
+use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
 
 /// Read access to a set of transaction deny rules.
 ///
@@ -33,34 +30,6 @@ pub trait DenyRuleConfig: Send + Sync {
     fn user_transaction_disabled(&self) -> bool;
     fn receiving_objects_disabled(&self) -> bool;
     fn move_authenticator_disabled(&self) -> bool;
-}
-
-/// A complete set of deny rules.
-///
-/// Deny lists use `BTreeSet` so the BCS encoding is deterministic across
-/// validators (a requirement for the consensus messages that carry this type).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DenyRuleSet {
-    /// Addresses denied as transaction sender or gas sponsor. A denied
-    /// address can still receive objects.
-    pub denied_addresses: BTreeSet<Address>,
-    /// Objects denied as transaction inputs or receiving objects.
-    pub denied_objects: BTreeSet<ObjectId>,
-    /// Packages denied as a (transitive) dependency of any command; upgrading
-    /// a denied package is denied too.
-    pub denied_packages: BTreeSet<ObjectId>,
-    /// Denies all package publishing.
-    pub package_publish_disabled: bool,
-    /// Denies all package upgrades.
-    pub package_upgrade_disabled: bool,
-    /// Denies transactions that use shared objects as inputs.
-    pub shared_object_disabled: bool,
-    /// Denies all user transactions (kill switch).
-    pub user_transaction_disabled: bool,
-    /// Denies transactions that contain receiving objects.
-    pub receiving_objects_disabled: bool,
-    /// Denies transactions signed with a Move authenticator.
-    pub move_authenticator_disabled: bool,
 }
 
 impl DenyRuleConfig for DenyRuleSet {
@@ -115,9 +84,9 @@ impl DenyRuleConfig for DenyRuleSet {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
 
-    use crate::deny_rule_governance::{DenyRuleConfig, DenyRuleSet};
+    use crate::deny_rule_governance::DenyRuleConfig;
 
     fn sample_rule_set() -> DenyRuleSet {
         DenyRuleSet {
@@ -133,13 +102,6 @@ mod tests {
             receiving_objects_disabled: true,
             move_authenticator_disabled: false,
         }
-    }
-
-    #[test]
-    fn deny_rule_set_bcs_round_trip() {
-        let rules = sample_rule_set();
-        let bytes = bcs::to_bytes(&rules).unwrap();
-        assert_eq!(rules, bcs::from_bytes(&bytes).unwrap());
     }
 
     #[test]

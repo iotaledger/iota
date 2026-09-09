@@ -1,6 +1,7 @@
 ---
 title: Getting Started with Kotlin
 description: Get started with the IOTA SDK Kotlin bindings to interact with the IOTA network.
+tags: [ tutorial, kotlin, mainnet, testnet, devnet, setup, install, getting-started ]
 ---
 
 import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
@@ -26,8 +27,10 @@ Before using the Kotlin bindings, ensure you have:
 ### Gradle
 Add the IOTA SDK dependency to your `build.gradle.kts` file:
 
-```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/build.gradle.kts#L20-L24
+```kotlin
+dependencies {
+    implementation("org.iota:iota-sdk:0.0.1-alpha.4")
+}
 ```
 
 ### Maven
@@ -78,17 +81,17 @@ For more details on development setup, platform-specific notes, and linking, ref
 
 ## Quick Start Example
 
-The following example demonstrates how to initialize a client and retrieve the Chain ID using Kotlin.
+The following example demonstrates how to connect to the IOTA Testnet and retrieve the Chain ID.
 
-## 1. Create a Main.kt
+### 1. Create a Main.kt
 
 Create a new file and paste the following code:
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/ChainId.kt#L1-l16
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/ChainId.kt#L4-L16
 ```
 
-## 2. Run the code
+### 2. Run the code
 
 If using Gradle, run:
 
@@ -98,10 +101,10 @@ If using Gradle, run:
 
 ## What's Next?
 
-Now that you have connected to the network, you can explore:
+Now that you have connected to the network, you can explore more advanced features:
 
-* Wallet API: Manage high-level accounts and automated address syncing.
-* Secret Manager: Securely handle Mnemonic, Stronghold, or Ledger hardware wallets.
-* Output Builders: Create complex transaction outputs (NFTs, Alias, etc.).
+* [Accounts and Addresses](/developer/iota-sdk/how-tos/accounts-and-addresses): create a mnemonic, derive addresses, and check coin balances.
+* [Transactions](/developer/iota-sdk/how-tos/transactions): build, sign, and send Programmable Transaction Blocks (PTBs), including staking and reusing command results.
+* [Queries](/developer/iota-sdk/how-tos/queries): query owned objects, events, and transactions with the GraphQL client.
 
 View more comprehensive examples in the official [Kotlin examples](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/kotlin/examples) directory.

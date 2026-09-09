@@ -19,6 +19,7 @@ tonic:
   admission:
     max_header_fetches_per_peer: 5
     max_subscriptions_per_peer: 0
+enable_block_stream_reset_on_fast_sync_exit: false
 "#,
     )
     .unwrap();
@@ -29,6 +30,7 @@ tonic:
     assert_eq!(parameters.tonic.admission.max_header_fetches_per_peer, 5);
     // A cap set to `0` disables admission for that group.
     assert_eq!(parameters.tonic.admission.max_subscriptions_per_peer, 0);
+    assert!(!parameters.enable_block_stream_reset_on_fast_sync_exit);
     // Unspecified fields keep their defaults, per field rather than per block.
     assert_eq!(
         parameters.tonic.admission.max_transaction_fetches_per_peer,

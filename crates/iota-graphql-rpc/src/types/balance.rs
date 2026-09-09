@@ -250,19 +250,20 @@ fn balance_query(
         address,
         coin_type.clone(),
     );
-    let changed = query!(format!(
-        "SELECT DISTINCT object_id FROM objects_backward_history \
-         WHERE superseded_at_checkpoint > {checkpoint_viewed_at}"
-    ));
+    // NOT EXISTS instead of a JOIN; see `consistent_checkpointed_objects`
+    // for explanation.
     let source_a = filter!(
         query!(
-            r#"SELECT candidates.object_id, candidates.coin_balance, candidates.coin_type
-               FROM ({}) candidates
-               LEFT JOIN ({}) changed ON candidates.object_id = changed.object_id"#,
-            checkpointed,
-            changed
+            "SELECT candidates.object_id, candidates.coin_balance, candidates.coin_type \
+             FROM ({}) candidates",
+            checkpointed
         ),
-        "changed.object_id IS NULL"
+        format!(
+            "NOT EXISTS (\
+                 SELECT 1 FROM objects_backward_history changed \
+                 WHERE changed.object_id = candidates.object_id \
+                   AND changed.superseded_at_checkpoint > {checkpoint_viewed_at})"
+        )
     );
 
     let mut history = filter(

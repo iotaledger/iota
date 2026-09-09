@@ -25,7 +25,7 @@ move-symbol-pool.workspace = true
 anyhow.workspace = true
 
 # internal dependencies
-iota-framework-snapshot.workspace = true
+iota-framework-snapshot-manifest.workspace = true
 
 [lints]
 workspace = true

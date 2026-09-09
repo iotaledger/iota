@@ -83,6 +83,10 @@ pub struct CachedTransactionData {
 pub struct SimulateTransactionResult {
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
+    /// Every object the transaction ran with as input — including immutable
+    /// and read-only shared inputs, the packages it calls, and the gas coins
+    /// (the mock one included) — plus the runtime-loaded objects (e.g. dynamic
+    /// fields) it modified, at their pre-state versions, keyed by id.
     pub input_objects: BTreeMap<ObjectId, Object>,
     pub output_objects: BTreeMap<ObjectId, Object>,
     /// The return values and mutable-reference outputs of every command, under

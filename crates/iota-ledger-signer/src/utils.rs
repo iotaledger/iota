@@ -68,7 +68,7 @@ fn object_ids_from_transaction(
 fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
     let data: IotaObjectData = resp.data?;
 
-    let move_object_type = match data.type_? {
+    let move_object_type = match data.object_type? {
         ObjectType::Struct(t) => t,
         _ => return None,
     };

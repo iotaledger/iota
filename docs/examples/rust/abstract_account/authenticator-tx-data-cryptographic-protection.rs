@@ -233,7 +233,7 @@ pub fn swap_recipient_in_transaction(
     mut transaction: TransactionEnvelope,
     attacker: Address,
 ) -> TransactionEnvelope {
-    match &mut transaction.0.transaction {
+    match &mut transaction.signed_transaction_mut().transaction {
         Transaction::V1(tx) => match &mut tx.kind {
             TransactionKind::Programmable(ptb) => {
                 ptb.inputs[0] = CallArg::Pure(bcs::to_bytes(&attacker).unwrap());

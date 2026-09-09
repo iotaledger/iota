@@ -35,7 +35,7 @@ impl TxGenerator for RootObjectCreateTxGenerator {
             "generate_dynamic_fields",
             vec![CallArg::pure(&self.child_per_root)],
         )
-        .build_and_sign(account.keypair.as_ref())
+        .build_and_sign(account.private_key.as_ref())
     }
 
     fn name(&self) -> &'static str {

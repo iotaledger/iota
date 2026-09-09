@@ -6,8 +6,8 @@ use std::path::PathBuf;
 
 use iota_macros::*;
 use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    TransactionEffects, TransactionEvents, Version,
+    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, OwnedObjectReference, Owner,
+    SharedObjectReference, TransactionEffects, TransactionEvents, Version,
 };
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
@@ -28,7 +28,10 @@ async fn fresh_shared_object_initial_version_matches_current_pcool_flow() {
 async fn fresh_shared_object_initial_version_matches_current(pcool: bool) {
     let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
-    let (object_ref, owner) = env.create_shared_counter().await;
+    let OwnedObjectReference {
+        reference: object_ref,
+        owner,
+    } = env.create_shared_counter().await;
     assert!(is_shared_at(&owner, object_ref.version));
 }
 
@@ -45,9 +48,9 @@ async fn objects_transitioning_to_shared_remember_their_previous_version_pcool_f
 async fn objects_transitioning_to_shared_remember_their_previous_version(pcool: bool) {
     let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
-    let (counter, _) = env.create_counter().await;
+    let counter = env.create_counter().await.reference;
 
-    let (counter, _) = env.increment_owned_counter(counter).await;
+    let counter = env.increment_owned_counter(counter).await.reference;
     assert_ne!(counter.version, OBJECT_START_VERSION);
 
     let ExecutionError::MoveAbort { location, code } =
@@ -63,9 +66,9 @@ async fn objects_transitioning_to_shared_remember_their_previous_version(pcool: 
 #[sim_test]
 async fn shared_object_owner_doesnt_change_on_write() {
     let env = TestEnvironment::new().await;
-    let (counter, _) = env.create_counter().await;
+    let counter = env.create_counter().await.reference;
 
-    let (inc_counter, _) = env.increment_owned_counter(counter).await;
+    let inc_counter = env.increment_owned_counter(counter).await.reference;
     let ExecutionError::MoveAbort { location, code } =
         env.share_counter(inc_counter).await.unwrap_err()
     else {
@@ -79,9 +82,9 @@ async fn shared_object_owner_doesnt_change_on_write() {
 #[sim_test]
 async fn initial_shared_version_mismatch_start_version() {
     let env = TestEnvironment::new().await;
-    let (counter, _) = env.create_counter().await;
+    let counter = env.create_counter().await.reference;
 
-    let (counter, _) = env.increment_owned_counter(counter).await;
+    let counter = env.increment_owned_counter(counter).await.reference;
     let ExecutionError::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
     else {
@@ -95,7 +98,7 @@ async fn initial_shared_version_mismatch_start_version() {
 #[sim_test]
 async fn initial_shared_version_mismatch_current_version() {
     let env = TestEnvironment::new().await;
-    let (counter, _) = env.create_counter().await;
+    let counter = env.create_counter().await.reference;
 
     let ExecutionError::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
@@ -162,17 +165,17 @@ impl TestEnvironment {
             .await
     }
 
-    async fn create_counter(&self) -> (ObjectReference, Owner) {
+    async fn create_counter(&self) -> OwnedObjectReference {
         let (fx, _) = self.move_call("create_counter", vec![]).await.unwrap();
         assert!(fx.status().is_success());
 
         *fx.created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .expect("Owned object created")
     }
 
-    async fn create_shared_counter(&self) -> (ObjectReference, Owner) {
+    async fn create_shared_counter(&self) -> OwnedObjectReference {
         let (fx, _) = self
             .move_call("create_shared_counter", vec![])
             .await
@@ -181,14 +184,14 @@ impl TestEnvironment {
 
         *fx.created()
             .iter()
-            .find(|(_, owner)| owner.is_shared())
+            .find(|created| created.owner.is_shared())
             .expect("Shared object created")
     }
 
     async fn share_counter(
         &self,
         counter: ObjectReference,
-    ) -> Result<(ObjectReference, Owner), ExecutionError> {
+    ) -> Result<OwnedObjectReference, ExecutionError> {
         let (fx, _) = self
             .move_call("share_counter", vec![CallArg::ImmutableOrOwned(counter)])
             .await
@@ -201,11 +204,11 @@ impl TestEnvironment {
         Ok(*fx
             .mutated()
             .iter()
-            .find(|(obj, _)| obj.object_id == counter.object_id)
+            .find(|mutated| mutated.reference.object_id == counter.object_id)
             .expect("Counter mutated"))
     }
 
-    async fn increment_owned_counter(&self, counter: ObjectReference) -> (ObjectReference, Owner) {
+    async fn increment_owned_counter(&self, counter: ObjectReference) -> OwnedObjectReference {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
@@ -216,7 +219,7 @@ impl TestEnvironment {
 
         *fx.mutated()
             .iter()
-            .find(|(obj, _)| obj.object_id == counter.object_id)
+            .find(|mutated| mutated.reference.object_id == counter.object_id)
             .expect("Counter modified")
     }
 
@@ -224,7 +227,7 @@ impl TestEnvironment {
         &self,
         counter: ObjectId,
         initial_shared_version: Version,
-    ) -> anyhow::Result<(ObjectReference, Owner)> {
+    ) -> anyhow::Result<OwnedObjectReference> {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
@@ -239,7 +242,7 @@ impl TestEnvironment {
         Ok(*fx
             .mutated()
             .iter()
-            .find(|(obj, _)| obj.object_id == counter)
+            .find(|mutated| mutated.reference.object_id == counter)
             .expect("Counter modified"))
     }
 }

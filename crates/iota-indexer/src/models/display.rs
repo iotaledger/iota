@@ -52,10 +52,10 @@ pub struct StoredDisplay {
 
 impl StoredDisplay {
     pub fn try_from_event(event: &Event) -> Option<Self> {
-        if !event.type_.is_display_version_updated() {
+        if !event.struct_tag.is_display_version_updated() {
             return None;
         }
-        let ty = match event.type_.type_params() {
+        let ty = match event.struct_tag.type_params() {
             [TypeTag::Struct(struct_type)] => struct_type,
             _ => return None,
         };
@@ -116,10 +116,10 @@ impl StoredDisplay {
 ///
 /// Returns `None` if the provided event is of a different type.
 pub fn displayed_type_from_created_event(event: &Event) -> Option<String> {
-    if !event.type_.is_display_created() {
+    if !event.struct_tag.is_display_created() {
         return None;
     }
-    let [TypeTag::Struct(displayed_type)] = event.type_.type_params() else {
+    let [TypeTag::Struct(displayed_type)] = event.struct_tag.type_params() else {
         return None;
     };
     Some(displayed_type.to_canonical_string(/* with_prefix */ true))
@@ -130,7 +130,7 @@ pub fn displayed_type_from_created_event(event: &Event) -> Option<String> {
 ///
 /// Returns `None` if the provided event is of a different type.
 pub fn display_id_from_created_event(event: &Event) -> Option<ObjectId> {
-    if !event.type_.is_display_created() {
+    if !event.struct_tag.is_display_created() {
         return None;
     }
     let created_event: ID = bcs::from_bytes(&event.contents).ok()?;
@@ -148,12 +148,12 @@ fn is_display(struct_tag: &StructTag) -> bool {
 mod tests {
     use super::*;
 
-    fn display_event(type_: StructTag, contents: Vec<u8>) -> Event {
+    fn display_event(struct_tag: StructTag, contents: Vec<u8>) -> Event {
         Event {
             package_id: ObjectId::random(),
             module: Identifier::DISPLAY_MODULE,
             sender: Address::random(),
-            type_,
+            struct_tag,
             contents,
         }
     }

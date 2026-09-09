@@ -8,11 +8,11 @@ use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk_types::{
     Argument, Command, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier,
-    ObjectOut, StructTag, TypeTag,
+    ObjectOut, OwnedObjectReference, StructTag, TypeTag,
 };
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -30,7 +30,7 @@ use crate::authority::authority_tests::{
 #[cfg_attr(msim, ignore)]
 async fn test_object_wrapping_unwrapping() {
     telemetry_subscribers::init_for_testing();
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -71,12 +71,14 @@ async fn test_object_wrapping_unwrapping() {
         object_id: child_object_ref_id,
         version: child_object_ref_version,
         ..
-    } = effects.created()[0].0;
+    } = effects.created()[0].reference;
     assert_eq!(child_object_ref_version, create_child_version);
 
-    let wrapped_version =
-        Version::lamport_increment([child_object_ref_version, effects.gas_object().0.version])
-            .unwrap();
+    let wrapped_version = Version::lamport_increment([
+        child_object_ref_version,
+        effects.gas_object().reference.version,
+    ])
+    .unwrap();
 
     // Create a Parent object, by wrapping the child object.
     let effects = call_move(
@@ -121,12 +123,14 @@ async fn test_object_wrapping_unwrapping() {
         object_id: parent_object_ref_id,
         version: parent_object_ref_version,
         ..
-    } = effects.created()[0].0;
+    } = effects.created()[0].reference;
     assert_eq!(parent_object_ref_version, wrapped_version);
 
-    let unwrapped_version =
-        Version::lamport_increment([parent_object_ref_version, effects.gas_object().0.version])
-            .unwrap();
+    let unwrapped_version = Version::lamport_increment([
+        parent_object_ref_version,
+        effects.gas_object().reference.version,
+    ])
+    .unwrap();
 
     // Extract the child out of the parent.
     let effects = call_move(
@@ -158,14 +162,14 @@ async fn test_object_wrapping_unwrapping() {
         (2, 0, 1)
     );
     // Make sure that version increments again when unwrapped.
-    assert_eq!(effects.unwrapped()[0].0.version, unwrapped_version);
-    check_latest_object_ref(&authority, &effects.unwrapped()[0].0, false).await;
-    let child_object_ref = effects.unwrapped()[0].0;
+    assert_eq!(effects.unwrapped()[0].reference.version, unwrapped_version);
+    check_latest_object_ref(&authority, &effects.unwrapped()[0].reference, false).await;
+    let child_object_ref = effects.unwrapped()[0].reference;
 
     let rewrap_version = Version::lamport_increment([
         parent_object_ref_version,
         child_object_ref.version,
-        effects.gas_object().0.version,
+        effects.gas_object().reference.version,
     ])
     .unwrap();
 
@@ -202,11 +206,13 @@ async fn test_object_wrapping_unwrapping() {
     assert_eq!(effects.wrapped()[0], expected_child_object_ref);
     check_latest_object_ref(&authority, &expected_child_object_ref, true).await;
     let child_object_ref = effects.wrapped()[0];
-    let parent_object_ref = effects.mutated_excluding_gas().first().unwrap().0;
+    let parent_object_ref = effects.mutated_excluding_gas().first().unwrap().reference;
 
-    let deleted_version =
-        Version::lamport_increment([parent_object_ref.version, effects.gas_object().0.version])
-            .unwrap();
+    let deleted_version = Version::lamport_increment([
+        parent_object_ref.version,
+        effects.gas_object().reference.version,
+    ])
+    .unwrap();
 
     // Now delete the parent object, which will in turn delete the child object.
     let effects = call_move(
@@ -253,7 +259,7 @@ async fn test_object_wrapping_unwrapping() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_object_owning_another_object() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -283,10 +289,7 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: parent_id,
-        ..
-    } = effects.created()[0].0;
+    let parent_id = effects.created()[0].reference.object_id;
 
     // Create a child.
     let effects = call_move(
@@ -304,10 +307,7 @@ async fn test_object_owning_another_object() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: child_id,
-        ..
-    } = effects.created()[0].0;
+    let child_id = effects.created()[0].reference.object_id;
 
     // Mutate the child directly should work fine.
     let effects = call_move(
@@ -346,10 +346,10 @@ async fn test_object_owning_another_object() {
     let child_effect = effects
         .mutated()
         .into_iter()
-        .find(|(object_ref, _)| object_ref.object_id == child_id)
+        .find(|mutated| mutated.reference.object_id == child_id)
         .unwrap();
     // Check that the child is now owned by the parent.
-    let field_id = child_effect.1.as_object();
+    let field_id = child_effect.owner.as_object();
     let field_object = authority.get_object(field_id).unwrap();
     assert_eq!(field_object.owner, parent_id);
 
@@ -404,10 +404,7 @@ async fn test_object_owning_another_object() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: new_parent_id,
-        ..
-    } = effects.created()[0].0;
+    let new_parent_id = effects.created()[0].reference.object_id;
 
     // Transfer the child to the new_parent.
     let effects = call_move(
@@ -449,7 +446,7 @@ async fn test_object_owning_another_object() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -485,9 +482,9 @@ async fn test_create_then_delete_parent_child() {
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+        .find(|created| matches!(created.owner, Owner::Address(_)))
         .unwrap()
-        .0;
+        .reference;
 
     // Delete the parent and child altogether.
     let effects = call_move(
@@ -511,7 +508,7 @@ async fn test_create_then_delete_parent_child() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -549,21 +546,21 @@ async fn test_create_then_delete_parent_child_wrap() {
     // not wrapped as it wasn't first created
     assert_eq!(effects.wrapped().len(), 0);
 
-    let gas_ref = effects.mutated()[0].0;
+    let gas_ref = effects.mutated()[0].reference;
 
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+        .find(|created| matches!(created.owner, Owner::Address(_)))
         .unwrap()
-        .0;
+        .reference;
 
     let field = effects
         .created()
         .iter()
-        .find(|(object_ref, _)| object_ref.object_id != parent.object_id)
+        .find(|created| created.reference.object_id != parent.object_id)
         .unwrap()
-        .0;
+        .reference;
 
     // Delete the parent and child altogether.
     let effects = call_move(
@@ -593,6 +590,7 @@ async fn test_create_then_delete_parent_child_wrap() {
         effects
             .modified_at_versions()
             .into_iter()
+            .map(|modified| (modified.object_id, modified.version))
             .collect::<HashSet<_>>(),
         HashSet::from([
             (gas_ref.object_id, gas_ref.version),
@@ -608,7 +606,7 @@ async fn test_create_then_delete_parent_child_wrap() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_remove_child_when_no_prior_version_exists() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -646,21 +644,21 @@ async fn test_remove_child_when_no_prior_version_exists() {
     // not wrapped as it wasn't first created
     assert_eq!(effects.wrapped().len(), 0);
 
-    let gas_ref = effects.mutated()[0].0;
+    let gas_ref = effects.mutated()[0].reference;
 
     let parent = effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+        .find(|created| matches!(created.owner, Owner::Address(_)))
         .unwrap()
-        .0;
+        .reference;
 
     let field = effects
         .created()
         .iter()
-        .find(|(object_ref, _)| object_ref.object_id != parent.object_id)
+        .find(|created| created.reference.object_id != parent.object_id)
         .unwrap()
-        .0;
+        .reference;
 
     // Delete the child only
     let effects = call_move(
@@ -689,6 +687,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
         effects
             .modified_at_versions()
             .into_iter()
+            .map(|modified| (modified.object_id, modified.version))
             .collect::<HashSet<_>>(),
         HashSet::from([
             (gas_ref.object_id, gas_ref.version),
@@ -701,7 +700,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap_separate() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -732,10 +731,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: parent_id,
-        ..
-    } = effects.created()[0].0;
+    let parent_id = effects.created()[0].reference.object_id;
 
     // Create a child.
     let effects = call_move(
@@ -753,10 +749,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: child_id,
-        ..
-    } = effects.created()[0].0;
+    let child_id = effects.created()[0].reference.object_id;
 
     // Add the child to the parent.
     let effects = call_move(
@@ -805,7 +798,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_empty() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
@@ -953,7 +946,7 @@ async fn test_entry_point_vector_empty() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_primitive() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -995,7 +988,7 @@ async fn test_entry_point_vector_primitive() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1029,9 +1022,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].0;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1072,10 +1063,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: parent_id,
-        ..
-    } = effects.created()[0].0;
+    let parent_id = effects.created()[0].reference.object_id;
     let effects = call_move(
         &authority,
         &gas,
@@ -1097,10 +1085,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: child_id,
-        ..
-    } = effects.created()[0].0;
+    let child_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1125,7 +1110,7 @@ async fn test_entry_point_vector() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1159,9 +1144,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].0;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1202,10 +1185,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: wrong_obj_id,
-        ..
-    } = effects.created()[0].0;
+    let wrong_obj_id = effects.created()[0].reference.object_id;
     let effects = call_move(
         &authority,
         &gas,
@@ -1224,10 +1204,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: correct_obj_id,
-        ..
-    } = effects.created()[0].0;
+    let correct_obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1269,10 +1246,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: shared_obj_id,
-        ..
-    } = effects.created()[0].0;
+    let shared_obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1315,9 +1289,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].0;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1367,9 +1339,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].0;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
@@ -1404,7 +1374,7 @@ async fn test_entry_point_vector_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1442,9 +1412,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].0;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1485,10 +1453,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: parent_id,
-        ..
-    } = effects.created()[0].0;
+    let parent_id = effects.created()[0].reference.object_id;
     let effects = call_move(
         &authority,
         &gas,
@@ -1510,10 +1475,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: child_id,
-        ..
-    } = effects.created()[0].0;
+    let child_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1538,7 +1500,7 @@ async fn test_entry_point_vector_any() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1576,9 +1538,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].0;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1619,10 +1579,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: wrong_obj_id,
-        ..
-    } = effects.created()[0].0;
+    let wrong_obj_id = effects.created()[0].reference.object_id;
     let effects = call_move(
         &authority,
         &gas,
@@ -1641,10 +1598,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: correct_obj_id,
-        ..
-    } = effects.created()[0].0;
+    let correct_obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1686,10 +1640,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: shared_obj_id,
-        ..
-    } = effects.created()[0].0;
+    let shared_obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1732,9 +1683,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].0;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1784,9 +1733,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].0;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
@@ -1819,7 +1766,7 @@ async fn test_entry_point_vector_any_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1904,7 +1851,7 @@ async fn test_entry_point_string() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_string() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2049,7 +1996,7 @@ async fn test_nested_string() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2091,7 +2038,7 @@ async fn test_entry_point_string_vec() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2211,7 +2158,7 @@ async fn test_entry_point_string_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2267,7 +2214,7 @@ async fn test_entry_point_string_vec_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_option_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2372,7 +2319,7 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
     gas: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     package_id: ObjectId,
     t: TypeTag,
     value: T,
@@ -2535,7 +2482,7 @@ macro_rules! make_vec_tests_for_type {
         #[tokio::test]
         #[cfg_attr(msim, ignore)]
         async fn $test() {
-            let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
             let gas = ObjectId::random();
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
             let package = build_and_publish_test_package(
@@ -2644,7 +2591,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
     gas: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     t: TypeTag,
     value: T,
 ) {
@@ -2733,7 +2680,7 @@ macro_rules! make_vec_error_tests_for_type {
         #[tokio::test]
         #[cfg_attr(msim, ignore)]
         async fn $test() {
-            let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
             let gas = ObjectId::random();
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
             error_test_make_move_vec_for_type(&authority, &gas, &sender, &sender_key, $tag, $value)
@@ -2822,7 +2769,7 @@ make_vec_error_tests_for_type!(
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_make_move_vec_empty() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
@@ -2915,7 +2862,7 @@ pub fn build_package(
 pub async fn build_and_try_publish_test_package(
     authority: &AuthorityState,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     test_dir: &str,
     gas_budget: u64,
@@ -2958,7 +2905,7 @@ pub async fn build_and_try_publish_test_package(
 pub async fn build_and_publish_test_package(
     authority: &AuthorityState,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
@@ -2998,7 +2945,7 @@ pub fn created_package_ref(effects: &TransactionEffects) -> ObjectReference {
 pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
@@ -3028,10 +2975,10 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
     let upgrade_cap = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+        .find(|created| matches!(created.owner, Owner::Address(_)))
         .unwrap();
 
-    (package, upgrade_cap.0)
+    (package, upgrade_cap.reference)
 }
 
 pub async fn collect_packages_and_upgrade_caps(
@@ -3041,11 +2988,15 @@ pub async fn collect_packages_and_upgrade_caps(
     let packages: HashMap<_, _> = effects
         .created()
         .into_iter()
-        .filter(|(_, owner)| matches!(owner, Owner::Immutable))
-        .map(|(package, _)| (package.object_id, package))
+        .filter(|created| matches!(created.owner, Owner::Immutable))
+        .map(|created| (created.reference.object_id, created.reference))
         .collect();
     let mut caps = HashMap::new();
-    for (obj_ref, owner) in effects.created() {
+    for OwnedObjectReference {
+        reference: obj_ref,
+        owner,
+    } in effects.created()
+    {
         if !matches!(owner, Owner::Address(_)) {
             continue;
         }
@@ -3061,7 +3012,7 @@ pub async fn collect_packages_and_upgrade_caps(
 pub async fn run_multi_txns(
     authority: &AuthorityState,
     sender: Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     builder: ProgrammableTransactionBuilder,
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {

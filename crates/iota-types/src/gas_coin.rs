@@ -62,10 +62,6 @@ mod checked {
 
     pub struct GAS {}
     impl GAS {
-        pub fn type_tag() -> TypeTag {
-            StructTag::new_gas().into()
-        }
-
         pub fn is_gas_type(other: &TypeTag) -> bool {
             match other {
                 TypeTag::Struct(s) => s.is_gas(),

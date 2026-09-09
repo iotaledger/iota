@@ -550,7 +550,17 @@ impl DataFetcher for RemoteFetcher {
         let tx_kind_orig = orig_tx.transaction().kind();
 
         if let TransactionKind::EndOfEpoch(kinds) = tx_kind_orig {
-            if let Some(kind) = kinds.iter().next() {
+            // The end-of-epoch list can carry object-creation kinds ahead of
+            // the change-epoch kind that holds the epoch info.
+            if let Some(kind) = kinds.iter().find(|kind| {
+                matches!(
+                    kind,
+                    EndOfEpochTransactionKind::ChangeEpoch(_)
+                        | EndOfEpochTransactionKind::ChangeEpochV2(_)
+                        | EndOfEpochTransactionKind::ChangeEpochV3(_)
+                        | EndOfEpochTransactionKind::ChangeEpochV4(_)
+                )
+            }) {
                 let (epoch_start_timestamp_ms, reference_gas_price) = match kind {
                     EndOfEpochTransactionKind::ChangeEpoch(change) => {
                         let rgp = if let serde_json::Value::Object(ref w) = event.parsed_json {

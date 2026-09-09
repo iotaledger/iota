@@ -288,7 +288,7 @@ fn owner_bounds(
 
 /// Build an `OwnerIndexKey` for an address-owned object.
 fn make_owner_key(owner: Address, object: &Object) -> Option<(OwnerIndexKey, OwnerIndexInfo)> {
-    let struct_tag: StructTag = object.type_()?.clone().into();
+    let struct_tag: StructTag = object.data.opt_object_type()?.clone().into();
     let id_hash = hash_type_identifier(&struct_tag);
     let params_hash = hash_type_params(&struct_tag);
 
@@ -1116,7 +1116,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
                         owner: key.owner,
                         object_id: key.object_id,
                         version: info.version,
-                        type_: info.object_type.into(),
+                        object_type: info.object_type.into(),
                     };
                     (obj_info, cursor)
                 })
@@ -1178,7 +1178,7 @@ fn should_index_dynamic_field(object: &Object) -> bool {
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
     use iota_types::coin::{CoinMetadata, TreasuryCap};
 
-    let object_type = object.type_()?;
+    let object_type = object.data.opt_object_type()?;
 
     if let Some(coin_type) = CoinMetadata::is_coin_metadata_with_coin_type(object_type).cloned() {
         return Some((
@@ -1206,7 +1206,7 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
 /// Returns `(CoinIndexKey, regulated_coin_metadata_object_id)` if `object` is
 /// a `RegulatedCoinMetadata<T>`.  Used to populate the `coin` table.
 fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, ObjectId)> {
-    let move_object_type = object.type_()?;
+    let move_object_type = object.data.opt_object_type()?;
     if !move_object_type.is_regulated_coin_metadata() {
         return None;
     }

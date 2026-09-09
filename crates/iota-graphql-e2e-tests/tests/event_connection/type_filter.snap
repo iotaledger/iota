@@ -19,7 +19,7 @@ gas summary:
 
 task 2, line 37:
 //# run Test::M2::emit_emit_a --sender A --args 20
-events: Event { package_id: ObjectId("Test"), module: Identifier("M2"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: "FAAAAAAAAAA=" }
+events: Event { package_id: ObjectId("Test"), module: Identifier("M2"), sender: Address("A"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M1"), name: Identifier("EventA"), type_params: [] }, contents: "FAAAAAAAAAA=" }
 mutated: object(0,0)
 gas summary:
 ├── Computation Cost: 1000000
@@ -60,7 +60,7 @@ Response: {
 
 task 5, line 60:
 //# run Test::M2::emit_b --sender A --args 42
-events: Event { package_id: ObjectId("Test"), module: Identifier("M2"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: "KgAAAAAAAAA=" }
+events: Event { package_id: ObjectId("Test"), module: Identifier("M2"), sender: Address("A"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: "KgAAAAAAAAA=" }
 mutated: object(0,0)
 gas summary:
 ├── Computation Cost: 1000000
@@ -71,7 +71,7 @@ gas summary:
 
 task 6, line 62:
 //# run Test::M2::emit_b --sender B --args 43
-events: Event { package_id: ObjectId("Test"), module: Identifier("M2"), sender: Address("B"), type_: StructTag { address: Address("Test"), module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: "KwAAAAAAAAA=" }
+events: Event { package_id: ObjectId("Test"), module: Identifier("M2"), sender: Address("B"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M2"), name: Identifier("EventB"), type_params: [] }, contents: "KwAAAAAAAAA=" }
 mutated: object(0,1)
 gas summary:
 ├── Computation Cost: 1000000

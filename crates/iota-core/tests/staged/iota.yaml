@@ -478,6 +478,10 @@ ExecutionError:
         STRUCT:
           - error:
               TYPENAME: ExecutionError
+    40:
+      ExecutionCanceledDueToExecutionWorkerCongestion:
+        STRUCT:
+          - suggested_gas_price: U64
 ExecutionStatus:
   ENUM:
     0:

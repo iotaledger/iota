@@ -925,7 +925,7 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::{AccountKeyPair, get_key_pair},
+        crypto::{AccountPrivateKey, get_key_pair},
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
         },
@@ -938,8 +938,8 @@ mod tests {
     };
     use prometheus_filtered::Registry;
     use starfish_core::{
-        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader,
-        VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI, CommitDigest, CommitRef, CommitmentVerifiedTransactions, CommittedSubDag,
+        TestBlockHeader, VerifiedBlockHeader,
     };
 
     use super::*;
@@ -1010,7 +1010,7 @@ mod tests {
                 TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
                     .build(),
             );
-            let tx_batch = VerifiedTransactions::new_for_test(
+            let tx_batch = CommitmentVerifiedTransactions::new_for_test(
                 &header,
                 vec![starfish_core::Transaction::new(transaction_bytes)],
             );
@@ -1097,7 +1097,7 @@ mod tests {
             config
         });
 
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let num_txns: usize = 3;
 
         // Create owned objects and gas objects for the UserTransactionV1 transactions
@@ -1172,7 +1172,7 @@ mod tests {
                 TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
                     .build(),
             );
-            let tx_batch = VerifiedTransactions::new_for_test(
+            let tx_batch = CommitmentVerifiedTransactions::new_for_test(
                 &header,
                 vec![starfish_core::Transaction::new(transaction_bytes)],
             );

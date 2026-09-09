@@ -4,7 +4,8 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_types::{dynamic_field::DynamicFieldType, gas_coin::GAS};
+use iota_sdk_types::{StructTag, TypeTag};
+use iota_types::dynamic_field::DynamicFieldType;
 
 use crate::{
     data::Db,
@@ -363,7 +364,7 @@ impl OwnerImpl {
         ctx: &Context<'_>,
         type_: Option<ExactTypeFilter>,
     ) -> Result<Option<Balance>> {
-        let coin = type_.map_or_else(GAS::type_tag, |t| t.0);
+        let coin = type_.map_or_else(|| TypeTag::from(StructTag::new_gas()), |t| t.0);
         Balance::query(
             ctx.data_unchecked(),
             self.address,
@@ -403,7 +404,7 @@ impl OwnerImpl {
         type_: Option<ExactTypeFilter>,
     ) -> Result<Connection<String, Coin>> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        let coin = type_.map_or_else(GAS::type_tag, |t| t.0);
+        let coin = type_.map_or_else(|| TypeTag::from(StructTag::new_gas()), |t| t.0);
         Coin::paginate(
             ctx.data_unchecked(),
             page,

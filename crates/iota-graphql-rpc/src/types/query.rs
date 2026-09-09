@@ -10,8 +10,8 @@ use iota_indexer::apis::ReadApi;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
-use iota_sdk_types::{ObjectReference, Transaction, TransactionKind, TypeTag};
-use iota_types::{gas_coin::GAS, transaction::TransactionAPI};
+use iota_sdk_types::{ObjectReference, StructTag, Transaction, TransactionKind, TypeTag};
+use iota_types::transaction::TransactionAPI;
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
@@ -362,11 +362,12 @@ impl Query {
     ) -> Result<Option<TransactionBlock>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         let key = transaction_block::DigestKey::new(digest, checkpoint);
-        TransactionBlock::query(ctx, key.into()).await.extend()
+        TransactionBlock::query(ctx, key).await.extend()
     }
 
     /// Fetch multiple transaction blocks by their digests.
     /// This includes all transactions, even if they are not checkpointed yet.
+    #[graphql(deprecation = "Use `transactionsByDigests` instead. Will be removed in v1.38.")]
     async fn transaction_blocks_by_digests(
         &self,
         ctx: &Context<'_>,
@@ -394,6 +395,37 @@ impl Query {
             .collect())
     }
 
+    /// Fetch multiple transaction blocks by their digests.
+    ///
+    /// Unlike `transactionBlocks(filter: { transactionIds })`, this includes
+    /// all transactions, even if they are not checkpointed yet.
+    ///
+    /// Pages keep the order of the `digests` argument and hold one node per
+    /// digest, null when the transaction was not found. Only forward
+    /// pagination is supported: `limit` caps the page size and `cursor`
+    /// resumes after an entry of a previous page.
+    async fn transactions_by_digests(
+        &self,
+        ctx: &Context<'_>,
+        limit: Option<u64>,
+        cursor: Option<transaction_block::ByDigestCursor>,
+        digests: Vec<Digest>,
+    ) -> Result<transaction_block::TransactionsByDigestsPage> {
+        let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
+        if digests.len() > limits.max_transaction_ids as usize {
+            return Err(Error::Client(format!(
+                "Transaction IDs exceed max limit of '{}'",
+                limits.max_transaction_ids
+            ))
+            .into());
+        }
+
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+        TransactionBlock::paginate_by_digests(ctx, limit, cursor, &digests, checkpoint)
+            .await
+            .extend()
+    }
+
     /// The coin objects that exist in the network.
     ///
     /// The type field is a string of the inner type of the coin by which to
@@ -411,7 +443,7 @@ impl Query {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        let coin = type_.map_or_else(GAS::type_tag, |t| t.0);
+        let coin = type_.map_or_else(|| TypeTag::from(StructTag::new_gas()), |t| t.0);
         Coin::paginate(
             ctx.data_unchecked(),
             page,
@@ -450,10 +482,11 @@ impl Query {
     /// The transaction blocks that exist in the network.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, affected address, recipient, input
+    /// object, changed object, or wrapped or deleted object), and can be at
+    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+    /// combined with any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
@@ -473,6 +506,10 @@ impl Query {
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters. Transactions that don't have a checkpoint yet
     /// are always omitted.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
+    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -484,6 +521,9 @@ impl Query {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;

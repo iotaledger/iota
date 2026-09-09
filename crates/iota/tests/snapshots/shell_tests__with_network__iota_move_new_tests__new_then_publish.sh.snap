@@ -22,9 +22,9 @@ iota client --client.config $CONFIG upgrade --upgrade-capability $UPGRADE_CAP ex
   --json 2> /dev/null | jq '.effects.status'
 
 echo "=== set up networks ===" | tee /dev/stderr
-iota client --client.config $CONFIG new-env --alias devnet --rpc https://api.devnet.iota.cafe
-iota client --client.config $CONFIG new-env --alias testnet --rpc https://api.testnet.iota.cafe
-iota client --client.config $CONFIG new-env --alias mainnet --rpc https://api.mainnet.iota.cafe
+iota client --client.config $CONFIG new-env --alias devnet --rpc https://api.devnet.iota.cafe --grpc https://grpc.devnet.iota.cafe:443
+iota client --client.config $CONFIG new-env --alias testnet --rpc https://api.testnet.iota.cafe --grpc https://grpc.testnet.iota.cafe:443
+iota client --client.config $CONFIG new-env --alias mainnet --rpc https://api.mainnet.iota.cafe --grpc https://grpc.mainnet.iota.cafe:443
 
 for i in devnet testnet mainnet; do
   echo "=== publish package ($i) ===" | tee /dev/stderr

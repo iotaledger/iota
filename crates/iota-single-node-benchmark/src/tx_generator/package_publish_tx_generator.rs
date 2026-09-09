@@ -109,7 +109,7 @@ impl TxGenerator for PackagePublishTxGenerator {
             DEFAULT_VALIDATOR_GAS_PRICE,
         )
         .publish_with_data(PublishData::CompiledPackage(self.compiled_package.clone()))
-        .build_and_sign(account.keypair.as_ref())
+        .build_and_sign(account.private_key.as_ref())
     }
 
     fn name(&self) -> &'static str {

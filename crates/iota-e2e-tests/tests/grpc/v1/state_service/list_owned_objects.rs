@@ -13,7 +13,7 @@ use iota_grpc_types::{
 };
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, OwnedObjectReference, Owner, StructTag, TypeTag};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -541,10 +541,15 @@ async fn list_owned_objects_tto_indexing() {
     let parent_ref = start_effects
         .created()
         .iter()
-        .find_map(|(obj_ref, owner)| match owner {
-            Owner::Address(addr) if *addr == sender => Some(*obj_ref),
-            _ => None,
-        })
+        .find_map(
+            |OwnedObjectReference {
+                 reference: obj_ref,
+                 owner,
+             }| match owner {
+                Owner::Address(addr) if *addr == sender => Some(*obj_ref),
+                _ => None,
+            },
+        )
         .expect("start should create an `A` object owned by the sender");
     let parent_addr = Address::from(parent_ref.object_id);
 
@@ -552,7 +557,9 @@ async fn list_owned_objects_tto_indexing() {
     let coin_after_start = start_effects
         .mutated_excluding_gas()
         .iter()
-        .find_map(|(obj_ref, _)| (obj_ref.object_id == coin_ref.object_id).then_some(*obj_ref))
+        .find_map(|mutated| {
+            (mutated.reference.object_id == coin_ref.object_id).then_some(mutated.reference)
+        })
         .expect("coin must appear in mutated set after start");
 
     // Parent starts with 1 coin (TTO'd in by `start`).
@@ -723,7 +730,7 @@ async fn list_owned_objects_filter_by_type(pcool: bool) {
         .iter()
         .find_map(|resp| {
             let data = resp.data.as_ref()?;
-            let struct_tag: StructTag = data.type_.clone()?.try_into().ok()?;
+            let struct_tag: StructTag = data.object_type.clone()?.try_into().ok()?;
             (struct_tag.to_canonical_string(true) == treasury_cap_type).then(|| data.object_ref())
         })
         .expect("sender should own a TreasuryCap after publish");

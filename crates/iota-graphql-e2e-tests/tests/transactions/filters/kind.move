@@ -172,3 +172,24 @@ module Test::M1 {
     }
   }
 }
+
+//# run-graphql
+# unsupported filter combination (includes kind)
+{
+  transactionBlocks(filter: {sentAddress: "@{A}" recvAddress: "@{B}" atCheckpoint: 2 kind: PROGRAMMABLE_TX}) {
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      endCursor
+      startCursor
+    }
+    nodes {
+      digest
+      effects {
+        checkpoint {
+          sequenceNumber
+        }
+      }
+    }
+  }
+}

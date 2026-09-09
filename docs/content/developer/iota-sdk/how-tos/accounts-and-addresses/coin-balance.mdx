@@ -3,7 +3,13 @@ title: Get Coin Balance
 description: 'How to retrieve coin balances for an IOTA address using the GraphQL client.'
 tags:
   - how-to
-  - rust-sdk
+  - rust
+  - go
+  - python
+  - kotlin
+  - swift
+  - csharp
+  - wasm
 ---
 
 # Get Coin Balance
@@ -26,39 +32,53 @@ This guide shows you how to retrieve the coin balance for an IOTA address using 
 
 Create a client connected to the IOTA Testnet.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/coin_balances.rs#L8
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/coin_balances.rs#L8
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/coin_balances/main.go#L14
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/coin_balances/main.go#L14
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/coin_balances.py#L10
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/coin_balances.py#L10
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/CoinBalances.kt#L10
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/CoinBalances.kt#L10
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/coin_balances.swift#L9
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/CoinBalances.swift#L9
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/CoinBalances/Program.cs#L10
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/coin_balances.mjs#L8
 ```
 
   </TabItem>
@@ -68,39 +88,53 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 Parse the target IOTA address from a hex string.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/coin_balances.rs#L9
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/coin_balances.rs#L9
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/coin_balances/main.go#L16-L19
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/coin_balances/main.go#L16-L19
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/coin_balances.py#L12-L13
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/coin_balances.py#L12-L13
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/CoinBalances.kt#L11-L12
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/CoinBalances.kt#L11-L12
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/coin_balances.swift#L11-L12
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/CoinBalances.swift#L11-L12
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/CoinBalances/Program.cs#L14
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/coin_balances.mjs#L10-L12
 ```
 
   </TabItem>
@@ -110,39 +144,53 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 Query all individual [coin objects](/developer/iota-101/objects/object-model) owned by the address.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/coin_balances.rs#L11-L22
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/coin_balances.rs#L11-L22
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/coin_balances/main.go#L21-L28
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/coin_balances/main.go#L21-L28
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/coin_balances.py#L15-L19
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/coin_balances.py#L15-L19
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/CoinBalances.kt#L14-L19
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/CoinBalances.kt#L14-L19
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/coin_balances.swift#L14-L19
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/CoinBalances.swift#L14-L19
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/CoinBalances/Program.cs#L16-L21
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/coin_balances.mjs#L14-L19
 ```
 
   </TabItem>
@@ -152,39 +200,53 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 Query the total aggregated balance across all coins for the address.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/coin_balances.rs#L24-L25
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/coin_balances.rs#L24-L25
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/coin_balances/main.go#L30-L35
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/coin_balances/main.go#L30-L38
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/coin_balances.py#L21-L22
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/coin_balances.py#L21-L22
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/CoinBalances.kt#L21-L22
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/CoinBalances.kt#L21-L22
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/coin_balances.swift#L21-L22
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/CoinBalances.swift#L21-L22
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/CoinBalances/Program.cs#L23-L24
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/coin_balances.mjs#L21-L22
 ```
 
   </TabItem>
@@ -203,30 +265,40 @@ Total Balance = <total-amount-in-nanos>
 
 ## Full Example
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/coin_balances.rs
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/coin_balances.rs#L4-L28
 ```
   </TabItem>
   <TabItem value="go" label="Go">
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/coin_balances/main.go
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/coin_balances/main.go#L4-L39
 ```
   </TabItem>
   <TabItem value="python" label="Python">
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/coin_balances.py
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/coin_balances.py#L4-L26
 ```
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/CoinBalances.kt
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/CoinBalances.kt#L4-L27
 ```
   </TabItem>
   <TabItem value="swift" label="Swift">
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/coin_balances.swift
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/CoinBalances.swift#L4-L24
+```
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/CoinBalances/Program.cs#L4-L32
+```
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/coin_balances.mjs#L4-L22
 ```
   </TabItem>
 </Tabs>

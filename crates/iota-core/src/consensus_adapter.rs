@@ -1557,7 +1557,7 @@ mod adapter_tests {
         );
 
         // transaction to submit
-        let tx_digest = TransactionDigest::generate(&mut rng);
+        let tx_digest = TransactionDigest::random_with(&mut rng);
 
         // Ensure that the original position is higher
         let (position, positions_moved, _) =
@@ -1607,7 +1607,7 @@ mod adapter_tests {
         const NUM_TEST_TRANSACTIONS: usize = 1000;
 
         for _tx_idx in 0..NUM_TEST_TRANSACTIONS {
-            let tx_digest = TransactionDigest::generate(&mut rng);
+            let tx_digest = TransactionDigest::random_with(&mut rng);
 
             let mut zero_found = false;
             for (name, _) in committee.members() {

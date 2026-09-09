@@ -45,9 +45,30 @@ pub struct EpochState {
 impl EpochState {
     pub fn new(system_state: IotaSystemState) -> Self {
         let epoch_start_state = system_state.into_epoch_start_state();
-        let committee = epoch_start_state.get_iota_committee();
         let protocol_config =
             ProtocolConfig::get_for_version(epoch_start_state.protocol_version(), Chain::Unknown);
+        Self::new_impl(protocol_config, epoch_start_state)
+    }
+
+    /// Like [`Self::new`], but reuses the given `protocol_config` instead of
+    /// resolving it from the protocol version, keeping any feature flags
+    /// customized for testing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the config's version does not match the system state's
+    /// protocol version.
+    pub fn new_with_config(protocol_config: ProtocolConfig, system_state: IotaSystemState) -> Self {
+        let epoch_start_state = system_state.into_epoch_start_state();
+        assert_eq!(
+            protocol_config.version,
+            epoch_start_state.protocol_version()
+        );
+        Self::new_impl(protocol_config, epoch_start_state)
+    }
+
+    fn new_impl(protocol_config: ProtocolConfig, epoch_start_state: EpochStartSystemState) -> Self {
+        let committee = epoch_start_state.get_iota_committee();
         let registry = prometheus_filtered::Registry::new();
         let limits_metrics = Arc::new(LimitsMetrics::new(&registry));
         let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(&registry));
@@ -289,8 +310,16 @@ impl EpochState {
                 checks.disabled(),
             );
 
+        let mut input_objects = inner_temp_store.input_objects;
+        iota_types::storage::extend_input_objects_with_loaded_runtime_objects(
+            &mut input_objects,
+            &effects,
+            &inner_temp_store.loaded_runtime_objects,
+            store.backing_store().as_object_store(),
+        );
+
         Ok(SimulateTransactionResult {
-            input_objects: inner_temp_store.input_objects,
+            input_objects,
             output_objects: inner_temp_store.written,
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,

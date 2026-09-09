@@ -20,7 +20,7 @@ use crate::{
     base_types::{dbg_addr, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
         get_key_pair_from_rng,
     },
     object::Object,
@@ -60,7 +60,7 @@ where
 // Creates a fake sender-signed transaction for testing. This transaction will
 // not actually work.
 pub fn create_fake_transaction() -> TransactionEnvelope {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);
@@ -81,7 +81,7 @@ pub fn create_fake_transaction() -> TransactionEnvelope {
 
 pub fn make_transaction_data(sender: Address) -> Transaction {
     let object =
-        Object::immutable_with_id_for_testing(ObjectId::generate(StdRng::from_seed([0; 32])));
+        Object::immutable_with_id_for_testing(ObjectId::random_with(StdRng::from_seed([0; 32])));
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);
@@ -194,17 +194,17 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
 /// Returns the transaction together with the sender's and sponsor's addresses
 /// so callers can locate each signature within the transaction.
 pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address) {
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
-    let (sponsor, sponsor_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (sponsor, sponsor_key): (_, AccountPrivateKey) = get_key_pair();
     let tx_data = make_sponsored_transaction_data(sender, sponsor);
     let sender_sig: UserSignature = TransactionEnvelope::signature_from_signer(
         tx_data.clone(),
         Intent::iota_transaction(),
-        &sender_kp,
+        &sender_key,
     )
     .into();
     let tx =
-        to_sender_signed_transaction_with_optional_sponsor(tx_data, sender_sig, Some(&sponsor_kp));
+        to_sender_signed_transaction_with_optional_sponsor(tx_data, sender_sig, Some(&sponsor_key));
     (tx, sender, sponsor)
 }
 

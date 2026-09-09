@@ -5,7 +5,9 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use iota_macros::*;
-use iota_sdk_types::{ObjectId, ObjectReference, Owner, TransactionEffects, TransactionEvents};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, OwnedObjectReference, Owner, TransactionEffects, TransactionEvents,
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -112,18 +114,16 @@ async fn delete_of_object_with_reconfiguration_receive_of_new_parent_and_old_chi
     assert!(env.receive(new_parent, child).await.is_err());
 }
 
-fn get_parent_and_child(
-    created: Vec<(ObjectReference, Owner)>,
-) -> (ObjectReference, ObjectReference) {
+fn get_parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference, ObjectReference) {
     // make sure there is an object with an `Address` who matches the object ID
     // of another object.
     let created_addrs: HashSet<_> = created
         .iter()
-        .map(|(object_ref, _)| object_ref.object_id)
+        .map(|owned| owned.reference.object_id)
         .collect();
     let (child, parent_id) = created
         .iter()
-        .find_map(|child @ (_, owner)| match owner {
+        .find_map(|child @ OwnedObjectReference { owner, .. }| match owner {
             Owner::Address(j) if created_addrs.contains(&ObjectId::from(*j)) => {
                 Some((child, (*j).into()))
             }
@@ -132,9 +132,9 @@ fn get_parent_and_child(
         .unwrap();
     let parent = created
         .iter()
-        .find(|(object_ref, _)| object_ref.object_id == parent_id)
+        .find(|owned| owned.reference.object_id == parent_id)
         .unwrap();
-    (parent.0, child.0)
+    (parent.reference, child.reference)
 }
 
 struct TestEnvironment {
@@ -197,12 +197,16 @@ impl TestEnvironment {
         let new_child_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(|(oref, _)| (oref.object_id == child.object_id).then_some(*oref))
+                .find_map(|mutated| {
+                    (mutated.reference.object_id == child.object_id).then_some(mutated.reference)
+                })
                 .unwrap();
         let new_parent_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))
+                .find_map(|mutated| {
+                    (mutated.reference.object_id == parent.object_id).then_some(mutated.reference)
+                })
                 .unwrap();
         Ok((new_parent_ref, new_child_ref))
     }
@@ -213,7 +217,9 @@ impl TestEnvironment {
         assert!(fx.0.status().is_success());
         fx.0.mutated_excluding_gas()
             .iter()
-            .find_map(|(oref, _)| (oref.object_id == parent.object_id).then_some(*oref))
+            .find_map(|mutated| {
+                (mutated.reference.object_id == parent.object_id).then_some(mutated.reference)
+            })
             .unwrap()
     }
 }

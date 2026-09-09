@@ -596,7 +596,9 @@ fn parse_configs_versions(
     );
     Some(
         configs_and_versions
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| {
                 let object_id =
                     ObjectId::from_str(&chunk[0]).expect("Invalid object id for config");

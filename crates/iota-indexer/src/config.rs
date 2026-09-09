@@ -270,8 +270,6 @@ pub enum Command {
         #[command(flatten)]
         ingestion_config: IngestionConfig,
         #[command(flatten)]
-        snapshot_config: SnapshotLagConfig,
-        #[command(flatten)]
         pruning_options: PruningOptions,
         #[arg(long)]
         reset_db: bool,
@@ -439,29 +437,6 @@ impl RetentionConfig {
         }
 
         overrides
-    }
-}
-
-#[derive(Args, Default, Debug, Clone)]
-pub struct SnapshotLagConfig {
-    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
-    /// has been removed. This flag is a no-op.
-    #[arg(
-        long = "objects-snapshot-min-checkpoint-lag",
-        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG"
-    )]
-    pub snapshot_min_lag: Option<usize>,
-
-    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
-    /// has been removed. This flag is a no-op.
-    #[arg(long = "objects-snapshot-sleep-duration")]
-    pub sleep_duration: Option<u64>,
-}
-
-impl SnapshotLagConfig {
-    /// Returns `true` if any deprecated flag was explicitly provided.
-    pub fn is_set(&self) -> bool {
-        self.snapshot_min_lag.is_some() || self.sleep_duration.is_some()
     }
 }
 

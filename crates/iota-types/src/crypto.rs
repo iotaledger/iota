@@ -33,11 +33,8 @@ use fastcrypto::{
     serde_helpers::BytesRepresentation,
 };
 use iota_sdk_crypto::{
-    Verifier,
-    ed25519::Ed25519PrivateKey,
-    secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey,
-    simple::{SimpleKeypair, SimpleVerifier},
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, SignatureScheme,
@@ -90,7 +87,7 @@ pub type AuthoritySignature = BLS12381Signature;
 pub type AggregateAuthoritySignature = BLS12381AggregateSignature;
 pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
 
-pub type AccountKeyPair = Ed25519PrivateKey;
+pub type AccountPrivateKey = Ed25519PrivateKey;
 
 pub type NetworkKeyPair = Ed25519KeyPair;
 pub type NetworkPublicKey = Ed25519PublicKey;
@@ -507,9 +504,10 @@ macro_rules! random_key_pair_from_sdk {
     ($private_key:ty, $variant:ident) => {
         impl RandomKeyPair for $private_key {
             fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-                let kp = <$private_key>::generate(rng);
-                let public = PublicKey::$variant(BytesRepresentation(kp.public_key().into_inner()));
-                (Address::from(&public), kp)
+                let key = <$private_key>::random_with(rng);
+                let public =
+                    PublicKey::$variant(BytesRepresentation(key.public_key().into_inner()));
+                (Address::from(&public), key)
             }
         }
     };
@@ -537,19 +535,19 @@ pub fn random_committee_key_pairs_of_size(size: usize) -> Vec<AuthorityKeyPair> 
             // exact the results to be the same. We should eliminate them.
             let key_pair = get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng);
             get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng);
-            get_key_pair_from_rng::<AccountKeyPair, _>(&mut rng);
-            get_key_pair_from_rng::<AccountKeyPair, _>(&mut rng);
+            get_key_pair_from_rng::<AccountPrivateKey, _>(&mut rng);
+            get_key_pair_from_rng::<AccountPrivateKey, _>(&mut rng);
             key_pair.1
         })
         .collect()
 }
 
-pub fn deterministic_random_account_key() -> (Address, AccountKeyPair) {
+pub fn deterministic_random_account_private_key() -> (Address, AccountPrivateKey) {
     let mut rng = StdRng::from_seed([0; 32]);
     get_key_pair_from_rng(&mut rng)
 }
 
-pub fn get_account_key_pair() -> (Address, AccountKeyPair) {
+pub fn get_account_private_key() -> (Address, AccountPrivateKey) {
     get_key_pair()
 }
 
@@ -617,69 +615,6 @@ impl IotaPublicKey for Secp256r1PublicKey {
 
 pub trait IotaPublicKey: VerifyingKey {
     const SIGNATURE_SCHEME: SignatureScheme;
-}
-
-/// Node-only behaviour layered on top of the SDK [`SimpleSignature`]:
-/// construction from a signer and intent-message verification.
-pub trait IotaSignature: Sized {
-    /// Signs a message that is already in hashed form.
-    fn new_hashed(
-        hashed_msg: &[u8],
-        secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
-    ) -> SimpleSignature {
-        secret.sign(hashed_msg)
-    }
-
-    /// Signs the BCS hash of the value wrapped in the intent message.
-    #[instrument(level = "trace", skip_all)]
-    fn new_secure<T>(
-        value: &IntentMessage<T>,
-        secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
-    ) -> SimpleSignature
-    where
-        T: Serialize,
-    {
-        // Compute the BCS hash of the value in intent message. In the case of
-        // transaction data, this is the BCS hash of `struct Transaction`,
-        // different from the transaction digest itself that computes the BCS
-        // hash of the Rust type prefix and `struct Transaction`.
-        // (See `fn digest` in `impl Message for SenderSignedTransaction`).
-        let mut hasher = DefaultHash::default();
-        hasher.update(bcs::to_bytes(&value).expect("Message serialization should not fail"));
-
-        secret.sign(&hasher.finalize().digest)
-    }
-
-    fn verify_secure<T>(&self, value: &IntentMessage<T>, author: Address) -> IotaResult<()>
-    where
-        T: Serialize;
-}
-
-impl IotaSignature for SimpleSignature {
-    #[instrument(level = "trace", skip_all)]
-    fn verify_secure<T>(&self, value: &IntentMessage<T>, author: Address) -> Result<(), IotaError>
-    where
-        T: Serialize,
-    {
-        let mut hasher = DefaultHash::default();
-        hasher.update(bcs::to_bytes(&value).expect("Message serialization should not fail"));
-        let digest = hasher.finalize().digest;
-
-        // `SimpleVerifier` only checks the signature against its embedded public
-        // key, so the signer/author binding is enforced here.
-        let address: Address = self.to_public_key().into();
-        if author != address {
-            return Err(IotaError::IncorrectSigner {
-                error: format!("Incorrect signer, expected {author}, got {address}"),
-            });
-        }
-
-        SimpleVerifier
-            .verify(&digest, self)
-            .map_err(|e| IotaError::InvalidSignature {
-                error: format!("Fail to verify user sig {e}"),
-            })
-    }
 }
 
 /// AuthoritySignInfoTrait is a trait used specifically for a few structs in

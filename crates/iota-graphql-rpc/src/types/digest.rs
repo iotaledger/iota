@@ -6,7 +6,7 @@ use std::{fmt, str::FromStr};
 
 use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
-use iota_sdk_types::{ObjectDigest, TransactionDigest};
+use iota_sdk_types::{CheckpointDigest, ObjectDigest, TransactionDigest};
 
 use crate::types::string_input::impl_string_input;
 
@@ -25,10 +25,6 @@ pub(crate) enum Error {
 }
 
 impl Digest {
-    pub(crate) fn to_vec(self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-
     pub(crate) fn as_slice(&self) -> &[u8] {
         &self.0
     }
@@ -72,6 +68,12 @@ impl From<Digest> for ObjectDigest {
 impl From<Digest> for TransactionDigest {
     fn from(digest: Digest) -> Self {
         TransactionDigest::new(digest.0)
+    }
+}
+
+impl From<Digest> for CheckpointDigest {
+    fn from(digest: Digest) -> Self {
+        CheckpointDigest::new(digest.0)
     }
 }
 

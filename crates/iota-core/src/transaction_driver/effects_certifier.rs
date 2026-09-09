@@ -1035,14 +1035,14 @@ fn verify_executed_data(
         .effects
         .old_object_metadata()
         .into_iter()
-        .map(|(object_ref, _owner)| object_ref)
+        .map(|old| old.reference)
         .collect();
     verify_objects_recorded(&executed_data.input_objects, expected_input_refs, "input")?;
     let expected_output_refs = executed_data
         .effects
         .all_changed_objects()
         .into_iter()
-        .map(|(object_ref, _owner, _kind)| object_ref)
+        .map(|(changed, _kind)| changed.reference)
         .collect();
     verify_objects_recorded(
         &executed_data.output_objects,

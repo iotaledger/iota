@@ -39,7 +39,10 @@ pub struct RocksDbStore {
 
     committee_store: Arc<CommitteeStore>,
     checkpoint_store: Arc<CheckpointStore>,
-    // in memory checkpoint watermark sequence numbers
+    // Lower bounds on the watermark rows, not mirrors of them: a row already
+    // ahead leaves its cache behind, which costs a repeated call and nothing
+    // else. Held so that the read and the write of a row happen under one
+    // lock.
     highest_verified_checkpoint: Arc<Mutex<Option<u64>>>,
     highest_synced_checkpoint: Arc<Mutex<Option<u64>>>,
 }
@@ -85,7 +88,7 @@ impl RocksDbStore {
         self.checkpoint_store
             .multi_update_highest_synced_checkpoint(checkpoints)
             .map_err(iota_types::storage::error::Error::custom)?;
-        *locked = Some(last.sequence_number);
+        *locked = locked.max(Some(last.sequence_number));
         Ok(())
     }
 }
@@ -119,6 +122,15 @@ impl ReadStore for RocksDbStore {
             .map_err(Into::into)
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(
+        &self,
+    ) -> Result<CheckpointSequenceNumber, StorageError> {
+        Ok(self
+            .checkpoint_store
+            .get_highest_verified_checkpoint_seq_number()?
+            .expect("storage should have been initialized with genesis checkpoint"))
+    }
+
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint, StorageError> {
         self.checkpoint_store
             .get_highest_synced_checkpoint()
@@ -127,6 +139,15 @@ impl ReadStore for RocksDbStore {
                     .expect("storage should have been initialized with genesis checkpoint")
             })
             .map_err(Into::into)
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(
+        &self,
+    ) -> Result<CheckpointSequenceNumber, StorageError> {
+        Ok(self
+            .checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()?
+            .expect("storage should have been initialized with genesis checkpoint"))
     }
 
     fn try_get_lowest_available_checkpoint(
@@ -310,15 +331,13 @@ impl WriteStore for RocksDbStore {
         }
 
         self.checkpoint_store
-            .insert_verified_checkpoint(checkpoint)
-            .map_err(Into::into)
-    }
-
-    fn try_update_highest_synced_checkpoint(
-        &self,
-        checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), iota_types::storage::error::Error> {
-        self.update_highest_synced_checkpoints(std::slice::from_ref(checkpoint))
+            .insert_certified_checkpoint(checkpoint)
+            .map_err(iota_types::storage::error::Error::custom)?;
+        // Not `insert_verified_checkpoint`, which would write the watermark
+        // straight to the store: taking the same lock the archive path takes
+        // is what stops two writers leaving the row behind where one of them
+        // had already seen it.
+        self.try_update_highest_verified_checkpoint(checkpoint)
     }
 
     fn try_update_highest_verified_checkpoint(
@@ -332,8 +351,15 @@ impl WriteStore for RocksDbStore {
         self.checkpoint_store
             .update_highest_verified_checkpoint(checkpoint)
             .map_err(iota_types::storage::error::Error::custom)?;
-        *locked = Some(checkpoint.sequence_number);
+        *locked = locked.max(Some(checkpoint.sequence_number));
         Ok(())
+    }
+
+    fn try_update_highest_synced_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<(), iota_types::storage::error::Error> {
+        self.update_highest_synced_checkpoints(std::slice::from_ref(checkpoint))
     }
 
     fn try_insert_checkpoint_contents(
@@ -471,10 +497,22 @@ impl ReadStore for GrpcReadStore {
         self.rocks.try_get_highest_verified_checkpoint()
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        self.rocks.try_get_highest_verified_checkpoint_seq_number()
+    }
+
     fn try_get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.rocks.try_get_highest_synced_checkpoint()
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        self.rocks.try_get_highest_synced_checkpoint_seq_number()
     }
 
     fn try_get_lowest_available_checkpoint(

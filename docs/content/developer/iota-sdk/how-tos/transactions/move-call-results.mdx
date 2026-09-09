@@ -1,0 +1,299 @@
+---
+title: Use Command Results as Arguments
+description: 'How to feed the results of earlier Programmable Transaction Block commands into later ones.'
+tags:
+  - how-to
+  - rust
+  - go
+  - python
+  - kotlin
+  - swift
+  - csharp
+  - wasm
+---
+
+import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Use Command Results as Arguments
+
+<IotaSdk />
+
+This how-to demonstrates how to build a Programmable Transaction Block that calls Move functions, assigns names to their results, and uses those named results (including nested results) as arguments to later commands.
+
+## Prerequisites
+
+- The IOTA SDK installed for your target language
+
+## Steps
+
+### 1. Initialize the Client and Sender
+
+Connect to testnet, parse the sender address, and create a transaction builder.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/tx_command_results.rs#L15-L20
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/tx_command_results/main.go#L29-L37
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/tx_command_results.py#L10-L19
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/TxCommandResults.kt#L9-L18
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/TxCommandResults.swift#L10-L19
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/TxCommandResults/Program.cs#L10-L18
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/tx_command_results.mjs#L14-L19
+```
+
+  </TabItem>
+</Tabs>
+
+### 2. Call Move Functions and Name Their Results
+
+Add two `move_call` commands and assign a name to each command's result so it can be referenced later.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/tx_command_results.rs#L21-L29
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/tx_command_results/main.go#L38-L56
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/tx_command_results.py#L21-L37
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/TxCommandResults.kt#L20-L36
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/TxCommandResults.swift#L21-L37
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/TxCommandResults/Program.cs#L20-L36
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/tx_command_results.mjs#L21-L42
+```
+
+  </TabItem>
+</Tabs>
+
+### 3. Use Named Results in a Split, Naming the Nested Results
+
+Split the gas coin using the two named results as amounts. A `split_coins` command returns multiple values, so assign one name per nested result.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/tx_command_results.rs#L31-L35
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/tx_command_results/main.go#L58-L64
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/tx_command_results.py#L39-L46
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/TxCommandResults.kt#L38-L44
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/TxCommandResults.swift#L39-L45
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/TxCommandResults/Program.cs#L38-L42
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/tx_command_results.mjs#L44-L50
+```
+
+  </TabItem>
+</Tabs>
+
+### 4. Transfer the Results, Finish, and Dry-Run
+
+Transfer the named coins to the sender, finish the transaction, and dry-run it to confirm it is valid.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/tx_command_results.rs#L37-L51
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/tx_command_results/main.go#L66-L86
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/tx_command_results.py#L48-L62
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/TxCommandResults.kt#L46-L62
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/TxCommandResults.swift#L47-L64
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/TxCommandResults/Program.cs#L44-L61
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/tx_command_results.mjs#L53-L68
+```
+
+  </TabItem>
+</Tabs>
+
+## Expected Output
+
+```bash
+Signing Digest: <signing-digest-hex>
+Txn Bytes: <base64-transaction-bytes>
+Tx dry run was successful!
+```
+
+## Full Example
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/tx_command_results.rs#L4-L54
+```
+  </TabItem>
+  <TabItem value="go" label="Go">
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/tx_command_results/main.go#L4-L87
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/tx_command_results.py#L4-L66
+```
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/TxCommandResults.kt#L4-L67
+```
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/TxCommandResults.swift#L4-L66
+```
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/TxCommandResults/Program.cs#L4-L63
+```
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/tx_command_results.mjs#L4-L68
+```
+  </TabItem>
+</Tabs>

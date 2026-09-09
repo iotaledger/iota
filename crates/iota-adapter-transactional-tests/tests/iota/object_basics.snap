@@ -77,7 +77,7 @@ gas summary:
 
 task 7, line 80:
 //# run test::object_basics::update --sender B --args object(2,0) object(6,0)
-events: Event { package_id: ObjectId("test"), module: Identifier("object_basics"), sender: Address("B"), type_: StructTag { address: Address("test"), module: Identifier("object_basics"), name: Identifier("NewValueEvent"), type_params: [] }, contents: "FAAAAAAAAAA=" }
+events: Event { package_id: ObjectId("test"), module: Identifier("object_basics"), sender: Address("B"), struct_tag: StructTag { address: Address("test"), module: Identifier("object_basics"), name: Identifier("NewValueEvent"), type_params: [] }, contents: "FAAAAAAAAAA=" }
 mutated: object(0,1), object(2,0), object(6,0)
 gas summary:
 ├── Computation Cost: 1000000

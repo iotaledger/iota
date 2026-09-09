@@ -107,17 +107,17 @@ pub async fn publish_package_on_single_authority(
         .data()
         .created()
         .iter()
-        .find(|c| c.1 == Owner::Immutable)
+        .find(|c| c.owner == Owner::Immutable)
         .unwrap()
-        .0
+        .reference
         .object_id;
     let cap_object = effects
         .data()
         .created()
         .iter()
-        .find(|c| matches!(c.1, Owner::Address(..)))
+        .find(|c| matches!(c.owner, Owner::Address(..)))
         .unwrap()
-        .0;
+        .reference;
     Ok((*effects.transaction_digest(), (package_id, cap_object)))
 }
 
@@ -159,9 +159,9 @@ pub async fn upgrade_package_on_single_authority(
         .data()
         .created()
         .iter()
-        .find(|c| c.1 == Owner::Immutable)
+        .find(|c| c.owner == Owner::Immutable)
         .unwrap()
-        .0
+        .reference
         .object_id;
     Ok((*effects.transaction_digest(), package_id))
 }

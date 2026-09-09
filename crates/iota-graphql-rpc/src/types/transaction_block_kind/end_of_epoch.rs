@@ -44,6 +44,20 @@ pub(crate) struct EndOfEpochTransaction {
 pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpochTransaction),
     ChangeEpochV2(ChangeEpochTransactionV2),
+    TransactionDenyRulesCreate(TransactionDenyRulesCreateTransaction),
+}
+
+/// System transaction that creates and shares the transaction deny rules
+/// object.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct TransactionDenyRulesCreateTransaction;
+
+#[Object]
+impl TransactionDenyRulesCreateTransaction {
+    /// A workaround to define an empty variant of a GraphQL union.
+    async fn dummy(&self) -> Option<bool> {
+        None
+    }
 }
 
 // System transaction for advancing the epoch.
@@ -446,6 +460,9 @@ impl EndOfEpochTransactionKind {
                 ce,
                 checkpoint_viewed_at,
             )),
+            N::TransactionDenyRulesCreate => {
+                K::TransactionDenyRulesCreate(TransactionDenyRulesCreateTransaction)
+            }
             _ => unimplemented!(
                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
             ),

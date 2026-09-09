@@ -70,12 +70,10 @@ async fn shared_object_deletion() {
         .build();
     let effects = test_cluster
         .sign_and_execute_transaction(&transaction)
-        .await
-        .effects
-        .unwrap();
+        .await;
 
     assert_eq!(effects.deleted().len(), 1);
-    assert_eq!(effects.shared_objects().len(), 1);
+    assert_eq!(effects.input_shared_objects().len(), 1);
 
     // assert the shared object was deleted
     let deleted_obj_id = effects.deleted()[0].object_id;
@@ -362,9 +360,7 @@ async fn call_shared_object_contract() {
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
-            .await
-            .effects
-            .unwrap();
+            .await;
         // Check that all reads must depend on the creation of the counter, but not to
         // any previous reads.
         assert!(
@@ -388,9 +384,7 @@ async fn call_shared_object_contract() {
         .build();
     let effects = test_cluster
         .sign_and_execute_transaction(&transaction)
-        .await
-        .effects
-        .unwrap();
+        .await;
     let increment_transaction = *effects.transaction_digest();
     assert!(
         effects
@@ -430,9 +424,7 @@ async fn call_shared_object_contract() {
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
-            .await
-            .effects
-            .unwrap();
+            .await;
         assert!(effects.dependencies().contains(&increment_transaction));
         if let Some(prev) = assert_value_mut_transaction {
             assert!(effects.dependencies().contains(&prev));
@@ -585,7 +577,7 @@ async fn shared_object_sync() {
         .await
         .unwrap();
     assert!(effects.status().is_success());
-    let (counter_ref, _) = effects.created()[0];
+    let counter_ref = effects.created()[0].reference;
 
     // Check that the counter object exists in at least one of the validators the
     // transaction was sent to.
@@ -665,9 +657,7 @@ async fn replay_shared_object_transaction() {
     for _ in 0..2 {
         let effects = test_cluster
             .execute_transaction(create_counter_transaction.clone())
-            .await
-            .effects
-            .unwrap();
+            .await;
 
         // Ensure the sequence number of the shared object did not change.
         let curr = effects.created()[0].reference.version;

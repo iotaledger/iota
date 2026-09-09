@@ -1,5 +1,7 @@
 ---
+title: Getting Started with Go
 description: Get started with the IOTA SDK Go bindings to interact with the IOTA network.
+tags: [ tutorial, go, mainnet, testnet, devnet, setup, install, getting-started ]
 ---
 
 import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
@@ -56,30 +58,29 @@ For additional setup instructions and platform-specific details, refer to the [G
 
 ## Quick Start Example
 
-The following example demonstrates how to connect to the IOTA Devnet and retrieve the Chain ID.
+The following example demonstrates how to connect to the IOTA Testnet and retrieve the Chain ID.
 
-## 1. Create a `main.go` file
+### 1. Create a `main.go` file
 
 Create a new file named `main.go` and paste the following code:
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/chain_id/main.go#L4-L21
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/chain_id/main.go#L4-L21
 ```
 
-## 2. Run the code
+### 2. Run the code
 
 In your terminal, run:
 
 ```bash
 go run main.go
 ```
-
-What's Next?
+## What's Next?
 
 Now that you have connected to the network, you can explore more advanced features:
 
-* Check Balances: Learn how to query coin balances for a specific address.
-* Transactions: Build and sign Programmable Transaction Blocks (PTBs).
-* Key Management: Use the SDK to generate and manage IOTA addresses.
+* [Accounts and Addresses](/developer/iota-sdk/how-tos/accounts-and-addresses): create a mnemonic, derive addresses, and check coin balances.
+* [Transactions](/developer/iota-sdk/how-tos/transactions): build, sign, and send Programmable Transaction Blocks (PTBs), including staking and reusing command results.
+* [Queries](/developer/iota-sdk/how-tos/queries): query owned objects, events, and transactions with the GraphQL client.
 
 View more comprehensive examples in the official [Go examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/go/examples).

@@ -53,7 +53,6 @@ iota-config.workspace = true
 iota-core.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-grpc-client.workspace = true
-iota-grpc-server.workspace = true
 iota-grpc-types.workspace = true
 iota-json.workspace = true
 iota-json-rpc.workspace = true
@@ -87,6 +86,7 @@ rand.workspace = true
 # internal dependencies
 iota-common.workspace = true
 iota-config.workspace = true
+iota-grpc-server.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-sdk.workspace = true

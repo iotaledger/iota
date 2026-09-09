@@ -18,10 +18,9 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+    use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
     use iota_types::{
         digests::ChainIdentifier,
-        gas_coin::GAS,
         transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -405,7 +404,7 @@ mod tests {
             ServiceConfig::test_defaults(),
         )
         .await;
-        let digest = TransactionDigest::generate(StdRng::from_seed([12; 32])).to_string();
+        let digest = TransactionDigest::random_with(StdRng::from_seed([12; 32])).to_string();
 
         assert!(
             !query_is_transaction_indexed_on_node(&cluster.graphql_client, digest.as_str()).await
@@ -642,6 +641,89 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn test_transactions_by_digests() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+        let sender1 = addresses[0];
+        let sender2 = addresses[1];
+        let recipient = addresses[2];
+
+        let tx1 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender1)
+            .await
+            .transfer_iota(Some(1_000), recipient)
+            .build();
+        let signed_tx1 = cluster.sign_transaction(&tx1);
+        let digest1 = signed_tx1.digest();
+
+        let tx2 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender2)
+            .await
+            .transfer_iota(Some(2_000), recipient)
+            .build();
+        let signed_tx2 = cluster.sign_transaction(&tx2);
+        let digest2 = signed_tx2.digest();
+
+        let response_fields = "effects { transactionBlock { digest } } errors";
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx1, response_fields).await;
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx2, response_fields).await;
+
+        let fake_digest = TransactionDigest::random().to_string();
+        let query = format!(
+            r#"
+                {{
+                    transactionsByDigests(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
+                        nodes {{
+                            digest
+                            sender {{
+                                address
+                            }}
+                        }}
+                    }}
+                }}
+            "#,
+        );
+
+        let response_body = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, vec![], vec![])
+            .await
+            .unwrap()
+            .response_body_json();
+        let transactions = response_body["data"]["transactionsByDigests"]["nodes"]
+            .as_array()
+            .unwrap();
+
+        assert_eq!(
+            transactions.len(),
+            3,
+            "3 nodes should be present in the response (2 real transactions and 1 null for the fake digest)"
+        );
+        assert_eq!(
+            transactions[0]["digest"].as_str().unwrap(),
+            digest1.to_string(),
+            "first node should match digest1 (preserve input order)"
+        );
+        assert_eq!(
+            transactions[1]["digest"].as_str().unwrap(),
+            digest2.to_string(),
+            "second node should match digest2 (preserve input order)"
+        );
+        assert!(
+            transactions[2].is_null(),
+            "third node should be null for the fake digest"
+        );
+    }
+
     // TODO: add more test cases for transaction execution/dry run in transactional
     // test runner.
     #[tokio::test]
@@ -844,7 +926,7 @@ mod tests {
                 "split",
                 vec![CallArg::ImmutableOrOwned(coin), CallArg::pure(&1000u64)],
             )
-            .with_type_args(vec![GAS::type_tag()])
+            .with_type_args(vec![TypeTag::from(StructTag::new_gas())])
             .build();
         let tx_bytes = tx.to_base64();
 

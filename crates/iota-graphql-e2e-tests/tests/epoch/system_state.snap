@@ -29,7 +29,7 @@ gas summary:
 
 task 4, line 19:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
-events: Event { package_id: ObjectId("iota_system"), module: Identifier("iota_system"), sender: Address("C"), type_: StructTag { address: Address("iota_system"), module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: "jbLICzglp9Dw6PxHUtAZge3H4eaJoCu8o0/SFze7oA2vo55PANriePl3x8aTCl4sduhdF6Um1yS7zg+4H7B9TIzKThzgulkEzqYd+SQtovfSnj7zKPt+wHwIazv0fKYaAQAAAAAAAAAA5AtUAgAAAA==" }
+events: Event { package_id: ObjectId("iota_system"), module: Identifier("iota_system"), sender: Address("C"), struct_tag: StructTag { address: Address("iota_system"), module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: "jbLICzglp9Dw6PxHUtAZge3H4eaJoCu8o0/SFze7oA2vo55PANriePl3x8aTCl4sduhdF6Um1yS7zg+4H7B9TIzKThzgulkEzqYd+SQtovfSnj7zKPt+wHwIazv0fKYaAQAAAAAAAAAA5AtUAgAAAA==" }
 created: object(4,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
@@ -79,7 +79,7 @@ Epoch advanced: 4
 
 task 12, line 37:
 //# run 0x3::iota_system::request_withdraw_stake --args object(0x5) object(4,0) --sender C
-events: Event { package_id: ObjectId("iota_system"), module: Identifier("iota_system"), sender: Address("C"), type_: StructTag { address: Address("iota_system"), module: Identifier("validator"), name: Identifier("UnstakingRequestEvent"), type_params: [] }, contents: "jbLICzglp9Dw6PxHUtAZge3H4eaJoCu8o0/SFze7oA2vo55PANriePl3x8aTCl4sduhdF6Um1yS7zg+4H7B9TIzKThzgulkEzqYd+SQtovfSnj7zKPt+wHwIazv0fKYaAgAAAAAAAAAEAAAAAAAAAADkC1QCAAAADCG9JgEAAAA=" }
+events: Event { package_id: ObjectId("iota_system"), module: Identifier("iota_system"), sender: Address("C"), struct_tag: StructTag { address: Address("iota_system"), module: Identifier("validator"), name: Identifier("UnstakingRequestEvent"), type_params: [] }, contents: "jbLICzglp9Dw6PxHUtAZge3H4eaJoCu8o0/SFze7oA2vo55PANriePl3x8aTCl4sduhdF6Um1yS7zg+4H7B9TIzKThzgulkEzqYd+SQtovfSnj7zKPt+wHwIazv0fKYaAgAAAAAAAAAEAAAAAAAAAADkC1QCAAAADCG9JgEAAAA=" }
 created: object(12,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(4,0)
