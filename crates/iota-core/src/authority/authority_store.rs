@@ -546,6 +546,18 @@ impl AuthorityStore {
             .get_marker_value(object_id, version, epoch_id)
     }
 
+    /// Whether `version` of `object_id` stopped being the current version
+    /// during `epoch`; see [`HistoricObjects::relocated_in_epoch`].
+    pub fn object_superseded_in_epoch(
+        &self,
+        object_id: &ObjectId,
+        version: Version,
+        epoch: EpochId,
+    ) -> IotaResult<bool> {
+        self.historic_objects
+            .relocated_in_epoch(epoch, &ObjectKey(*object_id, version))
+    }
+
     pub fn get_latest_marker(
         &self,
         object_id: &ObjectId,

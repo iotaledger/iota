@@ -2525,6 +2525,10 @@ impl ProtocolConfig {
                 ret.enable_pcool_flow(),
                 "enable_validator_attestation requires enable_pcool_flow to be set"
             );
+            assert!(
+                ret.report_move_authentication_error(),
+                "enable_validator_attestation requires report_move_authentication_error to be set"
+            );
         }
 
         ret
