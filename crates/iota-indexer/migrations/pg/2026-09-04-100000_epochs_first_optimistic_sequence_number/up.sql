@@ -9,6 +9,19 @@
 -- epoch with a value.
 ALTER TABLE epochs ADD COLUMN first_optimistic_sequence_number BIGINT DEFAULT NULL;
 
+CREATE FUNCTION epochs_set_first_optimistic_seq() RETURNS trigger AS $$
+BEGIN
+    IF NEW.first_optimistic_sequence_number IS NULL THEN
+        NEW.first_optimistic_sequence_number := pg_sequence_last_value(
+            pg_get_serial_sequence('tx_global_order', 'optimistic_sequence_number')) + 1;
+    END IF;
+    RETURN NEW;
+END $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER epochs_first_optimistic_seq
+BEFORE INSERT ON epochs
+FOR EACH ROW EXECUTE FUNCTION epochs_set_first_optimistic_seq();
+
 -- The old bounds are in the `global_sequence_number` (tx) domain; reset them
 -- so pruning restarts on the `optimistic_sequence_number` key.
 WITH bounds AS (
