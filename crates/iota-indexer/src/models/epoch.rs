@@ -48,7 +48,7 @@ pub struct StoredEpochInfo {
     pub first_tx_sequence_number: i64,
     /// First `optimistic_sequence_number` value belonging to this epoch.
     /// The pruner deletes `optimistic_transactions` rows below this value
-    /// once the epoch falls out of the retention window.
+    /// once the previous epoch falls out of the retention window.
     ///
     /// `None` for epochs recorded before the column existed, or when no
     /// optimistic transaction had been indexed yet.
