@@ -21,7 +21,7 @@ use iota_types::{
     committee::EpochId,
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng, simple_to_network_keypair,
+        NetworkKeyPair, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
@@ -1577,7 +1577,10 @@ impl KeyPairWithPath {
     /// stacks that consume that type directly. Panics if the stored keypair
     /// is not ed25519.
     pub fn network_keypair(&self) -> NetworkKeyPair {
-        simple_to_network_keypair(self.keypair()).expect("only Ed25519 network keys are allowed")
+        self.keypair()
+            .as_opt_ed25519()
+            .cloned()
+            .expect("only Ed25519 network keys are allowed")
     }
 }
 
