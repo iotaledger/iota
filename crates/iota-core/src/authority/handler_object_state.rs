@@ -47,10 +47,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use dashmap::DashMap;
@@ -64,7 +61,7 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
     object::Object,
-    storage::ObjectKey,
+    storage::{ObjectKey, ObjectStore},
 };
 use itertools::chain;
 use parking_lot::{Mutex, RwLock};
@@ -247,6 +244,24 @@ pub fn sync_ahead_writes(
     writes
 }
 
+/// Collapses a commit's per-transaction rows to one row per id, the highest
+/// version winning. The per-transaction upserts carry one entry per write, so
+/// an id written by several of the commit's transactions (a sender's gas coin,
+/// an object mutated twice) appears more than once, in no particular order;
+/// the flush takes the collapsed form.
+pub fn highest_row_per_id(
+    rows: &[(ObjectId, HandlerLatestObject)],
+) -> BTreeMap<ObjectId, HandlerLatestObject> {
+    let mut highest = BTreeMap::new();
+    for (id, row) in rows {
+        let current = highest.entry(*id).or_insert(*row);
+        if row.is_newer_than(current) {
+            *current = *row;
+        }
+    }
+    highest
+}
+
 /// The input versions a transaction consumed that shelter rows must cover:
 /// address-owned versions, plus object-owned children conservatively (pending
 /// the deferred receiving-objects design). Shared inputs are existence-only
@@ -278,7 +293,7 @@ pub struct HandlerObjectState {
 
     handler_latest_overlay: RwLock<BTreeMap<ObjectId, HandlerLatestObject>>,
     sync_ahead_overlay: RwLock<BTreeMap<ObjectId, SyncAheadRecord>>,
-    sheltered_overlay: RwLock<BTreeMap<ObjectKey, Arc<Object>>>,
+    sheltered_overlay: RwLock<BTreeMap<ObjectKey, Object>>,
 
     /// Sync-ahead records the handler has caught up past, pending deletion
     /// from the durable table; drained into the next flush batch.
@@ -356,16 +371,16 @@ impl HandlerObjectState {
     /// it wrote and shelters the bytes of the owned input versions it
     /// consumed.
     ///
-    /// `loaded_input_objects` must contain every consumed owned input at its
+    /// `loaded_input_objects` must serve every consumed owned input at its
     /// consumed version - including dynamic-field children and received
-    /// objects, which are not part of the declared input objects; a missing
-    /// one cannot be sheltered against pruning and is reported through
-    /// `debug_fatal`.
+    /// objects, which are not part of the transaction's declared input objects;
+    /// a missing one cannot be sheltered against pruning and is reported
+    /// through `debug_fatal`.
     pub fn record_executed_transaction(
         &self,
         tables: &AuthorityEpochTables,
         effects: &TransactionEffects,
-        loaded_input_objects: &[Object],
+        loaded_input_objects: &dyn ObjectStore,
     ) -> IotaResult {
         if let Some(round) = self.commit_round_of(effects.transaction_digest()) {
             self.upsert_handler_latest_rows(tables, &handler_latest_upserts(effects, round))
@@ -376,8 +391,7 @@ impl HandlerObjectState {
                 consumed_input_keys_to_shelter(&old_metadata),
                 loaded_input_objects,
                 effects.transaction_digest(),
-            );
-            Ok(())
+            )
         }
     }
 
@@ -418,15 +432,28 @@ impl HandlerObjectState {
         id: &ObjectId,
     ) -> IotaResult<Option<HandlerLatestObject>> {
         // The ticket snapshots this object's cache generation before any
-        // read. The cache fill below succeeds only if the generation is
-        // still the same; a flush that caches a newer row in the meantime
-        // (`Ticket::Write` in `evict_flushed_commit_rows`) bumps it, and the
-        // fill is discarded - the row read from the table here would be
-        // older than what the flush cached, and must not replace it.
+        // read, so a flush landing between the overlay check and the cache
+        // fill cannot be shadowed by the table row read here.
         let ticket = self.handler_latest_cache.get_ticket_for_read(id);
         if let Some(row) = self.handler_latest_overlay.read().get(id) {
             return Ok(Some(*row));
         }
+        self.durable_handler_latest(tables, id, ticket)
+    }
+
+    /// The durable handler-latest row of `id`, through the read-through
+    /// cache. `ticket` must have been taken before any read for this call: the
+    /// cache fill below succeeds only if the object's cache generation is
+    /// still the one the ticket saw; a flush that caches a newer row in the
+    /// meantime (`Ticket::Write` in `evict_flushed_commit_rows`) bumps it, and
+    /// the fill is discarded - the row read from the table here would be
+    /// older than what the flush cached, and must not replace it.
+    fn durable_handler_latest(
+        &self,
+        tables: &AuthorityEpochTables,
+        id: &ObjectId,
+        ticket: Ticket,
+    ) -> IotaResult<Option<HandlerLatestObject>> {
         if let Some(entry) = self.handler_latest_cache.get(id) {
             return Ok(Some(*entry.lock()));
         }
@@ -455,11 +482,11 @@ impl HandlerObjectState {
         &self,
         tables: &AuthorityEpochTables,
         key: &ObjectKey,
-    ) -> IotaResult<Option<Arc<Object>>> {
+    ) -> IotaResult<Option<Object>> {
         if let Some(object) = self.sheltered_overlay.read().get(key) {
             return Ok(Some(object.clone()));
         }
-        Ok(tables.sheltered_objects.get(key)?.map(Arc::new))
+        Ok(tables.sheltered_objects.get(key)?)
     }
 
     /// Stages a commit's handler-latest rows into `batch` - the quarantine
@@ -472,19 +499,17 @@ impl HandlerObjectState {
     /// store state. After the batch is durably written - never before - pass
     /// the same rows to [`Self::evict_flushed_commit_rows`].
     ///
-    /// These writes carry no version guard: the caller must flush commits in
-    /// commit order, one flush at a time (the quarantine flush does), or an
-    /// older row could overwrite a newer durable one.
+    /// `handler_rows` is the commit's collapsed row set
+    /// ([`highest_row_per_id`]). The writes carry no version guard: the caller
+    /// must flush commits in commit order, one flush at a time (the quarantine
+    /// flush does), or an older row could overwrite a newer durable one.
     pub fn write_commit_rows_to_batch(
         &self,
         tables: &AuthorityEpochTables,
         batch: &mut DBBatch,
-        handler_rows: &[(ObjectId, HandlerLatestObject)],
+        handler_rows: &BTreeMap<ObjectId, HandlerLatestObject>,
     ) -> IotaResult {
-        batch.insert_batch(
-            &tables.handler_latest_objects,
-            handler_rows.iter().map(|(id, row)| (id, row)),
-        )?;
+        batch.insert_batch(&tables.handler_latest_objects, handler_rows.iter())?;
         // A deletion lost to a batch that never commits is re-queued when the
         // commit replays.
         let deletions = std::mem::take(&mut *self.sync_ahead_record_deletions.lock());
@@ -493,11 +518,17 @@ impl HandlerObjectState {
     }
 
     /// Evicts a commit's handler-latest overlay entries once their rows are
-    /// durable. The cache is refreshed write-through before each entry is
-    /// removed, so a concurrent reader never observes a row absent from both;
-    /// an entry upserted again since the flush (a newer, still-unflushed row)
-    /// is kept.
-    pub fn evict_flushed_commit_rows(&self, handler_rows: &[(ObjectId, HandlerLatestObject)]) {
+    /// durable; the caller's write-then-evict order is what keeps a concurrent
+    /// reader from finding a row in neither the overlay nor the table. The
+    /// rows are cached on the way out with a write ticket, which expires the
+    /// read tickets of readers still holding the pre-flush table row (see
+    /// [`Self::durable_handler_latest`]); the cached value itself is
+    /// best-effort. An entry upserted again since the flush (a newer,
+    /// still-unflushed row) is kept.
+    pub fn evict_flushed_commit_rows(
+        &self,
+        handler_rows: &BTreeMap<ObjectId, HandlerLatestObject>,
+    ) {
         let mut overlay = self.handler_latest_overlay.write();
         for (id, row) in handler_rows {
             self.handler_latest_cache
@@ -524,7 +555,7 @@ impl HandlerObjectState {
         tables: &AuthorityEpochTables,
         batch: &mut DBBatch,
         sync_rows: &[(ObjectId, SyncAheadRecord)],
-        shelter_rows: &[(ObjectKey, Arc<Object>)],
+        shelter_rows: &[(ObjectKey, Object)],
     ) -> IotaResult {
         batch.insert_batch(
             &tables.sync_ahead_records,
@@ -532,9 +563,7 @@ impl HandlerObjectState {
         )?;
         batch.insert_batch(
             &tables.sheltered_objects,
-            shelter_rows
-                .iter()
-                .map(|(key, object)| (key, object.as_ref())),
+            shelter_rows.iter().map(|(key, object)| (key, object)),
         )?;
         Ok(())
     }
@@ -549,7 +578,7 @@ impl HandlerObjectState {
     pub fn evict_flushed_sync_ahead_rows(
         &self,
         sync_rows: &[(ObjectId, SyncAheadRecord)],
-        shelter_rows: &[(ObjectKey, Arc<Object>)],
+        shelter_rows: &[(ObjectKey, Object)],
     ) {
         {
             let mut overlay = self.sync_ahead_overlay.write();
@@ -587,9 +616,10 @@ impl HandlerObjectState {
         let mut overlay = self.handler_latest_overlay.write();
         for (id, row) in rows {
             match overlay.get(id) {
-                // The writers racing on one id within a commit all write the
-                // same value; across commits a later commit's row always has
-                // a higher version, so the guard makes the row a monotone
+                // Within a commit an id may carry several versions (written
+                // by several of its transactions) and the highest wins;
+                // across commits a later commit's row always has a higher
+                // version. Either way the guard makes the row a monotone
                 // function of handler progress.
                 Some(current) => {
                     if row.version >= current.version {
@@ -603,8 +633,12 @@ impl HandlerObjectState {
                     // shadowing the newer durable one through the
                     // overlay-first read; strict `>` also keeps a watcher
                     // firing after its commit flushed from re-adding a row
-                    // nothing would ever evict.
-                    let durable = tables.handler_latest_objects.get(id)?;
+                    // nothing would ever evict. Read through the cache: a
+                    // flush cannot land while the overlay lock is held, so
+                    // cache and table agree; a cache miss still costs a table
+                    // read under the lock.
+                    let ticket = self.handler_latest_cache.get_ticket_for_read(id);
+                    let durable = self.durable_handler_latest(tables, id, ticket)?;
                     if durable.is_none_or(|durable| row.version > durable.version) {
                         overlay.insert(*id, *row);
                     }
@@ -676,30 +710,32 @@ impl HandlerObjectState {
     fn shelter_consumed_inputs(
         &self,
         keys: Vec<ObjectKey>,
-        loaded_input_objects: &[Object],
+        loaded_input_objects: &dyn ObjectStore,
         tx_digest: &TransactionDigest,
-    ) {
+    ) -> IotaResult {
         if keys.is_empty() {
-            return;
+            return Ok(());
         }
-        let mut needed: BTreeSet<ObjectKey> = keys.into_iter().collect();
-        let mut overlay = self.sheltered_overlay.write();
-        for object in loaded_input_objects {
-            let key = ObjectKey(object.id(), object.version());
-            // A replay after a crash may re-insert rows that are already
-            // durable; that is fine - the checkpoint executor's persist step
-            // re-runs on the same replay and evicts them again, and the
-            // bytes are identical either way.
-            if needed.remove(&key) {
-                overlay.insert(key, Arc::new(object.clone()));
+        // Resolve outside the overlay lock: the store reads can reach the DB.
+        let mut rows = Vec::with_capacity(keys.len());
+        for (key, object) in keys
+            .iter()
+            .zip(loaded_input_objects.try_multi_get_objects_by_key(&keys)?)
+        {
+            match object {
+                Some(object) => rows.push((*key, object)),
+                None => debug_fatal!(
+                    "input {key:?} consumed by sync-executed transaction {tx_digest} missing from \
+                 the loaded inputs; its bytes cannot be sheltered against pruning"
+                ),
             }
         }
-        for key in needed {
-            debug_fatal!(
-                "input {key:?} consumed by sync-executed transaction {tx_digest} missing from \
-                 the loaded inputs; its bytes cannot be sheltered against pruning"
-            );
-        }
+        // A replay after a crash may re-insert rows that are already durable;
+        // that is fine - the checkpoint executor's persist step re-runs on the
+        // same replay and evicts them again, and the bytes are identical
+        // either way.
+        self.sheltered_overlay.write().extend(rows);
+        Ok(())
     }
 
     fn remove_handled_sync_ahead_records(

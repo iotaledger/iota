@@ -1820,8 +1820,6 @@ async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
 // === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
 
 mod handler_object_state_storage {
-    use std::sync::Arc;
-
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
     };
@@ -1830,7 +1828,7 @@ mod handler_object_state_storage {
         base_types::CommitRound,
         effects::{TestEffectsBuilder, TransactionEffectsAPI},
         object::Object,
-        storage::ObjectKey,
+        storage::{ObjectKey, ObjectStore},
         transaction::TransactionAPI,
     };
 
@@ -1838,6 +1836,27 @@ mod handler_object_state_storage {
     use crate::authority::authority_per_epoch_store::handler_object_state::{
         HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
     };
+
+    /// An [`ObjectStore`] for the map-hit arm: a handler-known transaction
+    /// must never fetch shelter bytes.
+    struct NoShelterFetch;
+
+    impl ObjectStore for NoShelterFetch {
+        fn try_get_object(
+            &self,
+            _: &ObjectId,
+        ) -> iota_types::storage::error::Result<Option<Object>> {
+            unreachable!("a handler-known transaction must not fetch shelter bytes")
+        }
+
+        fn try_get_object_by_key(
+            &self,
+            _: &ObjectId,
+            _: Version,
+        ) -> iota_types::storage::error::Result<Option<Object>> {
+            unreachable!("a handler-known transaction must not fetch shelter bytes")
+        }
+    }
 
     fn owned_object(id: ObjectId, version: u64) -> Object {
         Object::with_id_owner_version_for_testing(
@@ -1946,88 +1965,40 @@ mod handler_object_state_storage {
     }
 
     #[tokio::test]
-    async fn map_miss_writes_sync_records_and_shelter_but_never_handler_latest() {
+    async fn flushed_rows_for_one_id_collapse_to_the_highest_version() {
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let id = ObjectId::random();
 
-        let mutated = ObjectId::random();
-        let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
-        let lamport = effects.lamport_version();
-
-        // The digest is not in the round map: this execution is state sync
-        // running ahead of the handler.
+        // Two transactions of one commit write the same id (a sender's gas
+        // coin), so the commit's rows carry both versions, here out of
+        // version order.
+        let v3 = generate_live_entry(Version::from_u64(3), 1);
+        let v5 = generate_live_entry(Version::from_u64(5), 1);
+        let commit_rows = vec![(id, v5), (id, v3)];
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs)
+            .record_commit_fully_executed(1, &commit_rows)
             .unwrap();
+        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
 
-        assert_eq!(epoch_store.handler_latest(&mutated).unwrap(), None);
-        assert_eq!(
-            epoch_store.sync_ahead_record(&mutated).unwrap(),
-            Some(SyncAheadRecord {
-                base_version: Some(Version::from_u64(5)),
-                latest_created: lamport,
-            })
-        );
-        let sheltered = epoch_store
-            .sheltered_object(&ObjectKey(mutated, Version::from_u64(5)))
-            .unwrap()
-            .expect("consumed input must be sheltered");
-        assert_eq!(sheltered.version(), Version::from_u64(5));
-
-        // A second sync-executed transaction consuming the chain's output
-        // extends the record without touching its previous version.
-        let (next_effects, next_inputs) = executed_owned_tx_effects(mutated, lamport.as_u64(), 2);
+        // The flush leaves the highest version durable - not the last one
+        // iterated - and evicts the overlay entry without the write-through
+        // cache insert of an older row tripping the monotonicity check.
         epoch_store
-            .record_executed_transaction(&next_effects, &next_inputs)
+            .flush_commit_rows_for_testing(commit_rows)
             .unwrap();
+        assert_eq!(state.overlay_sizes_for_testing(), (0, 0, 0));
         assert_eq!(
-            epoch_store.sync_ahead_record(&mutated).unwrap(),
-            Some(SyncAheadRecord {
-                base_version: Some(Version::from_u64(5)),
-                latest_created: next_effects.lamport_version(),
-            })
+            epoch_store
+                .tables()
+                .unwrap()
+                .handler_latest_objects
+                .get(&id)
+                .unwrap(),
+            Some(v5)
         );
-    }
-
-    #[tokio::test]
-    async fn sync_created_object_keeps_base_version_none_when_chain_extends() {
-        let authority = TestAuthorityBuilder::new().build().await;
-        let epoch_store = authority.epoch_store_for_testing();
-
-        // State sync creates the object ahead of the handler...
-        let created = ObjectId::random();
-        let create_tx = owned_inputs_tx(1);
-        let create_effects = TestEffectsBuilder::new(&create_tx)
-            .with_created_objects([(created, Owner::Address(Address::ZERO))])
-            .build();
-        let gas = create_tx.transaction().gas()[0].object_id;
-        epoch_store
-            .record_executed_transaction(&create_effects, &[owned_object(gas, 1)])
-            .unwrap();
-        let created_version = create_effects.lamport_version();
-        assert_eq!(
-            epoch_store.sync_ahead_record(&created).unwrap(),
-            Some(SyncAheadRecord {
-                base_version: None,
-                latest_created: created_version,
-            })
-        );
-
-        // ...then consumes its own creation. The record must keep
-        // `base_version: None`: the consumed version exists only on
-        // validators that synced ahead, so no named version may answer keep.
-        let (mutate_effects, mutate_inputs) =
-            executed_owned_tx_effects(created, created_version.as_u64(), 2);
-        epoch_store
-            .record_executed_transaction(&mutate_effects, &mutate_inputs)
-            .unwrap();
-        assert_eq!(
-            epoch_store.sync_ahead_record(&created).unwrap(),
-            Some(SyncAheadRecord {
-                base_version: None,
-                latest_created: mutate_effects.lamport_version(),
-            })
-        );
+        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
     }
 
     #[tokio::test]
@@ -2040,7 +2011,7 @@ mod handler_object_state_storage {
         let mutated = ObjectId::random();
         let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs)
+            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
             .unwrap();
         let first_chain_head = effects.lamport_version();
         let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
@@ -2065,7 +2036,7 @@ mod handler_object_state_storage {
         let (next_effects, next_inputs) =
             executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
         epoch_store
-            .record_executed_transaction(&next_effects, &next_inputs)
+            .record_executed_transaction(&next_effects, &next_inputs.as_slice())
             .unwrap();
         let record = SyncAheadRecord {
             base_version: Some(first_chain_head),
@@ -2088,8 +2059,11 @@ mod handler_object_state_storage {
         );
     }
 
+    /// The execution-hook tests cover the rows a handler-known execution
+    /// writes through real execution; this pins what real execution cannot:
+    /// a map hit does no shelter fetch at all.
     #[tokio::test]
-    async fn map_hit_writes_handler_latest_only() {
+    async fn map_hit_fetches_no_shelter_bytes() {
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
 
@@ -2098,7 +2072,7 @@ mod handler_object_state_storage {
 
         epoch_store.assign_commit_to_transactions(6, vec![*effects.transaction_digest()]);
         epoch_store
-            .record_executed_transaction(&effects, &[])
+            .record_executed_transaction(&effects, &NoShelterFetch)
             .unwrap();
 
         let row = epoch_store
@@ -2117,29 +2091,6 @@ mod handler_object_state_storage {
     }
 
     #[tokio::test]
-    async fn fully_executed_commit_cleans_sync_records_and_round_map() {
-        let authority = TestAuthorityBuilder::new().build().await;
-        let epoch_store = authority.epoch_store_for_testing();
-
-        // State sync executes a transaction ahead of the handler.
-        let mutated = ObjectId::random();
-        let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
-        epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs)
-            .unwrap();
-        assert!(epoch_store.sync_ahead_record(&mutated).unwrap().is_some());
-
-        // The handler catches up past the whole chain: the sync record goes,
-        // the handler-latest row answers instead.
-        let row = generate_live_entry(effects.lamport_version(), 8);
-        epoch_store
-            .record_commit_fully_executed(8, &[(mutated, row)])
-            .unwrap();
-        assert_eq!(epoch_store.sync_ahead_record(&mutated).unwrap(), None);
-        assert_eq!(epoch_store.handler_latest(&mutated).unwrap(), Some(row));
-    }
-
-    #[tokio::test]
     async fn reads_survive_flush_of_sync_and_shelter_rows() {
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
@@ -2149,7 +2100,7 @@ mod handler_object_state_storage {
         let (effects, loaded_inputs) = executed_owned_tx_effects(mutated, 5, 1);
         let gas = loaded_inputs[1].id();
         epoch_store
-            .record_executed_transaction(&effects, &loaded_inputs)
+            .record_executed_transaction(&effects, &loaded_inputs.as_slice())
             .unwrap();
 
         // Flush everything the sync execution wrote, then verify the reads
@@ -2158,7 +2109,7 @@ mod handler_object_state_storage {
             .iter()
             .map(|id| (*id, epoch_store.sync_ahead_record(id).unwrap().unwrap()))
             .collect();
-        let shelter_rows: Vec<(ObjectKey, Arc<Object>)> = [
+        let shelter_rows: Vec<(ObjectKey, Object)> = [
             ObjectKey(mutated, Version::from_u64(5)),
             ObjectKey(gas, Version::from_u64(1)),
         ]
@@ -2175,8 +2126,8 @@ mod handler_object_state_storage {
         }
         for (key, object) in &shelter_rows {
             assert_eq!(
-                epoch_store.sheltered_object(key).unwrap().as_deref(),
-                Some(object.as_ref())
+                epoch_store.sheltered_object(key).unwrap().as_ref(),
+                Some(object)
             );
         }
     }
