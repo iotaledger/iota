@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS checkpointed_objects_checkpoint_sequence_number;
