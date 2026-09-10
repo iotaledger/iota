@@ -598,13 +598,23 @@ impl RandomnessManager {
                 // The confirmations are sequenced by consensus and the used
                 // messages are derived from sequenced messages, so every
                 // validator computes this step from the same input, and
-                // honest input cannot make it fail. A failure means this
-                // node's own state is inconsistent with what consensus
-                // delivered. Carrying on would let it defer or cancel
-                // randomness-using transactions its peers execute, a
-                // divergence nothing compares until the checkpoint forks.
+                // honest input cannot make it fail. A failure has one of two
+                // causes. Either the DKG state this node persisted no longer
+                // matches what consensus delivered, and only this node stops.
+                // Or a library bug or more than a third of the stake dealing
+                // bad shares makes the step fail everywhere, and every
+                // validator stops on the same commit. A restart replays the
+                // same input, so it does not clear either cause. Carrying on
+                // would let the node defer or cancel randomness-using
+                // transactions that its peers execute, and nothing would
+                // notice until its checkpoint differs from the certified one.
                 Err(e) => {
-                    fatal!("random beacon: error while processing DKG Confirmations: {e:?}")
+                    fatal!(
+                        "random beacon: error while processing DKG Confirmations: {e:?}. A \
+                            restart replays the same input. Restore the epoch database or \
+                            state-sync before rejoining; if other validators stopped too, the \
+                            cause is shared and needs a fix"
+                    )
                 }
             }
         }
