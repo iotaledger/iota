@@ -96,16 +96,6 @@ const IOTA_BRIDGE_CREATE: FunctionIdent = (
     ident_str!("bridge"),
     ident_str!("create"),
 );
-const IOTA_CLAIM_REGISTRY_CREATE: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
-    ident_str!("claim_registry"),
-    ident_str!("create"),
-);
-const CLAIM_REGISTRY_CLAIM: FunctionIdent = (
-    &IOTA_FRAMEWORK_ADDRESS,
-    ident_str!("claim_registry"),
-    ident_str!("claim"),
-);
 const CLAIM_CLAIM_ADDRESS: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
     ident_str!("claim"),
@@ -115,7 +105,6 @@ const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[
     OBJECT_NEW,
     OBJECT_NEW_UID_FROM_HASH,
     TS_NEW_OBJECT,
-    CLAIM_REGISTRY_CLAIM,
     CLAIM_CLAIM_ADDRESS,
 ];
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
@@ -125,7 +114,6 @@ const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
     IOTA_RANDOMNESS_STATE_CREATE,
     IOTA_DENY_LIST_CREATE,
     IOTA_BRIDGE_CREATE,
-    IOTA_CLAIM_REGISTRY_CREATE,
 ];
 
 impl AbstractValue {

@@ -167,8 +167,6 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             bound block-header size to O(committee_size) and enable
 //             garbage collection in the block manager.
 // Version 30: Enable built-in Move authenticators in devnet.
-//             Add ClaimRegistry singleton for claiming addresses from public
-//             keys.
 //             Introduce Move native functions for validating public keys for
 //             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
 //             and deriving IOTA addresses from public keys.
@@ -543,11 +541,6 @@ struct FeatureFlags {
     // If true, enables the authentication with built-in Move authenticators.
     #[serde(skip_serializing_if = "is_false")]
     enable_builtin_move_authenticators: bool,
-
-    // If true, the ClaimRegistry singleton is created (or already exists).
-    // Used to gate genesis creation and epoch-change creation for existing networks.
-    #[serde(skip_serializing_if = "is_false")]
-    enable_claim_registry: bool,
 
     // If true, the `ClaimAccount` user transaction kind is accepted. It creates an
     // account object whose id is the sender's address, so a usable account also
@@ -1852,10 +1845,6 @@ impl ProtocolConfig {
         enable_builtin_move_authenticators
     }
 
-    pub fn enable_claim_registry(&self) -> bool {
-        self.feature_flags.enable_claim_registry
-    }
-
     pub fn enable_claim_account_transaction(&self) -> bool {
         self.feature_flags.enable_claim_account_transaction
     }
@@ -3030,8 +3019,6 @@ impl ProtocolConfig {
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
                         // Set the cost for built-in Move authenticators to 0 for now.
                         cfg.builtin_move_authenticator_cost_base = Some(0);
-                        // Enable claim registry in devnet only.
-                        cfg.feature_flags.enable_claim_registry = true;
                         // Enable claiming an account for the sender's address in
                         // devnet only.
                         cfg.feature_flags.enable_claim_account_transaction = true;
@@ -3160,10 +3147,6 @@ impl ProtocolConfig {
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
-    }
-
-    pub fn set_enable_claim_registry_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_claim_registry = val;
     }
 
     pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {

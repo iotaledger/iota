@@ -194,7 +194,6 @@ ClaimAccountTransaction:
   STRUCT:
     - kind:
         TYPENAME: AccountClaimKind
-ClaimRegistryCreate: UNITSTRUCT
 Command:
   ENUM:
     0:
@@ -326,10 +325,6 @@ EndOfEpochTransactionKind:
       ChangeEpochV4:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
-    4:
-      ClaimRegistryCreate:
-        NEWTYPE:
-          TYPENAME: ClaimRegistryCreate
 Event:
   STRUCT:
     - package_id:

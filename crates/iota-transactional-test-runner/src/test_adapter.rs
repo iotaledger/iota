@@ -112,7 +112,6 @@ const WELL_KNOWN_OBJECTS: &[ObjectId] = &[
     ObjectId::STARDUST,
     ObjectId::SYSTEM_STATE,
     ObjectId::CLOCK,
-    ObjectId::CLAIM_REGISTRY,
     ObjectId::DENY_LIST,
     ObjectId::RANDOMNESS_STATE,
 ];

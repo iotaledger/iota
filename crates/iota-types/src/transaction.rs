@@ -159,7 +159,6 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::ClaimRegistryCreate(_) => vec![],
             _ => unimplemented!(
                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
             ),
@@ -248,13 +247,6 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                 if !config.pass_validator_scores_to_advance_epoch() {
                     return Err(UserInputError::Unsupported(
                         "passing of validator scores required".to_string(),
-                    ));
-                }
-            }
-            Self::ClaimRegistryCreate(_) => {
-                if !config.enable_claim_registry() {
-                    return Err(UserInputError::Unsupported(
-                        "claim registry not enabled".to_string(),
                     ));
                 }
             }
@@ -775,7 +767,6 @@ impl TransactionKindExt for TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
-                    EndOfEpochTransactionKind::ClaimRegistryCreate(_) => None,
                     _ => unimplemented!(
                         "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                     ),
