@@ -65,6 +65,7 @@ fn mk_module_entry(pool: &mut RcPool, vis: u8, is_entry: bool) -> NormalizedModu
     };
     let m = CompiledModule {
         version: crate::file_format_common::VERSION_4,
+        publishable: true,
         module_handles: vec![
             // only self module
             ModuleHandle {
@@ -160,6 +161,7 @@ fn mk_module_plus_code_perm(
     };
     let m = CompiledModule {
         version: crate::file_format_common::VERSION_4,
+        publishable: true,
         module_handles: vec![
             // only self module
             ModuleHandle {
@@ -269,6 +271,7 @@ fn mk_module_plus_perm(pool: &mut RcPool, vis: u8, permutation: Permutation) -> 
 fn make_complex_module_perm(pool: &mut RcPool, p: Permutation) -> NormalizedModule {
     let m = CompiledModule {
         version: crate::file_format_common::VERSION_MAX,
+        publishable: true,
         module_handles: vec![
             // only self module
             ModuleHandle {
@@ -623,6 +626,7 @@ fn mk_module_with_defs(
 
     let m = CompiledModule {
         version: crate::file_format_common::VERSION_MAX,
+        publishable: true,
         module_handles: vec![
             // only self module
             ModuleHandle {
@@ -1055,7 +1059,7 @@ fn check_exact_and_unchange_same_module_permutations() {
         Visibility::Private as u8,
         Permutation::new(vec![1, 0]),
     ));
-    assert!(!m2.equals(&m3));
+    assert!(!m2.equivalent(&m3));
     assert!(InclusionCheck::Equal.check(&m2, &m3).is_ok());
     assert!(InclusionCheck::Equal.check(&m3, &m2).is_ok());
     // double inclusion

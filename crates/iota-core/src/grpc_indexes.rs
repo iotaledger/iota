@@ -228,25 +228,28 @@ fn hash_type_params(tag: &StructTag) -> u64 {
     hasher.finish()
 }
 
-/// Compute inclusive lower and upper `OwnerIndexKey` bounds for a
-/// `safe_iter_with_bounds` range scan, narrowed by `type_filter`.
+/// Compute lower and upper `OwnerIndexKey` bounds for a range scan,
+/// narrowed by `type_filter`. The upper bound is an exclusive sentinel past
+/// the last real key of the prefix.
 ///
-/// When `cursor` is `Some`, the lower bound is set to the cursor's exact
-/// position (inclusive) so that RocksDB can seek directly.
+/// When `cursor` is `Some`, the lower bound excludes the cursor position
+/// itself, so the scan resumes strictly after the last returned item, even
+/// when the cursor's index row no longer exists (e.g. the coin's balance
+/// changed, which moves its key).
 fn owner_bounds(
     owner: Address,
     cursor: Option<&OwnedObjectCursor>,
     filter: &OwnerTypeFilter,
-) -> (OwnerIndexKey, OwnerIndexKey) {
+) -> (Bound<OwnerIndexKey>, OwnerIndexKey) {
     let lower_bound = if let Some(c) = cursor {
-        // Resume from the exact cursor position.
-        OwnerIndexKey {
+        // Resume strictly after the cursor position.
+        Bound::Excluded(OwnerIndexKey {
             owner,
             object_type_identifier: c.object_type_identifier,
             object_type_params: c.object_type_params,
             inverted_balance: c.inverted_balance,
             object_id: c.object_id,
-        }
+        })
     } else {
         let (lower_id, _, lower_params, _) = match filter {
             OwnerTypeFilter::None => (0, u64::MAX, 0, u64::MAX),
@@ -257,13 +260,13 @@ fn owner_bounds(
                 ..
             } => (*id_hash, *id_hash, *params_hash, *params_hash),
         };
-        OwnerIndexKey {
+        Bound::Included(OwnerIndexKey {
             owner,
             object_type_identifier: lower_id,
             object_type_params: lower_params,
             inverted_balance: None,
             object_id: ObjectId::ZERO,
-        }
+        })
     };
 
     let (_, upper_bound_id, _, upper_bound_params) = match filter {
@@ -801,7 +804,7 @@ impl IndexStoreTables {
         let (lower_bound, upper_bound) = owner_bounds(owner, cursor, &type_filter);
         Ok(self
             .owner
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound))
+            .safe_range_iter((lower_bound, Bound::Excluded(upper_bound)))
             .filter(move |result| match result {
                 // Post-filter out hash collisions based on the full `StructTag` stored in the
                 // value.
@@ -827,7 +830,7 @@ impl IndexStoreTables {
     {
         let iter = self
             .dynamic_field
-            .safe_iter_with_prefix_from(&parent, Bound::Included(&cursor.unwrap_or(ObjectId::ZERO)))
+            .safe_iter_with_prefix_after(&parent, cursor.as_ref())
             .map(|r| r.map(|(key, ())| key));
         Ok(iter)
     }
@@ -847,10 +850,9 @@ impl IndexStoreTables {
         original_package_id: ObjectId,
         cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        Ok(self.package_version.safe_iter_with_prefix_from(
-            &original_package_id,
-            Bound::Included(&cursor.unwrap_or(0)),
-        ))
+        Ok(self
+            .package_version
+            .safe_iter_with_prefix_after(&original_package_id, cursor.as_ref()))
     }
 }
 
@@ -1380,7 +1382,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{GasCostSummary, checkpoint::CheckpointSummary};
+    use iota_sdk_types::{GasCostSummary, MovePackage, checkpoint::CheckpointSummary};
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
         message_envelope::Envelope, messages_checkpoint::VerifiedCheckpoint,
@@ -1440,6 +1442,291 @@ mod tests {
             .unwrap();
         assert_eq!(owned.len(), 1, "restored object must be owner-indexed");
         assert_eq!(owned[0].0.object_id, object_id);
+    }
+
+    /// The `cursor` of `owner_iter` is exclusive: the cursor row itself is
+    /// never returned again, and when the cursor row no longer exists (the
+    /// coin's balance changed, which moves its index key) the scan resumes
+    /// at the next live row without skipping it.
+    #[tokio::test]
+    async fn owner_iter_cursor_is_exclusive() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let owner = Address::from_u16(42);
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        for balance in [300, 200, 100] {
+            partition
+                .index_object(Object::new_gas_with_balance_and_owner_for_testing(
+                    balance, owner,
+                ))
+                .unwrap();
+        }
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let all: Vec<_> = grpc
+            .owner_iter(owner, None, OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(all.len(), 3);
+        let ids: Vec<_> = all.iter().map(|(key, _)| key.object_id).collect();
+        let first_key = &all[0].0;
+        let cursor = OwnedObjectCursor {
+            object_type_identifier: first_key.object_type_identifier,
+            object_type_params: first_key.object_type_params,
+            inverted_balance: first_key.inverted_balance,
+            object_id: first_key.object_id,
+        };
+
+        // Live cursor row: the scan starts strictly after it.
+        let after: Vec<_> = grpc
+            .owner_iter(owner, Some(&cursor), OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after
+                .iter()
+                .map(|(key, _)| key.object_id)
+                .collect::<Vec<_>>(),
+            ids[1..],
+            "the cursor row itself must not be returned again",
+        );
+
+        // Vanished cursor row: the scan resumes at the next live row.
+        grpc.tables.owner.remove(first_key).unwrap();
+        let after_removal: Vec<_> = grpc
+            .owner_iter(owner, Some(&cursor), OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after_removal
+                .iter()
+                .map(|(key, _)| key.object_id)
+                .collect::<Vec<_>>(),
+            ids[1..],
+            "the next live row must not be skipped",
+        );
+    }
+
+    /// A `0x2::dynamic_field::Field<u64, u64>` object owned by `parent`, as
+    /// the dynamic-field index sees one.
+    fn dynamic_field_object(parent: ObjectId, field_id: ObjectId) -> Object {
+        let field = iota_types::dynamic_field::Field {
+            id: iota_types::id::UID::new(field_id),
+            name: 0u64,
+            value: 0u64,
+        };
+        let move_struct = iota_sdk_types::MoveStruct::new(
+            StructTag::new_dynamic_field(TypeTag::U64, TypeTag::U64).into(),
+            iota_types::object::OBJECT_START_VERSION,
+            bcs::to_bytes(&field).unwrap(),
+        )
+        .unwrap();
+        Object::new_move(
+            move_struct,
+            Owner::Object(parent),
+            TransactionDigest::GENESIS_MARKER,
+        )
+    }
+
+    /// The `cursor` of `dynamic_field_iter` is exclusive: the cursor row
+    /// itself is never returned again, and when the cursor row no longer
+    /// exists (the field was deleted or transferred between pages) the scan
+    /// resumes at the next live row without skipping it.
+    #[tokio::test]
+    async fn dynamic_field_iter_cursor_is_exclusive() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let parent = ObjectId::random();
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        for _ in 0..3 {
+            partition
+                .index_object(dynamic_field_object(parent, ObjectId::random()))
+                .unwrap();
+        }
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let all: Vec<_> = grpc
+            .dynamic_field_iter(parent, None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(all.len(), 3);
+        let cursor = all[0].field_id;
+
+        // Live cursor row: the scan starts strictly after it.
+        let after: Vec<_> = grpc
+            .dynamic_field_iter(parent, Some(cursor))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after,
+            all[1..],
+            "the cursor row itself must not be returned again",
+        );
+
+        // Vanished cursor row: the scan resumes at the next live row.
+        grpc.tables.dynamic_field.remove(&all[0]).unwrap();
+        let after_removal: Vec<_> = grpc
+            .dynamic_field_iter(parent, Some(cursor))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after_removal,
+            all[1..],
+            "the next live row must not be skipped",
+        );
+    }
+
+    /// Three versions of the same package (same `original_package_id`,
+    /// versions 1..=3), as the package-version index sees them.
+    fn package_versions() -> [MovePackage; 3] {
+        let module = move_binary_format::file_format::empty_module();
+        let v1 = Object::new_package_for_testing(&[module], TransactionDigest::GENESIS_MARKER, [])
+            .unwrap();
+        let v1 = v1.data.as_opt_package().unwrap().clone();
+        let mut v2 = v1.clone();
+        v2.id = ObjectId::random();
+        v2.version = Version::from_u64(2);
+        let mut v3 = v1.clone();
+        v3.id = ObjectId::random();
+        v3.version = Version::from_u64(3);
+        [v1, v2, v3]
+    }
+
+    /// The `cursor` of `package_versions_iter` is exclusive: the cursor row
+    /// itself is never returned again. Unlike `owner_iter` and
+    /// `dynamic_field_iter`, a package-version row is never deleted (version
+    /// keys are append-only), so there is no vanished-cursor-row case to
+    /// cover here.
+    #[tokio::test]
+    async fn package_versions_iter_cursor_is_exclusive() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let versions = package_versions();
+        let original_package_id = versions[0].original_package_id();
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        for package in versions {
+            partition
+                .index_object(Object::new_from_package(
+                    package,
+                    TransactionDigest::GENESIS_MARKER,
+                ))
+                .unwrap();
+        }
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let all: Vec<_> = grpc
+            .package_versions_iter(original_package_id, None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(all.len(), 3);
+        let cursor = all[0].0.version;
+
+        let after: Vec<_> = grpc
+            .package_versions_iter(original_package_id, Some(cursor))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after,
+            all[1..],
+            "the cursor row itself must not be returned again",
+        );
+    }
+
+    /// An address-owned non-coin `Object`, indexed with
+    /// `inverted_balance: None`.
+    fn non_coin_object(owner: Address) -> Object {
+        let id = ObjectId::random();
+        let move_struct = iota_sdk_types::MoveStruct::new(
+            "0x2::clock::Clock".parse::<StructTag>().unwrap().into(),
+            iota_types::object::OBJECT_START_VERSION,
+            id.as_bytes().to_vec(),
+        )
+        .unwrap();
+        Object::new_move(
+            move_struct,
+            Owner::Address(owner),
+            TransactionDigest::GENESIS_MARKER,
+        )
+    }
+
+    /// Walking `owner_iter` one row at a time over a mixed population of
+    /// non-coin rows (`inverted_balance: None`, shorter keys) and coin
+    /// rows, including two coins with an equal balance, returns every row
+    /// exactly once, in the full listing's order: the exclusive-cursor seek
+    /// advances correctly across the `None`→`Some` key-layout boundary and
+    /// across equal-balance ties.
+    #[tokio::test]
+    async fn owner_iter_full_walk_returns_each_row_once() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let owner = Address::from_u16(42);
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        for _ in 0..3 {
+            partition.index_object(non_coin_object(owner)).unwrap();
+        }
+        // Two coins share a balance to exercise the object-id tie-break.
+        for balance in [300, 200, 200, 100] {
+            partition
+                .index_object(Object::new_gas_with_balance_and_owner_for_testing(
+                    balance, owner,
+                ))
+                .unwrap();
+        }
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let all: Vec<_> = grpc
+            .owner_iter(owner, None, OwnerTypeFilter::None)
+            .unwrap()
+            .map(|result| result.map(|(key, _)| key))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(all.len(), 7);
+
+        // Walk at most `len + 2` pages, so a cursor that stops advancing
+        // fails the assertion below instead of looping forever.
+        let mut walked = Vec::new();
+        let mut cursor: Option<OwnedObjectCursor> = None;
+        for _ in 0..all.len() + 2 {
+            let Some(item) = grpc
+                .owner_iter(owner, cursor.as_ref(), OwnerTypeFilter::None)
+                .unwrap()
+                .next()
+            else {
+                break;
+            };
+            let (key, _) = item.unwrap();
+            cursor = Some(OwnedObjectCursor {
+                object_type_identifier: key.object_type_identifier,
+                object_type_params: key.object_type_params,
+                inverted_balance: key.inverted_balance,
+                object_id: key.object_id,
+            });
+            walked.push(key);
+        }
+        assert_eq!(
+            walked, all,
+            "the one-row walk must return each row exactly once, in listing order",
+        );
     }
 
     /// `finalize_restore` must leave a store that `GrpcIndexesStore::new`

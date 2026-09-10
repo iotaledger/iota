@@ -10,6 +10,8 @@ use move_binary_format::CompiledModule;
 use crate::summary::ModuleSummary;
 
 pub mod coverage_map;
+pub mod differential_coverage;
+pub mod lcov;
 pub mod source_coverage;
 pub mod summary;
 

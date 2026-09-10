@@ -1969,7 +1969,7 @@ impl AuthorityState {
         let move_authenticators = transaction.move_authenticators();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, execution_error_opt) = if move_authenticators
+        let (inner_temp_store, _, mut effects, _, execution_error_opt) = if move_authenticators
             .is_empty()
         {
             // No Move authentication required, proceed to execute the transaction directly.
@@ -4058,9 +4058,8 @@ impl AuthorityState {
         cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
-        let cursor_u = cursor.unwrap_or(ObjectId::ZERO);
         if let Some(indexes) = &self.indexes {
-            indexes.get_owner_objects_iterator(owner, cursor_u, filter)
+            indexes.get_owner_objects_iterator(owner, cursor, filter)
         } else {
             Err(IotaError::IndexStoreNotAvailable)
         }

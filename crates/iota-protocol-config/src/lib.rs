@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 34;
+pub const MAX_PROTOCOL_VERSION: u64 = 35;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -212,6 +212,12 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             activates).
 //             Stop locking immutable objects in post-consensus conflict
 //             resolution.
+//             Disable Move-based sponsor account authentication on mainnet.
+// Version 35: Scale the PTB value size limit by the value's type.
+//             Allow objects created or mutated by system transactions to exceed
+//             the max object size limit.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -627,6 +633,14 @@ struct FeatureFlags {
     // (swap-in) pool; when false, the fixed stake cut by rank is used.
     #[serde(skip_serializing_if = "is_false")]
     consensus_enable_absolute_score_leader_schedule: bool,
+
+    // If true, enables better errors and bounds for max ptb values
+    #[serde(skip_serializing_if = "is_false")]
+    max_ptb_value_size_v2: bool,
+
+    // Allow objects created or mutated in system transactions to exceed the max object size limit.
+    #[serde(skip_serializing_if = "is_false")]
+    allow_unbounded_system_objects: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1998,6 +2012,10 @@ impl ProtocolConfig {
             .consensus_enable_absolute_score_leader_schedule
     }
 
+    pub fn max_ptb_value_size_v2(&self) -> bool {
+        self.feature_flags.max_ptb_value_size_v2
+    }
+
     pub fn deny_rule_governance(&self) -> bool {
         self.feature_flags.deny_rule_governance
     }
@@ -2060,6 +2078,10 @@ impl ProtocolConfig {
             "max_concurrent_execution_workers must be positive when set"
         );
         res
+    }
+
+    pub fn allow_unbounded_system_objects(&self) -> bool {
+        self.feature_flags.allow_unbounded_system_objects
     }
 }
 
@@ -3362,6 +3384,24 @@ impl ProtocolConfig {
                     // resolution. Set on all chains; inert where the P-COOL flow
                     // is off.
                     cfg.feature_flags.pcool_skip_immutable_object_locks = true;
+
+                    if chain == Chain::Mainnet {
+                        // Disable Move-based sponsor account authentication.
+                        cfg.feature_flags.enable_move_authentication_for_sponsor = false;
+                        // The pre-consensus sponsor-only flag requires
+                        // `enable_move_authentication_for_sponsor`, so clear it too.
+                        cfg.feature_flags
+                            .pre_consensus_sponsor_only_move_authentication = false;
+                    }
+                }
+                35 => {
+                    // Scale the PTB value size limit by the value's type.
+                    cfg.feature_flags.max_ptb_value_size_v2 = true;
+                    // Let system objects grow past the per-object size bound.
+                    cfg.feature_flags.allow_unbounded_system_objects = true;
+                    // Enable the optimistic commit rule (StarfishSpeed) in
+                    // Starfish consensus.
+                    cfg.feature_flags.consensus_starfish_speed = true;
                 }
                 // Use this template when making changes:
                 //

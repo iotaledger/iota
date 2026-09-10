@@ -408,7 +408,7 @@ mod checked {
         })();
         // Drop the pure inputs synthesized for the call above.
         context.truncate_inputs(restore_inputs_len);
-        context.linkage_view.reset_linkage();
+        context.linkage_view.reset_linkage()?;
         context.linkage_view.restore_linkage(saved_linkage)?;
         result
     }

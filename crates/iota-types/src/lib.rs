@@ -80,6 +80,7 @@ pub mod object;
 pub mod passkey_authenticator;
 pub mod programmable_transaction_builder;
 pub mod proto_value;
+pub mod ptb_trace;
 pub mod quorum_driver_types;
 pub mod randomness_state;
 pub mod signature;
@@ -261,6 +262,12 @@ impl MoveTypeTagTrait for ObjectId {
 impl MoveTypeTagTrait for Address {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::object::ID {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_id()))
     }
 }
 
