@@ -1359,8 +1359,8 @@ impl PgIndexerStore {
         )
     }
 
-    /// Prune optimistic_transactions table by `optimistic_sequence_number` inclusive
-    /// range.
+    /// Prune optimistic_transactions table by `optimistic_sequence_number`
+    /// inclusive range.
     fn prune_optimistic_tx_by_optimistic_seq(
         &self,
         start: u64,
