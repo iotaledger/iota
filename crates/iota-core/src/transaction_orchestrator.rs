@@ -2324,6 +2324,25 @@ mod tests {
             "expected SystemOverload, got {qd_error:?}"
         );
 
+        // A hint backed by a minority of the overloaded stake is not exposed.
+        let qd_error =
+            timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
+                errors: vec![
+                    bucket(
+                        "too many transactions pending",
+                        6000,
+                        ErrorCategory::ValidatorOverloaded,
+                    ),
+                    bucket("overloaded 3600s", 100, ErrorCategory::ValidatorOverloaded),
+                ],
+                total_stake: 6100,
+                stake_requested_retry_after: std::collections::BTreeMap::from([(3600, 100)]),
+            })));
+        assert!(
+            matches!(qd_error, QuorumDriverError::SystemOverload { overloaded_stake, .. } if overloaded_stake == 6100),
+            "expected SystemOverload without a hint, got {qd_error:?}"
+        );
+
         let qd_error =
             timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
                 errors: vec![

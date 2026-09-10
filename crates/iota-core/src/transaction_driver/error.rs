@@ -345,17 +345,23 @@ pub struct AggregatedRequestErrors {
 }
 
 impl AggregatedRequestErrors {
-    /// Upper stake-weighted median of the requested retry delays. A minority
-    /// of the hinting stake cannot dictate the result.
+    /// Upper stake-weighted median of the requested retry delays over all
+    /// overloaded stake. Returns `None` when no delay is backed by a
+    /// majority of that stake.
     pub fn median_retry_after_secs(&self) -> Option<u64> {
-        let total: StakeUnit = self.stake_requested_retry_after.values().sum();
-        if total == 0 {
+        let overloaded_stake: StakeUnit = self
+            .errors
+            .iter()
+            .filter(|(_, _, _, category)| *category == ErrorCategory::ValidatorOverloaded)
+            .map(|(_, _, stake, _)| *stake)
+            .sum();
+        if overloaded_stake == 0 {
             return None;
         }
         let mut cumulative = 0;
         for (secs, stake) in &self.stake_requested_retry_after {
             cumulative += stake;
-            if cumulative * 2 > total {
+            if cumulative * 2 > overloaded_stake {
                 return Some(*secs);
             }
         }
