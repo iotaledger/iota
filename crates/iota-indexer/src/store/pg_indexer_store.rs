@@ -1068,17 +1068,7 @@ impl PgIndexerStore {
                     }
 
                     info!(epoch.new_epoch.epoch, "Persisting epoch beginning info");
-
-                    let latest_optimistic_seq =
-                        diesel::select(sql::<diesel::sql_types::Nullable<diesel::sql_types::BigInt>>(
-                            "pg_sequence_last_value(pg_get_serial_sequence('tx_global_order', 'optimistic_sequence_number'))",
-                        ))
-                        .get_result::<Option<i64>>(conn)?;
-
-                    let mut new_epoch = epoch.new_epoch.clone();
-                    new_epoch.first_optimistic_sequence_number =
-                        latest_optimistic_seq.map(|seq| seq + 1);
-                    insert_or_ignore_into!(epochs::table, &new_epoch, conn);
+                    insert_or_ignore_into!(epochs::table, &epoch.new_epoch, conn);
                 }
                 Ok::<(), IndexerError>(())
             },

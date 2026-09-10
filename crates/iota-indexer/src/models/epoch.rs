@@ -47,8 +47,6 @@ pub struct StoredEpochInfo {
     /// First transaction sequence number of this epoch.
     pub first_tx_sequence_number: i64,
     /// First `optimistic_sequence_number` value belonging to this epoch.
-    /// The pruner deletes `optimistic_transactions` rows below this value
-    /// once the previous epoch falls out of the retention window.
     ///
     /// `None` for epochs recorded before the column existed, or when no
     /// optimistic transaction had been indexed yet.
@@ -137,10 +135,6 @@ pub(crate) struct StartOfEpochUpdate {
     pub epoch: i64,
     pub first_checkpoint_id: i64,
     pub first_tx_sequence_number: i64,
-    /// First `optimistic_sequence_number` value belonging to this epoch.
-    ///
-    /// `None` until the epoch row is persisted.
-    pub first_optimistic_sequence_number: Option<i64>,
     pub epoch_start_timestamp: i64,
     pub reference_gas_price: i64,
     pub protocol_version: i64,
@@ -185,7 +179,6 @@ impl StartOfEpochUpdate {
             epoch: new_system_state_summary.epoch() as i64,
             first_checkpoint_id: first_checkpoint_id as i64,
             first_tx_sequence_number: first_tx_sequence_number as i64,
-            first_optimistic_sequence_number: None,
             epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms() as i64,
             reference_gas_price: new_system_state_summary.reference_gas_price() as i64,
             protocol_version: new_system_state_summary.protocol_version().as_u64() as i64,

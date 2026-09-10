@@ -1,3 +1,5 @@
+DROP TRIGGER IF EXISTS epochs_first_optimistic_seq ON epochs;
+DROP FUNCTION epochs_set_first_optimistic_seq();
 ALTER TABLE epochs DROP COLUMN first_optimistic_sequence_number;
 
 -- The bounds were rewritten into the `optimistic_sequence_number` domain
