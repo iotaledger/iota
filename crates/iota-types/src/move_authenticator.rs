@@ -13,7 +13,7 @@ use serde::Serialize;
 use crate::{
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    transaction::{CallArg, CallArgExt, InputObjectKind},
+    transaction::{CallArg, CallArgExt, InputObjectKind, input_object_version_validity_check},
 };
 
 mod move_authenticator_ext {
@@ -222,10 +222,26 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
         // Check that the object to authenticate is valid.
         self.object_to_authenticate_components()?;
 
+        // Like every other input, the account object must not name a version
+        // in or right below the range assigned to canceled transactions. Its
+        // kind is already settled above, so this is the only check it needs.
+        if config.validate_input_object_versions() {
+            match self.object_to_authenticate() {
+                CallArg::ImmutableOrOwned(ObjectReference { version, .. })
+                | CallArg::Shared(SharedObjectReference {
+                    initial_shared_version: version,
+                    ..
+                }) => input_object_version_validity_check(*version)?,
+                // Refused by the check above.
+                CallArg::Pure(_) | CallArg::Receiving(_) => (),
+                _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
+            }
+        }
+
         // Inputs validity check.
         //
-        // `validity_check` is not called for `object_to_authenticate` because it is
-        // already validated with a dedicated function.
+        // `validity_check` is not called for `object_to_authenticate`: its kind
+        // and the bound on the version it names are already checked above.
 
         // `ProtocolConfig::max_function_parameters` is used to check the call arguments
         // because MoveAuthenticatorV1 is considered as a simple programmable call to a
