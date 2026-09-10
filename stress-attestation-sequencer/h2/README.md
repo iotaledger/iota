@@ -141,13 +141,13 @@ limit for `cu5m` is one transaction per commit.
 
 The rate is the second knob: it sets how many transactions are available per
 commit, and a limit only binds when demand exceeds what it admits, so each
-config pairs a limit with a rate high enough to saturate it. The limits that
-match Run
+config pairs a limit with a rate high enough for the limit to bind. The limits
+that match Run
 A's capacity run the whole 250/500/1000/2000 ladder.
 
 Computation units are machine-independent, but execution time is not, so the
-same limit saturates differently on each machine — measure where lag starts
-growing on that machine rather than reusing a number from elsewhere.
+same limit fills the object differently on each machine — measure where lag
+starts growing on that machine rather than reusing a number from elsewhere.
 
 Both scripts submit through the fullnode (`DIRECT=false`, as in H1): one
 mutable shared object caps throughput low enough that these rates should stay
@@ -194,7 +194,7 @@ LABEL=mix10900-w10-lim109k-qps1000 ITERS=1 WORKLOAD=slow \
 Every level shares `SLOW_SIZE`, so the mix varies `n` alone, and each level
 costs whatever the calibration measured for that `n`. `SLOW_MIX` overrides
 `SLOW_N`. `run.sh` refuses to start on a malformed spec, and on `SLOW_SIZE=0`,
-where `slow::slow(n, 0)` writes n EMPTY vectors so every level would collapse
+where `slow::slow(n, 0)` writes n EMPTY vectors so every level would land
 onto the cost floor and the spread would vanish unnoticed.
 
 Two constraints pin the usable weights to 10-40% for the expensive level:
@@ -250,9 +250,12 @@ results/matrix/<LABEL>/
   admitted rate (tx/commit × commits/s, with Run A as one vertical line),
   annotated per-config heatmaps of the same scalars, the throughput-vs-lag
   tradeoff, and lag against admitted/drain utilization — all over the
-  fixed-cost configs. The mixed-cost configs get `modes_mix.png`: how many
+  fixed-cost configs. The mixed-cost configs get two of their own:
+  `modes_mix.png` for the mixes at `LIMIT_B = 10 × mean` — how many
   transactions each commit admitted, Run A next to Run B, with the
-  throughput, cancellation and lag outcome below.
+  throughput, cancellation and lag outcome below — and `modes_mix_ladders.png`
+  for the mixes run at several limits, success, cancellations and lag against
+  `LIMIT_B` with Run A as the reference.
   Needs matplotlib, so run it from a `venv` such as `../h1/.venv`.
 - `probe.sh` — run one `(SLOW_N, SLOW_SIZE)` point: start the network or reuse a
   running one, scrape metrics, append a CSV row, and optionally tear down
@@ -292,7 +295,13 @@ The calibration is written up in `probe-test.md`; the mode comparison in
   dashboard replay as a drill-down for a few chosen configs, not for the whole
   grid. `consensus_handler_transaction_deferral_rounds` is also still
   unplotted.
-- **Vary the cost ratio at a fixed mean.** The mixed-cost effect is set by
-  the ratio between the two costs, not the mean, and the five configs vary
-  both at once. Configs that hold the mean and change only the ratio would
-  isolate it.
+- **Check the recommended limit on the WS.** The rule behind it is "one
+  commit interval of execution time" — one expensive transaction per commit
+  with the rest of the budget for cheap ones — and a computation unit buys
+  2–5× more execution time on the WS than on EPYC (`probe-test.md`). Running
+  the `mix20800` ladder there would show whether the best rung moves.
+- **A cost class that overruns the commit on its own.** A 500,000-unit
+  transaction executes for ≈80 ms against a ≈50 ms commit, so no unit limit
+  serves `mix50900`: admitting one per commit lags, excluding it never lets
+  the class through. Whether such traffic should be admitted at all, and
+  how, is a design question the data cannot settle.

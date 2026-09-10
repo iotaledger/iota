@@ -17,7 +17,7 @@ commit that a count limit of 10 admits, so the two modes should agree, and
 measuring that they do is what makes the grid trustworthy (findings 1–6).
 The modes can only differ when one commit carries transactions of
 *different* cost; the five `SLOW_MIX` configurations do that, and they are
-where the modes part (finding 7).
+where the modes differ (finding 7).
 
 ---
 
@@ -47,17 +47,25 @@ how long a transaction actually takes, so neither can prevent this; a limit
 in computation units can at least be set per cost, which a count of 10
 cannot.
 
-**With two costs in the same commit, the modes part — and the unit limit
-admits more.** Nine cheap transactions for every expensive one, against a
-unit limit of ten mean-cost transactions: the count limit admits exactly 10
-per commit in every commit, while the unit limit admits 10 when a commit
-holds an expensive transaction and up to `limit / cheap cost` when it holds
-none — 13 per commit on average at a 10:1 cost ratio, 31 at 100:1. Success
-throughput follows: +32 % and +38 % at 10:1, +113 % and +207 % at 100:1,
-+46 % at 500:1, with cancellations falling from ≈790/s to 31–730/s. At the
-two heaviest mixes the extra work is real work the object must execute, so
-checkpoint lag rises from 0.7–2.3 s to 3.9–8.1 s and median settlement from
-0.75 s to 2.5–5.5 s; at the three lighter ones both stay flat (finding 7).
+**With two costs in the same commit the modes differ, and a well-chosen
+unit limit does better than the count limit on throughput, cancellations and
+lag.** Nine cheap transactions for
+every expensive one: the count limit admits exactly 10 per commit, always;
+the unit limit admits 10 when a commit holds an expensive transaction and up
+to `limit / cheap cost` when it holds none. At the count limit's equivalent
+(`10 × mean cost`) that already gives 1.3–3.1× the throughput at fewer
+cancellations. But that equivalent is not the best limit. Running each mix
+at several limits shows the best one admits **one** expensive transaction
+per commit and leaves the rest of the budget to the cheap ones — between the
+expensive cost and twice it. For 1,000/100,000-unit traffic that is
+100K–150K units: 3–4× the count limit's throughput, half its cancellations
+or fewer, and *lower* checkpoint lag, flat over a 300 s run where the count
+limit's lag climbs from 0.6 to 6 s. Two limits on the gain: the cheap class
+must be cheap enough that a count of 10 leaves the object idle (with
+2,000–5,000-unit "cheap" transactions the object is already full and the
+modes agree again), and a transaction whose execution alone exceeds the
+commit interval (500,000 units, ≈80 ms here) has no good limit — admitting
+one per commit lags, excluding it never lets it through (finding 7).
 
 **Two things to know when reading the numbers.** The stress client sends a
 new transaction only when one of its 2,000 in-flight ones completes, so at
@@ -103,14 +111,19 @@ per run):
   binding, capped at 50,000,000 (ten ceiling-cost transactions): 4 to 8
   rungs per point, 80 configs. The rung at `10 × cost` is the count limit's
   equivalent, one per cost point.
-- **Mixed-cost configs** (5): `SLOW_MIX` draws each transaction's `n` from two
-  levels with fixed weights, so one commit holds transactions of two costs.
-  Named by their mean cost: `mix1900` (1,000 and 10,000 units, 9:1),
-  `mix3700` (1,000 and 10,000, 7:3), `mix10900` (1,000 and 100,000, 9:1),
-  `mix20800` (1,000 and 100,000, 4:1), `mix50900` (1,000 and 500,000, 9:1).
-  `LIMIT_B` is ten times the mean cost, so Run B's budget is the work Run
-  A's count limit admits on average and the spread is the only difference
-  between the arms. Their control is the fixed-cost config of the same mean.
+- **Mixed-cost configs** (25): `SLOW_MIX` draws each transaction's `n` from
+  two (or three) levels with fixed weights, so one commit holds transactions
+  of different costs. Named by their mean cost and expensive share, e.g.
+  `mix10900-w10`: 1,000 and 100,000 units, 9:1. Five mixes were run at
+  `LIMIT_B = 10 × mean cost`, the count limit's equivalent (`mix1900`,
+  `mix3700`, `mix10900`, `mix20800`, `mix50900`). A second round added 20
+  more: limit ladders on four of those mixes (2–4 further limits each,
+  including one below the expensive cost); the same expensive level with a
+  costlier cheap side, near the 10K and 55K means (`mix9500` 5K/50K,
+  `mix11800` 2K/100K, `mix54500` 5K/500K, `mix68000` 20K/500K); 1K/100K at
+  30 % and 50 % expensive (`mix30700`, `mix50500`); one three-level mix
+  (`mix13600`: 1K/10K/100K at 60/30/10 %); and 300 s runs of two configs
+  (`-dur300`). Each mix's control is the fixed-cost config of the same mean.
 - **Both runs**: attestation on, `max_deferral_rounds = 10`, 4 validators.
 - **Client**: via the fullnode (`DIRECT=false`), target 1,000 tx/s for 60 s,
   24 workers on 12 threads, 4 gas accounts, at most `2 × 1000 = 2,000`
@@ -119,12 +132,13 @@ per run):
 - **Machine**: all runs on one AMD EPYC 9454P server (48 cores / 96 threads,
   251 GiB RAM, Ubuntu 24.04), running the private network in docker — 4
   validators plus 1 fullnode — with the stress client on the same host.
-- **85 configurations**: the 80 fixed-cost configs at **10 iterations** each
-  (800 iterations, 1,600 runs, 4–7 August 2026) and the 5 mixed-cost configs
-  at **11 iterations** each (55 iterations, 110 runs, 9 September 2026 —
-  the first iteration was the accept/reject pass on each config, same
-  configuration, kept). Labels read `cu<cost>-lim<LIMIT_B>-qps1000`, e.g.
-  `cu10k-lim100k-qps1000`, and `mix<mean>-w<weight>-lim<LIMIT_B>-qps1000`.
+- **105 configurations**: the 80 fixed-cost configs at **10 iterations**
+  each (800 iterations, 1,600 runs, 4–7 August 2026); the first five mixes at
+  **11** (the extra one was the accept/reject pass, same configuration,
+  kept); the 20 second-round mixes at **10** (9–10 September 2026). 1,050
+  iterations, 2,100 runs in all. Labels read `cu<cost>-lim<LIMIT_B>-qps1000`
+  and `mix<mean>-w<weight>-lim<LIMIT_B>-qps1000`, with `-dur300` for the
+  300 s runs.
 
 Aggregation and reporting tooling (in this directory, sharing
 `../aggregate.py`,
@@ -135,8 +149,8 @@ Aggregation and reporting tooling (in this directory, sharing
   `results/matrix/summary.md` for reading, `results/matrix/summary.csv` for
   plotting.
 - `plot.py` renders the cross-config figures into
-  `results/matrix/summary_plots/`, the mixed-cost configs in their own figure
-  from the per-commit admission histogram `aggregate.py` writes to
+  `results/matrix/summary_plots/`; the mixed-cost configs get two of their
+  own, from the per-commit admission histogram `aggregate.py` writes to
   `results/matrix/admits_hist.csv`.
 
 > [!NOTE]
@@ -313,7 +327,7 @@ consensus. Run B at `10 × cost` is identical to within 1 %.
 
 Three things follow.
 
-*The offered load collapses with cost.* The client can only offer 2,000
+*The offered load falls with cost.* The client can only offer 2,000
 transactions divided by how long each takes. At 1,000 units that is the
 full 1,000 tx/s (943 arrive); by 5,000 units settlement takes 6.6 s at the
 median and about 200 tx/s arrive; at 5,000,000 units, 40 tx/s. So the configs
@@ -400,7 +414,7 @@ This is the actual trade the limit makes. A tight limit turns the surplus
 into cancellations, which the client sees as failures within ten rounds and
 can resubmit; a loose one turns it into a queue, which the client sees as
 latency and the network as checkpoint lag. Success throughput is the same
-either way once the object is saturated, so there is no setting of either
+either way once the object is fully busy, so there is no setting of either
 mode that raises it — only a choice of failure mode.
 
 ![Success tps against checkpoint lag per config](results/matrix/summary_plots/modes_tradeoff.png)
@@ -515,16 +529,21 @@ difference would make the two the same; this is worth an upstream issue.
 
 ---
 
-**7. With two costs in one commit the modes part: the count limit pins the
-number admitted, the unit limit pins the work — and admits more.**
+**7. With two costs in one commit the modes differ, and a well-chosen unit
+limit does better than the count limit on throughput, cancellations and lag
+at the same time.**
 
 The six findings above hold cost fixed within a run, so the two modes could
-only agree. The five `SLOW_MIX` configs give the transactions in one commit two
-costs. Measured over 11 iterations, the mix is what was configured — 90.0 %
-cheap at `mix1900`, `mix10900` and `mix50900`, 70.0 % at `mix3700`, 79.8 %
-at `mix20800`, mean cost within 1.7 % of design — and Run A's count limit
-binds in every config (`admits/cmt` 10.00), so every config measures what it
-was meant to.
+only agree. The 25 `SLOW_MIX` configs give the transactions in one commit
+two or three costs. In every one of them the mix is what was configured
+(the expensive share within half a percentage point of design, the mean
+cost within 3 %),
+and Run A's count limit binds wherever the object still has spare capacity
+(`admits/cmt` 10.00), so the configs measure what they were meant to.
+
+*At the count limit's equivalent.* The first five mixes ran at
+`LIMIT_B = 10 × mean cost`, so Run B's budget is the work Run A admits on
+average and the spread is the only difference:
 
 | config | costs (units), ratio | admits/cmt A → B | success tps A → B | B/A | cancelled/s A → B | ckpt lag mean s A → B |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -534,61 +553,148 @@ was meant to.
 | `mix20800` | 1K / 100K, 4:1 | 10.00 → 21.6 | 194.7 → 402.9 | 2.07 | 786 → 186 | 0.74 → 3.88 |
 | `mix50900` | 1K / 500K, 9:1 | 10.0 → 14.8 | 181.9 → 265.0 | 1.46 | 788 → 31 | 2.34 → 8.06 |
 
-*How the number swings.* Run A admits exactly 10 in every commit of every
-config — 100 % of its commits sit in the 7–10 bucket of the admission
-histogram. Run B's budget is `10 × mean cost` in units, so what it admits
-depends on what the commit holds. At `mix1900` the budget is 19,000 units: a
-commit holding one 10,000-unit transaction has room for 9 cheap ones (10 in
-all), a commit holding none fits 19. The measured distribution is 63 % of
-commits at 7–10 and 37 % at 10–20, mean 13.3. At `mix10900` the budget is
-109,000: one expensive transaction plus 9 cheap, or 109 cheap — 78 % of
-commits at 7–10 and 22 % at 100–200, mean 31.5. The all-cheap commits are
-the ones where no expensive transaction was waiting; with 20 % expensive
-(`mix20800`) they are rarer, 11 %, and the mean drops to 21.6. So the size
-of the effect is set by the **ratio** between the two costs, which sets how
-far the number can swing, not by the mean: the two 10:1 configs gain a third,
-the two 100:1 configs double and triple.
+Run A admits exactly 10 in every commit — 100 % of its commits sit in the
+7–10 bucket of the admission histogram. Run B's budget is in units, so what
+it admits depends on what the commit holds. At `mix1900` the budget is
+19,000 units: a commit holding one 10,000-unit transaction has room for 9
+cheap ones (10 in all), a commit holding none fits 19 — measured, 63 % of
+commits at 7–10 and 37 % at 10–20. At `mix10900` the budget is 109,000: one
+expensive plus 9 cheap, or 109 cheap — 78 % of commits at 7–10 and 22 % at
+100–200. The extra admissions are cheap transactions that a count of 10 would
+have deferred and, mostly, cancelled after ten rounds; cancellations fall
+from ≈790/s in every Run A to 719, 727, 366, 186 and 31/s.
 
-*What the extra admissions are.* Cheap transactions that a count of 10
-would have deferred and, mostly, cancelled after ten rounds. Under the count
-limit a 1,000-unit transaction and a 100,000-unit one are the same one slot;
-under the unit limit the cheap one costs a hundredth of the budget, so the
-budget a commit's expensive transaction leaves unused is filled with cheap
-ones instead of being spent on deferrals. Cancellations fall accordingly,
-from ≈790/s in every Run A to 719, 727, 366, 186 and 31/s, and success
-throughput rises by the same transactions.
+*Which limit.* Four of those mixes were then run at several limits. This is
+the question the stress plan asks, in the only setting where the answer can
+depend on the mode:
 
-*Where it costs something.* At the three lighter mixes the gain is free:
-checkpoint lag and settlement latency are unchanged (0.3–0.8 s lag, ≈730 ms
-median settlement in both arms). At `mix20800` and `mix50900` they are not:
-lag goes from 0.74 to 3.88 s and from 2.34 to 8.06 s, median settlement from
-≈745 ms to 2.5 and 5.5 s, p95 from 1.3–3.9 s to 6.6–13.8 s. The extra work
-here is not only cheap transactions. Run A's queue is first-come, and it
-cancels expensive transactions at the same rate as cheap ones; Run B holds an
-expensive transaction until it fits and admits cheap ones around it, so it
-executes more of the expensive ones — and a 500,000-unit transaction is
-≈80 ms of execution on this machine, against 0.6 ms for a cheap one. More of
-those per second is more real work than one object drains, and the backlog
-of finding 4 follows. `mix50900` also shows Run B admitting fewer than seven
-in a quarter of its commits: its expensive level is 98 % of the budget, so a
-commit that schedules one has room for nine cheap ones at most, and the
-client's offered load at that latency (≈300 tx/s) leaves some commits with
-few cheap ones eligible.
+| config | LIMIT_B | admits/cmt B | success tps B | cancelled/s B | lag mean s B | Run A: success, cancelled, lag |
+| --- | --- | --- | --- | --- | --- | --- |
+| `mix3700` (1K/10K, 7:3) | 10K | 5.4 | 109 | 872 | 1.08 | 199, 792, 0.5–1.4 |
+| | 20K | 8.1 | 164 | 836 | 0.52 | |
+| | **37K** | 13.6 | **273** | 727 | **0.34** | |
+| | 100K | 16.2 | 257 | 28 | 7.48 | |
+| `mix10900` (1K/100K, 9:1) | 50K | 45.3 | 902 | 100 | 0.53 | 200, 790, 0.3–0.8 |
+| | 109K | 31.5 | 627 | 366 | 0.63 | |
+| | **200K** | 36.0 | **693** | 152 | 1.73 | |
+| | 500K | 22.6 | 375 | 0 | 5.79 | |
+| `mix20800` (1K/100K, 4:1) | 100K | 29.3 | 584 | 409 | **0.59** | 194, 790, 0.7–1.7 |
+| | **150K** | 41.0 | **821** | 180 | **0.61** | |
+| | 208K | 21.7 | 403 | 186 | 3.88 | |
+| | 500K | 13.8 | 227 | 10 | 8.91 | |
+| `mix50900` (1K/500K, 9:1) | 200K | 46.2 | 901 | 100 | 0.32 | 182, 792, 2.3 |
+| | 509K | 14.8 | 265 | 31 | 8.06 | |
+| | 1M | 14.4 | 241 | 5 | 9.08 | |
 
-![Admitted per commit, and the outcome, for the five mixed-cost configs](results/matrix/summary_plots/modes_mix.png)
+The ladders show three things.
 
-*Top: the share of commits that admitted each number of transactions to the
-object, Run A (blue) next to Run B (orange), one panel per config. Bottom:
-success throughput, cancellations and checkpoint lag, A next to B.*
+**The count limit's equivalent is not the best limit.** At `mix20800`, 208K
+units (`10 × mean`) admits two 100K transactions per commit and 8 cheap ones
+— 88 % of Run B's commits sit at ≤10 — and lag is 3.9 s. One rung down, at
+150K, only one expensive transaction fits and the remaining 50K units go to
+cheap ones: Run B admits 41 per commit (50 % of commits at 20–50, 41 % at
+50–70), completes **821 tx/s against Run A's 194**, cancels 180/s against
+790, and its checkpoint lag is **0.61 s against Run A's 1.0 s**. At 100K
+exactly one expensive fits and nothing else, so commits alternate between one
+expensive transaction (71 %) and 70–100 cheap ones (29 %): 584 tx/s, lag
+0.59 s. The same shape at `mix10900`: 200K does better than 109K on
+throughput (693 vs 627) and cancellations (152 vs 366) at 1.7 s lag, and 500K
+falls to 375 tx/s at 5.8 s. And at `mix3700`, where the expensive
+transaction is 10K, the `10 × mean` rung (37K, three expensive plus seven
+cheap) happens to be the best, and 100K (ten expensive) lags 7.5 s.
 
-This is the answer to the question the stress plan poses for H2. At uniform
-cost the two modes are interchangeable and `TotalComputationUnits` is a
-drop-in replacement (finding 2). With a cost spread — the situation any real
-shared object is in — it admits the cheap transactions a count limit turns
-away, for more throughput at the same limit, and the price is paid only where
-the spread includes transactions heavy enough that executing more of them
-overruns the object. Which limit is right then depends on how much
-checkpoint lag is acceptable — a product decision the plan leaves open.
+**Why: the budget must fit the commit interval in execution time.** The
+object executes one transaction at a time; consensus commits every ≈50 ms;
+on this machine a 100K-unit transaction takes ≈34 ms, a 10K one ≈16 ms, a
+500K one ≈81 ms, a cheap one 0.6 ms (`probe-test.md`). One 100K transaction
+per commit plus fifty cheap ones is ≈62 ms of work per 50 ms commit — the
+object keeps up and lag stays under a second. Two 100K transactions per
+commit is 67 ms before any cheap one, and lag climbs. Three 10K transactions
+plus seven cheap is 52 ms (`mix3700` at 37K, fine); ten is 159 ms (100K,
+7.5 s of lag). And a 500K transaction alone is 81 ms, more than the interval,
+which is why `mix50900` lags at *every* limit that admits one (8.1 s at 509K,
+9.1 s at 1M): no unit limit fixes a class whose single transaction overruns
+the commit. The count limit has the same problem with no knob at all — at
+`mix20800` its ten admissions hold two expensive transactions on average, so
+Run A's lag grows too (below).
+
+**A limit below the expensive cost meets the goal by dropping a whole
+class.** At
+`mix10900`/50K and `mix50900`/200K, Run B never admits an expensive
+transaction: it cancels exactly that class (100/s, the 10 % that arrive) and
+runs the cheap ones at 900 tx/s with 0.3–0.5 s lag. Fewest cancellations and
+no lag, because one class of transaction is never let through. Any rule for
+choosing the limit has to exclude this: every cost class still has to get
+through.
+
+![Success, cancellations and lag against the limit, for the four mixes run at several limits](results/matrix/summary_plots/modes_mix_ladders.png)
+
+*Run B (orange) against `LIMIT_B`, Run A (blue dashes) as the reference;
+the dotted lines mark the expensive transaction's cost and `10 × mean`.
+Success peaks at the limit that admits one expensive transaction per commit
+with room to spare; lag rises sharply at the limit that admits two.*
+
+*What the gain needs.* Holding the expensive level at 500K and raising the
+cheap one from 1K to 5K and 20K (`mix50900` → `mix54500` → `mix68000`) takes
+the gain from 1.46× to 1.10× to 1.07×; holding 100K and raising the cheap
+side from 1K to 2K (`mix10900` → `mix11800`) takes it from 3.13× to 1.05×,
+and 5K/50K (`mix9500`) gives 1.04×. In those configs both arms' admission
+histograms sit below 10 and Run A's lag is already 9–23 s: the object is
+kept fully busy by the "cheap" class alone (5K transactions drain at 118/s,
+2K at 179/s, finding 3), so there is no idle capacity for the unit limit to
+fill.
+The gain is not set by how far apart the two costs are but by whether a
+count of 10 leaves the object idle — which needs the cheap class to be cheap
+against the object's drain rate, ≈1,000 units here. Raising the expensive
+share does the same from the other side: 1K/100K gains 3.1× at 10 %
+expensive, 2.1× at 20 %, 1.4× at 30 % (`mix30700`, lag 7.4 → 9.7 s) and 1.3×
+at 50 % (`mix50500`, lag 15 s in both arms), because past 20 % the expensive
+class alone fills the object. The three-level mix (`mix13600`, 1K/10K/100K at
+60/30/10 %) gains 1.17× with lag 5.5 → 9.7 s: its 10K middle class uses the
+capacity the cheap ones would have filled.
+
+![Admitted per commit, and the outcome, for the mixes at the count limit's equivalent](results/matrix/summary_plots/modes_mix.png)
+
+*The twelve mixes run at `LIMIT_B = 10 × mean`. Top: the share of commits
+admitting each number of transactions, Run A (blue) next to Run B (orange).
+Bottom: success, cancellations and lag. Run B gains where Run A's bar is
+100 % at 7–10 — where the count limit binds and the object has room; where
+both arms have slid below 10 the object is already full and the modes agree.*
+
+*Stable, not just low.* The 60 s window cannot tell a queue that is high but
+stable from one that keeps growing, so the two likely recommended configs
+ran for 300 s, ten iterations each. Checkpoint lag per 60 s slice of the
+window, mean over the iterations:
+
+| config | arm | 0–60 s | 60–120 | 120–180 | 180–240 | 240–300 | success tps |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `mix10900` at 109K | A | 0.92 | 0.97 | 0.88 | 0.37 | 0.42 | 200 |
+| | B | 0.30 | 0.71 | 0.62 | 0.33 | 0.73 | 631 |
+| `mix20800` at 100K | A | 0.60 | 2.09 | 3.76 | 5.16 | 6.24 | 186 |
+| | B | 0.66 | 1.50 | 0.42 | 0.43 | 0.75 | 590 |
+
+Run B's lag is flat across five minutes in both. Run A's grows steadily at
+`mix20800` — its ten admissions per commit average two 100K transactions,
+67 ms of work per 50 ms commit — reaching 6.2 s in the last minute with 1 %
+of checkpoints past 30 s. So at this mix the unit limit is not only faster
+and cancels less; it is the arm that stays stable, and the count limit is the
+one that does not.
+
+*The answer to the H2 question.* For a shared object whose traffic is mostly
+cheap with some expensive transactions, set the unit limit between the
+expensive transaction's cost and twice it, so one expensive transaction fits
+per commit and the remaining budget goes to the cheap ones. Measured here at
+1K/100K: 3–4× the count limit's throughput, half its cancellations or fewer,
+equal or lower checkpoint lag, stable over 300 s. `10 × mean cost` is the
+wrong rule — it admits as many expensive transactions as the mean allows,
+and two of them already overrun the commit. Three limits on this: the numbers
+are for this machine, since the rule is really "one commit interval of
+execution time" and a unit buys 2–5× more time on the WS than on EPYC
+(`probe-test.md`); a class whose single transaction overruns the interval has
+no good limit, only a choice between lag and never admitting it; and the
+gain exists
+only where the count limit leaves the object idle, which needs the cheap
+class to be cheap against the object's drain rate.
 
 ---
 
