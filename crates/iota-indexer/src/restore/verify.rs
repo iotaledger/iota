@@ -8,7 +8,7 @@ use iota_types::{
     digests::ChainIdentifier, global_state_hash::GlobalStateHash,
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{errors::IndexerError, types::IndexerResult};
 
@@ -45,13 +45,27 @@ pub(crate) async fn verify_epoch_info(
 /// Returns an error if:
 ///
 /// - State hash verification fails.
+/// - The restore stops before accumulation completes.
 /// - The verified checkpoint carries no end-of-epoch commitment.
 /// - The accumulated root state hash does not match that commitment.
 pub(crate) async fn verify_state_hash(
     state_hash_rx: mpsc::Receiver<(GlobalStateHash, u64)>,
+    accumulation_done_rx: oneshot::Receiver<()>,
     verified_epoch_info: &VerifiedEpochInfo,
 ) -> IndexerResult<u64> {
+    // The partial hashes must be drained before the completion signal is
+    // awaited: the reader's accumulation tasks block on the bounded channel
+    // and only signal completion after the last of them, so awaiting
+    // completion first would deadlock the restore.
     let (root_state_hash, num_objects) = accumulate_state_hash(state_hash_rx).await;
+    // A dropped completion sender means the restore failed before every
+    // partial hash was sent — the accumulated hash is incomplete, and
+    // comparing it below would report a misleading mismatch.
+    if accumulation_done_rx.await.is_err() {
+        return Err(IndexerError::Restore(
+            "snapshot accumulation did not complete".to_string(),
+        ));
+    }
 
     let last_checkpoint_summary = &verified_epoch_info
         .entries()

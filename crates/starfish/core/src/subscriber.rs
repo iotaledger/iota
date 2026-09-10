@@ -21,7 +21,7 @@ use crate::{
     dag_state::DagState,
     encoder::create_encoder,
     error::ConsensusError,
-    network::{NetworkClient, NetworkService},
+    network::{NetworkClient, NetworkService, StreamPosition},
 };
 
 /// Returns whether the reset channel closed; otherwise records the reset and
@@ -124,6 +124,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         if let Some(subscription) = subscription.take() {
             subscription.abort();
         }
+        self.context
+            .peer_responsiveness
+            .clear_streaming_block_delivery(peer);
         // There is a race between shutting down the subscription task and clearing the
         // metric here. TODO: fix the race when unsubscribe_locked() gets called
         // outside of stop().
@@ -160,6 +163,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let mut encoder = create_encoder(&context);
 
         'subscription: loop {
+            context
+                .peer_responsiveness
+                .clear_streaming_block_delivery(peer);
             context
                 .metrics
                 .node_metrics
@@ -198,7 +204,21 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             }
             retries += 1;
 
-            let last_received = dag_state.read().resume_round_for_authority(peer);
+            let (last_received, mut last_streamed_block) = {
+                let dag_state = dag_state.read();
+                let last_received = dag_state.resume_round_for_authority(peer);
+                let last_header = dag_state
+                    .get_last_block_header_for_authority(peer)
+                    .reference();
+                let digest = (last_header.round == last_received).then_some(last_header.digest);
+                (
+                    last_received,
+                    StreamPosition {
+                        round: last_received,
+                        digest,
+                    },
+                )
+            };
             // Wrap subscribe_block_bundles in a timeout and increment metric on timeout
             let subscribe_future =
                 network_client.subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL);
@@ -288,7 +308,12 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block, &mut encoder)
+                            .handle_subscribed_block_bundle(
+                                peer,
+                                block,
+                                &mut encoder,
+                                &mut last_streamed_block,
+                            )
                             .await;
                         if let Err(e) = result {
                             match e {
@@ -525,6 +550,23 @@ mod test {
 
     fn header_for(peer: AuthorityIndex, round: Round) -> VerifiedBlockHeader {
         VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, peer.value() as u8).build())
+    }
+
+    #[tokio::test]
+    async fn unsubscribe_clears_streaming_block_latency() {
+        let f = fixture(test_context(4), TestService::new(), StreamMode::Pending);
+        f.context
+            .peer_responsiveness
+            .record_streaming_block_delivery(f.peer, 10, 0);
+
+        f.subscriber.unsubscribe(f.peer);
+
+        assert_eq!(
+            f.context
+                .peer_responsiveness
+                .streaming_block_latency_ms(f.peer),
+            None
+        );
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

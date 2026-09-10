@@ -20,6 +20,7 @@ use iota_grpc_types::{
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
+    error::IotaError,
     transaction::TransactionAPI,
     transaction_executor::{
         SimulateTransactionResult as InternalSimulateResult, TransactionExecutor, VmChecks,
@@ -29,7 +30,7 @@ use iota_types::{
 use super::TransactionReadSource;
 use crate::{
     error::RpcError, merge::Merge, transaction_execution_service::CommandResultsReadSource,
-    types::GrpcReader,
+    types::GrpcReader, validation::validate_read_mask,
 };
 
 /// Simulate a batch of transactions sequentially.
@@ -154,7 +155,7 @@ pub async fn simulate_transactions(
         request.transactions.len(),
         config.max_simulate_transaction_batch_size as usize,
     )?;
-    let read_mask = super::parse_read_mask::<SimulatedTransaction>(
+    let read_mask = validate_read_mask::<SimulatedTransaction>(
         request.read_mask,
         SIMULATE_TRANSACTIONS_READ_MASK,
     )?;
@@ -220,7 +221,11 @@ async fn simulate_single_transaction(
         .simulate_transaction(transaction_data.clone(), vm_checks)
         .map_err(|e| {
             RpcError::new(
-                tonic::Code::Internal,
+                if matches!(e, IotaError::UserInput { .. }) {
+                    tonic::Code::InvalidArgument
+                } else {
+                    tonic::Code::Internal
+                },
                 format!("transaction simulation failed: {e}"),
             )
         })?;

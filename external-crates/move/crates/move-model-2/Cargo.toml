@@ -2,15 +2,15 @@
 name = "move-model-2"
 version = "0.1.0"
 authors = ["IOTA Foundation <info@iota.org>"]
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-bcs.workspace = true
-indexmap.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
+serde.workspace = true
 
 # internal dependencies
 move-binary-format.workspace = true

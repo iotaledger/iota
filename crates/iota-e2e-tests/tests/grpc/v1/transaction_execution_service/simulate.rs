@@ -410,16 +410,16 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
         .unwrap()
         .into_inner();
 
-    // With upfront gas validation removed, the simulation engine itself
-    // rejects the insufficient budget, producing an Internal error.
+    // With upfront gas validation removed, the simulation engine itself rejects
+    // the insufficient budget, and a bad budget is the caller's error.
     let result = response.transaction_results.first().unwrap();
     let error = result
         .error()
         .expect("Expected per-item error for below-minimum gas budget");
     assert_eq!(
         error.code,
-        tonic::Code::Internal as i32,
-        "Expected Internal error code, got code {}",
+        tonic::Code::InvalidArgument as i32,
+        "Expected InvalidArgument error code, got code {}",
         error.code
     );
 }

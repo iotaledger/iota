@@ -3403,22 +3403,22 @@ impl AuthorityPerEpochStore {
     /// This function executes given future until epoch_terminated is called
     /// If future finishes before epoch_terminated is called, future result is
     /// returned If epoch_terminated is called before future is resolved,
-    /// error is returned
+    /// `IotaError::EpochEnded` is returned
     ///
     /// In addition to the early termination guarantee, this function also
     /// prevents epoch_terminated() if future is being executed.
-    pub async fn within_alive_epoch<F: Future + Send>(&self, f: F) -> Result<F::Output, ()> {
+    pub async fn within_alive_epoch<F: Future + Send>(&self, f: F) -> IotaResult<F::Output> {
         // This guard is kept in the future until it resolves, preventing
         // `epoch_terminated` to acquire a write lock
         let guard = self.epoch_alive.read().await;
         if !*guard {
-            return Err(());
+            return Err(IotaError::EpochEnded(self.epoch()));
         }
         // The hot path here -- epoch is alive, future resolves first -- is now a
         // single atomic load inside CancellationToken's `cancelled()` future,
         // instead of mutex + Arc clone + two `.boxed()` heap allocations per call.
         tokio::select! {
-            _ = self.epoch_alive_token.cancelled() => Err(()),
+            _ = self.epoch_alive_token.cancelled() => Err(IotaError::EpochEnded(self.epoch())),
             result = f => Ok(result),
         }
     }

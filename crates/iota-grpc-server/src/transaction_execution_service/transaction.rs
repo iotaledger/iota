@@ -372,10 +372,10 @@ impl Merge<&CommandResultReadSource<'_>> for CommandResult {
 }
 
 /// Source for building CommandOutputs
-struct CommandOutputsReadSource<'a> {
-    reader: &'a Arc<GrpcReader>,
-    config: &'a iota_config::node::GrpcApiConfig,
-    outputs: Vec<(Option<iota_sdk_types::Argument>, &'a [u8], &'a TypeTag)>,
+pub(crate) struct CommandOutputsReadSource<'a> {
+    pub(crate) reader: &'a Arc<GrpcReader>,
+    pub(crate) config: &'a iota_config::node::GrpcApiConfig,
+    pub(crate) outputs: Vec<(Option<iota_sdk_types::Argument>, &'a [u8], &'a TypeTag)>,
 }
 
 impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {

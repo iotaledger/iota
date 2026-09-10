@@ -103,7 +103,7 @@ impl LocalDBPackageStore {
             }
             let objects = self
                 .fallback_client
-                .get_objects([ObjectId::new(id.into_bytes())], ObjectField::BCS)
+                .objects([ObjectId::new(id.into_bytes())], ObjectField::BCS)
                 .await
                 .map_err(grpc_err)?
                 .into_inner();

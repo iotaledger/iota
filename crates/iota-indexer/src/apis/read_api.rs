@@ -164,7 +164,7 @@ impl ReadApi {
     ) -> IndexerResult<bool> {
         let result = self
             .fullnode_grpc_client
-            .get_transactions([digest], TransactionField::TRANSACTION_DIGEST)
+            .transactions([digest], TransactionField::TRANSACTION_DIGEST)
             .await?
             .into_inner()
             .pop()
