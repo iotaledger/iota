@@ -54,8 +54,8 @@ pub use error::{
     ExecutionError, SignatureError, StoreError, TraceError, ValidationError, VmError, VmSdkError,
 };
 pub use executor::{
-    ChainContext, CommandResult, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
-    LocalVm, RunModuleResolver, SignatureStatus,
+    ChainContext, CommandResult, DecodedEvent, ExecuteOptions, ExecutionMode,
+    ExecutionModuleResolver, ExecutionResult, LocalVm, SignatureStatus,
 };
 // Upstream types re-exported in the public API.
 pub use iota_config::transaction_deny_config::{

@@ -287,8 +287,8 @@ impl ExecutionResult {
     /// Published packages are matched by storage id. A package the run
     /// upgraded keeps its original runtime address, so its modules resolve
     /// from the store's earlier version instead.
-    pub fn module_resolver<'a>(&'a self, vm: &'a LocalVm) -> RunModuleResolver<'a> {
-        RunModuleResolver {
+    pub fn module_resolver<'a>(&'a self, vm: &'a LocalVm) -> ExecutionModuleResolver<'a> {
+        ExecutionModuleResolver {
             published: self
                 .output_objects
                 .iter()
@@ -300,14 +300,14 @@ impl ExecutionResult {
     }
 }
 
-/// Module resolver for one run, built with
+/// Module resolver for one execution, built with
 /// [`ExecutionResult::module_resolver`].
-pub struct RunModuleResolver<'a> {
+pub struct ExecutionModuleResolver<'a> {
     published: BTreeMap<ObjectId, &'a Object>,
     vm: &'a LocalVm,
 }
 
-impl GetModule for RunModuleResolver<'_> {
+impl GetModule for ExecutionModuleResolver<'_> {
     type Error = IotaError;
     type Item = CompiledModule;
 
