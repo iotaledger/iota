@@ -152,14 +152,6 @@ pub fn network_pubkey_from_bytes(
     Ok(pubkey)
 }
 
-/// Extract the ed25519 private key from a stored [`SimpleKeypair`] for use as
-/// a network keypair. Fails if the key is not ed25519.
-pub fn simple_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, Error> {
-    kp.as_opt_ed25519()
-        .cloned()
-        .ok_or_else(|| anyhow!("invalid scheme for network keypair: {}", kp.scheme()))
-}
-
 impl From<&SimpleKeypair> for PublicKey {
     fn from(kp: &SimpleKeypair) -> Self {
         match kp.public_key() {
