@@ -1369,48 +1369,34 @@ impl PgIndexerStore {
         )
     }
 
-    /// Prune optimistic_transactions table by optimistic_sequence_number
-    /// range. Prunes at most `limit` rows and returns the number of rows
-    /// deleted.
+    /// Prune optimistic_transactions table by `optimistic_sequence_number` inclusive
+    /// range.
     fn prune_optimistic_tx_by_optimistic_seq(
         &self,
         start: u64,
         end: u64,
-        limit: i64,
-    ) -> Result<usize, IndexerError> {
+    ) -> Result<(), IndexerError> {
         use diesel::prelude::*;
 
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                let sql = r#"
-                    WITH ids_to_delete AS (
-                         SELECT optimistic_sequence_number
-                         FROM optimistic_transactions
-                         WHERE optimistic_sequence_number BETWEEN $1 AND $2
-                         ORDER BY optimistic_sequence_number
-                         FOR UPDATE
-                         LIMIT $3
-                     )
-                     DELETE FROM optimistic_transactions otx
-                     USING ids_to_delete
-                     WHERE otx.optimistic_sequence_number = ids_to_delete.optimistic_sequence_number
-                "#;
-                diesel::sql_query(sql)
-                    .bind::<diesel::sql_types::BigInt, _>(start as i64)
-                    .bind::<diesel::sql_types::BigInt, _>(end as i64)
-                    .bind::<diesel::sql_types::BigInt, _>(limit)
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context(
-                        format!(
-                            "failed to prune optimistic_transactions table by optimistic_sequence_number range [{start}..={end}] with limit {limit}"
-                        )
-                        .as_str(),
+                diesel::delete(optimistic_transactions::table.filter(
+                    optimistic_transactions::optimistic_sequence_number
+                        .between(start as i64, end as i64),
+                ))
+                .execute(conn)
+                .map_err(IndexerError::from)
+                .context(
+                    format!(
+                        "failed to prune optimistic_transactions table by optimistic_sequence_number range [{start}..={end}]"
                     )
+                    .as_str(),
+                )
             },
             PG_DB_COMMIT_SLEEP_DURATION
-        )
+        )?;
+        Ok(())
     }
 
     fn prune_backward_history_by_checkpoint_with_limit(
@@ -2441,24 +2427,23 @@ impl IndexerStore for PgIndexerStore {
         .await
     }
 
-    async fn prune_table_by_optimistic_seq_with_limit(
+    async fn prune_table_by_optimistic_seq(
         &self,
         table: &crate::pruning::pruner::PrunableTable,
         start: u64,
         end: u64,
-        limit: i64,
-    ) -> Result<usize, IndexerError> {
+    ) -> Result<(), IndexerError> {
         use crate::pruning::pruner::PrunableTable;
 
         if !matches!(table, PrunableTable::OptimisticTransactions) {
             return Err(IndexerError::InvalidArgument(format!(
-                "table {} does not support pruning by optimistic sequence number with limit",
+                "table {} does not support pruning by optimistic sequence number",
                 table.as_ref()
             )));
         }
 
         self.execute_in_blocking_worker(move |this| {
-            this.prune_optimistic_tx_by_optimistic_seq(start, end, limit)
+            this.prune_optimistic_tx_by_optimistic_seq(start, end)
         })
         .await
     }
