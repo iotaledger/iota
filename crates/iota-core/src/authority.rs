@@ -229,6 +229,10 @@ mod pre_execution_failure_tests;
 mod cancelled_move_authenticator_tests;
 
 #[cfg(test)]
+#[path = "unit_tests/move_authenticator_attestation_tests.rs"]
+mod move_authenticator_attestation_tests;
+
+#[cfg(test)]
 #[path = "unit_tests/auth_unit_test_utils.rs"]
 pub mod auth_unit_test_utils;
 
@@ -236,6 +240,7 @@ pub mod auth_unit_test_utils;
 pub mod authority_test_utils;
 
 pub(crate) mod attestation;
+mod attestation_verdict;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
@@ -1884,6 +1889,7 @@ impl AuthorityState {
             tx_input_objects,
             per_authenticator_inputs,
             execution_env.expected_effects_digest,
+            &execution_env.attestation,
             epoch_store,
         )
         .tap_err(|e| info!(?tx_digest, "process_transaction failed: {e}"))
@@ -2009,6 +2015,7 @@ impl AuthorityState {
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
+        attestation: &AttestationSource,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         let process_transaction_start_time = tokio::time::Instant::now();
@@ -2058,6 +2065,7 @@ impl AuthorityState {
                 transaction,
                 tx_input_objects,
                 per_authenticator_inputs,
+                attestation,
                 epoch_store,
             ) {
             Err(e) => {
@@ -2196,6 +2204,7 @@ impl AuthorityState {
             inner_temporary_store,
             read_objects,
             &self.metrics,
+            epoch_store.protocol_config().enable_validator_attestation(),
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -2291,6 +2300,7 @@ impl AuthorityState {
         transaction: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+        attestation: &AttestationSource,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<TransactionExecutionResult> {
         let _scope = monitored_scope("Execution::execute_certificate");
@@ -2416,7 +2426,8 @@ impl AuthorityState {
             let (sender_auth_digest, sponsor_auth_digest) =
                 transaction.data().compute_auth_digests()?;
 
-            // Check the `MoveAuthenticator` input objects.
+            // Check the `MoveAuthenticator` input objects. These are needed to build the
+            // effect whether or not authentication ultimately runs.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
             // `max_auth_gas` is used here as a Move authenticator gas budget until it is
             // not a part of the transaction data.
@@ -2438,6 +2449,42 @@ impl AuthorityState {
                 .inner()
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
+
+            // Only attested transactions can have their Move-authentication
+            // failure attributed, and only they carry recorded versions to judge.
+            let attestation_verdict_context = match attestation {
+                AttestationSource::Attestation(attestation) => {
+                    Some(attestation_verdict::AttestationVerdictContext {
+                        attestation,
+                        attested_versions: attestation_verdict::AttestedObjectVersions {
+                            object_cache: self.get_object_cache_reader().as_ref(),
+                            current_epoch: epoch_id,
+                        },
+                        store: backing_store,
+                        executor: epoch_store.executor().as_ref(),
+                        protocol_config,
+                        metrics: self.metrics.limits_metrics.clone(),
+                        epoch_id,
+                        epoch_timestamp_ms: epoch_start_timestamp,
+                        reference_gas_price,
+                        gas_data: gas_data.clone(),
+                        authenticators: attestation_verdict::authenticator_inputs(
+                            &move_authenticators,
+                            &per_authenticator_checked_input_objects,
+                        ),
+                        executed_versions: attestation_verdict::executed_versions(
+                            &per_authenticator_checked_input_objects,
+                            &resolutions,
+                        ),
+                        transaction: tx,
+                        transaction_signer: signer,
+                        transaction_digest: tx_digest,
+                        sender_auth_digest,
+                        sponsor_auth_digest,
+                    })
+                }
+                AttestationSource::Unattested => None,
+            };
 
             // The function refs of the accounts that resolved, so an
             // authenticator that runs after another account failed to resolve
@@ -2528,7 +2575,7 @@ impl AuthorityState {
                 effects,
                 timings,
                 execution_error_opt,
-                _authentication_error,
+                authentication_error,
             ) = epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
@@ -2551,6 +2598,19 @@ impl AuthorityState {
                     auth_context_data,
                     &mut None,
                 );
+            // Only an attested transaction whose authentication failed is
+            // judged, on the authentication error itself: the body's own
+            // checks may have replaced it in the effects.
+            let refuted = match (&authentication_error, &attestation_verdict_context) {
+                (Some(kind), Some(context)) => context.is_refuted(kind),
+                _ => false,
+            };
+            if refuted {
+                warn!(
+                    ?tx_digest,
+                    "attestation refuted: Move authentication also fails at the attested versions"
+                );
+            }
             (
                 inner_temp_store,
                 gas_status,
@@ -2600,6 +2660,7 @@ impl AuthorityState {
             transaction,
             input_objects,
             vec![],
+            &AttestationSource::Unattested,
             epoch_store,
         )
         .map(|(inner_temp_store, effects, execution_error, _)| {
@@ -6076,6 +6137,7 @@ impl AuthorityState {
             &executable_tx,
             input_objects,
             vec![],
+            &AttestationSource::Unattested,
             epoch_store,
         )?;
         let system_obj = get_iota_system_state(&temporary_store.written)

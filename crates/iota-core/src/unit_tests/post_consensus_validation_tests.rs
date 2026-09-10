@@ -4861,6 +4861,7 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
             live_object_markers_to_delete: vec![],
             new_live_object_markers_to_init: vec![],
             written: Default::default(),
+            record_superseded_versions: false,
         }),
     );
     assert!(s.authority.get_object(&shared_id).is_none());
