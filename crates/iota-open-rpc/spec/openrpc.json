@@ -1347,7 +1347,7 @@
                 "passkey_auth": true,
                 "pcool_skip_immutable_object_locks": true,
                 "pcool_verifier_limits_from_protocol_config": true,
-                "pre_consensus_sponsor_only_move_authentication": true,
+                "pre_consensus_sponsor_only_move_authentication": false,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
                 "relocate_event_module": true,

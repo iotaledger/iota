@@ -3467,6 +3467,14 @@ impl ProtocolConfig {
                         .consensus_enable_sliding_window_leader_schedule = true;
                     cfg.feature_flags
                         .consensus_enable_absolute_score_leader_schedule = true;
+
+                    // Enable Move-based sponsor account authentication on all
+                    // networks.
+                    cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                    // Run every `MoveAuthenticator` pre-consensus again, not
+                    // just the sponsor's, on all networks.
+                    cfg.feature_flags
+                        .pre_consensus_sponsor_only_move_authentication = false;
                 }
                 // Use this template when making changes:
                 //
