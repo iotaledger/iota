@@ -6,6 +6,7 @@ use std::path::Path;
 
 use iota_sdk_types::{TransactionEventsDigest, Version};
 use iota_types::{
+    attestation::AttestationRecord,
     effects::{TransactionEffects, TransactionEvents},
     global_state_hash::GlobalStateHash,
     storage::MarkerValue,
@@ -108,6 +109,12 @@ pub struct AuthorityPerpetualTables {
     /// transactions to be executed, we wait for them to appear in this
     /// table. When we revert transactions, we remove them from both tables.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
+
+    /// Verdict on the attestation of an executed attested transaction: written
+    /// with the effects when executed locally, or taken from the certified
+    /// checkpoint summary when executed from a checkpoint. Pruned with
+    /// `executed_effects`.
+    pub(crate) attestation_records: DBMap<TransactionDigest, AttestationRecord>,
 
     // Currently this is needed in the validator for returning events during process certificates.
     // We could potentially remove this if we decided not to provide events in the execution path.

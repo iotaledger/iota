@@ -28,7 +28,6 @@ mod checked {
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefV1, MoveAuthenticatorsForExecution,
         },
-        attestation::AttestationJudge,
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
         base_types::TxContext,
@@ -309,9 +308,6 @@ mod checked {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
-        // Asked, when the authentication of an attested transaction fails,
-        // whether the failure is charged to the attestor.
-        attestation_judge: Option<&dyn AttestationJudge>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -427,16 +423,6 @@ mod checked {
                 report_authentication_error(Err(error), protocol_config)
             }
         };
-
-        // A failure that refutes the attestation is charged to the attestor;
-        // the issuer's error is kept as the cause.
-        let authentication_execution_result =
-            match (authentication_execution_result, attestation_judge) {
-                (Err(error), Some(judge)) if judge.is_refuted() => Err(
-                    ExecutionError::new_with_source(ExecutionErrorKind::InvalidAttestation, error),
-                ),
-                (result, _) => result,
-            };
 
         // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986
         // Capture whether authentication failed before the result is moved into the

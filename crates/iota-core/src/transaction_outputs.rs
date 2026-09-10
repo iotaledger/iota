@@ -9,6 +9,7 @@ use std::{
 
 use iota_sdk_types::ObjectReference;
 use iota_types::{
+    attestation::AttestationRecord,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
@@ -30,6 +31,8 @@ pub struct TransactionOutputs {
     pub new_live_object_markers_to_init: Vec<ObjectReference>,
     pub written: WrittenObjects,
     pub record_superseded_versions: bool,
+    /// Verdict on the transaction's attestation, if it carried one.
+    pub attestation_record: Option<AttestationRecord>,
 }
 
 impl TransactionOutputs {
@@ -40,6 +43,7 @@ impl TransactionOutputs {
         effects: TransactionEffects,
         inner_temporary_store: InnerTemporaryStore,
         record_superseded_versions: bool,
+        attestation_record: Option<AttestationRecord>,
     ) -> TransactionOutputs {
         let InnerTemporaryStore {
             input_objects,
@@ -141,6 +145,7 @@ impl TransactionOutputs {
             new_live_object_markers_to_init,
             written,
             record_superseded_versions,
+            attestation_record,
         }
     }
 }

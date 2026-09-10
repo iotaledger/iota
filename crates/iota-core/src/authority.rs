@@ -68,7 +68,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{Attestation, AttestationJudge},
+    attestation::{Attestation, AttestationRecord},
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -1307,7 +1307,6 @@ impl AuthorityState {
                         signer,
                         tx_digest,
                         auth_context_data,
-                        None,
                         &mut None,
                     );
                 (
@@ -1844,13 +1843,14 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
-        let (inner_temporary_store, effects, execution_error_opt) = match self.execute_transaction(
-            &execution_guard,
-            transaction,
-            tx_input_objects,
-            per_authenticator_inputs,
-            epoch_store,
-        ) {
+        let (inner_temporary_store, effects, execution_error_opt, attestation_record) = match self
+            .execute_transaction(
+                &execution_guard,
+                transaction,
+                tx_input_objects,
+                per_authenticator_inputs,
+                epoch_store,
+            ) {
             Err(e) => {
                 info!(name = ?self.name, ?digest, "Error preparing transaction: {e}");
                 tx_guard.release();
@@ -1902,6 +1902,7 @@ impl AuthorityState {
             transaction,
             inner_temporary_store,
             &effects,
+            attestation_record,
             tx_guard,
             execution_guard,
             epoch_store,
@@ -1935,6 +1936,7 @@ impl AuthorityState {
         transaction: &VerifiedExecutableTransaction,
         inner_temporary_store: InnerTemporaryStore,
         effects: &TransactionEffects,
+        attestation_record: Option<AttestationRecord>,
         tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1971,6 +1973,7 @@ impl AuthorityState {
             effects.clone(),
             inner_temporary_store,
             epoch_store.protocol_config().enable_validator_attestation(),
+            attestation_record,
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -2052,6 +2055,7 @@ impl AuthorityState {
         InnerTemporaryStore,
         TransactionEffects,
         Option<ExecutionError>,
+        Option<AttestationRecord>,
     )> {
         let _scope = monitored_scope("Execution::execute_certificate");
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
@@ -2095,7 +2099,7 @@ impl AuthorityState {
         let move_authenticators = transaction.move_authenticators();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, execution_error_opt) = if move_authenticators
+        let (inner_temp_store, _, mut effects, execution_error, refuted) = if move_authenticators
             .is_empty()
         {
             // No Move authentication required, proceed to execute the transaction directly.
@@ -2112,25 +2116,34 @@ impl AuthorityState {
 
             let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
-            epoch_store.executor().execute_transaction_to_effects(
-                backing_store,
-                protocol_config,
-                self.metrics.limits_metrics.clone(),
-                // TODO: would be nice to pass the whole NodeConfig here, but it creates a
-                // cyclic dependency w/ iota-adapter
-                self.config
-                    .expensive_safety_check_config
-                    .enable_deep_per_tx_iota_conservation_check(),
-                self.config.certificate_deny_config.certificate_deny_set(),
-                &epoch_id,
-                epoch_start_timestamp,
-                tx_checked_input_objects,
-                gas_data,
-                tx_gas_status,
-                kind,
-                signer,
-                tx_digest,
-                &mut None,
+            let (inner_temp_store, gas_status, effects, execution_error_opt) =
+                epoch_store.executor().execute_transaction_to_effects(
+                    backing_store,
+                    protocol_config,
+                    self.metrics.limits_metrics.clone(),
+                    // TODO: would be nice to pass the whole NodeConfig here, but it creates a
+                    // cyclic dependency w/ iota-adapter
+                    self.config
+                        .expensive_safety_check_config
+                        .enable_deep_per_tx_iota_conservation_check(),
+                    self.config.certificate_deny_config.certificate_deny_set(),
+                    &epoch_id,
+                    epoch_start_timestamp,
+                    tx_checked_input_objects,
+                    gas_data,
+                    tx_gas_status,
+                    kind,
+                    signer,
+                    tx_digest,
+                    &mut None,
+                );
+            // Without Move authentication there is no verdict to reach.
+            (
+                inner_temp_store,
+                gas_status,
+                effects,
+                execution_error_opt,
+                false,
             )
         } else {
             // One or more `MoveAuthenticator` signatures present — authenticate each and
@@ -2208,8 +2221,8 @@ impl AuthorityState {
                     Ok(function_ref) => function_refs.push(Some(function_ref)),
                     Err(error) if protocol_config.enable_validator_attestation() => {
                         // The account's authenticator function could not be
-                        // resolved. Execution decides who is charged, so the
-                        // kind must not prejudge the attestation.
+                        // resolved. The verdict decides whether the attestation
+                        // is valid, so the kind must not prejudge it.
                         if pre_authentication_error.is_none() {
                             pre_authentication_error = Some(ExecutionError::new_with_source(
                                 ExecutionErrorKind::FunctionNotFound,
@@ -2307,38 +2320,42 @@ impl AuthorityState {
                 ),
             };
 
-            let (
+            let (inner_temp_store, gas_status, effects, execution_error_opt, authentication_failed) =
+                epoch_store
+                    .executor()
+                    .authenticate_then_execute_transaction_to_effects(
+                        backing_store,
+                        protocol_config,
+                        self.metrics.limits_metrics.clone(),
+                        self.config
+                            .expensive_safety_check_config
+                            .enable_deep_per_tx_iota_conservation_check(),
+                        self.config.certificate_deny_config.certificate_deny_set(),
+                        &epoch_id,
+                        epoch_start_timestamp,
+                        gas_data,
+                        gas_status,
+                        move_authenticators,
+                        authenticator_and_tx_checked_input_objects,
+                        kind,
+                        signer,
+                        tx_digest,
+                        auth_context_data,
+                        &mut None,
+                    );
+            // The re-run only happens when authentication failed and the
+            // transaction was attested.
+            let refuted = authentication_failed
+                && attestation_verdict_context
+                    .as_ref()
+                    .is_some_and(|context| context.is_refuted());
+            (
                 inner_temp_store,
                 gas_status,
                 effects,
                 execution_error_opt,
-                _authentication_failed,
-            ) = epoch_store
-                .executor()
-                .authenticate_then_execute_transaction_to_effects(
-                    backing_store,
-                    protocol_config,
-                    self.metrics.limits_metrics.clone(),
-                    self.config
-                        .expensive_safety_check_config
-                        .enable_deep_per_tx_iota_conservation_check(),
-                    self.config.certificate_deny_config.certificate_deny_set(),
-                    &epoch_id,
-                    epoch_start_timestamp,
-                    gas_data,
-                    gas_status,
-                    move_authenticators,
-                    authenticator_and_tx_checked_input_objects,
-                    kind,
-                    signer,
-                    tx_digest,
-                    auth_context_data,
-                    attestation_verdict_context
-                        .as_ref()
-                        .map(|context| context as &dyn AttestationJudge),
-                    &mut None,
-                );
-            (inner_temp_store, gas_status, effects, execution_error_opt)
+                refuted,
+            )
         };
 
         fail_point_if!("cp_execution_nondeterminism", || {
@@ -2353,7 +2370,16 @@ impl AuthorityState {
                 .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
         }
 
-        Ok((inner_temp_store, effects, execution_error_opt.err()))
+        let attestation_record = transaction
+            .attestation()
+            .and_then(|attestation| AttestationRecord::new(attestation, !refuted));
+
+        Ok((
+            inner_temp_store,
+            effects,
+            execution_error.err(),
+            attestation_record,
+        ))
     }
 
     pub fn prepare_transaction_for_benchmark(
@@ -2370,13 +2396,15 @@ impl AuthorityState {
         let execution_guard = lock.try_read().unwrap();
         let attested = VerifiedExecutableAttestedTransaction::new(transaction.clone(), None);
 
-        self.execute_transaction(
-            &execution_guard,
-            &attested,
-            input_objects,
-            vec![],
-            epoch_store,
-        )
+        let (inner_temp_store, effects, execution_error, _attestation_record) = self
+            .execute_transaction(
+                &execution_guard,
+                &attested,
+                input_objects,
+                vec![],
+                epoch_store,
+            )?;
+        Ok((inner_temp_store, effects, execution_error))
     }
 
     /// TO BE DEPRECATED SOON: Use `simulate_transaction` with
@@ -5815,13 +5843,14 @@ impl AuthorityState {
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
         let attested_tx = VerifiedExecutableAttestedTransaction::new(executable_tx.clone(), None);
-        let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
-            &execution_guard,
-            &attested_tx,
-            input_objects,
-            vec![],
-            epoch_store,
-        )?;
+        let (temporary_store, effects, _execution_error_opt, _attestation_record) = self
+            .execute_transaction(
+                &execution_guard,
+                &attested_tx,
+                input_objects,
+                vec![],
+                epoch_store,
+            )?;
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
         // Find the SystemEpochInfoEvent emitted by the advance_epoch transaction.

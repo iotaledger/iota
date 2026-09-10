@@ -54,6 +54,7 @@ use iota_types::{
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsExt, CheckpointSummary,
         CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
+        CheckpointVersionSpecificDataV2,
     },
     metrics::LimitsMetrics,
     object::{MoveStructExt, Object},
@@ -1268,6 +1269,13 @@ fn create_genesis_checkpoint(
             None | Some(0) => Vec::new(),
             Some(1) => bcs::to_bytes(&CheckpointVersionSpecificData::V1(
                 CheckpointVersionSpecificDataV1::default(),
+            ))
+            .unwrap(),
+            Some(2) => bcs::to_bytes(&CheckpointVersionSpecificData::V2(
+                CheckpointVersionSpecificDataV2 {
+                    randomness_rounds: Vec::new(),
+                    attestations: vec![None; execution_digests_len],
+                },
             ))
             .unwrap(),
             _ => unimplemented!("unrecognized version_specific_data version for CheckpointSummary"),

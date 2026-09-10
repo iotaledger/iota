@@ -13,6 +13,7 @@ use iota_macros::fail_point_arg;
 use iota_sdk_types::{TransactionEventsDigest, Version};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::VerifiedExecutionData,
     effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
     error::UserInputError,
@@ -475,6 +476,13 @@ impl AuthorityStore {
         self.perpetual_tables.executed_effects.multi_get(digests)
     }
 
+    pub fn multi_get_attestation_records(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Result<Vec<Option<AttestationRecord>>, TypedStoreError> {
+        self.perpetual_tables.attestation_records.multi_get(digests)
+    }
+
     /// Given a list of transaction digests, returns a list of the corresponding
     /// effects only if they have been executed. For transactions that have
     /// not been executed, None is returned.
@@ -584,6 +592,20 @@ impl AuthorityStore {
         )?;
         batch.write()?;
         trace!("Transactions {digests:?} finalized at checkpoint {sequence} epoch {epoch}");
+        Ok(())
+    }
+
+    // Implementation of the corresponding method of `CheckpointCache` trait.
+    pub(crate) fn insert_attestation_records(
+        &self,
+        records: &[(TransactionDigest, AttestationRecord)],
+    ) -> IotaResult {
+        let mut batch = self.perpetual_tables.attestation_records.batch();
+        batch.insert_batch(
+            &self.perpetual_tables.attestation_records,
+            records.iter().copied(),
+        )?;
+        batch.write()?;
         Ok(())
     }
 
@@ -887,6 +909,7 @@ impl AuthorityStore {
             events,
             live_object_markers_to_delete,
             new_live_object_markers_to_init,
+            attestation_record,
             ..
         } = tx_outputs;
 
@@ -970,6 +993,13 @@ impl AuthorityStore {
                 &self.perpetual_tables.executed_effects,
                 [(transaction_digest, effects_digest)],
             )?;
+
+        if let Some(record) = attestation_record {
+            write_batch.insert_batch(
+                &self.perpetual_tables.attestation_records,
+                [(transaction_digest, *record)],
+            )?;
+        }
 
         debug!(effects_digest = ?effects.digest(), "commit_transaction finished");
 
@@ -1234,6 +1264,10 @@ impl AuthorityStore {
         let mut write_batch = self.perpetual_tables.transactions.batch();
         write_batch.delete_batch(
             &self.perpetual_tables.executed_effects,
+            iter::once(tx_digest),
+        )?;
+        write_batch.delete_batch(
+            &self.perpetual_tables.attestation_records,
             iter::once(tx_digest),
         )?;
         if let Some(events_digest) = effects.events_digest() {

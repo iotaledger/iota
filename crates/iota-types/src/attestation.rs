@@ -94,12 +94,30 @@ impl Attestation {
     }
 }
 
-/// Judges an attestation whose transaction failed Move authentication at
-/// execution.
-pub trait AttestationJudge {
-    /// Whether the failure refutes the attestation, so it is charged to the
-    /// attestor instead of the issuer.
-    fn is_refuted(&self) -> bool;
+/// The validator's verdict on an attested, executed transaction, certified in
+/// the checkpoint summary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AttestationRecord {
+    pub attestor: AuthorityIndex,
+    /// Computation units the attestor claimed, not the executed ones.
+    pub attested_computation_units: u64,
+    /// `false` iff Move authentication failed and the failure refuted the
+    /// attestation.
+    pub valid: bool,
+}
+
+impl AttestationRecord {
+    /// `None` for explicit attestations, which never reach execution.
+    pub fn new(attestation: &Attestation, valid: bool) -> Option<Self> {
+        match attestation {
+            Attestation::Validator { attestor_index, .. } => Some(Self {
+                attestor: *attestor_index,
+                attested_computation_units: attestation.computation_units(),
+                valid,
+            }),
+            Attestation::Explicit { .. } => None,
+        }
+    }
 }
 
 impl AttestedTransaction {

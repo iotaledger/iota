@@ -31,6 +31,7 @@ use iota_sdk_types::{
     RandomnessRound, TransactionDigest, TransactionEffectsDigest, TransactionKind,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::ExecutionData,
     effects::{TransactionEffects, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
@@ -380,6 +381,11 @@ impl CheckpointExecutor {
         self.epoch_store
             .handle_finalized_checkpoint(&ckpt_state.data.checkpoint, &ckpt_state.data.tx_digests)
             .expect("cannot fail");
+
+        self.insert_attestation_records_from_summary(
+            &ckpt_state.data.checkpoint,
+            &ckpt_state.data.checkpoint_contents,
+        );
 
         let randomness_rounds = self.extract_randomness_rounds(
             &ckpt_state.data.checkpoint,
@@ -1040,6 +1046,42 @@ impl CheckpointExecutor {
         }
     }
 
+    /// Persists the attestation records certified in the summary. Nodes that
+    /// executed the checkpoint from state sync ran without attestations, so
+    /// this is their only source; for a locally built checkpoint it rewrites
+    /// the values the node computed itself.
+    fn insert_attestation_records_from_summary(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+        checkpoint_contents: &CheckpointContents,
+    ) {
+        let Some(version_specific_data) = checkpoint
+            .parse_version_specific_data(self.epoch_store.protocol_config())
+            .expect("unable to get version_specific_data")
+        else {
+            return;
+        };
+        let attestations = version_specific_data.attestations();
+        if attestations.is_empty() {
+            return;
+        }
+        assert_eq!(
+            attestations.len(),
+            checkpoint_contents.len(),
+            "certified summary must carry one attestation slot per transaction"
+        );
+        let records: Vec<(TransactionDigest, AttestationRecord)> = checkpoint_contents
+            .iter()
+            .zip(attestations)
+            .filter_map(|(digests, record)| record.map(|record| (digests.transaction, record)))
+            .collect();
+        if !records.is_empty() {
+            self.state
+                .get_checkpoint_cache()
+                .insert_attestation_records(&records);
+        }
+    }
+
     // Extract randomness rounds from the checkpoint version-specific data (if
     // available). Otherwise, extract randomness rounds from the first
     // transaction in the checkpoint
@@ -1055,7 +1097,7 @@ impl CheckpointExecutor {
         {
             // With version-specific data, randomness rounds are stored in checkpoint
             // summary.
-            version_specific_data.into_v1().randomness_rounds
+            version_specific_data.into_randomness_rounds()
         } else {
             // Before version-specific data, checkpoint batching must be disabled. In this
             // case, randomness state update tx must be first if it exists,

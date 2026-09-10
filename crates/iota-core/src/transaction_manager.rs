@@ -493,15 +493,9 @@ impl TransactionManager {
             .into_iter()
             .map(|(tx, fx)| {
                 (
-                    // TODO: checkpoint replay executes an attested transaction
-                    // without its attestation. On the Move-authentication-failure
-                    // path the attestation decides the effects (the verdict and
-                    // its `InvalidAttestation` status), so replayed effects would
-                    // diverge from the certified ones and the replaying node
-                    // would report a fork. Before `enable_validator_attestation`
-                    // can be enabled, the attested object versions must be
-                    // persisted, carried in the checkpoint contents, and passed
-                    // here instead of `None`.
+                    // Checkpoint replay carries no attestation: the effects do not
+                    // depend on it, and the verdict is read from the certified
+                    // checkpoint summary instead.
                     VerifiedExecutableAttestedTransaction::new(tx, None),
                     Some(fx),
                 )

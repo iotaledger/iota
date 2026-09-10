@@ -1389,6 +1389,8 @@ pub struct ProtocolConfig {
     checkpoint_rate_window_size: Option<u64>,
 
     /// Version number to use for version_specific_data in `CheckpointSummary`.
+    /// 2 adds the per-transaction attestation records and is required by
+    /// `enable_validator_attestation`.
     checkpoint_summary_version_specific_data: Option<u64>,
 
     /// The max number of transactions that can be included in a single Soft
@@ -1923,6 +1925,10 @@ impl ProtocolConfig {
         assert!(
             !res || self.report_move_authentication_error(),
             "enable_validator_attestation requires report_move_authentication_error to be set"
+        );
+        assert!(
+            !res || self.checkpoint_summary_version_specific_data == Some(2),
+            "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
         );
         res
     }
@@ -3395,6 +3401,9 @@ impl ProtocolConfig {
 
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
+        if val {
+            self.checkpoint_summary_version_specific_data = Some(2);
+        }
     }
 }
 
