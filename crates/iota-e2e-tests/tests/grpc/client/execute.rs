@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::{Error, read_mask_fields::TransactionField};
+use iota_grpc_client::{GrpcError, read_mask_fields::TransactionField};
 use iota_grpc_types::read_mask_fields::ExecuteTransactionReadMask;
 use iota_macros::sim_test;
 use iota_sdk_types::{Address, UserSignature};
@@ -154,7 +154,7 @@ async fn execute_transaction_invalid_signature() {
     // With batch semantics, per-item validation errors come back as Error::Server
     let err = result.expect_err("Expected error for invalid signature");
     match &err {
-        Error::Server(status) => {
+        GrpcError::Server(status) => {
             assert_eq!(
                 status.code,
                 tonic::Code::InvalidArgument as i32,

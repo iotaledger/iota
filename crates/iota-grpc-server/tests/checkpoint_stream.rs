@@ -235,7 +235,7 @@ async fn test_start_sequence_number_only() {
                     }
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -288,7 +288,7 @@ async fn test_start_and_future_end_sequence_number() {
                     }
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -335,7 +335,7 @@ async fn test_historical_end_sequence_number_only() {
                     let sequence_number = response.sequence_number();
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -383,7 +383,7 @@ async fn test_future_end_sequence_number_only_full() {
                     let sequence_number = response.sequence_number();
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -441,7 +441,7 @@ async fn test_both_indices_omitted() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -503,7 +503,7 @@ async fn test_historical_to_live_gap_fill() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -580,7 +580,7 @@ async fn test_gap_fill_with_slow_client() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -856,7 +856,7 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
         .await;
     assert!(result.is_err(), "Expected error for pruned checkpoint");
     match result.unwrap_err() {
-        iota_grpc_client::Error::Grpc(status) => {
+        iota_grpc_client::GrpcError::Grpc(status) => {
             assert_eq!(status.code(), tonic::Code::NotFound);
             assert!(
                 status
@@ -945,7 +945,7 @@ async fn test_stream_checkpoints_subscriber_cap() {
         )
         .await
     {
-        Err(iota_grpc_client::Error::Grpc(status)) => {
+        Err(iota_grpc_client::GrpcError::Grpc(status)) => {
             assert_eq!(status.code(), tonic::Code::Unavailable);
         }
         Err(other) => panic!("expected Unavailable, got: {other:?}"),
@@ -969,7 +969,7 @@ async fn test_stream_checkpoints_subscriber_cap() {
             .await
         {
             Ok(s) => break s,
-            Err(iota_grpc_client::Error::Grpc(status))
+            Err(iota_grpc_client::GrpcError::Grpc(status))
                 if status.code() == tonic::Code::Unavailable =>
             {
                 if tokio::time::Instant::now() >= deadline {
@@ -1011,7 +1011,7 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
         .await;
 
     match result {
-        Err(iota_grpc_client::Error::Grpc(status)) => {
+        Err(iota_grpc_client::GrpcError::Grpc(status)) => {
             assert_eq!(status.code(), tonic::Code::NotFound);
             assert!(
                 status

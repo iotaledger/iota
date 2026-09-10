@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::Error;
+use iota_grpc_client::GrpcError;
 use iota_macros::sim_test;
 
 use super::super::utils::setup_grpc_test;
@@ -41,7 +41,7 @@ async fn health() {
         .await
         .expect_err("Health check should fail with zero threshold");
     match err {
-        Error::Grpc(status) => {
+        GrpcError::Grpc(status) => {
             assert_eq!(
                 status.code(),
                 tonic::Code::Unavailable,
