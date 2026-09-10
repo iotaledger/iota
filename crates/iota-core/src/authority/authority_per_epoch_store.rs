@@ -59,7 +59,8 @@ use iota_types::{
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TransactionDenyRuleProposal,
         VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
     },
-    storage::{BackingPackageStore, InputKey},
+    object::Object,
+    storage::{BackingPackageStore, InputKey, ObjectKey},
     transaction::{
         CertifiedTransaction, InputObjectKind, SenderSignedTransactionAPI, TransactionAPI,
         TransactionEnvelope, TransactionKey, TxValidityCheckContext, VerifiedCertificate,
@@ -157,6 +158,9 @@ pub(crate) type EncG = bls12381::G2Element;
 #[path = "consensus_quarantine.rs"]
 pub(crate) mod consensus_quarantine;
 
+#[path = "handler_object_state.rs"]
+pub mod handler_object_state;
+
 #[path = "misbehavior.rs"]
 pub(crate) mod misbehavior;
 #[path = "misbehavior_monitor.rs"]
@@ -169,6 +173,7 @@ pub(crate) mod scorer;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
+use handler_object_state::{HandlerLatestObject, HandlerObjectState, SyncAheadRecord};
 use iota_types::crypto::AuthorityPublicKey;
 use scorer::Scoreboard;
 
@@ -685,6 +690,10 @@ pub struct AuthorityPerEpochStore {
     /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
+    /// P-COOL deterministic-validation bookkeeping: the digest -> commit-round
+    /// map and the overlays over the three bookkeeping tables, holding
+    /// entries not yet durable.
+    handler_object_state: HandlerObjectState,
 
     protocol_config: ProtocolConfig,
 
@@ -830,6 +839,25 @@ pub struct AuthorityEpochTables {
     /// Map from ObjectReference to transaction locking that object
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
+
+    /// Latest object state as of the handler frontier, for P-COOL
+    /// deterministic post-consensus validation (see [`handler_object_state`]
+    /// for the three-view design). Flushed through each commit's quarantined
+    /// `ConsensusCommitOutput`, atomically with `last_consensus_stats`. Same
+    /// access profile as the lock table: one write per touched object per
+    /// commit, one point lookup per validated input.
+    #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
+    handler_latest_objects: DBMap<ObjectId, HandlerLatestObject>,
+
+    /// Sync-ahead records (see [`handler_object_state`]); empty in normal
+    /// operation.
+    sync_ahead_records: DBMap<ObjectId, SyncAheadRecord>,
+
+    /// Sheltered consumed-input bytes (see [`handler_object_state`]), made
+    /// durable before the executed-checkpoint watermark bump that lets the
+    /// pruner delete the perpetual rows; empty in normal operation.
+    #[default_options_override_fn = "sheltered_objects_table_default_config"]
+    sheltered_objects: DBMap<ObjectKey, Object>,
 
     /// Signatures over transaction effects that we have signed and returned to
     /// users. We store this to avoid re-signing the same effects twice.
@@ -1030,6 +1058,12 @@ fn owned_object_locked_transactions_table_default_config() -> DBOptions {
 }
 
 fn pending_consensus_transactions_table_default_config() -> DBOptions {
+    default_db_options()
+        .optimize_for_write_throughput()
+        .optimize_for_large_values_no_scan(1 << 10)
+}
+
+fn sheltered_objects_table_default_config() -> DBOptions {
     default_db_options()
         .optimize_for_write_throughput()
         .optimize_for_large_values_no_scan(1 << 10)
@@ -1273,6 +1307,7 @@ impl AuthorityPerEpochStore {
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
+        let handler_object_state = HandlerObjectState::new(&tables);
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1326,6 +1361,7 @@ impl AuthorityPerEpochStore {
             protocol_config,
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
+            handler_object_state,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
                 cached_overload_notifications,
@@ -1720,6 +1756,111 @@ impl AuthorityPerEpochStore {
         } else {
             Ok(tables.transaction_key_to_digest.get(key).expect("db error"))
         }
+    }
+
+    /// Registers the kept transactions of commit `round` in the digest ->
+    /// commit-round map. Must be called while the handler processes the
+    /// commit, before any of its transactions can be scheduled: the execution
+    /// hook classifies each execution by this map - hit means the handler has
+    /// passed the producing commit, miss means state sync is running ahead.
+    pub fn assign_commit_to_transactions(
+        &self,
+        round: CommitRound,
+        digests: Vec<TransactionDigest>,
+    ) {
+        self.handler_object_state.assign_commit(round, digests);
+    }
+
+    /// Records one executed transaction's object writes for the P-COOL
+    /// deterministic-validation bookkeeping; see
+    /// [`HandlerObjectState::record_executed_transaction`].
+    pub fn record_executed_transaction(
+        &self,
+        effects: &TransactionEffects,
+        loaded_input_objects: &[Object],
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        self.handler_object_state.record_executed_transaction(
+            &tables,
+            effects,
+            loaded_input_objects,
+        )
+    }
+
+    /// Marks commit `round` fully executed; see
+    /// [`HandlerObjectState::record_commit_fully_executed`].
+    pub fn record_commit_fully_executed(
+        &self,
+        round: CommitRound,
+        upserts: &[(ObjectId, HandlerLatestObject)],
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        self.handler_object_state
+            .record_commit_fully_executed(&tables, round, upserts)
+    }
+
+    /// The latest state of `id` as of the handler frontier.
+    pub fn handler_latest(&self, id: &ObjectId) -> IotaResult<Option<HandlerLatestObject>> {
+        let tables = self.tables()?;
+        self.handler_object_state.handler_latest(&tables, id)
+    }
+
+    /// The sync-ahead record for `id`.
+    pub fn sync_ahead_record(&self, id: &ObjectId) -> IotaResult<Option<SyncAheadRecord>> {
+        let tables = self.tables()?;
+        self.handler_object_state.sync_ahead_record(&tables, id)
+    }
+
+    /// The sheltered bytes of a consumed input version.
+    pub fn sheltered_object(&self, key: &ObjectKey) -> IotaResult<Option<Arc<Object>>> {
+        let tables = self.tables()?;
+        self.handler_object_state.sheltered_object(&tables, key)
+    }
+
+    #[cfg(test)]
+    pub fn handler_object_state_for_testing(&self) -> &HandlerObjectState {
+        &self.handler_object_state
+    }
+
+    /// Durably writes a commit's handler-latest rows (draining queued
+    /// sync-record deletions into the same batch) and then evicts them from
+    /// the overlay, in that order - the quarantine-flush path.
+    #[cfg(test)]
+    pub fn flush_commit_rows_for_testing(
+        &self,
+        handler_rows: Vec<(ObjectId, HandlerLatestObject)>,
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        let mut batch = tables.handler_latest_objects.batch();
+        self.handler_object_state
+            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+        batch.write()?;
+        self.handler_object_state
+            .evict_flushed_commit_rows(&handler_rows);
+        Ok(())
+    }
+
+    /// Durably writes a sync-executed checkpoint's records and sheltered
+    /// bytes and then evicts them from the overlays, in that order - the
+    /// checkpoint-executor auxiliary-batch path.
+    #[cfg(test)]
+    pub fn flush_sync_ahead_rows_for_testing(
+        &self,
+        sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
+        shelter_rows: Vec<(ObjectKey, Arc<Object>)>,
+    ) -> IotaResult {
+        let tables = self.tables()?;
+        let mut batch = tables.sync_ahead_records.batch();
+        self.handler_object_state.write_sync_ahead_rows_to_batch(
+            &tables,
+            &mut batch,
+            &sync_rows,
+            &shelter_rows,
+        )?;
+        batch.write()?;
+        self.handler_object_state
+            .evict_flushed_sync_ahead_rows(&sync_rows, &shelter_rows);
+        Ok(())
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
