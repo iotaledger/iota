@@ -1294,7 +1294,7 @@ mod checked {
                 let builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
 
-                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
+                for (i, tx) in txns.into_iter().enumerate() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
