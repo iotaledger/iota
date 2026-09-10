@@ -82,7 +82,7 @@ pub(crate) trait ExecutionSchedulerAPI {
     ) {
         let transactions = transactions
             .into_iter()
-            .map(|txn| (txn.into(), None))
+            .map(|txn| (VerifiedExecutableAttestedTransaction::new(txn, None), None))
             .collect();
         self.enqueue_impl(transactions, epoch_store)
     }
@@ -98,6 +98,9 @@ pub(crate) trait ExecutionSchedulerAPI {
         self.enqueue_impl(transactions, epoch_store)
     }
 
+    /// Enqueues transactions whose effects are already certified — the
+    /// checkpoint-execution path — so execution is checked against the
+    /// expected effects digest.
     fn enqueue_with_expected_effects_digest(
         &self,
         transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
@@ -105,7 +108,21 @@ pub(crate) trait ExecutionSchedulerAPI {
     ) {
         let transactions = transactions
             .into_iter()
-            .map(|(txn, fx)| (txn.into(), Some(fx)))
+            .map(|(txn, fx)| {
+                (
+                    // TODO: checkpoint replay executes an attested transaction
+                    // without its attestation. On the Move-authentication-failure
+                    // path the attestation decides the effects (the verdict and
+                    // its `InvalidAttestation` status), so replayed effects would
+                    // diverge from the certified ones and the replaying node
+                    // would report a fork. Before `enable_validator_attestation`
+                    // can be enabled, the attested object versions must be
+                    // persisted, carried in the checkpoint contents, and passed
+                    // here instead of `None`.
+                    VerifiedExecutableAttestedTransaction::new(txn, None),
+                    Some(fx),
+                )
+            })
             .collect();
         self.enqueue_impl(transactions, epoch_store)
     }

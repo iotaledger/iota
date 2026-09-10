@@ -36,6 +36,7 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     consensus_handler::VerifiedSequencedConsensusTransaction,
+    execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
     post_consensus_validation,
 };
 
@@ -460,7 +461,11 @@ async fn test_execution_fails_spending_denied_coin_under_attestation() {
     let (effects, execution_error) = env
         .env
         .authority
-        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .try_execute_immediately(
+            &VerifiedExecutableAttestedTransaction::new(executable, None),
+            None,
+            &epoch_store,
+        )
         .unwrap();
 
     let ExecutionStatus::Failure { error, .. } = effects.status() else {

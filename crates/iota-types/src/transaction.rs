@@ -2836,6 +2836,16 @@ impl ObjectReadResult {
         }
     }
 
+    /// The version this read resolved to, including deletion and cancellation
+    /// markers.
+    pub fn version(&self) -> Version {
+        match &self.object {
+            ObjectReadResultKind::Object(object) => object.version(),
+            ObjectReadResultKind::DeletedSharedObject(version, _) => *version,
+            ObjectReadResultKind::CancelledTransactionObject(version) => *version,
+        }
+    }
+
     pub fn new_from_gas_object(gas: &Object) -> Self {
         let objref = gas.object_ref();
         Self {

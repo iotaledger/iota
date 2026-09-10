@@ -34,6 +34,7 @@ use crate::{
     },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::{SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction},
+    execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
     post_consensus_validation,
     test_utils::make_transfer_object_transaction,
 };
@@ -1251,7 +1252,11 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         1,
     );
     authority
-        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .try_execute_immediately(
+            &VerifiedExecutableAttestedTransaction::new(executable, None),
+            None,
+            &epoch_store,
+        )
         .unwrap();
     assert!(
         authority
@@ -1505,7 +1510,11 @@ impl LockTierSetup {
             1,
         );
         self.authority
-            .try_execute_immediately(&executable.into(), None, &self.epoch_store)
+            .try_execute_immediately(
+                &VerifiedExecutableAttestedTransaction::new(executable, None),
+                None,
+                &self.epoch_store,
+            )
             .unwrap();
     }
 

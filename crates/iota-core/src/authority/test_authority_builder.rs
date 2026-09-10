@@ -39,6 +39,7 @@ use crate::{
         committee_store::CommitteeStore, epoch_metrics::EpochMetrics, randomness::RandomnessManager,
     },
     execution_cache::build_execution_cache,
+    execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStore,
     mock_consensus::{ConsensusMode, MockConsensusClient},
@@ -417,12 +418,14 @@ impl<'a> TestAuthorityBuilder<'a> {
             // explicitly makes sure all genesis objects are ready for use.
             state
                 .try_execute_immediately(
-                    &VerifiedExecutableTransaction::new_from_checkpoint(
-                        VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
-                        genesis.epoch(),
-                        genesis.checkpoint().sequence_number,
-                    )
-                    .into(),
+                    &VerifiedExecutableAttestedTransaction::new(
+                        VerifiedExecutableTransaction::new_from_checkpoint(
+                            VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
+                            genesis.epoch(),
+                            genesis.checkpoint().sequence_number,
+                        ),
+                        None,
+                    ),
                     None,
                     &state.epoch_store_for_testing(),
                 )

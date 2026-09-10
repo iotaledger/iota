@@ -403,10 +403,12 @@ mod tests {
         ) -> Result<HandleCertificateResponseV1, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
             let (effects, _) = self.authority.try_execute_immediately(
-                &VerifiedExecutableTransaction::new_from_certificate(
-                    VerifiedCertificate::new_unchecked(request.certificate),
-                )
-                .into(),
+                &crate::execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction::new(
+                    VerifiedExecutableTransaction::new_from_certificate(
+                        VerifiedCertificate::new_unchecked(request.certificate),
+                    ),
+                    None,
+                ),
                 None,
                 &epoch_store,
             )?;

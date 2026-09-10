@@ -4170,7 +4170,8 @@ impl AuthorityPerEpochStore {
                         );
                         let tx =
                             VerifiedExecutableTransaction::new_system((*tx).clone(), self.epoch());
-                        verified_randomness_transactions.push(tx.into());
+                        verified_randomness_transactions
+                            .push(VerifiedExecutableAttestedTransaction::new(tx, None));
                     }
                 }
 
@@ -4582,8 +4583,11 @@ impl AuthorityPerEpochStore {
         transactions: &[VerifiedExecutableTransaction],
     ) -> IotaResult {
         let mut output = ConsensusCommitOutput::new(0);
-        let attested: Vec<VerifiedExecutableAttestedTransaction> =
-            transactions.iter().cloned().map(Into::into).collect();
+        let attested: Vec<VerifiedExecutableAttestedTransaction> = transactions
+            .iter()
+            .cloned()
+            .map(|tx| VerifiedExecutableAttestedTransaction::new(tx, None))
+            .collect();
         self.process_consensus_transaction_shared_object_versions(
             cache_reader,
             &attested,
@@ -5177,8 +5181,8 @@ impl AuthorityPerEpochStore {
                     return Ok(ConsensusTransactionResult::Ignored);
                 }
 
-                let attested_transaction: VerifiedExecutableAttestedTransaction =
-                    transaction.into();
+                let attested_transaction =
+                    VerifiedExecutableAttestedTransaction::new(transaction, None);
 
                 let scheduling_result = self.try_schedule(
                     &attested_transaction,
@@ -5732,7 +5736,10 @@ impl AuthorityPerEpochStore {
         // If needed we can support owned object system transactions as well...
         assert!(system_transaction.contains_shared_object());
         ConsensusTransactionResult::Scheduled {
-            transaction: system_transaction.clone().into(),
+            transaction: VerifiedExecutableAttestedTransaction::new(
+                system_transaction.clone(),
+                None,
+            ),
             start_time: 0,
         }
     }
