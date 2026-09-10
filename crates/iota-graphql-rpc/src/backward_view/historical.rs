@@ -7,7 +7,7 @@
 //! tombstones are excluded, so such versions resolve as non-existent.
 
 use crate::{
-    backward_view::{ACTIVE, HistoricalFilter, OBJECT_COLUMNS, merge_and_deduplicate},
+    backward_view::{ACTIVE, HistoricalFilter, OBJECT_COLUMNS, merge},
     filter, query,
     raw_query::RawQuery,
     types::{
@@ -22,7 +22,7 @@ use crate::{
 pub(crate) fn query(page: &Page<Cursor>, filter: &HistoricalFilter) -> RawQuery {
     let filter_fn = |q| filter.apply(q);
 
-    merge_and_deduplicate(vec![
+    merge(vec![
         checkpointed_objects(page, &filter_fn),
         historical_objects(page, &filter_fn),
     ])
@@ -30,6 +30,10 @@ pub(crate) fn query(page: &Page<Cursor>, filter: &HistoricalFilter) -> RawQuery 
 
 /// Returns active objects from `checkpointed_objects` that satisfy the
 /// provided filter.
+///
+/// Excludes rows that also appear in `objects_backward_history` at the same
+/// `(object_id, object_version)`. This is needed because a `(id, version)` pair
+/// can briefly exist in both tables during ingestion.
 fn checkpointed_objects(
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
@@ -40,10 +44,14 @@ fn checkpointed_objects(
         ))),
         format!("object_status = {ACTIVE}")
     );
-    let source = query!(
-        "SELECT candidates.* FROM ({}) candidates",
-        checkpointed_filtered
+    let no_overlap = filter!(
+        checkpointed_filtered,
+        "NOT EXISTS (\
+             SELECT 1 FROM objects_backward_history bh \
+             WHERE bh.object_id = checkpointed_objects.object_id \
+               AND bh.object_version = checkpointed_objects.object_version)"
     );
+    let source = query!("SELECT candidates.* FROM ({}) candidates", no_overlap);
     page.apply::<StoredBackwardObject>(source)
 }
 

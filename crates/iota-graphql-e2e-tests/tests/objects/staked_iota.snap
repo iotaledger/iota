@@ -18,7 +18,7 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "ILzVVmYs0lhGb4pvK+xM5LKrk6HwRKnJJTdjjehbb0VZAAAAAAAAAAA=",
+          "cursor": "ILzVVmYs0lhGb4pvK+xM5LKrk6HwRKnJJTdjjehbb0VZAQAAAAAAAAAAAAAAAAAAAA==",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
@@ -74,7 +74,7 @@ Response: {
       "stakedIotas": {
         "edges": [
           {
-            "cursor": "IBHJBM8kZPT8qybYKMvt0PxPYwH1wTbiHnqBSvB2UO3FAgAAAAAAAAA=",
+            "cursor": "IBHJBM8kZPT8qybYKMvt0PxPYwH1wTbiHnqBSvB2UO3FAwAAAAAAAAACAAAAAAAAAA==",
             "node": {
               "principal": "10000000000"
             }
@@ -85,7 +85,7 @@ Response: {
     "objects": {
       "edges": [
         {
-          "cursor": "IBHJBM8kZPT8qybYKMvt0PxPYwH1wTbiHnqBSvB2UO3FAgAAAAAAAAA=",
+          "cursor": "IBHJBM8kZPT8qybYKMvt0PxPYwH1wTbiHnqBSvB2UO3FAwAAAAAAAAACAAAAAAAAAA==",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
@@ -96,7 +96,7 @@ Response: {
           }
         },
         {
-          "cursor": "ILzVVmYs0lhGb4pvK+xM5LKrk6HwRKnJJTdjjehbb0VZAgAAAAAAAAA=",
+          "cursor": "ILzVVmYs0lhGb4pvK+xM5LKrk6HwRKnJJTdjjehbb0VZAQAAAAAAAAACAAAAAAAAAA==",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
@@ -107,7 +107,7 @@ Response: {
           }
         },
         {
-          "cursor": "IMU9f9gnuZx239pp/ScI5OWZ8fITK6HyPT8/lM94+yiyAgAAAAAAAAA=",
+          "cursor": "IMU9f9gnuZx239pp/ScI5OWZ8fITK6HyPT8/lM94+yiyBAAAAAAAAAACAAAAAAAAAA==",
           "node": {
             "asMoveObject": {
               "asStakedIota": {
