@@ -37,11 +37,10 @@
 //!   tx's own prior-round lock), which is exempt. Cheap; performed before
 //!   expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` for
-//!   `UserTransactionV1`, or for attested `UserTransactionV2` a payload-only
-//!   gas-bounds check (`check_gas_bounds()`) followed by the
-//!   `TransactionDenyConfig` re-check
-//!   (`check_transaction_deny_list_for_attested_tx()`). Drop with error. Only
-//!   reached when all locks are free.
+//!   `UserTransactionV1`; for attested `UserTransactionV2` a payload-only
+//!   gas-bounds check, the `TransactionDenyConfig` re-check, and an
+//!   input-existence check. Drop with error. Only reached when all locks are
+//!   free.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
@@ -217,10 +216,7 @@ pub async fn validate_and_resolve_conflicts(
                 .min(protocol_config.gas_rounding_step());
             let attested_units = attestation.computation_units();
             let txn = transaction.data().transaction();
-            let max_attested_units = txn
-                .gas_budget()
-                .checked_div(txn.gas_price())
-                .unwrap_or(u64::MAX);
+            let max_attested_units = txn.gas_budget().checked_div(txn.gas_price()).unwrap_or(0);
             let error = match attestation {
                 Attestation::Validator { attestor_index, .. } => {
                     if *attestor_index != block_author {
@@ -334,24 +330,19 @@ pub async fn validate_and_resolve_conflicts(
         //
         // `UserTransactionV1` runs the full
         // `handle_transaction_validation_checks`. For `UserTransactionV2`
-        // (attested transactions) a payload-only gas-bounds check and the
-        // `TransactionDenyConfig` deny-list check are run individually (see
-        // below). The rest of `handle_transaction_validation_checks`
-        // is skipped for V2 because it is either re-applied during execution or
-        // is not safety-critical to run post-consensus:
+        // (attested transactions) only a payload-only gas-bounds check, the
+        // `TransactionDenyConfig` deny-list check, and an input-existence check
+        // run (see below). The rest of `handle_transaction_validation_checks`
+        // deliberately stays at execution, where a failure is a chargeable
+        // effect instead of a free drop:
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
         //     when the ref doesn't match current state.
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
         //     published package; the signing-time variant only adds a stricter meter as
         //     a DoS gate.
-        //   - Gas balance, ownership, `MoveAuthenticator` execution: re-applied in the
-        //     execution pipeline (`check_certificate_input` and
-        //     `authenticate_then_execute_transaction_to_effects`). Only the balance is
-        //     left to execution; the payload-only gas bounds are checked below.
-        //   - Coin deny list: enforced during execution
-        //     (`TemporaryStore::check_input_coin_deny_list`), so a stale attestation
-        //     view resolves to a failed effect charged to the issuer instead of a free
-        //     drop.
+        //   - Gas balance, ownership, coin deny list, `MoveAuthenticator` execution:
+        //     re-applied in the execution pipeline; the payload-only gas bounds are
+        //     checked below.
         //
         // The user signature is verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
@@ -423,6 +414,31 @@ pub async fn validate_and_resolve_conflicts(
                     ?digest,
                     error = ?e,
                     "UserTransactionV2 failed post-consensus deny-list check, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
+            // Input existence at the referenced versions (owned and gas
+            // objects, shared objects or their deletion markers, authenticator
+            // accounts).
+            //
+            // TODO: this drop is a known fork source — the read follows this
+            // validator's execution progress, so an input created by an
+            // earlier not-yet-executed transaction is missed here but seen by
+            // an up-to-date validator. Kept as a placeholder against the
+            // never-existing-input stall until the PCOOL redesign decides
+            // input availability against consensus-derived state.
+            if let Err(e) =
+                authority_state.check_transaction_inputs_exist(&verified_tx, epoch_store.epoch())
+            {
+                if e.is_storage_or_epoch_error() {
+                    return Err(e);
+                }
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed post-consensus input-existence check, dropping"
                 );
                 dropped.push((digest, e));
                 keep[i] = false;

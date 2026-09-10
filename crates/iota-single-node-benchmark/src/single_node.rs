@@ -8,6 +8,7 @@ use std::{
 };
 
 use iota_core::{
+    VerifiedExecutableAttestedTransaction,
     authority::{
         AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
         test_authority_builder::TestAuthorityBuilder,
@@ -127,7 +128,11 @@ impl SingleValidator {
         );
         let effects = self
             .get_validator()
-            .try_execute_immediately(&executable.into(), None, &self.epoch_store)
+            .try_execute_immediately(
+                &VerifiedExecutableAttestedTransaction::new(executable, None),
+                None,
+                &self.epoch_store,
+            )
             .unwrap()
             .0;
         assert!(effects.status().is_success());
@@ -158,7 +163,11 @@ impl SingleValidator {
                     VerifiedCertificate::new_unchecked(cert),
                 );
                 self.get_validator()
-                    .try_execute_immediately(&cert.into(), None, &self.epoch_store)
+                    .try_execute_immediately(
+                        &VerifiedExecutableAttestedTransaction::new(cert, None),
+                        None,
+                        &self.epoch_store,
+                    )
                     .unwrap()
                     .0
             }

@@ -48,6 +48,7 @@ use crate::{
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
     signature_verifier::SignatureVerifierMetrics,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 
 #[derive(Default, Clone)]
@@ -423,12 +424,14 @@ impl<'a> TestAuthorityBuilder<'a> {
             // explicitly makes sure all genesis objects are ready for use.
             state
                 .try_execute_immediately(
-                    &VerifiedExecutableTransaction::new_from_checkpoint(
-                        VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
-                        genesis.epoch(),
-                        genesis.checkpoint().sequence_number,
-                    )
-                    .into(),
+                    &VerifiedExecutableAttestedTransaction::new(
+                        VerifiedExecutableTransaction::new_from_checkpoint(
+                            VerifiedTransaction::new_unchecked(genesis.transaction().clone()),
+                            genesis.epoch(),
+                            genesis.checkpoint().sequence_number,
+                        ),
+                        None,
+                    ),
                     None,
                     &state.epoch_store_for_testing(),
                 )

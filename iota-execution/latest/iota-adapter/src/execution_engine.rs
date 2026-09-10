@@ -26,9 +26,9 @@ mod checked {
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
         account_abstraction::authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefV1, MoveAuthenticatorsForExecution,
         },
+        attestation::AttestationJudge,
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
         base_types::TxContext,
@@ -302,17 +302,16 @@ mod checked {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
+        // Asked, when the authentication of an attested transaction fails,
+        // whether the failure is charged to the attestor.
+        attestation_judge: Option<&dyn AttestationJudge>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -383,72 +382,61 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // Prepare the authenticators for execution.
-        // Store the loaded object metadata in the `TemporaryStore` before the
-        // authenticators are executed.
-        // The temporary store must contain all the required information at this
-        // point.
-        let authenticators = authenticators
-            .into_iter()
-            .map(
-                |(
-                    authenticator,
-                    authenticator_function_ref_for_execution,
-                    authenticator_input_objects,
-                )| {
-                    let AuthenticatorFunctionRefForExecution {
-                        authenticator_function_ref,
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    } = authenticator_function_ref_for_execution;
-
-                    // Save the loaded object metadata, i.e., the field object containing the
-                    // AuthenticatorFunctionRef, in the temporary store.
-                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    )]));
-
-                    (
-                        authenticator,
-                        authenticator_function_ref,
-                        authenticator_input_objects,
-                    )
-                },
-            )
-            .collect::<Vec<_>>();
-
         // Authentication execution.
         // It does not alter the state, if not for command execution gas charging, and
         // produces no effects other than possible errors.
 
-        // Run each authenticator in sequence; the first failure aborts the chain.
-        let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                match authenticator_function_ref {
-                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                        authenticate_transaction_inner(
-                            &mut temporary_store,
-                            protocol_config,
-                            metrics.clone(),
-                            &mut gas_charger,
-                            authenticator,
-                            authenticator_function_ref_v1,
-                            &authenticator_input_objects.into_inner(),
-                            transaction_kind.clone(),
-                            transaction_digest,
-                            auth_context_data.clone(),
-                            tx_ctx.clone(),
-                            trace_builder_opt,
-                            move_vm,
-                        )
-                    }
+        // Run each authenticator in sequence; the first failure aborts the
+        // chain. A resolution failure skips the run and carries its error
+        // instead.
+        let authentication_execution_result = match authenticators {
+            MoveAuthenticatorsForExecution::Resolved(authenticators) => {
+                // Store each loaded function-ref field object's metadata
+                // in the `TemporaryStore` before any authenticator runs.
+                for authenticator in &authenticators {
+                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                        authenticator.function_ref.loaded_object_id,
+                        authenticator.function_ref.loaded_object_metadata.clone(),
+                    )]));
                 }
-            },
-        );
+                let result =
+                    authenticators.iter().try_for_each(|authenticator| {
+                        match &authenticator.function_ref.authenticator_function_ref {
+                            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                                authenticate_transaction_inner(
+                                    &mut temporary_store,
+                                    protocol_config,
+                                    metrics.clone(),
+                                    &mut gas_charger,
+                                    authenticator.authenticator.clone(),
+                                    authenticator_function_ref_v1.clone(),
+                                    authenticator.input_objects.inner(),
+                                    transaction_kind.clone(),
+                                    transaction_digest,
+                                    auth_context_data.clone(),
+                                    tx_ctx.clone(),
+                                    trace_builder_opt,
+                                    move_vm,
+                                )
+                            }
+                        }
+                    });
+                report_authentication_error(result, protocol_config)
+            }
+            MoveAuthenticatorsForExecution::ResolutionFailed(error) => {
+                report_authentication_error(Err(error), protocol_config)
+            }
+        };
 
+        // A failure that refutes the attestation is charged to the attestor;
+        // the issuer's error is kept as the cause.
         let authentication_execution_result =
-            report_authentication_error(authentication_execution_result, protocol_config);
+            match (authentication_execution_result, attestation_judge) {
+                (Err(error), Some(judge)) if judge.is_refuted() => Err(
+                    ExecutionError::new_with_source(ExecutionErrorKind::InvalidAttestation, error),
+                ),
+                (result, _) => result,
+            };
 
         // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986
         // Capture whether authentication failed before the result is moved into the

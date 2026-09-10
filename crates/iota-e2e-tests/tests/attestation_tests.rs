@@ -290,10 +290,9 @@ struct ProtocolEnvOverride {
 impl ProtocolEnvOverride {
     fn new(overrides: &[(&'static str, &'static str)]) -> Self {
         for (key, val) in overrides {
-            // Set before any node thread is spawned; no concurrent env readers at this
-            // point.
-            #[allow(deprecated)]
-            std::env::set_var(key, val);
+            // SAFETY: set before any node thread is spawned; no concurrent env
+            // readers at this point.
+            unsafe { std::env::set_var(key, val) };
         }
         Self {
             keys: overrides.iter().map(|(k, _)| *k).collect(),
@@ -304,8 +303,9 @@ impl ProtocolEnvOverride {
 impl Drop for ProtocolEnvOverride {
     fn drop(&mut self) {
         for key in &self.keys {
-            #[allow(deprecated)]
-            std::env::remove_var(key);
+            // SAFETY: runs at test teardown, when no node thread reads the
+            // environment anymore.
+            unsafe { std::env::remove_var(key) };
         }
     }
 }

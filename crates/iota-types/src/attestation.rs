@@ -80,6 +80,26 @@ impl Attestation {
         } = payload;
         *computation_units
     }
+
+    pub fn object_versions(&self) -> &[ObjectReference] {
+        let payload = match self {
+            Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
+                payload
+            }
+        };
+        let AttestationData::V1 {
+            object_versions, ..
+        } = payload;
+        object_versions
+    }
+}
+
+/// Judges an attestation whose transaction failed Move authentication at
+/// execution.
+pub trait AttestationJudge {
+    /// Whether the failure refutes the attestation, so it is charged to the
+    /// attestor instead of the issuer.
+    fn is_refuted(&self) -> bool;
 }
 
 impl AttestedTransaction {

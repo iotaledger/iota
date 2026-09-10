@@ -47,6 +47,7 @@ pub mod traffic_controller;
 pub mod transaction_driver;
 mod transaction_input_loader;
 mod transaction_manager;
+pub use transaction_manager::VerifiedExecutableAttestedTransaction;
 pub mod transaction_orchestrator;
 mod transaction_outputs;
 pub(crate) mod validator_client_monitor;
