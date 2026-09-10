@@ -407,45 +407,18 @@ impl<'a> TablePruner<'a> {
             }
 
             PruningStrategy::ByOptimisticSeq => {
-                self.prune_by_optimistic_seq_with_limit(start, end).await?;
+                self.store
+                    .prune_table_by_optimistic_seq(&self.table, start, end)
+                    .await?;
+                info!(
+                    "pruned table {} for optimistic sequence number range [{start}..={end}]",
+                    self.table.as_ref(),
+                );
             }
 
             PruningStrategy::ByCheckpointWithLimit => {
                 self.prune_by_checkpoint_with_limit(start, end).await?;
             }
-        }
-        Ok(())
-    }
-
-    /// Prune table by `optimistic_sequence_number` range with LIMIT
-    /// Keeps deleting batches until no more rows are returned in the range
-    async fn prune_by_optimistic_seq_with_limit(
-        &self,
-        start: u64,
-        end: u64,
-    ) -> Result<(), IndexerError> {
-        let row_limit = self.pruning_batch_size;
-        loop {
-            let deleted = self
-                .store
-                .prune_table_by_optimistic_seq_with_limit(&self.table, start, end, row_limit as i64)
-                .await?;
-
-            if deleted < row_limit as usize {
-                info!(
-                    "finished pruning table {} for optimistic_seq range [{start}..={end}]",
-                    self.table.as_ref(),
-                );
-                break;
-            }
-
-            info!(
-                "pruned {deleted} rows from table {} (optimistic_seq range [{start}..={end}])",
-                self.table.as_ref(),
-            );
-
-            // Brief pause between batches
-            tokio::time::sleep(DELAY_BETWEEN_PRUNING_CHUNKS).await;
         }
         Ok(())
     }
