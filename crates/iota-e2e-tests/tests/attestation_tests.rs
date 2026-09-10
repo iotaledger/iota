@@ -49,6 +49,7 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
+    attestation::AttestationVerdict,
     messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, VerifiedCheckpoint},
     messages_grpc::TxStatusUpdate,
     move_authenticator::MoveAuthenticator,
@@ -285,7 +286,6 @@ async fn test_attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result
 
     let pt = test_env.craft_aa_simple_ptb()?;
     let tx_data = test_env.craft_tx_from_pt(pt, aa_gas, aa_sender).await?;
-    let max_attested_units = tx_data.gas_budget() / tx_data.gas_price();
     let tx_digest = tx_data.digest().into_inner();
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     let aa_tx = Transaction::from_user_sig_data(tx_data, signatures);
@@ -338,13 +338,7 @@ async fn test_attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result
         .position(|d| *d == digest)
         .expect("the checkpoint contains the transaction");
     let record = records[slot].expect("an attested transaction has a record");
-    assert!(record.valid, "an honest attestation is recorded valid");
-    assert!(
-        record.attested_computation_units > 0
-            && record.attested_computation_units <= max_attested_units,
-        "attested units {} must lie within the budget",
-        record.attested_computation_units
-    );
+    assert_eq!(record.verdict, AttestationVerdict::Valid);
     assert!(record.attestor.value() < committee_size);
     for (is_system, record) in is_system.iter().zip(&records) {
         if *is_system {

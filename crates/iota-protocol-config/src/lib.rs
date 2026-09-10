@@ -1393,6 +1393,11 @@ pub struct ProtocolConfig {
     /// `enable_validator_attestation`.
     checkpoint_summary_version_specific_data: Option<u64>,
 
+    /// Tolerance, in percent of the executed computation units, within which
+    /// an attestor's claimed units count as accurate. Unset disables the
+    /// check.
+    attestor_reward_accuracy_tolerance_percentage: Option<u64>,
+
     /// The max number of transactions that can be included in a single Soft
     /// Bundle.
     max_soft_bundle_size: Option<u64>,
@@ -2506,6 +2511,7 @@ impl ProtocolConfig {
             checkpoint_rate_window_size: None,
 
             checkpoint_summary_version_specific_data: Some(1),
+            attestor_reward_accuracy_tolerance_percentage: None,
 
             max_soft_bundle_size: Some(5),
 

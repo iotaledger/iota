@@ -3033,6 +3033,7 @@ mod tests {
         move_package::MovePackage,
     };
     use iota_types::{
+        attestation::AttestationVerdict,
         effects::{
             TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
             TransactionEvents,
@@ -3312,8 +3313,7 @@ mod tests {
         // Only the second transaction carries a verdict.
         let record = AttestationRecord {
             attestor: AuthorityIndex::new_for_test(0),
-            attested_computation_units: epoch_store.protocol_config().base_tx_cost_fixed(),
-            valid: true,
+            verdict: AttestationVerdict::Valid,
         };
         state
             .database_for_testing()

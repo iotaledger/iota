@@ -24,6 +24,7 @@ use iota_sdk_types::{
     validator::ValidatorCommitteeMember,
 };
 use iota_types::{
+    attestation::AttestationVerdict,
     base_types::{ExecutionData, ExecutionDigests},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -550,6 +551,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_type::<CheckpointVersionSpecificData>(&samples)
         .unwrap();
+    tracer.trace_type::<AttestationVerdict>(&samples).unwrap();
     tracer.trace_type::<CheckpointCommitment>(&samples).unwrap();
     tracer
         .trace_type::<ConsensusDeterminedVersionAssignments>(&samples)

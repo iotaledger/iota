@@ -28,8 +28,16 @@ AttestationRecord:
   STRUCT:
     - attestor:
         TYPENAME: AuthorityIndex
-    - attested_computation_units: U64
-    - valid: BOOL
+    - verdict:
+        TYPENAME: AttestationVerdict
+AttestationVerdict:
+  ENUM:
+    0:
+      Valid: UNIT
+    1:
+      Inaccurate: UNIT
+    2:
+      Refuted: UNIT
 AuthorityIndex:
   NEWTYPESTRUCT: U8
 AuthorityPublicKeyBytes:

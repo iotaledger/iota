@@ -68,7 +68,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{Attestation, AttestationRecord},
+    attestation::{Attestation, AttestationRecord, AttestationVerdict},
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
@@ -2370,9 +2370,21 @@ impl AuthorityState {
                 .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
         }
 
-        let attestation_record = transaction
-            .attestation()
-            .and_then(|attestation| AttestationRecord::new(attestation, !refuted));
+        let attestation_record = transaction.attestation().and_then(|attestation| {
+            // Same quotient the attestor computed for its claim.
+            let executed_units = effects
+                .gas_cost_summary()
+                .computation_cost
+                .checked_div(tx.gas_price())
+                .unwrap_or(0);
+            let verdict = AttestationVerdict::new(
+                refuted,
+                attestation.computation_units(),
+                executed_units,
+                protocol_config.attestor_reward_accuracy_tolerance_percentage_as_option(),
+            );
+            AttestationRecord::new(attestation, verdict)
+        });
 
         Ok((
             inner_temp_store,

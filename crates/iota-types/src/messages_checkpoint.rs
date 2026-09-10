@@ -749,7 +749,10 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use super::*;
-    use crate::{transaction::VerifiedTransaction, utils::make_committee_key};
+    use crate::{
+        attestation::AttestationVerdict, transaction::VerifiedTransaction,
+        utils::make_committee_key,
+    };
 
     // TODO use the file name as a seed
     const RNG_SEED: [u8; 32] = [
@@ -961,25 +964,24 @@ mod tests {
         }
     }
 
-    /// A record claiming the least an attestor can claim: the base cost of a
-    /// transaction.
-    fn attestation_record(config: &ProtocolConfig, attestor: u8, valid: bool) -> AttestationRecord {
+    fn attestation_record(attestor: u8, verdict: AttestationVerdict) -> AttestationRecord {
         AttestationRecord {
             attestor: AuthorityIndex::new_for_test(attestor),
-            attested_computation_units: config.base_tx_cost_fixed(),
-            valid,
+            verdict,
         }
     }
 
     #[test]
     fn version_specific_data_v2_bcs_round_trip() {
-        let config = ProtocolConfig::get_for_max_version_UNSAFE();
         let v1 = CheckpointVersionSpecificData::V1(CheckpointVersionSpecificDataV1 {
             randomness_rounds: vec![RandomnessRound::new(3)],
         });
         let v2 = CheckpointVersionSpecificData::V2(CheckpointVersionSpecificDataV2 {
             randomness_rounds: vec![RandomnessRound::new(3)],
-            attestations: vec![None, Some(attestation_record(&config, 2, false))],
+            attestations: vec![
+                None,
+                Some(attestation_record(2, AttestationVerdict::Refuted)),
+            ],
         });
 
         let v1_bytes = bcs::to_bytes(&v1).unwrap();
@@ -1006,7 +1008,7 @@ mod tests {
         let parsed_for = |version: u64| {
             let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
             config.set_checkpoint_summary_version_specific_data_for_testing(version);
-            let attestations = vec![None, Some(attestation_record(&config, 0, true))];
+            let attestations = vec![None, Some(attestation_record(0, AttestationVerdict::Valid))];
             let parsed = CheckpointSummary::new_with_protocol_config(
                 &config,
                 1,
