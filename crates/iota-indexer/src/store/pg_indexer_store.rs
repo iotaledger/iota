@@ -19,7 +19,7 @@ use iota_types::digests::ChainIdentifier;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 use tap::TapFallible;
-use tracing::{debug, info};
+use tracing::info;
 
 use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
@@ -87,7 +87,7 @@ pub struct TxGlobalOrderCursor {
 struct EpochPruningBounds {
     first_checkpoint_id: u64,
     first_tx_sequence_number: u64,
-    min_optimistic_sequence_number: Option<u64>,
+    first_optimistic_sequence_number: Option<u64>,
 }
 
 #[macro_export]
@@ -1068,18 +1068,16 @@ impl PgIndexerStore {
                     }
 
                     info!(epoch.new_epoch.epoch, "Persisting epoch beginning info");
-                    // Snapshot the `tx_global_order` sequence so the pruner can
-                    // later translate this epoch into an
-                    // `optimistic_transactions` delete range.
-                    // `nextval` consumes one value, which is harmless (serial
-                    // values are allowed to have gaps) and avoids
-                    // scanning the table for its MAX(), which has no index.
-                    let min_optimistic_seq = diesel::select(sql::<diesel::sql_types::BigInt>(
-                        "nextval(pg_get_serial_sequence('tx_global_order', 'optimistic_sequence_number'))",
-                    ))
-                    .get_result::<i64>(conn)?;
+
+                    let latest_optimistic_seq =
+                        diesel::select(sql::<diesel::sql_types::Nullable<diesel::sql_types::BigInt>>(
+                            "pg_sequence_last_value(pg_get_serial_sequence('tx_global_order', 'optimistic_sequence_number'))",
+                        ))
+                        .get_result::<Option<i64>>(conn)?;
+
                     let mut new_epoch = epoch.new_epoch.clone();
-                    new_epoch.min_optimistic_sequence_number = Some(min_optimistic_seq);
+                    new_epoch.first_optimistic_sequence_number =
+                        latest_optimistic_seq.map(|seq| seq + 1);
                     insert_or_ignore_into!(epochs::table, &new_epoch, conn);
                 }
                 Ok::<(), IndexerError>(())
@@ -1591,7 +1589,7 @@ impl PgIndexerStore {
                     epochs::epoch,
                     epochs::first_checkpoint_id,
                     epochs::first_tx_sequence_number,
-                    epochs::min_optimistic_sequence_number,
+                    epochs::first_optimistic_sequence_number,
                 ))
                 .load::<(i64, i64, i64, Option<i64>)>(conn)
         })
@@ -1605,7 +1603,7 @@ impl PgIndexerStore {
                     EpochPruningBounds {
                         first_checkpoint_id: checkpoint as u64,
                         first_tx_sequence_number: tx as u64,
-                        min_optimistic_sequence_number: optimistic_seq.map(|v| v as u64),
+                        first_optimistic_sequence_number: optimistic_seq.map(|v| v as u64),
                     },
                 )
             })
@@ -1622,36 +1620,30 @@ impl PgIndexerStore {
         let epoch_mapping = self.map_epochs_to_cp_tx(&epochs)?;
         let lookups: Result<Vec<StoredWatermark>, IndexerError> = watermarks
             .into_iter()
-            .filter_map(|(table, epoch)| {
-                let Some(bounds) = epoch_mapping.get(&epoch) else {
-                    return Some(Err(IndexerError::PersistentStorageDataCorruption(format!(
+            .map(|(table, epoch)| {
+                let bounds = epoch_mapping.get(&epoch).ok_or_else(|| {
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "epoch {epoch} not found in epoch mapping",
-                    ))));
-                };
+                    ))
+                })?;
 
-                // The `optimistic_transactions` watermark uses optimistic sequence numbers,
-                // not tx sequence numbers. Epochs predating `min_optimistic_sequence_number`
-                // have none; skip the update, which pauses pruning of this table until the
-                // retention boundary reaches an epoch with a value.
-                let is_optimistic_table =
-                    table.as_ref() == PrunableTable::OptimisticTransactions.as_ref();
-
+                // `optimistic_transactions` is bounded by optimistic sequence
+                // numbers. An epoch without a value yields 0,
+                // which the upsert's strictly-increasing filter
+                // rejects, leaving the watermark unchanged.
                 let min_available_tx =
-                    match (is_optimistic_table, bounds.min_optimistic_sequence_number) {
-                        (false, _) => bounds.first_tx_sequence_number,
-                        (true, Some(seq)) => seq,
-                        (true, None) => {
-                            debug!(epoch, "no min_optimistic_sequence_number for epoch; skipping optimistic_transactions lower bound update");
-                            return None;
-                        }
+                    if table.as_ref() == PrunableTable::OptimisticTransactions.as_ref() {
+                        bounds.first_optimistic_sequence_number.unwrap_or(0)
+                    } else {
+                        bounds.first_tx_sequence_number
                     };
 
-                Some(Ok(StoredWatermark::from_lower_bound_update(
+                Ok(StoredWatermark::from_lower_bound_update(
                     table.as_ref(),
                     epoch,
                     bounds.first_checkpoint_id,
                     min_available_tx,
-                )))
+                ))
             })
             .collect();
         let lower_bound_updates = lookups?;
