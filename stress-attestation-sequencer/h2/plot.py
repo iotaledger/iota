@@ -20,16 +20,25 @@ pooling arithmetic) and renders into <results>/summary_plots/:
                       is executed - cancelled - commits (aggregate.py owns
                       the definition), so it excludes both the transactions
                       that were cancelled and the per-commit system ones.
-  modes_mix.png       the mixed-cost configs (labels starting "mix"), which the
-                      figures above leave out: their tx/commit would be
-                      LIMIT_B over a MEAN cost, and the point of a mix is the
-                      spread around that mean. Top row, one panel per config:
-                      how many transactions each commit admitted, as the
-                      share of commits per histogram bucket, Run A next to
-                      Run B — a count limit pins it, a unit limit spreads it.
-                      Bottom row: success tps, cancellations and checkpoint
-                      lag, A next to B. Reads admits_hist.csv, which
-                      aggregate.py writes alongside summary.csv.
+  modes_mix.png       the mixed-cost configs run at LIMIT_B = 10 x mean cost
+                      (the count limit's equivalent), which the figures above
+                      leave out: their tx/commit would be LIMIT_B over a MEAN
+                      cost, and the point of a mix is the spread around that
+                      mean. Top: one panel per config, how many transactions
+                      each commit admitted as the share of commits per
+                      histogram bucket, Run A next to Run B — a count limit
+                      pins it, a unit limit spreads it. Bottom: success tps,
+                      cancellations and checkpoint lag, A next to B. Reads
+                      admits_hist.csv, which aggregate.py writes alongside
+                      summary.csv.
+  modes_mix_ladders.png
+                      the mixes that were run at several limits: success tps,
+                      cancellations and checkpoint lag against LIMIT_B, Run A
+                      as a horizontal reference, with the expensive
+                      transaction's cost and the 10 x mean rung marked. This
+                      is the "which limit" figure in the setting where the
+                      modes differ. The 300 s runs (-dur300) are left out of
+                      both; they are read as a table.
 
 The x-axis collapse works because tx/commit = LIMIT_B / units-per-tx: the
 grid's two axes only act through their ratio, so cost points become curves
@@ -515,22 +524,36 @@ def bucket_labels(edges):
     return out
 
 
-def plot_mix(cells, hist, outdir):
-    """One panel per mixed-cost config: the share of commits admitting each
-    number of transactions, Run A next to Run B; below, the outcome."""
-    cells = sorted(cells, key=lambda c: c["units_per_tx"] or 0)
+def mix_meta(c):
+    """(mean units, expensive weight %, LIMIT_B) parsed from a mix label."""
+    parts = c["label"].split("-")
+    weight = int(parts[1].lstrip("w"))
+    return c["units_per_tx"], weight, c["limit_b"]
+
+
+def plot_mix(configs, hist, outdir):
+    """The mixes at LIMIT_B = 10 x mean: one panel per config with the share
+    of commits admitting each number of transactions, Run A next to Run B;
+    below, the outcome."""
+    configs = sorted(configs, key=lambda c: c["units_per_tx"] or 0)
     edges = sorted(
-        {le for c in cells for arm in hist.get(c["label"], {}).values() for le in arm},
+        {
+            le
+            for c in configs
+            for arm in hist.get(c["label"], {}).values()
+            for le in arm
+        },
         key=lambda x: float("inf") if x == "+Inf" else float(x),
     )
     labels = bucket_labels(edges)
-    n = len(cells)
-    fig, axes = plt.subplots(
-        2, n, figsize=(2.9 * n, 7.6), gridspec_kw={"height_ratios": [1.35, 1]}
-    )
+    n = len(configs)
+    per_row = 6
+    rows = -(-n // per_row)
+    fig = plt.figure(figsize=(2.6 * per_row, 3.6 * rows + 3.4))
+    gs = fig.add_gridspec(rows + 1, per_row, height_ratios=[1.0] * rows + [0.95])
     ys = list(range(len(edges)))
-    for j, c in enumerate(cells):
-        ax = axes[0][j]
+    for j, c in enumerate(configs):
+        ax = fig.add_subplot(gs[j // per_row, j % per_row])
         for arm, color, off in (("a", A_COLOR, 0.19), ("b", B_COLOR, -0.19)):
             by = hist.get(c["label"], {}).get(arm, {})
             total = sum(by.values()) or 1.0
@@ -539,50 +562,43 @@ def plot_mix(cells, hist, outdir):
                 [y + off for y in ys], shares, height=0.36, color=color, linewidth=0
             )
             for y, s in zip(ys, shares):
-                if s >= 0.03:
+                if s >= 0.05:
                     ax.text(
                         s + 0.02,
                         y + off,
                         f"{100 * s:.0f}%",
                         va="center",
-                        fontsize=7,
+                        fontsize=6.5,
                         color=INK2,
                     )
         ax.set_yticks(ys)
-        ax.set_yticklabels(labels if j == 0 else [])
-        ax.set_xlim(0, 1.18)
+        ax.set_yticklabels(labels if j % per_row == 0 else [], fontsize=7)
+        ax.set_xlim(0, 1.2)
         ax.set_xticks([0, 0.5, 1.0])
-        ax.set_xticklabels(["0", "50%", "100%"])
+        ax.set_xticklabels(["0", "50%", "100%"], fontsize=7)
         ax.invert_yaxis()
-        weight = c["label"].split("-")[1].lstrip("w")
+        mean, weight, _ = mix_meta(c)
         ax.set_title(
-            f"{c['point']}\n{c['units_per_tx'] / 1e3:.1f}K units mean · "
-            f"{weight}% expensive",
-            fontsize=9,
+            f"{c['point']}\n{mean / 1e3:.1f}K mean · {weight}% expensive", fontsize=8.5
         )
         style_axes(ax)
         ax.grid(False, axis="y")
-    axes[0][0].set_ylabel("transactions admitted per commit")
-    axes[0][0].set_xlabel("share of commits")
+        if j % per_row == 0:
+            ax.set_ylabel("admitted per commit", fontsize=8)
+    fig.axes[0].set_xlabel("share of commits", fontsize=8)
 
-    # Bottom row: the outcome per config, A next to B. The remaining panels of
-    # the row are removed so the three metrics can share the row's width.
-    for ax in axes[1]:
-        ax.remove()
-    gs = axes[1][0].get_gridspec()
-    bottom = fig.add_subplot(gs[1, :]).get_gridspec()
-    fig.axes[-1].remove()
-    sub = gs[1, :].subgridspec(1, 3, wspace=0.35)
+    # Bottom row: the outcome per config, A next to B.
+    sub = gs[rows, :].subgridspec(1, 3, wspace=0.3)
     panels = (
         ("succ_tps", "success tps", "{:.0f}"),
         ("cancelled_per_s", "cancelled / s", "{:.0f}"),
-        ("lag_mean_s", "checkpoint lag mean (s)", "{:.2f}"),
+        ("lag_mean_s", "checkpoint lag mean (s)", "{:.1f}"),
     )
     xs = list(range(n))
     for k, (key, title, valfmt) in enumerate(panels):
         ax = fig.add_subplot(sub[0, k])
         for arm, color, off in (("a", A_COLOR, -0.18), ("b", B_COLOR, 0.18)):
-            vals = [c[f"{arm}_{key}"] or 0.0 for c in cells]
+            vals = [c[f"{arm}_{key}"] or 0.0 for c in configs]
             ax.bar([x + off for x in xs], vals, width=0.34, color=color, linewidth=0)
             for x, v in zip(xs, vals):
                 ax.text(
@@ -591,11 +607,13 @@ def plot_mix(cells, hist, outdir):
                     valfmt.format(v),
                     ha="center",
                     va="bottom",
-                    fontsize=7,
+                    fontsize=6,
                     color=INK2,
                 )
         ax.set_xticks(xs)
-        ax.set_xticklabels([c["point"] for c in cells], fontsize=8)
+        ax.set_xticklabels(
+            [c["point"] for c in configs], fontsize=7, rotation=45, ha="right"
+        )
         ax.set_title(title)
         ax.set_ylim(0, ax.get_ylim()[1] * 1.12)
         style_axes(ax)
@@ -615,17 +633,102 @@ def plot_mix(cells, hist, outdir):
         frameon=False,
         fontsize=8,
         ncol=2,
-        bbox_to_anchor=(0.99, 0.985),
+        bbox_to_anchor=(0.99, 0.99),
     )
     fig.suptitle(
-        "Mixed cost: a count limit pins the number admitted per commit,\n"
-        "a unit limit lets it swing — and admits more",
+        "Mixed cost at the count limit's equivalent: a count limit pins the "
+        "number\nadmitted per commit, a unit limit lets it swing",
         x=0.01,
         ha="left",
         fontsize=12,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.965), h_pad=2.0)
+    fig.tight_layout(rect=(0, 0, 1, 0.955), h_pad=1.6)
     fig.savefig(os.path.join(outdir, "modes_mix.png"), dpi=150)
+    plt.close(fig)
+
+
+def plot_mix_ladders(ladders, outdir):
+    """For each mix run at several limits: success, cancellations and lag
+    against LIMIT_B, Run A as the horizontal reference. `ladders` maps the
+    mix name to its configs."""
+    names = sorted(ladders, key=lambda k: ladders[k][0]["units_per_tx"] or 0)
+    panels = (
+        ("succ_tps", "success tps", "{:.0f}"),
+        ("cancelled_per_s", "cancelled / s", "{:.0f}"),
+        ("lag_mean_s", "checkpoint lag mean (s)", "{:.1f}"),
+    )
+    fig, axes = plt.subplots(
+        len(panels), len(names), figsize=(3.4 * len(names), 7.8), squeeze=False
+    )
+    for j, name in enumerate(names):
+        cfgs = sorted(ladders[name], key=lambda c: c["limit_b"])
+        mean, weight, _ = mix_meta(cfgs[0])
+        # The expensive level's cost, from mean = cheap + weight x (expensive -
+        # cheap) with the cheap level at 1,000 units in every ladder here.
+        expensive = 1000 + (mean - 1000) / (weight / 100.0)
+        expensive = round(expensive, -3)  # the level itself, not the noisy mean
+        for i, (key, title, valfmt) in enumerate(panels):
+            ax = axes[i][j]
+            xs = [c["limit_b"] for c in cfgs]
+            b = [c[f"b_{key}"] for c in cfgs]
+            a = sum(c[f"a_{key}"] for c in cfgs) / len(cfgs)
+            ax.axhline(a, color=A_COLOR, lw=1.6, ls="--")
+            ax.plot(xs, b, "-o", color=B_COLOR, lw=2, ms=5)
+            for x, v in zip(xs, b):
+                ax.annotate(
+                    valfmt.format(v),
+                    (x, v),
+                    xytext=(0, 6),
+                    textcoords="offset points",
+                    ha="center",
+                    fontsize=6.5,
+                    color=INK2,
+                )
+            ax.axvline(expensive, color=AXIS, lw=1, ls=":")
+            ax.axvline(10 * mean, color=MUTED, lw=1, ls=":")
+            ax.set_xscale("log")
+            ax.set_xticks(xs)
+            ax.set_xticklabels([kfmt(x) for x in xs], fontsize=7)
+            ax.minorticks_off()
+            ax.set_ylim(bottom=0)
+            style_axes(ax)
+            if i == 0:
+                ax.set_title(
+                    f"{name}\n1K / {kfmt(expensive)} units, {weight}% expensive",
+                    fontsize=9,
+                )
+            if j == 0:
+                ax.set_ylabel(title)
+            if i == len(panels) - 1:
+                ax.set_xlabel("LIMIT_B (units per object per commit)", fontsize=8)
+    fig.legend(
+        [
+            plt.Line2D([], [], color=A_COLOR, lw=1.6, ls="--"),
+            plt.Line2D([], [], color=B_COLOR, lw=2, marker="o"),
+            plt.Line2D([], [], color=AXIS, lw=1, ls=":"),
+            plt.Line2D([], [], color=MUTED, lw=1, ls=":"),
+        ],
+        [
+            "Run A — TotalTxCount, limit 10",
+            "Run B — TotalComputationUnits",
+            "the expensive transaction's cost",
+            "10 × mean cost",
+        ],
+        loc="upper left",
+        frameon=False,
+        fontsize=8,
+        ncol=4,
+        bbox_to_anchor=(0.01, 0.935),
+    )
+    fig.suptitle(
+        "Which unit limit: the best one admits one expensive transaction per "
+        "commit\nand leaves the rest of the budget to the cheap ones",
+        x=0.01,
+        ha="left",
+        fontsize=12,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.905))
+    fig.savefig(os.path.join(outdir, "modes_mix_ladders.png"), dpi=150)
     plt.close(fig)
 
 
@@ -657,10 +760,27 @@ def main():
     plot_tradeoff(points, outdir)
     plot_utilization(points, outdir)
     if mix:
-        plot_mix(mix, load_hist(os.path.join(results, "admits_hist.csv")), outdir)
+        # 300 s runs are read as a table, not drawn. Of the rest, a mix run at
+        # several limits is a ladder; a mix at LIMIT_B = 10 x mean is one of
+        # the matched configs.
+        short = [r for r in mix if "dur" not in r["label"]]
+        by_mix = {}
+        for r in short:
+            by_mix.setdefault(r["point"], []).append(r)
+        matched = [
+            r
+            for r in short
+            if r["units_per_tx"] and abs(r["limit_b"] / r["units_per_tx"] - 10) < 0.5
+        ]
+        ladders = {k: v for k, v in by_mix.items() if len(v) >= 2}
+        hist = load_hist(os.path.join(results, "admits_hist.csv"))
+        if matched:
+            plot_mix(matched, hist, outdir)
+        if ladders:
+            plot_mix_ladders(ladders, outdir)
     print(
-        f"{len(points)} cost point(s), {len(rows)} cells, {len(mix)} mixed-cost"
-        f" cell(s) -> {outdir}/modes_*.png",
+        f"{len(points)} cost point(s), {len(rows)} configs, {len(mix)} mixed-cost"
+        f" config(s) -> {outdir}/modes_*.png",
         file=sys.stderr,
     )
 
