@@ -15,7 +15,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffectsDigest, Version};
 use iota_types::{
-    attestation::Attestation,
+    attestation::{Attestation, AttestationRecord},
     committee::EpochId,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -97,17 +97,43 @@ pub struct VerifiedExecutableAttestedTransaction {
     tx: VerifiedExecutableTransaction,
     /// `None` for unattested transactions (e.g., `UserTransactionV1`).
     attestation: Option<Attestation>,
+    /// The verdict the checkpoint summary certifies, when executing from a
+    /// checkpoint. Never set together with `attestation`.
+    certified_record: Option<AttestationRecord>,
 }
 
 impl VerifiedExecutableAttestedTransaction {
     pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
-        Self { tx, attestation }
+        Self {
+            tx,
+            attestation,
+            certified_record: None,
+        }
+    }
+
+    /// For transactions executed from a certified checkpoint, which carry no
+    /// attestation but whose verdict is already certified.
+    pub fn new_certified(
+        tx: VerifiedExecutableTransaction,
+        certified_record: Option<AttestationRecord>,
+    ) -> Self {
+        Self {
+            tx,
+            attestation: None,
+            certified_record,
+        }
     }
 
     /// Returns the attached attestation, or `None` if the transaction was
     /// not attested.
     pub fn attestation(&self) -> Option<&Attestation> {
         self.attestation.as_ref()
+    }
+
+    /// Returns the certified verdict, or `None` unless an attested transaction
+    /// is executed from a checkpoint.
+    pub fn certified_record(&self) -> Option<AttestationRecord> {
+        self.certified_record
     }
 
     /// Returns the attestor's estimated computation units, or `None` if the
@@ -144,11 +170,8 @@ impl Deref for VerifiedExecutableAttestedTransaction {
 #[derive(Clone, Debug)]
 pub struct PendingTransaction {
     /// Certified transaction to be executed, paired with its pre-consensus
-    /// attestation when sequenced as `UserTransactionV2`. The attestation is
-    /// `None` for non-consensus paths (replay, change-epoch, finalizer) and
-    /// for `UserTransactionV1`. Available at execution time for future
-    /// consumers (comparison metrics, attestor reward/penalty accounting at
-    /// checkpoint time).
+    /// attestation when sequenced as `UserTransactionV2`, or with the certified
+    /// verdict when executed from a checkpoint.
     pub transaction: VerifiedExecutableAttestedTransaction,
 
     /// When executing from checkpoint, the certified effects digest is
@@ -482,21 +505,23 @@ impl TransactionManager {
 
     /// Enqueues transactions whose effects are already certified — the
     /// checkpoint-execution path — so execution is checked against the
-    /// expected effects digest.
+    /// expected effects digest. The effects do not depend on the attestation,
+    /// so it is not needed; the certified verdict is carried along instead.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn enqueue_with_expected_effects_digest(
         &self,
-        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
+        transactions: Vec<(
+            VerifiedExecutableTransaction,
+            TransactionEffectsDigest,
+            Option<AttestationRecord>,
+        )>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
         let transactions = transactions
             .into_iter()
-            .map(|(tx, fx)| {
+            .map(|(tx, fx, record)| {
                 (
-                    // Checkpoint replay carries no attestation: the effects do not
-                    // depend on it, and the verdict is read from the certified
-                    // checkpoint summary instead.
-                    VerifiedExecutableAttestedTransaction::new(tx, None),
+                    VerifiedExecutableAttestedTransaction::new_certified(tx, record),
                     Some(fx),
                 )
             })

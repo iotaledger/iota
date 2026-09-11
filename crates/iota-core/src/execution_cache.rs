@@ -1185,18 +1185,6 @@ pub trait CheckpointCache: Send + Sync {
         self.try_insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
             .expect("storage access failed")
     }
-
-    /// Persists the attestation records certified in a checkpoint summary.
-    fn try_insert_attestation_records(
-        &self,
-        records: &[(TransactionDigest, AttestationRecord)],
-    ) -> IotaResult;
-
-    /// Non-fallible version of `try_insert_attestation_records`.
-    fn insert_attestation_records(&self, records: &[(TransactionDigest, AttestationRecord)]) {
-        self.try_insert_attestation_records(records)
-            .expect("storage access failed")
-    }
 }
 
 pub trait ExecutionCacheReconfigAPI: Send + Sync {

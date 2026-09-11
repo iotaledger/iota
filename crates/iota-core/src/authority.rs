@@ -2370,20 +2370,24 @@ impl AuthorityState {
                 .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
         }
 
-        let attestation_record = transaction.attestation().and_then(|attestation| {
-            // Same quotient the attestor computed for its claim.
-            let executed_units = effects
-                .gas_cost_summary()
-                .computation_cost
-                .checked_div(tx.gas_price())
-                .unwrap_or(0);
-            let verdict = AttestationVerdict::new(
-                refuted,
-                attestation.computation_units(),
-                executed_units,
-                protocol_config.attestor_reward_accuracy_tolerance_percentage_as_option(),
-            );
-            AttestationRecord::new(attestation, verdict)
+        // Executing from a checkpoint copies the certified verdict through;
+        // executing from consensus judges it.
+        let attestation_record = transaction.certified_record().or_else(|| {
+            transaction.attestation().and_then(|attestation| {
+                // Same quotient the attestor computed for its claim.
+                let executed_units = effects
+                    .gas_cost_summary()
+                    .computation_cost
+                    .checked_div(tx.gas_price())
+                    .unwrap_or(0);
+                let verdict = AttestationVerdict::new(
+                    refuted,
+                    attestation.computation_units(),
+                    executed_units,
+                    protocol_config.attestor_reward_accuracy_tolerance_percentage_as_option(),
+                );
+                AttestationRecord::new(attestation, verdict)
+            })
         });
 
         Ok((
@@ -3828,7 +3832,11 @@ impl AuthorityState {
 
     pub fn enqueue_with_expected_effects_digest(
         &self,
-        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
+        transactions: Vec<(
+            VerifiedExecutableTransaction,
+            TransactionEffectsDigest,
+            Option<AttestationRecord>,
+        )>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
         self.transaction_manager

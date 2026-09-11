@@ -596,20 +596,6 @@ impl AuthorityStore {
     }
 
     // Implementation of the corresponding method of `CheckpointCache` trait.
-    pub(crate) fn insert_attestation_records(
-        &self,
-        records: &[(TransactionDigest, AttestationRecord)],
-    ) -> IotaResult {
-        let mut batch = self.perpetual_tables.attestation_records.batch();
-        batch.insert_batch(
-            &self.perpetual_tables.attestation_records,
-            records.iter().copied(),
-        )?;
-        batch.write()?;
-        Ok(())
-    }
-
-    // Implementation of the corresponding method of `CheckpointCache` trait.
     pub(crate) fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,

@@ -264,7 +264,7 @@ async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Erro
 /// The verdict on an attested transaction is certified in the checkpoint
 /// summary, one slot per transaction in contents order. The fullnode executes
 /// the checkpoint from state sync without the attestation, so its effects must
-/// match without it, and it reads the record from the summary.
+/// match without it, and it stores the record the summary certifies.
 #[sim_test]
 async fn test_attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result<(), anyhow::Error>
 {
@@ -293,13 +293,18 @@ async fn test_attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result
     test_env.submit_tx_v2(aa_tx).await?;
 
     let checkpoint = test_env.wait_for_transaction_checkpoint(&digest).await;
-    let (digests, records, is_system, committee_size) = test_env
+    let (digests, records, is_system, committee_size, stored_record) = test_env
         .test_cluster
         .fullnode_handle
         .iota_node
         .with(|node| {
             let state = node.state();
             let epoch_store = state.epoch_store_for_testing();
+            let stored_record = state
+                .get_transaction_cache_reader()
+                .multi_get_attestation_records(&[digest])
+                .pop()
+                .expect("one result per digest");
             let contents = state
                 .get_checkpoint_store()
                 .get_checkpoint_contents(&checkpoint.content_digest)
@@ -329,6 +334,7 @@ async fn test_attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result
                 records,
                 is_system,
                 epoch_store.committee().num_members(),
+                stored_record,
             )
         });
     assert_eq!(records.len(), digests.len(), "one slot per transaction");
@@ -340,6 +346,11 @@ async fn test_attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result
     let record = records[slot].expect("an attested transaction has a record");
     assert_eq!(record.verdict, AttestationVerdict::Valid);
     assert!(record.attestor.value() < committee_size);
+    assert_eq!(
+        stored_record,
+        Some(record),
+        "the fullnode stores the certified record although it executed without the attestation"
+    );
     for (is_system, record) in is_system.iter().zip(&records) {
         if *is_system {
             assert!(record.is_none(), "system transactions are never attested");

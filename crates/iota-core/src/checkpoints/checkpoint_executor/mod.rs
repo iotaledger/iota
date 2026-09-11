@@ -39,7 +39,7 @@ use iota_types::{
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
-        FullCheckpointContents, VerifiedCheckpoint,
+        CheckpointVersionSpecificData, FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::{
         SenderSignedTransactionAPI, TransactionDataAPI, TransactionKey, VerifiedTransaction,
@@ -85,6 +85,31 @@ pub(crate) struct CheckpointExecutionData {
     pub checkpoint_contents: CheckpointContents,
     pub tx_digests: Vec<TransactionDigest>,
     pub fx_digests: Vec<TransactionEffectsDigest>,
+    /// Parsed once from the summary.
+    pub version_specific_data: Option<CheckpointVersionSpecificData>,
+}
+
+impl CheckpointExecutionData {
+    /// The verdicts the summary certifies, one per transaction in contents
+    /// order; all `None` before summary version 2.
+    ///
+    /// # Panics
+    ///
+    /// If a version 2 summary does not carry exactly one slot per transaction,
+    /// which a certified checkpoint cannot do without a protocol bug.
+    fn certified_attestations(&self) -> Vec<Option<AttestationRecord>> {
+        match &self.version_specific_data {
+            Some(CheckpointVersionSpecificData::V2(data)) => {
+                assert_eq!(
+                    data.attestations.len(),
+                    self.tx_digests.len(),
+                    "certified summary must carry one attestation slot per transaction"
+                );
+                data.attestations.clone()
+            }
+            _ => vec![None; self.tx_digests.len()],
+        }
+    }
 }
 
 pub(crate) struct CheckpointTransactionData {
@@ -382,15 +407,7 @@ impl CheckpointExecutor {
             .handle_finalized_checkpoint(&ckpt_state.data.checkpoint, &ckpt_state.data.tx_digests)
             .expect("cannot fail");
 
-        self.insert_attestation_records_from_summary(
-            &ckpt_state.data.checkpoint,
-            &ckpt_state.data.checkpoint_contents,
-        );
-
-        let randomness_rounds = self.extract_randomness_rounds(
-            &ckpt_state.data.checkpoint,
-            &ckpt_state.data.checkpoint_contents,
-        );
+        let randomness_rounds = self.extract_randomness_rounds(&ckpt_state.data);
 
         if self.state.is_fullnode(&self.epoch_store) {
             let epoch = ckpt_state.data.checkpoint.epoch;
@@ -555,12 +572,14 @@ impl CheckpointExecutor {
 
         pipeline_handle.skip_to(PipelineStage::BuildDbBatch).await;
 
+        let version_specific_data = self.parse_version_specific_data(&checkpoint);
         CheckpointExecutionState::new_with_global_state_hash(
             CheckpointExecutionData {
                 checkpoint,
                 checkpoint_contents,
                 tx_digests,
                 fx_digests,
+                version_specific_data,
             },
             state_hash,
         )
@@ -733,6 +752,7 @@ impl CheckpointExecutor {
             .get_checkpoint_contents(&checkpoint.content_digest)
             .expect("db error")
             .expect("checkpoint contents not found");
+        let version_specific_data = self.parse_version_specific_data(&checkpoint);
 
         // attempt to load full checkpoint contents in bulk
         if let Some(full_contents) = self
@@ -775,6 +795,7 @@ impl CheckpointExecutor {
                     checkpoint_contents,
                     tx_digests,
                     fx_digests,
+                    version_specific_data,
                 }),
                 CheckpointTransactionData {
                     transactions,
@@ -854,6 +875,7 @@ impl CheckpointExecutor {
                     checkpoint_contents,
                     tx_digests,
                     fx_digests,
+                    version_specific_data,
                 }),
                 CheckpointTransactionData {
                     transactions,
@@ -872,6 +894,7 @@ impl CheckpointExecutor {
         tx_data: &CheckpointTransactionData,
     ) -> Vec<TransactionDigest> {
         // Find unexecuted transactions and their expected effects digests
+        let certified_attestations = ckpt_state.data.certified_attestations();
         let (unexecuted_tx_digests, unexecuted_txns, unexecuted_effects): (Vec<_>, Vec<_>, Vec<_>) =
             itertools::multiunzip(
                 itertools::izip!(
@@ -879,10 +902,11 @@ impl CheckpointExecutor {
                     ckpt_state.data.tx_digests.iter(),
                     ckpt_state.data.fx_digests.iter(),
                     tx_data.effects.iter(),
-                    tx_data.executed_fx_digests.iter()
+                    tx_data.executed_fx_digests.iter(),
+                    certified_attestations
                 )
                 .filter_map(
-                    |(txn, tx_digest, expected_fx_digest, effects, executed_fx_digest)| {
+                    |(txn, tx_digest, expected_fx_digest, effects, executed_fx_digest, record)| {
                         if let Some(executed_fx_digest) = executed_fx_digest {
                             assert_not_forked(
                                 &ckpt_state.data.checkpoint,
@@ -895,13 +919,17 @@ impl CheckpointExecutor {
                         } else if txn.transaction().is_end_of_epoch_tx() {
                             None
                         } else {
-                            Some((tx_digest, (txn.clone(), *expected_fx_digest), effects))
+                            Some((
+                                tx_digest,
+                                (txn.clone(), *expected_fx_digest, record),
+                                effects,
+                            ))
                         }
                     },
                 ),
             );
 
-        for ((tx, _), effects) in itertools::izip!(unexecuted_txns.iter(), unexecuted_effects) {
+        for ((tx, _, _), effects) in itertools::izip!(unexecuted_txns.iter(), unexecuted_effects) {
             if tx.contains_shared_object() {
                 self.epoch_store
                     .acquire_shared_version_assignments_from_effects(
@@ -966,7 +994,7 @@ impl CheckpointExecutor {
             change_epoch_fx.digest()
         );
         self.tx_manager.enqueue_with_expected_effects_digest(
-            vec![(change_epoch_tx.clone(), change_epoch_fx.digest())],
+            vec![(change_epoch_tx.clone(), change_epoch_fx.digest(), None)],
             &self.epoch_store,
         );
 
@@ -1046,58 +1074,26 @@ impl CheckpointExecutor {
         }
     }
 
-    /// Persists the attestation records certified in the summary. Nodes that
-    /// executed the checkpoint from state sync ran without attestations, so
-    /// this is their only source; for a locally built checkpoint it rewrites
-    /// the values the node computed itself.
-    fn insert_attestation_records_from_summary(
+    fn parse_version_specific_data(
         &self,
         checkpoint: &VerifiedCheckpoint,
-        checkpoint_contents: &CheckpointContents,
-    ) {
-        let Some(version_specific_data) = checkpoint
+    ) -> Option<CheckpointVersionSpecificData> {
+        checkpoint
             .parse_version_specific_data(self.epoch_store.protocol_config())
             .expect("unable to get version_specific_data")
-        else {
-            return;
-        };
-        let attestations = version_specific_data.attestations();
-        if attestations.is_empty() {
-            return;
-        }
-        assert_eq!(
-            attestations.len(),
-            checkpoint_contents.len(),
-            "certified summary must carry one attestation slot per transaction"
-        );
-        let records: Vec<(TransactionDigest, AttestationRecord)> = checkpoint_contents
-            .iter()
-            .zip(attestations)
-            .filter_map(|(digests, record)| record.map(|record| (digests.transaction, record)))
-            .collect();
-        if !records.is_empty() {
-            self.state
-                .get_checkpoint_cache()
-                .insert_attestation_records(&records);
-        }
     }
 
     // Extract randomness rounds from the checkpoint version-specific data (if
     // available). Otherwise, extract randomness rounds from the first
     // transaction in the checkpoint
     #[instrument(level = "debug", skip_all)]
-    fn extract_randomness_rounds(
-        &self,
-        checkpoint: &VerifiedCheckpoint,
-        checkpoint_contents: &CheckpointContents,
-    ) -> Vec<RandomnessRound> {
-        if let Some(version_specific_data) = checkpoint
-            .parse_version_specific_data(self.epoch_store.protocol_config())
-            .expect("unable to get version_specific_data")
-        {
+    fn extract_randomness_rounds(&self, data: &CheckpointExecutionData) -> Vec<RandomnessRound> {
+        let checkpoint = &data.checkpoint;
+        let checkpoint_contents = &data.checkpoint_contents;
+        if let Some(version_specific_data) = &data.version_specific_data {
             // With version-specific data, randomness rounds are stored in checkpoint
             // summary.
-            version_specific_data.into_randomness_rounds()
+            version_specific_data.randomness_rounds().to_vec()
         } else {
             // Before version-specific data, checkpoint batching must be disabled. In this
             // case, randomness state update tx must be first if it exists,

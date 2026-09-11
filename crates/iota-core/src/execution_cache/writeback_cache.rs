@@ -2309,13 +2309,6 @@ impl CheckpointCache for WritebackCache {
         self.store
             .insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
     }
-
-    fn try_insert_attestation_records(
-        &self,
-        records: &[(TransactionDigest, AttestationRecord)],
-    ) -> IotaResult {
-        self.store.insert_attestation_records(records)
-    }
 }
 
 impl ExecutionCacheReconfigAPI for WritebackCache {
