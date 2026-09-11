@@ -8,9 +8,9 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::ObjectReference;
+use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
-    attestation::{Attestation, AttestationData, AttestedTransaction},
+    attestation::{Attestation, AttestationData, AttestationRecord, AttestedTransaction},
     effects::TransactionEffects,
     messages_consensus::ConsensusTransaction,
     transaction::Transaction,
@@ -96,5 +96,14 @@ impl AbstractAccountTestEnv {
             .try_execute_immediately(&executable, None, &epoch_store)
             .unwrap();
         effects
+    }
+
+    /// The verdict the authority recorded for an executed transaction.
+    pub fn attestation_record(&self, digest: &TransactionDigest) -> Option<AttestationRecord> {
+        self.authority
+            .get_transaction_cache_reader()
+            .multi_get_attestation_records(&[*digest])
+            .pop()
+            .expect("one result per digest")
     }
 }

@@ -94,12 +94,62 @@ impl Attestation {
     }
 }
 
-/// Judges an attestation whose transaction failed Move authentication at
-/// execution.
-pub trait AttestationJudge {
-    /// Whether the failure refutes the attestation, so it is charged to the
-    /// attestor instead of the issuer.
-    fn is_refuted(&self) -> bool;
+/// The verdict on an attested, executed transaction. The variant order is
+/// protocol-significant: append, never reorder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AttestationVerdict {
+    /// The attestation stood and the claimed computation units were within
+    /// tolerance of the executed ones.
+    Valid,
+    /// The attestation stood but the claimed computation units were not.
+    Inaccurate,
+    /// Authentication failed at the versions the attestor recorded.
+    Refuted,
+}
+
+impl AttestationVerdict {
+    /// `tolerance_percentage` bounds `|attested - executed|` as a percentage of
+    /// the executed units; `None` disables the accuracy check.
+    pub fn new(
+        refuted: bool,
+        attested_units: u64,
+        executed_units: u64,
+        tolerance_percentage: Option<u64>,
+    ) -> Self {
+        if refuted {
+            return Self::Refuted;
+        }
+        let accurate = tolerance_percentage.is_none_or(|tolerance| {
+            attested_units.abs_diff(executed_units).saturating_mul(100)
+                <= tolerance.saturating_mul(executed_units)
+        });
+        if accurate {
+            Self::Valid
+        } else {
+            Self::Inaccurate
+        }
+    }
+}
+
+/// The validator's verdict on an attested, executed transaction, certified in
+/// the checkpoint summary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AttestationRecord {
+    pub attestor: AuthorityIndex,
+    pub verdict: AttestationVerdict,
+}
+
+impl AttestationRecord {
+    /// `None` for explicit attestations, which never reach execution.
+    pub fn new(attestation: &Attestation, verdict: AttestationVerdict) -> Option<Self> {
+        match attestation {
+            Attestation::Validator { attestor_index, .. } => Some(Self {
+                attestor: *attestor_index,
+                verdict,
+            }),
+            Attestation::Explicit { .. } => None,
+        }
+    }
 }
 
 impl AttestedTransaction {
@@ -159,6 +209,27 @@ mod tests {
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
         assert_eq!(decoded, attestation);
+    }
+
+    #[test]
+    fn verdict_accuracy_band() {
+        let judge = |attested, executed, tolerance| {
+            AttestationVerdict::new(false, attested, executed, tolerance)
+        };
+        assert_eq!(judge(90, 100, Some(10)), AttestationVerdict::Valid);
+        assert_eq!(judge(110, 100, Some(10)), AttestationVerdict::Valid);
+        assert_eq!(judge(89, 100, Some(10)), AttestationVerdict::Inaccurate);
+        assert_eq!(judge(111, 100, Some(10)), AttestationVerdict::Inaccurate);
+        // Zero executed units accept only a zero claim.
+        assert_eq!(judge(0, 0, Some(10)), AttestationVerdict::Valid);
+        assert_eq!(judge(1, 0, Some(10)), AttestationVerdict::Inaccurate);
+        // No tolerance configured disables the check.
+        assert_eq!(judge(1_000, 1, None), AttestationVerdict::Valid);
+        // A refutation wins over accuracy.
+        assert_eq!(
+            AttestationVerdict::new(true, 100, 100, Some(10)),
+            AttestationVerdict::Refuted
+        );
     }
 
     #[test]

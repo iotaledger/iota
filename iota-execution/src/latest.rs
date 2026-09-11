@@ -22,7 +22,6 @@ use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
     },
-    attestation::AttestationJudge,
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
@@ -199,7 +198,6 @@ impl executor::Executor for Executor {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
-        attestation_judge: Option<&dyn AttestationJudge>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -225,7 +223,6 @@ impl executor::Executor for Executor {
             transaction_signer,
             transaction_digest,
             auth_context_data,
-            attestation_judge,
             trace_builder_opt,
             &self.0,
         )

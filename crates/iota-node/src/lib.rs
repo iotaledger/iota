@@ -1681,7 +1681,8 @@ impl IotaNode {
                         .get_signed_effects_digest(tx.digest())
                         .expect("db error")
                     {
-                        pending_consensus_certificates.push((tx, fx_digest));
+                        // The validator's own certificates are never attested.
+                        pending_consensus_certificates.push((tx, fx_digest, None));
                     } else {
                         additional_certs.push(tx);
                     }
@@ -1692,7 +1693,7 @@ impl IotaNode {
 
         let digests = pending_consensus_certificates
             .iter()
-            .map(|(tx, _)| *tx.digest())
+            .map(|(tx, _, _)| *tx.digest())
             .collect::<Vec<_>>();
 
         info!(

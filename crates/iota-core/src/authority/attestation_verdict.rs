@@ -3,7 +3,8 @@
 
 //! Judges the attestation of a transaction whose Move authentication failed at
 //! execution, by re-running authentication at the object versions the attestor
-//! recorded. An attestor is charged only when the attestation is refuted.
+//! recorded. The verdict is recorded as `AttestationRecord::valid` and
+//! certified in the checkpoint summary; the transaction effects are unaffected.
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -19,7 +20,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{Attestation, AttestationJudge},
+    attestation::Attestation,
     auth_context::AuthContextData,
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind},
@@ -120,8 +121,9 @@ pub(crate) fn executed_versions(
         .collect()
 }
 
-impl AttestationJudge for AttestationVerdictContext<'_> {
-    fn is_refuted(&self) -> bool {
+impl AttestationVerdictContext<'_> {
+    /// Whether the failure refutes the attestation.
+    pub(crate) fn is_refuted(&self) -> bool {
         let reauthenticate = should_reauthenticate(
             self.attestation.object_versions(),
             &self.executed_versions,

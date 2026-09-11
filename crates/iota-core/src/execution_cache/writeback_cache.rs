@@ -63,6 +63,7 @@ use iota_sdk_types::{
     Version,
 };
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::{EpochId, VerifiedExecutionData},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
@@ -2000,6 +2001,42 @@ impl TransactionCacheRead for WritebackCache {
                 Ok(results)
             },
         )
+    }
+
+    fn try_multi_get_attestation_records(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+        let mut results = vec![None; digests.len()];
+        let mut remaining_digests = Vec::new();
+        let mut remaining_indices = Vec::new();
+        for (i, digest) in digests.iter().enumerate() {
+            self.metrics
+                .record_cache_request("attestation_record", "uncommitted");
+            // Pending outputs are authoritative: `None` there means unattested.
+            match self.dirty.pending_transaction_writes.get(digest) {
+                Some(outputs) => {
+                    self.metrics
+                        .record_cache_hit("attestation_record", "uncommitted");
+                    results[i] = outputs.attestation_record;
+                }
+                None => {
+                    self.metrics
+                        .record_cache_miss("attestation_record", "uncommitted");
+                    remaining_digests.push(*digest);
+                    remaining_indices.push(i);
+                }
+            }
+        }
+        if !remaining_digests.is_empty() {
+            let records = self
+                .record_db_multi_get("attestation_record", remaining_digests.len())
+                .multi_get_attestation_records(&remaining_digests)?;
+            for (i, record) in remaining_indices.into_iter().zip(records) {
+                results[i] = record;
+            }
+        }
+        Ok(results)
     }
 
     #[instrument(level = "trace", skip_all)]

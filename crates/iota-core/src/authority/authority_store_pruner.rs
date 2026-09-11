@@ -60,6 +60,7 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
         "transactions",
         "events",
         "executed_effects",
+        "attestation_records",
         "executed_transactions_to_checkpoint",
     ]
     .into_iter()
@@ -414,6 +415,7 @@ impl AuthorityStorePruner {
 
         perpetual_batch.delete_batch(&perpetual_db.transactions, transactions.iter())?;
         perpetual_batch.delete_batch(&perpetual_db.executed_effects, transactions.iter())?;
+        perpetual_batch.delete_batch(&perpetual_db.attestation_records, transactions.iter())?;
         perpetual_batch.delete_batch(
             &perpetual_db.executed_transactions_to_checkpoint,
             transactions,

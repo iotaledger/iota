@@ -182,6 +182,7 @@ impl Scenario {
             new_live_object_markers_to_init: Default::default(),
             written: Default::default(),
             record_superseded_versions: true,
+            attestation_record: None,
         }
     }
 

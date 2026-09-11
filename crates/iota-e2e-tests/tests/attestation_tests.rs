@@ -31,7 +31,7 @@
 //! `execute_transaction_return_raw_effects`, which internally calls
 //! `authority_aggregator()`.
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 use fastcrypto::{
     ed25519::Ed25519Signature,
@@ -49,6 +49,8 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
+    attestation::AttestationVerdict,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, VerifiedCheckpoint},
     messages_grpc::TxStatusUpdate,
     move_authenticator::MoveAuthenticator,
     move_package,
@@ -259,15 +261,119 @@ async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Erro
     Ok(())
 }
 
+/// The verdict on an attested transaction is certified in the checkpoint
+/// summary, one slot per transaction in contents order. The fullnode executes
+/// the checkpoint from state sync without the attestation, so its effects must
+/// match without it, and it stores the record the summary certifies.
+#[sim_test]
+async fn test_attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result<(), anyhow::Error>
+{
+    telemetry_subscribers::init_for_testing();
+    let _env = enable_attestation_env();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    let pt = test_env.craft_aa_simple_ptb()?;
+    let tx_data = test_env.craft_tx_from_pt(pt, aa_gas, aa_sender).await?;
+    let tx_digest = tx_data.digest().into_inner();
+    let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
+    let aa_tx = Transaction::from_user_sig_data(tx_data, signatures);
+    let digest = *aa_tx.digest();
+    test_env.submit_tx_v2(aa_tx).await?;
+
+    let checkpoint = test_env.wait_for_transaction_checkpoint(&digest).await;
+    let (digests, records, is_system, committee_size, stored_record) = test_env
+        .test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            let state = node.state();
+            let epoch_store = state.epoch_store_for_testing();
+            let stored_record = state
+                .get_transaction_cache_reader()
+                .multi_get_attestation_records(&[digest])
+                .pop()
+                .expect("one result per digest");
+            let contents = state
+                .get_checkpoint_store()
+                .get_checkpoint_contents(&checkpoint.content_digest)
+                .unwrap()
+                .expect("contents are stored with the checkpoint");
+            let digests: Vec<_> = contents.iter().map(|d| d.transaction).collect();
+            let records = checkpoint
+                .parse_version_specific_data(epoch_store.protocol_config())
+                .unwrap()
+                .expect("summaries carry version specific data")
+                .attestations()
+                .to_vec();
+            let is_system: Vec<bool> = digests
+                .iter()
+                .map(|digest| {
+                    state
+                        .get_transaction_cache_reader()
+                        .get_transaction_block(digest)
+                        .expect("synced transactions are stored")
+                        .data()
+                        .transaction()
+                        .is_system_tx()
+                })
+                .collect();
+            (
+                digests,
+                records,
+                is_system,
+                epoch_store.committee().num_members(),
+                stored_record,
+            )
+        });
+    assert_eq!(records.len(), digests.len(), "one slot per transaction");
+
+    let slot = digests
+        .iter()
+        .position(|d| *d == digest)
+        .expect("the checkpoint contains the transaction");
+    let record = records[slot].expect("an attested transaction has a record");
+    assert_eq!(record.verdict, AttestationVerdict::Valid);
+    assert!(record.attestor.value() < committee_size);
+    assert_eq!(
+        stored_record,
+        Some(record),
+        "the fullnode stores the certified record although it executed without the attestation"
+    );
+    for (is_system, record) in is_system.iter().zip(&records) {
+        if *is_system {
+            assert!(record.is_none(), "system transactions are never attested");
+        }
+    }
+
+    Ok(())
+}
+
 // --------------------------------------------------
 // --- Protocol config env override RAII guard ------
 // --------------------------------------------------
 
-/// Enable white-flag flow and validator attestation for every node. Must be
+/// Enable white-flag flow and validator attestation for every node, with the
+/// checkpoint summary version that carries the attestation records. Must be
 /// called BEFORE `TestClusterBuilder::build()` spawns node threads.
 fn enable_attestation_env() -> ProtocolEnvOverride {
     ProtocolEnvOverride::new(&[
         ("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1"),
+        (
+            "IOTA_PROTOCOL_CONFIG_OVERRIDE_CHECKPOINT_SUMMARY_VERSION_SPECIFIC_DATA",
+            "2",
+        ),
         (
             "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
             "true",
@@ -571,6 +677,33 @@ impl TestEnvironment {
         let mut tampered = *tx_digest;
         tampered[0] ^= 0xff;
         self.create_move_authenticator_for_ed25519(&tampered)
+    }
+
+    /// Waits until the fullnode has executed the checkpoint that contains the
+    /// transaction, and returns it.
+    async fn wait_for_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> VerifiedCheckpoint {
+        tokio::time::timeout(Duration::from_secs(60), async {
+            loop {
+                let checkpoint = self.test_cluster.fullnode_handle.iota_node.with(|node| {
+                    let state = node.state();
+                    state
+                        .get_transaction_checkpoint_for_tests(
+                            digest,
+                            &state.epoch_store_for_testing(),
+                        )
+                        .unwrap()
+                });
+                if let Some(checkpoint) = checkpoint {
+                    return checkpoint;
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        })
+        .await
+        .expect("the fullnode must execute the checkpoint with the transaction")
     }
 
     /// Submit a transaction via the V2 gRPC path on the first available

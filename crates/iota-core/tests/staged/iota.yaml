@@ -24,6 +24,22 @@ Argument:
         TUPLE:
           - U16
           - U16
+AttestationRecord:
+  STRUCT:
+    - attestor:
+        TYPENAME: AuthorityIndex
+    - verdict:
+        TYPENAME: AttestationVerdict
+AttestationVerdict:
+  ENUM:
+    0:
+      Valid: UNIT
+    1:
+      Inaccurate: UNIT
+    2:
+      Refuted: UNIT
+AuthorityIndex:
+  NEWTYPESTRUCT: U8
 AuthorityPublicKeyBytes:
   NEWTYPESTRUCT: BYTES
 AuthorityQuorumSignInfo:
@@ -185,6 +201,28 @@ CheckpointTransaction:
     - output_objects:
         SEQ:
           TYPENAME: Object
+CheckpointVersionSpecificData:
+  ENUM:
+    0:
+      V1:
+        NEWTYPE:
+          TYPENAME: CheckpointVersionSpecificDataV1
+    1:
+      V2:
+        NEWTYPE:
+          TYPENAME: CheckpointVersionSpecificDataV2
+CheckpointVersionSpecificDataV1:
+  STRUCT:
+    - randomness_rounds:
+        SEQ: U64
+CheckpointVersionSpecificDataV2:
+  STRUCT:
+    - randomness_rounds:
+        SEQ: U64
+    - attestations:
+        SEQ:
+          OPTION:
+            TYPENAME: AttestationRecord
 Command:
   ENUM:
     0:
