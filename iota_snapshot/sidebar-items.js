@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["EpochInfo","FileType","Manifest"],"fn":["accumulate_live_object_iter","create_file_metadata","default_download_concurrency","setup_db_state","verify_epoch_info_chain"],"mod":["progress","reader","restore","uploader"],"struct":["EpochInfoV1","FileMetadata","ManifestV1","ManifestV2","VerifiedEpochInfo"]};

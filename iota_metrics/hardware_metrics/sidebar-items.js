@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["HardwareMetricsErr"],"fn":["register_hardware_metrics"],"struct":["HardwareMetrics"]};

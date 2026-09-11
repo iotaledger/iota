@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Bag","Entry","Table","TableVec","VecMap","VecSet"]};

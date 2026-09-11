@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["IndexerTypeConfig"],"fn":["create_pg_store","db_url","force_delete_database","start_test_indexer","start_test_indexer_impl"],"struct":["IotaTransactionBlockResponseBuilder","RowCount","TestDatabase"],"type":["DBInitHook"]};

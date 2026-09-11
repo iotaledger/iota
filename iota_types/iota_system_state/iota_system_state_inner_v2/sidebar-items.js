@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["IotaSystemStateV2","ValidatorSetV2"]};

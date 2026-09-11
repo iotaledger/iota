@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["channel"],"struct":["Permit","Receiver","ReceiverStream","Sender","WeakSender"],"trait":["WithPermit"]};

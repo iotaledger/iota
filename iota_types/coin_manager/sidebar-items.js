@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["COIN_MANAGER_TREASURY_CAP_STRUCT_NAME"],"struct":["CoinManager","CoinManagerTreasuryCap","ImmutableCoinMetadata"]};

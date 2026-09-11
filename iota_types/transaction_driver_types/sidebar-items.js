@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["NON_RECOVERABLE_ERROR_MSG"],"enum":["EffectsFinalityInfo","TransactionSubmissionError","TransactionType"],"struct":["FinalizedEffects","TransactionDriverRequest","TransactionDriverResponse"],"type":["GroupedErrors","TransactionDriverEffectsQueueResult","TransactionDriverResult"]};

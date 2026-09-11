@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["FIXTURES_DIR","SELECTED_EPOCHS"],"fn":["download_checkpoints_from_checkpoint_store","full_checkpoint_file_path","main","write_full_checkpoint"]};

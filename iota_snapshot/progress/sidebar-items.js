@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["LOG_TARGET_PROGRESS"],"enum":["ProgressUnit"],"fn":["copy_files_with_progress","fetch_total_bytes","get_single_file_with_progress","get_with_progress","make_multi_progress","println_or_log"],"struct":["DownloadProgressBar","ProgressTicker"]};
