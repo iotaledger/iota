@@ -1618,8 +1618,13 @@ impl DagState {
         later_block: &VerifiedBlockHeader,
         earlier_round: Round,
     ) -> Vec<VerifiedBlockHeader> {
-        // Iterate through ancestors of later_block in round descending order.
-        let mut reachable: BTreeSet<BlockRef> = later_block.ancestors().iter().cloned().collect();
+        // Ancestors below the target round need not be present in the DAG.
+        let mut reachable: BTreeSet<BlockRef> = later_block
+            .ancestors()
+            .iter()
+            .filter(|ancestor| ancestor.round >= earlier_round)
+            .cloned()
+            .collect();
         while !reachable.is_empty() {
             let round = reachable.last().unwrap().round;
             // Stop after finishing traversal for ancestors above earlier_round.
