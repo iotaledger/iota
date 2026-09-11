@@ -229,13 +229,17 @@ pub(crate) enum ObjectLookup {
 
 pub(crate) type Cursor = cursor::BcsCursor<HistoricalObjectCursor>;
 
-/// The inner struct for the `Object`'s cursor. The `object_id` is used as the
-/// cursor, while the `checkpoint_viewed_at` sets the consistent upper bound for
-/// the cursor.
+/// The inner struct for the `Object`'s cursor. The `(object_id,
+/// object_version)` pair is used as the cursor, to be able to paginate requests
+/// for multiple versions of the same object, while the `checkpoint_viewed_at`
+/// sets the consistent upper bound for the cursor.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct HistoricalObjectCursor {
     #[serde(rename = "o")]
     object_id: Vec<u8>,
+    /// The version of the object this cursor points at.
+    #[serde(rename = "v")]
+    object_version: u64,
     /// The checkpoint sequence number this was viewed at.
     #[serde(rename = "c")]
     checkpoint_viewed_at: u64,
@@ -823,10 +827,10 @@ impl Object {
     }
 
     /// Query the database for a `page` of some sub-type of Object. The page
-    /// uses the bytes of an Object ID and the checkpoint when the query was
-    /// made as the cursor, and can optionally be further `filter`-ed. The
-    /// subtype is created using the `downcast` function, which is allowed
-    /// to fail, if the downcast has failed.
+    /// uses the bytes of an Object ID, the object version and the checkpoint
+    /// when the query was made as the cursor, and can optionally be further
+    /// `filter`-ed. The subtype is created using the `downcast` function,
+    /// which is allowed to fail, if the downcast has failed.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at
     /// which this page was queried for. Each entity returned in the
@@ -1252,9 +1256,10 @@ impl ObjectFilter {
 }
 
 impl HistoricalObjectCursor {
-    pub(crate) fn new(object_id: Vec<u8>, checkpoint_viewed_at: u64) -> Self {
+    pub(crate) fn new(object_id: Vec<u8>, object_version: u64, checkpoint_viewed_at: u64) -> Self {
         Self {
             object_id,
+            object_version,
             checkpoint_viewed_at,
         }
     }
@@ -1267,45 +1272,6 @@ impl Checkpointed for Cursor {
 }
 
 impl ScanLimited for Cursor {}
-
-impl RawPaginated<Cursor> for StoredHistoryObject {
-    fn filter_ge(cursor: &Cursor, query: RawQuery) -> RawQuery {
-        filter!(
-            query,
-            format!(
-                "candidates.object_id >= '\\x{}'::bytea",
-                hex::encode(cursor.object_id.clone())
-            )
-        )
-    }
-
-    fn filter_le(cursor: &Cursor, query: RawQuery) -> RawQuery {
-        filter!(
-            query,
-            format!(
-                "candidates.object_id <= '\\x{}'::bytea",
-                hex::encode(cursor.object_id.clone())
-            )
-        )
-    }
-
-    fn order(asc: bool, query: RawQuery) -> RawQuery {
-        if asc {
-            query.order_by("candidates.object_id ASC")
-        } else {
-            query.order_by("candidates.object_id DESC")
-        }
-    }
-}
-
-impl Target<Cursor> for StoredHistoryObject {
-    fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
-        Cursor::new(HistoricalObjectCursor::new(
-            self.object_id.clone(),
-            checkpoint_viewed_at,
-        ))
-    }
-}
 
 /// Query-result struct for the backward diff read path. Used by
 /// `build_backward_objects_query` which unions `checkpointed_objects` and
@@ -1370,31 +1336,43 @@ impl StoredBackwardObject {
 }
 
 impl RawPaginated<Cursor> for StoredBackwardObject {
+    // Returns rows lexicographically greater or equal to (object_id,
+    // object_version). The AND/OR form is used instead of ROW(object_id,
+    // object_version) because the latter was producing slower plans when combined
+    // with other filters.
     fn filter_ge(cursor: &Cursor, query: RawQuery) -> RawQuery {
+        let id = hex::encode(cursor.object_id.clone());
         filter!(
             query,
             format!(
-                "candidates.object_id >= '\\x{}'::bytea",
-                hex::encode(cursor.object_id.clone())
+                "candidates.object_id >= '\\x{id}'::bytea AND \
+                 (candidates.object_id > '\\x{id}'::bytea OR candidates.object_version >= {})",
+                cursor.object_version
             )
         )
     }
 
     fn filter_le(cursor: &Cursor, query: RawQuery) -> RawQuery {
+        let id = hex::encode(cursor.object_id.clone());
         filter!(
             query,
             format!(
-                "candidates.object_id <= '\\x{}'::bytea",
-                hex::encode(cursor.object_id.clone())
+                "candidates.object_id <= '\\x{id}'::bytea AND \
+                 (candidates.object_id < '\\x{id}'::bytea OR candidates.object_version <= {})",
+                cursor.object_version
             )
         )
     }
 
     fn order(asc: bool, query: RawQuery) -> RawQuery {
         if asc {
-            query.order_by("candidates.object_id ASC")
+            query
+                .order_by("candidates.object_id ASC")
+                .order_by("candidates.object_version ASC")
         } else {
-            query.order_by("candidates.object_id DESC")
+            query
+                .order_by("candidates.object_id DESC")
+                .order_by("candidates.object_version DESC")
         }
     }
 }
@@ -1403,6 +1381,7 @@ impl Target<Cursor> for StoredBackwardObject {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(HistoricalObjectCursor::new(
             self.object_id.clone(),
+            self.object_version as u64,
             checkpoint_viewed_at,
         ))
     }
@@ -2075,8 +2054,6 @@ fn backward_objects_query(
             format!("SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",),
             id_bindings.into_iter().chain(key_bindings).collect(),
         )
-        .order_by("object_id")
-        .limit(page.limit() as i64)
     } else if let Ok(keys_filter) = HistoricalFilter::try_from(filter.clone()) {
         historical::query(page, &keys_filter)
     } else {

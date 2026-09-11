@@ -6,7 +6,7 @@
 //! versions from `objects_backward_history`.
 
 use crate::{
-    backward_view::{ACTIVE, OBJECT_COLUMNS, merge_and_deduplicate},
+    backward_view::{ACTIVE, OBJECT_COLUMNS, merge},
     filter, query,
     raw_query::RawQuery,
     types::{
@@ -24,7 +24,7 @@ pub(crate) fn query(
     filter_fn: impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let checkpoint_viewed_at = checkpoint_viewed_at as i64;
-    merge_and_deduplicate(vec![
+    merge(vec![
         consistent_checkpointed_objects(checkpoint_viewed_at, page, &filter_fn),
         consistent_historical_objects(checkpoint_viewed_at, page, &filter_fn),
     ])
