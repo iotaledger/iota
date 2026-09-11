@@ -587,12 +587,24 @@ pub async fn setup_db_state(
     committee_store: Arc<CommitteeStore>,
     verify: bool,
     num_live_objects: u64,
+    chain_identifier: ChainIdentifier,
     m: MultiProgress,
 ) -> Result<()> {
     // This function should be called once state accumulator based hash verification
     // is complete and live object set state is downloaded to local store
     let system_state_object = get_iota_system_state(&perpetual_db)?;
-    let new_epoch_start_state = system_state_object.into_epoch_start_state();
+    let epoch_start_state = system_state_object.into_epoch_start_state();
+    // Feature-gated like the reconfiguration path in iota-node, so a restore
+    // reproduces the exact epoch-start state live nodes stored.
+    let new_epoch_start_state =
+        match iota_types::iota_system_state::attestor_registry::epoch_start_attestors(
+            &perpetual_db,
+            epoch_start_state.protocol_version(),
+            chain_identifier,
+        )? {
+            Some(attestors) => epoch_start_state.with_attestors(attestors),
+            None => epoch_start_state,
+        };
     let next_epoch_committee = new_epoch_start_state.get_iota_committee();
     let root_digest: ECMHLiveObjectSetDigest = state_hash.digest().into();
     let last_checkpoint = checkpoint_store

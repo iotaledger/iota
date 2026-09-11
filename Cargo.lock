@@ -8221,6 +8221,7 @@ dependencies = [
  "byteorder",
  "coset",
  "criterion",
+ "curve25519-dalek",
  "derive_more 1.0.0",
  "either",
  "enum_dispatch",

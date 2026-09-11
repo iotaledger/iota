@@ -3,6 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod attestor_commands;
 pub mod client_commands;
 #[macro_use]
 pub mod client_ptb;

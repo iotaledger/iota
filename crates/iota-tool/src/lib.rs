@@ -1029,6 +1029,7 @@ pub async fn download_formal_snapshot(
         committee_store,
         verify == SnapshotVerifyMode::Strict,
         num_live_objects,
+        expected_chain_id,
         m,
     )
     .await?;

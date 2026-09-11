@@ -31,6 +31,7 @@ use transfer::TransferReceiveObjectInternalCostParams;
 
 use self::{
     address::{AddressFromBytesCostParams, AddressFromU256CostParams, AddressToU256CostParams},
+    attestor_registry::AttestorValidatePubkeyCostParams,
     config::ConfigReadSettingImplCostParams,
     crypto::{
         bls12381,
@@ -90,6 +91,7 @@ use crate::{
 };
 
 mod address;
+mod attestor_registry;
 mod auth_context;
 pub mod authentication_context;
 mod config;
@@ -174,6 +176,9 @@ pub struct NativesCostTable {
 
     // Validator
     pub validator_validate_metadata_bcs_cost_params: ValidatorValidateMetadataBcsCostParams,
+
+    // Attestor registry
+    pub attestor_validate_pubkey_cost_params: AttestorValidatePubkeyCostParams,
 
     // Crypto natives
     pub crypto_invalid_arguments_cost: InternalGas,
@@ -533,6 +538,11 @@ impl NativesCostTable {
                 validator_validate_metadata_data_cost_per_byte: protocol_config
                     .validator_validate_metadata_data_cost_per_byte()
                     .into(),
+            },
+            attestor_validate_pubkey_cost_params: AttestorValidatePubkeyCostParams {
+                attestor_validate_pubkey_cost_base: protocol_config
+                    .attestor_validate_pubkey_cost_base_as_option()
+                    .map(Into::into),
             },
             bls12381_bls12381_min_sig_verify_cost_params: Bls12381Bls12381MinSigVerifyCostParams {
                 bls12381_bls12381_min_sig_verify_cost_base: protocol_config
@@ -1395,6 +1405,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "protocol_config",
             "set_attr_for_testing",
             make_native!(protocol_config::set_attr_for_testing),
+        ),
+        (
+            "attestor_registry",
+            "validate_attestor_pubkey",
+            make_native!(attestor_registry::validate_attestor_pubkey),
         ),
     ];
     iota_system_natives
