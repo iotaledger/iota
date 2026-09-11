@@ -250,11 +250,6 @@ pub enum IotaRpcInputError {
     #[error("{0}")]
     GenericInvalid(String),
 
-    #[error(
-        "request_type` must set to `None` or `WaitForLocalExecution` if effects is required in the response"
-    )]
-    InvalidExecuteTransactionRequestType,
-
     #[error("Unsupported protocol version requested. Min supported: {0}, max supported: {1}")]
     ProtocolVersionUnsupported(u64, u64),
 
