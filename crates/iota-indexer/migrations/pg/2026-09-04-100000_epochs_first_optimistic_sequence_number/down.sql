@@ -1,4 +1,5 @@
 ALTER TABLE epochs DROP COLUMN first_optimistic_sequence_number;
+DROP FUNCTION next_optimistic_sequence_number();
 
 -- The bounds were rewritten into the `optimistic_sequence_number` domain;
 -- reset them so pruning restarts on the `global_sequence_number` key the
