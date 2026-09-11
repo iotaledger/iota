@@ -1,0 +1,103 @@
+---
+title: Getting Started with Wasm
+sidebar_label: Wasm
+description: Install the Node.js Proof of Inclusion Package and construct and verify proofs from TypeScript.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - wasm
+  - typescript
+  - setup
+  - getting-started
+---
+
+# Getting Started with Wasm
+
+## Minimum Requirements
+
+- [Node.js](https://nodejs.org/) 24 or later
+
+## Install the Library
+
+If your project does not contain it already, install `@iota/iota-sdk` for the digest and object ID conversion helpers used in the examples.
+
+```bash npm2yarn
+npm install @iota/iota-sdk
+```
+
+Install the latest version of the Proof of Inclusion Package:
+
+```bash npm2yarn
+npm install @iota/proof-of-inclusion@latest
+```
+
+## Build the Library
+
+Alternatively, you can build the bindings to work with currently unreleased features. You can find instructions in the [`notarization` repository](https://github.com/iotaledger/notarization/tree/main/bindings/wasm/poi_wasm#build-from-source).
+
+## Usage in Node.js
+
+The Package supports Node.js. It does not provide a browser bundle.
+
+```ts
+import { ... } from "@iota/proof-of-inclusion";
+```
+
+## Construct and Verify a Proof
+
+The following example connects to an IOTA gRPC endpoint, constructs a testnet transaction proof, and verifies it with a trusted testnet genesis blob:
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import { fromBase58 } from "@iota/iota-sdk/utils";
+import { CommitteeResolution, PoiClient } from "@iota/proof-of-inclusion";
+
+const client = PoiClient.testnet();
+const transaction = fromBase58(transactionDigest);
+const proof = await client.makeProof({ transaction });
+
+const genesis = await readFile("trusted-testnet-genesis.blob");
+const resolution = CommitteeResolution.fromGenesis(genesis);
+const verifier = client.verifier(resolution);
+const verified = await verifier.verify(proof);
+
+console.log(verified.transaction);
+console.log(verified.checkpointEpoch);
+```
+
+`makeProof()` accepts optional `transaction`, `objects`, and `events` fields. Digest and object ID inputs are byte arrays, and every 64-bit value uses JavaScript `bigint`.
+
+Treat the returned `Proof` as untrusted until verification succeeds. Read authenticated object bytes with `verified.objectBcs(index)` and event bytes with `verified.eventContents(index)`.
+
+## Usage Examples
+
+The repository includes transaction, multi-target, verifier-reuse, object, event, and trusted-node examples.
+
+### Prerequisites
+
+The examples use the active IOTA CLI environment and wallet to create fresh ledger activity before constructing each proof.
+
+### Running an Example
+
+Clone the repository and build the Package before running an example:
+
+```bash
+git clone https://github.com/iotaledger/notarization.git
+cd notarization/bindings/wasm/poi_wasm
+npm install
+npm run build
+npm run example:node -- 01_transaction_proof
+```
+
+Run `06_trusted_node` only against an endpoint inside your trust boundary:
+
+```bash
+npm run example:node -- 06_trusted_node
+```
+
+See the [Wasm examples README](https://github.com/iotaledger/notarization/tree/main/bindings/wasm/poi_wasm/examples) for network, wallet, Package ID, and genesis requirements.
+
+## API Reference
+
+For complete API documentation, see the [Wasm API Reference](../references/wasm/api_ref.md).
