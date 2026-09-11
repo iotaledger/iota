@@ -54,17 +54,13 @@ type TransactionDataToCommit = (
     TransactionObjectChangesToCommit,
 );
 
-/// Sequence numbers assigned to an optimistic transaction when its
+/// Sequence number assigned to an optimistic transaction when its
 /// `tx_global_order` row is created.
 #[derive(QueryableByName)]
-struct AssignedGlobalOrder {
+struct AssignedSequenceNumber {
     /// Auto-generated sequence number by the insert.
     #[diesel(sql_type = sql_types::BigInt)]
     optimistic_sequence_number: i64,
-    /// The latest checkpointed `tx_sequence_number` at insertion time.
-    /// It is `None` when no checkpointed transaction has been indexed yet.
-    #[diesel(sql_type = sql_types::Nullable<sql_types::BigInt>)]
-    global_sequence_number: Option<i64>,
 }
 
 /// Represents the ingestion path taken after execution.
@@ -177,9 +173,9 @@ impl OptimisticTransactionExecutor {
         transaction: TransactionEnvelope,
         executed_transaction: ExecutedTransaction,
     ) -> Result<Option<OptimisticTransaction>, IndexerError> {
-        // The methods check for fields being Some. Based on the provided read mask,
-        // all fields should be Some, the only exception should be `checkpoint` &
-        // `timestamp` fields which are always None.
+        // The methods check for fields being Some. Based on the provided read
+        // mask, all fields should be Some, the only exception should be
+        // `checkpoint` & `timestamp` fields which are always None.
         let effects = executed_transaction.effects()?.effects()?;
         let events = executed_transaction.events()?.events()?;
         let input_objects = grpc_conversion::objects(executed_transaction.input_objects()?)?;
@@ -308,9 +304,9 @@ impl OptimisticTransactionExecutor {
             .metrics
             .optimistic_tx_db_wait_and_read_time
             .start_timer();
-        // When checkpoint indexing wins over optimistic indexing, the transaction row
-        // may be persisted before objects and other related tables. We wait until all
-        // such updates are completed.
+        // When checkpoint indexing wins over optimistic indexing, the
+        // transaction row may be persisted before objects and other
+        // related tables. We wait until all such updates are completed.
         self.wait_for_local_indexing(tx_digest).await?;
         let stored_transaction = self
             .read
@@ -430,16 +426,7 @@ impl OptimisticTransactionExecutor {
                     &self.metrics,
                 );
 
-                let global_sequence_number =
-                    assigned_global_order.global_sequence_number.ok_or_else(|| {
-                        IndexerError::PostgresRead(
-                            "cannot assign global order, no checkpointed transactions in tx_global_order"
-                                .into(),
-                        )
-                    })?;
-
-                let tx_data_to_commit =
-                    extractor.to_transaction_data_to_commit(global_sequence_number)?;
+                let tx_data_to_commit = extractor.to_transaction_data_to_commit()?;
 
                 let optimistic_tx = self.persist_optimistic_tx(conn, tx_data_to_commit)?;
                 Ok(Some(optimistic_tx))
@@ -452,19 +439,18 @@ impl OptimisticTransactionExecutor {
     fn assign_optimistic_tx_global_order(
         conn: &mut PgConnection,
         tx_digest: &TransactionDigest,
-    ) -> Result<AssignedGlobalOrder, IndexerError> {
+    ) -> Result<AssignedSequenceNumber, IndexerError> {
         let tx_digest_bytes = tx_digest.bytes().to_vec();
 
         sql_query(
             r#"
                 INSERT INTO tx_global_order (tx_digest, tx_sequence_number)
                 VALUES ($1, NULL)
-                RETURNING optimistic_sequence_number,
-                    (SELECT MAX(tx_sequence_number) FROM tx_global_order) AS global_sequence_number;
+                RETURNING optimistic_sequence_number;
             "#,
         )
         .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
-        .get_result::<AssignedGlobalOrder>(conn)
+        .get_result::<AssignedSequenceNumber>(conn)
         .map_err(|e| match e {
             diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
                 IndexerError::PostgresUniqueTxGlobalOrderViolation(e.to_string())
@@ -555,16 +541,12 @@ impl<'a> TransactionExtractor<'a> {
         })
     }
 
-    fn to_transaction_data_to_commit(
-        &self,
-        global_sequence_number: i64,
-    ) -> IndexerResult<TransactionDataToCommit> {
+    fn to_transaction_data_to_commit(&self) -> IndexerResult<TransactionDataToCommit> {
         let object_changes = self.get_object_changes()?;
         let (indexed_tx, _, _, _, indexed_displays) =
             self.get_indexed_transactions_events_and_displays()?;
 
-        let optimistic_tx =
-            OptimisticTransaction::from_stored(global_sequence_number, (&indexed_tx).into());
+        let optimistic_tx = OptimisticTransaction::from_stored((&indexed_tx).into());
 
         Ok((optimistic_tx, indexed_displays, object_changes))
     }
