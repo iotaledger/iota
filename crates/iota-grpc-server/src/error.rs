@@ -346,7 +346,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
             }
             NonRecoverableTransactionError { errors } => {
                 let new_errors: Vec<String> = errors
-                    .into_iter()
+                    .iter()
                     .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
                     .filter_map(|(err, _, _)| match &err {
                         IotaError::UserInput { error } => Some(error.to_string()),
@@ -360,10 +360,18 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     })
                     .collect();
 
-                assert!(
-                    !new_errors.is_empty(),
-                    "NonRecoverableTransactionError should have at least one non-retryable error"
-                );
+                // The constructor guarantees a non-retryable error, but
+                // rendering an error must never panic. Fall back to the
+                // unfiltered list if the invariant is broken.
+                if new_errors.is_empty() {
+                    return RpcError::new(
+                        Code::InvalidArgument,
+                        format!(
+                            "Transaction has non recoverable errors: {}.",
+                            errors.iter().map(|(err, _, _)| err.to_string()).join(", ")
+                        ),
+                    );
+                }
 
                 let error_list = new_errors.join(", ");
                 let error_msg = format!(
@@ -393,5 +401,24 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Missing indexes are a client-visible contract: `FailedPrecondition`,
+    /// both directly and through an anyhow chain.
+    #[test]
+    fn missing_indexes_render_as_failed_precondition() {
+        let expected: i32 = Code::FailedPrecondition.into();
+
+        let direct = RpcError::from(MissingIndexesError);
+        assert_eq!(direct.into_status_proto().code, expected);
+
+        let chained = anyhow::Error::from(MissingIndexesError).context("listing owned objects");
+        let via_chain = RpcError::from(chained);
+        assert_eq!(via_chain.into_status_proto().code, expected);
     }
 }
