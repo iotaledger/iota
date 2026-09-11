@@ -381,7 +381,7 @@ impl SimpleFaucet {
         match response.into_parts().0.into_iter().next() {
             Some(Ok(proto_object)) => Ok(Some(Object::from(proto_object.object()?))),
             // Per-item error: the object does not exist (anymore).
-            Some(Err(iota_grpc_client::Error::Server(status)))
+            Some(Err(iota_grpc_client::GrpcError::Server(status)))
                 if status.code == tonic::Code::NotFound as i32 =>
             {
                 Ok(None)

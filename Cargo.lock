@@ -7787,7 +7787,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2057eab05b4664ccba73c3968505634bfa877c1e#2057eab05b4664ccba73c3968505634bfa877c1e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea2291833b2156ca895cc9a57b9ff9af0279f555#ea2291833b2156ca895cc9a57b9ff9af0279f555"
 dependencies = [
  "base64ct",
  "bech32 0.12.0",
@@ -7814,7 +7814,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2057eab05b4664ccba73c3968505634bfa877c1e#2057eab05b4664ccba73c3968505634bfa877c1e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea2291833b2156ca895cc9a57b9ff9af0279f555#ea2291833b2156ca895cc9a57b9ff9af0279f555"
 dependencies = [
  "async-stream",
  "base64ct",
@@ -7847,7 +7847,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2057eab05b4664ccba73c3968505634bfa877c1e#2057eab05b4664ccba73c3968505634bfa877c1e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea2291833b2156ca895cc9a57b9ff9af0279f555#ea2291833b2156ca895cc9a57b9ff9af0279f555"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7855,7 +7855,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2057eab05b4664ccba73c3968505634bfa877c1e#2057eab05b4664ccba73c3968505634bfa877c1e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea2291833b2156ca895cc9a57b9ff9af0279f555#ea2291833b2156ca895cc9a57b9ff9af0279f555"
 dependencies = [
  "async-stream",
  "base64 0.23.1",
@@ -7875,7 +7875,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2057eab05b4664ccba73c3968505634bfa877c1e#2057eab05b4664ccba73c3968505634bfa877c1e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea2291833b2156ca895cc9a57b9ff9af0279f555#ea2291833b2156ca895cc9a57b9ff9af0279f555"
 dependencies = [
  "bcs 0.2.1",
  "iota-sdk-types",
@@ -7891,7 +7891,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-move-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2057eab05b4664ccba73c3968505634bfa877c1e#2057eab05b4664ccba73c3968505634bfa877c1e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea2291833b2156ca895cc9a57b9ff9af0279f555#ea2291833b2156ca895cc9a57b9ff9af0279f555"
 dependencies = [
  "bcs 0.2.1",
  "filetime",
@@ -7904,7 +7904,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2057eab05b4664ccba73c3968505634bfa877c1e#2057eab05b4664ccba73c3968505634bfa877c1e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea2291833b2156ca895cc9a57b9ff9af0279f555#ea2291833b2156ca895cc9a57b9ff9af0279f555"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
@@ -7923,7 +7923,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2057eab05b4664ccba73c3968505634bfa877c1e#2057eab05b4664ccba73c3968505634bfa877c1e"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea2291833b2156ca895cc9a57b9ff9af0279f555#ea2291833b2156ca895cc9a57b9ff9af0279f555"
 dependencies = [
  "base64ct",
  "bcs 0.2.1",
