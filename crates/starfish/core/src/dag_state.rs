@@ -36,7 +36,7 @@ use crate::{
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
-    cordial_knowledge::CordialKnowledgeMessage,
+    cordial_knowledge::{CordialKnowledgeMessage, EvictionRounds},
     error::ConsensusResult,
     leader_scoring::{ReputationScores, ScoringSubdag},
     misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
@@ -263,7 +263,7 @@ pub(crate) struct DagState {
     /// Contains recent own serialized shards with their Merkle proofs per
     /// authority. To access own shard for a given transaction_ref, one
     /// needs to read first the entry with index transaction_ref.author.
-    /// Eviction is aligned with headers
+    /// Evicted at the GC round of the last commit.
     recent_shards_by_authority: Vec<BTreeMap<GenericTransactionRef, Bytes>>,
     /// Indexes recent block headers refs by their authorities.
     /// Vec position corresponds to the authority index.
@@ -359,7 +359,10 @@ pub(crate) struct DagState {
     cached_rounds: Round,
 
     /// Cordial Knowledge senders (main updates, eviction rounds).
-    cordial_knowledge_senders: Option<(Sender<CordialKnowledgeMessage>, watch::Sender<Vec<Round>>)>,
+    cordial_knowledge_senders: Option<(
+        Sender<CordialKnowledgeMessage>,
+        watch::Sender<EvictionRounds>,
+    )>,
 
     /// History of strong-vote complaint masks against this node's own
     /// leader rounds, keyed by leader round.
@@ -521,7 +524,7 @@ impl DagState {
     pub fn set_cordial_knowledge_senders(
         &mut self,
         sender: Sender<CordialKnowledgeMessage>,
-        eviction_sender: watch::Sender<Vec<Round>>,
+        eviction_sender: watch::Sender<EvictionRounds>,
     ) {
         self.cordial_knowledge_senders = Some((sender, eviction_sender));
     }
@@ -2294,11 +2297,11 @@ impl DagState {
         }
     }
 
-    /// Clean up old shards. Used after flushing.
+    /// Evicts shards at or below the GC round of the last commit, including
+    /// those of blocks that were never accepted. Used after flushing.
     pub(crate) fn evict_shards(&mut self) {
+        let eviction_round = self.gc_round_for_last_commit();
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
-
             // Evict everything below split_key
             let split_key = GenericTransactionRef::from(TransactionRef {
                 round: eviction_round + 1,
@@ -2410,7 +2413,13 @@ impl DagState {
                 let eviction_round = self.calculate_authority_eviction_round(authority_index);
                 eviction_rounds.push(eviction_round);
             }
-            if eviction_sender.send(eviction_rounds).is_err() {
+            if eviction_sender
+                .send(EvictionRounds {
+                    headers: eviction_rounds,
+                    shards: self.gc_round_for_last_commit(),
+                })
+                .is_err()
+            {
                 warn!("Failed to send cordial knowledge eviction message: channel closed");
             }
         }
@@ -4608,6 +4617,63 @@ mod test {
         assert_eq!(
             cached_headers.last().map(|header| header.round()),
             Some(last_accepted_round)
+        );
+    }
+
+    /// Shards are evicted at the GC round even for an author without accepted
+    /// headers.
+    #[tokio::test]
+    async fn test_shard_eviction_without_accepted_headers() {
+        const NUM_ROUNDS: Round = 20;
+        let (mut context, _) = Context::new_for_test(4);
+        context.protocol_config.set_gc_depth_for_testing(3);
+        let context = Arc::new(context);
+        let mut dag_state = DagState::new(context.clone(), Arc::new(MemStore::new()));
+
+        let author = AuthorityIndex::new_for_test(3);
+        let shard_refs = (1..=NUM_ROUNDS)
+            .map(|round| {
+                GenericTransactionRef::from(TransactionRef {
+                    round,
+                    author,
+                    transactions_commitment: TransactionsCommitment::MIN,
+                })
+            })
+            .collect::<Vec<_>>();
+        for &gen_transaction_ref in &shard_refs {
+            dag_state.add_shard(VerifiedOwnShard {
+                serialized_shard: Bytes::from_static(&[0u8; 8]),
+                gen_transaction_ref,
+            });
+        }
+        let leader = BlockRef::new(
+            NUM_ROUNDS,
+            AuthorityIndex::new_for_test(0),
+            BlockHeaderDigest::MIN,
+        );
+        dag_state.set_last_commit(TrustedCommit::new_for_test(
+            &context,
+            1,
+            CommitDigest::MIN,
+            0,
+            leader,
+            vec![leader],
+            vec![],
+        ));
+
+        dag_state.flush();
+
+        let gc_round = dag_state.gc_round_for_last_commit();
+        assert_eq!(gc_round, NUM_ROUNDS - 6);
+        let cached_rounds = dag_state
+            .get_cached_shards(&shard_refs)
+            .into_iter()
+            .zip(1..=NUM_ROUNDS)
+            .filter_map(|(shard, round)| shard.map(|_| round))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            cached_rounds,
+            (gc_round + 1..=NUM_ROUNDS).collect::<Vec<_>>()
         );
     }
 
