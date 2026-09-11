@@ -221,26 +221,29 @@ impl SharedObjVerManager {
         })
     }
 
+    /// Returns the shared object versions each transaction was executed with,
+    /// taken from its effects. For a shared object with no
+    /// `next_shared_object_versions` entry yet in this epoch, this also
+    /// initializes one, so it must be called before these transactions are
+    /// executed locally.
     pub fn assign_versions_from_effects(
         transactions_and_effects: &[(&VerifiedExecutableTransaction, &TransactionEffects)],
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
-    ) -> AssignedTxAndVersions {
-        // We don't care about the results since we can use effects to assign versions.
-        // But we must call it to make sure whenever a shared object is touched the
-        // first time during an epoch, either through consensus or through
-        // checkpoint executor, its next version must be initialized. This is
-        // because we initialize the next version of a shared object in an epoch
-        // by reading the current version from the object store. This must be
-        // done before we mutate it the first time, otherwise we would be initializing
-        // it with the wrong version.
-        let _ = get_or_init_versions(
+    ) -> IotaResult<AssignedTxAndVersions> {
+        // The versions returned here are unused - the assignments below come
+        // from the effects. The call is made for its side effect: initializing
+        // each shared object's next version for this epoch from the version the
+        // object holds now. These transactions are about to bump that version,
+        // so an initialization that fails and runs on a later call instead
+        // records a version no other validator counts from.
+        get_or_init_versions(
             transactions_and_effects
                 .iter()
                 .flat_map(|(tx, _)| tx.shared_input_objects()),
             epoch_store,
             cache_reader,
-        );
+        )?;
 
         let mut assigned_versions = Vec::new();
         for (transaction, effects) in transactions_and_effects {
@@ -275,7 +278,7 @@ impl SharedObjVerManager {
             );
             assigned_versions.push((tx_key, tx_assigned_versions));
         }
-        AssignedTxAndVersions::new(assigned_versions)
+        Ok(AssignedTxAndVersions::new(assigned_versions))
     }
 
     pub fn assign_versions_for_transaction(
@@ -502,6 +505,7 @@ mod tests {
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         effects::TestEffectsBuilder,
+        error::IotaError,
         executable_transaction::{
             CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
         },
@@ -1079,7 +1083,8 @@ mod tests {
                 .as_slice(),
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-        );
+        )
+        .unwrap();
         // Check that the shared object's next version is always initialized in the
         // epoch store.
         assert_eq!(
@@ -1106,6 +1111,42 @@ mod tests {
                     vec![VersionAssignment::new(id, Version::from_u64(10)),]
                 ),
             ]
+        );
+    }
+
+    // Initializing a shared object's next version must not fail silently: a
+    // validator that skipped it would initialize the object on a later call,
+    // after these transactions have bumped its version.
+    #[tokio::test]
+    async fn test_assign_versions_from_effects_reports_initialization_failure() {
+        let shared_object = Object::shared_for_testing();
+        let id = shared_object.id();
+        let init_shared_version = shared_object
+            .owner
+            .into_opt_shared()
+            .expect("expected shared object");
+
+        let authority = TestAuthorityBuilder::new()
+            .with_starting_objects(std::slice::from_ref(&shared_object))
+            .build()
+            .await;
+
+        let transaction =
+            generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 3);
+        let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let epoch_store = authority.epoch_store_for_testing();
+        // Releasing the epoch tables makes the initialization fail.
+        epoch_store.release_db_handles();
+
+        let result = SharedObjVerManager::assign_versions_from_effects(
+            &[(&transaction, &effects)],
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+        );
+
+        assert!(
+            matches!(result, Err(IotaError::EpochEnded(_))),
+            "expected the initialization error to be reported, got {result:?}"
         );
     }
 
@@ -1187,7 +1228,8 @@ mod tests {
             &[(&transaction, &effects)],
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-        );
+        )
+        .unwrap();
         assert_eq!(
             replay_assignment.0,
             vec![(transaction.key(), expected_assignment)]

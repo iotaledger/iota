@@ -930,7 +930,7 @@ impl CheckpointExecutor {
                                     effects,
                                     &*self.object_cache_reader,
                                 )
-                                .expect("failed to acquire shared version assignments")
+                                .expect("failed to initialize shared object versions from effects")
                         } else {
                             Default::default()
                         };
@@ -991,7 +991,7 @@ impl CheckpointExecutor {
                 change_epoch_fx,
                 self.object_cache_reader.as_ref(),
             )
-            .expect("Acquiring shared version assignments for change_epoch tx cannot fail");
+            .expect("failed to initialize shared object versions for the change epoch transaction");
 
         info!(
             "scheduling change epoch txn with digest: {:?}, expected effects digest: {:?}, \
