@@ -3,18 +3,19 @@
 
 use std::fmt;
 
-use iota_sdk_types::{Address, DenyRuleSet, Identifier, Version};
+use iota_sdk_move_types::iota_framework::linked_table::{LinkedTable, Node};
+pub use iota_sdk_move_types::iota_framework::transaction_deny_rules::{
+    TransactionDenyRules, TransactionDenyRulesInnerV1,
+};
+use iota_sdk_types::{DenyRuleSet, Identifier, Version};
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS, IOTA_TRANSACTION_DENY_RULES_OBJECT_ID, MoveTypeTagTrait,
-    collection_types::{LinkedTable, LinkedTableNode},
     dynamic_field::get_dynamic_field_from_store,
     error::{IotaError, IotaResult},
-    id::{ID, UID},
     storage::ObjectStore,
-    versioned::Versioned,
 };
 
 pub const TRANSACTION_DENY_RULES_MODULE_NAME: &IdentStr = ident_str!("transaction_deny_rules");
@@ -30,9 +31,9 @@ pub const RESOLVED_IOTA_TRANSACTION_DENY_RULES: (&AccountAddress, &IdentStr, &Id
     ident_str!("TransactionDenyRules"),
 );
 
-/// The initial shared version of the `TransactionDenyRules` object, or `None`
-/// while the object has not been created yet (the
-/// `TransactionDenyRulesCreate` end-of-epoch transaction has not run).
+/// The initial shared version of the `TransactionDenyRules` object. Returns
+/// `None` while the `TransactionDenyRulesCreate` end-of-epoch transaction has
+/// not created the object yet.
 ///
 /// # Panics
 ///
@@ -52,35 +53,11 @@ pub fn get_transaction_deny_rules_obj_initial_shared_version(
 
 pub const TRANSACTION_DENY_RULES_INNER_V1: u64 = 1;
 
-/// Rust version of the Move `transaction_deny_rules::TransactionDenyRules`
-/// type.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TransactionDenyRules {
-    pub id: UID,
-    pub inner: Versioned,
-}
-
-/// Rust version of the Move
-/// `transaction_deny_rules::TransactionDenyRulesInnerV1` type.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TransactionDenyRulesInnerV1 {
-    pub version: u64,
-    pub denied_addresses: LinkedTable<Address>,
-    pub denied_objects: LinkedTable<ID>,
-    pub denied_packages: LinkedTable<ID>,
-    pub package_publish_disabled: bool,
-    pub package_upgrade_disabled: bool,
-    pub shared_object_disabled: bool,
-    pub user_transaction_disabled: bool,
-    pub receiving_objects_disabled: bool,
-    pub move_authenticator_disabled: bool,
-}
-
-/// The full deny rule state read back from the `TransactionDenyRules` object,
-/// or `None` while the object has not been created yet.
+/// The full deny rule state read back from the `TransactionDenyRules` object.
+/// Returns `None` while the object has not been created yet.
 ///
-/// Each deny list is reconstructed by walking its `LinkedTable` (`head` →
-/// `node.next`) with derived-id child reads, so any node can rebuild the
+/// Each deny list is reconstructed by walking its `LinkedTable` from `head`
+/// through `node.next` with derived-id child reads. Any node can rebuild the
 /// state from its object store alone. Validators seed enforcement and the
 /// mirrored on-chain state from this at epoch start.
 pub fn get_transaction_deny_rules(
@@ -132,29 +109,29 @@ pub fn get_transaction_deny_rules(
 }
 
 /// Collects a `LinkedTable`'s keys in list order by following the `next`
-/// links, one derived-id child read per entry.
+/// links. Each entry costs one derived-id child read.
 fn walk_linked_table<K>(
     object_store: &dyn ObjectStore,
-    table: &LinkedTable<K>,
+    table: &LinkedTable<K, bool>,
 ) -> IotaResult<Vec<K>>
 where
     K: MoveTypeTagTrait + Serialize + DeserializeOwned + Clone + fmt::Debug,
 {
+    let table_id = table.id.id.bytes;
     let mut keys = Vec::with_capacity(table.size as usize);
     let mut next = table.head.clone();
     while let Some(key) = next {
-        // A cycle in the links would otherwise never terminate; the walk can
-        // only visit `size` distinct entries.
+        // A cycle in the links would otherwise never terminate. The walk
+        // visits at most `size` entries.
         if keys.len() as u64 == table.size {
             return Err(IotaError::ObjectDeserialization {
                 error: format!(
                     "LinkedTable {} has more linked entries than its size {}",
-                    table.id, table.size
+                    table_id, table.size
                 ),
             });
         }
-        let node: LinkedTableNode<K, bool> =
-            get_dynamic_field_from_store(object_store, table.id, &key)?;
+        let node: Node<K, bool> = get_dynamic_field_from_store(object_store, table_id, &key)?;
         keys.push(key);
         next = node.next;
     }
@@ -162,7 +139,7 @@ where
         return Err(IotaError::ObjectDeserialization {
             error: format!(
                 "LinkedTable {} links {} entries but its size is {}",
-                table.id,
+                table_id,
                 keys.len(),
                 table.size
             ),

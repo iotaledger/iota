@@ -4,14 +4,17 @@
 //! Unit tests for post-consensus transaction validation and owned-object
 //! conflict resolution.
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
+use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, Command, Identifier, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
     Version,
 };
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     error::{IotaError, UserInputError},
@@ -20,17 +23,18 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionKey,
-        VerifiedTransaction,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionEnvelope,
+        TransactionKey, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };
 
 use crate::{
     authority::{
-        ExecutionEnv,
+        AuthorityState, ExecutionEnv,
         authority_per_epoch_store::{LockDetails, consensus_quarantine::ConsensusCommitOutput},
         authority_tests::init_state_with_objects_and_object_basics,
+        test_authority_builder::TestAuthorityBuilder,
     },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::{SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction},
@@ -2239,4 +2243,147 @@ async fn test_already_executed_tx_does_not_lock_immutable_input() {
         "an owned input the Move call never mutated is still consumed, so it \
          is still locked"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Verifier limits for published packages
+// ---------------------------------------------------------------------------
+
+/// An authority whose own `VerifierSigningConfig` rejects every package, and
+/// a transaction that publishes the `object_basics` test package.
+struct PublishSetup {
+    authority: Arc<AuthorityState>,
+    tx: TransactionEnvelope,
+}
+
+/// What an operator would write in the node YAML to tighten the signing-time
+/// verifier. A one-tick meter limit fails the first function it meters.
+const ONE_TICK_VERIFIER_SIGNING_CONFIG_YAML: &str = concat!(
+    "max-per-fun-meter-units: 1\n",
+    "max-per-mod-meter-units: 1\n",
+    "max-per-pkg-meter-units: 1\n",
+);
+
+/// Builds an authority from `ONE_TICK_VERIFIER_SIGNING_CONFIG_YAML` and a
+/// signed transaction publishing `object_basics` from a fresh sender's gas
+/// coin. Nothing is executed or validated here; each test drives the checks
+/// itself after setting the protocol flags.
+async fn setup_publish_with_one_tick_node_limits() -> PublishSetup {
+    let node_limits: VerifierSigningConfig =
+        serde_yaml::from_str(ONE_TICK_VERIFIER_SIGNING_CONFIG_YAML).unwrap();
+    let authority = TestAuthorityBuilder::new()
+        .with_verifier_signing_config(node_limits)
+        .build()
+        .await;
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    authority.insert_genesis_object(Object::with_id_owner_for_testing(gas_id, sender));
+
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/unit_tests/data/object_basics");
+    let tx_data = TestTransactionBuilder::new(sender, gas_ref, rgp)
+        .publish(path)
+        .build();
+
+    PublishSetup {
+        authority,
+        tx: to_sender_signed_transaction(tx_data, &sender_key),
+    }
+}
+
+/// Admission on this authority rejects the package under its own limits, so
+/// the post-consensus verdict below is decided by where the limits come from.
+async fn assert_node_limits_reject(setup: &PublishSetup) {
+    let epoch_store = setup.authority.epoch_store_for_testing();
+    let admission = setup
+        .authority
+        .handle_transaction_validation_checks(
+            &VerifiedTransaction::new_unchecked(setup.tx.clone()),
+            &epoch_store,
+            &setup.authority.config.transaction_deny_config,
+            false,
+            VerifierLimitsSource::NodeConfig(&setup.authority.config.verifier_signing_config),
+        )
+        .await;
+
+    assert!(
+        matches!(
+            admission,
+            Err(IotaError::UserInput {
+                error: UserInputError::PackageVerificationTimedout { .. }
+            })
+        ),
+        "the node's own limits must reject the package: {admission:?}"
+    );
+}
+
+/// With `pcool_verifier_limits_from_protocol_config` set, post-consensus
+/// validation meters a published package with the protocol config's limits.
+/// A validator whose own `VerifierSigningConfig` would reject the package
+/// keeps it, as every validator on default settings does.
+#[tokio::test]
+async fn post_consensus_validation_meters_packages_with_protocol_limits() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_verifier_limits_from_protocol_config_for_testing(true);
+        config
+    });
+    let setup = setup_publish_with_one_tick_node_limits().await;
+    assert_node_limits_reject(&setup).await;
+
+    let epoch_store = setup.authority.epoch_store_for_testing();
+    let mut transactions = vec![make_user_tx_v1(setup.tx.clone())];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &setup.authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        dropped.is_empty(),
+        "post-consensus validation dropped the package even though the protocol \
+            config's limits should accept it: {dropped:?}"
+    );
+    assert_eq!(transactions.len(), 1);
+    assert_eq!(locks.len(), 1, "only the gas coin is locked");
+}
+
+/// Without the flag, post-consensus validation still meters with this
+/// validator's own `VerifierSigningConfig`: the package is dropped here
+/// while validators on default settings keep it.
+#[tokio::test]
+async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_disabled() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_verifier_limits_from_protocol_config_for_testing(false);
+        config
+    });
+    let setup = setup_publish_with_one_tick_node_limits().await;
+    assert_node_limits_reject(&setup).await;
+
+    let epoch_store = setup.authority.epoch_store_for_testing();
+    let digest = *setup.tx.digest();
+    let mut transactions = vec![make_user_tx_v1(setup.tx.clone())];
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &setup.authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(dropped.len(), 1);
+    assert_eq!(dropped[0].0, digest);
+    assert!(matches!(
+        &dropped[0].1,
+        IotaError::UserInput {
+            error: UserInputError::PackageVerificationTimedout { .. }
+        }
+    ));
+    assert!(transactions.is_empty());
+    assert!(locks.is_empty(), "dropped transaction must not take locks");
 }

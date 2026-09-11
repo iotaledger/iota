@@ -38,8 +38,9 @@
 //! keeps being sampled and a failed peer re-enters the ranked draw as soon as
 //! a fetch succeeds again.
 //!
-//! The block-bundle streaming path is tracked separately, per (peer, author)
-//! pair; see [`PeerResponsiveness::record_streaming_header_deliveries`].
+//! Block-bundle streaming also tracks primary block-stream latency per peer,
+//! used for shard peer selection, and header delivery latency per
+//! (peer, author) pair, used for header peer selection.
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -173,14 +174,24 @@ struct Tracks {
     per_kind: HashMap<DataSource, Vec<PeerStat>>,
 }
 
-/// Tracks per-peer responsiveness and ranks candidates for synchronizer peer
-/// selection. Shared per epoch.
+/// Tracks per-peer responsiveness to select peers for the transactions
+/// synchronizer, the commit syncer, the header synchronizer, and header and
+/// shard pushes. Shared per epoch.
 pub(crate) struct PeerResponsiveness {
     metrics: Arc<Metrics>,
     committee_size: usize,
     inner: Mutex<Tracks>,
+    /// Smoothed primary block-stream latency, indexed by peer.
+    streaming_blocks: Mutex<Vec<Option<f64>>>,
     /// Smoothed streaming-delivery latency, indexed `[peer][author]`.
     streaming_headers: Mutex<Vec<Vec<Option<f64>>>>,
+}
+
+/// The peers selected to push one author's shards.
+pub(crate) struct ShardPeerSelection {
+    pub(crate) peers: Vec<AuthorityIndex>,
+    /// Block-stream latency of the slowest selected peer.
+    pub(crate) required_latency_ms: f64,
 }
 
 impl PeerResponsiveness {
@@ -195,7 +206,89 @@ impl PeerResponsiveness {
                     .map(|source| (source, vec![PeerStat::default(); size]))
                     .collect(),
             }),
+            streaming_blocks: Mutex::new(vec![None; size]),
             streaming_headers: Mutex::new(vec![vec![None; size]; size]),
+        })
+    }
+
+    /// Records the delivery of a primary block received on `peer`'s stream,
+    /// measured from the block's own timestamp to `now_ms`. The peer sets that
+    /// timestamp, so its clock offset is part of the sample and, unlike the
+    /// per-author header latency, does not cancel across peers. A timestamp
+    /// ahead of `now_ms` is dropped rather than floored, or a clock running
+    /// ahead would read as the fastest peer.
+    pub(crate) fn record_streaming_block_delivery(
+        &self,
+        peer: AuthorityIndex,
+        now_ms: BlockTimestampMs,
+        timestamp_ms: BlockTimestampMs,
+    ) {
+        if timestamp_ms > now_ms {
+            return;
+        }
+        let sample = ((now_ms - timestamp_ms) as f64).max(MIN_LATENCY_MS);
+        let mut streaming_blocks = self.streaming_blocks.lock();
+        let Some(previous) = streaming_blocks.get_mut(peer.value()) else {
+            return;
+        };
+        *previous = Some(blend_latency_ms(*previous, sample, ALPHA_SUCCESS));
+    }
+
+    /// Clears the block-stream latency when the stream to `peer` ends or
+    /// restarts.
+    pub(crate) fn clear_streaming_block_delivery(&self, peer: AuthorityIndex) {
+        let mut streaming_blocks = self.streaming_blocks.lock();
+        let Some(latency) = streaming_blocks.get_mut(peer.value()) else {
+            return;
+        };
+        *latency = None;
+    }
+
+    /// Returns the fastest measured peers that provide enough shards and stake
+    /// for reconstruction. The local node and `author` are excluded. Returns
+    /// `None` while too few peers have a measured latency to meet both
+    /// thresholds.
+    pub(crate) fn select_shard_peers(
+        &self,
+        committee: &Committee,
+        own_index: AuthorityIndex,
+        author: AuthorityIndex,
+    ) -> Option<ShardPeerSelection> {
+        let mut candidates: Vec<(AuthorityIndex, f64)> = {
+            let latencies = self.streaming_blocks.lock();
+            latencies
+                .iter()
+                .enumerate()
+                .filter_map(|(index, latency)| {
+                    let peer = AuthorityIndex::from(index as u8);
+                    (*latency).map(|latency| (peer, latency))
+                })
+                .filter(|(peer, _)| *peer != own_index && *peer != author)
+                .collect()
+        };
+        candidates.sort_by(|(left_peer, left_latency), (right_peer, right_latency)| {
+            left_latency
+                .total_cmp(right_latency)
+                .then_with(|| left_peer.cmp(right_peer))
+        });
+
+        let count_position = committee.info_length().checked_sub(1)?;
+        candidates.get(count_position)?;
+
+        let mut stake = 0;
+        let stake_position = candidates.iter().position(|(peer, _)| {
+            stake += committee.stake(*peer);
+            committee.reached_validity(stake)
+        })?;
+        let peer_count = count_position.max(stake_position) + 1;
+
+        Some(ShardPeerSelection {
+            required_latency_ms: candidates[peer_count - 1].1,
+            peers: candidates
+                .into_iter()
+                .take(peer_count)
+                .map(|(peer, _)| peer)
+                .collect(),
         })
     }
 
@@ -595,6 +688,11 @@ impl PeerResponsiveness {
             .get(peer.value())?
             .get(author.value())?
     }
+
+    #[cfg(test)]
+    pub(crate) fn streaming_block_latency_ms(&self, peer: AuthorityIndex) -> Option<f64> {
+        *self.streaming_blocks.lock().get(peer.value())?
+    }
 }
 
 #[cfg(test)]
@@ -788,6 +886,76 @@ mod tests {
         pr.record_streaming_header_deliveries(idx(200), 1_000, [(idx(1), 1, 900)]);
         pr.record_streaming_header_deliveries(idx(1), 1_000, [(idx(200), 1, 900)]);
         assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(1)), None);
+    }
+
+    #[test]
+    fn streaming_block_delivery_seeds_then_smooths_ewma() {
+        let pr = responsiveness(4);
+        pr.record_streaming_block_delivery(idx(1), 100, 0);
+        assert_eq!(pr.streaming_block_latency_ms(idx(1)), Some(100.0));
+
+        pr.record_streaming_block_delivery(idx(1), 200, 0);
+        let latency = pr.streaming_block_latency_ms(idx(1)).unwrap();
+        assert!((latency - 130.0).abs() < 1e-6, "got {latency}");
+
+        pr.clear_streaming_block_delivery(idx(1));
+        assert_eq!(pr.streaming_block_latency_ms(idx(1)), None);
+    }
+
+    #[test]
+    fn streaming_block_delivery_ahead_of_now_is_dropped() {
+        let pr = responsiveness(4);
+        pr.record_streaming_block_delivery(idx(1), 1_000, 1_001);
+        assert_eq!(pr.streaming_block_latency_ms(idx(1)), None);
+
+        pr.record_streaming_block_delivery(idx(1), 1_000, 900);
+        pr.record_streaming_block_delivery(idx(1), 1_000, 1_001);
+        assert_eq!(pr.streaming_block_latency_ms(idx(1)), Some(100.0));
+    }
+
+    #[test]
+    fn shard_peers_meet_count_and_stake_thresholds() {
+        let (committee, _) = starfish_config::local_committee_and_keys(0, vec![1; 30]);
+        let pr = PeerResponsiveness::new(&committee, test_metrics());
+        let own_index = idx(0);
+        let author = idx(29);
+        for peer in 1..29u8 {
+            pr.record_streaming_block_delivery(idx(peer), peer as u64, 0);
+        }
+
+        let selection = pr
+            .select_shard_peers(&committee, own_index, author)
+            .unwrap();
+
+        assert_eq!(committee.info_length(), 12);
+        assert_eq!(selection.peers, (1..=12).map(idx).collect::<Vec<_>>());
+        assert_eq!(selection.required_latency_ms, 12.0);
+    }
+
+    #[test]
+    fn shard_peers_include_enough_stake() {
+        let (committee, _) =
+            starfish_config::local_committee_and_keys(0, vec![1, 1, 1, 1, 100, 100, 1]);
+        let pr = PeerResponsiveness::new(&committee, test_metrics());
+        for peer in 1..=5u8 {
+            pr.record_streaming_block_delivery(idx(peer), peer as u64 * 10, 0);
+        }
+
+        let selection = pr.select_shard_peers(&committee, idx(0), idx(6)).unwrap();
+
+        assert_eq!(committee.info_length(), 3);
+        assert_eq!(selection.peers, [1, 2, 3, 4].map(idx));
+        assert_eq!(selection.required_latency_ms, 40.0);
+    }
+
+    #[test]
+    fn shard_peer_selection_requires_enough_measurements() {
+        let (committee, _) = starfish_config::local_committee_and_keys(0, vec![1; 7]);
+        let pr = PeerResponsiveness::new(&committee, test_metrics());
+        pr.record_streaming_block_delivery(idx(1), 10, 0);
+        pr.record_streaming_block_delivery(idx(2), 20, 0);
+
+        assert!(pr.select_shard_peers(&committee, idx(0), idx(6)).is_none());
     }
 
     #[test]

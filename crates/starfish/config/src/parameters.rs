@@ -187,6 +187,12 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_bounded_header_advertisement")]
     pub enable_bounded_header_advertisement: bool,
 
+    /// Ask only the fastest peers that together provide enough shards and
+    /// stake for reconstruction. Enabled by default; disabling it asks every
+    /// peer.
+    #[serde(default = "Parameters::default_enable_shard_peer_selection")]
+    pub enable_shard_peer_selection: bool,
+
     /// Port for the DAG visualizer gRPC server (localhost only).
     /// When set, starts a debugging server for real-time DAG visualization.
     /// Only has an effect when the `dag-visualizer` feature is compiled in.
@@ -495,6 +501,10 @@ impl Parameters {
         true
     }
 
+    pub(crate) fn default_enable_shard_peer_selection() -> bool {
+        true
+    }
+
     pub(crate) fn default_solid_commit_lag_threshold() -> u32 {
         // The healthy gap is a few rounds at most; 500 rounds (a few minutes of
         // commits) is far above live jitter yet caps how long a solidification
@@ -550,6 +560,7 @@ impl Default for Parameters {
                 Parameters::default_enable_peer_responsiveness_ranking(),
             enable_bounded_header_advertisement:
                 Parameters::default_enable_bounded_header_advertisement(),
+            enable_shard_peer_selection: Parameters::default_enable_shard_peer_selection(),
             dag_visualizer_port: None,
             solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
             shard_budget_per_authority: Parameters::default_shard_budget_per_authority(),
