@@ -65,7 +65,11 @@ must be cheap enough that a count of 10 leaves the object idle (with
 2,000–5,000-unit "cheap" transactions the object is already full and the
 modes agree again), and a transaction whose execution alone exceeds the
 commit interval (500,000 units, ≈80 ms here) has no good limit — admitting
-one per commit lags, excluding it never lets it through (finding 7).
+one per commit lags, excluding it never lets it through. The same limit
+ladder on a second machine reproduces the peak to within a few percent;
+past it, the machine that executes 4.6× faster keeps up where EPYC does
+not, so "between the expensive cost and twice it" is the safe choice on
+both (finding 7).
 
 **Two things to know when reading the numbers.** The stress client sends a
 new transaction only when one of its 2,000 in-flight ones completes, so at
@@ -124,6 +128,10 @@ per run):
   30 % and 50 % expensive (`mix30700`, `mix50500`); one three-level mix
   (`mix13600`: 1K/10K/100K at 60/30/10 %); and 300 s runs of two configs
   (`-dur300`). Each mix's control is the fixed-cost config of the same mean.
+  Finally the `mix20800` ladder (4 configs) was rerun on the WS —
+  `probe-test.md`'s second machine, a Ryzen 9 9950X3D, where a 100K-unit
+  transaction executes in 7.4 ms instead of 34 — with `-ws` labels, kept
+  under `results/matrix-ws/` so they never mix with the EPYC data.
 - **Both runs**: attestation on, `max_deferral_rounds = 10`, 4 validators.
 - **Client**: via the fullnode (`DIRECT=false`), target 1,000 tx/s for 60 s,
   24 workers on 12 threads, 4 gas accounts, at most `2 × 1000 = 2,000`
@@ -138,7 +146,7 @@ per run):
   kept); the 20 second-round mixes at **10** (9–10 September 2026). 1,050
   iterations, 2,100 runs in all. Labels read `cu<cost>-lim<LIMIT_B>-qps1000`
   and `mix<mean>-w<weight>-lim<LIMIT_B>-qps1000`, with `-dur300` for the
-  300 s runs.
+  300 s runs. The WS check adds 4 configs at 5 iterations (11 September).
 
 Aggregation and reporting tooling (in this directory, sharing
 `../aggregate.py`,
@@ -680,21 +688,77 @@ of checkpoints past 30 s. So at this mix the unit limit is not only faster
 and cancels less; it is the arm that stays stable, and the count limit is the
 one that does not.
 
+*The same ladder on the WS.* The explanation above says the limit is really
+about execution time per commit, which is a property of the machine. So the
+four `mix20800` configs were rerun on the WS, where a 100K-unit transaction
+executes in 7.4 ms instead of EPYC's 34 (5 iterations each). Run A is the
+same on both: 202 tx/s, 800 cancelled/s, ≈33 expensive transactions executed
+per second, lag 0.2–0.9 s on the WS.
+
+| LIMIT_B | success tps B, WS / EPYC | cancelled/s B, WS / EPYC | lag mean s B, WS / EPYC | expensive executed/s B, WS / EPYC |
+| --- | --- | --- | --- | --- |
+| 100K | 611 / 584 | 391 / 409 | 0.17 / 0.59 | 14 / 14 |
+| 150K | 821 / 821 | 181 / 180 | 0.17 / 0.61 | 20 / 20 |
+| 208K | 621 / 403 | 381 / 186 | 0.18 / 3.88 | 35 / 33 |
+| 500K | 825 / 227 | 176 / 10 | 0.20 / 8.91 | 92 / 41 |
+
+Up to 150K the two machines agree on everything but lag, to within a few
+percent — how many transactions the budget admits, and of which class, is
+arithmetic on units. Above it they differ, for the reason given above. At
+208K the budget takes two expensive transactions in any commit that has
+two waiting and leaves 8K units for cheap ones — 79 % of Run B's commits
+admit ≤10 on the WS, 88 % on EPYC — so throughput dips on both. On EPYC the
+dip is deeper (403 against 621) and lag climbs to 3.9 s, because two 100K
+transactions are 67 ms of execution per 50 ms commit; on the WS they are
+15 ms, and lag stays at 0.18 s. At 500K the two machines no longer agree at
+all. The WS admits up to five expensive transactions per commit (37 ms,
+inside the
+interval) in 63 % of commits and 100–200 cheap ones in the rest: 825 tx/s,
+matching 150K, at 0.20 s lag, while executing **92 expensive transactions
+per second** — 4.6× what 150K lets through and 2.7× what the count limit
+does. EPYC, where five would be 170 ms, admits fewer than the budget allows
+(finding 3), executes 41 expensive per second, completes 227 tx/s and lags
+8.9 s.
+
+The rule has two parts, and only one of them depends on the machine. How
+the budget splits between the classes does not: a budget of exactly two
+expensive transactions crowds the cheap ones out on both machines. Whether
+the expensive transactions it admits fit the commit does: the WS keeps up at
+500K, EPYC does not past 150K. So between the expensive cost and twice it is
+the safe choice on both — the peak throughput on both, no lag on either —
+and on hardware that executes fast enough, larger budgets are as good on
+throughput and lag and let far more of the expensive class through.
+
 *The answer to the H2 question.* For a shared object whose traffic is mostly
 cheap with some expensive transactions, set the unit limit between the
 expensive transaction's cost and twice it, so one expensive transaction fits
-per commit and the remaining budget goes to the cheap ones. Measured here at
+per commit and the rest of the budget goes to the cheap ones. Measured at
 1K/100K: 3–4× the count limit's throughput, half its cancellations or fewer,
-equal or lower checkpoint lag, stable over 300 s. `10 × mean cost` is the
-wrong rule — it admits as many expensive transactions as the mean allows,
-and two of them already overrun the commit. Three limits on this: the numbers
-are for this machine, since the rule is really "one commit interval of
-execution time" and a unit buys 2–5× more time on the WS than on EPYC
-(`probe-test.md`); a class whose single transaction overruns the interval has
-no good limit, only a choice between lag and never admitting it; and the
-gain exists
-only where the count limit leaves the object idle, which needs the cheap
-class to be cheap against the object's drain rate.
+equal or lower checkpoint lag, stable over 300 s, on both machines.
+`10 × mean cost` is the wrong rule: it admits as many expensive transactions
+as the mean allows, and on EPYC two of them already overrun the commit.
+
+Four things qualify this.
+
+- The gain is made of cheap transactions. At that limit the unit limit
+  executes fewer expensive transactions than the count limit does — 20 per
+  second against 33 at `mix20800` — and nearly all of its remaining
+  cancellations are expensive ones that did not fit. The count limit spreads
+  its cancellations over both classes; the unit limit puts them on the
+  expensive one. Whether that trade is acceptable depends on what the two
+  classes are worth, which the data cannot say.
+- The best limit for a given machine is not a fixed number of units. The
+  rule behind it is one commit interval of execution time, and how many
+  expensive transactions fit in that interval is a property of the machine:
+  one on EPYC, five on the WS, where 500K serves 4.6× more of the expensive
+  class at the same throughput and lag. "Between the expensive cost and twice
+  it" is the choice that is safe on both. Doing better on a given machine
+  needs its execution time for the expensive class — or a limit expressed in
+  time rather than units.
+- A class whose single transaction overruns the commit interval has no good
+  limit, only a choice between lag and never admitting it.
+- The gain exists only where the count limit leaves the object idle, which
+  needs the cheap class to be cheap against the object's drain rate.
 
 ---
 

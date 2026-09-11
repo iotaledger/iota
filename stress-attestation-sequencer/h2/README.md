@@ -295,11 +295,6 @@ The calibration is written up in `probe-test.md`; the mode comparison in
   dashboard replay as a drill-down for a few chosen configs, not for the whole
   grid. `consensus_handler_transaction_deferral_rounds` is also still
   unplotted.
-- **Check the recommended limit on the WS.** The rule behind it is "one
-  commit interval of execution time" — one expensive transaction per commit
-  with the rest of the budget for cheap ones — and a computation unit buys
-  2–5× more execution time on the WS than on EPYC (`probe-test.md`). Running
-  the `mix20800` ladder there would show whether the best rung moves.
 - **A cost class that overruns the commit on its own.** A 500,000-unit
   transaction executes for ≈80 ms against a ≈50 ms commit, so no unit limit
   serves `mix50900`: admitting one per commit lags, excluding it never lets
