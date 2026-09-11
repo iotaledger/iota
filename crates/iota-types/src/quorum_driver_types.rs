@@ -148,10 +148,13 @@ impl QuorumDriverError {
                     })
                     .collect();
 
-                assert!(
-                    !new_errors.is_empty(),
-                    "NonRecoverableTransactionError should have at least one non-retryable error"
-                );
+                // The constructor guarantees a non-retryable error, but
+                // rendering an error must never panic. Fall back to the
+                // unfiltered list if the invariant is broken.
+                if new_errors.is_empty() {
+                    let error_list = errors.iter().map(|(err, _, _)| err.to_string()).join(", ");
+                    return format!("{NON_RECOVERABLE_ERROR_MSG}: {error_list}.");
+                }
 
                 let mut error_list = vec![];
                 for err in new_errors.iter() {
@@ -266,5 +269,26 @@ impl FinalizedEffects {
             | EffectsFinalityInfo::QuorumExecuted(epoch)
             | EffectsFinalityInfo::UncertifiedSingleValidator(epoch) => *epoch,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Rendering must not panic when filtering leaves no non-retryable
+    /// error.
+    #[test]
+    fn non_recoverable_error_rendering_survives_empty_filter() {
+        let error = QuorumDriverError::NonRecoverableTransactionError {
+            errors: vec![(
+                IotaError::ValidatorOverloadedRetryAfter {
+                    retry_after_secs: 1,
+                },
+                0,
+                vec![],
+            )],
+        };
+        assert!(error.to_error_message().contains(NON_RECOVERABLE_ERROR_MSG));
     }
 }

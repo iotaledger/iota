@@ -329,7 +329,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
             }
             NonRecoverableTransactionError { errors } => {
                 let new_errors: Vec<String> = errors
-                    .into_iter()
+                    .iter()
                     .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
                     .filter_map(|(err, _, _)| match &err {
                         IotaError::UserInput { error } => Some(error.to_string()),
@@ -343,10 +343,18 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     })
                     .collect();
 
-                assert!(
-                    !new_errors.is_empty(),
-                    "NonRecoverableTransactionError should have at least one non-retryable error"
-                );
+                // The constructor guarantees a non-retryable error, but
+                // rendering an error must never panic. Fall back to the
+                // unfiltered list if the invariant is broken.
+                if new_errors.is_empty() {
+                    return RpcError::new(
+                        Code::InvalidArgument,
+                        format!(
+                            "Transaction has non recoverable errors: {}.",
+                            errors.iter().map(|(err, _, _)| err.to_string()).join(", ")
+                        ),
+                    );
+                }
 
                 let error_list = new_errors.join(", ");
                 let error_msg = format!(
