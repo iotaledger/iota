@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 
+use curve25519_dalek::edwards::CompressedEdwardsY;
 use fastcrypto::{
     ed25519::{Ed25519PublicKey, Ed25519Signature},
     hash::HashFunction,
@@ -103,9 +104,26 @@ pub fn verify_attestor_pubkey(pubkey: &[u8]) -> Result<(), u64> {
     if key_bytes.len() != canonical_len {
         return Err(E_INVALID_ATTESTOR_PUBKEY);
     }
+    if scheme == SignatureScheme::Ed25519 {
+        return verify_ed25519_attestor_key(key_bytes);
+    }
     PublicKey::try_from_bytes(scheme, key_bytes)
         .map(|_| ())
         .map_err(|_| E_INVALID_ATTESTOR_PUBKEY)
+}
+
+/// The ed25519 parser accepts any bytes that decompress to a curve point.
+/// A small-order key makes the proof of possession forgeable by anyone, a
+/// torsion component lets one secret register several keys, and a
+/// non-canonical encoding lets one key register twice.
+fn verify_ed25519_attestor_key(key_bytes: &[u8]) -> Result<(), u64> {
+    let compressed =
+        CompressedEdwardsY::from_slice(key_bytes).map_err(|_| E_INVALID_ATTESTOR_PUBKEY)?;
+    let point = compressed.decompress().ok_or(E_INVALID_ATTESTOR_PUBKEY)?;
+    if point.is_small_order() || !point.is_torsion_free() || point.compress() != compressed {
+        return Err(E_INVALID_ATTESTOR_PUBKEY);
+    }
+    Ok(())
 }
 
 /// Abort code for a proof-of-possession that does not verify; matches

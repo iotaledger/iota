@@ -279,7 +279,9 @@ public entry fun deregister_attestor(wrapper: &mut IotaSystemState, ctx: &mut Tx
     };
 }
 
-/// Add to the sender's bond (active or pending entry).
+/// Add to the sender's escrow (active or pending entry). The deposit is held
+/// as excess and counts toward the at-stake bond only from the next epoch
+/// boundary.
 public entry fun deposit_attestor_bond(
     wrapper: &mut IotaSystemState,
     additional: Coin<IOTA>,

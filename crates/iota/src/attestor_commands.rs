@@ -82,7 +82,9 @@ pub enum IotaAttestorCommand {
         #[arg(long)]
         gas_budget: Option<u64>,
     },
-    /// Add to the sender's attestor bond (nanos), effective immediately.
+    /// Add to the sender's attestor escrow (nanos). The deposit is held as
+    /// excess and counts toward the at-stake bond only from the next epoch
+    /// boundary.
     DepositBond {
         #[arg(long)]
         amount: u64,
