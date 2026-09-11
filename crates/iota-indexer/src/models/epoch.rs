@@ -46,6 +46,10 @@ pub struct StoredEpochInfo {
     pub minted_tokens_amount: Option<i64>,
     /// First transaction sequence number of this epoch.
     pub first_tx_sequence_number: i64,
+    /// First `optimistic_sequence_number` value belonging to this epoch.
+    ///
+    /// Assigned by the column default when the epoch row is inserted.
+    pub first_optimistic_sequence_number: i64,
 }
 
 /// Extracts the indexed epoch-info facts from a transaction's events.

@@ -107,8 +107,8 @@ pub enum PruningStrategy {
     ByCheckpoint,
     /// Delete rows by transaction sequence number
     ByTransaction,
-    /// Delete rows by global sequence number
-    ByGlobalSeq,
+    /// Delete rows by optimistic sequence number
+    ByOptimisticSeq,
     /// Delete rows by checkpoint range with a per-statement row limit.
     /// Used for tables with variable rows per checkpoint (e.g. backward
     /// history).
@@ -125,7 +125,7 @@ impl PruningStrategy {
             Self::ByCheckpoint
             | Self::ByCheckpointWithLimit
             | Self::ByTransaction
-            | Self::ByGlobalSeq => true,
+            | Self::ByOptimisticSeq => true,
         }
     }
 
@@ -135,7 +135,7 @@ impl PruningStrategy {
         match self {
             Self::ByEpochPartition => watermark.min_available_epoch as u64,
             Self::ByCheckpoint | Self::ByCheckpointWithLimit => watermark.min_available_cp as u64,
-            Self::ByTransaction | Self::ByGlobalSeq => watermark.min_available_tx as u64,
+            Self::ByTransaction | Self::ByOptimisticSeq => watermark.min_available_tx as u64,
         }
     }
 }
@@ -175,8 +175,8 @@ impl PrunableTable {
             | PrunableTable::TxWrappedOrDeletedObjects
             | PrunableTable::TxGlobalOrder => PruningStrategy::ByTransaction,
 
-            // Optimistic transactions table - pruned by global sequence number
-            PrunableTable::OptimisticTransactions => PruningStrategy::ByGlobalSeq,
+            // Optimistic transactions table - pruned by optimistic sequence number
+            PrunableTable::OptimisticTransactions => PruningStrategy::ByOptimisticSeq,
 
             // Backward history - pruned by checkpoint with row limit
             PrunableTable::ObjectsBackwardHistory => PruningStrategy::ByCheckpointWithLimit,
@@ -338,8 +338,8 @@ impl<'a> TablePruner<'a> {
     /// timeout
     async fn wait_for_pruning_delay(&self, watermark_timestamp_ms: i64) -> IndexerResult<()> {
         // The watermark timestamp indicates when data was marked for pruning.
-        // We delay pruning to allow any reads accessing this data to complete or
-        // timeout.
+        // We delay pruning to allow any reads accessing this data to complete
+        // or timeout.
         let pruning_allowed_timestamp_ms = watermark_timestamp_ms as u64 + self.pruning_delay_ms;
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -406,46 +406,19 @@ impl<'a> TablePruner<'a> {
                 );
             }
 
-            PruningStrategy::ByGlobalSeq => {
-                self.prune_by_global_seq_with_limit(start, end).await?;
+            PruningStrategy::ByOptimisticSeq => {
+                self.store
+                    .prune_table_by_optimistic_seq(&self.table, start, end)
+                    .await?;
+                info!(
+                    "pruned table {} for optimistic sequence number range [{start}..={end}]",
+                    self.table.as_ref(),
+                );
             }
 
             PruningStrategy::ByCheckpointWithLimit => {
                 self.prune_by_checkpoint_with_limit(start, end).await?;
             }
-        }
-        Ok(())
-    }
-
-    /// Prune table by global_sequence_number range with LIMIT
-    /// Keeps deleting batches until no more rows are returned in the range
-    async fn prune_by_global_seq_with_limit(
-        &self,
-        start: u64,
-        end: u64,
-    ) -> Result<(), IndexerError> {
-        let row_limit = self.pruning_batch_size;
-        loop {
-            let deleted = self
-                .store
-                .prune_table_by_global_seq_with_limit(&self.table, start, end, row_limit as i64)
-                .await?;
-
-            if deleted < row_limit as usize {
-                info!(
-                    "finished pruning table {} for global_seq range [{start}..={end}]",
-                    self.table.as_ref(),
-                );
-                break;
-            }
-
-            info!(
-                "pruned {deleted} rows from table {} (global_seq range [{start}..={end}])",
-                self.table.as_ref(),
-            );
-
-            // Brief pause between batches
-            tokio::time::sleep(DELAY_BETWEEN_PRUNING_CHUNKS).await;
         }
         Ok(())
     }

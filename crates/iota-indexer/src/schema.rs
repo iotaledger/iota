@@ -125,6 +125,7 @@ diesel::table! {
         burnt_tokens_amount -> Nullable<Int8>,
         minted_tokens_amount -> Nullable<Int8>,
         first_tx_sequence_number -> Int8,
+        first_optimistic_sequence_number -> Int8,
     }
 }
 
