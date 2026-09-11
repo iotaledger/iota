@@ -14,9 +14,9 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
-    TransactionDenyRulesUpdate, TransactionEventsDigest, crypto::SimpleSignature,
-    gas::GasCostSummary,
+    Address, ExecutionStatus, GasPayment, MoveAuthenticatorV1, Owner, SharedObjectReference,
+    SignatureScheme, StructTag, TransactionDenyRulesUpdate, TransactionEventsDigest,
+    crypto::SimpleSignature, gas::GasCostSummary,
 };
 use roaring::RoaringBitmap;
 
@@ -35,7 +35,8 @@ use crate::{
     utils::{
         blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
         make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
-        make_sponsored_regular_sig_tx, make_transaction, make_upgraded_multisig_tx,
+        make_sponsored_regular_sig_tx, make_transaction, make_transaction_data,
+        make_upgraded_multisig_tx,
     },
 };
 
@@ -921,6 +922,139 @@ fn test_sponsored_transaction_validity_check() {
     Transaction::new_with_gas_data(kind, sender, gas_data)
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
+}
+
+/// Builds a transaction with a single Move call that takes `input` as its only
+/// argument and pays with `gas`.
+fn transaction_with_object_input(input: CallArg, gas: ObjectReference) -> Transaction {
+    let pt = {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder
+            .move_call(
+                ObjectId::random(),
+                Identifier::from_static("random_module"),
+                Identifier::from_static("random_function"),
+                vec![],
+                vec![input],
+            )
+            .unwrap();
+        builder.finish()
+    };
+    let gas_price = 10;
+
+    Transaction::new_with_gas_data(
+        TransactionKind::new_programmable(pt),
+        dbg_addr(1),
+        GasPayment {
+            objects: vec![gas],
+            owner: dbg_addr(1),
+            price: gas_price,
+            budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        },
+    )
+}
+
+/// Every version a transaction names for an object is checked from the bytes
+/// alone: the range assigned to canceled transactions is refused, and so is the
+/// version right below it, whose increment would land in that range.
+#[test]
+fn validity_check_rejects_versions_in_or_below_canceled_range() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(config.validate_input_object_versions());
+    let mut flag_off = config.clone();
+    flag_off.set_validate_input_object_versions_for_testing(false);
+
+    let object_ref_at =
+        |version| ObjectReference::new(ObjectId::random(), version, ObjectDigest::new([0; 32]));
+    let inputs_at = |version| {
+        vec![
+            CallArg::ImmutableOrOwned(object_ref_at(version)),
+            CallArg::Receiving(object_ref_at(version)),
+            CallArg::Shared(SharedObjectReference::new(
+                ObjectId::random(),
+                version,
+                true,
+            )),
+        ]
+    };
+
+    for version in [
+        Version::MAX_VALID_EXCL - 1,
+        Version::MAX_VALID_EXCL,
+        Version::CANCELED_READ,
+    ] {
+        for input in inputs_at(version) {
+            let tx = transaction_with_object_input(input.clone(), random_object_ref());
+            assert_eq!(
+                tx.validity_check(&config),
+                Err(UserInputError::InvalidSequenceNumber),
+                "input {input:?}"
+            );
+            tx.validity_check(&flag_off).unwrap();
+        }
+        let tx = transaction_with_object_input(
+            CallArg::ImmutableOrOwned(random_object_ref()),
+            object_ref_at(version),
+        );
+        assert_eq!(
+            tx.validity_check(&config),
+            Err(UserInputError::InvalidSequenceNumber),
+            "gas object at {version:?}"
+        );
+        tx.validity_check(&flag_off).unwrap();
+    }
+
+    // The largest version whose increment is still valid is accepted.
+    let version = Version::MAX_VALID_EXCL - 2;
+    for input in inputs_at(version) {
+        transaction_with_object_input(input, random_object_ref())
+            .validity_check(&config)
+            .unwrap();
+    }
+    transaction_with_object_input(
+        CallArg::ImmutableOrOwned(random_object_ref()),
+        object_ref_at(version),
+    )
+    .validity_check(&config)
+    .unwrap();
+}
+
+/// The object a Move authenticator authenticates is checked like any other
+/// input, whether it is named as an owned or as a shared object.
+#[test]
+fn validity_check_rejects_authenticated_object_version_in_or_below_canceled_range() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let context = TxValidityCheckContext {
+        config: &config,
+        epoch: 0,
+    };
+    let sender = Address::random();
+    let version = Version::MAX_VALID_EXCL - 1;
+
+    let owned = MoveAuthenticatorV1::new_with_immutable_account_object(
+        vec![],
+        vec![],
+        ObjectReference::new(sender.into(), version, ObjectDigest::new([0; 32])),
+    );
+    let shared = MoveAuthenticatorV1::new_with_shared_account_object(
+        vec![],
+        vec![],
+        SharedObjectReference::new(sender.into(), version, false),
+    );
+    for authenticator in [owned, shared] {
+        let tx = SenderSignedTransaction::new(
+            make_transaction_data(sender),
+            vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
+                authenticator,
+            ))],
+        );
+        assert!(matches!(
+            tx.validity_check(&context),
+            Err(IotaError::UserInput {
+                error: UserInputError::InvalidSequenceNumber
+            })
+        ));
+    }
 }
 
 #[test]

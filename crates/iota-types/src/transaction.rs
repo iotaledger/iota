@@ -76,6 +76,21 @@ mod messages_tests;
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
 
+/// Rejects a version that a transaction names for an input object when it is
+/// at or above `Version::MAX_VALID_EXCL`, the range assigned to the objects of
+/// canceled transactions, or right below it. The version of a transaction's
+/// outputs is one more than its largest input version, and version assignment
+/// halts the node when that result is not a valid version, so both are refused
+/// from the transaction bytes, before any object is loaded.
+pub fn input_object_version_validity_check(version: Version) -> UserInputResult {
+    fp_ensure!(
+        version.next().is_ok_and(|next| next.is_valid()),
+        UserInputError::InvalidSequenceNumber
+    );
+
+    Ok(())
+}
+
 pub fn type_tag_validity_check(
     tag: &TypeTag,
     config: &ProtocolConfig,
@@ -311,8 +326,15 @@ impl CallArgExt for CallArg {
                     }
                 );
             }
-            CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
-                // No validation needed for these variants
+            CallArg::ImmutableOrOwned(ObjectReference { version, .. })
+            | CallArg::Receiving(ObjectReference { version, .. })
+            | CallArg::Shared(SharedObjectReference {
+                initial_shared_version: version,
+                ..
+            }) => {
+                if config.validate_input_object_versions() {
+                    input_object_version_validity_check(*version)?;
+                }
             }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
@@ -1390,6 +1412,11 @@ impl TransactionAPI for Transaction {
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         fp_ensure!(!self.gas().is_empty(), UserInputError::MissingGasPayment);
         self.check_gas_payment_size(config)?;
+        if config.validate_input_object_versions() {
+            for gas_object in self.gas() {
+                input_object_version_validity_check(gas_object.version)?;
+            }
+        }
         self.validity_check_no_gas_check(config)
     }
 
