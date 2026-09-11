@@ -87,7 +87,7 @@ pub struct TxGlobalOrderCursor {
 struct EpochPruningBounds {
     first_checkpoint_id: u64,
     first_tx_sequence_number: u64,
-    first_optimistic_sequence_number: Option<u64>,
+    first_optimistic_sequence_number: u64,
 }
 
 #[macro_export]
@@ -1558,7 +1558,7 @@ impl PgIndexerStore {
         epochs: &[u64],
     ) -> Result<HashMap<u64, EpochPruningBounds>, IndexerError> {
         let pool = &self.blocking_cp;
-        let results: Vec<(i64, i64, i64, Option<i64>)> = run_query!(pool, move |conn| {
+        let results: Vec<(i64, i64, i64, i64)> = run_query!(pool, move |conn| {
             epochs::table
                 .filter(epochs::epoch.eq_any(epochs.iter().map(|&e| e as i64)))
                 .select((
@@ -1567,7 +1567,7 @@ impl PgIndexerStore {
                     epochs::first_tx_sequence_number,
                     epochs::first_optimistic_sequence_number,
                 ))
-                .load::<(i64, i64, i64, Option<i64>)>(conn)
+                .load::<(i64, i64, i64, i64)>(conn)
         })
         .context("Failed to fetch first checkpoint and tx seq num for epochs")?;
 
@@ -1579,7 +1579,7 @@ impl PgIndexerStore {
                     EpochPruningBounds {
                         first_checkpoint_id: checkpoint as u64,
                         first_tx_sequence_number: tx as u64,
-                        first_optimistic_sequence_number: optimistic_seq.map(|v| v as u64),
+                        first_optimistic_sequence_number: optimistic_seq as u64,
                     },
                 )
             })
@@ -1604,12 +1604,10 @@ impl PgIndexerStore {
                 })?;
 
                 // `optimistic_transactions` is bounded by optimistic sequence
-                // numbers. An epoch without a value yields 0,
-                // which the upsert's strictly-increasing filter
-                // rejects, leaving the watermark unchanged.
+                // numbers, not tx sequence numbers.
                 let min_available_tx =
                     if table.as_ref() == PrunableTable::OptimisticTransactions.as_ref() {
-                        bounds.first_optimistic_sequence_number.unwrap_or(0)
+                        bounds.first_optimistic_sequence_number
                     } else {
                         bounds.first_tx_sequence_number
                     };
