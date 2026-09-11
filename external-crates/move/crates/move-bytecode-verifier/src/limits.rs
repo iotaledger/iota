@@ -209,17 +209,27 @@ impl<'a> LimitsVerifier<'a> {
 
     /// Verifies the lengths of all identifiers are valid
     fn verify_identifiers(&self, config: &VerifierConfig) -> PartialVMResult<()> {
-        if let Some(max_identifier_len) = config.max_identifier_len {
-            for (idx, identifier) in self.module.identifiers().iter().enumerate() {
-                if identifier.len() > (max_identifier_len as usize) {
-                    return Err(verification_error(
-                        StatusCode::IDENTIFIER_TOO_LONG,
-                        IndexKind::Identifier,
-                        idx as TableIndex,
-                    ));
-                }
+        for (idx, identifier) in self.module.identifiers().iter().enumerate() {
+            if config
+                .max_identifier_len
+                .is_some_and(|max_identifier_len| identifier.len() > (max_identifier_len as usize))
+            {
+                return Err(verification_error(
+                    StatusCode::IDENTIFIER_TOO_LONG,
+                    IndexKind::Identifier,
+                    idx as TableIndex,
+                ));
+            }
+
+            if config.disallow_self_identifier && identifier.as_str() == "<SELF>" {
+                return Err(verification_error(
+                    StatusCode::INVALID_IDENTIFIER,
+                    IndexKind::Identifier,
+                    idx as TableIndex,
+                ));
             }
         }
+
         Ok(())
     }
 }

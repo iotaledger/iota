@@ -16,7 +16,7 @@ use move_binary_format::{
     file_format::{Constant, SignatureToken, VariantTag},
 };
 use move_core_types::{
-    VARIANT_COUNT_MAX,
+    VARIANT_TAG_MAX_VALUE,
     account_address::AccountAddress,
     annotated_value as A,
     effects::Op,
@@ -3530,10 +3530,10 @@ impl serde::Serialize for AnnotatedValue<'_, '_, MoveStructLayout, Vec<ValueImpl
 impl serde::Serialize for AnnotatedValue<'_, '_, MoveEnumLayout, (VariantTag, Vec<ValueImpl>)> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let (tag, values) = &self.val;
-        let tag = if *tag as u64 > VARIANT_COUNT_MAX {
+        let tag = if *tag as u64 > VARIANT_TAG_MAX_VALUE {
             return Err(serde::ser::Error::custom(format!(
                 "Variant tag {} is greater than the maximum allowed value of {}",
-                tag, VARIANT_COUNT_MAX
+                tag, VARIANT_TAG_MAX_VALUE
             )));
         } else {
             *tag as u8
@@ -3742,7 +3742,7 @@ impl<'d> serde::de::Visitor<'d> for EnumFieldVisitor<'_> {
         A: serde::de::SeqAccess<'d>,
     {
         let tag = match seq.next_element_seed(&MoveTypeLayout::U8)? {
-            Some(MoveValue::U8(tag)) if tag as u64 <= VARIANT_COUNT_MAX => tag as u16,
+            Some(MoveValue::U8(tag)) if tag as u64 <= VARIANT_TAG_MAX_VALUE => tag as u16,
             Some(MoveValue::U8(tag)) => return Err(A::Error::invalid_length(tag as usize, &self)),
             Some(val) => {
                 return Err(A::Error::invalid_type(
