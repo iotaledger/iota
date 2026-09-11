@@ -378,3 +378,22 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Missing indexes are a client-visible contract: `FailedPrecondition`,
+    /// both directly and through an anyhow chain.
+    #[test]
+    fn missing_indexes_render_as_failed_precondition() {
+        let expected: i32 = Code::FailedPrecondition.into();
+
+        let direct = RpcError::from(MissingIndexesError);
+        assert_eq!(direct.into_status_proto().code, expected);
+
+        let chained = anyhow::Error::from(MissingIndexesError).context("listing owned objects");
+        let via_chain = RpcError::from(chained);
+        assert_eq!(via_chain.into_status_proto().code, expected);
+    }
+}
