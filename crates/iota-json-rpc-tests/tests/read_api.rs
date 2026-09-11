@@ -669,6 +669,50 @@ async fn multi_get_transaction_blocks() {
     multi_get_transaction_blocks_with_options(IotaTransactionBlockResponseOptions::default()).await;
 }
 
+/// An unknown digest must come back as an entry with an error, not as an
+/// empty entry indistinguishable from a found transaction.
+#[sim_test]
+async fn multi_get_transaction_blocks_marks_unknown_digests() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let http_client = cluster.rpc_client();
+    let address = cluster.get_address_0();
+
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
+    let known = cluster
+        .transfer_object(address, address, object_ids[0], gas, None)
+        .await
+        .unwrap()
+        .digest;
+    let unknown = TransactionDigest::random();
+
+    for options in [
+        IotaTransactionBlockResponseOptions::default(),
+        IotaTransactionBlockResponseOptions::default().with_effects(),
+        IotaTransactionBlockResponseOptions::default().with_input(),
+        IotaTransactionBlockResponseOptions::default().with_balance_changes(),
+        IotaTransactionBlockResponseOptions::default().with_object_changes(),
+        IotaTransactionBlockResponseOptions::full_content(),
+    ] {
+        let blocks = http_client
+            .multi_get_transaction_blocks(vec![known, unknown], Some(options.clone()))
+            .await
+            .unwrap_or_else(|e| panic!("batch must not fail for {options:?}: {e}"));
+        assert_eq!(blocks.len(), 2);
+        assert!(
+            blocks[0].errors.is_empty(),
+            "known digest must have no errors, got {:?}",
+            blocks[0].errors
+        );
+        assert_eq!(
+            blocks[1].errors.len(),
+            1,
+            "unknown digest must carry exactly the not-found error, got {:?}",
+            blocks[1].errors
+        );
+        assert!(blocks[1].errors[0].contains("Could not find"));
+    }
+}
+
 #[ignore = "until this will be merged into develop https://github.com/iotaledger/iota/blob/sc-platform/indexer-new-rpc-tests/crates/iota-json-rpc/src/read_api.rs#L1351"]
 #[sim_test]
 async fn multi_get_transaction_blocks_with_full_content_and_with_raw_effects() {

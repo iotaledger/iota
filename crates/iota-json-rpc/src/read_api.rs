@@ -234,14 +234,59 @@ impl ReadApi {
         if opts.require_effects() {
             trace!("getting effects");
             let digests_clone = digests.clone();
-            let effects_list = self.transaction_kv_store
-                .multi_get_fx_by_tx_digest(&digests_clone)
+            if opts.require_input() {
+                let effects_list = self.transaction_kv_store
+                    .multi_get_fx_by_tx_digest(&digests_clone)
+                    .await
+                    .tap_err(
+                        |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
+                    )?;
+                for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
+                    cache_entry.effects = e;
+                }
+            } else {
+                // Fetch the transactions in the same round trip: existence is
+                // determined from the transaction, never from the effects.
+                let (transactions, effects_list) = self.transaction_kv_store
+                    .multi_get(&digests_clone, &digests_clone)
+                    .await
+                    .tap_err(
+                        |err| debug!(digests=?digests_clone, "Failed to multi get transactions and effects: {:?}", err),
+                    )?;
+                for ((_digest, cache_entry), (txn, e)) in temp_response
+                    .iter_mut()
+                    .zip(transactions.into_iter().zip(effects_list))
+                {
+                    cache_entry.transaction = txn;
+                    cache_entry.effects = e;
+                }
+            }
+        }
+
+        // Mark unknown digests instead of returning them as empty entries,
+        // mirroring the single-digest endpoint which errors for them.
+        trace!("checking digest existence");
+        let missing: Vec<bool> = if opts.require_input() || opts.require_effects() {
+            temp_response
+                .values()
+                .map(|entry| entry.transaction.is_none())
+                .collect()
+        } else {
+            self.transaction_kv_store
+                .multi_get_tx(&digests)
                 .await
                 .tap_err(
-                    |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
-                )?;
-            for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
-                cache_entry.effects = e;
+                    |err| debug!(digests=?digests, "Failed to multi get transactions: {:?}", err),
+                )?
+                .iter()
+                .map(|txn| txn.is_none())
+                .collect()
+        };
+        for ((digest, cache_entry), missing) in temp_response.iter_mut().zip(&missing) {
+            if *missing {
+                cache_entry
+                    .errors
+                    .push(IotaError::TransactionNotFound { digest: *digest }.to_string());
             }
         }
 
@@ -368,31 +413,45 @@ impl ReadApi {
         if opts.show_balance_changes {
             trace!("getting balance changes");
 
-            let mut results = vec![];
-            for resp in temp_response.values() {
+            // Unknown digests keep their single not-found error; known
+            // entries without effects get a derive error instead of failing
+            // the whole batch.
+            let mut computations = vec![];
+            let mut computed = vec![];
+            let mut incomplete = vec![];
+            for (index, resp) in temp_response.values().enumerate() {
+                if missing[index] {
+                    continue;
+                }
+                let Some(effects) = resp.effects.as_ref() else {
+                    incomplete.push(index);
+                    continue;
+                };
                 let input_objects = if let Some(tx) = resp.transaction() {
                     tx.data().transaction().input_objects().unwrap_or_default()
                 } else {
-                    // don't have the input tx, so not much we can do. perhaps this is an Err?
                     Vec::new()
                 };
-                results.push(get_balance_changes_from_effect(
+                computations.push(get_balance_changes_from_effect(
                     &object_cache,
-                    resp.effects.as_ref().ok_or_else(|| {
-                        IotaRpcInputError::GenericNotFound(
-                            "unable to derive balance changes because effect is empty".to_string(),
-                        )
-                    })?,
+                    effects,
                     input_objects,
                     None,
                 ));
+                computed.push(index);
             }
-            let results = join_all(results).await;
-            for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
+            let results = join_all(computations).await;
+            for index in incomplete {
+                let (_, entry) = temp_response.get_index_mut(index).unwrap();
+                entry
+                    .errors
+                    .push("unable to derive balance changes because effect is empty".to_string());
+            }
+            for (index, result) in computed.into_iter().zip(results) {
+                let (_, entry) = temp_response.get_index_mut(index).unwrap();
                 match result {
-                    Ok(balance_changes) => entry.1.balance_changes = Some(balance_changes),
+                    Ok(balance_changes) => entry.balance_changes = Some(balance_changes),
                     Err(e) => entry
-                        .1
                         .errors
                         .push(format!("Failed to fetch balance changes {e:?}")),
                 }
@@ -402,38 +461,41 @@ impl ReadApi {
         if opts.show_object_changes {
             trace!("getting object changes");
 
-            let mut results = vec![];
-            for resp in temp_response.values() {
-                let effects = resp.effects.as_ref().ok_or_else(|| {
-                    IotaRpcInputError::GenericNotFound(
-                        "unable to derive object changes because effect is empty".to_string(),
-                    )
-                })?;
-
-                results.push(get_object_changes(
+            let mut computations = vec![];
+            let mut computed = vec![];
+            let mut incomplete = vec![];
+            for (index, resp) in temp_response.values().enumerate() {
+                if missing[index] {
+                    continue;
+                }
+                let (Some(effects), Some(transaction)) =
+                    (resp.effects.as_ref(), resp.transaction.as_ref())
+                else {
+                    incomplete.push(index);
+                    continue;
+                };
+                computations.push(get_object_changes(
                     &object_cache,
-                    resp.transaction
-                        .as_ref()
-                        .ok_or_else(|| {
-                            IotaRpcInputError::GenericNotFound(
-                                "unable to derive object changes because transaction is empty"
-                                    .to_string(),
-                            )
-                        })?
-                        .data()
-                        .transaction()
-                        .sender(),
+                    transaction.data().transaction().sender(),
                     effects.modified_at_versions(),
                     effects.all_changed_objects(),
                     effects.all_removed_objects(),
                 ));
+                computed.push(index);
             }
-            let results = join_all(results).await;
-            for (result, entry) in results.into_iter().zip(temp_response.iter_mut()) {
+            let results = join_all(computations).await;
+            for index in incomplete {
+                let (_, entry) = temp_response.get_index_mut(index).unwrap();
+                entry.errors.push(
+                    "unable to derive object changes because effect or transaction is empty"
+                        .to_string(),
+                );
+            }
+            for (index, result) in computed.into_iter().zip(results) {
+                let (_, entry) = temp_response.get_index_mut(index).unwrap();
                 match result {
-                    Ok(object_changes) => entry.1.object_changes = Some(object_changes),
+                    Ok(object_changes) => entry.object_changes = Some(object_changes),
                     Err(e) => entry
-                        .1
                         .errors
                         .push(format!("Failed to fetch object changes {e:?}")),
                 }
