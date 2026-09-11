@@ -588,9 +588,6 @@ impl DataFetcher for RemoteFetcher {
                             .await?
                             .base_gas_price(),
                     ),
-                    // ClaimRegistryCreate has no epoch timestamp; skip it and
-                    // look for the ChangeEpoch* kind later in the list.
-                    EndOfEpochTransactionKind::ClaimRegistryCreate(_) => continue,
                     _ => unimplemented!(
                         "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                     ),

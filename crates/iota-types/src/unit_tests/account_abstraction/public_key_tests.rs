@@ -303,15 +303,15 @@ fn address_error_on_wrong_length_bytes() {
 
 // === Cross-language pin tests (Move ↔ Rust address parity) ===
 
-// Key material shared with the Move test vectors in public_key_tests.move and
-// claim_registry_tests.move.
+// Key material shared with the Move test vectors in public_key_tests.move.
 const ED25519_PK_HEX: &str = "cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
 const SECP256K1_PK_HEX: &str = "02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
 
 #[test]
 fn address_multisig_ed25519_only_matches_move_vector() {
     // 1-of-1 Ed25519 MultiSig. Ed25519 members have no scheme-flag prefix in
-    // the hash input — the IOTA legacy rule mirrored by update_hasher_with_flag.
+    // the hash input — the IOTA legacy rule mirrored by
+    // update_hasher_with_flag.
     let ed25519_pk =
         Ed25519PublicKey::new(hex::decode(ED25519_PK_HEX).unwrap().try_into().unwrap());
     let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(ed25519_pk, 1)], 1).unwrap();
@@ -335,8 +335,8 @@ fn address_multisig_ed25519_only_matches_move_vector() {
 
 #[test]
 fn address_multisig_mixed_matches_move_vector() {
-    // Mixed Ed25519 + Secp256k1 MultiSig: pins the per-scheme flag behaviour for
-    // both member types (Ed25519 = no flag, Secp256k1 = flag 0x01).
+    // Mixed Ed25519 + Secp256k1 MultiSig: pins the per-scheme flag behaviour
+    // for both member types (Ed25519 = no flag, Secp256k1 = flag 0x01).
     let ed25519_pk =
         Ed25519PublicKey::new(hex::decode(ED25519_PK_HEX).unwrap().try_into().unwrap());
     let secp256k1_pk =

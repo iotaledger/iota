@@ -1246,9 +1246,6 @@ randomness_state
 iota_deny_list_object_id
 	public(package) fun
 	0x2::object
-claim_registry
-	public(package) fun
-	0x2::object
 uid_as_inner
 	public fun
 	0x2::object
@@ -2446,18 +2443,6 @@ transfer_impl
 receive_impl
 	fun
 	0x2::transfer
-ClaimRegistry
-	public struct
-	0x2::claim_registry
-create
-	fun
-	0x2::claim_registry
-claim
-	public(package) fun
-	0x2::claim_registry
-is_claimed
-	public fun
-	0x2::claim_registry
 Clock
 	public struct
 	0x2::clock
@@ -3695,9 +3680,6 @@ builder_v1
 	public fun
 	0x2::smart_account
 builtin_auth_builder_v1
-	public fun
-	0x2::smart_account
-claim_builder_v1
 	public fun
 	0x2::smart_account
 claim_account_v1

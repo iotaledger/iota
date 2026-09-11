@@ -36,7 +36,6 @@ mod checked {
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
         base_types::{SequenceNumber, TransactionDigest, TxContext},
-        claim_registry::CLAIM_REGISTRY_CREATE_FUNCTION_NAME,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
         crypto::SignatureScheme,
@@ -1292,7 +1291,7 @@ mod checked {
                 )
             }
             TransactionKind::EndOfEpoch(txns) => {
-                let mut builder = ProgrammableTransactionBuilder::new();
+                let builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
 
                 for (i, tx) in txns.into_iter().enumerate() {
@@ -1356,10 +1355,6 @@ mod checked {
                                 trace_builder_opt,
                             )?;
                             return Ok(Mode::empty_results());
-                        }
-                        EndOfEpochTransactionKind::ClaimRegistryCreate(_) => {
-                            assert!(protocol_config.enable_claim_registry());
-                            builder = setup_claim_registry_create(builder);
                         }
                         _ => unimplemented!(
                             "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
@@ -1966,24 +1961,6 @@ mod checked {
             pt,
             trace_builder_opt,
         )
-    }
-
-    /// Adds a Move call to `iota::claim_registry::create`, creating the
-    /// `ClaimRegistry` singleton during an epoch-change transaction for
-    /// networks that were deployed before the ClaimRegistry was introduced.
-    fn setup_claim_registry_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                ObjectId::FRAMEWORK,
-                Identifier::CLAIM_REGISTRY_MODULE,
-                CLAIM_REGISTRY_CREATE_FUNCTION_NAME,
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate claim_registry_create transaction!");
-        builder
     }
 
     /// Executes a [`ClaimAccountTransaction`] by calling the framework's

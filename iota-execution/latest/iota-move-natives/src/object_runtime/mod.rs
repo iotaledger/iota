@@ -265,7 +265,6 @@ impl<'a> ObjectRuntime<'a> {
             ObjectId::AUTHENTICATOR_STATE,
             ObjectId::RANDOMNESS_STATE,
             ObjectId::DENY_LIST,
-            ObjectId::CLAIM_REGISTRY,
             ObjectId::GENESIS_IOTA_BRIDGE,
         ]
         .contains(&id);
