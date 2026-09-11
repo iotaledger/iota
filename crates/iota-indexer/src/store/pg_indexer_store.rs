@@ -82,9 +82,8 @@ pub struct TxGlobalOrderCursor {
     pub optimistic_sequence_number: i64,
 }
 
-/// Lower bounds of one epoch, used to translate an epoch retention boundary
-/// into per-table pruning ranges.
-struct EpochPruningBounds {
+/// Lower bounds of one epoch
+struct EpochLowerBounds {
     first_checkpoint_id: u64,
     first_tx_sequence_number: u64,
     first_optimistic_sequence_number: u64,
@@ -1553,10 +1552,10 @@ impl PgIndexerStore {
         })
     }
 
-    fn map_epochs_to_cp_tx(
+    fn map_epochs_to_low_bounds(
         &self,
         epochs: &[u64],
-    ) -> Result<HashMap<u64, EpochPruningBounds>, IndexerError> {
+    ) -> Result<HashMap<u64, EpochLowerBounds>, IndexerError> {
         let pool = &self.blocking_cp;
         let results: Vec<(i64, i64, i64, i64)> = run_query!(pool, move |conn| {
             epochs::table
@@ -1576,7 +1575,7 @@ impl PgIndexerStore {
             .map(|(epoch, checkpoint, tx, optimistic_seq)| {
                 (
                     epoch as u64,
-                    EpochPruningBounds {
+                    EpochLowerBounds {
                         first_checkpoint_id: checkpoint as u64,
                         first_tx_sequence_number: tx as u64,
                         first_optimistic_sequence_number: optimistic_seq as u64,
@@ -1593,7 +1592,7 @@ impl PgIndexerStore {
         use diesel::query_dsl::methods::FilterDsl;
 
         let epochs: Vec<u64> = watermarks.iter().map(|(_table, epoch)| *epoch).collect();
-        let epoch_mapping = self.map_epochs_to_cp_tx(&epochs)?;
+        let epoch_mapping = self.map_epochs_to_low_bounds(&epochs)?;
         let lookups: Result<Vec<StoredWatermark>, IndexerError> = watermarks
             .into_iter()
             .map(|(table, epoch)| {
