@@ -222,6 +222,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             config's verifier limits in post-consensus validation, and set
 //             those limits to the node config's defaults on all chains
 //             (inert where the P-COOL flow is off).
+//             Start publishing package metadata using module metadata as a
+//             dynamic field on mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3451,6 +3453,10 @@ impl ProtocolConfig {
                     cfg.max_meter_ticks_per_package = Some(2_200_000);
                     cfg.max_meter_ticks_regex_reference_safety = Some(2_200_000);
                     cfg.feature_flags.pcool_verifier_limits_from_protocol_config = true;
+                    // Publish package metadata with the module metadata stored as a
+                    // dynamic field.
+                    cfg.feature_flags
+                        .package_metadata_with_dynamic_module_metadata = true;
                 }
                 // Use this template when making changes:
                 //
