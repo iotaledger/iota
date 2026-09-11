@@ -218,7 +218,7 @@ pub(super) fn prepare_transaction(
             input_objects,
             &receiving_objects,
             &env.bytecode_verifier_metrics,
-            &verifier_signing_config,
+            iota_transaction_checks::VerifierLimitsSource::NodeConfig(&verifier_signing_config),
             0,
         )
         .map_err(|e| ValidationError::new("transaction input check", e))?;
@@ -406,7 +406,7 @@ pub(super) fn execute_with_move_authenticators(
         })
         .collect::<Vec<_>>();
 
-    let (inner_temp_store, _, effects, execution_result) = env
+    let (inner_temp_store, _, effects, _timings, execution_result) = env
         .executor
         .authenticate_then_execute_transaction_to_effects(
             store,

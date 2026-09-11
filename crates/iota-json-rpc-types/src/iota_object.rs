@@ -620,6 +620,8 @@ impl TryInto<Object> for IotaObjectData {
                     o.version.into(),
                     o.bcs_bytes,
                     &protocol_config,
+                    // system_mutation
+                    false,
                 )?
             }),
             Some(IotaRawData::Package(p)) => ObjectData::Package(MovePackage::new(

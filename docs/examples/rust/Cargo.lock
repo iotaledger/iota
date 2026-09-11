@@ -1104,7 +1104,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2017,9 +2017,9 @@ dependencies = [
 
 [[package]]
 name = "fixedbitset"
-version = "0.2.0"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
 name = "fnv"
@@ -3252,7 +3252,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6803a71520f18d5d736e003da9731df8c32186b5#6803a71520f18d5d736e003da9731df8c32186b5"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
 dependencies = [
  "base64ct",
  "bech32 0.11.1",
@@ -3268,7 +3268,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6803a71520f18d5d736e003da9731df8c32186b5#6803a71520f18d5d736e003da9731df8c32186b5"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -3288,7 +3288,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6803a71520f18d5d736e003da9731df8c32186b5#6803a71520f18d5d736e003da9731df8c32186b5"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -3304,7 +3304,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6803a71520f18d5d736e003da9731df8c32186b5#6803a71520f18d5d736e003da9731df8c32186b5"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3323,7 +3323,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6803a71520f18d5d736e003da9731df8c32186b5#6803a71520f18d5d736e003da9731df8c32186b5"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3406,7 +3406,9 @@ dependencies = [
  "futures",
  "hex",
  "indexmap 2.14.0",
+ "iota-common",
  "iota-macros",
+ "iota-metrics",
  "iota-multiaddr",
  "iota-protocol-config",
  "iota-sdk-crypto",
@@ -3416,6 +3418,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
+ "move-trace-format",
  "move-vm-profiler",
  "move-vm-test-utils",
  "nonempty",
@@ -3446,10 +3449,10 @@ dependencies = [
  "bcs",
  "iota-sdk-types",
  "iota-types",
- "move-abstract-interpreter",
  "move-abstract-stack",
  "move-binary-format",
  "move-bytecode-utils",
+ "move-bytecode-verifier",
  "move-bytecode-verifier-meter",
  "move-core-types",
  "move-vm-config",
@@ -3841,6 +3844,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lcov"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dab4f1d99e0dd8008da0d3452bb71ce08e1645465c2accc124bcb599c6b3143"
+dependencies = [
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "leb128"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4040,10 +4052,6 @@ dependencies = [
 [[package]]
 name = "move-abstract-interpreter"
 version = "0.1.0"
-dependencies = [
- "move-binary-format",
- "move-bytecode-verifier-meter",
-]
 
 [[package]]
 name = "move-abstract-stack"
@@ -4056,6 +4064,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "indexmap 2.14.0",
+ "move-abstract-interpreter",
  "move-core-types",
  "proptest",
  "proptest-derive",
@@ -4190,7 +4199,6 @@ dependencies = [
  "rand 0.8.6",
  "ref-cast",
  "serde",
- "serde_bytes",
  "serde_with",
  "thiserror 1.0.69",
  "uint 0.9.5",
@@ -4206,12 +4214,16 @@ dependencies = [
  "codespan",
  "colored",
  "indexmap 2.14.0",
+ "lcov",
  "move-abstract-interpreter",
  "move-binary-format",
  "move-bytecode-source-map",
+ "move-bytecode-verifier",
  "move-command-line-common",
+ "move-compiler",
  "move-core-types",
  "move-ir-types",
+ "move-trace-format",
  "petgraph",
  "serde",
 ]
@@ -4300,7 +4312,6 @@ name = "move-model-2"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bcs",
  "indexmap 2.14.0",
  "move-binary-format",
  "move-bytecode-source-map",
@@ -4308,6 +4319,7 @@ dependencies = [
  "move-core-types",
  "move-ir-types",
  "move-symbol-pool",
+ "serde",
 ]
 
 [[package]]
@@ -4369,6 +4381,17 @@ dependencies = [
  "once_cell",
  "phf",
  "serde",
+]
+
+[[package]]
+name = "move-trace-format"
+version = "0.0.1"
+dependencies = [
+ "move-binary-format",
+ "move-core-types",
+ "serde",
+ "serde_json",
+ "zstd",
 ]
 
 [[package]]
@@ -5032,12 +5055,14 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "petgraph"
-version = "0.5.1"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "467d164a6de56270bd7c4d070df81d07beace25012d5103ced4e9ff08d6afdb7"
+checksum = "8701b58ea97060d5e5b155d383a69952a60943f0e6dfe30b04c287beb0b27455"
 dependencies = [
  "fixedbitset",
- "indexmap 1.9.3",
+ "hashbrown 0.15.5",
+ "indexmap 2.14.0",
+ "serde",
 ]
 
 [[package]]
@@ -6300,16 +6325,6 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.69",
  "typeid",
-]
-
-[[package]]
-name = "serde_bytes"
-version = "0.11.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8"
-dependencies = [
- "serde",
- "serde_core",
 ]
 
 [[package]]
@@ -7820,7 +7835,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

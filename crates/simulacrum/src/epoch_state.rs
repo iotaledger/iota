@@ -11,6 +11,7 @@ use iota_config::{
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{Transaction, TransactionEffects};
+use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
@@ -160,28 +161,30 @@ impl EpochState {
             input_objects,
             &receiving_objects,
             &self.bytecode_verifier_metrics,
-            verifier_signing_config,
+            VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
         )?;
 
         let transaction = transaction.data().transaction();
         let (kind, signer, gas_data) = transaction.execution_parts();
-        Ok(self.executor.execute_transaction_to_effects(
-            store.backing_store(),
-            &self.protocol_config,
-            self.limits_metrics.clone(),
-            false,           // enable_expensive_checks
-            &HashSet::new(), // certificate_deny_set
-            &self.epoch_start_state.epoch(),
-            self.epoch_start_state.epoch_start_timestamp_ms(),
-            checked_input_objects,
-            gas_data,
-            gas_status,
-            kind,
-            signer,
-            tx_digest,
-            &mut None,
-        ))
+        let (inner_temp_store, gas_status, effects, _timings, result) =
+            self.executor.execute_transaction_to_effects(
+                store.backing_store(),
+                &self.protocol_config,
+                self.limits_metrics.clone(),
+                false,           // enable_expensive_checks
+                &HashSet::new(), // certificate_deny_set
+                &self.epoch_start_state.epoch(),
+                self.epoch_start_state.epoch_start_timestamp_ms(),
+                checked_input_objects,
+                gas_data,
+                gas_status,
+                kind,
+                signer,
+                tx_digest,
+                &mut None,
+            );
+        Ok((inner_temp_store, gas_status, effects, result))
     }
 
     /// Simulate a transaction without committing changes.
@@ -259,7 +262,7 @@ impl EpochState {
                 input_objects,
                 &receiving_objects,
                 &self.bytecode_verifier_metrics,
-                verifier_signing_config,
+                VerifierLimitsSource::NodeConfig(verifier_signing_config),
                 authenticator_gas_budget,
             )?
         } else {
