@@ -2,25 +2,32 @@
 -- with a lower value were indexed before this epoch started. Lets the
 -- pruner translate an epoch retention boundary into an
 -- `optimistic_transactions` delete range.
---
--- NULL for epochs recorded before this column existed, or when no
--- optimistic transaction had been indexed yet; pruning of
--- `optimistic_transactions` pauses until the retention boundary reaches an
--- epoch with a value.
-ALTER TABLE epochs ADD COLUMN first_optimistic_sequence_number BIGINT DEFAULT NULL;
+ALTER TABLE epochs ADD COLUMN first_optimistic_sequence_number BIGINT;
 
-CREATE FUNCTION epochs_set_first_optimistic_seq() RETURNS trigger AS $$
-BEGIN
-    IF NEW.first_optimistic_sequence_number IS NULL THEN
-        NEW.first_optimistic_sequence_number := pg_sequence_last_value(
-            pg_get_serial_sequence('tx_global_order', 'optimistic_sequence_number')) + 1;
-    END IF;
-    RETURN NEW;
-END $$ LANGUAGE plpgsql;
+-- Backfill existing epochs, one COALESCE arm per source:
+-- 1. the first optimistic transaction at or after the epoch's first transaction
+-- 2. the next value the sequence will assign, for epochs newer than the last optimistic row
+-- 3. 0, when no optimistic transaction was ever indexed
+UPDATE epochs e
+SET first_optimistic_sequence_number = COALESCE(
+    (SELECT o.optimistic_sequence_number
+     FROM optimistic_transactions o
+     WHERE o.global_sequence_number >= e.first_tx_sequence_number
+     ORDER BY o.global_sequence_number, o.optimistic_sequence_number
+     LIMIT 1),
+    pg_sequence_last_value(
+        pg_get_serial_sequence('tx_global_order', 'optimistic_sequence_number')) + 1,
+    0
+);
 
-CREATE TRIGGER epochs_first_optimistic_seq
-BEFORE INSERT ON epochs
-FOR EACH ROW EXECUTE FUNCTION epochs_set_first_optimistic_seq();
+-- Fills `first_optimistic_sequence_number` on insert with the next
+-- `tx_global_order` sequence value, or 0 if the sequence was never used.
+ALTER TABLE epochs
+ALTER COLUMN first_optimistic_sequence_number
+SET DEFAULT COALESCE(pg_sequence_last_value(
+    pg_get_serial_sequence('tx_global_order', 'optimistic_sequence_number')) + 1, 0);
+
+ALTER TABLE epochs ALTER COLUMN first_optimistic_sequence_number SET NOT NULL;
 
 -- The old bounds are in the `global_sequence_number` (tx) domain; reset them
 -- so pruning restarts on the `optimistic_sequence_number` key.

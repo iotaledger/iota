@@ -48,9 +48,8 @@ pub struct StoredEpochInfo {
     pub first_tx_sequence_number: i64,
     /// First `optimistic_sequence_number` value belonging to this epoch.
     ///
-    /// `None` for epochs recorded before the column existed, or when no
-    /// optimistic transaction had been indexed yet.
-    pub first_optimistic_sequence_number: Option<i64>,
+    /// Assigned by the column default when the epoch row is inserted.
+    pub first_optimistic_sequence_number: i64,
 }
 
 /// Extracts the indexed epoch-info facts from a transaction's events.
