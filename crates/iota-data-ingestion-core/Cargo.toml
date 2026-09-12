@@ -43,6 +43,7 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 rand.workspace = true
+tokio = { workspace = true, features = ["io-util", "net"] }
 
 # internal dependencies
 iota-common.workspace = true

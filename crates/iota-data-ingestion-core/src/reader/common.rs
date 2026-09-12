@@ -17,7 +17,11 @@ pub struct ReaderOptions {
     ///
     /// Default: 100ms.
     pub tick_interval_ms: u64,
-    /// Network request timeout, it applies to remote store operations.
+    /// Network request timeout, it applies to live remote store operations.
+    ///
+    /// Reads from the historical store are bulk transfers whose duration
+    /// scales with the file size, so they are bounded by the store client's
+    /// connect and stall timeouts instead.
     ///
     /// Default: 5 seconds.
     pub timeout_secs: u64,
