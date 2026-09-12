@@ -35,6 +35,7 @@ use iota_core::{
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    jsonrpc_index::{JSONRPC_INDEXES_DIR, JsonRpcIndexRestorer},
     storage::RocksDbStore,
 };
 use iota_data_ingestion_core::history::reader::{
@@ -51,7 +52,7 @@ use iota_snapshot::{
     VerifiedEpochInfo,
     progress::{ProgressTicker, ProgressUnit, make_multi_progress, println_or_log},
     reader::{StateAccumulatorSender, StateSnapshotReaderV1},
-    restore::RestoreWithGrpcIndexes,
+    restore::RestoreWithIndexes,
     setup_db_state,
 };
 use iota_storage::object_store::{
@@ -809,6 +810,7 @@ pub async fn download_formal_snapshot(
     num_parallel_downloads: NonZeroUsize,
     verify: SnapshotVerifyMode,
     skip_grpc_indexes: bool,
+    skip_jsonrpc_indexes: bool,
     disable_progress_bar: bool,
 ) -> Result<(), anyhow::Error> {
     let m = make_multi_progress(disable_progress_bar);
@@ -910,20 +912,25 @@ pub async fn download_formal_snapshot(
         epoch,
     )?;
 
-    // Unless `--skip-grpc-indexes` is passed, the gRPC index store is built
-    // from the same object stream that restores the perpetual tables, so a
-    // fullnode started with gRPC enabled opens it in place instead of
-    // re-indexing the whole restored state.
+    // Unless the matching `--skip-...-indexes` flag is passed, the gRPC and
+    // JSON-RPC index stores are built from the same object stream that
+    // restores the perpetual tables, so a fullnode started with gRPC or
+    // `enable-index-processing` opens them in place instead of re-indexing
+    // the whole restored state.
     //
-    // Like every other store of this restore, it lives under `staging/`,
-    // which replaces `live/` wholesale at the end — so a pre-existing gRPC
-    // index store (whatever its watermarks claim) can never survive into the
-    // restored node and compete with the one built here.
+    // Like every other store of this restore, they live under `staging/`,
+    // which replaces `live/` wholesale at the end — so pre-existing index
+    // stores (whatever their watermarks claim) can never survive into the
+    // restored node and compete with the ones built here.
     let grpc_indexes = (!skip_grpc_indexes).then(|| {
         Arc::new(GrpcIndexesStore::new_without_init(
             path.join(GRPC_INDEXES_DIR),
         ))
     });
+    let jsonrpc_indexes = (!skip_jsonrpc_indexes)
+        .then(|| JsonRpcIndexRestorer::open(path.join(JSONRPC_INDEXES_DIR)))
+        .transpose()?
+        .map(Arc::new);
 
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     let perpetual_db_clone = perpetual_db.clone();
@@ -933,28 +940,29 @@ pub async fn download_formal_snapshot(
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads.get());
     let (accumulation_done_sender, accumulation_done_receiver) = oneshot::channel();
     let grpc_indexes_clone = grpc_indexes.clone();
+    let jsonrpc_indexes_clone = jsonrpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {
         let accumulator = Some(StateAccumulatorSender {
             partials: sender,
             completion: accumulation_done_sender,
         });
-        if let Some(grpc_indexes) = &grpc_indexes_clone {
-            let grpc_restorer =
-                grpc_indexes.live_object_restorer(bulk_ingestion_options().batch_size_limit);
-            let restore_target = RestoreWithGrpcIndexes::new(&perpetual_db_clone, &grpc_restorer);
-            reader
-                .read_to_db(&restore_target, abort_registration, accumulator)
-                .await
-                .context("Failed to read snapshot")?;
+        let grpc_restorer = grpc_indexes_clone.as_ref().map(|grpc_indexes| {
+            grpc_indexes.live_object_restorer(bulk_ingestion_options().batch_size_limit)
+        });
+        let restore_target = RestoreWithIndexes::new(
+            &perpetual_db_clone,
+            grpc_restorer.as_ref(),
+            jsonrpc_indexes_clone.as_deref(),
+        );
+        reader
+            .read_to_db(&restore_target, abort_registration, accumulator)
+            .await
+            .context("Failed to read snapshot")?;
+        if let Some(grpc_restorer) = grpc_restorer {
             grpc_restorer
                 .finish()
                 .context("Failed to flush the gRPC coin index")?;
-        } else {
-            reader
-                .read(&perpetual_db_clone, abort_registration, accumulator)
-                .await
-                .context("Failed to read snapshot")?;
         }
 
         Ok::<(), anyhow::Error>(())
@@ -1065,11 +1073,33 @@ pub async fn download_formal_snapshot(
     checkpoint_store.ensure_current_epoch_info(&authority_store)?;
 
     // Finalize the gRPC live-state index store so the node opens it in place
-    // instead of re-indexing. Drop all RocksDB handles before the rename below.
+    // instead of re-indexing. All RocksDB handles close before the rename
+    // below.
     if let Some(grpc_indexes) = grpc_indexes {
-        grpc_indexes.finalize_restore(last_checkpoint.sequence_number)?;
-        Arc::into_inner(grpc_indexes)
-            .expect("the snapshot task is awaited, so its store handle is gone");
+        grpc_indexes
+            .finalize_and_verify_restore(
+                &path.join(GRPC_INDEXES_DIR),
+                last_checkpoint.sequence_number,
+                num_live_objects,
+            )
+            .await?;
+    }
+
+    // Finalize the JSON-RPC index store so the node opens it in place
+    // instead of re-indexing. All RocksDB handles close before the rename
+    // below.
+    if let Some(jsonrpc_indexes) = jsonrpc_indexes {
+        let jsonrpc_indexes_path = path.join(JSONRPC_INDEXES_DIR);
+        Arc::into_inner(jsonrpc_indexes)
+            .expect("the snapshot task is awaited, so its restorer handle is gone")
+            .finalize(last_checkpoint.sequence_number)
+            .await?;
+        JsonRpcIndexRestorer::verify_restored(
+            &jsonrpc_indexes_path,
+            last_checkpoint.sequence_number,
+            num_live_objects,
+        )
+        .await?;
     }
 
     let new_path = path.parent().unwrap().join("live");

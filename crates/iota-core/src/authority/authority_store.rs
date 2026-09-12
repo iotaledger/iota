@@ -33,7 +33,7 @@ use move_core_types::resolver::ModuleResolver;
 use tokio::time::Instant;
 use tracing::{debug, info, trace};
 use typed_store::{
-    TypedStoreError,
+    DbIterator, TypedStoreError,
     rocks::{DBBatch, DBMap},
     traits::Map,
 };
@@ -1399,10 +1399,10 @@ impl AuthorityStore {
         let mut pending_objects = vec![];
         let mut count = 0;
         let mut size = 0;
-        let (mut total_iota, mut total_storage_rebate) = thread::scope(|s| {
+        let totals: IotaResult<(u64, u64)> = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
             for o in self.iter_live_object_set() {
-                let object = o.object;
+                let object = o?.object;
                 size += object.object_size_for_gas_metering();
                 count += 1;
                 pending_objects.push(object);
@@ -1428,11 +1428,12 @@ impl AuthorityStore {
                     }));
                 }
             }
-            pending_tasks.into_iter().fold((0, 0), |init, result| {
+            Ok(pending_tasks.into_iter().fold((0, 0), |init, result| {
                 let result = result.join().unwrap();
                 (init.0 + result.0, init.1 + result.1)
-            })
+            }))
         });
+        let (mut total_iota, mut total_storage_rebate) = totals?;
         let mut layout_resolver = executor.type_layout_resolver(Box::new(type_layout_store));
         for object in pending_objects {
             total_storage_rebate += object.storage_rebate;
@@ -1690,7 +1691,7 @@ impl GlobalStateHashStore for AuthorityStore {
         Ok(())
     }
 
-    fn iter_live_object_set(&self) -> Box<dyn Iterator<Item = LiveObject> + '_> {
+    fn iter_live_object_set(&self) -> DbIterator<'_, LiveObject> {
         Box::new(self.perpetual_tables.iter_live_object_set())
     }
 }

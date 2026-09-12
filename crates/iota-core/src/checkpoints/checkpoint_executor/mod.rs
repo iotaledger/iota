@@ -348,7 +348,8 @@ impl CheckpointExecutor {
             iota_metrics::monitored_scope("CheckpointExecutor::parallel_step");
 
         // Note: only `execute_transactions_from_synced_checkpoint` has end-of-epoch
-        // logic.
+        // logic. It is also the only branch that stages index updates, so a
+        // divergence here would stamp the watermark over unstaged checkpoints.
         let exec_start = Instant::now();
         let ckpt_state = match loaded {
             Some((ckpt_state, tx_data)) => {
@@ -433,7 +434,13 @@ impl CheckpointExecutor {
         finish_stage!(pipeline_handle, FinalizeCheckpoint);
 
         if let Some(checkpoint_data) = ckpt_state.full_data.take() {
-            self.commit_index_updates(checkpoint_data);
+            // The commit writes RocksDB and takes the caches' owner locks.
+            tokio::task::spawn_blocking({
+                let this = self.clone();
+                move || this.commit_index_updates(checkpoint_data)
+            })
+            .await
+            .unwrap();
         }
 
         finish_stage!(pipeline_handle, UpdateRpcIndex);
@@ -653,6 +660,7 @@ impl CheckpointExecutor {
 
     fn checkpoint_data_enabled(&self) -> bool {
         self.state.grpc_indexes_store.is_some()
+            || self.state.jsonrpc_indexes_store.is_some()
             || self.config.data_ingestion_dir.is_some()
             || self.data_sender.is_some()
     }
@@ -720,14 +728,22 @@ impl CheckpointExecutor {
             return None;
         }
 
-        // Index the checkpoint. The grpc indexes accumulate non-idempotent state
-        // (owner indexes, live-object sets), so each update must land exactly
-        // once. Indexing runs here out of order (checkpoints execute
-        // concurrently), so the write is only staged now and committed later, in
-        // sequence order, via `commit_update_for_checkpoint` — keeping the grpc
-        // watermark consistent with the executed checkpoint and crash-safe.
+        // Index the checkpoint. The gRPC and JSON-RPC indexes accumulate
+        // non-idempotent state (owner indexes, live-object sets), so each update
+        // must land exactly once. The checkpoint's transaction outputs are not
+        // durable yet at this stage, so the writes are only staged now and
+        // committed later, after `FinalizeCheckpoint`, via
+        // `commit_index_updates` — keeping the indexes consistent with the
+        // executed checkpoint and crash-safe. Stages run in checkpoint order,
+        // which the index stores assert on.
         if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
             grpc_indexes_store.index_checkpoint(&checkpoint_data);
+        }
+
+        if let Some(jsonrpc_indexes_store) = &self.state.jsonrpc_indexes_store {
+            jsonrpc_indexes_store
+                .index_checkpoint(&checkpoint_data)
+                .expect("failed to stage JSON-RPC index update");
         }
 
         if let Some(path) = &self.config.data_ingestion_dir {
@@ -1082,10 +1098,16 @@ impl CheckpointExecutor {
     /// checkpoint
     #[instrument(level = "info", skip_all)]
     fn commit_index_updates(&self, checkpoint: CheckpointData) {
+        let sequence_number = checkpoint.checkpoint_summary.sequence_number;
         if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
             grpc_indexes_store
-                .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
+                .commit_update_for_checkpoint(sequence_number)
                 .expect("failed to update gRPC indexes");
+        }
+        if let Some(indexes) = &self.state.jsonrpc_indexes_store {
+            indexes
+                .commit_update_for_checkpoint(sequence_number)
+                .expect("failed to update JSON-RPC indexes");
         }
     }
 

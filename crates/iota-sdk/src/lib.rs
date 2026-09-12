@@ -738,12 +738,19 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let this = unsafe { self.get_unchecked_mut() };
-        if this.next.is_empty() && this.has_next_page {
+        // A `while`, not an `if`: a page can be empty while more pages
+        // exist (e.g. every entry of it was filtered out server-side), and
+        // ending the stream on it would silently truncate the results.
+        while this.next.is_empty() && this.has_next_page {
             match this.fut.as_mut().poll(cx) {
                 Poll::Ready(res) => match res {
                     Ok(mut page) => {
                         this.next.extend(page.data);
-                        this.has_next_page = page.has_next_page;
+                        // A page announcing a successor without handing out
+                        // a cursor would re-issue the request that produced
+                        // it, restarting the stream from the first page; end
+                        // it instead.
+                        this.has_next_page = page.has_next_page && page.next_cursor.is_some();
                         if this.has_next_page {
                             this.fut.set((this.fun)(page.next_cursor.take()));
                         }
@@ -812,5 +819,25 @@ mod test {
         let mut bad_stream = PagedFn::stream(async |_| endpoint.get_page(Some(99999)).await);
 
         assert!(bad_stream.try_next().await.is_err());
+    }
+
+    /// A page announcing a successor without a cursor ends the stream: the
+    /// same request would otherwise be re-issued forever.
+    #[tokio::test]
+    async fn test_a_page_without_a_cursor_ends_the_stream() {
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let stream = PagedFn::stream(async |_cursor: Option<usize>| {
+            anyhow::ensure!(
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0,
+                "the stream restarted from the first page"
+            );
+            Ok(Page {
+                data: vec![1, 2],
+                next_cursor: None,
+                has_next_page: true,
+            })
+        });
+
+        assert_eq!(stream.try_collect::<Vec<_>>().await.unwrap(), vec![1, 2]);
     }
 }
