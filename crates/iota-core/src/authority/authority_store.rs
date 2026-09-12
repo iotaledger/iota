@@ -8,7 +8,7 @@ use either::Either;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
-use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
+use iota_config::migration_tx_data::MigrationTxData;
 use iota_genesis_common::MigrationTxDataExt;
 use iota_macros::fail_point_arg;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
@@ -42,12 +42,11 @@ use super::{
     authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     *,
 };
+#[cfg(any(test, feature = "test-utils"))]
+use crate::authority::authority_store_pruner::AuthorityStorePruner;
 use crate::{
     authority::{
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
-        authority_store_pruner::{
-            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-        },
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
@@ -929,6 +928,13 @@ impl AuthorityStore {
                 .iter()
                 .map(|(key, object)| (*key, object.clone())),
         )?;
+        // The tombstones written above stay in the live table; recording them
+        // here is what lets the bucket's expiry delete them, once every
+        // version they sit above has expired with it.
+        write_batch.insert_batch_tagged(
+            &historic_bucket.tombstones,
+            deleted.iter().chain(wrapped.iter()).map(|key| (*key, ())),
+        )?;
         write_batch.delete_batch(
             &self.perpetual_tables.objects,
             superseded.iter().map(|(key, _)| *key),
@@ -1291,18 +1297,66 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// Return the object with version less then or eq to the provided seq
-    /// number. This is used by indexer to find the correct version of
-    /// dynamic field child object. We do not store the version of the child
-    /// object, but because of lamport timestamp, we know the child must
-    /// have version number less then or eq to the parent.
-    pub fn find_object_lt_or_eq_version(
+    /// The newest version of `object_id` at or below `version`, taken from the
+    /// live `objects` table and the historic buckets together: whichever of
+    /// the two answers is the newer one wins.
+    ///
+    /// Both are asked every time, because either can hold the newer row: a
+    /// tombstone left below a newer version by an unwrap stays in the live
+    /// table for good, so taking the live answer whenever there is one would
+    /// return that tombstone in place of a newer relocated version.
+    ///
+    /// `None` covers both an object deleted or wrapped at or below the bound
+    /// and an object with no version in range at all. A live tombstone newer
+    /// than anything the buckets hold in range is still the answer, and a
+    /// relocated version from underneath it is never served in its place, so a
+    /// deleted object stays deleted.
+    ///
+    /// Reading the live table first is required, and is what keeps a
+    /// concurrent bucket expiry from being observed out of order, as
+    /// `HistoricObjects::readable_buckets` explains: either the live read runs
+    /// before the expiry deletes the tombstone head and finds the tombstone,
+    /// or the bucket is out of the map by the time the buckets are asked.
+    ///
+    /// Execution reads this way too, and its answer does not depend on
+    /// `num_epochs_to_retain`. An answer taken from the buckets means a
+    /// transaction that superseded the version being asked for has already
+    /// executed and is ordered after this reader — consensus assignment for a
+    /// shared root, the owned-object lock for an owned one — so that
+    /// relocation is in the current epoch's bucket. Buckets are expired only
+    /// at reconfiguration, with execution halted, and the newest bucket is
+    /// retained at every retention setting, so the current epoch's bucket is
+    /// present on every node. Keep both halves true: an
+    /// expiry that could run while transactions execute, or a retention that
+    /// could drop the newest bucket, would make execution's answer differ
+    /// between nodes. The two other places that expire — `HistoricObjects`'s
+    /// own open, which finishes an interrupted expiry before any transaction
+    /// can execute, and the test-only
+    /// [`Self::expire_historic_objects_and_compact_for_testing`] — leave both
+    /// halves standing.
+    ///
+    /// This is used to find the correct version of a dynamic field child
+    /// object. We do not store the version of the child object, but because of
+    /// lamport timestamp, we know the child must have version number less then
+    /// or eq to the parent.
+    pub fn find_object_lt_or_eq_version_with_historic_fallback(
         &self,
         object_id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
-        self.perpetual_tables
-            .find_object_lt_or_eq_version(object_id, version)
+        let live = self
+            .perpetual_tables
+            .find_object_lt_or_eq_version(object_id, version)?;
+        let relocated = self
+            .historic_objects
+            .find_lt_or_eq_version(object_id, version)?;
+        match live {
+            Some((key, row)) => match relocated {
+                Some(object) if key.1 < object.version() => Ok(Some(object)),
+                _ => self.perpetual_tables.object(&key, row),
+            },
+            None => Ok(relocated),
+        }
     }
 
     /// Returns the latest object reference we have for this object_id in the
@@ -1654,25 +1708,18 @@ impl AuthorityStore {
         Ok(())
     }
 
-    pub async fn prune_objects_and_compact_for_testing(
-        &self,
-        checkpoint_store: &Arc<CheckpointStore>,
-    ) {
-        let pruning_config = AuthorityStorePruningConfig {
-            num_epochs_to_retain: 0,
-            ..Default::default()
-        };
-        let _ = AuthorityStorePruner::prune_objects_for_eligible_epochs(
-            &self.perpetual_tables,
-            checkpoint_store,
-            None,
-            pruning_config,
-            AuthorityStorePruningMetrics::new_for_test(),
-            EPOCH_DURATION_MS_FOR_TESTING,
-            None,
-        )
-        .await;
-        let _ = AuthorityStorePruner::compact(&self.perpetual_tables);
+    /// Expires every historic bucket but the newest, deleting the tombstone
+    /// heads those epochs recorded, and compacts the live `objects` table.
+    /// This is what a node reaches on its own once its object retention has
+    /// caught up; a test that wants the versions of a given epoch gone has to
+    /// have started a later epoch first.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn expire_historic_objects_and_compact_for_testing(&self) {
+        self.historic_objects
+            .prune(1)
+            .expect("expiring the historic buckets should not fail");
+        AuthorityStorePruner::compact(&self.perpetual_tables)
+            .expect("compacting the live objects table should not fail");
     }
 
     #[cfg(test)]

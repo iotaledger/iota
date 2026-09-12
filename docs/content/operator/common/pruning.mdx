@@ -53,11 +53,9 @@ authority-store-pruning-config:
   #   N (>= 1) — retains object versions from the last N epochs. Use this when
   #              the node must serve lookups by object ID + version.
   #   u64::MAX — disables object pruning entirely (18446744073709551615).
-  # With transaction pruning enabled, a finite value must not exceed
-  # num-epochs-to-retain-for-checkpoints below, or the objects pruner fails
-  # when it reaches a checkpoint whose contents were already deleted.
-  # u64::MAX turns object pruning off, so it never reaches such a
-  # checkpoint and the limit does not apply to it.
+  # Independent of num-epochs-to-retain-for-checkpoints below: historic object
+  # versions are retained per epoch and dropped a whole epoch at a time, so
+  # object pruning never reads a checkpoint's contents.
   num-epochs-to-retain: 0
 
   # Number of epochs to keep historic transactions, effects, events, and
@@ -88,16 +86,13 @@ authority-store-pruning-config:
   # Reclaims disk space and avoids fragmentation. Default: 1 (when read from
   # config). Set to "null" to disable periodic compaction entirely.
   periodic-compaction-threshold-days: 1
-
-  # Use the RocksDB compaction filter for object-table pruning. When disabled,
-  # a range-deletion approach is used. Do not toggle frequently — switching
-  # back to range deletion may leave some old versions unpruned. Default: false.
-  # enable-compaction-filter: false
 ```
 
-Pruning is driven by checkpoint execution: after each executed checkpoint the
-node prunes data that has aged past the retention window, pacing the work
-against on-chain checkpoint timestamps.
+Transaction and index pruning are driven by checkpoint execution: after each
+executed checkpoint the node prunes data that has aged past the retention
+window, pacing the work against on-chain checkpoint timestamps. Object pruning
+runs at the epoch boundary instead, where it drops the expired epochs' object
+versions wholesale.
 
 ## Configuration Examples
 
@@ -139,7 +134,7 @@ authority-store-pruning-config:
 
 This configuration manages the full object history while still pruning historic transactions. A full node with this configuration can answer all historic and indexing queries (using the transaction query fallback for transactional data), including the ones that require historic objects such as the `showBalanceChanges` filter of `iota_getTransactionBlock()`.
 
-The main caveat is that the current setup enables the **transaction pruner** to go ahead of the **object pruner**. The object pruner might not be able to properly clean up the objects modified by the transactions that have been already pruned. You should closely monitor the disk space growth on a full node with this configuration.
+The main caveat is disk usage: the full object history grows without bound. You should closely monitor the disk space growth on a full node with this configuration.
 
 ```yaml
 authority-store-pruning-config:
