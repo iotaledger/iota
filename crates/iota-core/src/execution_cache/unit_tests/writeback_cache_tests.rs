@@ -27,10 +27,14 @@ use iota_types::{
 use prometheus_filtered::default_registry;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::sync::RwLock;
+use typed_store::Map as _;
 
 use super::*;
 use crate::{
-    authority::{AuthorityState, AuthorityStore, test_authority_builder::TestAuthorityBuilder},
+    authority::{
+        AuthorityState, AuthorityStore, authority_store_types::get_store_object,
+        test_authority_builder::TestAuthorityBuilder,
+    },
     execution_cache::ExecutionCacheAPI,
 };
 
@@ -175,6 +179,7 @@ impl Scenario {
             transaction: Arc::new(tx),
             effects,
             events,
+            superseded: Default::default(),
             markers: Default::default(),
             wrapped: Default::default(),
             deleted: Default::default(),
@@ -885,6 +890,52 @@ async fn test_write_transaction_outputs_is_sync() {
         // assert that write_transaction_outputs is sync in non-simtest, which causes
         // the fail_point_async! macros above to be elided
         s.cache.write_transaction_outputs(1, outputs).unwrap();
+    })
+    .await;
+}
+
+/// Committing a transaction that supersedes a version leaves that version
+/// out of the live table and in the current epoch's bucket, which is the
+/// post-state asserted here. That the two halves can only land together is
+/// enforced elsewhere: both join one `DBBatch`, and a `DBBatch` refuses a
+/// map belonging to another database.
+#[tokio::test]
+async fn test_commit_relocates_superseded_versions() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let superseded = Object::immutable_with_id_for_testing(ObjectId::random());
+        let key = ObjectKey(superseded.id(), superseded.version());
+
+        // Seed the version into the live table, then commit outputs that
+        // supersede it.
+        s.store
+            .perpetual_tables
+            .objects
+            .insert(&key, &get_store_object(superseded.clone(), Some(0)))
+            .unwrap();
+
+        let mut outputs = Scenario::new_outputs();
+        outputs.superseded = vec![(key, superseded.clone())];
+        let digest = *outputs.transaction.digest();
+        s.cache().write_transaction_outputs(1, Arc::new(outputs));
+        s.commit(digest).await;
+
+        assert_eq!(
+            s.store.perpetual_tables.objects.get(&key).unwrap(),
+            None,
+            "the superseded version must leave the live table"
+        );
+        assert_eq!(
+            s.store.get_historic_objects().get(&key).unwrap().as_ref(),
+            Some(&superseded),
+            "and must arrive in a bucket"
+        );
+        let bucket = s.store.get_historic_objects().ensure(1).unwrap();
+        assert_eq!(
+            bucket.objects.get(&key).unwrap().as_ref(),
+            Some(&superseded),
+            "namely the bucket of the epoch that superseded it"
+        );
     })
     .await;
 }
