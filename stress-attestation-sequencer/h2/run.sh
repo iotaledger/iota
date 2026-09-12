@@ -36,8 +36,9 @@
 set -euo pipefail
 
 # Raise the open-file soft limit to the hard max for this script and every child
-# (the host stress client, docker). The closed-loop client holds
-# TARGET_QPS * IN_FLIGHT_RATIO concurrent fullnode connections (+ retries); the
+# (the host stress client, docker). The client waits for each transaction to
+# complete and holds up to TARGET_QPS * IN_FLIGHT_RATIO concurrent fullnode
+# connections (+ retries); the
 # default soft limit (often 1024) is exhausted well below that, surfacing as
 # "Too many open files" (EMFILE) transport errors that drop txs and pollute the
 # throughput/latency numbers. (run-stress-docker.sh sets --ulimit separately.)
@@ -119,8 +120,8 @@ OVERSHOOT_A="${OVERSHOOT_A:-0}"
 MODE_B="${MODE_B:-TotalComputationUnits}"
 LIMIT_B="${LIMIT_B:?set LIMIT_B=<computation units per object per commit> (required)}"
 OVERSHOOT_B="${OVERSHOOT_B:-0}"
-MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-10}" # rounds a tx may stay deferred before it is CANCELLED (the protocol default); both arms
-ATTEST="${ATTEST:-true}"                         # validator attestation; both arms (see the header)
+MAX_DEFERRAL_ROUNDS="${MAX_DEFERRAL_ROUNDS:-10}" # rounds a tx may stay deferred before it is CANCELLED (the protocol default); both runs
+ATTEST="${ATTEST:-true}"                         # validator attestation; both runs (see the header)
 # Setup-phase gas coins prepped before spam = TARGET_QPS * IN_FLIGHT_RATIO *
 # (NUM_TRANSFER_ACCOUNTS + 1). That product drives warmup time, so keep
 # NUM_TRANSFER_ACCOUNTS / IN_FLIGHT_RATIO small — they don't gate throughput at
@@ -254,7 +255,7 @@ esac
 
 if [[ "$WORKLOAD" == owned || ("$WORKLOAD" == slow && "$SLOW_SHARED" != true) ]]; then
   echo "${YELLOW}NOTE: this workload takes no MUTABLE shared object, so per-object congestion" >&2
-  echo "      control never accumulates cost and both arms behave identically — there is" >&2
+  echo "      control never accumulates cost and both runs behave identically — there is" >&2
   echo "      nothing for the mode comparison to measure.${RESET}" >&2
 fi
 

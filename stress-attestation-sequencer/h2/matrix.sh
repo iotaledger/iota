@@ -39,7 +39,7 @@
 # grid's own load is the one that applies here.
 #
 #   point    slow_n    units/tx   drains on EPYC (tx/s)
-#   cu1k          1       1,000   arrival-limited, no plateau
+#   cu1k          1       1,000   no plateau: the client offers too little
 #   cu2k         70       2,000   179
 #   cu5k        120       5,000   118
 #   cu10k       160      10,000    94
@@ -52,12 +52,12 @@
 #   cu2m       3511   2,000,000     8.5
 #   cu5m       8000   5,000,000     3.7
 #
-# cu1k has no drain figure because its whole ladder is arrival-limited: the
-# client never offers enough to saturate one object at 1,000 units a
-# transaction. cu5m sits at the metering ceiling — 5,000,000 is the gas budget
-# in computation units, so those transactions fail with InsufficientGas and are
-# charged the whole budget (see probe-test.md). Its work is truncated, which is
-# worth remembering when reading its throughput.
+# cu1k has no drain figure because the client never offers enough to saturate
+# one object at 1,000 units a transaction, at any rung of its ladder. cu5m
+# sits at the metering ceiling — 5,000,000 is the gas budget in computation
+# units, so those transactions fail with InsufficientGas and are charged the
+# whole budget (see probe-test.md). Its work is truncated, which is worth
+# remembering when reading its throughput.
 #
 # Transactions per commit each limit admits is the limit divided by the cost
 # (both ladders are geometric, so it is 1 at the limit equal to the point's
@@ -68,8 +68,8 @@
 # needs `start_time + cost <= limit` with a start time of at least 0, so every
 # transaction is deferred each commit and cancelled after max_deferral_rounds.
 # Each point keeps ONE such rung, the one just below its floor (Run A still
-# runs there, and Run B is the shed-everything control); deeper rungs would
-# repeat it and were dropped.
+# runs there, and Run B checks that such a limit really cancels everything);
+# deeper rungs would repeat it and were dropped.
 #
 # The `slow` workload publishes ONE `slow::Obj` and every transaction takes it as a
 # mutable input, so all of them contend on the same object.
@@ -283,17 +283,17 @@ configs=(
   "cu5m-lim50m-qps1000    | $SLOW8000 $REF LIMIT_B=50000000 TARGET_QPS=1000"
   #
   # ---- mixed cost. LIMIT_B is 10x the mean cost in every config, so Run B's
-  #      budget matches what Run A's count limit admits on average and the
-  #      spread is the only difference between the arms. Each config's
+  #      limit matches what Run A's count limit admits on average and the
+  #      spread is the only difference between the runs. Each config's
   #      fixed-cost control is the cu config of the same mean cost above,
   #      already run to 10 iterations.
   #
-  #      Two constraints pin the weights to 10-40%. Below 10% the matched
+  #      The usable weights run from 10% to about 40%. Below 10% the matched
   #      limit falls BELOW one expensive transaction, which Run B could then
-  #      never schedule at all; above 40% the mean cost is high enough that
-  #      fewer than 10 transactions arrive per commit, so neither limit binds
-  #      and the arms are identical. mix50500 (50%) is past that on purpose,
-  #      to mark where the gain ends.
+  #      never schedule at all; above about 40% the expensive transactions
+  #      alone keep the object busy, so the count limit leaves no capacity
+  #      for the unit limit to use and the gain fades. mix50500 (50%) is past
+  #      that on purpose, to mark where the gain ends.
   "mix1900-w10-lim19k-qps1000   | $MIX1900 $REF LIMIT_B=19000  TARGET_QPS=1000"
   "mix3700-w30-lim37k-qps1000   | $MIX3700 $REF LIMIT_B=37000  TARGET_QPS=1000"
   "mix10900-w10-lim109k-qps1000 | $MIX10900 $REF LIMIT_B=109000 TARGET_QPS=1000"
@@ -406,7 +406,7 @@ for ((round = 1; round <= ITERS; round++)); do
       fail=$((fail + 1))
     fi
     # Compress the node logs this iteration captured (gzip ≈10:1) so a long
-    # campaign does not fill the disk. _state.log/_crash.log stay uncompressed —
+    # sweep does not fill the disk. _state.log/_crash.log stay uncompressed —
     # the crash scan reads them; the analysis tooling never reads node logs.
     sudo find "$SCRIPT_DIR/results/matrix/$label" -path '*node-logs/*.log' \
       ! -name '_state.log' ! -name '_crash.log' -exec "$GZIP_BIN" -f {} + 2>/dev/null
