@@ -463,5 +463,5 @@ done
 mins=$((($(date +%s) - start) / 60))
 echo
 echo "matrix complete: $ok ok, $fail failed (of $n) in ${mins}m"
-echo "results -> results/matrix/<LABEL>/iter-NNN/  (run-a/run-b timeseries JSON + client reports)"
-echo "aggregate: python3 aggregate.py results/matrix   (writes results/matrix/summary.md)"
+echo "results -> $SCRIPT_DIR/results/matrix/<LABEL>/iter-NNN/  (run-a/run-b timeseries JSON + client reports)"
+echo "aggregate: python3 $SCRIPT_DIR/aggregate.py $SCRIPT_DIR/results/matrix  (writes summary.md next to it)"
