@@ -306,7 +306,6 @@ impl RpcIndexesStore {
         let cursor = cursor
             .map(|cursor| {
                 self.lookup_digest(&cursor)?
-                    .map(|(seq, _)| seq)
                     .ok_or(IotaError::TransactionNotFound { digest: cursor })
             })
             .transpose()?;
@@ -576,7 +575,6 @@ impl RpcIndexesStore {
         self.require_jsonrpc()?;
         let seq = self
             .lookup_digest(digest)?
-            .map(|(seq, _)| seq)
             .ok_or(IotaError::TransactionNotFound { digest: *digest })?;
         let range = if descending {
             (seq, 0)..=(min(tx_seq, seq), event_seq)
