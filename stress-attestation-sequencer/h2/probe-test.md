@@ -340,17 +340,17 @@ Both ends of that range are unusable:
 
 So the workable limit sits between, and where exactly depends on the workload
 mix. Choosing and justifying it is the H2 mode comparison, which runs
-`TotalTxCount` (base 10, overshoot 100) against `TotalComputationUnits` at
+`TotalTxCount` (limit 10, burst off) against `TotalComputationUnits` at
 candidate limits from this range and compares throughput, latency and
 per-object cancellation. It uses the shared form of `slow` (W5), one cost per
-cell, over the twelve cost points calibrated here — see `README.md` for the
-grid and `matrix.sh` for the cells.
+config, over the twelve cost points calibrated here — see `README.md` for the
+grid and `matrix.sh` for the configs.
 
-One cost per cell is the control rather than the experiment: at a single cost
+One cost per config is the control rather than the experiment: at a single cost
 a unit limit of `10 × C` admits the same ten transactions a count limit of 10
 does, so the two modes are expected to agree, and measuring that they do is
 what makes the grid trustworthy. The modes can only diverge when a commit
-carries transactions of *different* cost, which is what the `SLOW_MIX` cells
+carries transactions of *different* cost, which is what the `SLOW_MIX` configs
 add — a count limit then admits a fixed number and lets the admitted work
 swing, while a unit limit admits a fixed amount of work and lets the number
 swing.

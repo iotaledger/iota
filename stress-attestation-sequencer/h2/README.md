@@ -1,7 +1,7 @@
 # H2 — `TotalComputationUnits` mode vs `TotalTxCount`
 
-H2 measures the throughput, latency, scheduling efficiency difference between
-the `TotalComputationUnits` and `TotalTxCount` congestion modes (see
+H2 measures the difference in throughput, latency and scheduling efficiency
+between the `TotalComputationUnits` and `TotalTxCount` congestion modes (see
 `../stress-plan.md`). For the comparison to be fair, each mode's per-object
 limit has to let the same amount of work through. Converting one limit into
 the other needs the attested computation units per transaction for the
@@ -17,7 +17,7 @@ produces. The probe uses the owned-object form of the workload (W4 in
 `../stress-plan.md`). Its output picks the `(n, size)` settings for the mode
 comparison, which uses the shared-object form (W5), and sets the limits.
 `run.sh` then runs the comparison itself — one run per mode on the same load —
-and `matrix.sh` sweeps it over a grid of cost points and rates.
+and `matrix.sh` sweeps it over a grid of cost points and limits.
 Shared network scripts (`start.sh`, `cleanup.sh`, `bootstrap.sh`) live one level
 up in `../`.
 
@@ -129,8 +129,11 @@ top rung.
 
 The burst above the base limit is off by default (`OVERSHOOT_A=0`,
 `OVERSHOOT_B=0`), so each run is described by one number and no debt is carried
-between commits. Once a limit is settled, re-run it with an overshoot ten times
-the base to see what the burst adds.
+between commits. Production runs `TotalTxCount` with an overshoot of 100 on
+top of the base 10 (protocol version 22 and later), so the comparison is
+between the two limits, not against production's exact setting. Once a limit
+is settled, re-run it with an overshoot ten times the base to see what the
+burst adds.
 
 With the burst off, a limit below the cost of a _single_ transaction admits
 nothing at all: the scheduler needs `start_time + cost <= limit` and
@@ -140,10 +143,11 @@ start at or above its own per-transaction cost, and why the tightest meaningful
 limit for `cu5m` is one transaction per commit.
 
 The rate is the second knob: it sets how many transactions are available per
-commit, and a limit only binds when demand exceeds what it admits, so each
-config pairs a limit with a rate high enough for the limit to bind. The limits
-that match Run
-A's capacity run the whole 250/500/1000/2000 ladder.
+commit, and a limit only binds when more arrive than it admits. The grid uses
+one rate, 1,000 tx/s, for every config: at 1,000 units the limit binds at
+that rate already, and from 5,000 units up the client's in-flight cap lowers
+what it offers to what the object can execute, so a higher target would not
+change what arrives (`RESULTS.md`, finding 3).
 
 Computation units are machine-independent, but execution time is not, so the
 same limit fills the object differently on each machine — measure where lag
@@ -197,20 +201,21 @@ costs whatever the calibration measured for that `n`. `SLOW_MIX` overrides
 where `slow::slow(n, 0)` writes n EMPTY vectors so every level would land
 onto the cost floor and the spread would vanish unnoticed.
 
-Two constraints pin the usable weights to 10-40% for the expensive level:
+The usable weights for the expensive level run from 10% to about 40%:
 
 - Below 10%, `LIMIT_B = 10 × mean` falls below one expensive transaction's own
   cost, so Run B could never schedule one at all — it would cancel every one
   of them, which is a different experiment.
-- Above 40% the mean cost is high enough that fewer than 10 transactions
-  arrive per commit. Run A admits `min(LIMIT_A, arrivals)`, so its count limit
-  stops binding, Run B's budget stops filling, and the arms become identical.
+- Above about 40% the expensive transactions alone keep the object busy, so
+  the count limit leaves no idle capacity for the unit limit to use: at 30%
+  the gain is 1.4×, at 50% (`mix50500`) 1.3× with lag above 15 s in both
+  runs.
 
 Each mixed config's control is the `cu` config of the same mean cost, already
 run: same mean cost, same mean admitted work, uniform against spread.
 
 Results follow the H1 layout: `results/matrix/<LABEL>/iter-NNN/`, one config
-per label, enforced by the same config gate (`../exp_dir.py`). The probe's own
+per label, enforced by the same config check (`../exp_dir.py`). The probe's own
 outputs are kept apart, under `results/probe/`:
 
 ```text
@@ -239,24 +244,42 @@ results/matrix/<LABEL>/
   checkpoint-inclusion rate, cancelled rate, checkpoint lag (the exact
   histogram mean and the exact share over 30s, plus the pooled p95),
   skipped leader rounds, and the safety verdict (counters +
-  validator crash scan). The same rows land as scalars in
-  `results/matrix/summary.csv` for `plot.py`, and the per-commit admission
-  histogram of every arm in `results/matrix/admits_hist.csv`, for the
-  mixed-cost figure. Standard library only; the machinery shared with
-  `../h1/aggregate.py` lives in `../aggregate.py`.
-- `plot.py` — renders the mode-comparison figures from `summary.csv` into
-  `results/matrix/summary_plots/`: checkpoint lag and cancelled fraction
-  against the
-  admitted rate (tx/commit × commits/s, with Run A as one vertical line),
-  annotated per-config heatmaps of the same scalars, the throughput-vs-lag
-  tradeoff, and lag against admitted/drain utilization — all over the
-  fixed-cost configs. The mixed-cost configs get two of their own:
-  `modes_mix.png` for the mixes at `LIMIT_B = 10 × mean` — how many
-  transactions each commit admitted, Run A next to Run B, with the
-  throughput, cancellation and lag outcome below — and `modes_mix_ladders.png`
-  for the mixes run at several limits, success, cancellations and lag against
-  `LIMIT_B` with Run A as the reference.
-  Needs matplotlib, so run it from a `venv` such as `../h1/.venv`.
+  validator crash scan); then the spread of success, cancellations and lag
+  across the iterations (sample standard deviation), and for the mixed-cost
+  configs the rate of transactions executed at the expensive level. The same
+  rows land as scalars in `results/matrix/summary.csv` for `plot.py`, with
+  each config's rate, run duration and overshoot alongside them, the
+  per-commit admission histogram of every run in
+  `results/matrix/admits_hist.csv`, and the checkpoint lag per 10 s and 60 s
+  slice of the window in `results/matrix/lag_over_time.csv`. Standard
+  library only; the code shared with `../h1/aggregate.py` lives in
+  `../aggregate.py`.
+- `plot.py` — renders the mode-comparison figures from `aggregate.py`'s
+  outputs into `results/matrix/summary_plots/`. Over the fixed-cost configs:
+  checkpoint lag and cancelled fraction against the admitted rate
+  (tx/commit × commits/s, with Run A as one vertical line;
+  `modes_admitted_rate.png`), the same against admitted rate divided by the
+  drain rate (`modes_utilization.png`), annotated per-config heatmaps
+  (`modes_heatmaps.png`), and Run A next to Run B at the twelve matched
+  configs with the spread across iterations (`modes_matched.png`). Over the
+  mixed-cost configs: `modes_mix.png` for the mixes at `LIMIT_B = 10 × mean`
+  — how many transactions each commit admitted, Run A next to Run B, with
+  the throughput, cancellation and lag outcome below — and
+  `modes_mix_ladders.png` for the mixes run at several limits: success,
+  cancellations, lag and the expensive level's execution rate against
+  `LIMIT_B`, with Run A as the reference and error bars from the iterations.
+  `modes_lag_over_time.png` draws the lag per slice of any run longer than
+  the usual 60 s. With a second results directory as the second argument
+  (`plot.py results/matrix results/matrix-ws`) it also draws the ladders
+  both machines ran, in `modes_two_machines.png`. Needs matplotlib, so run
+  it from a `venv` such as `../h1/.venv`.
+
+  The figures cover one set of configs at a time: one target rate, one run
+  duration, and the burst off. A config that varies any of those would
+  otherwise land on top of a baseline config at the same limit, so it is
+  left out and read from `summary.md` instead; the run prints how many were
+  skipped. `QPS=2000 ./plot.py results/matrix` draws that rate instead, into
+  file names carrying a `-qps2000` suffix so the default figures stay put.
 - `probe.sh` — run one `(SLOW_N, SLOW_SIZE)` point: start the network or reuse a
   running one, scrape metrics, append a CSV row, and optionally tear down
   the network (by default, it leaves the network up).
@@ -281,22 +304,28 @@ The calibration is written up in `probe-test.md`; the mode comparison in
   while dozens sit deferred, and the share of commits that schedule anything
   falls to 25 % at the heaviest point. Both modes do it equally, so it does
   not affect the comparison, but the scheduler is leaving capacity unused
-  while transactions wait to be cancelled. Slot debt is ruled out (overshoot
-  0) and the suggested-gas-price code is advisory on this path; the cause is
-  open (`RESULTS.md`, finding 3).
-- **The deferral budget is counted in leader rounds.** A skipped leader round
-  spends budget without a scheduling attempt, so 1–4 % of deferrals are
-  cancelled after 11–12 rounds instead of 10. Small here, but the budget is
+  while transactions wait to be cancelled. Debt carried between commits is
+  ruled out (overshoot 0) and the suggested-gas-price code is advisory on
+  this path; the cause is open (`RESULTS.md`, finding 3).
+- **The deferral limit is counted in leader rounds.** A skipped leader round
+  uses up a round without a scheduling attempt, so 1–4 % of deferrals are
+  cancelled after 11–12 rounds instead of 10. Small here, but the limit is
   not what it says; worth an upstream issue proposing to count evaluations
   (`RESULTS.md`, finding 6).
-- **Per-config time series for the marginal configs.** A pooled lag statistic
-  cannot distinguish a queue that is high but stable from one growing
-  without bound — a lag-over-time curve can. Worth adapting `../h1/plot.py`'s
-  dashboard replay as a drill-down for a few chosen configs, not for the whole
-  grid. `consensus_handler_transaction_deferral_rounds` is also still
-  unplotted.
-- **A cost class that overruns the commit on its own.** A 500,000-unit
+- **Lag over time for more configs.** A pooled lag statistic cannot
+  distinguish a queue that is high but stable from one growing without
+  bound; the lag-over-time slices now cover the two 300 s runs
+  (`modes_lag_over_time.png`), and the 60 s configs only as numbers in
+  `lag_over_time.csv`. Worth a look at the rungs just past the drain rate.
+  `consensus_handler_transaction_deferral_rounds` is also still unplotted.
+- **Run A with production's overshoot.** Both runs used overshoot 0.
+  Production runs `TotalTxCount` with an overshoot of 100 on top of the base
+  10, which absorbs bursts and carries the excess as debt into later
+  commits. Rerunning the recommended mix configs with Run A at overshoot 100,
+  and Run B with a matching allowance in units, would show whether the burst
+  changes the comparison.
+- **A cost level that overruns the commit on its own.** A 500,000-unit
   transaction executes for ≈80 ms against a ≈50 ms commit, so no unit limit
   serves `mix50900`: admitting one per commit lags, excluding it never lets
-  the class through. Whether such traffic should be admitted at all, and
+  the level through. Whether such traffic should be admitted at all, and
   how, is a design question the data cannot settle.
