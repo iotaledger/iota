@@ -131,9 +131,10 @@ The burst above the base limit is off by default (`OVERSHOOT_A=0`,
 `OVERSHOOT_B=0`), so each run is described by one number and no debt is carried
 between commits. Production runs `TotalTxCount` with an overshoot of 100 on
 top of the base 10 (protocol version 22 and later), so the comparison is
-between the two limits, not against production's exact setting. Once a limit
-is settled, re-run it with an overshoot ten times the base to see what the
-burst adds.
+between the two limits, not against production's exact setting. The three
+`-burst` configs put the burst back on the limits the write-up recommends:
+Run A at production's 100, Run B at ten times its own base, against the same
+limits with the burst off.
 
 With the burst off, a limit below the cost of a _single_ transaction admits
 nothing at all: the scheduler needs `start_time + cost <= limit` and
@@ -143,11 +144,13 @@ start at or above its own per-transaction cost, and why the tightest meaningful
 limit for `cu5m` is one transaction per commit.
 
 The rate is the second knob: it sets how many transactions are available per
-commit, and a limit only binds when more arrive than it admits. The grid uses
-one rate, 1,000 tx/s, for every config: at 1,000 units the limit binds at
-that rate already, and from 5,000 units up the client's in-flight cap lowers
-what it offers to what the object can execute, so a higher target would not
-change what arrives (`RESULTS.md`, finding 3).
+commit, and a limit only binds when more arrive than it admits. Every config
+runs at 1,000 tx/s except the `-qps2000` ones: at 1,000 units the limit binds
+at that rate already, and from 5,000 units up the client's in-flight cap
+lowers what it offers to what the object can execute, so a higher target
+changes nothing there (`RESULTS.md`, finding 3). The `-qps2000` configs
+therefore cover only the two lightest cost points and the mixes whose cheap
+level is 1,000 units, where more arrivals can still change the result.
 
 Computation units are machine-independent, but execution time is not, so the
 same limit fills the object differently on each machine — measure where lag
@@ -318,12 +321,12 @@ The calibration is written up in `probe-test.md`; the mode comparison in
   (`modes_lag_over_time.png`), and the 60 s configs only as numbers in
   `lag_over_time.csv`. Worth a look at the rungs just past the drain rate.
   `consensus_handler_transaction_deferral_rounds` is also still unplotted.
-- **Run A with production's overshoot.** Both runs used overshoot 0.
-  Production runs `TotalTxCount` with an overshoot of 100 on top of the base
-  10, which absorbs bursts and carries the excess as debt into later
-  commits. Rerunning the recommended mix configs with Run A at overshoot 100,
-  and Run B with a matching allowance in units, would show whether the burst
-  changes the comparison.
+- **Run A with production's overshoot.** Every run behind the write-up used
+  overshoot 0. Production runs `TotalTxCount` with an overshoot of 100 on top
+  of the base 10, which absorbs bursts and carries the excess as debt into
+  later commits. The three `-burst` configs are in the grid but have not been
+  run; they would show whether the burst closes the throughput gap and how
+  much of Run A's cancellation rate it removes.
 - **A cost level that overruns the commit on its own.** A 500,000-unit
   transaction executes for ≈80 ms against a ≈50 ms commit, so no unit limit
   serves `mix50900`: admitting one per commit lags, excluding it never lets

@@ -10,14 +10,16 @@
 # at production's LIMIT_A=10 transactions in every config as the reference. The
 # two limits are independent inputs in different units.
 #
-# The burst is off everywhere (OVERSHOOT_A=0, OVERSHOOT_B=0), so each run is
-# described by one number and no debt is carried between commits.
+# The burst is off in every config but the three -burst ones (OVERSHOOT_A=0,
+# OVERSHOOT_B=0), so a run is described by one number and no debt is carried
+# between commits. The -burst configs put it back to what production runs; see
+# their block at the end of the array.
 #
 # SLOW_N sets the cost per transaction, which converts a unit limit into a
 # transaction count. The limits are geometric rungs from 10k up to 50m — ten
-# transactions of the 5,000,000-unit metering ceiling — all at
-# TARGET_QPS=1000, so one limit sweeps the cost and one cost point sweeps the
-# limit. A limit binds only while it admits less than the rate offers, which
+# transactions of the 5,000,000-unit metering ceiling — at TARGET_QPS=1000
+# unless the label says otherwise, so one limit sweeps the cost and one cost
+# point sweeps the limit. A limit binds only while it admits less than the rate offers, which
 # at ~20 commits/s means up to 50x the point's per-transaction cost; each
 # point's ladder stops at its first unbindable rung (or at the 50m ceiling,
 # which the most expensive points reach first) and starts one rung below its
@@ -79,18 +81,24 @@
 # so those configs are the control. The mix configs at the end give transactions
 # in one commit DIFFERENT costs, which is the only way the modes can differ.
 #
-# 105 configs total. Use the substring FILTER to run one cost point, one limit,
-# or the mixed-cost configs (FILTER=mix) at a time.
+# 124 configs total: 105 that share one rate, one run length and the burst off,
+# then three groups that each vary one of those — -burst (production's burst),
+# -dur300 (a five-minute window) and -qps2000 (twice the rate). Use the
+# substring FILTER to run one cost point, one limit or one group at a time.
+# FILTER=mix matches the mixed-cost configs of every group, so name the group
+# when you want only one of them.
 #
 # Every config runs on 4 validators; N=4 is not in the label since nothing else
 # is planned.
 #
 # Usage:
-#   ITERS=5 ./matrix.sh             # run all 105 configs
+#   ITERS=5 ./matrix.sh             # run all 124 configs
 #   ITERS=5 ./matrix.sh cu10k       # one cost point, its whole limit ladder
 #   ITERS=5 ./matrix.sh lim100k     # one limit, every cost point that uses it
-#   ITERS=1 ./matrix.sh mix         # the mixed-cost configs only
-#   SKIP_AT_LEAST=10 ITERS=6 ./matrix.sh mix   # mixes with < 10 iterations
+#   ITERS=1 ./matrix.sh mix         # every mixed-cost config
+#   ITERS=10 ./matrix.sh burst      # production's burst, 3 configs
+#   ITERS=10 ./matrix.sh qps2000    # twice the rate, 14 configs
+#   SKIP_AT_LEAST=10 ITERS=10 ./matrix.sh dur300  # only the unfinished ones
 #
 # A failed config does not abort the matrix. Re-running appends iterations to an
 # existing label rather than overwriting (run.sh's config gate).
@@ -158,6 +166,12 @@ MIX68000="WORKLOAD=slow SLOW_MIX=217:9,1015:1 SLOW_SIZE=100 SLOW_SHARED=true"   
 # runs. The duration is pinned: run.sh's own default is shorter, for ad-hoc test
 # runs.
 REF="N=4 RUN_DURATION=60s LIMIT_A=10 OVERSHOOT_A=0 OVERSHOOT_B=0"
+# The same reference with production's burst on Run A: its base of 10 plus an
+# overshoot of 100 transactions per object per commit, which is what protocol
+# version 22 and later set. One commit may then admit up to 110 transactions,
+# and the excess is carried as debt into later commits. Run B's overshoot is
+# ten times its own base, so each -burst config sets OVERSHOOT_B itself.
+REF_BURST="N=4 RUN_DURATION=60s LIMIT_A=10 OVERSHOOT_A=100"
 
 # "LABEL | env assignments passed to run.sh"
 configs=(
@@ -332,13 +346,46 @@ configs=(
   "mix50500-w50-lim505k-qps1000 | $MIX50500 $REF LIMIT_B=505000  TARGET_QPS=1000"
   # ---- three cost levels, closer to real traffic than two.
   "mix13600-w40-lim136k-qps1000 | $MIX13600 $REF LIMIT_B=136000  TARGET_QPS=1000"
-  # ---- 300 s runs at the two likely recommended points. A 60 s window cannot
-  #      tell a queue that is high but stable from one that keeps growing.
-  #      RUN_DURATION after $REF overrides the 60 s it pins (env takes the last
-  #      assignment); the -dur300 suffix keeps the label distinct from the 60 s
-  #      one, which the config gate would otherwise reject.
+  # ---- 300 s runs at the points worth watching over time. A 60 s window
+  #      cannot tell a queue that is high but stable from one that keeps
+  #      growing. RUN_DURATION after $REF overrides the 60 s it pins (env takes
+  #      the last assignment); the -dur300 suffix keeps the label distinct from
+  #      the 60 s one, which the config gate would otherwise reject. The first
+  #      two were run first; the last two add the best rung of mix20800 and the
+  #      mix10900 rung that fits two expensive transactions per commit.
   "mix10900-w10-lim109k-qps1000-dur300 | $MIX10900 $REF RUN_DURATION=300s LIMIT_B=109000 TARGET_QPS=1000"
   "mix20800-w20-lim100k-qps1000-dur300 | $MIX20800 $REF RUN_DURATION=300s LIMIT_B=100000 TARGET_QPS=1000"
+  "mix20800-w20-lim150k-qps1000-dur300 | $MIX20800 $REF RUN_DURATION=300s LIMIT_B=150000 TARGET_QPS=1000"
+  "mix10900-w10-lim200k-qps1000-dur300 | $MIX10900 $REF RUN_DURATION=300s LIMIT_B=200000 TARGET_QPS=1000"
+  # ---- production's burst, on the three limits the write-up recommends. Its
+  #      control is the same limit above with the burst off, already run. What
+  #      this asks is whether Run A's cancellations fall once a commit can
+  #      absorb a burst, and whether that closes the throughput gap.
+  "mix20800-w20-lim100k-qps1000-burst | $MIX20800 $REF_BURST LIMIT_B=100000 OVERSHOOT_B=1000000 TARGET_QPS=1000"
+  "mix20800-w20-lim150k-qps1000-burst | $MIX20800 $REF_BURST LIMIT_B=150000 OVERSHOOT_B=1500000 TARGET_QPS=1000"
+  "mix10900-w10-lim109k-qps1000-burst | $MIX10900 $REF_BURST LIMIT_B=109000 OVERSHOOT_B=1090000 TARGET_QPS=1000"
+  # ---- twice the rate, on the configs where the client can still deliver it:
+  #      the two lightest cost points and the mixes whose cheap level is 1,000
+  #      units. From 5,000 units up the in-flight cap already holds the offered
+  #      rate below the target, so a higher target would change nothing there.
+  #      Warmup is longer here — the client prepares TARGET_QPS x
+  #      IN_FLIGHT_RATIO x (NUM_TRANSFER_ACCOUNTS + 1) gas coins, 20,000 at
+  #      this rate — and it may not reach the target at all: read the achieved
+  #      rate from the tps column of run-b-stress-report.log before using a row.
+  "cu1k-lim10k-qps2000    | $SLOW1 $REF LIMIT_B=10000    TARGET_QPS=2000"
+  "cu1k-lim20k-qps2000    | $SLOW1 $REF LIMIT_B=20000    TARGET_QPS=2000"
+  "cu1k-lim50k-qps2000    | $SLOW1 $REF LIMIT_B=50000    TARGET_QPS=2000"
+  "cu1k-lim100k-qps2000   | $SLOW1 $REF LIMIT_B=100000   TARGET_QPS=2000"
+  "cu2k-lim10k-qps2000    | $SLOW70 $REF LIMIT_B=10000   TARGET_QPS=2000"
+  "cu2k-lim20k-qps2000    | $SLOW70 $REF LIMIT_B=20000   TARGET_QPS=2000"
+  "cu2k-lim50k-qps2000    | $SLOW70 $REF LIMIT_B=50000   TARGET_QPS=2000"
+  "cu2k-lim100k-qps2000   | $SLOW70 $REF LIMIT_B=100000  TARGET_QPS=2000"
+  "cu2k-lim200k-qps2000   | $SLOW70 $REF LIMIT_B=200000  TARGET_QPS=2000"
+  "mix1900-w10-lim19k-qps2000   | $MIX1900 $REF LIMIT_B=19000   TARGET_QPS=2000"
+  "mix3700-w30-lim37k-qps2000   | $MIX3700 $REF LIMIT_B=37000   TARGET_QPS=2000"
+  "mix10900-w10-lim109k-qps2000 | $MIX10900 $REF LIMIT_B=109000 TARGET_QPS=2000"
+  "mix10900-w10-lim200k-qps2000 | $MIX10900 $REF LIMIT_B=200000 TARGET_QPS=2000"
+  "mix20800-w20-lim150k-qps2000 | $MIX20800 $REF LIMIT_B=150000 TARGET_QPS=2000"
 )
 
 # Cache sudo up front (run.sh uses sudo per iteration) and keep it alive for the
