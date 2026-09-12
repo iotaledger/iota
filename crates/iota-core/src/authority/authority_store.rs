@@ -47,6 +47,7 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+        epoch_markers::EpochMarkers,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         historic_ledger::{HistoricLedger, HistoricLedgerBucket},
         historic_objects::{HistoricObjects, HistoricObjectsBucket},
@@ -144,6 +145,7 @@ pub struct AuthorityStore {
     /// store's transactions produced, bucketed by the epoch that executed
     /// them.
     historic_ledger: Arc<HistoricLedger>,
+    epoch_markers: Arc<EpochMarkers>,
 
     pub(crate) root_state_notify_read:
         NotifyRead<EpochId, (CheckpointSequenceNumber, GlobalStateHash)>,
@@ -164,6 +166,7 @@ impl AuthorityStore {
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         historic_objects: Arc<HistoricObjects>,
         historic_ledger: Arc<HistoricLedger>,
+        epoch_markers: Arc<EpochMarkers>,
         genesis: &Genesis,
         config: &NodeConfig,
         registry: &Registry,
@@ -206,6 +209,7 @@ impl AuthorityStore {
             perpetual_tables,
             historic_objects,
             historic_ledger,
+            epoch_markers,
             enable_epoch_iota_conservation_check,
             registry,
             migration_tx_data,
@@ -233,24 +237,26 @@ impl AuthorityStore {
     // NB: This must only be called at time of reconfiguration. We take the
     // execution lock write guard as an argument to ensure that this is the
     // case.
-    pub fn clear_object_per_epoch_marker_table(
+    /// Drops the marker buckets of every epoch below `new_epoch`, opening that
+    /// epoch's before it does.
+    ///
+    /// A marker guards a race inside the epoch that wrote it, so once the node
+    /// is entering `new_epoch` no earlier epoch's markers answer anything. The
+    /// caller holds the execution lock, so no read is in flight.
+    pub fn expire_epoch_markers(
         &self,
+        new_epoch: EpochId,
         _execution_guard: &ExecutionLockWriteGuard<'_>,
     ) -> IotaResult<()> {
-        // We can safely delete all entries in the per epoch marker table since this is
-        // only called at epoch boundaries (during reconfiguration). Therefore
-        // any entries that currently exist can be removed. Because of this we
-        // can use the `schedule_delete_all` method.
-        Ok(self
-            .perpetual_tables
-            .object_per_epoch_marker_table
-            .schedule_delete_all()?)
+        self.epoch_markers.expire(new_epoch)?;
+        Ok(())
     }
 
     pub async fn open_with_committee_for_testing(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         historic_objects: Arc<HistoricObjects>,
         historic_ledger: Arc<HistoricLedger>,
+        epoch_markers: Arc<EpochMarkers>,
         committee: &Committee,
         genesis: &Genesis,
     ) -> IotaResult<Arc<Self>> {
@@ -262,6 +268,7 @@ impl AuthorityStore {
             perpetual_tables,
             historic_objects,
             historic_ledger,
+            epoch_markers,
             true,
             &Registry::new(),
             None,
@@ -274,6 +281,7 @@ impl AuthorityStore {
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         historic_objects: Arc<HistoricObjects>,
         historic_ledger: Arc<HistoricLedger>,
+        epoch_markers: Arc<EpochMarkers>,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
         migration_tx_data: Option<&MigrationTxData>,
@@ -283,6 +291,7 @@ impl AuthorityStore {
             perpetual_tables,
             historic_objects,
             historic_ledger,
+            epoch_markers,
             root_state_notify_read: NotifyRead::<
                 EpochId,
                 (CheckpointSequenceNumber, GlobalStateHash),
@@ -386,6 +395,7 @@ impl AuthorityStore {
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         historic_objects: Arc<HistoricObjects>,
         historic_ledger: Arc<HistoricLedger>,
+        epoch_markers: Arc<EpochMarkers>,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
     ) -> IotaResult<Arc<Self>> {
@@ -394,6 +404,7 @@ impl AuthorityStore {
             perpetual_tables,
             historic_objects,
             historic_ledger,
+            epoch_markers,
             root_state_notify_read: NotifyRead::<
                 EpochId,
                 (CheckpointSequenceNumber, GlobalStateHash),
@@ -416,6 +427,10 @@ impl AuthorityStore {
         &self.historic_ledger
     }
 
+    pub fn get_epoch_markers(&self) -> &Arc<EpochMarkers> {
+        &self.epoch_markers
+    }
+
     /// Records the one-time passes over the pre-bucket tables as done, for a
     /// database that cannot hold anything for them to find.
     ///
@@ -426,6 +441,15 @@ impl AuthorityStore {
     pub fn mark_pre_bucket_passes_done(&self) -> IotaResult<()> {
         self.perpetual_tables.mark_object_backlog_swept()?;
         self.perpetual_tables.mark_ledger_backlog_migrated()
+    }
+
+    /// Moves the markers written before this build into their epoch's bucket.
+    /// See [`EpochMarkers::migrate_flat_markers`].
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this once
+    // every database has moved its markers into the buckets.
+    pub fn migrate_flat_markers(&self, epoch: EpochId) -> IotaResult<()> {
+        self.epoch_markers
+            .migrate_flat_markers(&self.perpetual_tables.object_per_epoch_marker_table, epoch)
     }
 
     pub fn get_recovery_epoch_at_restart(&self) -> IotaResult<EpochId> {
@@ -518,11 +542,8 @@ impl AuthorityStore {
         version: &Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
-        let object_key = (epoch_id, ObjectKey(*object_id, *version));
-        Ok(self
-            .perpetual_tables
-            .object_per_epoch_marker_table
-            .get(&object_key)?)
+        self.epoch_markers
+            .get_marker_value(object_id, version, epoch_id)
     }
 
     pub fn get_latest_marker(
@@ -530,21 +551,7 @@ impl AuthorityStore {
         object_id: &ObjectId,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(Version, MarkerValue)>> {
-        let marker_entry = self
-            .perpetual_tables
-            .object_per_epoch_marker_table
-            .safe_iter_with_prefix_reversed(&(epoch_id, *object_id))
-            .next();
-        match marker_entry {
-            Some(Ok(((epoch, key), marker))) => {
-                // because of the iterator bounds these cannot fail
-                assert_eq!(epoch, epoch_id);
-                assert_eq!(key.0, *object_id);
-                Ok(Some((key.1, marker)))
-            }
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
-        }
+        self.epoch_markers.get_latest_marker(object_id, epoch_id)
     }
 
     /// Returns future containing the state hash for the given epoch
@@ -677,20 +684,11 @@ impl AuthorityStore {
     ) -> Result<bool, IotaError> {
         // Find the most recent version of the object that was deleted or wrapped.
         // Return true if the version is >= `version`. Otherwise return false.
-        let marker_entry = self
-            .perpetual_tables
-            .object_per_epoch_marker_table
-            .safe_iter_with_prefix_reversed(&(epoch_id, *object_id))
-            .next();
-        match marker_entry.transpose()? {
-            Some(((epoch, key), marker)) => {
-                // Make sure object id matches and version is >= `version`
-                let object_data_ok = key.0 == *object_id && key.1 >= version;
-                // Make sure we don't have a stale epoch for some reason (e.g., a revert)
-                let epoch_data_ok = epoch == epoch_id;
-                // Make sure the object was deleted or wrapped.
-                let mark_data_ok = marker == MarkerValue::OwnedDeleted;
-                Ok(object_data_ok && epoch_data_ok && mark_data_ok)
+        // The bucket is the epoch, so the stale-epoch check the flat table
+        // needed is structural now.
+        match self.epoch_markers.get_latest_marker(object_id, epoch_id)? {
+            Some((marked_version, marker)) => {
+                Ok(marked_version >= version && marker == MarkerValue::OwnedDeleted)
             }
             None => Ok(false),
         }
@@ -915,11 +913,12 @@ impl AuthorityStore {
         // Add batched writes for objects and locks.
         let effects_digest = effects.digest();
 
+        let marker_bucket = self.epoch_markers.ensure(epoch_id)?;
         write_batch.insert_batch(
-            &self.perpetual_tables.object_per_epoch_marker_table,
+            &marker_bucket.markers,
             markers
                 .iter()
-                .map(|(key, marker_value)| ((epoch_id, *key), *marker_value)),
+                .map(|(key, marker_value)| (*key, *marker_value)),
         )?;
 
         write_batch.insert_batch(
