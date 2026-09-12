@@ -7,9 +7,11 @@ iter-NNN/ iterations: Run A (MODE_A, LIMIT_A) against Run B (MODE_B, LIMIT_B)
 on the same load. Labels whose runs used different mode pairs (e.g. a swap
 test) are grouped into separate tables.
 
-Reported per arm:
+Reported per run (Run A and Run B):
   - success tps: user transactions that did real work, as executed minus
     cancelled minus commits (see aggregate_arm for why each term is there).
+    Also its spread across iterations (sample standard deviation), likewise
+    for cancelled/s and the checkpoint-lag mean.
   - finalized tps: the checkpoint-inclusion rate as scraped, prologues
     included — comparable to the client's own reported throughput.
   - cancelled/s: transactions dropped at max_deferral_rounds.
@@ -20,10 +22,19 @@ Reported per arm:
   - latency: settlement finality (client-facing), receipt to executed (the
     validator pipeline, including time spent deferred) and user VM execution,
     each as an exact mean plus p50/p95.
-  - admitted per commit: what the arm actually let onto the hot object, the
+  - admitted per commit: what the run actually let onto the hot object, the
     check that a limit enforced what it was set to. Its whole distribution
     also goes to admits_hist.csv, since for a mixed-cost config the mean hides
     the point: a count limit pins the number, a unit limit spreads it.
+  - executed at the expensive level (mixed-cost configs only): transactions
+    per second whose actual computation units reached the most expensive
+    level of the mix, from the actual_computation_units histogram. Cancelled
+    transactions are charged the minimum, so they never count here; success
+    tps minus this is the cheap level's throughput.
+  - checkpoint lag over time: the exact lag mean per 10 s and per 60 s slice
+    of the run window, pooled across validators and iterations, to
+    lag_over_time.csv — a pooled mean cannot tell a queue that is high but
+    stable from one that keeps growing; the slices can.
   - deferral rounds above max_deferral_rounds: should be 0; every such
     observation is the signature of a skipped leader round (the deferral
     budget is a commit-round difference, so a skipped round spends budget
@@ -39,8 +50,11 @@ The experiment-agnostic machinery is shared with h1 in ../aggregate.py.
 Pure stdlib.
 
 Besides the markdown, the same rows are written as scalars to summary.csv
-(one row per label, a_*/b_* column pairs) — the input plot.py draws from,
-so the pooling arithmetic lives only here.
+(one row per label, a_*/b_* column pairs, plus the run's rate, duration and
+overshoot so a reader can tell a baseline config from a variant), the
+admission histogram to
+admits_hist.csv and the lag slices to lag_over_time.csv — the inputs plot.py
+draws from, so the pooling arithmetic lives only here.
 
 Usage: aggregate.py [results_dir] [out.md]
   results_dir: the results root holding label dirs (default .), or a single
@@ -78,6 +92,27 @@ from aggregate import (  # noqa: E402
 LAG_COARSE_EDGE = 30.0
 
 CRASH_RUN_DIRS = (("run-a-node-logs", "A"), ("run-b-node-logs", "B"))
+
+# Attested computation units per `slow_n` at SLOW_SIZE=100, from the
+# calibration in probe-test.md (the same on both machines). Used to find the
+# most expensive level of a SLOW_MIX config in the actual-units histogram.
+N_TO_UNITS = {
+    1: 1000,
+    70: 2000,
+    120: 5000,
+    160: 10000,
+    217: 20000,
+    267: 50000,
+    350: 100000,
+    516: 200000,
+    1015: 500000,
+    1848: 1000000,
+    3511: 2000000,
+    8000: 5000000,
+}
+
+# Slice widths for the checkpoint-lag-over-time output, in seconds.
+LAG_WINDOWS = (10, 60)
 
 # The latencies the stress plan asks H2 to report, with the host kind that
 # reports each. `authority_state_internal_execution_latency` is the one that
@@ -140,8 +175,8 @@ def host_rate(values):
     return (float(values[-1][1]) - float(values[0][1])) / span
 
 
-def rate_mean(runs, metric):
-    """Mean across runs of the per-run mean validator-host rate.
+def rate_runs(runs, metric):
+    """Per-run mean validator-host rate of a counter, one value per run.
 
     Used for counters every validator observes near-identically (checkpoint
     inclusion, cancellations), so hosts are averaged, not summed."""
@@ -153,7 +188,108 @@ def rate_mean(runs, metric):
             if s.get("metric", {}).get("host", "").startswith("validator")
         ]
         per_run.append(mean(rates))
-    return mean(per_run)
+    return per_run
+
+
+def rate_mean(runs, metric):
+    return mean(rate_runs(runs, metric))
+
+
+def sd(xs):
+    """Sample standard deviation, None under two values."""
+    xs = [x for x in xs if x is not None]
+    if len(xs) < 2:
+        return None
+    m = sum(xs) / len(xs)
+    return (sum((x - m) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5
+
+
+def top_level_units(cfg):
+    """Computation units of the most expensive level of a SLOW_MIX config,
+    None for a fixed-cost config or an unknown level."""
+    ns = []
+    for part in str(cfg.get("slow_mix", "")).split(","):
+        n = part.split(":")[0].strip()
+        if n.isdigit():
+            ns.append(int(n))
+    if len(ns) < 2:
+        return None
+    return N_TO_UNITS.get(max(ns))
+
+
+def executed_at_least(runs, units):
+    """Per-run rate of executed transactions whose actual computation units
+    reached `units`: Δ(+Inf) − Δ(largest bucket edge below `units`) of the
+    actual_computation_units histogram, per validator, averaged over the
+    validators. A cancelled transaction is charged the minimum, so it falls
+    below any level above the 1,000-unit floor and is not counted."""
+    per_run = []
+    for r in runs:
+        by_host = {}
+        for s in series_list(r.get("series", {}), "actual_computation_units_bucket"):
+            m = s.get("metric", {})
+            if m.get("host", "").startswith("validator"):
+                by_host.setdefault(m["host"], {})[m.get("le")] = s.get("values", [])
+        rates = []
+        for by_le in by_host.values():
+            inf = by_le.get("+Inf")
+            below = [le for le in by_le if le != "+Inf" and float(le) < units]
+            if not inf or len(inf) < 2 or not below:
+                continue
+            span = float(inf[-1][0]) - float(inf[0][0])
+            if span <= 0:
+                continue
+            edge = max(below, key=float)
+            rates.append((delta(inf) - delta(by_le[edge])) / span)
+        per_run.append(mean(rates))
+    return per_run
+
+
+def window_delta(values, a, b):
+    """Counter increase between the first sample at or after `a` and the last
+    sample at or before `b`, or None if the window holds under two samples.
+    Consecutive windows share their boundary sample, so nothing is counted
+    twice: each window covers the increments after its start sample."""
+    inside = [v for ts, v in values if a <= ts <= b]
+    if len(inside) < 2:
+        return None
+    d = inside[-1] - inside[0]
+    return d if d >= 0 else None
+
+
+def lag_windows(runs, window):
+    """Exact checkpoint-lag mean per `window`-second slice of the run window,
+    pooled across validators and iterations: {t_start: (lag_mean, count)}."""
+    acc = {}
+    for r in runs:
+        t0, t1 = r.get("start_epoch"), r.get("end_epoch")
+        if t0 is None or t1 is None:
+            continue
+        per_host = {}
+        for kind in ("_sum", "_count"):
+            for s in series_list(
+                r.get("series", {}), "checkpoint_creation_latency" + kind
+            ):
+                h = s.get("metric", {}).get("host", "")
+                if h.startswith("validator"):
+                    per_host.setdefault(h, {})[kind] = [
+                        (float(ts), float(v)) for ts, v in s.get("values", [])
+                    ]
+        for i in range(int((t1 - t0) // window)):
+            a, b = t0 + i * window, t0 + (i + 1) * window
+            for series in per_host.values():
+                if "_sum" not in series or "_count" not in series:
+                    continue
+                ds = window_delta(series["_sum"], a, b)
+                dc = window_delta(series["_count"], a, b)
+                if ds is None or dc is None:
+                    continue
+                cell = acc.setdefault(i * window, [0.0, 0.0])
+                cell[0] += ds
+                cell[1] += dc
+    return {
+        t: ((v[0] / v[1]) if v[1] > 0 else None, v[1]) for t, v in sorted(acc.items())
+    }
 
 
 def units_per_tx(runs):
@@ -194,7 +330,7 @@ def over_max_deferrals(runs, max_rounds):
     return total - min(at_max) if at_max else None
 
 
-def aggregate_arm(runs):
+def aggregate_arm(runs, top_units=None):
     # Success throughput counts only user transactions that did real work:
     #
     #   executed - cancelled - commits
@@ -206,17 +342,39 @@ def aggregate_arm(runs):
     # negative). Minus cancelled, which execute but do no work. Minus the
     # commit rate, since every commit carries one consensus commit prologue,
     # a system transaction both counters count as a transaction.
-    execd = rate_mean(runs, "execution_driver_executed_transactions")
-    canc = rate_mean(runs, "consensus_handler_cancelled_transactions")
-    commits = rate_mean(runs, "consensus_committed_subdags")
+    execd_runs = rate_runs(runs, "execution_driver_executed_transactions")
+    canc_runs = rate_runs(runs, "consensus_handler_cancelled_transactions")
+    commit_runs = rate_runs(runs, "consensus_committed_subdags")
+    succ_runs = [
+        e - c - k if None not in (e, c, k) else None
+        for e, c, k in zip(execd_runs, canc_runs, commit_runs)
+    ]
+    canc = mean(canc_runs)
+    commits = mean(commit_runs)
     ckpt = rate_mean(runs, "transactions_included_in_checkpoint")
     lag = pooled_buckets(
         [r.get("series", {}) for r in runs], "checkpoint_creation_latency"
     )
-    succ = execd - canc - commits if None not in (execd, canc, commits) else None
+    lag_runs = [
+        hmean([r.get("series", {})], "checkpoint_creation_latency") for r in runs
+    ]
     series = [r.get("series", {}) for r in runs]
+    expensive_runs = executed_at_least(runs, top_units) if top_units else []
     return {
-        "succ": succ,
+        "succ": mean(succ_runs),
+        # Spread across iterations, so a difference between the runs can be
+        # read against the run-to-run noise of the same configuration.
+        "succ_sd": sd(succ_runs),
+        "canc_sd": sd(canc_runs),
+        "lag_mean_sd": sd(lag_runs),
+        "n_runs": len(runs),
+        # Mixed-cost configs: transactions per second executed at the most
+        # expensive level (None elsewhere). Success minus this is the cheap
+        # level's throughput.
+        "expensive": mean(expensive_runs) if expensive_runs else None,
+        "expensive_sd": sd(expensive_runs) if expensive_runs else None,
+        # Checkpoint lag per slice of the run window; see lag_windows.
+        "lag_over_time": {w: lag_windows(runs, w) for w in LAG_WINDOWS},
         # Finalized rate as scraped, prologues included: comparable to the
         # client's reported tps, and the basis the succ formula replaced.
         "ckpt_tps": ckpt,
@@ -238,7 +396,7 @@ def aggregate_arm(runs):
                 ("p95", hquantile(0.95, pooled_buckets(series, base, host))),
             )
         },
-        # Transactions this arm actually admitted to the hot object per commit
+        # Transactions this run actually admitted to the hot object per commit
         # — the check that each limit enforced what it was set to: Run A should
         # sit at LIMIT_A, Run B at LIMIT_B / units-per-tx.
         "admits": hmean(
@@ -257,7 +415,7 @@ def aggregate_arm(runs):
         ),
         "skips": skipped_rounds(runs),
         # consensus commits per second — what turns a per-commit limit into an
-        # admitted rate (tx/commit x commits/s), so plot.py needs it per arm.
+        # admitted rate (tx/commit x commits/s), so plot.py needs it per run.
         "commit_rate": commits,
         "safety": {
             m: series_max([r.get("series", {}) for r in runs], m)
@@ -292,8 +450,8 @@ def label_row(root, label):
         "iters": max(len(runs["a"]), len(runs["b"])),
         "units": units_per_tx(runs["b"]),
         "limit_b": limit_key(cfg, "limit_b"),
-        "a": aggregate_arm(runs["a"]),
-        "b": aggregate_arm(runs["b"]),
+        "a": aggregate_arm(runs["a"], top_level_units(cfg)),
+        "b": aggregate_arm(runs["b"], top_level_units(cfg)),
         "over_max": {arm: over_max_deferrals(runs[arm], max_rounds) for arm in "ab"},
         "incidents": crash_incidents(d, CRASH_RUN_DIRS),
     }
@@ -381,7 +539,7 @@ def main():
         "- checkpoint lag: the mean and the >30s share are exact; the p95",
         "  is not past 30s, where the buckets jump 30 to 60, so it prints",
         '  as ">30" there. Compare the mean and the share, not that bound.',
-        "- admits/cmt is what each arm actually let onto the hot object per",
+        "- admits/cmt is what each run actually let onto the hot object per",
         "  commit, so it is the check that a limit enforced what it was set",
         "  to: Run A should sit at LIMIT_A, Run B at LIMIT_B / units-per-tx.",
         "- settlement finality is the client-facing latency (measured on the",
@@ -451,6 +609,47 @@ def main():
         L.append("")
 
     L += [
+        "## spread across iterations (sample standard deviation)\n",
+        "| label | iters | success tps sd A → B | cancelled/s sd A → B |"
+        " ckpt lag mean s sd A → B |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for r in rows:
+        a, b = r["a"], r["b"]
+        L.append(
+            f"| {r['label']} | {r['iters']} |"
+            f" {ab(a['succ_sd'], b['succ_sd'])} |"
+            f" {ab(a['canc_sd'], b['canc_sd'])} |"
+            f" {ab(a['lag_mean_sd'], b['lag_mean_sd'], fmt_secs)} |"
+        )
+    L.append("")
+
+    mixed = [r for r in rows if r["a"]["expensive"] is not None]
+    if mixed:
+        L += [
+            "## mixed cost: executed per second at the expensive level\n",
+            "Transactions whose actual computation units reached the most",
+            "expensive level of the mix; cancelled transactions are charged",
+            "the minimum and do not count. success tps minus this is the",
+            "cheap level's throughput.\n",
+            "| label | expensive executed/s A → B | cheap success tps A → B |",
+            "| --- | --- | --- |",
+        ]
+        for r in mixed:
+            a, b = r["a"], r["b"]
+            cheap = [
+                (x["succ"] - x["expensive"])
+                if None not in (x["succ"], x["expensive"])
+                else None
+                for x in (a, b)
+            ]
+            L.append(
+                f"| {r['label']} | {ab(a['expensive'], b['expensive'])} |"
+                f" {ab(cheap[0], cheap[1])} |"
+            )
+        L.append("")
+
+    L += [
         "## deferrals past max_deferral_rounds (skipped-round signature)\n",
         "| label | A | B |",
         "| --- | --- | --- |",
@@ -502,6 +701,12 @@ def main():
             for key, _, _, _ in LATENCIES
             for stat in ("mean", "p50", "p95")
         ),
+        "succ_tps_sd",
+        "cancelled_per_s_sd",
+        "lag_mean_s_sd",
+        "n_runs",
+        "expensive_per_s",
+        "expensive_per_s_sd",
         "over_max_deferrals",
     )
     arm_keys = (
@@ -520,6 +725,12 @@ def main():
             for key, _, _, _ in LATENCIES
             for stat in ("mean", "p50", "p95")
         ),
+        "succ_sd",
+        "canc_sd",
+        "lag_mean_sd",
+        "n_runs",
+        "expensive",
+        "expensive_sd",
     )
 
     def cell(v):
@@ -537,6 +748,9 @@ def main():
                 "mode_a",
                 "mode_b",
                 "target_qps",
+                "run_duration",
+                "overshoot_a",
+                "overshoot_b",
             ]
             + [f"a_{c}" for c in arm_cols]
             + [f"b_{c}" for c in arm_cols]
@@ -557,18 +771,21 @@ def main():
                     r["cfg"].get("mode_a", ""),
                     r["cfg"].get("mode_b", ""),
                     r["cfg"].get("target_qps", ""),
+                    r["cfg"].get("run_duration", ""),
+                    r["cfg"].get("overshoot_a", ""),
+                    r["cfg"].get("overshoot_b", ""),
                 ]
                 + vals
                 + [int(not safety_failed(r))]
             )
 
-    # The admitted-per-commit distribution per arm, one row per histogram
-    # bucket: (label, arm, upper edge, count in that bucket). plot.py reads it
+    # The admitted-per-commit distribution per run, one row per histogram
+    # bucket: (label, run, upper edge, count in that bucket). plot.py reads it
     # for the mixed-cost figure.
     hist_path = os.path.join(os.path.dirname(csv_path), "admits_hist.csv")
     with open(hist_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["label", "arm", "le", "count"])
+        w.writerow(["label", "run", "le", "count"])
         for r in rows:
             for arm in "ab":
                 by_le = r[arm]["admits_buckets"]
@@ -582,9 +799,23 @@ def main():
                     if count > 0:
                         w.writerow([r["label"], arm, le, cell(count)])
 
+    # Checkpoint lag per slice of the run window, one row per (label, run,
+    # slice width, slice start): the exact mean over the checkpoints built in
+    # that slice, pooled across validators and iterations, and their count.
+    lag_path = os.path.join(os.path.dirname(csv_path), "lag_over_time.csv")
+    with open(lag_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["label", "run", "window_s", "t_start_s", "lag_mean_s", "checkpoints"])
+        for r in rows:
+            for arm in "ab":
+                for window, slices in r[arm]["lag_over_time"].items():
+                    for t, (lag_mean, count) in slices.items():
+                        w.writerow([r["label"], arm, window, t, cell(lag_mean), cell(count)])
+
     print(f"{len(rows)} label(s) -> {out}", file=sys.stderr)
     print(f"scalar table -> {csv_path}", file=sys.stderr)
     print(f"admitted-per-commit buckets -> {hist_path}", file=sys.stderr)
+    print(f"checkpoint lag per slice -> {lag_path}", file=sys.stderr)
     if failed:
         print(f"SAFETY: {len(failed)} label(s) flagged", file=sys.stderr)
 
