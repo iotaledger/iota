@@ -21,7 +21,7 @@ Transaction pruning removes previous transactions and their effects from the dat
 
 ### Index Pruning
 
-Index pruning drops the expired epochs of the `rpc_indexes` store, the single secondary index store both the JSON-RPC and the gRPC API read from, so older entries are no longer served by index-backed queries (for example `iotax_getBalance()`, dynamic-field lookups, event queries, and gRPC transaction-digest lookups). Without it, the index adds a set of tables per epoch and grows without bound. Index pruning is relevant for every node that maintains the store, which is any node running the JSON-RPC index (`enable-index-processing: true`) or the gRPC API (`enable-grpc-api: true`).
+Index pruning drops the expired epochs of the `rpc_indexes` store, the single secondary index store both the JSON-RPC and the gRPC API read from, so older entries are no longer served by index-backed queries (for example `iotax_getBalance()`, dynamic-field lookups, event queries, and gRPC transaction-digest lookups). Without it, the index adds a set of tables per epoch and grows without bound. Index pruning is relevant for every node that maintains the store, which is any node serving the JSON-RPC API (`enable-jsonrpc-api: true`, the default) or the gRPC API (`enable-grpc-api: true`).
 
 ## Pruning Parameters
 
@@ -36,12 +36,12 @@ Object pruning, transaction pruning, and index pruning are independent backgroun
 All pruning parameters are configured in `fullnode.yaml`. The following annotated block shows every parameter with its default value — copy it into your config and adjust as needed:
 
 ```yaml
-# Enable indexing of additional data (ownership, balances, events).
-# Required for the JSON-RPC index queries. Default: true.
-# Set to false for validators or nodes that do not serve RPC requests.
-# The gRPC API maintains the same store under its own flag (enable-grpc-api,
+# Enable the JSON-RPC API, including the index it relies on for queries
+# like ownership, balances, and events. Default: true.
+# Set to false for validators or nodes that do not serve JSON-RPC requests.
+# The gRPC API maintains the same index under its own flag (enable-grpc-api,
 # default: false), so a node with either of the two prunes its indexes.
-enable-index-processing: true
+enable-jsonrpc-api: true
 
 authority-store-pruning-config:
   # Number of epochs to keep historic object versions. Controls object pruning.
@@ -61,14 +61,18 @@ authority-store-pruning-config:
   #                          the current and immediately prior epoch.
   # num-epochs-to-retain-for-checkpoints: 2
 
-  # Number of epochs to retain entries in the rpc_indexes store, which serves
-  # both the JSON-RPC and the gRPC API. Controls index pruning. Relevant
-  # whenever the node maintains that store (enable-index-processing: true or
-  # enable-grpc-api: true).
+  # Number of historic epochs to retain in the rpc_indexes store, on top of
+  # the current one. The store serves both the JSON-RPC and the gRPC API.
+  # Controls index pruning. Relevant whenever the node maintains that store
+  # (enable-jsonrpc-api: true or enable-grpc-api: true).
   #   unset    — index pruning disabled (default).
-  #   N (>= 7) — prunes index entries older than N epochs. Values below 7 are
-  #             silently coerced to 7.
-  # num-epochs-to-retain-for-indexes: 7
+  #   0        — keeps the current epoch only, prunes everything older.
+  #   N (>= 1) — also keeps the N epochs before the current one.
+  # The epoch currently being executed is always retained, whatever this is
+  # set to: a client that submits a transaction needs to read it back — the
+  # transaction, its effects, and the index rows behind queries — seconds
+  # later. Only at an epoch boundary is dropping that data acceptable.
+  # num-epochs-to-retain-for-indexes: 2
 
   # Number of recent per-epoch RocksDB databases to keep. Default: 3.
   num-latest-epoch-dbs-to-retain: 3
@@ -97,8 +101,8 @@ The following examples cover common operator use cases. Each example shows the k
 This configuration keeps disk usage to a minimum. A node with this setup cannot answer queries that require indexing or historic data. It is the recommended setup for IOTA validators and for full nodes that do not serve RPC requests.
 
 ```yaml
-# Do not generate or maintain indexing of IOTA data on the node
-enable-index-processing: false
+# Do not serve the JSON-RPC API, or maintain the index it depends on
+enable-jsonrpc-api: false
 
 authority-store-pruning-config:
   # Aggressively prune historic object versions

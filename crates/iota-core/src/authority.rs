@@ -3860,8 +3860,7 @@ impl AuthorityState {
         }
     }
 
-    /// The index store when this node maintains the JSON-RPC group's tables,
-    /// `None` when it maintains no index at all or only the gRPC group's.
+    /// The index store, `None` unless this node maintains the JSON-RPC group.
     fn jsonrpc_indexes(&self) -> Option<&Arc<RpcIndexesStore>> {
         self.rpc_indexes_store
             .as_ref()
