@@ -30,14 +30,14 @@ use crate::{
 
 pub fn make_committee_key<R>(rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
     make_committee_key_num(4, rand)
 }
 
 pub fn make_committee_key_num<R>(num: usize, rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     let mut keys = Vec::new();

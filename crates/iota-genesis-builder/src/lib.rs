@@ -1224,10 +1224,13 @@ mod test {
     fn ceremony() {
         let dir = tempfile::TempDir::new().unwrap();
 
-        let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-        let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let authority_key: AuthorityKeyPair =
+            get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
+        let protocol_key: NetworkKeyPair =
+            get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
         let account_address = Address::random();
-        let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+        let network_key: NetworkKeyPair =
+            get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
         let validator = ValidatorInfo {
             name: "0".into(),
             authority_key: authority_key.public().into(),

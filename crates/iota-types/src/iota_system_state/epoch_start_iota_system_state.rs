@@ -413,7 +413,7 @@ mod test {
     use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
-    use rand::thread_rng;
+    use rand08::thread_rng;
 
     use crate::{
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},

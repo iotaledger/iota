@@ -132,10 +132,10 @@ impl Transaction {
     // Create one random transaction for testing
     #[cfg(test)]
     pub fn random_transaction(max_len: usize) -> Self {
-        use rand::{Rng, RngCore};
+        use rand::{Rng, RngExt};
 
-        let mut rng = rand::thread_rng();
-        let len = rng.gen_range(0..=max_len);
+        let mut rng = rand::rng();
+        let len = rng.random_range(0..=max_len);
         let mut buf = vec![0u8; len];
         rng.fill_bytes(&mut buf);
         Transaction {
@@ -694,7 +694,7 @@ impl BlockHeaderDigest {
 
 impl BlockHeaderDigest {
     #[cfg(test)]
-    pub fn random<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
+    pub fn random<R: rand::CryptoRng>(mut rng: R) -> Self {
         let mut bytes = [0; DIGEST_LENGTH];
         rng.fill_bytes(&mut bytes);
         Self(bytes)
@@ -1848,7 +1848,7 @@ mod tests {
     #[tokio::test]
     async fn test_compress_references() {
         use crate::block_header::BlockRef;
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
 
         let ref_a = BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng));
         let ref_b = BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng));
@@ -1937,7 +1937,7 @@ mod tests {
     #[test]
     fn test_verify_references_indices(#[values(false, true)] use_v2: bool) {
         use crate::block_header::{BlockHeader, BlockHeaderV1, BlockHeaderV2, BlockRef};
-        let rng = &mut rand::thread_rng();
+        let rng = &mut rand::rng();
         let refs = vec![
             BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng)),
             BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng)),

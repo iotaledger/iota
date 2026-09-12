@@ -35,13 +35,15 @@ async fn transaction_builder_via_node_internal_client() {
     assert!(reference_gas_price > 0);
 
     let protocol_config = client.protocol_config().await.unwrap();
-    let max_tx_gas: u64 = protocol_config.attributes["max_tx_gas"]
+    let max_tx_gas: u64 = protocol_config
+        .attribute("max_tx_gas")
+        .unwrap()
         .parse()
         .expect("attribute values are stringified numbers");
     assert!(max_tx_gas > 0);
     assert!(
         protocol_config
-            .attributes
+            .attributes()
             .contains_key("max_gas_payment_objects")
     );
 

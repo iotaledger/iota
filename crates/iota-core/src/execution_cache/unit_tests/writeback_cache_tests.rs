@@ -25,7 +25,7 @@ use iota_types::{
     storage::ChildObjectResolver,
 };
 use prometheus_filtered::default_registry;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use tokio::sync::RwLock;
 
 use super::*;
@@ -1273,7 +1273,7 @@ async fn latest_object_cache_race_test() {
                 };
 
                 // with probability 0.1, sleep for 1µs, so that we are further out of date.
-                if rand::thread_rng().gen_bool(0.1) {
+                if rand::rng().random_bool(0.1) {
                     std::thread::sleep(Duration::from_micros(1));
                 }
 
@@ -1302,7 +1302,7 @@ async fn latest_object_cache_race_test() {
             while start.elapsed() < Duration::from_secs(2) {
                 cache.object_by_id_cache.invalidate(&object_id);
                 // sleep for 1 to 10µs
-                std::thread::sleep(Duration::from_micros(rand::thread_rng().gen_range(1..10)));
+                std::thread::sleep(Duration::from_micros(rand::rng().random_range(1..10)));
             }
         })
     };

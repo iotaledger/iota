@@ -1422,7 +1422,8 @@ mod tests {
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(perpetual_dir.path(), None));
         let checkpoint_store = CheckpointStore::new_for_tests();
 
-        let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+        let committee =
+            CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
         let checkpoints = committee.make_checkpoints_with_timestamps(timestamps_ms, None);
 
         // All empty checkpoints share the same content digest, so a single

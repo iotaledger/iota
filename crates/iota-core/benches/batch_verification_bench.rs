@@ -18,7 +18,7 @@ use iota_types::{
 };
 use itertools::Itertools as _;
 use prometheus_filtered::Registry;
-use rand::{prelude::*, seq::SliceRandom};
+use rand::{rng, seq::SliceRandom};
 
 fn gen_certs(
     committee: &Committee,
@@ -133,7 +133,7 @@ fn batch_verification_bench(c: &mut Criterion) {
                 |b, batch_size| {
                     assert_eq!(certs.len() as u64, *batch_size);
                     b.iter(|| {
-                        certs.shuffle(&mut thread_rng());
+                        certs.shuffle(&mut rng());
                         batch_verify_certificates(&committee, &certs.iter().collect_vec());
                     })
                 },

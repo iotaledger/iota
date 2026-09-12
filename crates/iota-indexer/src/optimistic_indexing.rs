@@ -274,7 +274,8 @@ impl OptimisticTransactionExecutor {
             .optimistic_tx_total_execution_and_indexing_time
             .start_timer();
         self.metrics.optimistic_tx_count.inc();
-        let tx = Transaction::from_base64(&tx_bytes.encoded())?;
+        let tx = Transaction::from_base64(&tx_bytes.encoded())
+            .map_err(|e| IndexerError::Uncategorized(e.into()))?;
         let sigs = signatures
             .into_iter()
             .map(|sig| {

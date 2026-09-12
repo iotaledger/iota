@@ -71,8 +71,8 @@ impl GrpcStore {
     pub async fn fetch_chain_context(&self) -> Result<ChainContext, VmSdkError> {
         let client = &self.cache.fetcher().client;
         let (epoch_response, service_info_response) = tokio::join!(
-            client.get_epoch(None, EpochReadMask::default()),
-            client.get_service_info(ServiceInfoReadMask::default())
+            client.epoch(None, EpochReadMask::default()),
+            client.service_info(ServiceInfoReadMask::default())
         );
         let epoch = epoch_response
             .map_err(|e| StoreError::new("fetch epoch", e))?
@@ -149,7 +149,7 @@ impl ObjectFetcher for GrpcFetcher {
     ) -> Result<Vec<Object>, StoreError> {
         let results = self
             .client
-            .get_objects_with_versions(refs.iter().copied(), ObjectReadMask::default())
+            .objects_with_versions(refs.iter().copied(), ObjectReadMask::default())
             .await
             .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
             .into_inner();
@@ -176,7 +176,7 @@ impl ObjectFetcher for GrpcFetcher {
 /// as absent rather than fault. The batched read reports a missing object per
 /// requested ref, so the refs the node could serve survive a missing one.
 fn skip_not_found<T>(
-    results: Vec<Result<T, iota_grpc_client::api::Error>>,
+    results: Vec<Result<T, iota_grpc_client::Error>>,
 ) -> Result<Vec<T>, StoreError> {
     let mut items = Vec::with_capacity(results.len());
     for result in results {
@@ -191,7 +191,7 @@ fn skip_not_found<T>(
 
 #[cfg(test)]
 mod tests {
-    use iota_grpc_client::{RpcStatus, api::Error};
+    use iota_grpc_client::{Error, RpcStatus};
 
     use super::skip_not_found;
 

@@ -30,7 +30,7 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use rand::Rng;
+use rand::RngExt;
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -60,7 +60,7 @@ impl TestTransactionBuilder {
     /// transactions (same sender, gas object and arguments) and must avoid
     /// colliding on an already-executed digest.
     pub fn ensure_unique(mut self) -> Self {
-        self.nonce = Some(rand::thread_rng().gen());
+        self.nonce = Some(rand::rng().random());
         self
     }
 
@@ -805,7 +805,7 @@ pub async fn delete_nft(
 /// one output coin, breaking tests that observe the sender's coin count.
 pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Address) -> ObjectId {
     let gas_coin = grpc_client
-        .list_owned_objects(
+        .owned_objects(
             sender,
             Some(StructTag::new_gas_coin()),
             Some(1),
@@ -870,7 +870,7 @@ pub async fn split_coin_equal_tx(
     gas_budget: u64,
 ) -> Transaction {
     let coin_object = grpc_client
-        .get_objects([coin_to_split], ObjectReadMask::default())
+        .objects([coin_to_split], ObjectReadMask::default())
         .await
         .expect("failed to fetch coin")
         .into_inner()

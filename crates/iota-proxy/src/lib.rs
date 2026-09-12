@@ -156,7 +156,7 @@ mod tests {
 
         // build a client
         let client = reqwest::Client::builder()
-            .add_root_certificate(server_priv_cert.reqwest_certificate())
+            .tls_certs_only([server_priv_cert.reqwest_certificate()])
             .identity(client_priv_cert.reqwest_identity())
             .https_only(true)
             .build()
@@ -270,7 +270,7 @@ mod tests {
 
         // build a client
         let client = reqwest::Client::builder()
-            .add_root_certificate(server_priv_cert.reqwest_certificate())
+            .tls_certs_only([server_priv_cert.reqwest_certificate()])
             .identity(client_priv_cert.reqwest_identity())
             .https_only(true)
             .build()

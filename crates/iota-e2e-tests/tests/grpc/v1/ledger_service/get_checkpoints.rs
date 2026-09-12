@@ -665,7 +665,7 @@ async fn test_event_filtering() {
 
     // get the latest checkpoint sequence number
     let latest_checkpoint_seq = client
-        .get_checkpoint_latest(None, None, CheckpointResponseField::ALL)
+        .checkpoint_latest(None, None, CheckpointResponseField::ALL)
         .await
         .expect("Failed to get latest checkpoint")
         .body()
@@ -673,7 +673,7 @@ async fn test_event_filtering() {
 
     // Test 1: SenderFilter - should receive only events from sender_1
     let mut sender_stream = client
-        .stream_checkpoints(
+        .checkpoints_stream(
             Some(0),
             Some(latest_checkpoint_seq),
             None,
@@ -720,7 +720,7 @@ async fn test_event_filtering() {
 
     // Test 2: MoveEventTypeFilter - should receive only NFT events
     let mut nft_stream = client
-        .stream_checkpoints(
+        .checkpoints_stream(
             Some(0),
             Some(latest_checkpoint_seq),
             None,
@@ -765,7 +765,7 @@ async fn test_event_filtering() {
 
     // Test 3: AnyEventFilter - should receive sender_1 events, and all NFT events
     let mut any_stream = client
-        .stream_checkpoints(
+        .checkpoints_stream(
             Some(0),
             Some(latest_checkpoint_seq),
             None,

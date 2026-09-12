@@ -660,7 +660,7 @@ impl RandomnessEventLoop {
                         vss_pk,
                         &round.signature_message(),
                         partial_sigs.iter(),
-                        &mut rand::thread_rng(),
+                        &mut rand08::thread_rng(),
                     )
                     .is_err()
                     {

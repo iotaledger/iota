@@ -41,13 +41,13 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use tempfile::TempDir;
 use tracing::info;
 
 use super::Node;
 
-pub struct SwarmBuilder<R = OsRng> {
+pub struct SwarmBuilder<R = UnwrapErr<SysRng>> {
     rng: R,
     // template: NodeConfig,
     dir: Option<PathBuf>,
@@ -89,7 +89,7 @@ impl SwarmBuilder {
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            rng: OsRng,
+            rng: UnwrapErr(SysRng),
             dir: None,
             committee: CommitteeConfig::Size(NonZeroUsize::new(1).unwrap()),
             genesis_config: None,
@@ -127,7 +127,7 @@ impl SwarmBuilder {
 }
 
 impl<R> SwarmBuilder<R> {
-    pub fn rng<N: rand::RngCore + rand::CryptoRng>(self, rng: N) -> SwarmBuilder<N> {
+    pub fn rng<N: rand::CryptoRng>(self, rng: N) -> SwarmBuilder<N> {
         SwarmBuilder {
             rng,
             dir: self.dir,
@@ -436,7 +436,7 @@ impl<R> SwarmBuilder<R> {
     }
 }
 
-impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
+impl<R: rand::CryptoRng> SwarmBuilder<R> {
     /// Create the configured Swarm.
     ///
     /// # Panics
@@ -652,7 +652,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 Some(genesis_config) => {
                     builder.try_build_with_genesis_config(genesis_config, &network_config)
                 }
-                None => builder.try_build(&mut OsRng, &network_config),
+                None => builder.try_build(&mut UnwrapErr(SysRng), &network_config),
             }
             .context("failed to build the fullnode config")?;
             apply_node_config_overrides(
@@ -879,6 +879,7 @@ mod test {
         node_config_override::{NodeConfigOverride, apply_node_config_overrides},
     };
     use iota_types::traffic_control::PolicyConfig;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::Swarm;
 
@@ -964,7 +965,7 @@ mod test {
 
         let mut config = swarm
             .get_fullnode_config_builder()
-            .build(&mut rand::rngs::OsRng, swarm.config());
+            .build(&mut UnwrapErr(SysRng), swarm.config());
         assert_eq!(
             config.authority_store_pruning_config.num_epochs_to_retain,
             0
@@ -1246,7 +1247,7 @@ mod test {
     fn the_first_fullnode_takes_the_given_genesis_config() {
         let mut fullnode_genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut rand::rngs::OsRng);
+            .build(&mut UnwrapErr(SysRng));
         fullnode_genesis_config.metrics_address = ([127, 0, 0, 1], 19184).into();
         fullnode_genesis_config.admin_interface_address = ([127, 0, 0, 1], 19185).into();
         fullnode_genesis_config.p2p_address = "/ip4/127.0.0.1/udp/19186/http".parse().unwrap();

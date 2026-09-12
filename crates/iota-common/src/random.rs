@@ -4,6 +4,6 @@
 
 /// Get a random number generator.
 #[inline(always)]
-pub fn get_rng() -> impl rand::Rng {
-    rand::thread_rng()
+pub fn get_rng() -> impl rand::RngExt {
+    rand::rng()
 }

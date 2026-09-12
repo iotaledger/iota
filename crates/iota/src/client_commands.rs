@@ -1658,7 +1658,7 @@ impl IotaClientCommands {
                 let client = context.get_grpc_client().await?;
                 // Two coins are enough to tell a lone coin from several
                 let iota_coins = client
-                    .get_coins(signer, StructTag::new_gas(), Some(2), None)
+                    .coins(signer, StructTag::new_gas(), Some(2), None)
                     .await?
                     .into_inner();
 
@@ -3300,7 +3300,7 @@ pub(crate) async fn grpc_input_refs(
         return Ok(Vec::new());
     }
     let objects = client
-        .get_objects(object_ids.iter().copied(), ObjectField::REFERENCE)
+        .objects(object_ids.iter().copied(), ObjectField::REFERENCE)
         .await?
         .into_inner();
     objects

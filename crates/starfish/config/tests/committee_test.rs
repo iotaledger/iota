@@ -4,7 +4,7 @@
 
 use insta::assert_yaml_snapshot;
 use iota_network_stack::Multiaddr;
-use rand::{SeedableRng as _, rngs::StdRng};
+use rand08::{SeedableRng as _, rngs::StdRng};
 use starfish_config::{
     Authority, AuthorityKeyPair, Committee, NetworkKeyPair, ProtocolKeyPair, Stake,
 };

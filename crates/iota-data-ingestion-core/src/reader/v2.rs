@@ -331,7 +331,7 @@ impl CheckpointReaderActor {
     /// connection and streams them to a channel.
     async fn relay_from_fullnode(&mut self, client: &mut GrpcClient) -> IngestionResult<()> {
         let mut checkpoints_stream = client
-            .stream_checkpoints(
+            .checkpoints_stream(
                 Some(self.current_checkpoint_number),
                 None,
                 self.fullnode_transaction_filter.clone().map(Into::into),

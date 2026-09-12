@@ -21,7 +21,7 @@ use iota_types::{
     object::Object,
 };
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 
@@ -243,19 +243,19 @@ impl EventIndex {
 impl EventIndex {
     /// Generate a random event index for testing purposes.
     pub fn random() -> Self {
-        use rand::Rng;
+        use rand::RngExt;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         EventIndex {
-            tx_sequence_number: rng.gen(),
-            event_sequence_number: rng.gen(),
+            tx_sequence_number: rng.random(),
+            event_sequence_number: rng.random(),
             sender: Address::random(),
             emit_package: ObjectId::random(),
-            emit_module: rng.gen::<u64>().to_string(),
+            emit_module: rng.random::<u64>().to_string(),
             type_package: ObjectId::random(),
-            type_module: rng.gen::<u64>().to_string(),
-            type_name: rng.gen::<u64>().to_string(),
-            type_instantiation: rng.gen::<u64>().to_string(),
+            type_module: rng.random::<u64>().to_string(),
+            type_name: rng.random::<u64>().to_string(),
+            type_instantiation: rng.random::<u64>().to_string(),
         }
     }
 }
@@ -355,13 +355,13 @@ impl IndexedObject {
 #[cfg(any(feature = "pg_integration", feature = "shared_test_runtime", test))]
 impl IndexedObject {
     pub fn random() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let random_address = Address::random();
         IndexedObject {
-            checkpoint_sequence_number: rng.gen(),
+            checkpoint_sequence_number: rng.random_bool(0.5).then(|| rng.random()),
             object: Object::with_owner_for_testing(random_address),
             df_kind: {
-                let random_value = rng.gen_range(0..3);
+                let random_value = rng.random_range(0..3);
                 match random_value {
                     0 => Some(DynamicFieldType::DynamicField),
                     1 => Some(DynamicFieldType::DynamicObject),
@@ -382,11 +382,11 @@ pub struct IndexedDeletedObject {
 #[cfg(any(feature = "pg_integration", feature = "shared_test_runtime", test))]
 impl IndexedDeletedObject {
     pub fn random() -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         IndexedDeletedObject {
             object_id: ObjectId::random(),
-            object_version: rng.gen(),
-            checkpoint_sequence_number: rng.gen(),
+            object_version: rng.random(),
+            checkpoint_sequence_number: rng.random(),
         }
     }
 }
@@ -442,16 +442,16 @@ impl TxIndex {
     pub fn random() -> Self {
         use std::iter::repeat_with;
 
-        use rand::Rng;
+        use rand::RngExt;
 
         const MAX_OBJECTS: usize = 1000;
         const MAX_PAYERS: usize = 100;
         const MAX_RECIPIENTS: usize = 1000;
         const MAX_MOVE_CALLS: usize = 1000;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
-        let tx_kind = if rng.gen_bool(0.5) {
+        let tx_kind = if rng.random_bool(0.5) {
             IotaTransactionKind::SystemTransaction
         } else {
             IotaTransactionKind::ProgrammableTransaction
@@ -460,10 +460,10 @@ impl TxIndex {
         let input_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
         let changed_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
         let payers = repeat_with(Address::random)
-            .take(rng.gen_range(0..MAX_PAYERS))
+            .take(rng.random_range(0..MAX_PAYERS))
             .collect();
         let recipients = repeat_with(Address::random)
-            .take(rng.gen_range(0..MAX_RECIPIENTS))
+            .take(rng.random_range(0..MAX_RECIPIENTS))
             .collect();
         let move_calls = repeat_with(|| {
             (
@@ -472,15 +472,15 @@ impl TxIndex {
                 rand::random::<u64>().to_string(),
             )
         })
-        .take(rng.gen_range(0..MAX_MOVE_CALLS))
+        .take(rng.random_range(0..MAX_MOVE_CALLS))
         .collect();
         let wrapped_or_deleted_objects = repeat_with(ObjectId::random).take(MAX_OBJECTS).collect();
 
         TxIndex {
-            tx_sequence_number: rng.gen(),
+            tx_sequence_number: rng.random(),
             tx_kind,
             transaction_digest: TransactionDigest::random(),
-            checkpoint_sequence_number: rng.gen(),
+            checkpoint_sequence_number: rng.random(),
             input_objects,
             changed_objects,
             payers,

@@ -17,7 +17,7 @@ async fn get_objects_scenarios() {
     // Test: get single object
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
     let objects = client
-        .get_objects([object_id], ObjectReadMask::default())
+        .objects([object_id], ObjectReadMask::default())
         .await
         .expect("Failed to get object");
     assert_eq!(objects.body().len(), 1, "Expected exactly one object");
@@ -38,7 +38,7 @@ async fn get_objects_scenarios() {
         .map(|s| s.parse().expect("Invalid object ID"))
         .collect();
     let objects = client
-        .get_objects(object_ids.clone(), ObjectReadMask::default())
+        .objects(object_ids.clone(), ObjectReadMask::default())
         .await
         .expect("Failed to get objects");
     assert_eq!(
@@ -68,7 +68,7 @@ async fn get_objects_scenarios() {
 
     // Test: empty input returns an error
     let err = client
-        .get_objects([], ObjectReadMask::default())
+        .objects([], ObjectReadMask::default())
         .await
         .expect_err("Empty input should return an error");
     assert!(
@@ -79,7 +79,7 @@ async fn get_objects_scenarios() {
     // Test: get object with specific version
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
     let objects = client
-        .get_objects([object_id], ObjectReadMask::default())
+        .objects([object_id], ObjectReadMask::default())
         .await
         .expect("Failed to get object");
     let current_version = objects.body()[0]
@@ -89,7 +89,7 @@ async fn get_objects_scenarios() {
         .expect("Failed to get object reference")
         .version();
     let objects_with_version = client
-        .get_objects_with_versions(
+        .objects_with_versions(
             [(object_id, Some(current_version))],
             ObjectReadMask::default(),
         )
@@ -112,7 +112,7 @@ async fn get_objects_scenarios() {
         .parse()
         .expect("Invalid object ID");
     let mut results = client
-        .get_objects([fake_id], ObjectReadMask::default())
+        .objects([fake_id], ObjectReadMask::default())
         .await
         .expect("The call itself should succeed")
         .into_inner();
@@ -122,7 +122,7 @@ async fn get_objects_scenarios() {
     // Test: invalid version returns a per-ref error
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
     let mut results = client
-        .get_objects_with_versions(
+        .objects_with_versions(
             [(object_id, Some(Version::from_u64(999_999_999)))],
             ObjectReadMask::default(),
         )
@@ -139,7 +139,7 @@ async fn get_objects_scenarios() {
         .parse()
         .expect("Invalid object ID");
     let mut results = client
-        .get_objects([valid_id, invalid_id], ObjectReadMask::default())
+        .objects([valid_id, invalid_id], ObjectReadMask::default())
         .await
         .expect("The call itself should succeed")
         .into_inner();
