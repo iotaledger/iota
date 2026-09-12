@@ -24,10 +24,7 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
-    rpc_indexes::{
-        IndexStoreTables,
-        grpc_api::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    },
+    rpc_indexes::schema::IndexStoreTables,
 };
 use iota_sdk_types::ObjectId;
 use iota_types::base_types::EpochId;
@@ -120,7 +117,7 @@ pub fn print_table_metadata(
         }
         StoreName::Index => {
             IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
-                .owner_index
+                .owner
                 .db
         }
         StoreName::Epoch => {
@@ -237,10 +234,20 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Prunes checkpoints and their transactions/effects down to one epoch of
+/// retention.
+///
+/// This does not also prune the RPC index history: that history now follows
+/// `num_epochs_to_retain_for_indexes`, a knob independent of the checkpoint
+/// retention this function exercises. `RpcIndexesStore::new_without_init`
+/// hardcodes `epochs_to_retain` to `None`, so `RpcIndexesStore::prune` would
+/// always no-op through it; reproducing the old per-store `prune(1)` call
+/// would need that constructor extended with an `epochs_to_retain` override,
+/// which conflates a debug tool's needs with the store's real constructor.
+/// Use a running node's own pruner to exercise index pruning.
 pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
     let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
-    let grpc_indexes_store = GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
     let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
     info!("Pruning setup for db at path: {:?}", db_path.display());
     let pruning_config = AuthorityStorePruningConfig {
@@ -258,8 +265,6 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         None,
     )
     .await?;
-    // Digest retention follows checkpoint retention, as on the node.
-    grpc_indexes_store.prune(1)?;
     Ok(())
 }
 

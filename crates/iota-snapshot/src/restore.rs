@@ -11,7 +11,7 @@ use bytes::Bytes;
 use iota_core::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
     checkpoints::CheckpointStore,
-    rpc_indexes::{JsonRpcIndexRestorer, grpc_api::GrpcLiveObjectRestorer},
+    rpc_indexes::live_scan::RpcIndexesRestorer,
 };
 use iota_storage::SHA3_BYTES;
 use iota_types::storage::{EpochInfoV2, error::Error as StorageError};
@@ -47,30 +47,27 @@ impl Restore for AuthorityPerpetualTables {
     }
 }
 
-/// Restore target that builds the gRPC and JSON-RPC index stores alongside
-/// the live-object restore: each partition's objects are teed into the
-/// enabled indexers while they stream into the perpetual tables, so the
-/// index stores are complete without a second pass over the restored state.
+/// Restore target that builds the RPC index store alongside the live-object
+/// restore: each partition's objects are teed into the indexer while they
+/// stream into the perpetual tables, so the index store is complete without a
+/// second pass over the restored state.
 ///
 /// After the read finishes, the caller must still call
-/// [`GrpcLiveObjectRestorer::finish`] (cross-partition coin aggregation) and
-/// `GrpcIndexesStore::finalize_restore`, and `JsonRpcIndexRestorer::finalize`.
+/// [`RpcIndexesRestorer::finalize`], which writes the coin metadata gathered
+/// across the partitions and stamps the markers.
 pub struct RestoreWithIndexes<'a> {
     perpetual_tables: &'a AuthorityPerpetualTables,
-    grpc_restorer: Option<&'a GrpcLiveObjectRestorer<'a>>,
-    jsonrpc_restorer: Option<&'a JsonRpcIndexRestorer>,
+    rpc_indexes_restorer: Option<&'a RpcIndexesRestorer>,
 }
 
 impl<'a> RestoreWithIndexes<'a> {
     pub fn new(
         perpetual_tables: &'a AuthorityPerpetualTables,
-        grpc_restorer: Option<&'a GrpcLiveObjectRestorer<'a>>,
-        jsonrpc_restorer: Option<&'a JsonRpcIndexRestorer>,
+        rpc_indexes_restorer: Option<&'a RpcIndexesRestorer>,
     ) -> Self {
         Self {
             perpetual_tables,
-            grpc_restorer,
-            jsonrpc_restorer,
+            rpc_indexes_restorer,
         }
     }
 }
@@ -82,28 +79,19 @@ impl Restore for RestoreWithIndexes<'_> {
         bytes: Bytes,
         expected_checksum: &[u8; SHA3_BYTES],
     ) -> Result<()> {
-        let mut grpc_partition_indexer = self
-            .grpc_restorer
-            .map(|restorer| restorer.begin_partition());
-        let mut jsonrpc_partition_indexer = self
-            .jsonrpc_restorer
+        let mut partition_indexer = self
+            .rpc_indexes_restorer
             .map(|restorer| restorer.partition_indexer());
         // An index error must not cut the stream short: `bulk_insert_live_objects`
         // has to consume every object either way to verify the partition's
-        // checksum. Remember the first error, skip both indexers for the rest
+        // checksum. Remember the first error, skip the indexer for the rest
         // of the stream, and fail the partition after the insert.
         let mut index_error: Option<StorageError> = None;
         let live_objects = LiveObjectIter::new(&file_metadata, bytes)?.inspect(|live_object| {
             if index_error.is_some() {
                 return;
             }
-            if let Some(indexer) = &mut grpc_partition_indexer {
-                if let Err(e) = indexer.index_object(&live_object.object) {
-                    index_error = Some(e);
-                    return;
-                }
-            }
-            if let Some(indexer) = &mut jsonrpc_partition_indexer {
+            if let Some(indexer) = &mut partition_indexer {
                 if let Err(e) = indexer.index_object(&live_object.object) {
                     index_error = Some(e);
                 }
@@ -118,10 +106,7 @@ impl Restore for RestoreWithIndexes<'_> {
         if let Some(e) = index_error {
             return Err(e.into());
         }
-        if let Some(indexer) = grpc_partition_indexer {
-            indexer.finish()?;
-        }
-        if let Some(indexer) = jsonrpc_partition_indexer {
+        if let Some(indexer) = partition_indexer {
             indexer.finish()?;
         }
         Ok(())

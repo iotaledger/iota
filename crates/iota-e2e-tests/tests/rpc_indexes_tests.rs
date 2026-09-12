@@ -1,12 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Real-node coverage of the JSON-RPC index store: epoch-boundary history
+//! Real-node coverage of the RPC index store: epoch-boundary history
 //! buckets and index pruning, which unit tests cannot exercise through a
 //! node's actual lifecycle. Restarting the fullnode under the simulator is
 //! not covered: a stopped fullnode's database locks are not released (the
 //! restarted instance fails on the RocksDB `LOCK` files), which needs a
-//! harness fix first; reopen semantics are pinned by the `jsonrpc_index`
+//! harness fix first; reopen semantics are pinned by the `rpc_indexes`
 //! unit tests instead.
 
 use std::time::Duration;
@@ -96,14 +96,14 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
         .fullnode_handle
         .iota_node
         .state()
-        .jsonrpc_indexes_store
+        .rpc_indexes_store
         .clone()
         .unwrap();
 
     // The pruner runs on its own schedule; wait for it to drop epoch 0.
     let mut pruned = false;
     for _ in 0..60 {
-        if indexes.get_transaction_seq(&old_digest).unwrap().is_none() {
+        if indexes.lookup_digest(&old_digest).unwrap().is_none() {
             pruned = true;
             break;
         }
@@ -113,10 +113,7 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
 
     // Recent history and the queries stay up.
     assert!(
-        indexes
-            .get_transaction_seq(&recent_digest)
-            .unwrap()
-            .is_some(),
+        indexes.lookup_digest(&recent_digest).unwrap().is_some(),
         "recent history must survive the pruning"
     );
     let txes = transactions_from(&cluster, sender, false).await;
