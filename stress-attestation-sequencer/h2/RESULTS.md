@@ -10,13 +10,13 @@ in units. Each configuration is run twice under identical load — Run A in
 are compared. The stress plan asks for numbers only; there is no pass/fail
 threshold. The only pass/fail here is H4 (safety), reported at the end.
 
-80 of the 85 configurations give every transaction in a run the **same**
+80 of the 105 configurations give every transaction in a run the **same**
 cost. Those are the control, not the experiment: when every transaction
 costs C units, a unit limit of `10 × C` admits the same ten transactions per
 commit that a count limit of 10 admits, so the two modes should agree, and
 measuring that they do is what makes the grid trustworthy (findings 1–6).
 The modes can only differ when one commit carries transactions of
-*different* cost; the five `SLOW_MIX` configurations do that, and they are
+*different* cost; the 25 `SLOW_MIX` configurations do that, and they are
 where the modes differ (finding 7).
 
 ---
@@ -55,33 +55,40 @@ the unit limit admits 10 when a commit holds an expensive transaction and up
 to `limit / cheap cost` when it holds none. At the count limit's equivalent
 (`10 × mean cost`) that already gives 1.3–3.1× the throughput at fewer
 cancellations. But that equivalent is not the best limit. Running each mix
-at several limits shows the best one admits **one** expensive transaction
-per commit and leaves the rest of the budget to the cheap ones — between the
-expensive cost and twice it. For 1,000/100,000-unit traffic that is
-100K–150K units: 3–4× the count limit's throughput, half its cancellations
-or fewer, and *lower* checkpoint lag, flat over a 300 s run where the count
-limit's lag climbs from 0.6 to 6 s. Two limits on the gain: the cheap class
-must be cheap enough that a count of 10 leaves the object idle (with
-2,000–5,000-unit "cheap" transactions the object is already full and the
-modes agree again), and a transaction whose execution alone exceeds the
-commit interval (500,000 units, ≈80 ms here) has no good limit — admitting
-one per commit lags, excluding it never lets it through. The same limit
-ladder on a second machine reproduces the peak to within a few percent;
-past it, the machine that executes 4.6× faster keeps up where EPYC does
-not, so "between the expensive cost and twice it" is the safe choice on
-both (finding 7).
+at several limits shows what the best limit does: it lets a commit admit
+about one commit interval of execution time. At 1K/100K, where one
+expensive transaction takes ≈34 ms of the ≈50 ms interval, that is one
+expensive transaction per commit with the rest of the limit left for cheap
+ones: a limit from the expensive cost up to, but not including, twice it,
+so that one fits and two never do. At 100K–150K units that gives 3–4× the
+count limit's throughput, about half its cancellations or fewer, and
+checkpoint lag no higher than the count limit's, flat over a 300 s run
+where the count limit's lag climbs from 0.6 to 6 s. Where the expensive
+transaction is small against the interval (10,000 units, ≈16 ms) the same
+rule allows three per commit, and the limits at one to two times the
+expensive cost admit too little and fall below the count limit. Two
+conditions bound the gain: the cheap transactions must be cheap enough that
+a count of 10 leaves the object idle (with 2,000–5,000-unit "cheap"
+transactions the object is already full and the modes agree again), and a
+transaction whose execution alone exceeds the commit interval (500,000
+units, ≈80 ms here) has no good limit — admitting one per commit lags,
+excluding it never lets it through. The same limit ladder on a second
+machine reproduces the peak to within a few percent; past it, the machine
+that executes a 100K-unit transaction 4.6× faster keeps up where EPYC does
+not, so a limit below twice the expensive cost is the safe choice on both
+(finding 7).
 
-**Two things to know when reading the numbers.** The stress client sends a
+**How to read the numbers.** The stress client sends a
 new transaction only when one of its 2,000 in-flight ones completes, so at
 heavy cost the offered load falls with the network's own latency — from the
 1,000 tx/s target at 1,000 units to ≈40 tx/s at 5,000,000 — and "1000 QPS"
-describes the light configs only (finding 3). And the deferral budget is
+describes the light configs only (finding 3). And the deferral limit is
 counted in leader rounds, not scheduling attempts: a skipped leader round
-spends budget without a retry, so 1–4 % of deferred transactions are
+uses up a round without a retry, so 1–4 % of deferred transactions are
 cancelled after 11–12 rounds instead of the configured 10, in both modes
 alike (finding 6).
 
-**No safety event in 1,600 runs** (H4 PASS).
+**No safety event in any of the 2,150 runs** (H4 PASS).
 
 ---
 
@@ -99,7 +106,10 @@ per run):
   transaction takes it as a mutable input, so all of them contend on the
   same object and go through per-object congestion control. The input is not
   read by the Move code, so the cost is the same as the owned form measured
-  in `probe-test.md`.
+  in `probe-test.md`. The plan names W1 (`--shared-counter`) as H2's
+  workload; it is not run separately, because with one counter every
+  transaction costs the 1,000-unit floor on one hot object, which is what
+  the `cu1k` configs measure with `slow`.
 - **Cost points** (`slow_n` → attested computation units per transaction,
   measured by the probe and identical on both machines): 1 → 1,000
   (`cu1k`), 70 → 2,000, 120 → 5,000, 160 → 10,000, 217 → 20,000, 267 →
@@ -108,7 +118,13 @@ per run):
   ceiling: 5,000,000 units is the gas budget expressed in units, so those
   transactions fail with `InsufficientGas` and are charged the whole budget
   — their work is cut short, which matters when reading `cu5m`'s throughput.
-- **Run A**: `TotalTxCount`, limit 10 (production's value), overshoot 0.
+- **Run A**: `TotalTxCount`, limit 10, overshoot 0. Production runs this
+  mode with limit 10 and an overshoot of 100 (protocol version 22 and
+  later); the overshoot is off here, in both runs, so that each run is
+  described by one number and no debt is carried between commits. The
+  comparison is therefore between the two limits, not against production's
+  exact setting; a rerun with the overshoot on is listed under next steps
+  in `README.md`.
 - **Run B**: `TotalComputationUnits`, limit `LIMIT_B` in units, overshoot 0.
   Per cost point the limits step geometrically from one rung *below* the
   transaction's own cost (which admits nothing) to where the limit stops
@@ -128,25 +144,33 @@ per run):
   30 % and 50 % expensive (`mix30700`, `mix50500`); one three-level mix
   (`mix13600`: 1K/10K/100K at 60/30/10 %); and 300 s runs of two configs
   (`-dur300`). Each mix's control is the fixed-cost config of the same mean.
-  Finally the `mix20800` ladder (4 configs) was rerun on the WS —
-  `probe-test.md`'s second machine, a Ryzen 9 9950X3D, where a 100K-unit
-  transaction executes in 7.4 ms instead of 34 — with `-ws` labels, kept
-  under `results/matrix-ws/` so they never mix with the EPYC data.
+  Finally the `mix20800` ladder (4 configs) was rerun on the second machine
+  of `probe-test.md`, a Ryzen 9 9950X3D workstation (WS below), where a
+  100K-unit transaction executes in 7.4 ms instead of 34 — with `-ws`
+  labels, kept under `results/matrix-ws/` so they never mix with the EPYC
+  data.
 - **Both runs**: attestation on, `max_deferral_rounds = 10`, 4 validators.
 - **Client**: via the fullnode (`DIRECT=false`), target 1,000 tx/s for 60 s,
   24 workers on 12 threads, 4 gas accounts, at most `2 × 1000 = 2,000`
   transactions in flight: a worker submits a new transaction only when one
   of its in-flight ones has completed.
+- **Rate**: one target rate, 1,000 tx/s, for every config. The plan asks to
+  raise the rate to saturation; here that has no room: at 1,000 units the
+  limit already binds at this rate, and from 5,000 units up the client's
+  in-flight cap lowers what it offers to what the object can execute, so a
+  higher target would not change what arrives (finding 3).
 - **Machine**: all runs on one AMD EPYC 9454P server (48 cores / 96 threads,
   251 GiB RAM, Ubuntu 24.04), running the private network in docker — 4
   validators plus 1 fullnode — with the stress client on the same host.
 - **105 configurations**: the 80 fixed-cost configs at **10 iterations**
   each (800 iterations, 1,600 runs, 4–7 August 2026); the first five mixes at
-  **11** (the extra one was the accept/reject pass, same configuration,
-  kept); the 20 second-round mixes at **10** (9–10 September 2026). 1,050
-  iterations, 2,100 runs in all. Labels read `cu<cost>-lim<LIMIT_B>-qps1000`
-  and `mix<mean>-w<weight>-lim<LIMIT_B>-qps1000`, with `-dur300` for the
-  300 s runs. The WS check adds 4 configs at 5 iterations (11 September).
+  **11** (one iteration was run first to check the configuration, then ten
+  more; same configuration, so all eleven are pooled); the 20 second-round
+  mixes at **10** (9–10 September 2026). 1,055 iterations, 2,110 runs in
+  all. Labels read `cu<cost>-lim<LIMIT_B>-qps1000` and
+  `mix<mean>-w<weight>-lim<LIMIT_B>-qps1000`, with `-dur300` for the 300 s
+  runs. The WS rerun adds 4 configs at 5 iterations, 40 runs (11
+  September).
 
 Aggregation and reporting tooling (in this directory, sharing
 `../aggregate.py`,
@@ -155,11 +179,13 @@ Aggregation and reporting tooling (in this directory, sharing
 - `aggregate.py` pools every label's iterations (histogram buckets summed
   before quantiles; rates averaged over runs) into one A-vs-B row per config:
   `results/matrix/summary.md` for reading, `results/matrix/summary.csv` for
-  plotting.
-- `plot.py` renders the cross-config figures into
-  `results/matrix/summary_plots/`; the mixed-cost configs get two of their
-  own, from the per-commit admission histogram `aggregate.py` writes to
-  `results/matrix/admits_hist.csv`.
+  plotting. It also writes the spread of each value across the iterations,
+  the rate of transactions executed at the expensive level of a mix, the
+  per-commit admission histogram (`admits_hist.csv`) and the checkpoint lag
+  per 10 s and 60 s slice of the window (`lag_over_time.csv`).
+- `plot.py` renders the figures into `results/matrix/summary_plots/`; with
+  `results/matrix-ws` as a second argument it also draws the two machines
+  together.
 
 > [!NOTE]
 > The stress plan names `transactions_included_in_checkpoint` as H2's
@@ -175,15 +201,20 @@ Aggregation and reporting tooling (in this directory, sharing
 
 ---
 
-## Findings (10 iterations per configuration)
+## Findings (10 iterations per config, 11 for the first five mixes, 5 on the WS)
 
 Numbers below are means over all iterations; latencies are exact histogram
 means or quantiles over buckets combined across the 4 validators and all
 iterations. Run A is the same configuration in every config of a cost point,
 so its spread across those configs is the run-to-run noise: within ±3 % of the
-mean everywhere except `cu2k` (156–176 tx/s).
+mean everywhere except `cu2k` (156–176 tx/s). Within one config, the standard
+deviation of success throughput across its iterations is 1–4 % of the mean
+at most cost points, up to 12 % at `cu1k` and 14 % at `cu5m`, where the
+offered load varies most; `results/matrix/summary.md` lists it per config,
+and the figures draw it as error bars.
 
-Two effects shape every heavy-cost number and are worth holding in mind:
+Keep the client's in-flight cap and the 60 s window in mind when reading the
+heavy-cost numbers:
 
 - **The offered load is not 1,000 tx/s.** The client keeps at most 2,000
   transactions in flight and waits for each to finish, so it can offer only
@@ -193,9 +224,9 @@ Two effects shape every heavy-cost number and are worth holding in mind:
 - **Checkpoint lag is measured only for checkpoints built inside the
   window.** A backlog that outlives the 60 s run is never observed, so the
   lag mean is biased low exactly where lag is worst. The share of
-  checkpoints past 30 s is the honest tail indicator, and quantiles beyond
-  30 s are not measurements at all — the histogram buckets step 25, 30, 60,
-  90 — so the tables print `>30` there.
+  checkpoints past 30 s is the reliable measure of the tail, and quantiles
+  beyond 30 s are not measurements at all — the histogram buckets step 25,
+  30, 60, 90 — so the tables print `>30` there.
 
 In the figures, one curve per cost point, coloured light to dark by cost;
 Run A is drawn as a star or a vertical line, since it is the same admitted
@@ -246,13 +277,14 @@ reason below — and completes 0.4–1.7 tx/s, while Run A in the same config is
 unaffected. Above the object's capacity the limit stops mattering and Run
 B's admits track Run A's instead (finding 3).
 
-Two of those admit-nothing configs show something else: in `cu2m-lim1m` and
+Two of those eight configs show something else: in `cu2m-lim1m` and
 `cu5m-lim2m`, Run B's consensus handler processed only 11.6 and 7.2 commits
 per second against Run A's 19.7 and 18.5, with skipped leader rounds
 climbing to 74–77 per run from Run A's 24–45 (finding 6). Every transaction
 in those runs is deferred and re-evaluated every commit at 2–5 million units
 each, and the handler fell behind consensus. It is the only place in the
-grid where the mode changed the commit rate; the cause is a follow-up.
+grid where the mode changed the commit rate; the cause is left for a
+follow-up.
 
 ---
 
@@ -279,19 +311,28 @@ number of transactions per commit and complete the same throughput:
 | `cu5m` | 4.83 → 4.67 | 3.2 → 3.3 | 1.025 | 17 → 17 | 19.7 → 20.5 |
 
 B/A on success throughput averages 1.005 over the twelve, between 0.984 and
-1.025 — inside the run-to-run noise of Run A itself. Settlement latency
-agrees the same way (finding 5). This is the expected result, and it is the
+1.025 — inside the run-to-run noise of Run A itself: the standard deviation
+across iterations is 1–4 % of the mean for both runs at most cost points, so
+none of the ratios can be told from 1. Settlement latency agrees the same
+way (finding 5). This is the expected result, and it is the
 one that makes the rest of the grid usable: it shows that a limit in units
 and a limit in count are interchangeable at uniform cost, so any difference
 in a mixed-cost config is the cost spread and nothing else. The other 68 configs
 vary `LIMIT_B` away from that equivalence and are read in findings 3 and 4.
 
+![Run A against Run B at the twelve matched configs](results/matrix/summary_plots/modes_matched.png)
+
+*The twelve matched configs: Run A (star) next to Run B (dot) with one
+standard deviation across iterations as error bars, and B/A above each
+pair. The error bars are mostly smaller than the markers.*
+
 ![Per-config values for Run A and every Run B config](results/matrix/summary_plots/modes_heatmaps.png)
 
 *Every config at a glance: success tps, cancelled share, checkpoint lag mean
-and share past 30 s, one panel each, Run A in the top row and each `LIMIT_B`
-rung below it, coloured on one scale per panel so equal values look equal
-everywhere. The `10 × cost` column matches the Run A row in every panel.*
+and share past 30 s, one panel each, Run A in the left column and each
+`LIMIT_B` rung to its right, coloured on one scale per panel so equal values
+look equal everywhere (success and lag on a log colour scale). The outlined
+`10 × cost` squares match the Run A column in every panel.*
 
 ---
 
@@ -316,7 +357,7 @@ cost range while the count limit stays at 10 per commit throughout:
 
 | cost point | units/tx | object drains (tx/s) | arrivals/s | scheduled/s | success tps | scheduled / success |
 | --- | --- | --- | --- | --- | --- | --- |
-| `cu1k` | 1,000 | not reached (client-limited) | 943 | 190 | 192.7 | 0.99 |
+| `cu1k` | 1,000 | not reached (the client offers too little) | 943 | 190 | 192.7 | 0.99 |
 | `cu2k` | 2,000 | 179 | 424 | 198 | 176.2 | 1.12 |
 | `cu5k` | 5,000 | 118 | 205 | 144 | 117.9 | 1.22 |
 | `cu10k` | 10,000 | 94 | 163 | 119 | 93.6 | 1.28 |
@@ -332,8 +373,6 @@ cost range while the count limit stays at 10 per commit throughout:
 Run A at the count limit of 10; scheduled = the admits histogram's sum
 rate; arrivals = scheduled + cancelled, everything the client got into
 consensus. Run B at `10 × cost` is identical to within 1 %.
-
-Three things follow.
 
 *The offered load falls with cost.* The client can only offer 2,000
 transactions divided by how long each takes. At 1,000 units that is the
@@ -360,11 +399,11 @@ admitting only 2–5. The share of commits that scheduled anything at all
 falls from 95 % at `cu1k` to 25 % at `cu5m`. Run B at the matched limit shows
 the same numbers, so it does not affect the A-vs-B comparison, but it means
 the scheduler leaves capacity unused while transactions wait and are later
-cancelled. Slot debt cannot explain it (with overshoot 0 there is none), and
-the suggested-gas-price machinery is advisory in this code path. The cause is
-open and worth a dedicated look.
+cancelled. Debt carried between commits cannot explain it (with overshoot 0
+there is none), and the suggested-gas-price code is advisory on this path.
+The cause is open and worth a dedicated look.
 
-![Checkpoint lag and cancelled share against the admitted rate](results/matrix/summary_plots/modes_knee.png)
+![Checkpoint lag and cancelled share against the admitted rate](results/matrix/summary_plots/modes_admitted_rate.png)
 
 *Checkpoint lag (top) and cancelled share (bottom) against the admitted
 rate, `admits/cmt × commits/s`, one curve per cost point; Run A is the
@@ -374,8 +413,8 @@ less.*
 
 ---
 
-**4. The limit chooses where the shortfall lands: cancelled before
-consensus, or queued after it.**
+**4. The limit chooses where the shortfall lands: cancelled by the
+scheduler, or queued for execution.**
 
 <details>
 <summary>Metric descriptions</summary>
@@ -390,9 +429,10 @@ Along each cost point's ladder the same picture repeats. While the limit
 admits fewer transactions than the object can execute, the surplus is
 deferred and cancelled at ten rounds — 800–950/s, most of what arrives —
 and checkpoint lag stays under 1.5 s because nothing scheduled waits for
-execution. The first rung whose admitted rate reaches the drain rate flips
-it: cancellations fall towards zero, success flattens at the drain rate,
-and lag jumps by an order of magnitude and keeps growing with the limit:
+execution. At the first rung whose admitted rate reaches the drain rate the
+picture turns around: cancellations fall towards zero, success flattens at
+the drain rate, and lag jumps by an order of magnitude and keeps growing
+with the limit:
 
 | cost point | drain (tx/s) | last rung under it: admitted/s → lag s, cancelled/s | first rung over it: admitted/s → lag s, cancelled/s |
 | --- | --- | --- | --- |
@@ -410,7 +450,7 @@ and lag jumps by an order of magnitude and keeps growing with the limit:
 
 The three heaviest points are over the drain rate at their very first rung
 (one transaction per commit is already 18–20 tx/s against a drain of 4–15),
-so for them every admitting limit builds a backlog. Past the flip, raising
+so for them every admitting limit builds a backlog. Past that rung, raising
 the limit further changes little: at `cu50k` the rungs from 4 to 100
 transactions per commit all complete 60–64 tx/s, while the lag mean climbs
 from 6 s to 27 s and the share of checkpoints past 30 s from 0 to 30 %. At
@@ -431,11 +471,12 @@ mode that raises it — only a choice of failure mode.
 Lower-right is fast and stable; the configs arc up and right as the limit
 loosens: no extra throughput, more lag.*
 
-![The same curves over admitted rate divided by drain rate](results/matrix/summary_plots/modes_knee_utilization.png)
+![The same curves over admitted rate divided by drain rate](results/matrix/summary_plots/modes_utilization.png)
 
 *The curves of finding 3 with the x-axis divided by each cost point's drain
-rate. They land close to one line: cost enters only through how full the
-object is.*
+rate, lag above and cancelled share below. They land close to one line: cost
+enters only through how full the object is, and the two outcomes trade
+places at the dashed line.*
 
 ---
 
@@ -453,23 +494,27 @@ backlog, not the mode.**
 
 </details>
 
-At the twelve matched configs the client-facing latency is the same in both
-modes at every cost point:
+At the twelve matched configs the client-facing latency agrees between the
+modes at every cost point (each run's own values, as in finding 2):
 
 | cost point | settlement p50 ms A → B | settlement p95 ms A → B | receipt→executed p95 ms A → B | VM exec mean ms A → B |
 | --- | --- | --- | --- | --- |
-| `cu1k` | 727 → 726 | 872 → 872 | 984 → 986 | 0.23 → 0.23 |
-| `cu2k` | 784 → 789 | 7,457 → 7,291 | 7,087 → 6,852 | 2.43 → 2.39 |
-| `cu5k` | 6,646 → 6,635 | 18,866 → 18,861 | 18,418 → 18,435 | 5.05 → 5.07 |
-| `cu10k` | 8,609 → 8,692 | 23,406 → 23,345 | 25,323 → 24,930 | 6.36 → 6.31 |
-| `cu20k` | 8,804 → 8,874 | 27,879 → 28,028 | 26,868 → 26,953 | 7.60 → 7.58 |
-| `cu50k` | 6,173 → 6,437 | 27,740 → 27,818 | 28,488 → 28,395 | 8.55 → 8.57 |
-| `cu100k` | 3,031 → 3,003 | 26,668 → 26,675 | 45,639 → 44,960 | 9.80 → 9.75 |
-| `cu200k` | 4,163 → 4,409 | 25,594 → 25,706 | 50,291 → 50,251 | 11.8 → 11.8 |
-| `cu500k` | 851 → 881 | 24,831 → 24,774 | 48,740 → 48,447 | 14.4 → 14.4 |
-| `cu1m` | 1,453 → 1,411 | 25,674 → 24,278 | 45,999 → 47,819 | 16.3 → 16.5 |
-| `cu2m` | 3,694 → 3,695 | 21,921 → 21,906 | 47,756 → 47,556 | 17.6 → 17.7 |
-| `cu5m` | 7,781 → 7,881 | 21,647 → 21,145 | 45,127 → 44,626 | 26.4 → 25.1 |
+| `cu1k` | 728 → 726 | 877 → 872 | 983 → 986 | 0.23 → 0.23 |
+| `cu2k` | 788 → 789 | 7,566 → 7,291 | 7,166 → 6,852 | 2.44 → 2.39 |
+| `cu5k` | 6,803 → 6,635 | 18,813 → 18,861 | 18,436 → 18,435 | 5.05 → 5.07 |
+| `cu10k` | 7,844 → 8,692 | 23,448 → 23,345 | 25,555 → 24,930 | 6.34 → 6.31 |
+| `cu20k` | 8,648 → 8,874 | 28,013 → 28,028 | 26,925 → 26,953 | 7.60 → 7.58 |
+| `cu50k` | 6,788 → 6,437 | 27,732 → 27,818 | 28,153 → 28,395 | 8.50 → 8.57 |
+| `cu100k` | 2,704 → 3,003 | 26,220 → 26,675 | 46,888 → 44,960 | 9.80 → 9.75 |
+| `cu200k` | 4,034 → 4,409 | 25,691 → 25,706 | 50,365 → 50,251 | 11.8 → 11.8 |
+| `cu500k` | 859 → 881 | 24,840 → 24,774 | 48,655 → 48,447 | 14.4 → 14.4 |
+| `cu1m` | 1,427 → 1,411 | 25,417 → 24,278 | 46,839 → 47,819 | 16.3 → 16.5 |
+| `cu2m` | 3,627 → 3,695 | 21,833 → 21,906 | 47,885 → 47,556 | 17.6 → 17.7 |
+| `cu5m` | 7,773 → 7,881 | 21,290 → 21,145 | 44,723 → 44,626 | 25.4 → 25.1 |
+
+The p95 values agree within 1–5 %. The medians move by up to 11 % between
+the runs (`cu10k`, `cu100k`), which is inside the spread of Run A's own
+median across the configs of a cost point (7.8 to 8.9 s at `cu10k`).
 
 Along a ladder, latency follows the backlog of finding 4 and nothing else.
 Every rung that admits less than the drain rate settles in ≈ 730–750 ms at
@@ -480,21 +525,21 @@ to 6–25 s while the median mostly holds near 750 ms — the queue is not yet
 long enough to reach the typical transaction — and one or two rungs further
 the median follows, to 3–16 s. Receipt-to-executed p95 — the validator's own
 view, including time spent deferred — reaches 45–56 s at the heavy points,
-close to the window length. The median's non-monotonic
-path down the cost column (8.8 s at `cu20k`, 0.85 s at `cu500k`) is the
+close to the window length. That the median does not fall
+steadily down the cost column (8.6 s at `cu20k`, 0.86 s at `cu500k`) is the
 client's shrinking offered load: with fewer transactions in flight, the
 ones that do get admitted wait behind fewer others.
 
 The VM execution column is the blended
 `authority_state_internal_execution_latency` (the user-only variant was
 added after these runs). It grows from 0.23 to
-26 ms across the cost range on this machine and is identical between modes
+25 ms across the cost range on this machine and is identical between modes
 — cost is a property of the transaction, and the mode only decides how many
 of them are let in.
 
 ---
 
-**6. The deferral budget is spent in leader rounds, so a skipped round
+**6. The deferral limit is counted in leader rounds, so a skipped round
 cancels transactions a round early — in both modes.**
 
 <details>
@@ -515,22 +560,25 @@ the heavy points — 496,000 observations in Run A and 1,594,000 in Run B
 over the whole grid. The excess is small (the real values are 11–12) and it
 is not a difference between the modes.
 
-The mechanism is how the budget is counted. A transaction's deferral key
+The mechanism is how the rounds are counted. A transaction's deferral key
 records the leader round it was first deferred from
 (`DeferralKey::ConsensusRound { future_round, deferred_from_round }`), the
 limit check compares `future_round − deferred_from_round` against the
 maximum, and the round used is the commit's leader round
 (`consensus_handler.rs:243`, `consensus_output.leader_round()`). Consensus
 does not produce a commit for every leader round: over a 60 s run the leader
-round advances 23–44 times more than the number of commits, in both modes,
-at every cost point (2–4 % of ≈ 1,200 commits). Each skipped round moves the
-counter without a scheduling attempt, so a transaction deferred across one
-skipped round is cancelled after nine evaluations, and the rounds it is
-charged (`commit_round.saturating_sub(deferred_from_round)`,
+round advances more than the number of commits by 7 to 77, in most configs
+by 20 to 40, in both modes and at every cost point (20 to 40 is 2–3 % of
+≈ 1,200 commits; the two configs of finding 1 whose handler fell behind are
+the 74 and 77). The two 300 s configs skip 111 to 176 across their runs,
+which is the same share of a window five times longer. Each skipped round
+moves the counter without a scheduling attempt, so a transaction deferred
+across one skipped round is cancelled after nine evaluations, and the rounds
+it is charged (`commit_round.saturating_sub(deferred_from_round)`,
 `authority_per_epoch_store.rs`) read 11 or 12.
 
 The consequence for the numbers here is small. The consequence for the
-design is that the budget is not what it says: it is "ten leader rounds",
+design is that the limit is not what it says: it is "ten leader rounds",
 not "ten chances to be scheduled", and under consensus conditions that skip
 more rounds the gap grows. Counting evaluations rather than the round
 difference would make the two the same; this is worth an upstream issue.
@@ -550,7 +598,7 @@ and Run A's count limit binds wherever the object still has spare capacity
 (`admits/cmt` 10.00), so the configs measure what they were meant to.
 
 *At the count limit's equivalent.* The first five mixes ran at
-`LIMIT_B = 10 × mean cost`, so Run B's budget is the work Run A admits on
+`LIMIT_B = 10 × mean cost`, so Run B's limit is the work Run A admits on
 average and the spread is the only difference:
 
 | config | costs (units), ratio | admits/cmt A → B | success tps A → B | B/A | cancelled/s A → B | ckpt lag mean s A → B |
@@ -562,11 +610,11 @@ average and the spread is the only difference:
 | `mix50900` | 1K / 500K, 9:1 | 10.0 → 14.8 | 181.9 → 265.0 | 1.46 | 788 → 31 | 2.34 → 8.06 |
 
 Run A admits exactly 10 in every commit — 100 % of its commits sit in the
-7–10 bucket of the admission histogram. Run B's budget is in units, so what
-it admits depends on what the commit holds. At `mix1900` the budget is
+7–10 bucket of the admission histogram. Run B's limit is in units, so what
+it admits depends on what the commit holds. At `mix1900` the limit is
 19,000 units: a commit holding one 10,000-unit transaction has room for 9
 cheap ones (10 in all), a commit holding none fits 19 — measured, 63 % of
-commits at 7–10 and 37 % at 10–20. At `mix10900` the budget is 109,000: one
+commits at 7–10 and 37 % at 10–20. At `mix10900` the limit is 109,000: one
 expensive plus 9 cheap, or 109 cheap — 78 % of commits at 7–10 and 22 % at
 100–200. The extra admissions are cheap transactions that a count of 10 would
 have deferred and, mostly, cancelled after ten rounds; cancellations fall
@@ -576,43 +624,45 @@ from ≈790/s in every Run A to 719, 727, 366, 186 and 31/s.
 the question the stress plan asks, in the only setting where the answer can
 depend on the mode:
 
-| config | LIMIT_B | admits/cmt B | success tps B | cancelled/s B | lag mean s B | Run A: success, cancelled, lag |
-| --- | --- | --- | --- | --- | --- | --- |
-| `mix3700` (1K/10K, 7:3) | 10K | 5.4 | 109 | 872 | 1.08 | 199, 792, 0.5–1.4 |
-| | 20K | 8.1 | 164 | 836 | 0.52 | |
-| | **37K** | 13.6 | **273** | 727 | **0.34** | |
-| | 100K | 16.2 | 257 | 28 | 7.48 | |
-| `mix10900` (1K/100K, 9:1) | 50K | 45.3 | 902 | 100 | 0.53 | 200, 790, 0.3–0.8 |
-| | 109K | 31.5 | 627 | 366 | 0.63 | |
-| | **200K** | 36.0 | **693** | 152 | 1.73 | |
-| | 500K | 22.6 | 375 | 0 | 5.79 | |
-| `mix20800` (1K/100K, 4:1) | 100K | 29.3 | 584 | 409 | **0.59** | 194, 790, 0.7–1.7 |
-| | **150K** | 41.0 | **821** | 180 | **0.61** | |
-| | 208K | 21.7 | 403 | 186 | 3.88 | |
-| | 500K | 13.8 | 227 | 10 | 8.91 | |
-| `mix50900` (1K/500K, 9:1) | 200K | 46.2 | 901 | 100 | 0.32 | 182, 792, 2.3 |
-| | 509K | 14.8 | 265 | 31 | 8.06 | |
-| | 1M | 14.4 | 241 | 5 | 9.08 | |
-
-The ladders show three things.
+| config | LIMIT_B | admits/cmt B | success tps B | cancelled/s B | lag mean s B | expensive executed/s B | Run A: success, cancelled, lag, expensive executed/s |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `mix3700` (1K/10K, 7:3) | 10K | 5.4 | 109 | 872 | 1.08 | 10 | 199, 792, 0.4–1.4, 59 |
+| | 20K | 8.1 | 164 | 836 | 0.52 | 26 | |
+| | **37K** | 13.6 | **273** | 727 | **0.34** | 52 | |
+| | 100K | 16.2 | 257 | 28 | 7.48 | 75 | |
+| `mix10900` (1K/100K, 9:1) | 50K | 45.3 | 902 | 100 | 0.53 | 0 | 200, 790, 0.3–0.8, 17 |
+| | 109K | 31.5 | 627 | 366 | 0.63 | 16 | |
+| | **200K** | 36.0 | **693** | 152 | 1.73 | 32 | |
+| | 500K | 22.6 | 375 | 0 | 5.79 | 37 | |
+| `mix20800` (1K/100K, 4:1) | 100K | 29.3 | 584 | 409 | **0.59** | 14 | 195, 791, 0.7–1.7, 34 |
+| | **150K** | 41.0 | **821** | 180 | **0.61** | 20 | |
+| | 208K | 21.7 | 403 | 186 | 3.88 | 33 | |
+| | 500K | 13.8 | 227 | 10 | 8.91 | 42 | |
+| `mix50900` (1K/500K, 9:1) | 200K | 46.2 | 901 | 100 | 0.32 | 0 | 182, 791, 2.3–2.4, 16 |
+| | 509K | 14.8 | 265 | 31 | 8.06 | 15 | |
+| | 1M | 14.4 | 241 | 5 | 9.08 | 20 | |
 
 **The count limit's equivalent is not the best limit.** At `mix20800`, 208K
 units (`10 × mean`) admits two 100K transactions per commit and 8 cheap ones
 — 88 % of Run B's commits sit at ≤10 — and lag is 3.9 s. One rung down, at
 150K, only one expensive transaction fits and the remaining 50K units go to
 cheap ones: Run B admits 41 per commit (50 % of commits at 20–50, 41 % at
-50–70), completes **821 tx/s against Run A's 194**, cancels 180/s against
-790, and its checkpoint lag is **0.61 s against Run A's 1.0 s**. At 100K
+50–70), completes **821 tx/s against Run A's 198**, cancels 180/s against
+795, and its checkpoint lag is **0.61 s against Run A's 1.0 s**. At 100K
 exactly one expensive fits and nothing else, so commits alternate between one
 expensive transaction (71 %) and 70–100 cheap ones (29 %): 584 tx/s, lag
 0.59 s. The same shape at `mix10900`: 200K does better than 109K on
-throughput (693 vs 627) and cancellations (152 vs 366) at 1.7 s lag, and 500K
-falls to 375 tx/s at 5.8 s. And at `mix3700`, where the expensive
-transaction is 10K, the `10 × mean` rung (37K, three expensive plus seven
-cheap) happens to be the best, and 100K (ten expensive) lags 7.5 s.
+throughput (693 vs 627) and cancellations (152 vs 366), but 200K is exactly
+twice the expensive cost, so two of them fit per commit, and lag rises to
+1.7 s against Run A's 0.3–0.8 s; 500K falls to 375 tx/s at 5.8 s. At
+`mix3700`, where the expensive transaction is 10K, the `10 × mean` rung
+(37K, three expensive plus seven cheap) is the best; 10K and 20K, which fit
+one or two expensive transactions, fall below the count limit (109 and 164
+tx/s against 199), and 100K (ten expensive) lags 7.5 s.
 
-**Why: the budget must fit the commit interval in execution time.** The
-object executes one transaction at a time; consensus commits every ≈50 ms;
+**Why: what the limit admits must fit the commit interval in execution
+time.** The object executes one transaction at a time; consensus commits
+every ≈50 ms;
 on this machine a 100K-unit transaction takes ≈34 ms, a 10K one ≈16 ms, a
 500K one ≈81 ms, a cheap one 0.6 ms (`probe-test.md`). One 100K transaction
 per commit plus fifty cheap ones is ≈62 ms of work per 50 ms commit — the
@@ -621,44 +671,48 @@ commit is 67 ms before any cheap one, and lag climbs. Three 10K transactions
 plus seven cheap is 52 ms (`mix3700` at 37K, fine); ten is 159 ms (100K,
 7.5 s of lag). And a 500K transaction alone is 81 ms, more than the interval,
 which is why `mix50900` lags at *every* limit that admits one (8.1 s at 509K,
-9.1 s at 1M): no unit limit fixes a class whose single transaction overruns
+9.1 s at 1M): no unit limit fixes a level whose single transaction overruns
 the commit. The count limit has the same problem with no knob at all — at
 `mix20800` its ten admissions hold two expensive transactions on average, so
 Run A's lag grows too (below).
 
 **A limit below the expensive cost meets the goal by dropping a whole
-class.** At
+level.** At
 `mix10900`/50K and `mix50900`/200K, Run B never admits an expensive
-transaction: it cancels exactly that class (100/s, the 10 % that arrive) and
+transaction: it cancels exactly that level (100/s, the 10 % that arrive) and
 runs the cheap ones at 900 tx/s with 0.3–0.5 s lag. Fewest cancellations and
-no lag, because one class of transaction is never let through. Any rule for
-choosing the limit has to exclude this: every cost class still has to get
+no lag, because one level of transaction is never let through. Any rule for
+choosing the limit has to exclude this: every level still has to get
 through.
 
 ![Success, cancellations and lag against the limit, for the four mixes run at several limits](results/matrix/summary_plots/modes_mix_ladders.png)
 
-*Run B (orange) against `LIMIT_B`, Run A (blue dashes) as the reference;
-the dotted lines mark the expensive transaction's cost and `10 × mean`.
-Success peaks at the limit that admits one expensive transaction per commit
-with room to spare; lag rises sharply at the limit that admits two.*
+*Run B (orange) against `LIMIT_B`, with one standard deviation across
+iterations as error bars; Run A (blue dashes, band = its spread) as the
+reference. The dotted line marks the expensive transaction's cost, the
+dash-dotted line `10 × mean`, and the shaded band runs from the expensive
+cost to twice it. The bottom row is the expensive level's execution rate.
+At 1K/100K success peaks inside the band and lag rises at the rung that fits
+two expensive transactions; at 1K/10K the peak is at 37K, three per
+commit.*
 
 *What the gain needs.* Holding the expensive level at 500K and raising the
 cheap one from 1K to 5K and 20K (`mix50900` → `mix54500` → `mix68000`) takes
 the gain from 1.46× to 1.10× to 1.07×; holding 100K and raising the cheap
 side from 1K to 2K (`mix10900` → `mix11800`) takes it from 3.13× to 1.05×,
-and 5K/50K (`mix9500`) gives 1.04×. In those configs both arms' admission
+and 5K/50K (`mix9500`) gives 1.04×. In those configs both runs' admission
 histograms sit below 10 and Run A's lag is already 9–23 s: the object is
-kept fully busy by the "cheap" class alone (5K transactions drain at 118/s,
+kept fully busy by the "cheap" level alone (5K transactions drain at 118/s,
 2K at 179/s, finding 3), so there is no idle capacity for the unit limit to
 fill.
 The gain is not set by how far apart the two costs are but by whether a
-count of 10 leaves the object idle — which needs the cheap class to be cheap
+count of 10 leaves the object idle — which needs the cheap level to be cheap
 against the object's drain rate, ≈1,000 units here. Raising the expensive
 share does the same from the other side: 1K/100K gains 3.1× at 10 %
 expensive, 2.1× at 20 %, 1.4× at 30 % (`mix30700`, lag 7.4 → 9.7 s) and 1.3×
-at 50 % (`mix50500`, lag 15 s in both arms), because past 20 % the expensive
-class alone fills the object. The three-level mix (`mix13600`, 1K/10K/100K at
-60/30/10 %) gains 1.17× with lag 5.5 → 9.7 s: its 10K middle class uses the
+at 50 % (`mix50500`, lag 15 s in both runs), because past 20 % the expensive
+level alone fills the object. The three-level mix (`mix13600`, 1K/10K/100K at
+60/30/10 %) gains 1.17× with lag 5.5 → 9.7 s: its 10K middle level uses the
 capacity the cheap ones would have filled.
 
 ![Admitted per commit, and the outcome, for the mixes at the count limit's equivalent](results/matrix/summary_plots/modes_mix.png)
@@ -667,45 +721,54 @@ capacity the cheap ones would have filled.
 admitting each number of transactions, Run A (blue) next to Run B (orange).
 Bottom: success, cancellations and lag. Run B gains where Run A's bar is
 100 % at 7–10 — where the count limit binds and the object has room; where
-both arms have slid below 10 the object is already full and the modes agree.*
+both runs have slid below 10 the object is already full and the modes agree.*
 
 *Stable, not just low.* The 60 s window cannot tell a queue that is high but
 stable from one that keeps growing, so the two likely recommended configs
 ran for 300 s, ten iterations each. Checkpoint lag per 60 s slice of the
-window, mean over the iterations:
+window, the exact mean over the checkpoints built in that slice across the
+iterations (`lag_over_time.csv`):
 
-| config | arm | 0–60 s | 60–120 | 120–180 | 180–240 | 240–300 | success tps |
+| config | run | 0–60 s | 60–120 | 120–180 | 180–240 | 240–300 | success tps |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `mix10900` at 109K | A | 0.92 | 0.97 | 0.88 | 0.37 | 0.42 | 200 |
-| | B | 0.30 | 0.71 | 0.62 | 0.33 | 0.73 | 631 |
-| `mix20800` at 100K | A | 0.60 | 2.09 | 3.76 | 5.16 | 6.24 | 186 |
-| | B | 0.66 | 1.50 | 0.42 | 0.43 | 0.75 | 590 |
+| `mix10900` at 109K | A | 0.86 | 1.04 | 0.90 | 0.41 | 0.41 | 200 |
+| | B | 0.30 | 0.46 | 0.85 | 0.34 | 0.73 | 631 |
+| `mix20800` at 100K | A | 0.60 | 2.02 | 3.69 | 4.98 | 6.28 | 186 |
+| | B | 0.69 | 1.48 | 0.56 | 0.40 | 0.67 | 590 |
 
-Run B's lag is flat across five minutes in both. Run A's grows steadily at
-`mix20800` — its ten admissions per commit average two 100K transactions,
-67 ms of work per 50 ms commit — reaching 6.2 s in the last minute with 1 %
-of checkpoints past 30 s. So at this mix the unit limit is not only faster
-and cancels less; it is the arm that stays stable, and the count limit is the
-one that does not.
+Run B's lag stays under 1.5 s in every minute of both configs. Run A's grows
+steadily at `mix20800` — its ten admissions per commit average two 100K
+transactions, 67 ms of work per 50 ms commit — reaching 6.3 s in the last
+minute with 1 % of checkpoints past 30 s. So at this mix the unit limit is
+not only faster and cancels less; it is the run that stays stable, and the
+count limit is the one that does not.
+
+![Checkpoint lag over the 300 s runs](results/matrix/summary_plots/modes_lag_over_time.png)
+
+*Checkpoint lag over the 300 s runs, Run A (blue) against Run B (orange):
+the thin line is the mean per 10 s slice, the steps the mean per 60 s
+slice, all iterations pooled. The count limit's lag at `mix20800` climbs
+for the whole five minutes; the unit limit's holds, apart from short
+spikes.*
 
 *The same ladder on the WS.* The explanation above says the limit is really
 about execution time per commit, which is a property of the machine. So the
 four `mix20800` configs were rerun on the WS, where a 100K-unit transaction
 executes in 7.4 ms instead of EPYC's 34 (5 iterations each). Run A is the
-same on both: 202 tx/s, 800 cancelled/s, ≈33 expensive transactions executed
+same on both: 202 tx/s, 800 cancelled/s, ≈34 expensive transactions executed
 per second, lag 0.2–0.9 s on the WS.
 
 | LIMIT_B | success tps B, WS / EPYC | cancelled/s B, WS / EPYC | lag mean s B, WS / EPYC | expensive executed/s B, WS / EPYC |
 | --- | --- | --- | --- | --- |
 | 100K | 611 / 584 | 391 / 409 | 0.17 / 0.59 | 14 / 14 |
 | 150K | 821 / 821 | 181 / 180 | 0.17 / 0.61 | 20 / 20 |
-| 208K | 621 / 403 | 381 / 186 | 0.18 / 3.88 | 35 / 33 |
-| 500K | 825 / 227 | 176 / 10 | 0.20 / 8.91 | 92 / 41 |
+| 208K | 621 / 403 | 381 / 186 | 0.18 / 3.88 | 36 / 33 |
+| 500K | 825 / 227 | 176 / 10 | 0.20 / 8.91 | 93 / 42 |
 
 Up to 150K the two machines agree on everything but lag, to within a few
-percent — how many transactions the budget admits, and of which class, is
+percent — how many transactions the limit admits, and of which level, is
 arithmetic on units. Above it they differ, for the reason given above. At
-208K the budget takes two expensive transactions in any commit that has
+208K the limit fits two expensive transactions in any commit that has
 two waiting and leaves 8K units for cheap ones — 79 % of Run B's commits
 admit ≤10 on the WS, 88 % on EPYC — so throughput dips on both. On EPYC the
 dip is deeper (403 against 621) and lag climbs to 3.9 s, because two 100K
@@ -714,72 +777,86 @@ transactions are 67 ms of execution per 50 ms commit; on the WS they are
 all. The WS admits up to five expensive transactions per commit (37 ms,
 inside the
 interval) in 63 % of commits and 100–200 cheap ones in the rest: 825 tx/s,
-matching 150K, at 0.20 s lag, while executing **92 expensive transactions
-per second** — 4.6× what 150K lets through and 2.7× what the count limit
-does. EPYC, where five would be 170 ms, admits fewer than the budget allows
-(finding 3), executes 41 expensive per second, completes 227 tx/s and lags
+matching 150K, at 0.20 s lag, while executing **93 expensive transactions
+per second** — 4.6× what 150K lets through and 2.8× what the count limit
+does. EPYC, where five would be 170 ms, admits fewer than the limit allows
+(finding 3), executes 42 expensive per second, completes 227 tx/s and lags
 8.9 s.
 
 The rule has two parts, and only one of them depends on the machine. How
-the budget splits between the classes does not: a budget of exactly two
+the limit splits between the two levels does not: a limit of exactly two
 expensive transactions crowds the cheap ones out on both machines. Whether
 the expensive transactions it admits fit the commit does: the WS keeps up at
-500K, EPYC does not past 150K. So between the expensive cost and twice it is
-the safe choice on both — the peak throughput on both, no lag on either —
-and on hardware that executes fast enough, larger budgets are as good on
-throughput and lag and let far more of the expensive class through.
+500K, EPYC does not past 150K. So a limit from the expensive cost up to,
+but not including, twice it is the safe choice on both — the peak
+throughput on both, no lag on either — and on hardware that executes fast
+enough, larger limits are as good on throughput and lag and let far more of
+the expensive level through.
+
+![The mix20800 ladder on both machines](results/matrix/summary_plots/modes_two_machines.png)
+
+*The `mix20800` ladder on EPYC (orange) and the WS (green): Run B as the
+line with markers, that machine's Run A dashed. The two agree up to 150K;
+above it the WS keeps lag flat and executes more of the expensive level,
+where EPYC's lag climbs.*
 
 *The answer to the H2 question.* For a shared object whose traffic is mostly
-cheap with some expensive transactions, set the unit limit between the
-expensive transaction's cost and twice it, so one expensive transaction fits
-per commit and the rest of the budget goes to the cheap ones. Measured at
-1K/100K: 3–4× the count limit's throughput, half its cancellations or fewer,
-equal or lower checkpoint lag, stable over 300 s, on both machines.
-`10 × mean cost` is the wrong rule: it admits as many expensive transactions
-as the mean allows, and on EPYC two of them already overrun the commit.
+cheap with some expensive transactions that each take a good part of a
+commit interval to execute, set the unit limit at the expensive
+transaction's cost or above, but below twice it, so that one expensive
+transaction fits per commit, two never do, and the rest of the limit goes
+to the cheap ones. Measured at 1K/100K, 100K–150K units: 3–4× the count
+limit's throughput, about half its cancellations or fewer (409 and 180
+against ≈790), checkpoint lag no higher than the count limit's, stable over
+300 s on EPYC, and the same peak on both machines. `10 × mean cost` is the
+wrong rule: it admits as many expensive transactions as the mean allows,
+and on EPYC two of them already overrun the commit.
 
-Four things qualify this.
+The rule comes with caveats.
 
 - The gain is made of cheap transactions. At that limit the unit limit
   executes fewer expensive transactions than the count limit does — 20 per
-  second against 33 at `mix20800` — and nearly all of its remaining
+  second against 34 at `mix20800` — and nearly all of its remaining
   cancellations are expensive ones that did not fit. The count limit spreads
-  its cancellations over both classes; the unit limit puts them on the
+  its cancellations over both levels; the unit limit puts them on the
   expensive one. Whether that trade is acceptable depends on what the two
-  classes are worth, which the data cannot say.
+  levels are worth, which the data cannot say.
 - The best limit for a given machine is not a fixed number of units. The
   rule behind it is one commit interval of execution time, and how many
-  expensive transactions fit in that interval is a property of the machine:
-  one on EPYC, five on the WS, where 500K serves 4.6× more of the expensive
-  class at the same throughput and lag. "Between the expensive cost and twice
-  it" is the choice that is safe on both. Doing better on a given machine
-  needs its execution time for the expensive class — or a limit expressed in
-  time rather than units.
-- A class whose single transaction overruns the commit interval has no good
+  expensive transactions fit in that interval depends on their cost and on
+  the machine: one 100K transaction on EPYC, five on the WS, where 500K
+  serves 4.6× more of the expensive level at the same throughput and lag;
+  three 10K transactions on EPYC at `mix3700`, where the limits that fit
+  only one or two fall below the count limit. A limit below twice the
+  expensive cost is the choice that is safe on both machines when one
+  expensive transaction fills most of the interval. Doing better needs the
+  expensive level's execution time on that machine — or a limit expressed
+  in time rather than units.
+- A level whose single transaction overruns the commit interval has no good
   limit, only a choice between lag and never admitting it.
 - The gain exists only where the count limit leaves the object idle, which
-  needs the cheap class to be cheap against the object's drain rate.
+  needs the cheap level to be cheap against the object's drain rate.
 
 ---
 
 ## H4 — safety (pass/fail)
 
-**PASS.** All safety counters are zero across all 1,600 runs of the 80
-configurations — checkpoint forks (`split_brain_checkpoint_forks`,
-`remote_checkpoint_forks`), inconsistent state hash, double-spend attempts,
-attestation task panics, soft-lock equivocation — and the per-iteration node
-state scan found no validator crash, restart or OOM inside any measurement
-window. The metric descriptions are in `../h1/RESULTS.md`, H4 section. The
-only
-run-to-run irregularity anywhere in the grid is the consensus-handler
-slowdown of finding 1, which is a performance observation, not a safety
-event.
+**PASS.** All safety counters are zero across all 2,110 runs of the 105
+configurations on EPYC and the 40 runs on the WS — checkpoint forks
+(`split_brain_checkpoint_forks`, `remote_checkpoint_forks`), inconsistent
+state hash, double-spend attempts, attestation task panics, soft-lock
+equivocation — and the per-iteration node state scan found no validator
+crash, restart or OOM inside any measurement window. The metric descriptions
+are in `../h1/RESULTS.md`, H4 section. The only run-to-run irregularity
+anywhere in the grid is the consensus-handler slowdown of finding 1, which is
+a performance observation, not a safety event.
 
 ---
 
 ## Summary
 
 The takeaway is the TL;DR at the top of this document. Full per-config
-numbers: `results/matrix/summary.md` and `summary.csv`; figures:
+numbers: `results/matrix/summary.md` and `summary.csv`, and for the WS
+rerun `results/matrix-ws/summary.md`; figures:
 `results/matrix/summary_plots/`; the cost calibration behind the grid:
 `probe-test.md`.
