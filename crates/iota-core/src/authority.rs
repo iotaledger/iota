@@ -5,7 +5,6 @@
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fs,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -176,6 +175,7 @@ use crate::{
         overload_monitor_accept_tx,
     },
     stake_aggregator::StakeAggregator,
+    state_snapshot::EpochSnapshotHandle,
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
@@ -262,7 +262,7 @@ pub struct AuthorityMetrics {
     execution_load_input_objects_latency: Histogram,
     prepare_certificate_latency: Histogram,
     commit_certificate_latency: Histogram,
-    db_checkpoint_latency: Histogram,
+    state_snapshot_handover_latency: Histogram,
 
     pub(crate) transaction_manager_num_enqueued_certificates: IntCounterVec,
     pub(crate) transaction_manager_num_missing_objects: IntGauge,
@@ -519,9 +519,11 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
-            db_checkpoint_latency: register_histogram_with_registry!(
-                "db_checkpoint_latency",
-                "Latency of checkpointing the perpetual store at epoch end",
+            state_snapshot_handover_latency: register_histogram_with_registry!(
+                "state_snapshot_handover_latency",
+                "Latency of handing an epoch's live object set to the state snapshot \
+                 writer at epoch end, which is the time the boundary waits for the \
+                 writer's read view",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -941,6 +943,10 @@ pub struct AuthorityState {
 
     /// Traffic controller for IOTA core servers (json-rpc, validator service)
     pub traffic_controller: Option<Arc<TrafficController>>,
+    /// Set on a node that publishes state snapshots: the epoch boundary hands
+    /// each epoch's live object set to the writer through it. See
+    /// [`Self::begin_state_snapshot`].
+    state_snapshots: Option<EpochSnapshotHandle>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -3055,6 +3061,7 @@ impl AuthorityState {
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
+        state_snapshots: Option<EpochSnapshotHandle>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3127,6 +3134,7 @@ impl AuthorityState {
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
+            state_snapshots,
         });
 
         // Start a task to execute ready transactions.
@@ -3488,22 +3496,7 @@ impl AuthorityState {
 
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
-        // When state snapshots are published, a RocksDB checkpoint of the
-        // perpetual store taken at epoch end serves as the snapshot creation
-        // input.
-        if self
-            .config
-            .state_snapshot_write_config
-            .object_store_config
-            .is_some()
-        {
-            let current_epoch = cur_epoch_store.epoch();
-            let epoch_checkpoint_path = self
-                .config
-                .db_checkpoint_path()
-                .join(format!("epoch_{current_epoch}"));
-            self.checkpoint_perpetual_db(&epoch_checkpoint_path, cur_epoch_store)?;
-        }
+        self.begin_state_snapshot(cur_epoch_store.epoch()).await;
 
         let new_epoch = new_committee.epoch;
         let new_epoch_store = self
@@ -3655,36 +3648,22 @@ impl AuthorityState {
     /// `<checkpoint_path>/store/perpetual`, the layout the state snapshot
     /// uploader reads.
     #[instrument(level = "error", skip_all)]
-    fn checkpoint_perpetual_db(
-        &self,
-        checkpoint_path: &Path,
-        cur_epoch_store: &AuthorityPerEpochStore,
-    ) -> IotaResult {
-        let _metrics_guard = self.metrics.db_checkpoint_latency.start_timer();
-        let current_epoch = cur_epoch_store.epoch();
-
-        if checkpoint_path.exists() {
-            info!("Skipping db checkpoint as it already exists for epoch: {current_epoch}");
-            return Ok(());
-        }
-
-        let checkpoint_path_tmp = checkpoint_path.with_extension("tmp");
-        let store_checkpoint_path_tmp = checkpoint_path_tmp.join("store");
-
-        if checkpoint_path_tmp.exists() {
-            fs::remove_dir_all(&checkpoint_path_tmp)
-                .map_err(|e| IotaError::FileIO(e.to_string()))?;
-        }
-
-        fs::create_dir_all(&checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
-        fs::create_dir(&store_checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
-
-        self.get_reconfig_api()
-            .try_checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
-
-        fs::rename(checkpoint_path_tmp, checkpoint_path)
-            .map_err(|e| IotaError::FileIO(e.to_string()))?;
-        Ok(())
+    /// Hands the epoch's live object set to the state snapshot writer, when
+    /// this node publishes snapshots.
+    ///
+    /// Waits only until the writer has taken its read view of the perpetual
+    /// store, which is what makes the scan behind it see the state this epoch
+    /// ended with. The scan and the upload run while the node executes the
+    /// next epoch, and a writer that is busy or gone costs this epoch its
+    /// snapshot rather than holding reconfiguration up.
+    async fn begin_state_snapshot(&self, epoch: EpochId) {
+        let Some(snapshots) = &self.state_snapshots else {
+            return;
+        };
+        let _metrics_guard = self.metrics.state_snapshot_handover_latency.start_timer();
+        snapshots
+            .hand_over(epoch, self.get_reconfig_api().perpetual_tables())
+            .await;
     }
 
     /// Load the current epoch store. This can change during reconfiguration. To

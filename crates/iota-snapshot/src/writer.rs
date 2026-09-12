@@ -21,7 +21,9 @@ use futures::StreamExt;
 use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
-    authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject, SnapshotLiveObject},
+    authority::authority_store_tables::{
+        AuthorityPerpetualTables, DbReadView, LiveObject, SnapshotLiveObject,
+    },
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
 };
@@ -39,6 +41,7 @@ use tokio::{
     sync::{
         mpsc,
         mpsc::{Receiver, Sender},
+        oneshot,
     },
     task::JoinHandle,
 };
@@ -337,8 +340,9 @@ impl StateSnapshotWriterV1 {
         epoch: u64,
         perpetual_db: Arc<AuthorityPerpetualTables>,
         root_state_hash: ECMHLiveObjectSetDigest,
+        view_taken: oneshot::Sender<()>,
     ) -> Result<()> {
-        self.write_internal(epoch, perpetual_db, root_state_hash)
+        self.write_internal(epoch, perpetual_db, root_state_hash, view_taken)
             .await
     }
 
@@ -349,13 +353,14 @@ impl StateSnapshotWriterV1 {
         epoch: u64,
         perpetual_db: Arc<AuthorityPerpetualTables>,
         root_state_hash: ECMHLiveObjectSetDigest,
+        view_taken: oneshot::Sender<()>,
     ) -> Result<()> {
         // Fail fast on the epoch-info completeness precondition so a node with
         // an incomplete epoch chain does not perform a full live-object scan
         // (tens of GiB on mainnet-sized DBs) before failing.
         self.check_epoch_watermark(epoch)?;
 
-        self.setup_epoch_dir(epoch).await?;
+        self.setup_local_epoch_dir(epoch)?;
 
         let manifest_file_path = self.epoch_dir(epoch).child("MANIFEST");
         let local_staging_dir = self.local_staging_dir.clone();
@@ -363,17 +368,40 @@ impl StateSnapshotWriterV1 {
         let remote_object_store = self.remote_object_store.clone();
 
         let (sender, receiver) = mpsc::channel::<FileMetadata>(1000);
+        let (remote_dir_cleared, remote_dir_is_cleared) = oneshot::channel();
         // Starts the upload loop, which listens on the receiver for FileMetadata
-        let upload_handle = self.start_upload(epoch, receiver)?;
+        let upload_handle = self.start_upload(epoch, receiver, remote_dir_is_cleared)?;
+        // Clearing the remote directory is a network round trip, and the caller
+        // is blocked until the read view exists, so the scan starts first and
+        // the two run together.
+        let clear_handle = {
+            let epoch_dir = self.epoch_dir(epoch);
+            let remote = self.remote_object_store.clone();
+            let concurrency = self.concurrency;
+            tokio::spawn(async move { delete_recursively(&epoch_dir, &remote, concurrency).await })
+        };
         let write_handler = tokio::task::spawn_blocking(move || {
+            // Everything the scan reads comes from this view, so once it
+            // exists the node is free to execute the next epoch.
+            let view = perpetual_db.read_view();
+            if view_taken.send(()).is_err() {
+                debug!(epoch, "nobody is waiting for the state snapshot read view");
+            }
             self.write_live_object_set(
                 epoch,
-                perpetual_db,
+                &perpetual_db,
+                &view,
                 sender,
                 Self::bucket_func,
                 root_state_hash,
             )
         });
+        clear_handle
+            .await?
+            .context(format!("Failed to clear the remote dir for epoch: {epoch}"))?;
+        if remote_dir_cleared.send(()).is_err() {
+            debug!(epoch, "the state snapshot upload loop is already gone");
+        }
         // Awaits the object and reference files to be written to the local staging
         // directory and informs the upload loop
         write_handler
@@ -402,6 +430,7 @@ impl StateSnapshotWriterV1 {
         &self,
         epoch: u64,
         receiver: Receiver<FileMetadata>,
+        remote_dir_cleared: oneshot::Receiver<()>,
     ) -> Result<JoinHandle<Result<Vec<()>, anyhow::Error>>> {
         let remote_object_store = self.remote_object_store.clone();
         let local_staging_store = self.local_staging_store.clone();
@@ -409,6 +438,11 @@ impl StateSnapshotWriterV1 {
         let epoch_dir = self.epoch_dir(epoch);
         let concurrency = self.concurrency;
         let join_handle = tokio::spawn(async move {
+            // The scan runs while the remote directory is being cleared, so
+            // hold every upload until that has finished.
+            remote_dir_cleared
+                .await
+                .context("state snapshot writer dropped before clearing the remote epoch dir")?;
             // Uploads the files to the remote store in parallel for each received
             // FileMetadata
             let results: Vec<Result<(), anyhow::Error>> = ReceiverStream::new(receiver)
@@ -445,7 +479,8 @@ impl StateSnapshotWriterV1 {
     fn write_live_object_set<F>(
         &mut self,
         epoch: u64,
-        perpetual_db: Arc<AuthorityPerpetualTables>,
+        perpetual_db: &AuthorityPerpetualTables,
+        view: &DbReadView<'_>,
         sender: Sender<FileMetadata>,
         bucket_func: F,
         root_state_hash: ECMHLiveObjectSetDigest,
@@ -457,7 +492,7 @@ impl StateSnapshotWriterV1 {
         let local_staging_dir_path =
             path_to_filesystem(self.local_staging_dir.clone(), &self.epoch_dir(epoch))?;
         let mut acc = GlobalStateHash::default();
-        for live_object in perpetual_db.iter_live_object_set() {
+        for live_object in perpetual_db.iter_live_object_set_at(view) {
             GlobalStateHasher::accumulate_live_object(&mut acc, &live_object);
             let bucket_num = bucket_func(&live_object);
             // Creates a new LiveObjectSetWriterV1 for the bucket if it does not exist
@@ -661,11 +696,10 @@ impl StateSnapshotWriterV1 {
 
     /// Creates a new epoch directory and a new staging directory for the epoch
     /// in the local store. Deletes the old ones if they exist.
-    async fn setup_epoch_dir(&self, epoch: u64) -> Result<()> {
-        let epoch_dir = self.epoch_dir(epoch);
-        // Deletes remote epoch dir if it exists
-        delete_recursively(&epoch_dir, &self.remote_object_store, self.concurrency).await?;
-        // Deletes local staging epoch dir if it exists
+    /// Clears and recreates the local staging directory the scan writes into.
+    /// Kept separate from clearing the remote directory, which is a network
+    /// round trip the caller must not wait on before the read view is taken.
+    fn setup_local_epoch_dir(&self, epoch: u64) -> Result<()> {
         let local_epoch_dir_path = self.local_staging_dir.join(format!("epoch_{epoch}"));
         if local_epoch_dir_path.exists() {
             fs::remove_dir_all(&local_epoch_dir_path)?;

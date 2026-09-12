@@ -94,7 +94,7 @@ use crate::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
-        authority_store_tables::LiveObject,
+        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
@@ -2265,8 +2265,8 @@ impl ExecutionCacheReconfigAPI for WritebackCache {
             .expensive_check_iota_conservation(self, old_epoch_store, epoch_supply_change)
     }
 
-    fn try_checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
-        self.store.perpetual_tables.checkpoint_db(path)
+    fn perpetual_tables(&self) -> Arc<AuthorityPerpetualTables> {
+        self.store.perpetual_tables.clone()
     }
 }
 
