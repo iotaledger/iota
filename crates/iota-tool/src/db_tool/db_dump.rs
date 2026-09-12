@@ -6,32 +6,25 @@ use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
     str,
-    sync::Arc,
 };
 
 use anyhow::{Ok, anyhow};
 use clap::{Parser, ValueEnum};
 use comfy_table::{Cell, ContentArrangement, Row, Table};
-use iota_config::node::AuthorityStorePruningConfig;
 use iota_core::{
     authority::{
         authority_per_epoch_store::AuthorityEpochTables,
-        authority_store_pruner::{
-            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-        },
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreData, StoreObject},
+        historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
     },
-    checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
     rpc_indexes::schema::IndexStoreTables,
 };
 use iota_sdk_types::ObjectId;
 use iota_types::base_types::EpochId;
-use prometheus_filtered::Registry;
 use strum_macros::EnumString;
-use tracing::info;
 use typed_store::{
     rocks::{MetricConf, default_db_options},
     rocksdb::MultiThreaded,
@@ -198,37 +191,8 @@ pub fn duplicate_objects_summary(db_path: PathBuf) -> anyhow::Result<(usize, usi
 }
 
 pub fn compact(db_path: PathBuf) -> anyhow::Result<()> {
-    let perpetual = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
-    AuthorityStorePruner::compact(&perpetual)?;
-    Ok(())
-}
-
-/// Prunes checkpoints and their transactions/effects down to one epoch of
-/// retention.
-///
-/// This does not also prune the RPC index history: that history follows
-/// `num_epochs_to_retain_for_indexes`, a knob independent of the checkpoint
-/// retention this function exercises. Use a running node's own pruner to
-/// exercise index pruning.
-pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-    let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
-    let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
-    info!("Pruning setup for db at path: {:?}", db_path.display());
-    let pruning_config = AuthorityStorePruningConfig {
-        num_epochs_to_retain_for_checkpoints: Some(1),
-        ..Default::default()
-    };
-    info!("Starting txns and effects pruning");
-    AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
-        &perpetual_db,
-        &checkpoint_store,
-        pruning_config,
-        metrics,
-        EPOCH_DURATION_MS_FOR_TESTING,
-        None,
-    )
-    .await?;
+    let perpetual = AuthorityPerpetualTables::open(&db_path, None);
+    perpetual.compact()?;
     Ok(())
 }
 
@@ -255,11 +219,21 @@ pub fn dump_table(
                     .dump(table_name, page_size, page_number)
                     .map_err(|err| anyhow!(err.to_string()));
             }
-            // The historic object buckets and their retention floor are column
-            // families of the perpetual database that its table struct does
-            // not declare, so the dump derived from that struct cannot reach
-            // them.
-            HistoricObjects::dump_column_family(
+            // The historic object and ledger buckets and their retention
+            // floors are column families of the perpetual database that its
+            // table struct does not declare, so the dump derived from that
+            // struct cannot reach them.
+            if let Some(rows) = HistoricObjects::dump_column_family(
+                &perpetual_tables.objects.db,
+                table_name,
+                page_size,
+                page_number,
+            )
+            .map_err(|err| anyhow!(err.to_string()))?
+            {
+                return Ok(rows);
+            }
+            HistoricLedger::dump_column_family(
                 &perpetual_tables.objects.db,
                 table_name,
                 page_size,

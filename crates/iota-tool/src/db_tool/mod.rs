@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail};
 use clap::Parser;
+use comfy_table::{ContentArrangement, Table};
 use iota_core::{
     authority::{
         authority_per_epoch_store::AuthorityEpochTables,
@@ -24,7 +25,7 @@ use self::{
     db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
     index_search::{SearchRange, search_index},
 };
-use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints};
+use crate::db_tool::db_dump::{compact, print_table_metadata};
 pub mod db_dump;
 mod index_search;
 
@@ -44,7 +45,7 @@ pub enum DbToolCommand {
     PrintCheckpointContent(PrintCheckpointContentOptions),
     RewindCheckpointExecution(RewindCheckpointExecutionOptions),
     Compact,
-    PruneCheckpoints,
+    PrintCheckpointWatermarks,
     SetCheckpointWatermark(SetCheckpointWatermarkOptions),
 }
 
@@ -146,21 +147,31 @@ pub struct RemoveObjectLockOptions {
     confirm: bool,
 }
 
+/// Checkpoint history is kept per epoch and dropped a whole epoch at a time,
+/// and every watermark below resolves its checkpoint by digest through that
+/// history. A watermark pointed at a checkpoint of an epoch the node has
+/// already dropped cannot be resolved, and the node then fails to start.
+const WATERMARK_RETENTION_CAUTION: &str = "CAUTION: the sequence number must be within an epoch \
+                                           the node still retains — see \
+                                           num-epochs-to-retain-for-checkpoints. Pointing a \
+                                           watermark at a checkpoint of a dropped epoch leaves \
+                                           the node unable to start.";
+
 #[derive(Parser)]
 pub struct RewindCheckpointExecutionOptions {
     #[arg(long)]
     epoch: EpochId,
 
-    #[arg(long)]
+    #[arg(long, help = WATERMARK_RETENTION_CAUTION)]
     checkpoint_sequence_number: u64,
 }
 
 #[derive(Parser)]
 pub struct SetCheckpointWatermarkOptions {
-    #[arg(long)]
+    #[arg(long, help = WATERMARK_RETENTION_CAUTION)]
     highest_verified: Option<CheckpointSequenceNumber>,
 
-    #[arg(long)]
+    #[arg(long, help = WATERMARK_RETENTION_CAUTION)]
     highest_synced: Option<CheckpointSequenceNumber>,
 }
 
@@ -179,6 +190,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             print_db_table_summary(d.store_name, d.epoch, db_path, &d.table_name)
         }
         DbToolCommand::DuplicatesSummary => print_db_duplicates_summary(db_path),
+        DbToolCommand::PrintCheckpointWatermarks => print_checkpoint_watermarks(&db_path),
         DbToolCommand::ListDBMetadata(d) => {
             print_table_metadata(d.store_name, d.epoch, db_path, &d.table_name)
         }
@@ -191,7 +203,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             rewind_checkpoint_execution(&db_path, d.epoch, d.checkpoint_sequence_number)
         }
         DbToolCommand::Compact => compact(db_path),
-        DbToolCommand::PruneCheckpoints => prune_checkpoints(db_path).await,
         DbToolCommand::IndexSearchKeyRange(rg) => {
             let res = search_index(
                 db_path,
@@ -247,16 +258,17 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
 }
 
 pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::Result<()> {
-    let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
+    let (_perpetual_db, _historic_objects, historic_ledger) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path.join("store"), None)?;
     if let Some((epoch, checkpoint_seq_num)) =
-        perpetual_db.get_checkpoint_sequence_number(&opt.digest)?
+        historic_ledger.get_transaction_checkpoint(&opt.digest)?
     {
         println!(
             "Transaction {:?} executed in epoch {} checkpoint {}",
             opt.digest, epoch, checkpoint_seq_num
         );
     };
-    if let Some(effects) = perpetual_db.get_effects(&opt.digest)? {
+    if let Some(effects) = historic_ledger.get_executed_effects(&opt.digest)? {
         println!(
             "Transaction {:?} dependencies: {:#?}",
             opt.digest,
@@ -402,6 +414,28 @@ pub fn print_all_entries(
 /// cargo run --package iota-tool -- db-tool --db-path
 /// /opt/iota/db/authorities_db/live set_checkpoint_watermark --highest-synced
 /// 300000
+/// Prints the checkpoint watermarks as they are stored.
+///
+/// Read straight from the watermark rows rather than resolved to checkpoints:
+/// a watermark whose epoch has been expired is no longer reachable through the
+/// bucketed `checkpoint_by_digest`, and that is the case worth looking at.
+pub fn print_checkpoint_watermarks(path: &Path) -> anyhow::Result<()> {
+    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
+    let mut table = Table::new();
+    table
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec!["watermark", "sequence number", "digest"]);
+    for (mark, sequence_number, digest) in checkpoint_db.get_checkpoint_watermarks()? {
+        table.add_row(vec![
+            format!("{mark:?}"),
+            sequence_number.to_string(),
+            format!("{digest}"),
+        ]);
+    }
+    println!("{table}");
+    Ok(())
+}
+
 pub fn set_checkpoint_watermark(
     path: &Path,
     options: SetCheckpointWatermarkOptions,

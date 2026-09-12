@@ -7,6 +7,7 @@ pub mod checkpoint_executor;
 mod checkpoint_output;
 mod epoch_info;
 mod full_checkpoint_contents_cache;
+pub mod historic_checkpoints;
 mod metrics;
 
 use std::{
@@ -69,7 +70,7 @@ use tokio::{
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
-    rocks::{DBMap, MetricConf},
+    rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
 };
 
 pub use crate::checkpoints::{
@@ -85,6 +86,7 @@ use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
+        ledger_backlog_migration::CheckpointBacklogMigrationProgress,
     },
     authority_client::{
         make_network_authority_clients_with_network_config, validator_peer::ValidatorPeerAPI,
@@ -92,6 +94,7 @@ use crate::{
     checkpoints::{
         causal_order::CausalOrder,
         checkpoint_output::{CertifiedCheckpointOutput, CheckpointOutput},
+        historic_checkpoints::HistoricCheckpoints,
     },
     consensus_handler::SequencedConsensusTransactionKey,
     consensus_manager::ReplayWaiter,
@@ -165,9 +168,11 @@ pub struct BuilderCheckpointSummary {
 pub struct CheckpointStoreTables {
     /// Maps checkpoint contents digest to checkpoint contents.
     ///
-    /// Prunes with the ledger: peer sync reconstructs full checkpoint
-    /// contents from this plus the transaction and effects stores, so it is
-    /// sync-critical.
+    /// Superseded by [`HistoricCheckpoints`]: contents are written to and read
+    /// from the bucket of the epoch that closed the checkpoint, so that
+    /// retiring an epoch is one column-family drop rather than a delete per
+    /// row. Rows written before the move are still on disk here, and the
+    /// one-time migration into the buckets is their only reader.
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
     /// Deprecated: the contents-digest to sequence-number mapping moved to
@@ -198,9 +203,12 @@ pub struct CheckpointStoreTables {
     /// Map from checkpoint digest to certified checkpoint.
     ///
     /// The digest-keyed lookup used to resolve a checkpoint by digest during
-    /// peer sync, alongside `checkpoint_content`. Prunes with the ledger,
-    /// following `checkpoint_content`, even though `certified_checkpoints`
-    /// (the same data keyed by sequence number) is kept forever.
+    /// peer sync, alongside `checkpoint_content`. Superseded by
+    /// [`HistoricCheckpoints`] the same way, so it retires with its epoch even
+    /// though `certified_checkpoints` — the same summaries keyed by sequence
+    /// number — is kept forever. Rows written before the move are still on
+    /// disk here, and the one-time migration into the buckets is their only
+    /// reader.
     pub(crate) checkpoint_by_digest: DBMap<CheckpointDigest, TrustedCheckpoint>,
 
     /// Store locally computed checkpoint summaries so that we can detect forks
@@ -224,7 +232,7 @@ pub struct CheckpointStoreTables {
     /// Intentionally not pruned: callers (the snapshot writer, the gRPC API,
     /// etc.) need full `[0, snapshot_epoch]` coverage, so
     /// this table grows unboundedly with epoch count (one row per epoch, ever)
-    /// by design. Do not add it to `prune_checkpoints`.
+    /// by design. Do not move it into the per-epoch checkpoint buckets.
     ///
     /// Completeness is tracked by `epoch_info_watermark`.
     epoch_info: DBMap<EpochId, EpochInfoV2>,
@@ -239,12 +247,47 @@ pub struct CheckpointStoreTables {
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints
     pub(crate) watermarks: DBMap<CheckpointWatermark, (CheckpointSequenceNumber, CheckpointDigest)>,
+
+    /// Which of the two flat checkpoint tables the one-time migration into the
+    /// per-epoch buckets is draining, and how far through it. Empty until the
+    /// migration first writes a slice.
+    /// TODO: remove this table once every database has migrated its
+    /// pre-bucket checkpoint history,
+    /// <https://github.com/iotaledger/iota/issues/12763>
+    pub(crate) checkpoint_backlog_migration_progress: DBMap<(), CheckpointBacklogMigrationProgress>,
 }
 
 impl CheckpointStoreTables {
-    pub fn new(path: &Path, metric_name: &'static str) -> Self {
-        Self::open_tables_read_write(path.to_path_buf(), MetricConf::new(metric_name), None, None)
+    /// The checkpoint store's tables together with the historic checkpoint
+    /// buckets. The buckets are column families of this same database, so
+    /// they are opened from its handle, with options cloned from the ones its
+    /// own tables use.
+    fn open_with_historic_checkpoints(
+        path: &Path,
+        metric_name: &'static str,
+    ) -> (Self, HistoricCheckpoints) {
+        let db_options = default_db_options();
+        // The historic checkpoint buckets are column families of this
+        // database, so they are listed here together with the declared
+        // tables; one left out would be reopened with default options and a
+        // block cache of its own.
+        let table_options = DBMapTableConfigMap::new(
+            HistoricCheckpoints::extra_column_family_options(path, &db_options)
+                .into_iter()
+                .collect(),
+        );
+        let tables = Self::open_tables_read_write(
+            path.to_path_buf(),
+            MetricConf::new(metric_name),
+            None,
+            Some(table_options),
+        );
+        let historic_checkpoints =
+            HistoricCheckpoints::open(tables.certified_checkpoints.db.clone(), &db_options)
+                .expect("cannot open the historic checkpoint buckets");
+        (tables, historic_checkpoints)
     }
+
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
         Self::get_read_only_handle(
             path.to_path_buf(),
@@ -257,6 +300,9 @@ impl CheckpointStoreTables {
 
 pub struct CheckpointStore {
     pub(crate) tables: CheckpointStoreTables,
+    /// Checkpoint contents and digest-keyed summaries, bucketed by the epoch
+    /// that closed the checkpoint.
+    pub(crate) historic_checkpoints: HistoricCheckpoints,
     full_checkpoint_contents_cache: FullCheckpointContentsCache,
     synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
     executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
@@ -271,9 +317,11 @@ impl CheckpointStore {
         path: &Path,
         contents_cache: FullCheckpointContentsCache,
     ) -> Arc<Self> {
-        let tables = CheckpointStoreTables::new(path, "checkpoint");
+        let (tables, historic_checkpoints) =
+            CheckpointStoreTables::open_with_historic_checkpoints(path, "checkpoint");
         Arc::new(Self {
             tables,
+            historic_checkpoints,
             full_checkpoint_contents_cache: contents_cache,
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
@@ -287,6 +335,24 @@ impl CheckpointStore {
 
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
         CheckpointStoreTables::open_readonly(path)
+    }
+
+    /// Marks the one-time migration of the flat checkpoint tables into the
+    /// per-epoch buckets as already done, so that a later node start does not
+    /// walk them for nothing.
+    ///
+    /// Call this only on a database that cannot hold pre-bucket checkpoint
+    /// rows to begin with, such as one just populated by a formal-snapshot
+    /// restore: the summaries and contents a restore inserts go through
+    /// [`Self::insert_verified_checkpoint`] and
+    /// [`Self::insert_checkpoint_contents`], which already place them by the
+    /// checkpoint's own epoch.
+    /// TODO: remove this together with the migration,
+    /// <https://github.com/iotaledger/iota/issues/12763>
+    pub fn mark_checkpoint_backlog_migrated(&self) -> Result<(), TypedStoreError> {
+        self.tables
+            .checkpoint_backlog_migration_progress
+            .insert(&(), &CheckpointBacklogMigrationProgress::Done)
     }
 
     #[instrument(level = "info", skip_all)]
@@ -308,11 +374,15 @@ impl CheckpointStore {
         );
 
         // Only insert the genesis checkpoint if the DB is empty and doesn't have it
-        // already
+        // already. Asked of `certified_checkpoints`, which is keyed by
+        // sequence number and never pruned: once epoch 0's history has been
+        // expired the genesis checkpoint is no longer readable by digest, and
+        // inserting it a second time would refuse to reopen the expired epoch
+        // and would drag the synced watermark back to zero.
         if self
-            .get_checkpoint_by_digest(checkpoint.digest())
+            .get_checkpoint_by_sequence_number(0)
             .unwrap()
-            .is_none()
+            .is_none_or(|stored| stored.digest() != checkpoint.digest())
         {
             if epoch_store.epoch() == checkpoint.epoch {
                 epoch_store
@@ -325,7 +395,8 @@ impl CheckpointStore {
                     "Not inserting checkpoint builder data for genesis checkpoint",
                 );
             }
-            self.insert_checkpoint_contents(contents).unwrap();
+            self.insert_checkpoint_contents(&checkpoint, contents)
+                .unwrap();
             self.insert_verified_checkpoint(&checkpoint).unwrap();
             self.update_highest_synced_checkpoint(&checkpoint).unwrap();
         }
@@ -335,9 +406,8 @@ impl CheckpointStore {
         &self,
         digest: &CheckpointDigest,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        self.tables
-            .checkpoint_by_digest
-            .get(digest)
+        self.historic_checkpoints
+            .find_by_digest(digest)
             .map(|maybe_checkpoint| maybe_checkpoint.map(|c| c.into()))
     }
 
@@ -412,11 +482,42 @@ impl CheckpointStore {
         Ok(checkpoints)
     }
 
+    /// The contents of each digest, in the order given.
+    ///
+    /// Each digest is looked up on its own, since the buckets holding them are
+    /// not known up front and different digests can sit in different epochs.
     pub fn multi_get_checkpoint_content(
         &self,
         contents_digest: &[CheckpointContentsDigest],
     ) -> Result<Vec<Option<CheckpointContents>>, TypedStoreError> {
-        self.tables.checkpoint_content.multi_get(contents_digest)
+        contents_digest
+            .iter()
+            .map(|digest| self.historic_checkpoints.find_contents(digest))
+            .collect()
+    }
+
+    /// Every checkpoint watermark as it is stored, without resolving any of
+    /// them to a checkpoint.
+    ///
+    /// The resolving readers beside this one go through `checkpoint_by_digest`,
+    /// which is bucketed and pruned, so they answer `None` for a watermark
+    /// whose epoch has been expired — exactly the case worth inspecting. This
+    /// reads the rows themselves and so keeps answering.
+    pub fn get_checkpoint_watermarks(
+        &self,
+    ) -> Result<
+        Vec<(
+            CheckpointWatermark,
+            CheckpointSequenceNumber,
+            CheckpointDigest,
+        )>,
+        TypedStoreError,
+    > {
+        self.tables
+            .watermarks
+            .safe_iter()
+            .map(|row| row.map(|(mark, (sequence_number, digest))| (mark, sequence_number, digest)))
+            .collect()
     }
 
     /// The row `watermark` holds — a sequence number and a digest — and `None`
@@ -504,7 +605,7 @@ impl CheckpointStore {
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>, TypedStoreError> {
-        self.tables.checkpoint_content.get(digest)
+        self.historic_checkpoints.find_contents(digest)
     }
 
     /// Get full checkpoint contents from the in-memory contents cache.
@@ -600,11 +701,18 @@ impl CheckpointStore {
         }
     }
 
-    // Called by consensus (ConsensusAggregator).
-    // Different from `insert_verified_checkpoint`, it does not touch
-    // the highest_verified_checkpoint watermark such that state sync
-    // will have a chance to process this checkpoint and perform some
-    // state-sync only things.
+    /// Called by consensus (ConsensusAggregator). Different from
+    /// [`Self::insert_verified_checkpoint`], it does not touch the
+    /// `HighestVerified` watermark, such that state sync will have a chance to
+    /// process this checkpoint and perform some state-sync only things.
+    ///
+    /// Fails for a checkpoint whose epoch has been expired, since that epoch's
+    /// bucket cannot be reopened. Callers must only pass checkpoints of an
+    /// epoch the node has not left behind: consensus and state sync both move
+    /// forwards from the highest checkpoint the store already holds, and
+    /// [`WriteStore::insert_checkpoint`](iota_types::storage::WriteStore::insert_checkpoint),
+    /// which turns any failure here into a panic, is reached only through
+    /// those two.
     pub fn insert_certified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -626,6 +734,8 @@ impl CheckpointStore {
             count = checkpoints.len(),
             "Inserting certified checkpoints",
         );
+        // The buckets are column families of this same database, so the
+        // digest-keyed summaries and the sequence-keyed ones land in one batch.
         let mut batch = self.tables.certified_checkpoints.batch();
         batch
             .insert_batch(
@@ -635,18 +745,41 @@ impl CheckpointStore {
                     .map(|c| (c.sequence_number(), c.serializable_ref())),
             )?
             .insert_batch(
-                &self.tables.checkpoint_by_digest,
-                checkpoints
-                    .iter()
-                    .map(|c| (c.digest(), c.serializable_ref())),
-            )?
-            .insert_batch(
                 &self.tables.epoch_last_checkpoint_map,
                 checkpoints
                     .iter()
                     .filter(|c| c.next_epoch_committee().is_some())
                     .map(|c| (c.epoch(), c.sequence_number())),
             )?;
+        // State sync certifies checkpoints ahead of execution and across epoch
+        // boundaries, so one batch can span two epochs, and this can be the
+        // write that creates the bucket of an epoch whose first checkpoint has
+        // not been executed yet. See [`HistoricCheckpoints`] for what that
+        // means for retention.
+        //
+        // It can also arrive after the epoch has been expired: a sync task
+        // carries checkpoints of its own across a reconfiguration that drops
+        // them. The digest-keyed copy is then skipped, while the rows above go
+        // in regardless — `certified_checkpoints` is never pruned, so a
+        // checkpoint stays reachable by sequence number whatever its epoch's
+        // history has become.
+        for checkpoint in checkpoints {
+            let Some(bucket) = self
+                .historic_checkpoints
+                .ensure_retained(checkpoint.epoch())?
+            else {
+                debug!(
+                    checkpoint_seq = checkpoint.sequence_number(),
+                    epoch = checkpoint.epoch(),
+                    "not filing a checkpoint summary whose epoch has been expired",
+                );
+                continue;
+            };
+            batch.insert_batch_tagged(
+                &bucket.checkpoint_by_digest,
+                [(checkpoint.digest(), checkpoint.serializable_ref())],
+            )?;
+        }
         batch.write()?;
 
         for checkpoint in checkpoints {
@@ -827,6 +960,43 @@ impl CheckpointStore {
         )
     }
 
+    /// Moves `HighestPruned` up to the last checkpoint of the epoch below
+    /// `earliest_retained_epoch`, after that epoch's checkpoint history has
+    /// been dropped. Does nothing when the watermark already stands at or
+    /// above it, so a caller cannot walk it backwards.
+    ///
+    /// The checkpoint history is held per epoch, so the lowest checkpoint
+    /// still served is the first of `earliest_retained_epoch` — one past the
+    /// watermark this sets, which is what
+    /// [`iota_types::storage::ReadStore::try_get_lowest_available_checkpoint`]
+    /// answers with.
+    pub fn advance_highest_pruned_checkpoint(
+        &self,
+        earliest_retained_epoch: EpochId,
+    ) -> IotaResult<()> {
+        let Some(previous_epoch) = earliest_retained_epoch.checked_sub(1) else {
+            return Ok(());
+        };
+        let Some(seq) = self.get_epoch_last_checkpoint_seq_number(previous_epoch)? else {
+            return Ok(());
+        };
+        if self
+            .get_highest_pruned_checkpoint_seq_number()?
+            .is_some_and(|pruned| pruned >= seq)
+        {
+            return Ok(());
+        }
+        // Reading the summary rather than the sequence number alone, because
+        // the watermark stores the digest with it. `certified_checkpoints` is
+        // never pruned, and an epoch's last checkpoint is one a
+        // formal-snapshot restore keeps too.
+        let Some(checkpoint) = self.get_epoch_last_checkpoint(previous_epoch)? else {
+            return Ok(());
+        };
+        self.update_highest_pruned_checkpoint(&checkpoint)?;
+        Ok(())
+    }
+
     /// Sets the verified watermark to `checkpoint` whether or not that moves
     /// it forwards.
     ///
@@ -859,6 +1029,33 @@ impl CheckpointStore {
         )
     }
 
+    /// Brings the synced watermark back to the executed one, and answers the
+    /// sequence number it now names.
+    ///
+    /// For a caller that has removed the data behind the checkpoints between
+    /// the two, so that state sync fetches them again rather than the
+    /// checkpoint executor reading what is no longer there. Copies the row
+    /// rather than resolving it, so it holds whether or not either watermark
+    /// still names a checkpoint this store can look up by digest.
+    ///
+    /// Does nothing when execution has already caught up, which is every node
+    /// that is not behind.
+    pub fn rewind_highest_synced_to_executed(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        let Some(executed) = self.get_watermark(CheckpointWatermark::HighestExecuted)? else {
+            return Ok(None);
+        };
+        let synced = self.get_watermark_seq_number(CheckpointWatermark::HighestSynced)?;
+        if synced.is_none_or(|synced| synced <= executed.0) {
+            return Ok(synced);
+        }
+        self.tables
+            .watermarks
+            .insert(&CheckpointWatermark::HighestSynced, &executed)?;
+        Ok(Some(executed.0))
+    }
+
     /// Sets highest executed checkpoint to any value.
     ///
     /// WARNING: This method is very subtle and can corrupt the database if used
@@ -874,22 +1071,50 @@ impl CheckpointStore {
         )
     }
 
+    /// Persists the checkpoint contents in digest form, in the bucket of the
+    /// epoch `checkpoint` belongs to.
+    ///
+    /// `checkpoint` must be the checkpoint whose contents these are: it is
+    /// what says which epoch's history they are part of, and passing another
+    /// one would file them under an epoch that expires at the wrong time.
+    /// Asserted against its `contents_digest`.
     pub fn insert_checkpoint_contents(
         &self,
+        checkpoint: &VerifiedCheckpoint,
         contents: CheckpointContents,
     ) -> Result<(), TypedStoreError> {
         debug!(
             checkpoint_seq = ?contents.digest(),
             "Inserting checkpoint contents",
         );
-        self.tables
+        assert_eq!(checkpoint.contents_digest, contents.digest());
+        let Some(bucket) = self
+            .historic_checkpoints
+            .ensure_retained(checkpoint.epoch())?
+        else {
+            debug!(
+                checkpoint_seq = checkpoint.sequence_number(),
+                epoch = checkpoint.epoch(),
+                "not filing checkpoint contents whose epoch has been expired",
+            );
+            return Ok(());
+        };
+        bucket
             .checkpoint_content
             .insert(&contents.digest(), &contents)
     }
 
-    /// Persists the checkpoint contents in digest form and caches the full
-    /// contents in memory, where they serve the checkpoint executor's bulk
-    /// transaction loads and contents requests from state-sync peers.
+    /// Persists the checkpoint contents in digest form, in the bucket of the
+    /// epoch `checkpoint` belongs to, and caches the full contents in memory,
+    /// where they serve the checkpoint executor's bulk transaction loads and
+    /// contents requests from state-sync peers.
+    ///
+    /// This is the call state sync makes, so it can be the write that creates
+    /// the bucket of an epoch whose first checkpoint has not been executed
+    /// yet: state sync runs ahead of execution and across epoch boundaries.
+    /// See [`HistoricCheckpoints`] for what that means for retention. Fails
+    /// for a checkpoint whose epoch has been expired, under the same caller
+    /// invariant as [`Self::insert_certified_checkpoint`].
     ///
     /// INVARIANT: See [`Self::cache_full_checkpoint_contents`].
     pub fn insert_verified_checkpoint_contents(
@@ -918,10 +1143,19 @@ impl CheckpointStore {
         for (checkpoint, full_contents) in &checkpoints {
             let contents = full_contents.checkpoint_contents();
             assert_eq!(checkpoint.contents_digest, contents.digest());
-            batch.insert_batch(
-                &self.tables.checkpoint_content,
-                [(contents.digest(), contents)],
-            )?;
+            let Some(bucket) = self
+                .historic_checkpoints
+                .ensure_retained(checkpoint.epoch())?
+            else {
+                debug!(
+                    checkpoint_seq = checkpoint.sequence_number(),
+                    epoch = checkpoint.epoch(),
+                    "not filing checkpoint contents whose epoch has been expired",
+                );
+                continue;
+            };
+            batch
+                .insert_batch_tagged(&bucket.checkpoint_content, [(contents.digest(), contents)])?;
         }
         batch.write()?;
 
@@ -1596,7 +1830,7 @@ impl CheckpointBuilder {
         mut new_checkpoints: NonEmpty<BuiltCheckpoint>,
     ) -> IotaResult {
         let _scope = monitored_scope("CheckpointBuilder::write_checkpoints");
-        let mut batch = self.store.tables.checkpoint_content.batch();
+        let mut batch = self.store.tables.locally_computed_checkpoints.batch();
         let mut all_tx_digests =
             Vec::with_capacity(new_checkpoints.iter().map(|c| c.contents.len()).sum());
 
@@ -1637,10 +1871,9 @@ impl CheckpointBuilder {
                 .last_constructed_checkpoint
                 .set(sequence_number as i64);
 
-            batch.insert_batch(
-                &self.store.tables.checkpoint_content,
-                [(contents.digest(), contents)],
-            )?;
+            let bucket = self.store.historic_checkpoints.ensure(summary.epoch)?;
+            batch
+                .insert_batch_tagged(&bucket.checkpoint_content, [(contents.digest(), contents)])?;
 
             batch.insert_batch(
                 &self.store.tables.locally_computed_checkpoints,
@@ -3105,17 +3338,18 @@ fn poll_count<Fut>(future: Fut) -> PollCounter<Fut> {
     PollCounter::new(future)
 }
 
-/// A verified checkpoint over the given contents at the given sequence
-/// number, with a placeholder signature; usable wherever verification is
-/// not re-run and no committee is needed.
+/// A verified checkpoint over the given contents in the given epoch at the
+/// given sequence number, with a placeholder signature; usable wherever
+/// verification is not re-run and no committee is needed.
 #[cfg(test)]
 pub(crate) fn test_checkpoint_with_contents(
+    epoch: EpochId,
     sequence_number: CheckpointSequenceNumber,
     full_contents: &FullCheckpointContents,
 ) -> VerifiedCheckpoint {
     let contents = full_contents.checkpoint_contents();
     let summary = CheckpointSummary {
-        epoch: 0,
+        epoch,
         sequence_number,
         network_total_transactions: full_contents.size() as u64,
         contents_digest: contents.digest(),
@@ -3127,7 +3361,7 @@ pub(crate) fn test_checkpoint_with_contents(
         checkpoint_commitments: Vec::new(),
     };
     let sig = AuthorityStrongQuorumSignInfo {
-        epoch: 0,
+        epoch,
         signature: Default::default(),
         signers_map: Default::default(),
     };
@@ -3166,7 +3400,7 @@ mod tests {
         let path = tempdir.path();
 
         let full_contents = FullCheckpointContents::random_for_testing();
-        let checkpoint = test_checkpoint_with_contents(0, &full_contents);
+        let checkpoint = test_checkpoint_with_contents(0, 0, &full_contents);
         let contents_digest = checkpoint.contents_digest;
 
         {
@@ -3228,7 +3462,7 @@ mod tests {
     async fn cache_full_checkpoint_contents_serves_reads_without_disk_writes() {
         let store = CheckpointStore::new_for_tests();
         let full_contents = FullCheckpointContents::random_for_testing();
-        let checkpoint = test_checkpoint_with_contents(0, &full_contents);
+        let checkpoint = test_checkpoint_with_contents(0, 0, &full_contents);
         let contents_digest = checkpoint.contents_digest;
 
         store.cache_full_checkpoint_contents(
@@ -3272,7 +3506,9 @@ mod tests {
         let digest = *tx.digest();
         state
             .database_for_testing()
-            .perpetual_tables
+            .get_historic_ledger()
+            .ensure(0)
+            .unwrap()
             .transactions
             .insert(&digest, tx.serializable_ref())
             .unwrap();
@@ -3430,10 +3666,13 @@ mod tests {
         // large (15..20) pools, so index order implies digest order per pool.
         let d = |i: u8| digests[i as usize];
 
+        let ledger_bucket = state
+            .database_for_testing()
+            .get_historic_ledger()
+            .ensure(0)
+            .unwrap();
         for (tx, digest) in txns.iter().zip(&digests) {
-            state
-                .database_for_testing()
-                .perpetual_tables
+            ledger_bucket
                 .transactions
                 .insert(digest, tx.serializable_ref())
                 .unwrap();
@@ -3697,10 +3936,13 @@ mod tests {
         // Digest for test index `i` (1-based).
         let d = |i: u8| digests[(i - 1) as usize];
 
+        let ledger_bucket = state
+            .database_for_testing()
+            .get_historic_ledger()
+            .ensure(0)
+            .unwrap();
         for tx in &txns {
-            state
-                .database_for_testing()
-                .perpetual_tables
+            ledger_bucket
                 .transactions
                 .insert(tx.digest(), tx.serializable_ref())
                 .unwrap();
