@@ -27,9 +27,12 @@ tracing.workspace = true
 iota-tls.workspace = true
 
 [dev-dependencies]
+# external dependencies
 axum.workspace = true
-fastcrypto.workspace = true
 reqwest.workspace = true
+
+# internal dependencies
+iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
 
 [lints]
 workspace = true

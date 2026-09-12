@@ -9,7 +9,7 @@ use axum_server::{
     accept::Accept,
     tls_rustls::{RustlsAcceptor, RustlsConfig},
 };
-use fastcrypto::ed25519::Ed25519PublicKey;
+use iota_sdk_types::Ed25519PublicKey;
 use rustls::pki_types::CertificateDer;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_rustls::server::TlsStream;

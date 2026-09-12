@@ -37,7 +37,8 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-multiaddr.workspace = true
 iota-network-stack.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
+iota-sdk-types = { workspace = true, features = ["serde"] }
 iota-storage.workspace = true
 iota-types.workspace = true
 prometheus-filtered.workspace = true

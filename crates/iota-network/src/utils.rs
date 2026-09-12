@@ -45,12 +45,12 @@ fn build_network_impl(
     address: anemo::types::Address,
     anemo_config: Option<anemo::Config>,
 ) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
-    use fastcrypto::traits::KeyPair;
+    use iota_sdk_crypto::ToFromBytes as _;
 
-    let keypair = iota_types::crypto::NetworkKeyPair::generate(&mut rand::thread_rng());
+    let keypair = iota_types::crypto::NetworkKeyPair::random();
     let router = f(anemo::Router::new());
     let network = anemo::Network::bind(address)
-        .private_key(keypair.copy().private().0.to_bytes())
+        .private_key(keypair.to_bytes())
         .config(anemo_config.unwrap_or_default())
         .server_name("test")
         .start(router)

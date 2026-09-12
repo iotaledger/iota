@@ -13,7 +13,6 @@ use std::{
 use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
-use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
     IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
@@ -1334,7 +1333,7 @@ fn write_state_sync_fullnode_configs(
             })?;
             Ok(SeedPeer {
                 peer_id: Some(anemo::PeerId(
-                    config.network_key_pair().public().0.to_bytes(),
+                    config.network_key_pair().public_key().into_bytes(),
                 )),
                 address,
             })
