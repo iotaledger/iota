@@ -130,11 +130,12 @@ top rung.
 The burst above the base limit is off by default (`OVERSHOOT_A=0`,
 `OVERSHOOT_B=0`), so each run is described by one number and no debt is carried
 between commits. Production runs `TotalTxCount` with an overshoot of 100 on
-top of the base 10 (protocol version 22 and later), so the comparison is
-between the two limits, not against production's exact setting. The three
-`-burst` configs put the burst back on the limits the write-up recommends:
-Run A at production's 100, Run B at ten times its own base, against the same
-limits with the burst off.
+top of the base 10 (protocol version 22 and later), so the main grid compares
+the two limits, not production's exact setting. The three `-burst` configs put
+the burst back on the limits the write-up recommends — Run A at production's
+100, Run B at ten times its own base, against the same limits with the burst
+off — and measure no difference: under load that keeps the object busy the
+overshoot is spent once and then repaid (`RESULTS.md`, finding 7).
 
 With the burst off, a limit below the cost of a _single_ transaction admits
 nothing at all: the scheduler needs `start_time + cost <= limit` and
@@ -317,18 +318,31 @@ The calibration is written up in `probe-test.md`; the mode comparison in
   (`RESULTS.md`, finding 6).
 - **Lag over time for more configs.** A pooled lag statistic cannot
   distinguish a queue that is high but stable from one growing without
-  bound; the lag-over-time slices now cover the two 300 s runs
+  bound; the lag-over-time slices cover the four 300 s runs
   (`modes_lag_over_time.png`), and the 60 s configs only as numbers in
-  `lag_over_time.csv`. Worth a look at the rungs just past the drain rate.
+  `lag_over_time.csv`. Those four showed the distinction matters — two
+  configs that look mild over 60 s climb for a whole 300 s run — so the
+  rungs just past the drain rate are worth the same treatment.
   `consensus_handler_transaction_deferral_rounds` is also still unplotted.
-- **Run A with production's overshoot.** Every run behind the write-up used
-  overshoot 0. Production runs `TotalTxCount` with an overshoot of 100 on top
-  of the base 10, which absorbs bursts and carries the excess as debt into
-  later commits. The three `-burst` configs are in the grid but have not been
-  run; they would show whether the burst closes the throughput gap and how
-  much of Run A's cancellation rate it removes.
+- **The overshoot against bursty arrivals.** The three `-burst` configs
+  answered the question they were added for: with production's overshoot on,
+  nothing measurable changes, because load that keeps the object busy spends
+  the overshoot once and then repays it (`RESULTS.md`, finding 7). That
+  leaves the case the overshoot exists for untested — arrivals that are
+  bursty rather than saturating. The client here offers a steady rate, so
+  this needs a workload that idles the object and then floods it.
 - **A cost level that overruns the commit on its own.** A 500,000-unit
-  transaction executes for ≈80 ms against a ≈50 ms commit, so no unit limit
-  serves `mix50900`: admitting one per commit lags, excluding it never lets
-  the level through. Whether such traffic should be admitted at all, and
-  how, is a design question the data cannot settle.
+  transaction executes for ≈80 ms against a ≈50 ms commit on EPYC, so no
+  unit limit serves `mix50900` there: admitting one per commit lags,
+  excluding it never lets the level through. On the WS the same transaction
+  is 17.7 ms, two fit, and 1M is a good limit — so the problem is the
+  machine, not the level (`RESULTS.md`, finding 7). Whether traffic whose
+  single transaction overruns the commit on the hardware in question should
+  be admitted at all, and how, is a design question the data cannot settle.
+- **Where the ladders peak above 1,000 tx/s.** At double the submission rate
+  several configs turn out to have been limited by the client rather than by
+  the limit, and on the WS the `mix3700` ladder completes everything offered
+  at its top rung. Both mean the peak of those ladders is above what was
+  measured. Finding it needs a higher target rate, or more in-flight
+  transactions, on the rungs that showed no cancellations.
+
