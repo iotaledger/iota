@@ -4,9 +4,7 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
-use iota_sdk_types::{Address, ObjectId, Owner};
-use iota_types::iota_serde::BigInt;
-use jsonrpsee::rpc_params;
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TypeTag};
 use tracing::{debug, info};
 
 use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
@@ -36,7 +34,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
 
         // Split
         info!("Testing coin split.");
-        let amounts = vec![1.into(), ((original_value - 2) / 2).into()];
+        let amounts = vec![1, (original_value - 2) / 2];
 
         let response =
             Self::split_coin(ctx, signer, *primary_coin.id(), amounts, *gas_obj.id()).await;
@@ -119,18 +117,11 @@ impl CoinMergeSplitTest {
         coin_to_merge: ObjectId,
         gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
-        let params = rpc_params![
-            signer,
-            primary_coin,
-            coin_to_merge,
-            Some(gas_obj_id),
-            (20_000_000).to_string()
-        ];
-
-        let data = ctx
-            .build_transaction_remotely("unsafe_mergeCoins", params)
-            .await
-            .unwrap();
+        let grpc_client = ctx.get_fullnode_grpc_client();
+        let mut builder = grpc_client.transaction_builder(signer);
+        builder.merge_coins(primary_coin, [coin_to_merge]);
+        builder.gas([gas_obj_id]);
+        let data = builder.finish().await.unwrap();
 
         ctx.sign_and_execute(data, "coin merge").await
     }
@@ -139,22 +130,20 @@ impl CoinMergeSplitTest {
         ctx: &TestContext,
         signer: Address,
         primary_coin: ObjectId,
-        amounts: Vec<BigInt<u64>>,
+        amounts: Vec<u64>,
         gas_obj_id: ObjectId,
     ) -> IotaTransactionBlockResponse {
-        let params = rpc_params![
-            signer,
-            primary_coin,
-            amounts,
-            Some(gas_obj_id),
-            (20_000_000).to_string()
-        ];
+        let grpc_client = ctx.get_fullnode_grpc_client();
+        let mut builder = grpc_client.transaction_builder(signer);
+        // `pay::split_vec` transfers the split coins to the sender itself, so no
+        // separate transfer command is needed.
+        builder
+            .move_call(ObjectId::FRAMEWORK, "pay", "split_vec")
+            .type_tags([TypeTag::from(StructTag::new_gas())])
+            .arguments((primary_coin, amounts));
+        builder.gas([gas_obj_id]);
+        let data = builder.finish().await.unwrap();
 
-        let data = ctx
-            .build_transaction_remotely("unsafe_splitCoin", params)
-            .await
-            .unwrap();
-
-        ctx.sign_and_execute(data, "coin merge").await
+        ctx.sign_and_execute(data, "coin split").await
     }
 }

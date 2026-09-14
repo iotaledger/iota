@@ -1504,15 +1504,20 @@ impl TestClusterBuilder {
         let wallet_path = dir.join(IOTA_CLIENT_CONFIG);
         let keystore_path = dir.join(IOTA_KEYSTORE_FILENAME);
 
-        let network_config = swarm.config();
-        // Create light config to save
-        let account_keys = network_config.account_keys.to_vec();
-        let network_config_light = NetworkConfigLight::new(
-            network_config.validator_configs.clone(),
-            account_keys,
-            &network_config.genesis,
-        );
-        network_config_light.save(network_path)?;
+        // A config directory the swarm was started from already holds the
+        // network config its node configs were derived from. Only the tool
+        // that wrote that config reads it back.
+        if !network_path.exists() {
+            let network_config = swarm.config();
+            // Create light config to save
+            let account_keys = network_config.account_keys.to_vec();
+            let network_config_light = NetworkConfigLight::new(
+                network_config.validator_configs.clone(),
+                account_keys,
+                &network_config.genesis,
+            );
+            network_config_light.save(network_path)?;
+        }
 
         let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         for key in &swarm.config().account_keys {

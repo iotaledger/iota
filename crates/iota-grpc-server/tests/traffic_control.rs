@@ -79,7 +79,7 @@ async fn server_with_policy(
     policy_config: PolicyConfig,
     executor: Option<Arc<dyn TransactionExecutor>>,
 ) -> GrpcServerHandle {
-    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None).await);
+    let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         Arc::new(MockGrpcStateReader::default()),
         traffic_controller,
@@ -118,26 +118,12 @@ fn execute_batch(n: usize) -> ExecuteTransactionsRequest {
 }
 
 /// Assert that the traffic controller blocks the client within `attempts`.
-///
-/// The blocklist is applied asynchronously by the background tally task, so a
-/// block becomes visible only some time after the offending requests complete.
-/// This yields between attempts and sleeps before the final one to give the
-/// tally task time to apply the block, then treats a `ResourceExhausted` /
-/// "Too many requests" response as success. Any other outcome is a not-yet-
-/// blocked request and the loop continues.
 async fn assert_client_blocked<F, Fut, T>(attempts: usize, mut request: F)
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, tonic::Status>>,
 {
-    for attempt in 0..attempts {
-        // Give the background tally task time to apply the blocklist before the
-        // final attempt, which is expected to be rejected.
-        if attempt == attempts - 1 {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-        } else {
-            tokio::task::yield_now().await;
-        }
+    for _ in 0..attempts {
         if let Err(status) = request().await {
             if status.code() == Code::ResourceExhausted {
                 assert!(
@@ -332,18 +318,15 @@ async fn stream_errors_feed_the_error_policy() {
         objects: HashMap::from([(object_id, object)]),
         ..Default::default()
     });
-    let traffic_controller = Arc::new(
-        TrafficController::init_for_test(
-            PolicyConfig {
-                connection_blocklist_ttl_sec: 120,
-                error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
-                dry_run: false,
-                ..Default::default()
-            },
-            None,
-        )
-        .await,
-    );
+    let traffic_controller = Arc::new(TrafficController::init_for_test(
+        PolicyConfig {
+            connection_blocklist_ttl_sec: 120,
+            error_policy_type: PolicyType::TestNConnIP(ERROR_BLOCK_ATTEMPTS - 1),
+            dry_run: false,
+            ..Default::default()
+        },
+        None,
+    ));
     let (handle, _reader) =
         start_test_server_with_traffic_controller(state_reader, traffic_controller, None).await;
     let client = LedgerServiceClient::new(connect(&handle).await);
@@ -411,8 +394,7 @@ async fn empty_read_batches_accrue_spam() {
 }
 
 /// A read batch larger than the configured maximum is rejected. Bounding the
-/// count also bounds the per-item traffic-control tally so a large batch cannot
-/// flood the tally channel.
+/// count also bounds the number of traffic tallies one batch can charge.
 #[tokio::test]
 async fn oversized_read_batch_is_rejected() {
     let max_batch: u32 = 5;
@@ -465,9 +447,6 @@ async fn successful_requests_do_not_feed_the_error_policy() {
             .list_owned_objects(request.clone())
             .await
             .expect("valid request should succeed");
-        // Yield so the tally task runs; a wrongly tallied error would block the
-        // next request.
-        tokio::task::yield_now().await;
     }
 }
 
@@ -502,8 +481,5 @@ async fn read_errors_do_not_feed_the_error_policy() {
         while let Some(item) = stream.next().await {
             item.expect("stream item should be Ok");
         }
-        // Yield so the tally task runs; a wrongly tallied error would block the
-        // next request.
-        tokio::task::yield_now().await;
     }
 }

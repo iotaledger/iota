@@ -12,6 +12,7 @@ use iota_network::api::Validator;
 use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
     fp_ensure,
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
@@ -32,8 +33,12 @@ use tap::TapFallible;
 use tracing::{Instrument, debug, error_span, info, trace_span, warn};
 
 use crate::{
-    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    authority::{
+        ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::Schedulable,
+    },
     authority_server::{ValidatorService, WrappedServiceResponse, make_tonic_request_for_testing},
+    execution_scheduler::ExecutionSchedulerAPI,
     handle_with_decoration,
 };
 
@@ -342,13 +347,21 @@ impl ValidatorService {
             let certificates_without_shared_objects = verified_certificates
                 .iter()
                 .filter(|certificate| !certificate.contains_shared_object())
-                .cloned()
+                .map(|certificate| {
+                    (
+                        Schedulable::Transaction(
+                            VerifiedExecutableTransaction::new_from_certificate(
+                                certificate.clone(),
+                            ),
+                        ),
+                        ExecutionEnv::new(),
+                    )
+                })
                 .collect::<Vec<_>>();
             if !certificates_without_shared_objects.is_empty() {
-                self.state.enqueue_certificates_for_execution(
-                    certificates_without_shared_objects,
-                    epoch_store,
-                );
+                self.state
+                    .execution_scheduler()
+                    .enqueue(certificates_without_shared_objects, epoch_store);
             }
             return Ok((None, Weight::zero()));
         }

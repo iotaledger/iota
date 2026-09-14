@@ -1889,7 +1889,7 @@ fn clever_errors() {
         let fn_name = format!("{}::clever_errors::clever_aborter", object_ref.object_id);
         let clever_error = "'ENotFound': Element not found in vector 💥 🚀 🌠";
         let expected_error =
-            format!("Error in 1st command, from '{fn_name}' (line 10), abort {clever_error}");
+            format!("Error in 1st command, from '{fn_name}' (line 13), abort {clever_error}");
         let effects = indexer_tx_response.effects.unwrap();
         let IotaExecutionStatus::Failure { error } = effects.status() else {
             panic!("transaction should have failed");
@@ -1897,6 +1897,50 @@ fn clever_errors() {
         assert_eq!(error, &expected_error);
 
         // Check error in the response as well
+        let response_error = indexer_tx_response
+            .errors
+            .first()
+            .expect("execution error should be in the response");
+        assert_eq!(response_error, &expected_error);
+
+        // Abort on a constant declaring `#[error(code = ...)]`: the code is
+        // rendered alongside the identifier and the constant.
+        let gas = effects.gas_object().reference;
+        let tx_data = TestTransactionBuilder::new(address, gas, 1000)
+            .move_call(
+                object_ref.object_id,
+                "clever_errors",
+                "clever_aborter_with_code",
+                vec![],
+            )
+            .build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+        let indexer_tx_response = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+                Some(ExecuteTransactionRequestType::WaitForLocalExecution.into()),
+            )
+            .await
+            .unwrap();
+
+        let fn_name = format!(
+            "{}::clever_errors::clever_aborter_with_code",
+            object_ref.object_id
+        );
+        let clever_error = "'ECodedError': Coded clever error";
+        let expected_error = format!(
+            "Error in 1st command, from '{fn_name}' (line 17), abort(code = 1) {clever_error}"
+        );
+        let effects = indexer_tx_response.effects.unwrap();
+        let IotaExecutionStatus::Failure { error } = effects.status() else {
+            panic!("transaction should have failed");
+        };
+        assert_eq!(error, &expected_error);
+
         let response_error = indexer_tx_response
             .errors
             .first()

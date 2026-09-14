@@ -31,7 +31,7 @@ pub(crate) struct ValidatorSet {
 
     /// Validators that are pending removal from the active validator set,
     /// expressed as indices in to `activeValidators`.
-    pub pending_removals: Option<Vec<u64>>,
+    pub pending_removals: Option<Vec<i32>>,
 
     // TODO: instead of returning the id and size of the table, potentially return the table
     // itself, paginated.
@@ -40,7 +40,7 @@ pub(crate) struct ValidatorSet {
     pub pending_active_validators_id: Option<IotaAddress>,
 
     /// Size of the pending active validators table.
-    pub pending_active_validators_size: Option<u64>,
+    pub pending_active_validators_size: Option<i32>,
 
     /// Object ID of the `Table` storing the mapping from staking pool ids to
     /// the addresses of the corresponding validators. This is needed
@@ -49,19 +49,19 @@ pub(crate) struct ValidatorSet {
     pub staking_pool_mappings_id: Option<IotaAddress>,
 
     /// Size of the stake pool mappings `Table`.
-    pub staking_pool_mappings_size: Option<u64>,
+    pub staking_pool_mappings_size: Option<i32>,
 
     /// Object ID of the `Table` storing the inactive staking pools.
     pub inactive_pools_id: Option<IotaAddress>,
 
     /// Size of the inactive pools `Table`.
-    pub inactive_pools_size: Option<u64>,
+    pub inactive_pools_size: Option<i32>,
 
     /// Object ID of the `Table` storing the validator candidates.
     pub validator_candidates_id: Option<IotaAddress>,
 
     /// Size of the validator candidates `Table`.
-    pub validator_candidates_size: Option<u64>,
+    pub validator_candidates_size: Option<i32>,
 
     #[graphql(skip)]
     pub checkpoint_viewed_at: u64,

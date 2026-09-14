@@ -28,7 +28,7 @@ impl TryFrom<TransactionDigest> for api::TxDigest {
 
     fn try_from(value: TransactionDigest) -> Result<Self, Self::Error> {
         Ok(Self {
-            digest: bytes::Bytes::copy_from_slice(value.inner()),
+            digest: bytes::Bytes::copy_from_slice(value.bytes()),
         })
     }
 }

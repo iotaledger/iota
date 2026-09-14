@@ -727,7 +727,7 @@ impl AuthorityStore {
         let mut hasher = Sha3_256::default();
         let mut batch = perpetual_db.objects.batch();
         for live_object in live_objects {
-            hasher.update(live_object.object_reference().digest.inner());
+            hasher.update(live_object.object_reference().digest.bytes());
             let LiveObject {
                 object,
                 previous_transaction_checkpoint,

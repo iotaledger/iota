@@ -26,6 +26,7 @@ The gRPC API provides the following services:
 
 - `ExecuteTransactions` **[FM]**: Execute a batch of transactions sequentially, with per-item error handling and configurable checkpoint inclusion waiting.
 - `SimulateTransactions` **[FM]**: Simulate a batch of transactions (with suggested gas price), with per-item error handling and configurable checkpoint inclusion waiting.
+- `ViewFunctionCalls` **[FM]**: Call a batch of `#[view]` Move functions and return their values, without producing on-chain effects, with per-item error handling.
 
 ### State Service
 
@@ -59,6 +60,7 @@ grpc-api-config:
   max-json-move-value-size: 1048576
   max-execute-transaction-batch-size: 20
   max-simulate-transaction-batch-size: 20
+  max-view-function-call-batch-size: 20
   max-checkpoint-inclusion-timeout-ms: 60000
 ```
 

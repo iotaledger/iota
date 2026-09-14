@@ -25,8 +25,8 @@ impl RandomnessStateUpdateTransaction {
     }
 
     /// Randomness round of the update.
-    async fn randomness_round(&self) -> UInt53 {
-        self.native.randomness_round.value().into()
+    async fn randomness_round(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native.randomness_round.value()).extend()
     }
 
     /// Updated random bytes, encoded as Base64.
@@ -35,10 +35,7 @@ impl RandomnessStateUpdateTransaction {
     }
 
     /// The initial version the randomness object was shared at.
-    async fn randomness_obj_initial_shared_version(&self) -> UInt53 {
-        self.native
-            .randomness_obj_initial_shared_version
-            .as_u64()
-            .into()
+    async fn randomness_obj_initial_shared_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native.randomness_obj_initial_shared_version.as_u64()).extend()
     }
 }

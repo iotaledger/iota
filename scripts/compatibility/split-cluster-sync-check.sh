@@ -71,6 +71,15 @@ rm -rf "$IOTA_CONFIG_DIR"
 
 "$WORKING_DIR/iota-localnet-release" genesis --epoch-duration-ms 600000 --committee-size 4
 
+# `genesis` wrote the node config files itself, named `<host>-<port>.yaml`,
+# until the release that made `start --write-config` write them instead, named
+# `validator-<index>.yaml`. Both names are matched here, so the check works
+# either side of that release.
+VALIDATOR_CONFIG_NAMES=(-name "127.0.0.1*.yaml" -o -name "validator-*.yaml")
+if [ -z "$(find "$IOTA_CONFIG_DIR" \( "${VALIDATOR_CONFIG_NAMES[@]}" \) -print -quit)" ]; then
+  "$WORKING_DIR/iota-localnet-release" start --write-config "$IOTA_CONFIG_DIR"
+fi
+
 LOG_DIR="$WORKING_DIR/logs"
 METRICS_DIR="$WORKING_DIR/metrics"
 
@@ -81,7 +90,7 @@ mkdir -p "$METRICS_DIR"
 CONFIGS=()
 while IFS= read -r -d '' file; do
   CONFIGS+=("$file")
-done < <(find "$IOTA_CONFIG_DIR" -name "127.0.0.1*.yaml" -print0)
+done < <(find "$IOTA_CONFIG_DIR" \( "${VALIDATOR_CONFIG_NAMES[@]}" \) -print0)
 
 export RUST_LOG=iota=debug,info
 
@@ -262,6 +271,10 @@ fi
 # Starfish: commit_sync_fetched_commits is labeled by source (commit_sync, fast_commit_sync), so sum across labels
 NODE3_COMMIT_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_fetched_commits")
 NODE3_HEADER_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_synchronizer_fetched_block_headers_by_peer")
+# The live synchronizer waits briefly before fetching and drops headers that
+# arrive through streaming or commit sync meanwhile; on a fast local cluster it
+# may resolve every request this way without sending a single fetch.
+NODE3_HEADER_SYNC_RESOLVED=$(get_metric_value "$METRICS_DIR/node-3-after-join.txt" "consensus_synchronizer_live_block_headers_resolved_before_fetch")
 NODE3_TXN_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_transaction_synchronizer_fetched_transactions_by_peer")
 NODE3_COMMIT_SYNC_TXN_SIZE=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_total_fetched_transactions_size")
 
@@ -269,6 +282,7 @@ echo "Node-3 metrics after initial sync:"
 echo "  last_commit_index: $NODE3_COMMIT_AFTER_JOIN"
 echo "  commit_sync_fetched_commits (sum): $NODE3_COMMIT_SYNC"
 echo "  synchronizer_fetched_block_headers_by_peer (sum): $NODE3_HEADER_SYNC"
+echo "  synchronizer_live_block_headers_resolved_before_fetch: $NODE3_HEADER_SYNC_RESOLVED"
 echo "  commit_sync_total_fetched_transactions_size: $NODE3_COMMIT_SYNC_TXN_SIZE"
 echo "  transaction_synchronizer_fetched_transactions_by_peer (sum): $NODE3_TXN_SYNC"
 
@@ -279,11 +293,12 @@ else
   echo "✓ Node-3 caught up past initial commit index"
 fi
 
-# Check 2: Header synchronizer was active
-if [ "$NODE3_HEADER_SYNC" -le 0 ]; then
-  FAILURES+=("FAIL: Header synchronizer was not active (consensus_synchronizer_fetched_block_headers_by_peer = $NODE3_HEADER_SYNC)")
+# Check 2: Header synchronizer was active, either fetching missing headers or
+# resolving them before the fetch went out
+if [ "$NODE3_HEADER_SYNC" -le 0 ] && [ "$NODE3_HEADER_SYNC_RESOLVED" -le 0 ]; then
+  FAILURES+=("FAIL: Header synchronizer was not active (consensus_synchronizer_fetched_block_headers_by_peer = $NODE3_HEADER_SYNC, consensus_synchronizer_live_block_headers_resolved_before_fetch = $NODE3_HEADER_SYNC_RESOLVED)")
 else
-  echo "✓ Header synchronizer was active (fetched $NODE3_HEADER_SYNC block headers)"
+  echo "✓ Header synchronizer was active (fetched $NODE3_HEADER_SYNC block headers, resolved $NODE3_HEADER_SYNC_RESOLVED before fetch)"
 fi
 
 # Check 3: Commit syncer was active

@@ -11,10 +11,17 @@ description = "Move Trace Format"
 # external dependencies
 serde.workspace = true
 serde_json = { workspace = true, features = ["arbitrary_precision"] }
+zstd.workspace = true
 
 # internal dependencies
 move-binary-format.workspace = true
 move-core-types.workspace = true
+
+# `zstd` bundles a C library whose default build assembles an x86-64 huffman
+# decoder; `no_asm` selects the portable C one so it compiles for wasm32
+# (consumed there via `iota-vm-sdk`).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+zstd = { workspace = true, features = ["no_asm"] }
 
 [features]
 default = []

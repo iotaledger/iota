@@ -8,7 +8,9 @@ use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
-use iota_json_rpc_api::{TransactionBuilderOpenRpc, TransactionBuilderServer, internal_error};
+use iota_json_rpc_api::{
+    TransactionBuilderOpenRpc, TransactionBuilderServer, cap_page_limit, internal_error,
+};
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
     IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
@@ -53,15 +55,22 @@ impl DataReader for AuthorityStateDataReader {
         limit: Option<usize>,
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
-        let limit = limit.unwrap_or(50);
-        let mut result = self
-            .0
-            .get_owner_objects_with_limit(
-                address,
-                cursor,
-                limit + 1,
-                Some(IotaObjectDataFilter::StructType(object_type)),
-            )?
+        let limit = cap_page_limit(limit);
+        let mut rows = self.0.get_owner_objects_with_limit(
+            address,
+            cursor,
+            limit + 1,
+            Some(IotaObjectDataFilter::StructType(object_type)),
+        )?;
+        let has_next_page = rows.len() > limit && limit > 0; // limit == 0 only when RPC_QUERY_MAX_RESULT_LIMIT set to 0
+        rows.truncate(limit);
+        let next_cursor = if has_next_page {
+            rows.last().map(|row| row.object_id)
+        } else {
+            None
+        };
+
+        let data = rows
             .into_iter()
             .map(|info| {
                 let read = self.0.get_object_read(&info.object_id)?;
@@ -69,17 +78,10 @@ impl DataReader for AuthorityStateDataReader {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let next_cursor = if result.len() > limit {
-            // Here the cursor is the first object id of the next page
-            result.pop().unwrap().object_id().ok()
-        } else {
-            None
-        };
-
         Ok(iota_json_rpc_types::ObjectsPage {
-            data: result,
+            data,
             next_cursor,
-            has_next_page: next_cursor.is_some(),
+            has_next_page,
         })
     }
 

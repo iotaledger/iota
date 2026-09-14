@@ -15,7 +15,6 @@
 //! For bytecode versions 5 and below, delegates to `control_flow_v5`.
 use std::collections::BTreeSet;
 
-use move_abstract_interpreter::absint::FunctionContext;
 use move_binary_format::{
     CompiledModule,
     errors::{PartialVMError, PartialVMResult},
@@ -26,6 +25,7 @@ use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
 
 use crate::{
+    absint::FunctionContext,
     control_flow_v5,
     loop_summary::{LoopPartition, LoopSummary},
 };

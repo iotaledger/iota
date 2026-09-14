@@ -121,7 +121,7 @@ impl ReplayFuzzer {
                 ExecutionError::InvariantViolation | ExecutionError::VmInvariantViolation => {
                     return Err(ReplayFuzzError::InvariantViolation {
                         tx_digest: sandbox_state.transaction_info.tx_digest,
-                        kind: transaction_kind.clone(),
+                        kind: Box::new(transaction_kind.clone()),
                         exec_status: stat,
                     });
                 }
@@ -187,7 +187,7 @@ pub enum ReplayFuzzError {
     )]
     InvariantViolation {
         tx_digest: TransactionDigest,
-        kind: TransactionKind,
+        kind: Box<TransactionKind>,
         exec_status: ExecutionError,
     },
 

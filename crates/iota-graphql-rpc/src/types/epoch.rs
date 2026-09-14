@@ -55,8 +55,8 @@ struct EpochKey {
 impl Epoch {
     /// The epoch's id as a sequence number that starts at 0 and is incremented
     /// by one at every epoch change.
-    async fn epoch_id(&self) -> UInt53 {
-        UInt53::from(self.stored.epoch as u64)
+    async fn epoch_id(&self) -> Result<UInt53> {
+        UInt53::try_from(self.stored.epoch as u64).extend()
     }
 
     /// The minimum gas price that a quorum of validators are guaranteed to sign
@@ -79,7 +79,7 @@ impl Epoch {
             self.stored.total_stake as u64,
             self.checkpoint_viewed_at,
             self.stored.epoch as u64,
-        );
+        )?;
         Ok(Some(validator_set))
     }
 
@@ -106,18 +106,19 @@ impl Epoch {
             }
         };
 
-        Ok(Some(UInt53::from(
-            last - self.stored.first_checkpoint_id as u64 + 1,
-        )))
+        Ok(Some(
+            UInt53::try_from(last - self.stored.first_checkpoint_id as u64 + 1).extend()?,
+        ))
     }
 
     /// The total number of transaction blocks in this epoch.
     async fn total_transactions(&self) -> Result<Option<UInt53>> {
         // TODO: this currently returns None for the current epoch. Fix this.
-        Ok(self
-            .stored
+        self.stored
             .epoch_total_transactions()
-            .map(|v| UInt53::from(v as u64)))
+            .map(|v| UInt53::try_from(v as u64))
+            .transpose()
+            .extend()
     }
 
     /// The total amount of gas fees (in NANOS) that were paid in this epoch.
@@ -194,7 +195,7 @@ impl Epoch {
             let EpochCommitment::EcmhLiveObjectSet { digest } = commitment else {
                 panic!("a new CheckpointCommitment variant was added and must be handled")
             };
-            Base58::encode(digest.into_inner())
+            Base58::encode(digest.into_bytes())
         });
 
         Ok(digest)
@@ -272,11 +273,15 @@ impl Epoch {
             .intersect(TransactionBlockFilter {
                 // If `first_checkpoint_id` is 0, we include the 0th checkpoint by leaving it None
                 after_checkpoint: (self.stored.first_checkpoint_id > 0)
-                    .then(|| UInt53::from(self.stored.first_checkpoint_id as u64 - 1)),
+                    .then(|| UInt53::try_from(self.stored.first_checkpoint_id as u64 - 1))
+                    .transpose()
+                    .extend()?,
                 before_checkpoint: self
                     .stored
                     .last_checkpoint_id
-                    .map(|id| UInt53::from(id as u64 + 1)),
+                    .map(|id| UInt53::try_from(id as u64 + 1))
+                    .transpose()
+                    .extend()?,
                 ..Default::default()
             })
         else {

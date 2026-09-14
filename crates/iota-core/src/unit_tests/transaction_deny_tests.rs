@@ -33,7 +33,7 @@ use iota_types::{
 
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ExecutionEnv,
         auth_unit_test_utils::{
             publish_package_on_single_authority, upgrade_package_on_single_authority,
         },
@@ -462,7 +462,7 @@ async fn test_certificate_deny() {
         CertifiedTransaction::new(tx.into_message(), vec![signature], epoch_store.committee())
             .unwrap(),
     );
-    let (effects, _) = state.execute_for_test(&cert);
+    let (effects, _) = state.execute_for_test(&cert, ExecutionEnv::new());
     assert!(matches!(
         effects.status(),
         &ExecutionStatus::Failure {

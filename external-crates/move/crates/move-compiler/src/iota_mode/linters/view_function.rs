@@ -9,9 +9,9 @@ use crate::{
     diag,
     diagnostics::codes::{DiagnosticInfo, Severity, custom},
     expansion::ast::ModuleIdent,
-    iota_mode::{known_attributes::view::ViewAttribute, typing::is_valid_view_signature},
+    iota_mode::typing::is_valid_view_signature,
     parser::ast::FunctionName,
-    shared::Identifier,
+    shared::{Identifier, known_attributes::AttributeKind_},
     typing::{ast as T, visitor::simple_visitor},
 };
 
@@ -35,7 +35,7 @@ simple_visitor!(
             return false;
         }
 
-        if fdef.attributes.get_(&ViewAttribute.into()).is_some() {
+        if fdef.attributes.get_(&AttributeKind_::View).is_some() {
             return false;
         }
 

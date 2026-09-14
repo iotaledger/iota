@@ -112,6 +112,9 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
         panic!("Expected DisplayMetadata");
     };
 
+    // Force new epoch so that the validator is not pending anymore
+    test_cluster.force_new_epoch().await;
+
     let response = IotaValidatorCommand::UpdateMetadata {
         metadata: MetadataUpdate::NetworkAddress {
             network_address: Multiaddr::from_str("/dns/updated.iota.cafe/tcp/8080/http").unwrap(),
@@ -128,9 +131,6 @@ async fn test_become_validator() -> Result<(), anyhow::Error> {
     } else {
         panic!("Expected UpdateMetadata");
     };
-
-    // Force new epoch so that the validator is not pending anymore
-    test_cluster.force_new_epoch().await;
 
     let response = IotaValidatorCommand::UpdateMetadata {
         metadata: MetadataUpdate::ProtocolPubKey {

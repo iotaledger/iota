@@ -237,7 +237,8 @@ impl ProgrammableTransactionBlock {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let input = TransactionInput::from(self.native.inputs[c.ix].clone(), c.c);
+            let input =
+                TransactionInput::try_from(self.native.inputs[c.ix].clone(), c.c).extend()?;
             connection.edges.push(Edge::new(c.encode_cursor(), input));
         }
 
@@ -326,11 +327,11 @@ impl MoveCallTransaction {
 }
 
 impl TransactionInput {
-    fn from(argument: NativeCallArg, checkpoint_viewed_at: u64) -> Self {
+    fn try_from(argument: NativeCallArg, checkpoint_viewed_at: u64) -> Result<Self, Error> {
         use NativeCallArg as N;
         use TransactionInput as I;
 
-        match argument {
+        Ok(match argument {
             N::Pure(bytes) => I::Pure(Pure {
                 bytes: Base64::from(bytes),
             }),
@@ -348,7 +349,7 @@ impl TransactionInput {
                 mutable,
             }) => I::SharedInput(SharedInput {
                 address: id.into(),
-                initial_shared_version: initial_shared_version.as_u64().into(),
+                initial_shared_version: initial_shared_version.as_u64().try_into()?,
                 mutable,
             }),
 
@@ -360,7 +361,7 @@ impl TransactionInput {
             }),
 
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
-        }
+        })
     }
 }
 

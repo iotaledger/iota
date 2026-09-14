@@ -15,16 +15,13 @@ pub struct TrafficControllerMetrics {
     pub requests_blocked_at_protocol: IntCounter,
     pub blocks_delegated_to_firewall: IntCounter,
     pub firewall_delegation_request_fail: IntCounter,
-    pub tally_channel_overflow: IntCounter,
+    pub firewall_delegation_overflow: IntCounter,
+    pub rate_limiter_evictions: IntCounter,
     pub num_dry_run_blocked_requests: IntCounter,
     pub tally_handled: IntCounter,
     pub error_tally_handled: IntCounter,
     pub tally_error_types: IntCounterVec,
     pub deadmans_switch_enabled: IntGauge,
-    pub highest_direct_spam_rate: IntGauge,
-    pub highest_proxied_spam_rate: IntGauge,
-    pub highest_direct_error_rate: IntGauge,
-    pub highest_proxied_error_rate: IntGauge,
     pub spam_client_threshold: IntGauge,
     pub error_client_threshold: IntGauge,
     pub spam_proxied_client_threshold: IntGauge,
@@ -73,9 +70,16 @@ impl TrafficControllerMetrics {
                 registry
             )
             .unwrap(),
-            tally_channel_overflow: register_int_counter_with_registry!(
-                "tally_channel_overflow",
-                "Traffic controller tally channel overflow count",
+            firewall_delegation_overflow: register_int_counter_with_registry!(
+                "firewall_delegation_overflow",
+                "Number of blocks applied locally because the firewall delegation queue was full",
+                registry
+            )
+            .unwrap(),
+            rate_limiter_evictions: register_int_counter_with_registry!(
+                "rate_limiter_evictions",
+                "Number of per-client rate-limiter states evicted because an LRU \
+                    cache reached its capacity",
                 registry
             )
             .unwrap(),
@@ -108,30 +112,6 @@ impl TrafficControllerMetrics {
                 "deadmans_switch_enabled",
                 "If 1, the deadman's switch is enabled and all traffic control
                 should be getting bypassed",
-                registry
-            )
-            .unwrap(),
-            highest_direct_spam_rate: register_int_gauge_with_registry!(
-                "highest_direct_spam_rate",
-                "Highest direct spam rate seen recently",
-                registry
-            )
-            .unwrap(),
-            highest_proxied_spam_rate: register_int_gauge_with_registry!(
-                "highest_proxied_spam_rate",
-                "Highest proxied spam rate seen recently",
-                registry
-            )
-            .unwrap(),
-            highest_direct_error_rate: register_int_gauge_with_registry!(
-                "highest_direct_error_rate",
-                "Highest direct error rate seen recently",
-                registry
-            )
-            .unwrap(),
-            highest_proxied_error_rate: register_int_gauge_with_registry!(
-                "highest_proxied_error_rate",
-                "Highest proxied error rate seen recently",
                 registry
             )
             .unwrap(),

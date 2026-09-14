@@ -3,7 +3,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
+
+/// A firewall that accepts the connection but never answers would otherwise
+/// hold delegated clients pending forever.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BlockAddresses {
@@ -25,7 +31,10 @@ pub struct NodeFWClient {
 impl NodeFWClient {
     pub fn new(remote_fw_url: String) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(REQUEST_TIMEOUT)
+                .build()
+                .expect("cannot create reqwest client"),
             remote_fw_url,
         }
     }

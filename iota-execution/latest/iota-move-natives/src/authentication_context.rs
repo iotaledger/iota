@@ -109,7 +109,7 @@ impl AuthenticationContext {
     pub fn sender_auth_digest_ref(&mut self) -> PartialVMResult<Value> {
         if self.cached_sender_auth_digest.is_none() {
             let auth_context = self.auth_context.borrow();
-            let bytes: Vec<u8> = auth_context.sender_auth_digest().as_bytes().to_vec();
+            let bytes: Vec<u8> = auth_context.sender_auth_digest().bytes().to_vec();
             let rust_value = (bytes,);
             let layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
             self.cached_sender_auth_digest = Some(utils::to_global_value(&rust_value, layout)?.0);
@@ -131,7 +131,7 @@ impl AuthenticationContext {
             let auth_context = self.auth_context.borrow();
             let bytes: Option<Vec<u8>> = auth_context
                 .sponsor_auth_digest()
-                .map(|d| d.as_bytes().to_vec());
+                .map(|d| d.bytes().to_vec());
             let rust_value = (bytes,);
             // Option<vector<u8>> in Move = struct { v: vector<vector<u8>> }
             let inner_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(

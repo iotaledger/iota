@@ -63,14 +63,13 @@ pub trait WriteStore: ReadStore {
             .expect("storage access failed")
     }
 
-    /// The highest checkpoint whose transactions have been executed, when the
-    /// store tracks execution progress. `None` when nothing has been executed
-    /// yet or the store does not track execution (the default).
+    /// The highest checkpoint whose transactions have been executed, or `None`
+    /// when no checkpoint has been executed yet. State sync counts how far it
+    /// may run ahead of execution from checkpoint 0 while this is `None`, so a
+    /// store that never advances it holds sync at that distance.
     fn try_get_highest_executed_checkpoint_seq_number(
         &self,
-    ) -> Result<Option<CheckpointSequenceNumber>> {
-        Ok(None)
-    }
+    ) -> Result<Option<CheckpointSequenceNumber>>;
 
     /// Non-fallible version of
     /// `try_get_highest_executed_checkpoint_seq_number`.
@@ -80,8 +79,9 @@ pub trait WriteStore: ReadStore {
     }
 
     /// Resolves once the store's executed watermark has reached the given
-    /// sequence number. Returns right away for stores that don't track
-    /// execution (the default), since their watermark never advances.
+    /// sequence number. The default resolves right away, so a store that
+    /// executes checkpoints must override it or its callers will not wait for
+    /// execution at all.
     fn wait_for_executed_checkpoint(
         &self,
         _sequence_number: CheckpointSequenceNumber,

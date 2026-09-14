@@ -18,20 +18,16 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{ObjectType, TxContext, TxContextKind},
-    error::{IotaError, UserInputError},
+    error::UserInputError,
     fp_ensure,
     gas_coin::GasCoin,
-    move_package::{
-        IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper,
-    },
+    move_package::MovePackageExt,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
-    file_format_common::IOTA_METADATA_KEY,
 };
 
 use crate::TransactionBuilder;
@@ -172,13 +168,14 @@ impl TransactionBuilder {
         &self,
         module: &CompiledModule,
         type_args: &[TypeTag],
-        value: IotaJsonValue,
+        json_arg: IotaJsonValue,
         param: &SignatureToken,
         idx: usize,
     ) -> Result<ResolvedCallArgResult, anyhow::Error> {
-        let json_slice = [value];
-        let param_slice = [param.clone()];
-        let resolved = resolve_call_args(module, type_args, &json_slice, &param_slice)?;
+        let arg = json_arg.into();
+        let arg_slice = std::slice::from_ref(&arg);
+        let param_slice = std::slice::from_ref(param);
+        let resolved = resolve_call_args(module, type_args, arg_slice, param_slice)?;
         let resolved_arg = resolved
             .into_iter()
             .next()
@@ -204,12 +201,18 @@ impl TransactionBuilder {
 
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
-            &package,
-            module_ident.to_owned(),
-            function_ident.to_owned(),
+            &module,
+            function_ident,
             type_args,
-            json_args,
-        )?;
+            json_args.into_iter().map(Into::into).collect(),
+            false,
+        )
+        .map_err(|err| {
+            let package_id = &package.id;
+            anyhow!(
+                "Failed to resolve {package_id}::{module_ident}::{function_ident} move function: {err}"
+            )
+        })?;
 
         // Finally construct the input arguments for the builder.
         let mut args = Vec::new();
@@ -304,38 +307,20 @@ impl TransactionBuilder {
         let package = self.fetch_move_package(package_id).await?;
         let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
 
-        fp_ensure!(
-            module.find_function_def_by_name(function_ident.as_str()).is_some(),
-            UserInputError::InvalidMoveViewFunction {
-                error: format!(
-                    "function {function_ident} not found in module {module_ident} of package {package_id}"
-                ),
-            }
-            .into()
-        );
-
-        // Check the function against the view functions recorded in the module's
-        // runtime metadata. Functions recorded there passed the view function
-        // verifier at publish time, so no further signature checks are needed.
-        let is_view = is_view_function_from_module_metadata(&module, function_ident.as_str())?;
-        fp_ensure!(
-            is_view,
-            UserInputError::InvalidMoveViewFunction {
-                error: format!(
-                    "function {function_ident} in module {module_ident} of package {package_id} is not declared as a #[view] function"
-                ),
-            }
-            .into()
-        );
-
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
-            &package,
-            module_ident.clone(),
-            function_ident.clone(),
+            &module,
+            function_ident,
             type_args,
-            json_args,
-        )?;
+            json_args.into_iter().map(Into::into).collect(),
+            true,
+        )
+        .map_err(|err| {
+            let package_id = &package.id;
+            anyhow!(
+                "Failed to resolve {package_id}::{module_ident}::{function_ident} move function: {err}"
+            )
+        })?;
 
         // Finally construct the input arguments for the builder.
         let mut args = Vec::new();
@@ -471,48 +456,6 @@ impl TransactionBuilder {
                 .collect(),
         )?)
     }
-}
-
-/// Checks whether `function_name` is recorded as a `#[view]` function in the
-/// module's runtime metadata.
-///
-/// Returns `false` for modules without version 2 runtime metadata (compiled
-/// before view functions were introduced, or carrying no function
-/// attributes), which therefore record no view function information.
-fn is_view_function_from_module_metadata(
-    module: &CompiledModule,
-    function_name: &str,
-) -> Result<bool, IotaError> {
-    let Some(metadata) = module
-        .metadata
-        .iter()
-        .find(|metadata| metadata.key == IOTA_METADATA_KEY)
-    else {
-        return Ok(false);
-    };
-    let metadata_wrapper: RuntimeModuleMetadataWrapper =
-        bcs::from_bytes(&metadata.value).map_err(|error| {
-            IotaError::RuntimeModuleMetadataDeserialization {
-                error: error.to_string(),
-            }
-        })?;
-    // Module metadata stored on chain passed the verifier at publish time, so
-    // decoding may assume view function support.
-    let metadata = metadata_wrapper.try_into_runtime_module_metadata(&ProtocolBuildConfig {
-        allow_view_function: true,
-        max_move_package_size: None,
-    })?;
-    Ok(match metadata {
-        RuntimeModuleMetadata::V1(_) => false,
-        RuntimeModuleMetadata::V2(metadata_v2) => metadata_v2
-            .fun_attributes
-            .get(function_name)
-            .is_some_and(|attributes| {
-                attributes
-                    .iter()
-                    .any(|attribute| matches!(attribute, IotaAttributeV2::View))
-            }),
-    })
 }
 
 /// Result of resolving a call argument, distinguishing between single

@@ -11,8 +11,7 @@ use std::{
 use anyhow::Result;
 use clap::Parser;
 use move_core_types::{
-    language_storage::TypeTag, parsing::values::ParsedValue,
-    transaction_argument::TransactionArgument,
+    language_storage::TypeTag, parsing::values::ParsedValue, runtime_value::MoveValue,
 };
 use move_package::compilation::package_layout::CompiledPackageLayout;
 use move_vm_test_utils::gas_schedule::CostTable;
@@ -25,10 +24,9 @@ use crate::{
     },
 };
 
-fn parse_transaction_argument(s: &str) -> Result<TransactionArgument> {
+fn parse_move_value(s: &str) -> Result<MoveValue> {
     let x: ParsedValue<()> = ParsedValue::parse(s)?;
-    let move_value = x.into_concrete_value(&|_| None)?;
-    TransactionArgument::try_from(move_value)
+    x.into_concrete_value(&|_| None)
 }
 
 #[derive(Parser)]
@@ -89,11 +87,11 @@ pub enum SandboxCommand {
         /// as the `vector<u8>` value [68, 69]).
         #[clap(
             long = "args",
-            value_parser = parse_transaction_argument,
+            value_parser = parse_move_value,
             num_args(1..),
             action = clap::ArgAction::Append,
         )]
-        args: Vec<TransactionArgument>,
+        args: Vec<MoveValue>,
         /// Possibly-empty list of type arguments passed to the transaction
         /// (e.g., `T` in `main<T>()`). Must match the type arguments
         /// kinds expected by `script_file`.

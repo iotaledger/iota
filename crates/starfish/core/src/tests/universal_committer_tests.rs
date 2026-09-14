@@ -68,6 +68,132 @@ async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
     };
 }
 
+#[rstest]
+#[tokio::test]
+async fn indirect_commit_with_missing_old_own_ancestor(
+    #[values(false, true)] starfish_speed: bool,
+) {
+    use crate::{
+        authority_set::AuthoritySet,
+        block_header::{
+            BlockHeaderDigest, BlockRef, SignedBlockHeader, StrongVote, genesis_block_headers,
+        },
+        block_manager::BlockManager,
+        block_verifier::{BlockVerifier, SignedBlockVerifier},
+        commit::{CommitDigest, LeaderStatus, TrustedCommit},
+        transaction::NoopTransactionVerifier,
+    };
+
+    let (mut context, keypairs) = Context::new_for_test(4);
+    context.protocol_config.set_gc_depth_for_testing(5);
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(starfish_speed);
+    let context = Arc::new(context);
+    let dag_state = Arc::new(RwLock::new(DagState::new(
+        context.clone(),
+        Arc::new(MemStore::new()),
+    )));
+    let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
+    let committer = UniversalCommitterBuilder::new(
+        context.clone(),
+        Arc::new(leader_schedule),
+        dag_state.clone(),
+    )
+    .build();
+    let base_committer = &committer.committers[0];
+    let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(NoopTransactionVerifier));
+    let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+    let missing_ancestor =
+        BlockRef::new(1, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN);
+    let mut previous: Vec<_> = genesis_block_headers(&context)
+        .iter()
+        .map(|header| header.reference())
+        .collect();
+
+    for round in 1..=20 {
+        let mut headers = Vec::new();
+        for author in 0..4u8 {
+            let mut ancestors = previous.clone();
+            match (round, author) {
+                // Keep leader 15 undecided directly: three votes, two certificates.
+                (16, 0) | (17, 0 | 1) => {
+                    ancestors.retain(|ancestor| ancestor.author.value() != 3);
+                }
+                (18, 2) => ancestors[2] = missing_ancestor,
+                _ => {}
+            }
+            ancestors.sort_by_key(|ancestor| ancestor.author.value() != author as usize);
+            let leader_authority = committer.get_leaders(round - 1)[0];
+            let strong_vote = (starfish_speed
+                && ancestors.iter().any(|ancestor| {
+                    ancestor.round == round - 1 && ancestor.author == leader_authority
+                }))
+            .then(|| {
+                let mut missing = AuthoritySet::new();
+                if round > 1 {
+                    missing.insert(leader_authority);
+                }
+                StrongVote {
+                    leader_authority,
+                    missing,
+                }
+            });
+            let header = TestBlockHeader::new(round, author)
+                .set_version(TestBlockHeaderVersion::from_context(&context))
+                .set_ancestors(ancestors)
+                .set_strong_vote(strong_vote)
+                .build();
+            let signed = SignedBlockHeader::new(header, &keypairs[author as usize].1)
+                .expect("header signing should succeed");
+            verifier.verify(&signed).expect("header should be valid");
+            let serialized = signed.serialize().expect("header should serialize");
+            headers.push(VerifiedBlockHeader::new_verified(signed, serialized));
+        }
+        previous = headers.iter().map(|header| header.reference()).collect();
+        let (accepted, missing) =
+            block_manager.try_accept_block_headers(headers, DataSource::BlockBundleStream);
+        assert_eq!(accepted.len(), 4);
+        assert!(missing.is_empty());
+
+        if round == 14 {
+            let commit = TrustedCommit::new_for_test(
+                &context,
+                1,
+                CommitDigest::MIN,
+                0,
+                previous[2],
+                previous.clone(),
+                vec![],
+            );
+            dag_state.write().set_last_commit(commit);
+            assert_eq!(dag_state.read().gc_round_for_last_commit(), 4);
+        }
+    }
+
+    assert!(
+        dag_state
+            .read()
+            .get_verified_block_header(&missing_ancestor)
+            .is_none()
+    );
+    assert!(block_manager.blocks_to_fetch().is_empty());
+    assert!(matches!(
+        base_committer.try_direct_decide(Slot::new(15, 3)),
+        LeaderStatus::Undecided(_)
+    ));
+    assert!(matches!(
+        base_committer.try_direct_decide(Slot::new(18, 2)),
+        LeaderStatus::Commit(_, _, _)
+    ));
+
+    let sequence = committer.try_decide(Slot::new(14, 2));
+    assert!(matches!(
+        sequence.first(),
+        Some(DecidedLeader::Commit(header, _, _)) if header.round() == 15
+    ));
+}
+
 /// Ensure idempotent replies.
 #[rstest]
 #[tokio::test]

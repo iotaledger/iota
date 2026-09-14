@@ -122,6 +122,8 @@ pub struct CleverError {
     pub error_info: ErrorConstants,
     /// The line number in the source file where the error occurred.
     pub source_line_number: u16,
+    /// The error code of the abort
+    pub error_code: Option<u8>,
 }
 
 /// The `ErrorConstants` enum is used to represent the different kinds of error
@@ -642,6 +644,7 @@ impl<S: PackageStore> Resolver<S> {
             .ok()?;
         let module = package.module(module_id.name().as_str()).ok()?.bytecode();
         let source_line_number = bitset.line_number()?;
+        let error_code = bitset.error_code();
 
         // We only have a line number in our clever error, so return early.
         if bitset.identifier_index().is_none() && bitset.constant_index().is_none() {
@@ -649,6 +652,7 @@ impl<S: PackageStore> Resolver<S> {
                 module_id,
                 error_info: ErrorConstants::None,
                 source_line_number,
+                error_code,
             });
         } else if bitset.identifier_index().is_none() || bitset.constant_index().is_none() {
             return None;
@@ -688,6 +692,7 @@ impl<S: PackageStore> Resolver<S> {
             module_id,
             error_info,
             source_line_number,
+            error_code,
         })
     }
 }

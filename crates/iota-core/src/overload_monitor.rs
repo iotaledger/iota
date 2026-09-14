@@ -337,7 +337,7 @@ pub(crate) fn should_reject_tx(
     // TODO: we also need to add a secret salt (e.g. first consensus commit in the
     // current epoch), to prevent gaming the system.
     let mut hasher = XxHash64::with_seed(temporal_seed);
-    hasher.write(tx_digest.inner());
+    hasher.write(tx_digest.bytes());
     let value = hasher.finish();
     value % 100 < load_shedding_percentage as u64
 }

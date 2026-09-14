@@ -12,7 +12,7 @@ use helper::ObjectChecker;
 use iota_faucet::CoinInfo;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, TransactionBlockBytes,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_sdk_types::{Address, Owner, Transaction, TransactionDigest};
@@ -20,10 +20,6 @@ use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     gas_coin::GasCoin, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
-};
-use jsonrpsee::{
-    core::{client::ClientT, params::ArrayParams},
-    http_client::HttpClientBuilder,
 };
 use test_case::{
     coin_index_test::CoinIndexTest, coin_merge_split_test::CoinMergeSplitTest,
@@ -94,10 +90,6 @@ impl TestContext {
         self.client.get_fullnode_client().clone()
     }
 
-    fn get_fullnode_rpc_url(&self) -> &str {
-        self.cluster.fullnode_url()
-    }
-
     /// Connect a gRPC client to the fullnode.
     ///
     /// Panics if the cluster exposes no gRPC endpoint (remote clusters).
@@ -139,18 +131,6 @@ impl TestContext {
     /// of this helper function.
     pub async fn make_transactions(&self, max_txn_num: usize) -> Vec<TransactionEnvelope> {
         batch_make_transfer_transactions(self.get_wallet(), max_txn_num).await
-    }
-
-    pub async fn build_transaction_remotely(
-        &self,
-        method: &str,
-        params: ArrayParams,
-    ) -> anyhow::Result<Transaction> {
-        let fn_rpc_url = self.get_fullnode_rpc_url();
-        // TODO cache this?
-        let rpc_client = HttpClientBuilder::default().build(fn_rpc_url)?;
-
-        TransactionBlockBytes::to_data(rpc_client.request(method, params).await?)
     }
 
     async fn sign_and_execute(&self, tx: Transaction, desc: &str) -> IotaTransactionBlockResponse {

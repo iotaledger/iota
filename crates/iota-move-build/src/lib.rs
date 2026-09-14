@@ -571,7 +571,7 @@ impl CompiledPackage {
             &self.get_package_bytes(with_unpublished_deps),
             self.dependency_ids.published.values(),
         )
-        .into_inner()
+        .into_bytes()
     }
 
     /// Return a serialized representation of the bytecode modules in this

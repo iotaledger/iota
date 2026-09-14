@@ -261,7 +261,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    objects_backward_history (superseded_at_checkpoint, object_id, object_version) {
+    objects_backward_history (object_id, object_version, superseded_at_checkpoint) {
         object_id -> Bytea,
         object_version -> Int8,
         object_status -> Int2,

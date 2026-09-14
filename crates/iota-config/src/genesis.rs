@@ -373,7 +373,7 @@ const PRE_V32_VALIDATOR_LOW_STAKE_GRACE_PERIOD: u64 = 7;
 const PRE_V32_MAX_VALIDATOR_COUNT: u64 = 150;
 
 /// Initial set of parameters for a chain.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GenesisCeremonyParameters {
     #[serde(default = "GenesisCeremonyParameters::default_timestamp_ms")]
     pub chain_start_timestamp_ms: u64,

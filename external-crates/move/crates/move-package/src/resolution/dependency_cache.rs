@@ -279,6 +279,7 @@ fn full_clone<Progress: Write>(
             git_path.as_os_str(),
         ])
         .stdin(Stdio::null())
+        .stdout(Stdio::null())
         .spawn()
     {
         output.wait().map_err(|_| {
@@ -516,13 +517,16 @@ fn update_dependency<Progress: Write>(
     Ok(())
 }
 
-/// Runs `git` with `args`, inheriting stdio so progress is shown, and reports
-/// whether it exited successfully. A spawn failure (e.g. `git` missing) is
-/// treated as a non-successful run.
+/// Runs `git` with `args` and reports whether it exited successfully. Stderr is
+/// inherited so progress is shown; stdout is discarded, since git writes
+/// messages such as `branch 'x' set up to track 'origin/x'` there and the
+/// caller's stdout may be machine-readable output. A spawn failure (e.g. `git`
+/// missing) is treated as a non-successful run.
 fn git_status(args: &[&OsStr]) -> bool {
     Command::new("git")
         .args(args)
         .stdin(Stdio::null())
+        .stdout(Stdio::null())
         .status()
         .map(|status| status.success())
         .unwrap_or(false)

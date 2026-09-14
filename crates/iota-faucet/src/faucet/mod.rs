@@ -115,6 +115,11 @@ pub struct FaucetConfig {
     #[arg(long, default_value_t = 60)]
     pub wallet_client_timeout_secs: u64,
 
+    /// URL of the fullnode gRPC endpoint used for reading objects and
+    /// executing transactions.
+    #[arg(long, default_value = "http://127.0.0.1:8080")]
+    pub fullnode_grpc_url: String,
+
     #[arg(long)]
     pub write_ahead_log: PathBuf,
 
@@ -154,6 +159,7 @@ impl Default for FaucetConfig {
             request_buffer_size: 10,
             max_request_per_second: 10,
             wallet_client_timeout_secs: 60,
+            fullnode_grpc_url: "http://127.0.0.1:8080".to_string(),
             write_ahead_log: Default::default(),
             wal_retry_interval: 300,
             max_request_queue_length: 10000,
