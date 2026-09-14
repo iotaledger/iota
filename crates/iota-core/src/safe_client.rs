@@ -397,7 +397,7 @@ where
             let expected: HashMap<_, _> = signed_effects
                 .old_object_metadata()
                 .into_iter()
-                .map(|old| (old.reference.object_id, old.reference))
+                .map(|old| (old.reference().object_id, *old.reference()))
                 .collect();
 
             for object in input_objects {
@@ -420,7 +420,7 @@ where
             let expected: HashMap<_, _> = signed_effects
                 .all_changed_objects()
                 .into_iter()
-                .map(|(changed, _)| (changed.reference.object_id, changed.reference))
+                .map(|(changed, _)| (changed.reference().object_id, *changed.reference()))
                 .collect();
 
             for object in output_objects {

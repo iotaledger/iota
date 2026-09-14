@@ -8,8 +8,8 @@ use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_sdk_types::{
-    ObjectId, ObjectReference, RandomnessRound, TransactionDigest, UserSignature, Version,
-    checkpoint::CheckpointContents,
+    CheckpointContents, ObjectId, ObjectReference, RandomnessRound, TransactionDigest,
+    UserSignature, Version,
 };
 use iota_types::{
     base_types::AuthorityName,

@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{
-    MoveStruct, ObjectData, Owner, StructTag, TransactionDigest, move_package::MovePackage,
-};
+use iota_sdk_types::{MovePackage, MoveStruct, ObjectData, Owner, StructTag, TransactionDigest};
 use iota_types::{
     coin::Coin,
     error::IotaError,
@@ -175,6 +173,7 @@ pub fn get_store_object(
                 StoreData::Move(move_obj)
             }
         }
+        _ => unimplemented!("a new ObjectData enum variant was added and needs to be handled"),
     };
     let store_object = StoreObjectValueV2 {
         data,

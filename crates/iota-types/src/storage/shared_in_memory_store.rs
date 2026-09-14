@@ -5,8 +5,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEffects,
-    TransactionEvents, checkpoint::CheckpointContents,
+    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, TransactionDigest,
+    TransactionEffects, TransactionEvents,
 };
 use tap::Pipe;
 use tracing::error;

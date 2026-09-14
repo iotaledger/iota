@@ -81,7 +81,7 @@ async fn publish_view_demo_package(
     let mut shop = None;
     let mut box_u64 = None;
     for object in &effects.created() {
-        let object_id = object.reference.object_id;
+        let object_id = object.reference().object_id;
         let stored = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await
@@ -90,13 +90,13 @@ async fn publish_view_demo_package(
             package_id = Some(object_id);
             continue;
         }
-        let Owner::Shared(initial_shared_version) = object.owner else {
+        let Owner::Shared(initial_shared_version) = object.owner() else {
             continue;
         };
         let Some(struct_tag) = stored.data.opt_struct_tag() else {
             continue;
         };
-        let shared = SharedObjectReference::new(object_id, initial_shared_version, true);
+        let shared = SharedObjectReference::new(object_id, *initial_shared_version, true);
         match struct_tag.name().as_str() {
             "Shop" => shop = Some(shared),
             "Box" => box_u64 = Some(shared),

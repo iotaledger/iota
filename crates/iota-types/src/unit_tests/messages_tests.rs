@@ -14,9 +14,9 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
-    TransactionDenyRulesUpdate, TransactionEventsDigest, crypto::SimpleSignature,
-    gas::GasCostSummary,
+    Address, ExecutionStatus, GasCostSummary, GasPayment, Owner, SharedObjectReference,
+    SignatureScheme, StructTag, TransactionDenyRulesUpdate, TransactionEventsDigest,
+    crypto::SimpleSignature,
 };
 use roaring::RoaringBitmap;
 

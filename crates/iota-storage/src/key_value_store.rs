@@ -9,8 +9,8 @@ use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
 use iota_sdk_types::{
-    CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    checkpoint::CheckpointContents,
+    CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use iota_types::{
     base_types::VersionNumber,

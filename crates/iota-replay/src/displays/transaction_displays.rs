@@ -8,9 +8,7 @@ use std::{
 };
 
 use iota_execution::Executor;
-use iota_sdk_types::{
-    Argument, Command, MoveCall, ProgrammableTransaction, TypeTag, utils::write_sep,
-};
+use iota_sdk_types::{Argument, Command, MoveCall, ProgrammableTransaction, TypeTag};
 use iota_types::{
     execution::ExecutionResult, object::bounded_visitor::BoundedVisitor, transaction::CallArg,
 };
@@ -20,7 +18,10 @@ use tabled::{
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
 
-use crate::{displays::Pretty, replay::LocalExec};
+use crate::{
+    displays::{Pretty, write_sep},
+    replay::LocalExec,
+};
 
 pub struct FullPTB {
     pub ptb: ProgrammableTransaction,

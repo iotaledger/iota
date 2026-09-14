@@ -17,8 +17,8 @@ use iota_grpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEffects,
-    TransactionEvents, TypeTag, Version, checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointDigest, ObjectId, StructTag, TransactionDigest,
+    TransactionEffects, TransactionEvents, TypeTag, Version,
 };
 use iota_types::{
     base_types::VersionNumber,
@@ -1253,7 +1253,7 @@ impl GrpcReader {
             let input_objects = if fields.include_input_objects || include_derived_changes {
                 let mut objects = Vec::new();
                 for modified in effects.modified_at_versions() {
-                    objects.push(require_object(&modified.object_id, modified.version)?);
+                    objects.push(require_object(modified.object_id(), modified.version())?);
                 }
                 Some(objects)
             } else {
@@ -1269,7 +1269,7 @@ impl GrpcReader {
                     .chain(effects.mutated())
                     .chain(effects.unwrapped())
                 {
-                    let object_ref = written.reference;
+                    let object_ref = written.reference();
                     objects.push(require_object(&object_ref.object_id, object_ref.version)?);
                 }
                 Some(objects)
@@ -1308,7 +1308,7 @@ impl GrpcReader {
 #[derive(Debug)]
 pub struct TransactionReadData {
     pub digest: TransactionDigest,
-    pub transaction: Option<iota_sdk_types::transaction::Transaction>,
+    pub transaction: Option<iota_sdk_types::Transaction>,
     pub signatures: Option<Vec<iota_sdk_types::UserSignature>>,
     pub effects: Option<TransactionEffects>,
     pub events: Option<TransactionEvents>,
