@@ -632,6 +632,9 @@ impl IotaTransactionBlockKind {
                                 SmartAccountBuildKind::Immutable => {
                                     IotaSmartAccountBuildKind::Immutable
                                 }
+                                _ => unimplemented!(
+                                    "a new SmartAccountBuildKind enum variant was added and needs to be handled"
+                                ),
                             },
                         })
                     }

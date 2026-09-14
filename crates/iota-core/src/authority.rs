@@ -83,7 +83,6 @@ use iota_types::{
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
-    execution::DynamicallyLoadedObjectMetadata,
     execution_config_utils::to_binary_config,
     fp_ensure,
     gas::IotaGasStatus,

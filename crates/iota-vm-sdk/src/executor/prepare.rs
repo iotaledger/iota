@@ -556,14 +556,14 @@ pub(super) fn authenticate_only(
     gas_status: IotaGasStatus,
     auth_context_data: AuthContextData,
 ) -> Result<Result<(), iota_types::error::ExecutionError>, VmSdkError> {
-    // `authenticate_transaction` takes the inner `AuthenticatorFunctionRef`;
-    // `CheckedInputObjects` is not `Clone`, so rebuild it for the call.
+    // `authenticate_transaction` takes the signing-side view of the function
+    // ref; `CheckedInputObjects` is not `Clone`, so rebuild it for the call.
     let authenticators = auths_to_run
         .iter()
         .map(|(a, fn_ref, inputs)| {
             (
                 a.clone(),
-                fn_ref.authenticator_function_ref.clone(),
+                fn_ref.clone().into(),
                 CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone()),
             )
         })

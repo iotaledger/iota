@@ -109,43 +109,6 @@ public fun builtin_auth_builder_v1(
     }
 }
 
-/// Claims the sender's address and creates a mutable `SmartAccount` at it,
-/// backed by the built-in authenticator for `public_key`'s signature scheme.
-///
-/// This is the whole `ClaimAccount` pipeline for a mutable account. It is
-/// **private on purpose**: the account object it creates has an ID equal to a
-/// signature-derivable address, so `ClaimAccount` must stay the one and only
-/// way such an object can come into existence. A private function is reachable
-/// from the node's own PTB, which runs in an execution mode that bypasses
-/// visibility, and from nowhere else — not from a user PTB, and not from
-/// another package, which could otherwise wrap a public entry point. See the
-/// `iota::clock::consensus_commit_prologue` function for the same idiom.
-///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
-/// `account::MutableAccountCreated` event.
-///
-/// Aborts if `public_key` does not derive the sender's address, or if its
-/// signature scheme has no built-in authenticator.
-#[allow(unused_function)]
-fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    claim_builder(public_key, ctx).build_v1();
-}
-
-/// Claims the sender's address and creates an immutable `SmartAccount` at it,
-/// backed by the built-in authenticator for `public_key`'s signature scheme.
-///
-/// Private on purpose, for the same reason as `claim_account_v1`.
-///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
-/// `account::ImmutableAccountCreated` event.
-///
-/// Aborts if `public_key` does not derive the sender's address, or if its
-/// signature scheme has no built-in authenticator.
-#[allow(unused_function)]
-fun claim_immutable_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    claim_builder(public_key, ctx).build_immutable_v1();
-}
-
 /// Adds a `Value` as a dynamic field to the account being built.
 ///
 /// Aborts if a field with the same `name` already exists.
@@ -358,9 +321,41 @@ public fun rotate_auth_function_ref_v1(
 
 // === Private Functions ===
 
-/// Check that the sender of this transaction is the account itself.
-fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
-    assert!(self.account_address() == ctx.sender(), ETransactionSenderIsNotTheSmartAccount);
+/// Claims the sender's address and creates a mutable `SmartAccount` at it,
+/// backed by the built-in authenticator for `public_key`'s signature scheme.
+///
+/// This is the whole `ClaimAccount` pipeline for a mutable account. It is
+/// **private on purpose**: the account object it creates has an ID equal to a
+/// signature-derivable address, so `ClaimAccount` must stay the one and only
+/// way such an object can come into existence. A private function is reachable
+/// from the node's own PTB, which runs in an execution mode that bypasses
+/// visibility, and from nowhere else — not from a user PTB, and not from
+/// another package, which could otherwise wrap a public entry point. See the
+/// `iota::clock::consensus_commit_prologue` function for the same idiom.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
+/// `account::MutableAccountCreated` event.
+///
+/// Aborts if `public_key` does not derive the sender's address, or if its
+/// signature scheme has no built-in authenticator.
+#[allow(unused_function)]
+fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
+    claim_builder(public_key, ctx).build_v1();
+}
+
+/// Claims the sender's address and creates an immutable `SmartAccount` at it,
+/// backed by the built-in authenticator for `public_key`'s signature scheme.
+///
+/// Private on purpose, for the same reason as `claim_account_v1`.
+///
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
+/// `account::ImmutableAccountCreated` event.
+///
+/// Aborts if `public_key` does not derive the sender's address, or if its
+/// signature scheme has no built-in authenticator.
+#[allow(unused_function)]
+fun claim_immutable_account_v1(public_key: PublicKey, ctx: &TxContext) {
+    claim_builder(public_key, ctx).build_immutable_v1();
 }
 
 /// Creates a `SmartAccountBuilder` whose account ID is the claimed sender
@@ -374,6 +369,11 @@ fun claim_builder(public_key: PublicKey, ctx: &TxContext): SmartAccountBuilder {
         account,
         authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
     }
+}
+
+/// Check that the sender of this transaction is the account itself.
+fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
+    assert!(self.account_address() == ctx.sender(), ETransactionSenderIsNotTheSmartAccount);
 }
 
 // === Test Functions ===

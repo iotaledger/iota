@@ -3,8 +3,8 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::crypto::PublicKey;
-use iota_types::{account_abstraction::public_key, multisig::MultiSigPublicKey};
+use iota_sdk_types::crypto::{MultisigCommittee, PublicKey};
+use iota_types::account_abstraction::public_key;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -68,7 +68,7 @@ pub fn multisig_validate_pubkey(
     // per-scheme cost just before checking it. We stop at the first invalid
     // member, so gas covers only the members actually checked — never the
     // ones past it.
-    let is_valid = match bcs::from_bytes::<MultiSigPublicKey>(&public_key_ref) {
+    let is_valid = match bcs::from_bytes::<MultisigCommittee>(&public_key_ref) {
         Ok(committee) if committee.validate().is_ok() => {
             let mut all_on_curve = true;
             for member in committee.members() {

@@ -22,9 +22,9 @@ use iota_sdk_types::{
     EndOfEpochTransactionKind, Event, GasPayment, GenesisObject, GenesisTransaction, Identifier,
     Input, MakeMoveVector, MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest,
     ObjectId, ObjectReference, Owner, ProgrammableTransaction, Publish, RandomnessRound,
-    RandomnessStateUpdate, SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction,
-    TransactionDenyRulesUpdate, TransactionDigest, TransactionExpiration, TransactionKind,
-    TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
+    RandomnessStateUpdate, SenderSignedTransaction, SharedObjectReference, SignatureScheme,
+    SplitCoins, Transaction, TransactionDenyRulesUpdate, TransactionDigest, TransactionExpiration,
+    TransactionKind, TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use itertools::Either;
@@ -40,8 +40,7 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, SignatureScheme, Signer,
-        zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, Signer, zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -974,8 +973,8 @@ impl TransactionKindExt for TransactionKind {
                         // builds the Move `PublicKey` from them without going
                         // through `public_key::create`, so apply that
                         // function's validation here.
-                        let scheme = SignatureScheme::from_flag_byte(&smart.public_key_scheme)
-                            .map_err(|e| {
+                        let scheme =
+                            SignatureScheme::from_byte(smart.public_key_scheme).map_err(|e| {
                                 UserInputError::Unsupported(format!(
                                     "invalid claim account public key scheme: {e}"
                                 ))
