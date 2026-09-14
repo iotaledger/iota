@@ -6,8 +6,8 @@ use iota_json_rpc_types::{
     DynamicFieldNameSchema, DynamicFieldPage, EventFilter, EventPage, IotaDynamicFieldInfo,
     IotaEvent, IotaEventID, IotaNameRecord, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseQuery, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
-    TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
+    OwnedObjectCursor, Page, TransactionBlocksPage, TransactionFilter,
     iota_primitives::{
         Address as AddressSchema, Base58 as Base58Schema, ObjectId as ObjectIdSchema,
     },
@@ -41,8 +41,7 @@ pub trait IndexerApi {
         /// the objects query criteria.
         query: Option<IotaObjectResponseQuery>,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
-        #[schemars(with = "Option<ObjectIdSchema>")] 
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         /// Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage>;
@@ -178,7 +177,7 @@ pub trait IndexerApi {
     async fn iota_names_find_all_registration_nfts(
         &self,
         #[schemars(with = "AddressSchema")] address: Address,
-        #[schemars(with = "Option<ObjectIdSchema>")] cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage>;

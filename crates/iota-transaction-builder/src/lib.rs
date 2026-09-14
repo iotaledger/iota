@@ -34,7 +34,7 @@ pub trait DataReader {
         &self,
         address: Address,
         object_type: StructTag,
-        cursor: Option<ObjectId>,
+        cursor: Option<iota_json_rpc_types::OwnedObjectCursor>,
         limit: Option<usize>,
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error>;

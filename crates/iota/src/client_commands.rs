@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
     IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData, IotaObjectDataOptions,
     IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData, IotaProtocolConfigValue,
     IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, OwnedObjectCursor,
     get_new_package_obj_from_response,
 };
 use iota_keys::keystore::{AccountKeystore, StoredKey};
@@ -833,18 +833,20 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
 
                 let objects =
-                    PagedFn::collect::<Vec<_>>(async |cursor: Option<ObjectId>| match coin_type {
-                        Some(ref coin_type) => {
-                            client
-                                .coin_read_api()
-                                .get_coins(address, Some(coin_type.clone()), cursor, None)
-                                .await
-                        }
-                        None => {
-                            client
-                                .coin_read_api()
-                                .get_all_coins(address, cursor, None)
-                                .await
+                    PagedFn::collect::<Vec<_>>(async |cursor: Option<OwnedObjectCursor>| {
+                        match coin_type {
+                            Some(ref coin_type) => {
+                                client
+                                    .coin_read_api()
+                                    .get_coins(address, Some(coin_type.clone()), cursor, None)
+                                    .await
+                            }
+                            None => {
+                                client
+                                    .coin_read_api()
+                                    .get_all_coins(address, cursor, None)
+                                    .await
+                            }
                         }
                     })
                     .await?;
@@ -1530,7 +1532,7 @@ impl IotaClientCommands {
             IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context).await?;
                 let client = context.get_client().await?;
-                let objects = PagedFn::collect(async |cursor: Option<ObjectId>| {
+                let objects = PagedFn::collect(async |cursor: Option<OwnedObjectCursor>| {
                     client
                         .read_api()
                         .get_owned_objects(
