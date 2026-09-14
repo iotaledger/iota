@@ -1508,7 +1508,7 @@ mod adapter_tests {
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     };
-    use rand::{Rng, SeedableRng, rngs::StdRng};
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
 
     use super::position_submit_certificate;
     use crate::{
@@ -1526,7 +1526,7 @@ mod adapter_tests {
                     AuthorityPublicKeyBytes::from(
                         get_key_pair_from_rng::<AuthorityKeyPair, _>(rng).1.public(),
                     ),
-                    rng.gen_range(0u64..10u64),
+                    rng.random_range(0u64..10u64),
                 )
             })
             .collect::<Vec<_>>();
@@ -1562,7 +1562,7 @@ mod adapter_tests {
         // Ensure that the original position is higher
         let (position, positions_moved, _) =
             consensus_adapter.submission_position(&committee, &tx_digest);
-        assert_eq!(position, 7);
+        assert_eq!(position, 3);
         assert!(!positions_moved > 0);
 
         // Make sure that position is set to max value 0
@@ -1590,10 +1590,10 @@ mod adapter_tests {
         let (delay_step, position, positions_moved, _) =
             consensus_adapter.await_submit_delay_user_transaction(&committee, &tx_digest);
 
-        assert_eq!(position, 7);
+        assert_eq!(position, 3);
 
-        // delay_step * position * 2 = 1 * 7 * 2 = 14
-        assert_eq!(delay_step, Duration::from_secs(14));
+        // delay_step * position * 2 = 1 * 3 * 2 = 6
+        assert_eq!(delay_step, Duration::from_secs(6));
         assert!(!positions_moved > 0);
     }
 

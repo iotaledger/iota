@@ -21,7 +21,7 @@ use iota_types::{
 };
 use itertools::Itertools as _;
 use prometheus_filtered::Registry;
-use rand::{Rng, thread_rng};
+use rand::{RngExt, rng};
 
 use crate::{
     signature_verifier::*,
@@ -162,7 +162,7 @@ async fn test_async_verifier() {
                 let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);
 
                 for mut c in certs.into_iter() {
-                    if thread_rng().gen_range(0..20) == 0 {
+                    if rng().random_range(0..20) == 0 {
                         *c.auth_sig_mut_for_testing() = other_cert.auth_sig().clone();
                         verifier.verify_cert(c).await.unwrap_err();
                     } else {

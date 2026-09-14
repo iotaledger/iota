@@ -256,7 +256,7 @@ mod selection {
         let result = stats.select_shuffled_preferred_validators(
             std::iter::empty::<&AuthorityName>(),
             now(),
-            rand::thread_rng(),
+            rand::rng(),
         );
         assert!(result.is_empty());
     }
@@ -269,8 +269,7 @@ mod selection {
         let t0 = now();
         feed_all(&mut stats, v, Ok(100), 5, t0, Duration::from_millis(100));
         let now = t0 + Duration::from_millis(600);
-        let result =
-            stats.select_shuffled_preferred_validators([&v].into_iter(), now, rand::thread_rng());
+        let result = stats.select_shuffled_preferred_validators([&v].into_iter(), now, rand::rng());
         assert_eq!(result.len(), 1);
         assert_eq!(*result[0], v);
     }
@@ -297,7 +296,7 @@ mod selection {
         let now = t0 + dt * 21;
         let validators = [v_good, v_bad];
         let result =
-            stats.select_shuffled_preferred_validators(validators.iter(), now, rand::thread_rng());
+            stats.select_shuffled_preferred_validators(validators.iter(), now, rand::rng());
         assert_eq!(result.len(), 2);
         assert_eq!(
             *result[0], v_good,
@@ -311,8 +310,7 @@ mod selection {
     fn all_unknown_validators_returned() {
         let stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
         let v = gen_validators(5);
-        let result =
-            stats.select_shuffled_preferred_validators(v.iter(), now(), rand::thread_rng());
+        let result = stats.select_shuffled_preferred_validators(v.iter(), now(), rand::rng());
         assert_eq!(
             result.len(),
             v.len(),

@@ -27,7 +27,7 @@ webpki = { version = "0.103", package = "rustls-webpki", features = ["alloc", "r
 x509-parser = "0.17.0"
 
 [dev-dependencies]
-rand.workspace = true
+rand08.workspace = true
 
 [lints]
 workspace = true

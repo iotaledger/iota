@@ -21,7 +21,7 @@ pub async fn epoch_info(
     epoch_id: Option<EpochId>,
 ) -> anyhow::Result<(EpochId, CheckpointSequenceNumber)> {
     let epoch = client
-        .get_epoch(epoch_id, [EpochField::EPOCH, EpochField::FIRST_CHECKPOINT])
+        .epoch(epoch_id, [EpochField::EPOCH, EpochField::FIRST_CHECKPOINT])
         .await
         .map_err(anyhow::Error::new)?
         .into_inner();
@@ -43,12 +43,7 @@ pub async fn checkpoint_sequence_number_range_to_watermark(
     watermark: CheckpointSequenceNumber,
 ) -> anyhow::Result<Range<CheckpointSequenceNumber>> {
     let chk = client
-        .get_checkpoint_by_sequence_number(
-            watermark,
-            None,
-            None,
-            CheckpointResponseReadMask::default(),
-        )
+        .checkpoint_by_sequence_number(watermark, None, None, CheckpointResponseReadMask::default())
         .await?
         .into_inner();
 

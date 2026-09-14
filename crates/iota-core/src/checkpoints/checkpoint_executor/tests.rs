@@ -557,8 +557,11 @@ async fn sync_end_of_epoch_checkpoint(
     previous_checkpoint: VerifiedCheckpoint,
     committee: &CommitteeFixture,
 ) -> (VerifiedCheckpoint, CommitteeFixture) {
-    let new_committee =
-        CommitteeFixture::generate(rand::rngs::OsRng, committee.committee().epoch + 1, 4);
+    let new_committee = CommitteeFixture::generate(
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+        committee.committee().epoch + 1,
+        4,
+    );
     let (_sequence_number, _digest, checkpoint) = committee.make_end_of_epoch_checkpoint(
         previous_checkpoint,
         Some(EndOfEpochData {

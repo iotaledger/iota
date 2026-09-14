@@ -178,7 +178,7 @@ pub async fn wait_for_executed_transactions_checkpointed(
     client: &iota_grpc_client::Client,
 ) -> u64 {
     let baseline_seq = client
-        .get_checkpoint_latest(None, None, CheckpointResponseField::ALL)
+        .checkpoint_latest(None, None, CheckpointResponseField::ALL)
         .await
         .expect("get latest checkpoint")
         .body()

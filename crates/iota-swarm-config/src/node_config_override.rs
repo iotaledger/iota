@@ -537,7 +537,7 @@ mod tests {
     use iota_types::{
         supported_protocol_versions::SupportedProtocolVersions, traffic_control::PolicyConfig,
     };
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::*;
     use crate::{
@@ -553,12 +553,17 @@ mod tests {
     }
 
     fn test_config() -> NodeConfig {
-        FullnodeConfigBuilder::new().build_from_parts(&mut OsRng, &[], Genesis::new_empty())
+        FullnodeConfigBuilder::new().build_from_parts(
+            &mut UnwrapErr(SysRng),
+            &[],
+            Genesis::new_empty(),
+        )
     }
 
     fn validator_test_config() -> NodeConfig {
-        ValidatorConfigBuilder::new()
-            .build_without_genesis(ValidatorGenesisConfigBuilder::new().build(&mut OsRng))
+        ValidatorConfigBuilder::new().build_without_genesis(
+            ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng)),
+        )
     }
 
     // The lazily loaded key pair caches are not config state and start out

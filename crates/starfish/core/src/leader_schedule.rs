@@ -9,7 +9,7 @@ use std::{
 };
 
 use parking_lot::{Mutex, RwLock};
-use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
+use rand08::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::{AuthorityIndex, Stake};
 
 use crate::{

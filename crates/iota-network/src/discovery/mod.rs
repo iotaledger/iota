@@ -440,11 +440,9 @@ impl DiscoveryEventLoop {
         );
 
         // Randomly selects the number_to_dial of peers to connect to.
-        for (peer_id, info) in rand::seq::SliceRandom::choose_multiple(
-            eligible.as_slice(),
-            &mut rand::thread_rng(),
-            number_to_dial,
-        ) {
+        for (peer_id, info) in
+            rand::seq::IndexedRandom::sample(eligible.as_slice(), &mut rand::rng(), number_to_dial)
+        {
             let abort_handle = self.tasks.spawn(try_to_connect_to_peer(
                 self.network.clone(),
                 info.data().to_owned(),
@@ -688,7 +686,7 @@ async fn query_connected_peers_for_their_known_peers(
         .peers()
         .into_iter()
         .flat_map(|id| network.peer(id))
-        .choose_multiple(&mut rand::thread_rng(), config.peers_to_query());
+        .sample(&mut rand::rng(), config.peers_to_query());
 
     let peer_query_timeout = config.peer_query_timeout();
 

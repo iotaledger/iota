@@ -8,7 +8,7 @@ use iota_common::{fatal, random::get_rng};
 use iota_macros::fail_point_async;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_types::error::IotaError;
-use rand::Rng;
+use rand::RngExt;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver, oneshot};
 use tracing::{Instrument, error_span, info, instrument, warn};
 
@@ -94,7 +94,7 @@ pub async fn execution_process(
         // the semaphore in this context.
         let permit = limit.acquire_owned().await.unwrap();
 
-        if get_rng().gen_range(0.0..1.0) < QUEUEING_DELAY_SAMPLING_RATIO {
+        if get_rng().random_range(0.0..1.0) < QUEUEING_DELAY_SAMPLING_RATIO {
             authority
                 .metrics
                 .execution_queueing_latency

@@ -43,7 +43,7 @@ use itertools::Itertools;
 use parking_lot::RwLock;
 #[cfg(not(test))]
 use rand::prelude::SliceRandom as _;
-use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
+use rand::{SeedableRng as _, rng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::oneshot,
@@ -568,7 +568,7 @@ where
     // recovered.
     let failure_penalty = TIMEOUT * fetch_timeout_multiplier;
     let data_source = inner.sync_type.data_source();
-    let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
+    let mut rng = StdRng::from_rng(&mut rng());
 
     let _timer = inner
         .context

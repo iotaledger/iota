@@ -129,7 +129,7 @@ impl SimpleFaucet {
             GrpcClient::new(&config.fullnode_grpc_url).map_err(FaucetError::internal)?;
 
         let coins = grpc_client
-            .list_owned_objects(
+            .owned_objects(
                 active_address,
                 StructTag::new_gas_coin(),
                 None,
@@ -376,7 +376,7 @@ impl SimpleFaucet {
     async fn get_object(&self, object_id: ObjectId) -> anyhow::Result<Option<Object>> {
         let response = self
             .grpc_client
-            .get_objects([object_id], ObjectReadMask::default())
+            .objects([object_id], ObjectReadMask::default())
             .await?;
         match response.into_parts().0.into_iter().next() {
             Some(Ok(proto_object)) => Ok(Some(Object::from(proto_object.object()?))),
@@ -395,7 +395,7 @@ impl SimpleFaucet {
     async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectReference> {
         let response = self
             .grpc_client
-            .get_objects([object_id], ObjectField::REFERENCE)
+            .objects([object_id], ObjectField::REFERENCE)
             .await?;
         let proto_object = response
             .into_parts()
@@ -729,7 +729,7 @@ impl SimpleFaucet {
 
     async fn get_gas_price(&self) -> Result<u64, FaucetError> {
         self.grpc_client
-            .get_reference_gas_price()
+            .reference_gas_price()
             .await
             .map(|response| *response.body())
             .map_err(|e| FaucetError::FullnodeReading(format!("Error fetch gas price {e:?}")))

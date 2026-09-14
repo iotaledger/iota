@@ -5,7 +5,7 @@
 use std::net::{TcpListener, TcpStream};
 
 use iota_network_stack::Multiaddr;
-use rand::{SeedableRng as _, rngs::StdRng};
+use rand08::{SeedableRng as _, rngs::StdRng};
 
 use crate::{
     Authority, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair, ProtocolKeyPair, Stake,
