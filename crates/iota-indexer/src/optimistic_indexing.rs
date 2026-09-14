@@ -407,15 +407,15 @@ impl OptimisticTransactionExecutor {
         transactional_blocking_with_retry_with_conditional_abort!(
             &pool,
             move |conn| {
-                let assigned_global_order =
-                    OptimisticTransactionExecutor::assign_optimistic_tx_global_order(
+                let assigned_sequence_number =
+                    OptimisticTransactionExecutor::assign_optimistic_sequence_number(
                         conn,
                         full_tx_data.transaction.digest(),
                     )?;
 
                 let extractor = TransactionExtractor::new(
                     full_tx_data,
-                    assigned_global_order
+                    assigned_sequence_number
                         .optimistic_sequence_number
                         .try_into()
                         .map_err(|e| {
@@ -436,7 +436,7 @@ impl OptimisticTransactionExecutor {
         )
     }
 
-    fn assign_optimistic_tx_global_order(
+    fn assign_optimistic_sequence_number(
         conn: &mut PgConnection,
         tx_digest: &TransactionDigest,
     ) -> Result<AssignedSequenceNumber, IndexerError> {
