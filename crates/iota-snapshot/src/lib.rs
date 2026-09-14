@@ -624,6 +624,14 @@ pub async fn setup_db_state(
     // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
     // call once every database has swept the pre-bucket backlog.
     perpetual_db.mark_object_backlog_swept()?;
+    // A restore writes no ledger row at all, and the summaries and contents it
+    // inserts already go into the bucket of the checkpoint's own epoch, so the
+    // one-time migration into the buckets has nothing to find either.
+    // TODO(https://github.com/iotaledger/iota/issues/12763): remove this
+    // call once every database has migrated its pre-bucket ledger and
+    // checkpoint history.
+    perpetual_db.mark_ledger_backlog_migrated()?;
+    checkpoint_store.mark_checkpoint_backlog_migrated()?;
     committee_store.insert_new_committee(&next_epoch_committee)?;
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
 

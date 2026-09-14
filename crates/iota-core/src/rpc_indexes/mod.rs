@@ -74,9 +74,8 @@ use crate::{
     checkpoints::CheckpointStore,
     epoch_buckets::{self, EpochBuckets},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
-    par_index_live_object_set::{
-        PROGRESS_REPORT_INTERVAL, eta_display, par_index_live_object_set, progress_rate,
-    },
+    par_index_live_object_set::par_index_live_object_set,
+    progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
 };
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
@@ -174,12 +173,12 @@ pub struct RpcIndexesStore {
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Stops the startup rebuild and the background history backfill.
     cancelled: Arc<AtomicBool>,
-    /// How many historic epochs of history the pruner is configured to
-    /// retain on top of the current one (`num_epochs_to_retain_for_indexes`);
-    /// bounds the history backfill so it does not replay epochs the next
-    /// prune pass would drop again, and is the retention `prune` enforces.
-    /// Governs every history table, digests included, since they all live in
-    /// the one bucket family. `None` when index pruning is off.
+    /// How many historic epochs of history to retain on top of the current
+    /// one (`num_epochs_to_retain_for_indexes`); bounds the history backfill
+    /// so it does not replay epochs the next prune pass would drop again, and
+    /// is the retention `prune` enforces. Governs every history table,
+    /// digests included, since they all live in the one bucket family.
+    /// `None` when index pruning is off.
     epochs_to_retain: Option<u64>,
 }
 
@@ -518,7 +517,7 @@ impl RpcIndexesStore {
     /// returns; until it finishes, history-backed queries cover a growing
     /// range of recent checkpoints, as on a pruned node. When index pruning
     /// is configured, `epochs_to_retain` bounds the replay to the epochs
-    /// the pruner would retain.
+    /// [`Self::prune`] would retain.
     ///
     /// Setting `cancelled` abandons a rebuild running here and the
     /// background replay, and fails the open: the store is left unadopted
@@ -915,8 +914,31 @@ impl RpcIndexesStore {
         })
     }
 
-    /// The bucket holding `epoch`'s history, created if absent. Pruned
-    /// epochs are refused, see [`EpochBuckets::ensure`].
+    /// Opens `epoch`'s history bucket, creating its column family if the
+    /// store has not been asked for it before.
+    ///
+    /// Checkpoint ingest opens the bucket of each epoch it indexes, so this
+    /// is only needed to get ahead of ingest: [`Self::prune`] counts this
+    /// store's retention back from its newest bucket, so at a reconfiguration
+    /// the epoch being entered must have its bucket before the retention is
+    /// applied, or the count starts at the epoch just executed and one epoch
+    /// too many is kept. Creating a column family blocks.
+    pub(crate) fn ensure_history_bucket_exists(&self, epoch: EpochId) -> IotaResult<()> {
+        self.ensure_history_bucket(epoch).map(|_| ())
+    }
+
+    /// The epochs whose history buckets this store holds, oldest first.
+    #[cfg(test)]
+    pub(crate) fn retained_history_epochs(&self) -> Vec<EpochId> {
+        self.history
+            .iter_with_epoch(false)
+            .into_iter()
+            .map(|(epoch, _)| epoch)
+            .collect()
+    }
+
+    /// The bucket holding `epoch`'s history, created if absent. Pruned epochs
+    /// are refused, see [`EpochBuckets::ensure`].
     fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
         self.history
             .ensure(epoch)
@@ -953,17 +975,12 @@ impl RpcIndexesStore {
     /// rows; a retry no longer sees the bucket. Queries block for the
     /// duration of the drops, so callers on an async runtime must use
     /// `spawn_blocking`.
-    pub fn prune(&self) -> IotaResult<Option<EpochId>> {
+    pub fn prune(&self, current_epoch: EpochId) -> IotaResult<Option<EpochId>> {
         let Some(epochs_to_retain) = self.epochs_to_retain else {
             return Ok(None);
         };
-        // `EpochBuckets::prune` keeps its newest bucket plus `n - 1` below
-        // it, so retaining the current epoch plus `epochs_to_retain` historic
-        // ones takes `n = epochs_to_retain + 1`. Saturating avoids overflow
-        // at `u64::MAX`, where it still means "never prune": the resulting
-        // window covers everything there is.
         self.history
-            .prune(epochs_to_retain.saturating_add(1), |_, _| Ok(()))
+            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
@@ -1136,9 +1153,10 @@ impl RpcIndexesStore {
     }
 
     /// Fills the history tables for the checkpoints below
-    /// `history_watermark`, newest first, until it reaches the
-    /// checkpoint-contents pruner, an epoch [`Self::prune`] removed from the
-    /// index, or the configured index retention. The marker commits
+    /// `history_watermark`, newest first, until it reaches the lowest
+    /// checkpoint whose contents the node still holds, an epoch
+    /// [`Self::prune`] removed from the index, or the configured index
+    /// retention. The marker commits
     /// atomically with each checkpoint's rows, so an interrupted run resumes
     /// where it stopped.
     /// No-op when the marker is absent (the history was indexed continuously
@@ -1170,9 +1188,9 @@ impl RpcIndexesStore {
                 info!("Stopping the RPC index history backfill at checkpoint {next}: shutdown");
                 break;
             }
-            // The pruner advances while the backfill runs; re-check the
-            // bound so the replay stops before data that is about to
-            // disappear.
+            // The epoch boundary expires history while the backfill runs;
+            // re-check the bound so the replay stops before data that is
+            // about to disappear.
             let lowest = checkpoint_store
                 .get_highest_pruned_checkpoint_seq_number()?
                 .map(|c| c.saturating_add(1))
@@ -1183,8 +1201,8 @@ impl RpcIndexesStore {
             let summary = match checkpoint_store.get_checkpoint_by_sequence_number(next)? {
                 Some(summary) => summary,
                 None => {
-                    // The checkpoint pruner can pass the bound check above
-                    // mid-iteration; reaching pruned data is a terminal
+                    // The retained range can move past the bound checked
+                    // above mid-iteration; reaching pruned data is a terminal
                     // condition, not a failure.
                     if self.backfill_reached_pruned_data(checkpoint_store, next, None)? {
                         break;
@@ -1214,13 +1232,14 @@ impl RpcIndexesStore {
             if let Err(e) =
                 self.replay_checkpoint_history(authority_store, checkpoint_store, &summary)
             {
-                // See above: the pruners advance while the backfill runs.
+                // See above: the retained ranges move up while the backfill
+                // runs.
                 if self.backfill_reached_pruned_data(checkpoint_store, next, Some(summary.epoch))? {
                     break;
                 }
-                // A pruner deletes a checkpoint's data before it advances
-                // the watermark checked above, so the replay can find the
-                // data already gone. That is the end of the locally
+                // Expiry drops a checkpoint's data before it advances the
+                // watermark checked above, so the replay can find the data
+                // already gone. That is the end of the locally
                 // available history, not a failure.
                 if e.kind() == StorageErrorKind::Missing {
                     info!(
@@ -1237,15 +1256,17 @@ impl RpcIndexesStore {
                 .set(next as i64);
             if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
                 last_report = Instant::now();
-                let remaining = next - lowest;
-                let fraction = replayed as f64 / (replayed + remaining) as f64;
-                let elapsed = start_time.elapsed();
-                let rate = progress_rate(replayed, elapsed);
-                let eta = eta_display(elapsed, fraction);
+                let total = replayed + (next - lowest);
                 info!(
-                    "Backfilling RPC index history: {:.1}% done (checkpoint {next} down to \
-                     {lowest}), {rate:.0} checkpoints/s, ETA ~{eta}",
-                    fraction * 100.0,
+                    "{}",
+                    progress_line(
+                        "Backfilling RPC index history",
+                        "checkpoints",
+                        replayed as f64 / total as f64,
+                        replayed,
+                        total,
+                        start_time.elapsed(),
+                    )
                 );
             }
             let Some(n) = next.checked_sub(1) else {
@@ -1279,7 +1300,7 @@ impl RpcIndexesStore {
         Some(newest.saturating_sub(epochs_to_retain))
     }
 
-    /// Whether a pruner removed checkpoint `next`, or the history bucket of
+    /// Whether expiry removed checkpoint `next`, or the history bucket of
     /// its epoch, while the backfill was working on it — the same bounds the
     /// loop checks before each checkpoint, re-read once the work on it has
     /// failed. `epoch` is the checkpoint's epoch, where it is known. Logs
@@ -1354,7 +1375,8 @@ impl RpcIndexesStore {
         if self.serves(IndexGroup::JsonRpc) {
             for (sequence, digests) in (first_sequence_number..).zip(contents.iter()) {
                 let transaction = authority_store
-                    .get_transaction_block(&digests.transaction)?
+                    .get_transaction_block(&digests.transaction)
+                    .map_err(|e| StorageError::custom(e.to_string()))?
                     .ok_or_else(|| {
                         StorageError::missing(format!(
                             "missing transaction {}",
@@ -1371,7 +1393,8 @@ impl RpcIndexesStore {
                 let events = if effects.events_digest().is_some() {
                     Some(
                         authority_store
-                            .get_events(&digests.transaction)?
+                            .get_events(&digests.transaction)
+                            .map_err(|e| StorageError::custom(e.to_string()))?
                             .ok_or_else(|| {
                                 StorageError::missing(format!(
                                     "missing events {}",

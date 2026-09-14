@@ -57,11 +57,12 @@ fn wrapped_id() -> ObjectId {
 }
 
 fn open_store(dir: &TempDir) -> Arc<AuthorityStore> {
-    let (perpetual, historic) =
+    let (perpetual, historic, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     AuthorityStore::open_no_genesis(
         Arc::new(perpetual),
         Arc::new(historic),
+        Arc::new(historic_ledger),
         false,
         &Registry::new(),
     )
@@ -119,7 +120,7 @@ fn sweeper(store: &AuthorityStore, keys_per_slice: usize) -> ObjectBacklogSweep 
 /// Runs the whole walk, in slices of `keys_per_slice`.
 fn sweep_all(store: &AuthorityStore, keys_per_slice: usize) {
     let sweep = sweeper(store, keys_per_slice);
-    while sweep.sweep_slice(SWEEP_EPOCH).unwrap() {}
+    while sweep.sweep_slice(SWEEP_EPOCH).unwrap().1 {}
 }
 
 fn live_keys(store: &AuthorityStore) -> Vec<ObjectKey> {
@@ -225,7 +226,7 @@ fn seed_checkpoint(
         .insert_verified_checkpoint(&checkpoint)
         .unwrap();
     checkpoint_store
-        .insert_checkpoint_contents(contents)
+        .insert_checkpoint_contents(&checkpoint, contents)
         .unwrap();
     checkpoint_store
         .update_highest_executed_checkpoint(&checkpoint)
@@ -386,7 +387,7 @@ async fn the_sweep_resumes_from_its_watermark() {
     let interrupted = open_store(&dir);
     seed(&interrupted);
     let sweep = sweeper(&interrupted, 1);
-    assert!(sweep.sweep_slice(SWEEP_EPOCH).unwrap());
+    assert_eq!(sweep.sweep_slice(SWEEP_EPOCH).unwrap(), (1, true));
     // One row decided, the first version of the first object id, which the
     // second version supersedes.
     assert_eq!(
