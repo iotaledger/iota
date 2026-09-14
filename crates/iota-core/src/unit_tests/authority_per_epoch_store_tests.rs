@@ -35,7 +35,7 @@ fn flush_overload_notification(
     authority: AuthorityName,
     percentage: u8,
 ) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_overload_notification(authority, percentage);
     output.set_default_commit_stats_for_testing();
     let mut batch: DBBatch = store.db_batch_for_test();
@@ -475,7 +475,7 @@ fn reopen_with_deny_rules_object(
 }
 
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_deny_rule_proposal(proposal.clone());
     output.set_default_commit_stats_for_testing();
     let mut batch: DBBatch = store.db_batch_for_test();

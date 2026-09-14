@@ -3917,7 +3917,8 @@ impl AuthorityPerEpochStore {
                 .insert_and_notify(&load_shedding_dropped);
         }
 
-        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
+        let mut output =
+            ConsensusCommitOutput::new(consensus_commit_info.round, consensus_commit_info.index);
 
         // Load transactions deferred from previous commits.
         let deferred_txs: Vec<(DeferralKey, Vec<DeferredTransaction>)> = self
@@ -4662,7 +4663,7 @@ impl AuthorityPerEpochStore {
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
     ) -> IotaResult<AssignedTxAndVersions> {
-        let mut output = ConsensusCommitOutput::new(0);
+        let mut output = ConsensusCommitOutput::new(0, 0);
         let transactions: Vec<_> = transactions
             .iter()
             .cloned()

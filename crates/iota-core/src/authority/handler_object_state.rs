@@ -459,7 +459,8 @@ impl HandlerObjectState {
     /// Marks commit `index` fully executed: applies the commit's
     /// handler-latest upserts (covering executions that raced the map
     /// registration), removes sync-ahead records whose chains the handler has
-    /// now caught up past, and drops the commit's key → index map entries.
+    /// now caught up past, and drops the transaction key -> commit index map
+    /// entries.
     ///
     /// Sheltered bytes are deliberately not evicted here: their eviction keys
     /// off the *flushed* frontier, because a crash before this commit's

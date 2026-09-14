@@ -1769,7 +1769,7 @@ fn activate_deny_rules(
     rules: iota_sdk_types::DenyRuleSet,
     generation: u64,
 ) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_deny_rule_proposal(
         iota_types::messages_consensus::TransactionDenyRuleProposal {
             authority: epoch_store.name,
