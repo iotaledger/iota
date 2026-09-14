@@ -252,7 +252,7 @@ pub(super) fn execute_prepared(
     store: &dyn BackingStore,
     prepared: PreparedTransaction,
     mode: ExecutionMode,
-) -> Result<SimulateTransactionResult, VmSdkError> {
+) -> Result<(SimulateTransactionResult, Transaction), VmSdkError> {
     let PreparedTransaction {
         transaction,
         gas_status,
@@ -281,13 +281,16 @@ pub(super) fn execute_prepared(
         dev_inspect,
     );
 
-    Ok(simulation_result(
-        store,
-        inner_temp_store,
-        effects,
-        execution_result,
-        mock_gas_id,
-        transaction.gas_data().clone(),
+    Ok((
+        simulation_result(
+            store,
+            inner_temp_store,
+            effects,
+            execution_result,
+            mock_gas_id,
+            transaction.gas_data().clone(),
+        ),
+        transaction,
     ))
 }
 
@@ -343,6 +346,7 @@ pub(super) fn execute_with_move_authenticators(
     (
         SimulateTransactionResult,
         Result<(), iota_types::error::ExecutionError>,
+        Transaction,
     ),
     VmSdkError,
 > {
@@ -474,6 +478,7 @@ pub(super) fn execute_with_move_authenticators(
             transaction.gas_data().clone(),
         ),
         authenticator_outcome,
+        transaction,
     ))
 }
 

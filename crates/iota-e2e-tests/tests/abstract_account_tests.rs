@@ -1854,6 +1854,12 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
+    // Enable the flag so only the sponsor's MA runs pre-consensus.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(true);
+        config
+    });
+
     // Sender is an AA with ED25519 authentication; sponsor is an AA with
     // free-access authentication.
     let mut test_env = TestEnvironment::new().await;
@@ -1999,6 +2005,12 @@ async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_onl
 -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
+
+    // Enable the flag; it must not affect non-sponsored transactions.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(true);
+        config
+    });
 
     let mut test_env = TestEnvironment::new().await;
     test_env

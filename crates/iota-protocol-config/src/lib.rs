@@ -222,6 +222,11 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             config's verifier limits in post-consensus validation, and set
 //             those limits to the node config's defaults on all chains
 //             (inert where the P-COOL flow is off).
+//             Start publishing package metadata using module metadata as a
+//             dynamic field on mainnet.
+//             Enable the redesigned leader schedule (sliding-window reputation
+//             scoring and absolute-score bad-node selection) in Starfish
+//             consensus on mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3451,6 +3456,25 @@ impl ProtocolConfig {
                     cfg.max_meter_ticks_per_package = Some(2_200_000);
                     cfg.max_meter_ticks_regex_reference_safety = Some(2_200_000);
                     cfg.feature_flags.pcool_verifier_limits_from_protocol_config = true;
+                    // Publish package metadata with the module metadata stored as a
+                    // dynamic field.
+                    cfg.feature_flags
+                        .package_metadata_with_dynamic_module_metadata = true;
+                    // Enable the redesigned leader schedule: sliding-window
+                    // reputation scoring and absolute-score bad-node
+                    // selection.
+                    cfg.feature_flags
+                        .consensus_enable_sliding_window_leader_schedule = true;
+                    cfg.feature_flags
+                        .consensus_enable_absolute_score_leader_schedule = true;
+
+                    // Enable Move-based sponsor account authentication on all
+                    // networks.
+                    cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                    // Run every `MoveAuthenticator` pre-consensus again, not
+                    // just the sponsor's, on all networks.
+                    cfg.feature_flags
+                        .pre_consensus_sponsor_only_move_authentication = false;
                 }
                 // Use this template when making changes:
                 //
