@@ -4,7 +4,7 @@
 use iota_sdk_types::{Address, ObjectReference, TransactionDigest, UserSignature};
 use serde::{Deserialize, Serialize};
 
-use crate::transaction::TransactionEnvelope;
+use crate::{gas_model::gas_vector::GasVector, transaction::TransactionEnvelope};
 
 /// Index of a validator in the current epoch's consensus committee. Kept as a
 /// plain `u8` so `iota-types` does not depend on `starfish-config`, whose
@@ -138,6 +138,23 @@ impl Attestation {
         match self.payload() {
             AttestationData::V1 { .. } => None,
             AttestationData::V2 { write_bytes, .. } => Some(*write_bytes),
+        }
+    }
+
+    /// The full attested gas vector (V2 only).
+    pub fn declared_gas_vector(&self) -> Option<GasVector> {
+        match self.payload() {
+            AttestationData::V1 { .. } => None,
+            AttestationData::V2 {
+                cpu_time,
+                moved_bytes,
+                write_bytes,
+                ..
+            } => Some(GasVector {
+                cpu_time: *cpu_time,
+                moved_bytes: *moved_bytes,
+                write_bytes: *write_bytes,
+            }),
         }
     }
 
