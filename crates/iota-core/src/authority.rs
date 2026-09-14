@@ -6410,8 +6410,8 @@ impl NodeStateDump {
                 }
                 InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::MutateDeleted(..)
-                | InputSharedObject::Canceled(..) => (), // TODO: consider record congested
-                // objects.
+                // TODO: consider record congested objects.
+                | InputSharedObject::Canceled(..) => (),
                 _ => unimplemented!(
                     "a new InputSharedObject enum variant was added and needs to be handled"
                 ),

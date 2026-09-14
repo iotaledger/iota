@@ -154,12 +154,8 @@ impl RWLockDependencyBuilder {
                         .entry(*effect.transaction_digest())
                         .or_default()
                         .push(ObjectKey(*object.object_id(), object.version())),
-                    // TODO: confirm that
-                    // consensus_commit_prologue is
-                    // always at the beginning of the
-                    // checkpoint, so that cancelled txn
-                    // don't need to worry about
-                    // dependency.
+                    // TODO: confirm that consensus_commit_prologue is always at the beginning of
+                    // the checkpoint, so that cancelled txn don't need to worry about dependency.
                     InputSharedObject::Canceled(..) => (),
                     _ => unimplemented!(
                         "a new InputSharedObject enum variant was added and needs to be handled"
