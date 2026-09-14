@@ -6,28 +6,28 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
+use iota_grpc_client::Client as GrpcClient;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClient,
     rpc_types::{
-        DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaData,
-        IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
-        IotaObjectResponse, IotaObjectResponseQuery, IotaProtocolConfigValue,
+        DevInspectArgs, DevInspectResults, IotaData, IotaExecutionStatus, IotaObjectData,
+        IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
         IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, ObjectChange,
     },
     wallet_context::WalletContext,
 };
+use iota_sdk_transaction_builder::{Receiving, SharedMut, TransactionBuilder};
 use iota_sdk_types::{
     Address, Identifier, MultisigAggregatedSignature, MultisigCommittee, ObjectId, ObjectReference,
-    Owner, ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionKind,
+    Owner, SharedObjectReference, StructTag, Transaction, TransactionKind,
     crypto::{Intent, UserSignature},
 };
 use iota_types::{
     crypto::PublicKey,
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, InputObjectKind, TransactionAPI, TransactionEnvelope, TransactionKindExt,
-    },
+    transaction::{CallArg, InputObjectKind, TransactionEnvelope, TransactionKindExt},
 };
 
 use crate::{
@@ -281,19 +281,12 @@ impl Client {
     pub(crate) async fn new_shared_game(&mut self, opponent: Address) -> Result<ObjectId> {
         let player = self.wallet.active_address()?;
 
-        let mut builder = ProgrammableTransactionBuilder::new();
-        let x = builder.pure(player)?;
-        let o = builder.pure(opponent)?;
+        let mut builder = self.tx_builder(player).await?;
+        builder
+            .move_call(self.package, "shared", "new")
+            .arguments((player, opponent));
 
-        builder.programmable_move_call(
-            self.package,
-            Identifier::from_static("shared"),
-            Identifier::from_static("new"),
-            vec![],
-            vec![x, o],
-        );
-
-        let tx = self.build_tx_data(player, builder.finish()).await?;
+        let tx = self.build_tx_data(player, builder).await?;
         self.execute_for_game(tx).await
     }
 
@@ -318,22 +311,14 @@ impl Client {
         let admin_bytes =
             bcs::to_bytes(&admin_key).context("INTERNAL ERROR: Failed to encode admin key.")?;
 
-        let mut builder = ProgrammableTransactionBuilder::new();
-        let x = builder.pure(player)?;
-        let o = builder.pure(opponent)?;
-        let a = builder.pure(admin_bytes)?;
+        let mut builder = self.tx_builder(player).await?;
+        let game = builder
+            .move_call(self.package, "owned", "new")
+            .arguments((player, opponent, admin_bytes))
+            .result();
+        builder.transfer_objects(admin, [game]);
 
-        let game = builder.programmable_move_call(
-            self.package,
-            Identifier::from_static("owned"),
-            Identifier::from_static("new"),
-            vec![],
-            vec![x, o, a],
-        );
-
-        builder.transfer_arg(admin, game);
-
-        let tx = self.build_tx_data(player, builder.finish()).await?;
+        let tx = self.build_tx_data(player, builder).await?;
         self.execute_for_game(tx).await
     }
 
@@ -342,27 +327,16 @@ impl Client {
     pub async fn delete_shared_game(&mut self, game: &game::Shared, owner: Owner) -> Result<()> {
         let player = self.wallet.active_address()?;
 
-        let Owner::Shared(initial_shared_version) = owner else {
+        let Owner::Shared(_) = owner else {
             bail!("Game is not shared");
         };
 
-        let mut builder = ProgrammableTransactionBuilder::new();
+        let mut builder = self.tx_builder(player).await?;
+        builder
+            .move_call(self.package, "shared", "burn")
+            .arguments([SharedMut(game.board.id)]);
 
-        let g = builder.obj(CallArg::Shared(SharedObjectReference::new(
-            game.board.id,
-            initial_shared_version,
-            true,
-        )))?;
-
-        builder.programmable_move_call(
-            self.package,
-            Identifier::from_static("shared"),
-            Identifier::from_static("burn"),
-            vec![],
-            vec![g],
-        );
-
-        let data = self.build_tx_data(player, builder.finish()).await?;
+        let data = self.build_tx_data(player, builder).await?;
         let tx = self.wallet.sign_transaction(&data);
         self.execute_transaction(tx).await?;
         Ok(())
@@ -378,24 +352,17 @@ impl Client {
     ) -> Result<()> {
         let player = self.wallet.active_address()?;
 
-        let mut builder = ProgrammableTransactionBuilder::new();
-
-        let g = builder.obj(CallArg::ImmutableOrOwned(game_ref))?;
-
-        builder.programmable_move_call(
-            self.package,
-            Identifier::from_static("owned"),
-            Identifier::from_static("burn"),
-            vec![],
-            vec![g],
-        );
-
         let admin_key: MultisigCommittee =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
         let admin = Address::from(&admin_key);
 
+        let mut builder = self.tx_builder(admin).await?;
+        builder
+            .move_call(self.package, "owned", "burn")
+            .arguments([game_ref]);
+
         let data = self
-            .build_tx_data_with_sponsor(admin, Some(player), builder.finish())
+            .build_tx_data_with_sponsor(admin, Some(player), builder)
             .await?;
 
         let tx = self
@@ -419,30 +386,16 @@ impl Client {
     ) -> Result<()> {
         let player = self.wallet.active_address()?;
 
-        let Owner::Shared(initial_shared_version) = owner else {
+        let Owner::Shared(_) = owner else {
             bail!("Game is not shared");
         };
 
-        let mut builder = ProgrammableTransactionBuilder::new();
+        let mut builder = self.tx_builder(player).await?;
+        builder
+            .move_call(self.package, "shared", "place_mark")
+            .arguments((SharedMut(game.board.id), row, col));
 
-        let g = builder.obj(CallArg::Shared(SharedObjectReference::new(
-            game.board.id,
-            initial_shared_version,
-            true,
-        )))?;
-
-        let r = builder.pure(row)?;
-        let c = builder.pure(col)?;
-
-        builder.programmable_move_call(
-            self.package,
-            Identifier::from_static("shared"),
-            Identifier::from_static("place_mark"),
-            vec![],
-            vec![g, r, c],
-        );
-
-        let data = self.build_tx_data(player, builder.finish()).await?;
+        let data = self.build_tx_data(player, builder).await?;
         let tx = self.wallet.sign_transaction(&data);
         self.execute_transaction(tx).await?;
         Ok(())
@@ -463,21 +416,12 @@ impl Client {
         let player = self.wallet.active_address()?;
 
         // First transaction sends the mark to the game.
-        let mut builder = ProgrammableTransactionBuilder::new();
+        let mut builder = self.tx_builder(player).await?;
+        builder
+            .move_call(self.package, "owned", "send_mark")
+            .arguments((cap_ref, row, col));
 
-        let t = builder.obj(CallArg::ImmutableOrOwned(cap_ref))?;
-        let r = builder.pure(row)?;
-        let c = builder.pure(col)?;
-
-        builder.programmable_move_call(
-            self.package,
-            Identifier::from_static("owned"),
-            Identifier::from_static("send_mark"),
-            vec![],
-            vec![t, r, c],
-        );
-
-        let data = self.build_tx_data(player, builder.finish()).await?;
+        let data = self.build_tx_data(player, builder).await?;
         let tx = self.wallet.sign_transaction(&data);
         let IotaTransactionBlockResponse {
             object_changes: Some(object_changes),
@@ -517,25 +461,17 @@ impl Client {
 
         // Second transaction applies the mark to the game, and needs to be run as the
         // admin.
-        let mut builder = ProgrammableTransactionBuilder::new();
-
-        let g = builder.obj(CallArg::ImmutableOrOwned(game_ref))?;
-        let m = builder.obj(CallArg::Receiving(mark))?;
-
-        builder.programmable_move_call(
-            self.package,
-            Identifier::from_static("owned"),
-            Identifier::from_static("place_mark"),
-            vec![],
-            vec![g, m],
-        );
-
         let admin_key: MultisigCommittee =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
         let admin = Address::from(&admin_key);
 
+        let mut builder = self.tx_builder(admin).await?;
+        builder
+            .move_call(self.package, "owned", "place_mark")
+            .arguments((game_ref, Receiving(mark)));
+
         let data = self
-            .build_tx_data_with_sponsor(admin, Some(player), builder.finish())
+            .build_tx_data_with_sponsor(admin, Some(player), builder)
             .await?;
 
         let tx = self
@@ -588,17 +524,27 @@ impl Client {
         Ok(game_id)
     }
 
+    /// A transaction builder for `sender`, backed by the wallet's gRPC client.
+    async fn tx_builder(&self, sender: Address) -> Result<TransactionBuilder<GrpcClient>> {
+        let client = self
+            .wallet
+            .get_grpc_client()
+            .await
+            .context("Error fetching gRPC client")?;
+        Ok(TransactionBuilder::new(sender).with_client(client))
+    }
+
     /// Like `build_tx_data_with_sponsor`, but without a sponsor.
     async fn build_tx_data(
         &self,
         sender: Address,
-        tx: ProgrammableTransaction,
+        builder: TransactionBuilder<GrpcClient>,
     ) -> Result<Transaction> {
-        self.build_tx_data_with_sponsor(sender, None, tx).await
+        self.build_tx_data_with_sponsor(sender, None, builder).await
     }
 
     /// Do gas estimation and coin selection to create a `Transaction` from
-    /// a `ProgrammableTransaction`. If `sponsor` is provided, it will be
+    /// the commands in `builder`. If `sponsor` is provided, it will be
     /// used as the gas sponsor, and coin selection will fetch coins owned
     /// by this address, otherwise coins will be selected from the `sender`'
     /// s owned objects.
@@ -606,40 +552,25 @@ impl Client {
         &self,
         sender: Address,
         sponsor: Option<Address>,
-        tx: ProgrammableTransaction,
+        mut builder: TransactionBuilder<GrpcClient>,
     ) -> Result<Transaction> {
-        let client = self.client().await?;
-
-        let max_budget = self.max_gas_budget().await?;
-
         let gas_price = self
             .wallet
             .get_reference_gas_price()
             .await
             .context("Error fetching reference gas price")?;
 
-        let tx_kind = TransactionKind::Programmable(tx);
-
-        // Gas Estimation
-        let tx_data = client
-            .transaction_builder()
-            .tx_data_for_dry_run(
-                sender,
-                tx_kind.clone(),
-                max_budget,
-                gas_price,
-                // gas_payment
-                None,
-                // gas_sponsor
-                None,
-            )
-            .await;
-
-        let DryRunTransactionBlockResponse { effects, .. } = client
-            .read_api()
-            .dry_run_transaction_block(tx_data.clone())
+        // Gas estimation, by dry running the transaction without a gas payment.
+        let simulated = builder
+            .clone()
+            .dry_run(true)
             .await
             .context("Error estimating gas budget")?;
+        let effects = simulated
+            .executed_transaction()?
+            .effects()?
+            .effects()
+            .context("Error reading the dry run's effects")?;
 
         let gas_used = effects.gas_cost_summary();
         let overhead = 1000 * gas_price;
@@ -648,31 +579,20 @@ impl Client {
 
         let budget = overhead + (net_used.max(0) as u64).max(computation);
 
+        let tx_kind = builder.clone().finish_kind().await?;
         let gas_coin = self
             .select_coins(sponsor.unwrap_or(sender), budget, &tx_kind)
             .await?;
 
-        let payment = vec![gas_coin];
-        Ok(if let Some(sponsor) = sponsor {
-            Transaction::new_with_gas_coins_allow_sponsor(
-                tx_kind, sender, payment, budget, gas_price, sponsor,
-            )
-        } else {
-            Transaction::new_with_gas_coins(tx_kind, sender, payment, budget, gas_price)
-        })
-    }
+        if let Some(sponsor) = sponsor {
+            builder.sponsor(sponsor);
+        }
+        builder
+            .gas_refs([gas_coin])
+            .gas_budget(budget)
+            .gas_price(gas_price);
 
-    /// Find the max budget allowed for a transaction according to the current
-    /// protocol config.
-    async fn max_gas_budget(&self) -> Result<u64> {
-        let client = self.client().await?;
-
-        let cfg = client.read_api().get_protocol_config(None).await?;
-        let Some(Some(IotaProtocolConfigValue::U64(max))) = cfg.attributes.get("max_tx_gas") else {
-            bail!("Couldn't find max gas budget");
-        };
-
-        Ok(*max)
+        Ok(builder.finish().await?)
     }
 
     /// Select Gas coins owned by `owner` to meet `balance`, avoiding input

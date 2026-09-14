@@ -47,6 +47,7 @@ typed-store.workspace = true
 
 [dev-dependencies]
 iota-common.workspace = true
+iota-sdk-transaction-builder.workspace = true
 test-cluster.workspace = true
 
 [[bin]]

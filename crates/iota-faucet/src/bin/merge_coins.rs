@@ -6,14 +6,14 @@ use std::{str::FromStr, time::Duration};
 
 use iota_config::{IOTA_CLIENT_CONFIG, iota_config_dir};
 use iota_faucet::FaucetError;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{ObjectId, crypto::Intent};
-use iota_types::{
-    gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionEnvelope,
+use iota_sdk_types::{
+    Address, ObjectId, SignedTransaction, StructTag, Transaction, TransactionEffects,
+    crypto::Intent,
 };
+use iota_types::{gas_coin::GasCoin, transaction::TransactionEnvelope};
 use tracing::info;
 
 #[tokio::main]
@@ -49,29 +49,19 @@ async fn _split_coins_equally(
     let active_address = wallet
         .active_address()
         .map_err(|err| FaucetError::Wallet(err.to_string()))?;
-    let client = wallet.get_client().await?;
+    let client = wallet.get_grpc_client().await?;
     let coin_object_id = ObjectId::from_str(gas_coin).unwrap();
-    let tx_data = client
-        .transaction_builder()
-        .split_coin_equal(active_address, coin_object_id, count, None, 50000000000)
-        .await?;
 
-    let signature = wallet
-        .config()
-        .keystore()
-        .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
-        .unwrap();
-    let tx = TransactionEnvelope::from_data(tx_data, vec![signature]);
-    let resp = client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            tx.clone(),
-            IotaTransactionBlockResponseOptions::new().with_effects(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
+    let mut builder = client.transaction_builder(active_address);
+    let count = builder.pure(count);
+    builder
+        .move_call(ObjectId::FRAMEWORK, "pay", "divide_and_keep")
+        .type_tags([StructTag::new_gas().into()])
+        .arguments((coin_object_id, count));
+    let tx = builder.finish_with_budget(50000000000).await?;
 
-    println!("{resp:?}");
+    let effects = _sign_and_execute(&client, &wallet, active_address, tx).await?;
+    println!("{effects:?}");
     Ok(())
 }
 
@@ -79,7 +69,7 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
     let active_address = wallet
         .active_address()
         .map_err(|err| FaucetError::Wallet(err.to_string()))?;
-    let client = wallet.get_client().await?;
+    let client = wallet.get_grpc_client().await?;
     // Pick a gas coin here that isn't in use by the faucet otherwise there will be
     // some contention.
     let small_coins = wallet
@@ -104,29 +94,34 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
 
         // prepend big gas coin instance to vector
         coin_vector.insert(0, ObjectId::from_str(gas_coin).unwrap());
-        let target = vec![active_address];
-        let target_amount = vec![total_balance];
 
-        let tx_data = client
-            .transaction_builder()
-            .pay_iota(active_address, coin_vector, target, target_amount, 1000000)
-            .await?;
-        let signature = wallet
-            .config()
-            .keystore()
-            .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
-            .unwrap();
-        let tx = TransactionEnvelope::from_data(tx_data, vec![signature]);
-        client
-            .quorum_driver_api()
-            .execute_transaction_block(
-                tx.clone(),
-                IotaTransactionBlockResponseOptions::new().with_effects(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
-            .await?;
+        let mut builder = client.transaction_builder(active_address);
+        builder.pay(coin_vector, [(active_address, total_balance)]);
+        let tx = builder.finish_with_budget(1000000).await?;
+
+        _sign_and_execute(&client, &wallet, active_address, tx).await?;
     }
     Ok(())
+}
+
+async fn _sign_and_execute(
+    client: &GrpcClient,
+    wallet: &WalletContext,
+    signer: Address,
+    tx: Transaction,
+) -> Result<TransactionEffects, anyhow::Error> {
+    let signature =
+        wallet
+            .config()
+            .keystore()
+            .sign_secure(&signer, &tx, Intent::iota_transaction())?;
+    let signed_tx: SignedTransaction = TransactionEnvelope::from_data(tx, vec![signature]).into();
+    let executed = client
+        .execute_transaction(signed_tx, None, [TransactionField::EFFECTS_BCS])
+        .await?
+        .into_parts()
+        .0;
+    Ok(executed.effects()?.effects()?)
 }
 
 pub fn create_wallet_context(timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {
