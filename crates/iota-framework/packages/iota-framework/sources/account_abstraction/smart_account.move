@@ -36,6 +36,7 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
 use iota::claim;
 use iota::dynamic_field;
+use iota::event;
 use iota::public_key::PublicKey;
 
 // === Errors ===
@@ -43,6 +44,15 @@ use iota::public_key::PublicKey;
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
+
+// === Events ===
+
+/// Event emitted when a `SmartAccount` is claimed.
+public struct SmartAccountClaimed has copy, drop {
+    account_id: ID,
+    public_key: PublicKey,
+    immutable: bool,
+}
 
 // === Structs ===
 
@@ -340,7 +350,13 @@ public fun rotate_auth_function_ref_v1(
 /// signature scheme has no built-in authenticator.
 #[allow(unused_function)]
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    claim_builder(public_key, ctx).build_v1();
+    let account_address = claim_builder(public_key, ctx).build_v1();
+    let event = SmartAccountClaimed {
+        account_id: account_address.to_id(),
+        public_key,
+        immutable: false,
+    };
+    event::emit(event);
 }
 
 /// Claims the sender's address and creates an immutable `SmartAccount` at it,
@@ -355,7 +371,13 @@ fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
 /// signature scheme has no built-in authenticator.
 #[allow(unused_function)]
 fun claim_immutable_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    claim_builder(public_key, ctx).build_immutable_v1();
+    let account_address = claim_builder(public_key, ctx).build_immutable_v1();
+    let event = SmartAccountClaimed {
+        account_id: account_address.to_id(),
+        public_key,
+        immutable: true,
+    };
+    event::emit(event);
 }
 
 /// Creates a `SmartAccountBuilder` whose account ID is the claimed sender
