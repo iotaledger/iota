@@ -1887,9 +1887,9 @@ async fn run_account_for_benchmarks(
     let bench_refs: Vec<ObjectReference> = bench_effects
         .all_changed_objects()
         .into_iter()
-        .filter_map(|(created, kind)| {
-            (matches!(kind, WriteKind::Create) && matches!(created.owner(), Owner::Immutable))
-                .then_some(*created.reference())
+        .filter_map(|(obj_ref, kind)| {
+            (matches!(kind, WriteKind::Create) && matches!(obj_ref.owner(), Owner::Immutable))
+                .then_some(*obj_ref.reference())
         })
         .collect();
     assert_eq!(
