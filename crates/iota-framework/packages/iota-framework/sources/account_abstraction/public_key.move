@@ -24,7 +24,9 @@
 /// point; bytes of the correct length but off the curve are accepted at construction time.
 module iota::public_key;
 
+use iota::address as iota_address;
 use iota::bcs;
+use iota::hash;
 use iota::signature_scheme::{Self, SignatureScheme};
 
 // === Errors ===
@@ -80,6 +82,21 @@ public struct PublicKey has copy, drop, store {
 
 // === Public Functions ===
 
+/// Constructs a `PublicKey` from a `scheme`-prefixed byte vector.
+///
+/// The first byte of `prefixed_bytes` is the scheme flag; the remaining bytes are the raw
+/// key material. Byte lengths after stripping the flag:
+/// 32 bytes for Ed25519, 33 bytes (compressed) for Secp256k1 / Secp256r1 / Passkey,
+/// BCS-encoded `MultiSigPublicKey` for MultiSig (1–10 signers, threshold > 0, total weight ≥ threshold).
+///
+/// Aborts if `prefixed_bytes` is empty, if the flag byte is not a recognized scheme, if the
+/// remaining byte length does not match the scheme, or if a MultiSig payload fails structural validation.
+public fun from_prefixed_bytes(mut prefixed_bytes: vector<u8>): PublicKey {
+    assert!(!prefixed_bytes.is_empty(), EPublicKeyBytesEmpty);
+    let flag = prefixed_bytes.remove(0);
+    create(signature_scheme::from_flag(flag), prefixed_bytes)
+}
+
 /// Constructs a `PublicKey` from an explicit `scheme` and raw key `raw_bytes`.
 ///
 /// `raw_bytes` must be the raw key material **without** the scheme flag prefix:
@@ -113,11 +130,69 @@ public fun raw_bytes(self: &PublicKey): &vector<u8> {
     &self.raw_bytes
 }
 
+/// Derives the IOTA address for this public key, mirroring Rust `IotaAddress::from(&PublicKey)`:
+///   Ed25519:   Blake2b256(pubkey)
+///   Secp256k1: Blake2b256([0x01] || pubkey)
+///   Secp256r1: Blake2b256([0x02] || pubkey)
+///   MultiSig:  Blake2b256([0x03] || threshold_le16 || (scheme_flag || pk || weight_u8)*)
+///   Passkey:   Blake2b256([0x06] || pubkey)
+public fun to_iota_address(self: &PublicKey): address {
+    let scheme = self.scheme;
+    let raw = self.raw_bytes;
+    let data = if (scheme == signature_scheme::ed25519()) {
+        raw
+    } else if (scheme == signature_scheme::multisig()) {
+        multisig_to_hash_input(raw)
+    } else {
+        let mut v = vector[scheme.flag()];
+        v.append(raw);
+        v
+    };
+    iota_address::from_bytes(hash::blake2b256(&data))
+}
+
 // === Admin Functions ===
 
 // === Package Functions ===
 
 // === Private Functions ===
+
+/// Creates the bytes used to derive an address from a multisig PublicKey. A MultiSig address
+/// is defined as the 32-byte Blake2b hash of serializing the flag, the
+/// threshold, concatenation of all n flag, public keys and
+/// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
+/// || ... || flag_n || pk_n || weight_n`.
+fun multisig_to_hash_input(mut raw_bytes: vector<u8>): vector<u8> {
+    let threshold_high = raw_bytes.pop_back();
+    let threshold_low = raw_bytes.pop_back();
+    let mut bcs = bcs::new(raw_bytes);
+    let num_signers = bcs.peel_vec_length();
+    // multisig_flag_u8 || threshold_le16 || (pk_flag_u8 || pk_bytes || weight_u8)*
+    let mut data = vector[signature_scheme::multisig().flag(), threshold_low, threshold_high];
+    num_signers.do!(|_| {
+        let tag = bcs.peel_enum_tag();
+        let (key_len, scheme_flag) = if (tag == MULTISIG_KEY_TAG_ED25519) (
+            ED25519_PUBLIC_KEY_LENGTH,
+            signature_scheme::ed25519().flag(),
+        ) else if (tag == MULTISIG_KEY_TAG_SECP256K1) (
+            SECP256_PUBLIC_KEY_LENGTH,
+            signature_scheme::secp256k1().flag(),
+        ) else if (tag == MULTISIG_KEY_TAG_SECP256R1) (
+            SECP256_PUBLIC_KEY_LENGTH,
+            signature_scheme::secp256r1().flag(),
+        ) else if (tag == MULTISIG_KEY_TAG_PASSKEY) (
+            SECP256_PUBLIC_KEY_LENGTH,
+            signature_scheme::passkey().flag(),
+        ) else abort EUnknownPublicKeyScheme;
+        // pk_flag_u8 || pk_bytes || weight_u8
+        data.push_back(scheme_flag);
+        key_len.do!(|_| {
+            data.push_back(bcs.peel_u8());
+        });
+        data.push_back(bcs.peel_u8());
+    });
+    data
+}
 
 fun validate_public_key(scheme: SignatureScheme, raw_bytes: &vector<u8>) {
     let len = raw_bytes.length();
@@ -181,3 +256,8 @@ fun validate_multisig_public_key(raw_bytes: &vector<u8>) {
 }
 
 // === Test Functions ===
+
+#[test_only]
+public fun derive_address_for_testing(prefixed_bytes: &vector<u8>): address {
+    from_prefixed_bytes(*prefixed_bytes).to_iota_address()
+}

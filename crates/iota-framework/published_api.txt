@@ -2461,11 +2461,17 @@ multisig
 passkey
 	public fun
 	0x2::signature_scheme
+from_flag
+	public fun
+	0x2::signature_scheme
 flag
 	public fun
 	0x2::signature_scheme
 PublicKey
 	public struct
+	0x2::public_key
+from_prefixed_bytes
+	public fun
 	0x2::public_key
 create
 	public fun
@@ -2475,6 +2481,12 @@ scheme
 	0x2::public_key
 raw_bytes
 	public fun
+	0x2::public_key
+to_iota_address
+	public fun
+	0x2::public_key
+multisig_to_hash_input
+	fun
 	0x2::public_key
 validate_public_key
 	fun
