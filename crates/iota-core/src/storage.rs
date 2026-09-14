@@ -610,13 +610,12 @@ impl GrpcStateReader for GrpcReadStore {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        Ok(self
-            .state
-            .get_object_cache_reader()
-            .try_get_highest_pruned_checkpoint()
-            .map_err(StorageError::custom)?
-            .map(|cp| cp + 1)
-            .unwrap_or(0))
+        self.rocks
+            .checkpoint_store
+            .lowest_checkpoint_with_retained_objects(
+                self.state.get_historic_objects().earliest_bucket_epoch(),
+            )
+            .map_err(StorageError::custom)
     }
 
     fn get_chain_identifier(&self) -> Result<iota_types::digests::ChainIdentifier> {

@@ -940,6 +940,41 @@ async fn test_commit_relocates_superseded_versions() {
     .await;
 }
 
+/// Committing a transaction that deletes or wraps an object records a
+/// tombstone head for each, in the bucket of the epoch that committed the
+/// transaction, alongside the relocation
+/// `test_commit_relocates_superseded_versions` checks. Both joining the same
+/// `DBBatch` as the relocation is what lets a later bucket expiry delete a
+/// tombstone only once every version beneath it is gone too.
+#[tokio::test]
+async fn test_commit_writes_tombstone_heads() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        let deleted = Object::immutable_with_id_for_testing(ObjectId::random());
+        let wrapped = Object::immutable_with_id_for_testing(ObjectId::random());
+        let deleted_key = ObjectKey(deleted.id(), deleted.version());
+        let wrapped_key = ObjectKey(wrapped.id(), wrapped.version());
+
+        let mut outputs = Scenario::new_outputs();
+        outputs.deleted = vec![deleted_key];
+        outputs.wrapped = vec![wrapped_key];
+        let digest = *outputs.transaction.digest();
+        s.cache().write_transaction_outputs(1, Arc::new(outputs));
+        s.commit(digest).await;
+
+        let bucket = s.store.get_historic_objects().ensure(1).unwrap();
+        assert!(
+            bucket.tombstones.get(&deleted_key).unwrap().is_some(),
+            "a deleted object's tombstone head must be recorded in the committing epoch's bucket"
+        );
+        assert!(
+            bucket.tombstones.get(&wrapped_key).unwrap().is_some(),
+            "a wrapped object's tombstone head must be recorded in the committing epoch's bucket"
+        );
+    })
+    .await;
+}
+
 #[tokio::test]
 #[should_panic(expected = "should be empty due to revert_state_update")]
 async fn test_missing_reverts_panic() {
