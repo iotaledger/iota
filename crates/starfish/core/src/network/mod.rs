@@ -56,9 +56,7 @@ pub(crate) mod tonic_network;
 pub mod tonic_network;
 mod tonic_tls;
 
-use crate::{
-    commit_syncer::CommitSyncType, encoder::ShardEncoder, transaction_ref::TransactionRef,
-};
+use crate::{commit_syncer::CommitSyncType, transaction_ref::TransactionRef};
 
 /// Controls transaction fetching truncation behavior for different sync modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -185,7 +183,6 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         last_streamed_block: &mut StreamPosition,
     ) -> ConsensusResult<()>;
 
