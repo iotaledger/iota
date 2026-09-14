@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     str::FromStr,
     time::{Duration, SystemTime},
 };
 
-use iota_indexer::errors::IndexerError;
+use iota_indexer::{config::RetentionConfig, errors::IndexerError, pruning::pruner::PrunableTable};
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
@@ -70,7 +71,13 @@ fn query_events_no_events_descending() {
             .await
             .unwrap();
 
-        assert_eq!(indexer_events, EventPage::empty())
+        assert_eq!(
+            indexer_events,
+            EventPage {
+                oldest_available_checkpoint: Some(0u64.into()),
+                ..EventPage::empty()
+            }
+        )
     });
 }
 
@@ -101,7 +108,126 @@ fn query_events_no_events_ascending() {
             .await
             .unwrap();
 
-        assert_eq!(indexer_events, EventPage::empty())
+        assert_eq!(
+            indexer_events,
+            EventPage {
+                oldest_available_checkpoint: Some(0u64.into()),
+                ..EventPage::empty()
+            }
+        )
+    });
+}
+
+/// Returns the `oldest_available_checkpoint` reported for `filter`.
+async fn events_oldest_available_checkpoint(
+    client: &HttpClient,
+    filter: EventFilter,
+) -> Option<u64> {
+    client
+        .query_events(filter, None, None, None)
+        .await
+        .expect("query_events should succeed")
+        .oldest_available_checkpoint
+        .map(|cp| *cp)
+}
+
+/// Polls `iotax_queryEvents` with `filter` until the reported
+/// `oldest_available_checkpoint` satisfies `predicate`, and returns it.
+///
+/// The reader refreshes its watermarks from the database periodically, so the
+/// checkpoint it reports trails the pruner by up to one refresh interval.
+async fn wait_for_events_oldest_available_checkpoint(
+    client: &HttpClient,
+    filter: EventFilter,
+    predicate: impl Fn(Option<u64>) -> bool,
+) -> Option<u64> {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let oldest = events_oldest_available_checkpoint(client, filter.clone()).await;
+            if predicate(oldest) {
+                return oldest;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for the reported oldest available checkpoint")
+}
+
+#[test]
+fn query_events_reports_oldest_available_checkpoint() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        // Only `tx_senders` is pruned; every other table, `events` included, is
+        // retained. A sender-filtered query reads `tx_senders` while a
+        // package-filtered one does not, so they report different checkpoints.
+        let overrides = HashMap::from([(PrunableTable::TxSenders, 1)]);
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("test_query_events_reports_oldest_available_checkpoint"),
+            None,
+            Some(RetentionConfig::new(100, overrides)),
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let by_sender = EventFilter::Sender(
+            Address::from_str("0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99")
+                .unwrap(),
+        );
+        let by_package = EventFilter::Package(ObjectId::from_str("0x2").unwrap());
+
+        assert_eq!(
+            wait_for_events_oldest_available_checkpoint(client, by_sender.clone(), |cp| cp
+                .is_some())
+            .await,
+            Some(0)
+        );
+        assert_eq!(
+            events_oldest_available_checkpoint(client, by_package.clone()).await,
+            Some(0)
+        );
+
+        let transactions = client
+            .query_transaction_blocks(
+                IotaTransactionBlockResponseQuery {
+                    filter: None,
+                    options: None,
+                },
+                None,
+                Some(1),
+                None,
+            )
+            .await
+            .unwrap();
+        let tx_digest = transactions
+            .data
+            .first()
+            .expect("the indexer has at least one transaction")
+            .digest;
+        assert_eq!(
+            events_oldest_available_checkpoint(client, EventFilter::Transaction(tx_digest)).await,
+            Some(0)
+        );
+
+        cluster.force_new_epoch().await;
+
+        // Once `tx_senders` is pruned, the sender filter reports a checkpoint
+        // above the genesis one.
+        let oldest =
+            wait_for_events_oldest_available_checkpoint(client, by_sender, |cp| cp > Some(0)).await;
+        assert!(
+            oldest > Some(0),
+            "expected a checkpoint above the pruned genesis one, got {oldest:?}"
+        );
+
+        // The package filter does not read `tx_senders`, so pruning it does not
+        // change what that filter reports.
+        assert_eq!(
+            events_oldest_available_checkpoint(client, by_package).await,
+            Some(0)
+        );
     });
 }
 

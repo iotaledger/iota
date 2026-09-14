@@ -29,6 +29,7 @@ pub use iota_transaction::*;
 use iota_types::{
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
+    iota_serde::BigInt,
 };
 pub use object_changes::*;
 use schemars::JsonSchema;
@@ -69,6 +70,16 @@ pub struct Page<T, C> {
     pub data: Vec<T>,
     pub next_cursor: Option<C>,
     pub has_next_page: bool,
+    /// The oldest checkpoint from which this response is complete.
+    ///
+    /// Data from this checkpoint onwards is included in full. Data from before
+    /// it may be missing, because it has been pruned.
+    ///
+    /// Absent for methods that do not return historical data, and for servers
+    /// that do not report it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub oldest_available_checkpoint: Option<BigInt<u64>>,
 }
 
 impl<T, C> Page<T, C> {
@@ -77,6 +88,7 @@ impl<T, C> Page<T, C> {
             data: vec![],
             next_cursor: None,
             has_next_page: false,
+            oldest_available_checkpoint: None,
         }
     }
 }
