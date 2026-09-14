@@ -141,7 +141,7 @@ pub struct ConsensusHandler<C> {
     /// Marks commits fully executed for the P-COOL deterministic-validation
     /// bookkeeping; `None` unless the feature is enabled. Held only so the
     /// task is aborted with the handler.
-    _execution_watcher: Option<ExecutionWatcher>,
+    execution_watcher: Option<ExecutionWatcher>,
 
     backpressure_subscriber: BackpressureSubscriber,
 }
@@ -198,7 +198,7 @@ impl<C> ConsensusHandler<C> {
                 NonZeroUsize::new(randomize_cache_capacity_in_tests(PROCESSED_CACHE_CAP)).unwrap(),
             ),
             transaction_scheduler,
-            _execution_watcher: execution_watcher,
+            execution_watcher,
             backpressure_subscriber,
         }
     }
