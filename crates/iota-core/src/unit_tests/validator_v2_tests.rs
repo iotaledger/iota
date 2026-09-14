@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 
 use super::ValidatorService;
 use crate::{
-    authority::test_authority_builder::TestAuthorityBuilder,
+    authority::{ExecutionEnv, test_authority_builder::TestAuthorityBuilder},
     authority_server::{ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks},
     checkpoints::CheckpointStore,
     consensus_adapter::{
@@ -216,10 +216,15 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
 }
 
 /// Builds an authority with a transfer to attest, submits it through
-/// `submit_single_tx`, and returns the attested payload captured on its way
-/// to consensus. Protocol overrides must already be installed by the caller
-/// (the returned guard must outlive the submission).
-async fn submit_transfer_and_capture_payload() -> iota_types::attestation::AttestationData {
+/// `submit_single_tx`, and returns the authority, the signed transaction,
+/// and the attested payload captured on its way to consensus. Protocol
+/// overrides must already be installed by the caller (the returned guard
+/// must outlive the submission).
+async fn submit_transfer_and_capture_payload() -> (
+    Arc<crate::authority::AuthorityState>,
+    iota_types::transaction::TransactionEnvelope,
+    iota_types::attestation::AttestationData,
+) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -275,7 +280,7 @@ async fn submit_transfer_and_capture_payload() -> iota_types::attestation::Attes
         &metrics,
         &epoch_store,
         &soft_locks,
-        tx,
+        tx.clone(),
     )
     .await;
     assert!(
@@ -290,7 +295,8 @@ async fn submit_transfer_and_capture_payload() -> iota_types::attestation::Attes
     let ConsensusTransactionKind::UserTransactionV2(attested) = consensus_tx.kind else {
         panic!("expected UserTransactionV2, got {:?}", consensus_tx.kind);
     };
-    attested.attestation.payload().clone()
+    let payload = attested.attestation.payload().clone();
+    (authority_state, tx, payload)
 }
 
 /// A minimal coefficient table that can price a plain transfer: nonzero
@@ -325,7 +331,7 @@ async fn test_attestation_carries_gas_vector_when_table_present() {
         config
     });
 
-    let payload = submit_transfer_and_capture_payload().await;
+    let (_, _, payload) = submit_transfer_and_capture_payload().await;
     let iota_types::attestation::AttestationData::V2 {
         cpu_time,
         moved_bytes,
@@ -367,9 +373,104 @@ async fn test_attestation_stays_v1_without_coefficient_table() {
         config
     });
 
-    let payload = submit_transfer_and_capture_payload().await;
+    let (_, _, payload) = submit_transfer_and_capture_payload().await;
     assert!(
         matches!(payload, iota_types::attestation::AttestationData::V1 { .. }),
         "expected V1 without a coefficient table, got {payload:?}"
+    );
+}
+
+/// Executes `tx` on `authority_state` carrying `payload` as its validator
+/// attestation, then returns the authority's gas-vector comparison counts as
+/// `[match, divergent, unpriceable]`.
+async fn execute_with_attested_payload(
+    authority_state: &Arc<crate::authority::AuthorityState>,
+    tx: iota_types::transaction::TransactionEnvelope,
+    payload: iota_types::attestation::AttestationData,
+) -> [u64; 3] {
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let verified_tx = epoch_store.verify_transaction(tx).unwrap();
+    let executable =
+        iota_types::executable_transaction::VerifiedExecutableTransaction::new_from_checkpoint(
+            verified_tx,
+            epoch_store.epoch(),
+            1,
+        );
+    let attested =
+        crate::execution_scheduler::transaction_manager::VerifiedExecutableAttestedTransaction::new(
+            executable,
+            Some(Attestation::Validator {
+                payload,
+                attestor_index: 0,
+            }),
+        );
+    authority_state
+        .try_execute_immediately(&attested, ExecutionEnv::new(), &epoch_store)
+        .unwrap();
+    ["match", "divergent", "unpriceable"].map(|outcome| {
+        authority_state
+            .metrics
+            .attestation_gas_vector_comparisons
+            .with_label_values(&[outcome])
+            .get()
+    })
+}
+
+/// After execution every validator recomputes the gas vector from the actual
+/// counters and compares it to the attested one. A faithfully
+/// attested transfer recomputes to the identical vector — the real execution
+/// runs the same transaction from the same state the attestor dry-ran — so
+/// the comparison records exactly one match.
+#[tokio::test]
+async fn test_divergence_recomputation_matches_faithful_attestation() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_attestation_gas_vector_for_testing(true);
+        config.set_gas_vector_coefficients_for_testing(transfer_pricing_table());
+        config
+    });
+
+    let (authority_state, tx, payload) = submit_transfer_and_capture_payload().await;
+    let outcomes = execute_with_attested_payload(&authority_state, tx, payload).await;
+    assert_eq!(outcomes, [1, 0, 0], "expected exactly one match outcome");
+}
+
+/// A tampered attestation — the producer's vector with one nanosecond added
+/// to `cpu_time` — cannot survive the recomputation: execution recomputes the
+/// true vector from the actual counters and records a divergence.
+#[tokio::test]
+async fn test_divergence_recomputation_flags_tampered_attestation() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_attestation_gas_vector_for_testing(true);
+        config.set_gas_vector_coefficients_for_testing(transfer_pricing_table());
+        config
+    });
+
+    let (authority_state, tx, payload) = submit_transfer_and_capture_payload().await;
+    let iota_types::attestation::AttestationData::V2 {
+        cpu_time,
+        moved_bytes,
+        write_bytes,
+        object_versions,
+    } = payload
+    else {
+        panic!("expected AttestationData::V2, got {payload:?}");
+    };
+    let tampered = iota_types::attestation::AttestationData::V2 {
+        cpu_time: cpu_time + 1,
+        moved_bytes,
+        write_bytes,
+        object_versions,
+    };
+    let outcomes = execute_with_attested_payload(&authority_state, tx, tampered).await;
+    assert_eq!(
+        outcomes,
+        [0, 1, 0],
+        "expected exactly one divergent outcome"
     );
 }
