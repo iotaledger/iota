@@ -47,7 +47,7 @@ use move_core_types::{
     account_address::AccountAddress, annotated_value as A, identifier::Identifier,
     language_storage::ModuleId,
 };
-use parking_lot::{ArcMutexGuard, Mutex, RwLock};
+use parking_lot::{ArcMutexGuard, Mutex};
 use prometheus_filtered::{
     IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
@@ -61,7 +61,6 @@ use typed_store::{
         DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, TaggedDBMap,
         bulk_ingestion_options, bulk_ingestion_options_split_between, bulk_ingestion_write_options,
         default_db_options, list_tables, open_cf_opts, read_size_from_env, safe_drop_db,
-        synced_write_options,
     },
     rocksdb,
     traits::Map,
@@ -75,6 +74,7 @@ use crate::{
         LiveObjectIndexer, PROGRESS_REPORT_INTERVAL, ParMakeLiveObjectIndexer, eta_display,
         progress_rate,
     },
+    rpc_index_history::{self, EpochBuckets},
 };
 
 type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
@@ -381,18 +381,16 @@ struct HistoryBucket {
 const HISTORY_CF_PREFIX: &str = "hist_e";
 
 pub fn history_cf_name(epoch: EpochId) -> String {
-    format!("{HISTORY_CF_PREFIX}{epoch}")
+    rpc_index_history::bucket_cf_name(HISTORY_CF_PREFIX, epoch)
 }
 
 /// The epoch of a history column family, `None` for other names.
 pub fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
-    cf_name
-        .strip_prefix(HISTORY_CF_PREFIX)
-        .and_then(|epoch| epoch.parse().ok())
+    rpc_index_history::bucket_cf_epoch(HISTORY_CF_PREFIX, cf_name)
 }
 
 impl HistoryBucket {
-    fn reopen(db: &Arc<Database>, epoch: EpochId) -> Result<Self, TypedStoreError> {
+    fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
         // The tags are each table's identity within the shared column
         // family; never change or reuse them for existing data. Per-epoch
         // column families skip the periodic metrics reporter task: with up
@@ -408,21 +406,20 @@ impl HistoryBucket {
         {
             TaggedDBMap::reopen(db, cf_name, tag, &ReadWriteOptions::default(), true)
         }
-        let cf = history_cf_name(epoch);
         Ok(Self {
-            tx_order: map(db, &cf, DB_PREFIX_HISTORIC_TX_ORDER)?,
-            txs_seq: map(db, &cf, DB_PREFIX_HISTORIC_TXS_SEQ)?,
-            txs_from_addr: map(db, &cf, DB_PREFIX_HISTORIC_TXS_FROM_ADDR)?,
-            txs_to_addr: map(db, &cf, DB_PREFIX_HISTORIC_TXS_TO_ADDR)?,
-            txs_by_input_object_id: map(db, &cf, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID)?,
-            txs_by_mutated_object_id: map(db, &cf, DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID)?,
-            txs_by_move_function: map(db, &cf, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION)?,
-            event_order: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_ORDER)?,
-            event_by_move_module: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE)?,
-            event_by_move_event: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT)?,
-            event_by_event_module: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE)?,
-            event_by_sender: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_SENDER)?,
-            event_by_time: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_TIME)?,
+            tx_order: map(db, cf_name, DB_PREFIX_HISTORIC_TX_ORDER)?,
+            txs_seq: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_SEQ)?,
+            txs_from_addr: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_FROM_ADDR)?,
+            txs_to_addr: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_TO_ADDR)?,
+            txs_by_input_object_id: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID)?,
+            txs_by_mutated_object_id: map(db, cf_name, DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID)?,
+            txs_by_move_function: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION)?,
+            event_order: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_ORDER)?,
+            event_by_move_module: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE)?,
+            event_by_move_event: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT)?,
+            event_by_event_module: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE)?,
+            event_by_sender: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_SENDER)?,
+            event_by_time: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_TIME)?,
         })
     }
 
@@ -870,15 +867,8 @@ impl IndexStoreTables {
 pub struct IndexStore {
     next_sequence_number: AtomicU64,
     tables: IndexStoreTables,
-    /// The database holding both the static tables and the per-epoch history
-    /// column families; used to create and drop the latter at runtime.
-    db: Arc<Database>,
-    /// Template options for per-epoch history column families. All clones
-    /// share one block cache through the cloned table factory.
-    history_cf_options: rocksdb::Options,
-    /// The retained history buckets. On-disk column-family names are the
-    /// ground truth; this map mirrors them for reads.
-    history: RwLock<BTreeMap<EpochId, Arc<HistoryBucket>>>,
+    /// The retained history buckets.
+    history: EpochBuckets<HistoryBucket>,
     caches: IndexStoreCaches,
     metrics: Arc<IndexStoreMetrics>,
     max_type_length: u64,
@@ -886,9 +876,6 @@ pub struct IndexStore {
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Stops the startup rebuild and the background history backfill.
     cancelled: Arc<AtomicBool>,
-    /// The earliest retained epoch recorded by the last [`Self::prune`]
-    /// call, mirroring the persisted `earliest_retained_epoch` row.
-    earliest_retained_epoch: AtomicU64,
     /// How many epochs of history the pruner is configured to retain
     /// (`num_epochs_to_retain_for_indexes`); bounds the history backfill so
     /// it does not replay epochs the next prune pass would drop again.
@@ -913,23 +900,6 @@ fn coin_index_table_default_config() -> DBOptions {
             read_size_from_env(ENV_VAR_COIN_INDEX_BLOCK_CACHE_SIZE_MB).unwrap_or(5 * 1024),
         )
         .disable_write_throttling()
-}
-
-/// Options for the per-epoch history column families. Each bucket is
-/// write-once (appended during its epoch or the backfill, then only read)
-/// and queried by bounded range scans plus exact-key digest probes, which
-/// the block-based bloom filters answer from RAM. `set_block_options`
-/// creates the single block cache that every clone of these options shares.
-fn history_cf_options(db_options: &DBOptions) -> rocksdb::Options {
-    db_options
-        .clone()
-        .optimize_for_write_throughput_no_deletion()
-        .set_block_options(
-            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
-                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
-            16 << 10,
-        )
-        .options
 }
 
 /// Extracts one transaction's history-table index inputs.
@@ -1722,7 +1692,7 @@ impl IndexStore {
                     return Err(StorageError::missing(format!("missing checkpoint {next}")));
                 }
             };
-            let earliest_retained = self.earliest_retained_epoch.load(Ordering::Relaxed);
+            let earliest_retained = self.history.earliest_retained();
             if summary.epoch < earliest_retained {
                 info!(
                     "Stopping the JSON-RPC history backfill at checkpoint {next}: epoch {} was \
@@ -1802,11 +1772,7 @@ impl IndexStore {
     /// first checkpoint.
     fn backfill_retention_horizon(&self, current_epoch: EpochId) -> Option<EpochId> {
         let epochs_to_retain = self.epochs_to_retain?;
-        let newest = self
-            .history
-            .read()
-            .last_key_value()
-            .map_or(current_epoch, |(&epoch, _)| epoch);
+        let newest = self.history.newest_epoch().unwrap_or(current_epoch);
         Some(newest.saturating_sub(epochs_to_retain.saturating_sub(1)))
     }
 
@@ -1831,7 +1797,7 @@ impl IndexStore {
             );
             return Ok(true);
         }
-        let earliest_retained = self.earliest_retained_epoch.load(Ordering::Relaxed);
+        let earliest_retained = self.history.earliest_retained();
         if let Some(epoch) = epoch.filter(|&epoch| epoch < earliest_retained) {
             info!(
                 "Stopping the JSON-RPC history backfill at checkpoint {next}: epoch {epoch} was \
@@ -1932,22 +1898,30 @@ impl IndexStore {
     }
 
     fn finish_open(
-        mut opened: OpenedIndexDb,
+        opened: OpenedIndexDb,
         registry: &Registry,
         max_type_length: Option<u64>,
         next_sequence_number_floor: TxSequenceNumber,
         cancelled: Arc<AtomicBool>,
         epochs_to_retain: Option<u64>,
     ) -> Result<Self, TypedStoreError> {
-        // Dropped before the scan below, so a bucket the floor excludes
-        // cannot seed the transaction numbering.
-        let earliest_retained_epoch = Self::drop_pruned_buckets(&mut opened)?;
         let OpenedIndexDb {
             tables,
             db,
             history_cf_options,
             history,
         } = opened;
+        // Assembled before the scan below, so a bucket the retention floor
+        // excludes cannot seed the transaction numbering.
+        let history = EpochBuckets::open(
+            db,
+            "JSON-RPC index history",
+            HISTORY_CF_PREFIX,
+            history_cf_options,
+            tables.earliest_retained_epoch.clone(),
+            history,
+            HistoryBucket::reopen,
+        )?;
         let metrics = IndexStoreMetrics::new(registry);
         let caches = IndexStoreCaches {
             per_coin_type_balance: ShardedLruCache::new(1_000_000, 1000),
@@ -1958,7 +1932,7 @@ impl IndexStore {
         // `create_cf` and its first committed batch), so scan the buckets
         // newest to oldest for the last indexed row.
         let mut next_from_history = None;
-        for bucket in history.values().rev() {
+        for bucket in history.iter(true) {
             if let Some((seq, _)) = bucket
                 .tx_order
                 .safe_range_iter_reversed(..)
@@ -1976,9 +1950,7 @@ impl IndexStore {
 
         Ok(Self {
             tables,
-            db,
-            history_cf_options,
-            history: RwLock::new(history),
+            history,
             next_sequence_number,
             caches,
             metrics: Arc::new(metrics),
@@ -1986,7 +1958,6 @@ impl IndexStore {
             pending_updates: Mutex::new(BTreeMap::new()),
             history_backfill_task: Mutex::new(None),
             cancelled,
-            earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             epochs_to_retain,
         })
     }
@@ -1998,7 +1969,11 @@ impl IndexStore {
     fn open_index_db(path: &Path) -> IotaResult<OpenedIndexDb> {
         let db_options = default_db_options().disable_write_throttling();
         let coin_options = coin_index_table_default_config();
-        let history_cf_options = history_cf_options(&db_options);
+        let history_cf_options = rpc_index_history::history_cf_options(
+            &db_options,
+            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
+                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
+        );
 
         let static_tables = IndexStoreTables::describe_tables();
         // A listing failure on an existing database must not pass for "no
@@ -2062,7 +2037,7 @@ impl IndexStore {
 
         let mut history = BTreeMap::new();
         for epoch in epochs {
-            let bucket = HistoryBucket::reopen(&db, epoch)?;
+            let bucket = HistoryBucket::reopen(&db, &history_cf_name(epoch))?;
             history.insert(epoch, Arc::new(bucket));
         }
 
@@ -2074,44 +2049,12 @@ impl IndexStore {
         })
     }
 
-    /// Drops the history column families below the persisted retention floor
-    /// and returns the floor.
-    ///
-    /// A bucket below the floor is one whose drop failed: RocksDB unregisters
-    /// a column family before dropping it, so the failure survives only on
-    /// disk. It is dropped here rather than served again, and a drop that
-    /// fails again still leaves the epoch out of the history. The floor is
-    /// read here rather than in [`Self::open_index_db`] so that a read error
-    /// fails the open instead of passing for a database to wipe, and so
-    /// verifying a restore can reopen the store without mutating it.
-    fn drop_pruned_buckets(opened: &mut OpenedIndexDb) -> Result<EpochId, TypedStoreError> {
-        let earliest_retained_epoch = opened.tables.earliest_retained_epoch.get(&())?.unwrap_or(0);
-        let pruned: Vec<EpochId> = opened
-            .history
-            .range(..earliest_retained_epoch)
-            .map(|(&epoch, _)| epoch)
-            .collect();
-        for epoch in pruned {
-            info!(epoch, "dropping a pruned history column family at open");
-            opened.history.remove(&epoch);
-            if let Err(e) = opened.db.drop_cf(&history_cf_name(epoch)) {
-                warn!(epoch, "failed to drop a pruned history column family: {e}");
-            }
-        }
-        Ok(earliest_retained_epoch)
-    }
-
     /// The retained history buckets in scan order: ascending epochs for
     /// forward scans, descending for reverse scans. Buckets are disjoint,
     /// epoch-ordered segments of the global sequence order, so chaining
     /// per-bucket scans in this order preserves it.
     fn history_buckets(&self, reverse: bool) -> Vec<Arc<HistoryBucket>> {
-        let history = self.history.read();
-        if reverse {
-            history.values().rev().cloned().collect()
-        } else {
-            history.values().cloned().collect()
-        }
+        self.history.iter(reverse)
     }
 
     /// Maps an `event_order` row to the query result shape.
@@ -2162,153 +2105,36 @@ impl IndexStore {
     }
 
     /// The bucket holding `epoch`'s history, created if absent. Pruned
-    /// epochs are refused: recreating a pruned epoch's column family would
-    /// resurrect it under the same name, and a reader holding the dropped
-    /// bucket would silently read the new, empty one.
+    /// epochs are refused, see [`EpochBuckets::ensure`].
     fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
-        let refuse_pruned = |earliest_retained: EpochId| {
-            if epoch < earliest_retained {
-                return Err(IotaError::Storage(format!(
-                    "the history bucket of epoch {epoch} was pruned: only epochs from \
-                     {earliest_retained} on are retained"
-                )));
-            }
-            Ok(())
-        };
-        refuse_pruned(self.earliest_retained_epoch.load(Ordering::Relaxed))?;
-        if let Some(bucket) = self.history.read().get(&epoch) {
-            return Ok(bucket.clone());
-        }
-        let mut history = self.history.write();
-        if let Some(bucket) = history.get(&epoch) {
-            return Ok(bucket.clone());
-        }
-        // Re-check under the lock `prune` publishes under: the epoch may
-        // have been pruned between the check above and taking the lock, and
-        // recreating its column family would hand stale readers an empty
-        // bucket instead of an error.
-        refuse_pruned(self.earliest_retained_epoch.load(Ordering::Relaxed))?;
-        let cf_name = history_cf_name(epoch);
-        // The column family may already exist if a previous run crashed
-        // between `create_cf` and the first batch write.
-        if self.db.cf_handle(&cf_name).is_none() {
-            self.db
-                .create_cf(&cf_name, &self.history_cf_options)
-                .map_err(|e| IotaError::Storage(e.to_string()))?;
-        }
-        let bucket = Arc::new(HistoryBucket::reopen(&self.db, epoch)?);
-        history.insert(epoch, bucket.clone());
-        Ok(bucket)
+        self.history
+            .ensure(epoch)
+            .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
-    /// Drops the history of expired epochs: with `epochs_to_retain` = N, the
-    /// buckets of the newest N epochs are kept and every older bucket is
-    /// dropped wholesale.
-    ///
-    /// Returns the earliest epoch to retain, `None` when there is no history
-    /// at all. It is persisted before the drops and never moves backwards,
-    /// so dropped epochs are never backfilled or recreated, even across a
-    /// reopen or a raised `epochs_to_retain`. Indexing below it is refused,
-    /// and an epoch whose drop failed is gone from the store all the same:
-    /// RocksDB unregisters the column family before dropping it, so the
-    /// bucket can no longer be read, and the next open drops the column
-    /// family it left on disk instead of serving that epoch again.
+    /// Drops the history of expired epochs, see [`EpochBuckets::prune`]:
+    /// with `epochs_to_retain` = N, the buckets of the newest N epochs are
+    /// kept and every older bucket is dropped wholesale. Returns the
+    /// earliest epoch to retain, `None` when there is no history at all.
     ///
     /// A query racing a drop may report an error for the dropped epoch's
     /// rows; a retry no longer sees the bucket. Queries block for the
     /// duration of the drops, so callers on an async runtime must use
     /// `spawn_blocking`.
     pub fn prune(&self, epochs_to_retain: u64) -> IotaResult<Option<EpochId>> {
-        // Runs once per executed checkpoint, where there is usually nothing
-        // to drop and nothing to persist; that case must not take the write
-        // lock queries block on.
-        {
-            let history = self.history.read();
-            let persisted = self.earliest_retained_epoch.load(Ordering::Relaxed);
-            let Some(earliest_retained) =
-                Self::earliest_epoch_to_retain(&history, epochs_to_retain, persisted)
-            else {
-                return Ok(None);
-            };
-            if earliest_retained == persisted && history.range(..earliest_retained).next().is_none()
-            {
-                return Ok(Some(earliest_retained));
-            }
-        }
-
-        // The drops run under the map's write lock: `ensure_history_bucket`
-        // could otherwise hand out a bucket for an epoch whose column family
-        // is dropped a moment later.
-        let mut history = self.history.write();
-        let persisted = self.earliest_retained_epoch.load(Ordering::Relaxed);
-        let Some(earliest_retained) =
-            Self::earliest_epoch_to_retain(&history, epochs_to_retain, persisted)
-        else {
-            return Ok(None);
-        };
-        if earliest_retained != persisted {
-            // Persisted before dropping anything, so a reopen refuses the
-            // dropped epochs from the start instead of backfilling them
-            // again. Synced, because RocksDB makes a column-family drop
-            // durable at once while a default write may still be lost, which
-            // would leave the floor below an epoch that is already gone.
-            let mut batch = self.tables.earliest_retained_epoch.batch();
-            batch.insert_batch(
-                &self.tables.earliest_retained_epoch,
-                [((), earliest_retained)],
-            )?;
-            batch.write_opt(&synced_write_options())?;
-            self.earliest_retained_epoch
-                .store(earliest_retained, Ordering::Relaxed);
-        }
-        let expired: Vec<EpochId> = history
-            .range(..earliest_retained)
-            .map(|(&e, _)| e)
-            .collect();
-        // One column-family drop per epoch: constant time, no per-row
-        // deletes and no compaction churn.
-        for epoch in expired {
-            info!(
-                epoch,
-                "dropping the JSON-RPC index history of an expired epoch"
-            );
-            if let Err(e) = self.db.drop_cf(&history_cf_name(epoch)) {
-                warn!(
-                    epoch,
-                    "failed to drop an expired history column family: {e}"
-                );
-            }
-            // RocksDB unregisters the column family before it attempts the
-            // drop, so a failed drop leaves a bucket that can neither be read
-            // nor dropped again; keeping it in the map would only break every
-            // query that walks it.
-            history.remove(&epoch);
-        }
-        Ok(Some(earliest_retained))
-    }
-
-    /// The earliest epoch to retain when the newest bucket in `history` is
-    /// kept together with the `epochs_to_retain - 1` buckets below it, never
-    /// below `persisted`. `None` when there is no bucket at all.
-    ///
-    /// Raising `epochs_to_retain` must not move the earliest retained epoch
-    /// back down over epochs whose buckets are already gone: they would be
-    /// backfilled and recreated, contradicting what queries were told.
-    fn earliest_epoch_to_retain(
-        history: &BTreeMap<EpochId, Arc<HistoryBucket>>,
-        epochs_to_retain: u64,
-        persisted: EpochId,
-    ) -> Option<EpochId> {
-        let (&newest, _) = history.last_key_value()?;
-        Some(
-            newest
-                .saturating_sub(epochs_to_retain.saturating_sub(1))
-                .max(persisted),
-        )
+        self.history
+            .prune(epochs_to_retain)
+            .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
     pub fn tables(&self) -> &IndexStoreTables {
         &self.tables
+    }
+
+    /// The underlying database — for tests that simulate on-disk states.
+    #[cfg(test)]
+    fn database_for_testing(&self) -> &Arc<Database> {
+        &self.tables.meta.db
     }
 
     /// Builds and stages the index batch for one executed checkpoint.

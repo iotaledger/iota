@@ -53,7 +53,6 @@ use crate::{
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
     global_state_hasher::GlobalStateHashStore,
-    grpc_indexes::GrpcIndexesStore,
     transaction_outputs::TransactionOutputs,
 };
 
@@ -1600,7 +1599,6 @@ impl AuthorityStore {
     pub async fn prune_objects_and_compact_for_testing(
         &self,
         checkpoint_store: &Arc<CheckpointStore>,
-        grpc_indexes_store: Option<&GrpcIndexesStore>,
     ) {
         let pruning_config = AuthorityStorePruningConfig {
             num_epochs_to_retain: 0,
@@ -1609,7 +1607,6 @@ impl AuthorityStore {
         let _ = AuthorityStorePruner::prune_objects_for_eligible_epochs(
             &self.perpetual_tables,
             checkpoint_store,
-            grpc_indexes_store,
             None,
             pruning_config,
             AuthorityStorePruningMetrics::new_for_test(),
