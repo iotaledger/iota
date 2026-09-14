@@ -62,7 +62,6 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
     .collect()
 });
 pub const EPOCH_DURATION_MS_FOR_TESTING: u64 = 24 * 60 * 60 * 1000;
-pub const MIN_EPOCHS_TO_RETAIN_FOR_INDEXES: u64 = 7;
 
 /// Maximum number of checkpoints whose data is written in a single pruning
 /// `WriteBatch`. Bounds batch memory only; it does not cap total work per run,
