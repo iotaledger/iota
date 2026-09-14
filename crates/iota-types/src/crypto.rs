@@ -155,15 +155,9 @@ pub fn network_pubkey_from_bytes(
 /// Extract the ed25519 private key from a stored [`SimpleKeypair`] for use as
 /// a network keypair. Fails if the key is not ed25519.
 pub fn simple_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, Error> {
-    use iota_sdk_crypto::ToFromBytes as _;
-
-    if kp.scheme() != SignatureScheme::Ed25519 {
-        return Err(anyhow!(
-            "invalid scheme for network keypair: {}",
-            kp.scheme()
-        ));
-    }
-    NetworkKeyPair::from_bytes(&kp.to_bytes()[1..]).map_err(|e| anyhow!(e))
+    kp.as_opt_ed25519()
+        .cloned()
+        .ok_or_else(|| anyhow!("invalid scheme for network keypair: {}", kp.scheme()))
 }
 
 impl From<&SimpleKeypair> for PublicKey {
