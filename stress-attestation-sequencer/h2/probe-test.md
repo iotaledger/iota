@@ -1,14 +1,14 @@
 # H2 calibration — probe results
 
-The probe (`probe.sh`, swept by `probe_sweep.sh`) measures one
-`slow::slow(n, size)` point at a low rate. For each point, it records the
-per-transaction computation units — **attested**, metered during the attestation
-dry-run and the value `TotalComputationUnits` uses for scheduling, and **actual**,
-metered at post-consensus execution — plus the Move VM execution time. The
-workload is the owned-object form of `slow` (W4 in `../stress-plan.md`), so
-attested and actual computation units should be equal, because no state can change
-between the dry-run and execution. *Sizing the `TotalComputationUnits` limit*
-below covers what the numbers are used for; `README.md` has the run plan.
+The probe (`probe.sh`, swept by `probe_sweep.sh`) measures one `slow::slow(n,
+size)` point at a low rate. For each point, it records the per-transaction
+computation units — **attested**, metered during the attestation dry-run and the
+value `TotalComputationUnits` uses for scheduling, and **actual**, metered at
+post-consensus execution — plus the Move VM execution time. The workload is the
+owned-object form of `slow` (W4 in `../stress-plan.md`), so attested and actual
+computation units should be equal, because no state can change between the
+dry-run and execution. *Sizing the `TotalComputationUnits` limit* below covers
+what the numbers are used for; `README.md` has the run plan.
 
 The sweep covers three groups of points, 32 in all, `size` fixed at 100 except
 where noted. A geometric ladder steps the product `n × size` from 100 to 2M.
@@ -16,10 +16,10 @@ Three points hold the product at 40000 while changing how it divides between
 `n` and `size`. The rest are the twelve cost points the mode comparison runs
 (`matrix.sh`), whose `n` were chosen so the attested cost lands on a round
 target — 1,000, 2,000, 5,000 … 5,000,000 — which puts them between the
-ladder's rungs. Each point ran 20 s at 5 QPS, so 100 transactions. The same 32
+ladder's steps. Each point ran 20 s at 5 QPS, so 100 transactions. The same 32
 points ran on two machines:
 
-| machine | CPU | arch | boost | cores |
+| Machine | CPU | Arch | Boost | Cores |
 | --- | --- | --- | --- | --- |
 | EPYC | EPYC 9454P | Zen4 | ≈3.8 GHz | 48 |
 | WS | Ryzen 9 9950X3D | Zen5 | 5.76 GHz | 16 (+3D V-Cache) |
@@ -61,7 +61,7 @@ workload transactions executed on each of the 4 validators.
 
 ### EPYC 9454P
 
-| n | size | product | CU | exec mean (ms) | exec sem (ms) | samples |
+| N | Size | Product | CU | Exec mean (ms) | Exec sem (ms) | Samples |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 100 | 100 | 1,000 | 0.568 | 0.012 | 400 |
 | 2 | 100 | 200 | 1,000 | 0.665 | 0.016 | 400 |
@@ -98,7 +98,7 @@ workload transactions executed on each of the 4 validators.
 
 ### WS Ryzen 9 9950X3D
 
-| n | size | product | CU | exec mean (ms) | exec sem (ms) | samples |
+| N | Size | Product | CU | Exec mean (ms) | Exec sem (ms) | Samples |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 100 | 100 | 1,000 | 0.242 | 0.001 | 400 |
 | 2 | 100 | 200 | 1,000 | 0.274 | 0.002 | 400 |
@@ -153,7 +153,7 @@ where a 23 % larger product costs 2.5× more; growth flattens toward linear
 above product 100,000. At the top it stops: product 700k gives 4,097,000, and
 800k through 2M all give exactly 5,000,000 (`max_gas_computation_bucket`).
 The wide range below the ceiling is what gives the mode comparison distinct
-gas buckets to calibrate against. The execution times agree: across the six
+gas buckets to calibrate against. The execution times match: across the six
 plateau points the WS holds 150-156 ms and the EPYC 312-332 ms, where the
 whole product at 2M would take about 378 ms and 717 ms by the linear trend
 from products 200k-700k, so the VM stopped before finishing the work.
@@ -212,7 +212,7 @@ to the digit across both machines — computation units are protocol-defined gas
 metering, not wall-clock. Execution time, in contrast, is the single-threaded
 Move-VM cost, so it tracks per-core performance:
 
-| product | n×size | CU | EPYC 9454P exec (ms) | RYZEN 9 9950X3D exec (ms) | ratio |
+| Product | N×size | CU | EPYC 9454P exec (ms) | RYZEN 9 9950X3D exec (ms) | Ratio |
 | --- | --- | --- | --- | --- | --- |
 | 100 | 1×100 | 1,000 | 0.568 | 0.242 | 0.43 |
 | 200 | 2×100 | 1,000 | 0.665 | 0.274 | 0.41 |
@@ -276,12 +276,12 @@ The points piled at CU = 5M are the ceiling plateau.*
 So when reading results across machines: computation units transfer exactly, but
 per-transaction execution time does not. The EPYC's strength is core count (48c)
 for parallel throughput, not per-transaction speed — so it lags the high-clock
-desktop on anything that depends on a single transaction's execution, by ≈2.0× at
-the ceiling and up to ≈5.7× in the compute-bound middle of the range.
+desktop on anything that depends on a single transaction's execution, by ≈2.0×
+at the ceiling and up to ≈5.7× in the compute-bound middle of the range.
 
 That is also why `matrix.sh`'s drain column is read off the mode comparison
 rather than from these numbers: a probe measurement at 5 QPS with nothing
-contending does not describe how fast a contended object drains under the
+contending does not describe the drain rate on a contended object under the
 grid's load, and it does not transfer between machines.
 
 ---
@@ -296,13 +296,13 @@ transaction as 1, ignoring cost: a per-object commit admits the same 10 (+100
 burst) transactions whether each costs 1,000 CU or 5,000,000 CU — the same count
 covering a 5,000× difference in real work.
 
-`TotalComputationUnits` limits on attested cost instead of count. The question H2
-answers is which CU limit to give it. Mapping
-today's count limits onto the CU scale means multiplying by the per-transaction
-cost — but the calibration shows that cost spans 1,000 → 5,000,000 CU, so the
-equivalent limit spans the same 5,000×:
+`TotalComputationUnits` limits on attested cost instead of count. The question
+H2 answers is which CU limit to give it. Mapping today's count limits onto the
+CU scale means multiplying by the per-transaction cost — but the calibration
+shows that cost spans 1,000 → 5,000,000 CU, so the equivalent limit spans the
+same 5,000×:
 
-| CU per tx | base limit (×10) | overshoot (×100) |
+| CU per tx | Base limit (×10) | Overshoot (×100) |
 | --- | --- | --- |
 | 1,000 | 10,000 | 100,000 |
 | 2,000 | 20,000 | 200,000 |
@@ -341,16 +341,16 @@ Both ends of that range are unusable:
 So the workable limit sits between, and where exactly depends on the workload
 mix. Choosing and justifying it is the H2 mode comparison, which runs
 `TotalTxCount` (limit 10, burst off) against `TotalComputationUnits` at
-candidate limits from this range and compares throughput, latency and
-per-object cancellation. It uses the shared form of `slow` (W5), one cost per
-config, over the twelve cost points calibrated here — see `README.md` for the
-grid and `matrix.sh` for the configs.
+candidate limits from this range and compares throughput, latency and per-object
+cancellation. It uses the shared form of `slow` (W5), one cost per
+configuration, over the twelve cost points calibrated here — see `README.md` for
+the grid and `matrix.sh` for the configurations.
 
-One cost per config is the control rather than the experiment: at a single cost
-a unit limit of `10 × C` admits the same ten transactions a count limit of 10
-does, so the two modes are expected to agree, and measuring that they do is
-what makes the grid trustworthy. The modes can only diverge when a commit
-carries transactions of *different* cost, which is what the `SLOW_MIX` configs
-add — a count limit then admits a fixed number and lets the admitted work
-swing, while a unit limit admits a fixed amount of work and lets the number
-swing.
+One cost per configuration cannot separate the modes: at a single cost a unit
+limit of `10 × cost` admits the same ten transactions a count limit of 10 does,
+so the two are expected to produce the same numbers, and measuring that they do
+is what makes the grid trustworthy. The modes can only
+diverge when a commit carries transactions of *different* cost, which is what
+the `SLOW_MIX` configurations add — a count limit then admits a fixed number and
+lets the admitted work swing, while a unit limit admits a fixed amount of work
+and lets the number swing.
