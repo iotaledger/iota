@@ -292,6 +292,11 @@ pub struct AuthorityMetrics {
     /// decomposition of computation gas from
     /// `iota_types::gas_model::resource_profile`), one histogram per signal.
     pub(crate) execution_resource_profile: HistogramVec,
+    /// Outcomes of recomputing the gas vector from the actual execution
+    /// counters and comparing it to the attested one (match / divergent /
+    /// unpriceable), labeled by outcome. Divergence is evidence about the
+    /// attestation, never grounds to abort the transaction.
+    pub(crate) attestation_gas_vector_comparisons: IntCounterVec,
 
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
@@ -680,6 +685,13 @@ impl AuthorityMetrics {
                 registry
             )
                 .unwrap(),
+            attestation_gas_vector_comparisons: register_int_counter_vec_with_registry!(
+                "attestation_gas_vector_comparisons",
+                "Outcomes of comparing the attested gas vector against the vector recomputed \
+                from the actual execution counters (match, divergent, unpriceable)",
+                &["outcome"],
+                registry,
+            ).unwrap(),
             execution_gas_latency_ratio: register_histogram_with_registry!(
                 "execution_gas_latency_ratio",
                 "The ratio of computation gas divided by certificate execution latency, include committing certificate.",
@@ -1480,10 +1492,10 @@ impl AuthorityState {
             None
         };
         let payload = match gas_vector {
-            Some((cpu_time, moved_bytes, write_bytes)) => AttestationData::V2 {
-                cpu_time,
-                moved_bytes,
-                write_bytes,
+            Some(vector) => AttestationData::V2 {
+                cpu_time: vector.cpu_time,
+                moved_bytes: vector.moved_bytes,
+                write_bytes: vector.write_bytes,
                 object_versions,
             },
             None => AttestationData::V1 {
@@ -2503,6 +2515,42 @@ impl AuthorityState {
                 .expect("ResourceProfile contains only integers, strings, and maps"),
             "transaction execution wall-clock"
         );
+
+        // Divergence recomputation: recompute the gas vector from the actual
+        // counters with the same function the attestor priced its dry-run
+        // with, and compare. Deterministic — every validator reaches the same
+        // outcome — so anything but a match is a consensus-wide signal about
+        // the attestation (the attestor mispriced, or shared-object state
+        // changed between dry-run and execution; the attested object versions
+        // adjudicate which). Never grounds to abort the transaction —
+        // the comparison observes, it does not enforce. Skipped when the
+        // epoch's config carries no
+        // coefficient table: without it nothing can be recomputed and an
+        // "unpriceable" outcome would say nothing about the attestation.
+        let attested = transaction
+            .attestation()
+            .and_then(|a| a.declared_gas_vector())
+            .filter(|_| protocol_config.gas_vector_coefficients().is_some());
+        if let Some(attested) = attested {
+            let comparison = gas_vector::compare_attested_gas_vector(
+                attested,
+                &resource_profile,
+                protocol_config,
+            );
+            self.metrics
+                .attestation_gas_vector_comparisons
+                .with_label_values(&[comparison.metric_label()])
+                .inc();
+            if comparison != gas_vector::GasVectorComparison::Match {
+                tracing::debug!(
+                    target: "gas_vector_divergence",
+                    ?tx_digest,
+                    ?attested,
+                    ?comparison,
+                    "attested gas vector diverges from the vector recomputed from actual counters"
+                );
+            }
+        }
 
         Ok((inner_temp_store, effects, execution_error_opt.err()))
     }
