@@ -23,7 +23,7 @@ mod test {
     use starfish_config::{
         Authority, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair, ProtocolKeyPair, Stake,
     };
-    use starfish_core::transaction::BlockStatus;
+    use starfish_core::{Priority, transaction::BlockStatus};
     use starfish_simtests::node::{AuthorityNode, Config, RestartMode};
     use tempfile::TempDir;
     use tokio::{sync::RwLock, time::sleep};
@@ -307,7 +307,10 @@ mod test {
                 let client_idx = counter as usize % clients_for_txns.len();
 
                 // Submit transaction and wait for sequencing confirmation
-                match clients_for_txns[client_idx].submit(vec![txn.clone()]).await {
+                match clients_for_txns[client_idx]
+                    .submit(vec![txn.clone()], Priority::Normal)
+                    .await
+                {
                     Ok((_block_ref, status_receiver)) => {
                         // Spawn task to wait for sequencing
                         let submitted_for_txns = submitted_for_txns.clone();
