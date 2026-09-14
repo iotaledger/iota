@@ -71,3 +71,6 @@
 69: AddressOwnedIsInMoveAuthenticatorInput
 70: ObjectOwnedIsInMoveAuthenticatorInput
 71: MutableSharedIsInMoveAuthenticatorInput
+72: UnableToGetAccountPublicKeyId
+73: AccountPublicKeyNotFound
+74: InvalidAccountPublicKeyField

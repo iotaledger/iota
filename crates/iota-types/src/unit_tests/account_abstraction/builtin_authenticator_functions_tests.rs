@@ -7,11 +7,16 @@ use fastcrypto::{
 };
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{
-    Signer, ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, SimpleSignature,
-    crypto::{Intent, IntentMessage},
+    Address, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference,
+    SignatureScheme, SimpleSignature, Transaction, UserSignature, Version,
+    crypto::{
+        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        PasskeyAuthenticator,
+    },
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -30,16 +35,11 @@ use crate::{
             verify_builtin_signature,
         },
         public_key::MovePublicKey,
+        signature_scheme::MoveSignatureScheme,
     },
-    base_types::SequenceNumber,
-    crypto::{IotaKeyPair, PublicKey, Signature, SignatureScheme, get_key_pair_from_rng},
-    digests::ObjectDigest,
+    crypto::PublicKey,
     error::IotaError,
-    move_authenticator::MoveAuthenticator,
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
-    passkey_authenticator::PasskeyAuthenticator,
-    signature::GenericSignature,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 
 // === resolve_builtin_signature_scheme() ===
@@ -49,7 +49,7 @@ fn builtin_scheme_ed25519() {
     let reference = ed25519_authenticator_function_ref_v1();
     assert_eq!(
         resolve_builtin_signature_scheme(&reference),
-        Some(SignatureScheme::ED25519)
+        Some(move_scheme(SignatureScheme::Ed25519))
     );
 }
 
@@ -58,7 +58,7 @@ fn builtin_scheme_secp256k1() {
     let reference = secp256k1_authenticator_function_ref_v1();
     assert_eq!(
         resolve_builtin_signature_scheme(&reference),
-        Some(SignatureScheme::Secp256k1)
+        Some(move_scheme(SignatureScheme::Secp256k1))
     );
 }
 
@@ -67,7 +67,7 @@ fn builtin_scheme_secp256r1() {
     let reference = secp256r1_authenticator_function_ref_v1();
     assert_eq!(
         resolve_builtin_signature_scheme(&reference),
-        Some(SignatureScheme::Secp256r1)
+        Some(move_scheme(SignatureScheme::Secp256r1))
     );
 }
 
@@ -76,7 +76,7 @@ fn builtin_scheme_multisig() {
     let reference = multisig_authenticator_function_ref_v1();
     assert_eq!(
         resolve_builtin_signature_scheme(&reference),
-        Some(SignatureScheme::MultiSig)
+        Some(move_scheme(SignatureScheme::Multisig))
     );
 }
 
@@ -85,7 +85,7 @@ fn builtin_scheme_passkey() {
     let reference = passkey_authenticator_function_ref_v1();
     assert_eq!(
         resolve_builtin_signature_scheme(&reference),
-        Some(SignatureScheme::PasskeyAuthenticator)
+        Some(move_scheme(SignatureScheme::PasskeyAuthenticator))
     );
 }
 
@@ -213,7 +213,7 @@ fn load_builtin_public_key_propagates_get_object_error() {
 #[test]
 fn verify_builtin_signature_ok_ed25519() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
     let (authenticator, data, tx_data_bytes) = signed_authenticator(&key_pair);
     assert!(
         verify_builtin_signature(&protocol_config(), &authenticator, &data, &tx_data_bytes).is_ok()
@@ -223,7 +223,7 @@ fn verify_builtin_signature_ok_ed25519() {
 #[test]
 fn verify_builtin_signature_ok_secp256k1() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut rng));
     let (authenticator, data, tx_data_bytes) = signed_authenticator(&key_pair);
     assert!(
         verify_builtin_signature(&protocol_config(), &authenticator, &data, &tx_data_bytes).is_ok()
@@ -233,7 +233,7 @@ fn verify_builtin_signature_ok_secp256k1() {
 #[test]
 fn verify_builtin_signature_ok_secp256r1() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut rng));
     let (authenticator, data, tx_data_bytes) = signed_authenticator(&key_pair);
     assert!(
         verify_builtin_signature(&protocol_config(), &authenticator, &data, &tx_data_bytes).is_ok()
@@ -243,11 +243,9 @@ fn verify_builtin_signature_ok_secp256r1() {
 #[test]
 fn verify_builtin_signature_ok_multisig() {
     let mut rng = seeded_rng();
-    let key_pair1 = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
-    let key_pair2 = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
-    let kp1 = Ed25519PrivateKey::from_bytes(key_pair1.to_bytes_no_flag()).unwrap();
-    let kp2 = Secp256k1PrivateKey::from_bytes(key_pair2.to_bytes_no_flag()).unwrap();
-    let multisig_public_key = MultiSigPublicKey::new(
+    let kp1 = Ed25519PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256k1PrivateKey::random_with(&mut rng);
+    let multisig_public_key = MultisigCommittee::new(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
             MultisigMember::new(kp2.public_key(), 1),
@@ -262,16 +260,16 @@ fn verify_builtin_signature_ok_multisig() {
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
     let msg = intent_msg.signing_digest();
-    let sig1: SimpleSignature = kp1.sign(&*msg);
-    let multisig = GenericSignature::MultiSig(
-        MultiSig::new(vec![sig1.into()], multisig_public_key.clone()).unwrap(),
+    let sig1: SimpleSignature = kp1.sign(&msg);
+    let multisig = UserSignature::Multisig(
+        MultisigAggregatedSignature::new(vec![sig1.into()], multisig_public_key.clone()).unwrap(),
     );
     let wire = multisig.to_bytes();
 
     let builtin_data = PreloadedBuiltinAuthenticatorData {
-        expected_scheme: SignatureScheme::MultiSig,
+        expected_scheme: move_scheme(SignatureScheme::Multisig),
         public_key: MovePublicKey::new(
-            SignatureScheme::MultiSig,
+            SignatureScheme::Multisig,
             bcs::to_bytes(&multisig_public_key).unwrap(),
         )
         .unwrap(),
@@ -292,10 +290,10 @@ fn verify_builtin_signature_ok_multisig() {
 #[test]
 fn verify_builtin_signature_ok_passkey() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut rng));
 
     // Passkey address is derived from the Secp256r1 key under the Passkey flag.
-    let raw_public_key = key_pair.public().as_ref().to_vec();
+    let raw_public_key = key_pair.public_key().as_ref().to_vec();
     let passkey_public_key =
         PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator, &raw_public_key).unwrap();
     let sender = Address::from(&passkey_public_key);
@@ -319,16 +317,15 @@ fn verify_builtin_signature_ok_passkey() {
     webauthn_msg.extend_from_slice(&client_data_hash);
 
     // Sign the WebAuthn message with the Secp256r1 key.
-    let user_sig = Signature::new_hashed(&webauthn_msg, &key_pair);
-    let user_sig = SimpleSignature::from_bytes(user_sig.as_ref()).unwrap();
+    let user_sig: SimpleSignature = key_pair.sign(&webauthn_msg);
     let passkey =
         PasskeyAuthenticator::new(authenticator_data, client_data_json, user_sig).unwrap();
 
-    let generic_sig = GenericSignature::PasskeyAuthenticator(passkey);
+    let generic_sig = UserSignature::PasskeyAuthenticator(passkey);
     let wire = generic_sig.to_bytes();
 
     let builtin_data = PreloadedBuiltinAuthenticatorData {
-        expected_scheme: SignatureScheme::PasskeyAuthenticator,
+        expected_scheme: move_scheme(SignatureScheme::PasskeyAuthenticator),
         public_key: MovePublicKey::new(SignatureScheme::PasskeyAuthenticator, raw_public_key)
             .unwrap(),
     };
@@ -380,7 +377,7 @@ fn verify_builtin_signature_error_non_pure_arg() {
     let config = protocol_config();
     let object_arg = CallArg::ImmutableOrOwned(ObjectReference::new(
         ObjectId::ZERO,
-        SequenceNumber::default(),
+        Version::default(),
         ObjectDigest::MIN,
     ));
     let authenticator = make_authenticator(vec![object_arg]);
@@ -410,7 +407,7 @@ fn verify_builtin_signature_error_invalid_bcs_in_pure_arg() {
 #[test]
 fn verify_builtin_signature_error_invalid_sig_bytes() {
     let config = protocol_config();
-    // BCS-encodes a Vec<u8> with an unrecognized scheme flag so GenericSignature
+    // BCS-encodes a Vec<u8> with an unrecognized scheme flag so UserSignature
     // rejects it.
     let garbage: Vec<u8> = vec![0xAB, 0xCD, 0xEF];
     let authenticator = make_authenticator(vec![CallArg::Pure(bcs::to_bytes(&garbage).unwrap())]);
@@ -427,7 +424,7 @@ fn verify_builtin_signature_error_invalid_sig_bytes() {
 fn verify_builtin_signature_error_unsupported_sig_type() {
     let config = protocol_config();
     // A MoveAuthenticator in wire format parses as
-    // GenericSignature::MoveAuthenticator, which hits the unsupported branch in
+    // UserSignature::MoveAuthenticator, which hits the unsupported branch in
     // verify_builtin_signature.
     let inner_auth = make_authenticator(vec![]);
     let move_auth_wire: Vec<u8> = inner_auth.to_bytes();
@@ -448,9 +445,9 @@ fn verify_builtin_signature_error_sig_scheme_mismatch() {
     let mut rng = seeded_rng();
     // Signature is ED25519 but the authenticator function expects Secp256k1.
     let authenticator = make_authenticator(vec![ed25519_sig_arg(&mut rng)]);
-    let secp256k1_key_pair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
+    let secp256k1_key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut rng));
     let data = PreloadedBuiltinAuthenticatorData {
-        expected_scheme: SignatureScheme::Secp256k1,
+        expected_scheme: move_scheme(SignatureScheme::Secp256k1),
         public_key: MovePublicKey::from(&secp256k1_key_pair),
     };
 
@@ -459,7 +456,7 @@ fn verify_builtin_signature_error_sig_scheme_mismatch() {
         IotaError::InvalidSignature { error }
             if error.contains("Signature scheme mismatch")
                 && error.contains("Secp256k1")
-                && error.contains("ED25519")
+                && error.contains("Ed25519")
     ));
 }
 
@@ -470,9 +467,9 @@ fn verify_builtin_signature_error_public_key_scheme_mismatch() {
     // Signature scheme matches expected (ED25519), but the stored public key is
     // Secp256k1.
     let authenticator = make_authenticator(vec![ed25519_sig_arg(&mut rng)]);
-    let secp256k1_key_pair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
+    let secp256k1_key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut rng));
     let data = PreloadedBuiltinAuthenticatorData {
-        expected_scheme: SignatureScheme::ED25519,
+        expected_scheme: move_scheme(SignatureScheme::Ed25519),
         public_key: MovePublicKey::from(&secp256k1_key_pair),
     };
 
@@ -480,7 +477,7 @@ fn verify_builtin_signature_error_public_key_scheme_mismatch() {
         verify_builtin_signature(&config, &authenticator, &data, &[]).unwrap_err(),
         IotaError::InvalidSignature { error }
             if error.contains("Public key scheme mismatch")
-                && error.contains("ED25519")
+                && error.contains("Ed25519")
                 && error.contains("Secp256k1")
     ));
 }
@@ -489,17 +486,17 @@ fn verify_builtin_signature_error_public_key_scheme_mismatch() {
 fn verify_builtin_signature_error_invalid_public_key_bytes() {
     let config = protocol_config();
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
     let (authenticator, _, tx_data_bytes) = signed_authenticator(&key_pair);
 
     // Construct a MovePublicKey with 1 raw byte for ED25519 (requires 32) by
     // bypassing new() via BCS deserialization.
-    let mut bcs_bytes = vec![SignatureScheme::ED25519.flag()];
+    let mut bcs_bytes = vec![SignatureScheme::Ed25519.to_u8()];
     bcs_bytes.extend(bcs::to_bytes(&vec![0u8; 1]).unwrap());
     let invalid_key: MovePublicKey = bcs::from_bytes(&bcs_bytes).unwrap();
 
     let data = PreloadedBuiltinAuthenticatorData {
-        expected_scheme: SignatureScheme::ED25519,
+        expected_scheme: move_scheme(SignatureScheme::Ed25519),
         public_key: invalid_key,
     };
 
@@ -529,38 +526,37 @@ fn protocol_config() -> ProtocolConfig {
 }
 
 fn make_authenticator(call_args: Vec<CallArg>) -> MoveAuthenticator {
-    let object_to_authenticate = CallArg::ImmutableOrOwned(ObjectReference::new(
-        ObjectId::ZERO,
-        SequenceNumber::default(),
-        ObjectDigest::MIN,
-    ));
-    MoveAuthenticator::new_v1(call_args, vec![], object_to_authenticate)
+    MoveAuthenticatorV1::new_with_immutable_account_object(
+        call_args,
+        vec![],
+        ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
+    )
+    .into()
 }
 
 /// Returns a Pure `CallArg` containing a BCS-encoded ED25519 signature wire
 /// bytes (flag || sig || pk) suitable for `verify_builtin_signature`.
 fn ed25519_sig_arg(rng: &mut StdRng) -> CallArg {
-    let key_pair = IotaKeyPair::Ed25519(get_key_pair_from_rng(rng).1);
-    let sig = Signature::new_hashed(b"test", &key_pair);
-    let wire = GenericSignature::Signature(sig).to_bytes();
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(rng));
+    let sig: SimpleSignature = key_pair.sign(&[0u8; 32]);
+    let wire = UserSignature::Simple(sig).to_bytes();
     CallArg::Pure(bcs::to_bytes(&wire).unwrap())
 }
 
 /// Returns `PreloadedBuiltinAuthenticatorData` for an ED25519 key drawn from
 /// `rng`.
 fn ed25519_data(rng: &mut StdRng) -> PreloadedBuiltinAuthenticatorData {
-    let key_pair = IotaKeyPair::Ed25519(get_key_pair_from_rng(rng).1);
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(rng));
     PreloadedBuiltinAuthenticatorData {
-        expected_scheme: SignatureScheme::ED25519,
+        expected_scheme: move_scheme(SignatureScheme::Ed25519),
         public_key: MovePublicKey::from(&key_pair),
     }
 }
 
-/// Constructs a minimal dummy `TransactionData` for `sender`.
-fn dummy_tx_data(sender: Address) -> TransactionData {
-    let gas_ref =
-        ObjectReference::new(ObjectId::ZERO, SequenceNumber::default(), ObjectDigest::MIN);
-    TransactionData::new_transfer_iota(
+/// Constructs a minimal dummy `Transaction` for `sender`.
+fn dummy_tx_data(sender: Address) -> Transaction {
+    let gas_ref = ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN);
+    Transaction::new_transfer_iota(
         Address::ZERO,
         sender,
         None,
@@ -574,26 +570,31 @@ fn dummy_tx_data(sender: Address) -> TransactionData {
 /// PreloadedBuiltinAuthenticatorData, tx_data_bytes)` triple for `key_pair`,
 /// ready to be passed to `verify_builtin_signature`.
 fn signed_authenticator(
-    key_pair: &IotaKeyPair,
+    key_pair: &SimpleKeypair,
 ) -> (
     MoveAuthenticator,
     PreloadedBuiltinAuthenticatorData,
     Vec<u8>,
 ) {
-    let scheme = key_pair.public().scheme();
-    let sender = Address::from(&key_pair.public());
-    let tx_data = dummy_tx_data(sender);
+    let public_key = key_pair.public_key();
+    let tx_data = dummy_tx_data(public_key.derive_address());
     let tx_data_bytes = bcs::to_bytes(&tx_data).unwrap();
 
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
-    let sig = GenericSignature::Signature(Signature::new_secure(&intent_msg, key_pair));
-    let wire = sig.to_bytes();
+    let sig: SimpleSignature = key_pair.sign(&intent_msg.signing_digest());
+    let wire = UserSignature::Simple(sig).to_bytes();
 
     let builtin_data = PreloadedBuiltinAuthenticatorData {
-        expected_scheme: scheme,
+        expected_scheme: move_scheme(public_key.scheme()),
         public_key: MovePublicKey::from(key_pair),
     };
     let authenticator = make_authenticator(vec![CallArg::Pure(bcs::to_bytes(&wire).unwrap())]);
 
     (authenticator, builtin_data, tx_data_bytes)
+}
+
+/// Converts a `SignatureScheme` into the Move mirror stored in
+/// [`PreloadedBuiltinAuthenticatorData`].
+fn move_scheme(scheme: SignatureScheme) -> MoveSignatureScheme {
+    MoveSignatureScheme::try_from(scheme).unwrap()
 }

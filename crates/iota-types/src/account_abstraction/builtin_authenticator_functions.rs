@@ -3,7 +3,8 @@
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, StructTag,
+    Address, Identifier, MoveAuthenticator, ObjectId, SignatureScheme, StructTag, Transaction,
+    UserSignature,
     crypto::{Intent, IntentMessage},
 };
 use serde::{Deserialize, Serialize};
@@ -12,15 +13,15 @@ use crate::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     account_abstraction::{
         authenticator_function::AuthenticatorFunctionRefV1, public_key::MovePublicKey,
+        signature_scheme::MoveSignatureScheme,
     },
-    crypto::{IotaSignature, SignatureScheme},
     dynamic_field::{self, Field},
     error::{IotaError, IotaResult, UserInputError},
     execution::DynamicallyLoadedObjectMetadata,
+    move_authenticator::MoveAuthenticatorExt,
     object::Object,
-    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    transaction::{CallArg, TransactionData},
-    utils::MoveAuthenticator,
+    signature::{AuthenticatorTrait, VerifyParams},
+    transaction::CallArg,
 };
 
 pub const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME: Identifier =
@@ -46,7 +47,7 @@ pub struct PreloadedBuiltinAuthenticatorData {
     /// The signature scheme derived from the authenticator function reference.
     /// Both the submitted signature and the on-chain public key must use this
     /// scheme.
-    pub expected_scheme: SignatureScheme,
+    pub expected_scheme: MoveSignatureScheme,
     /// The typed public key stored on-chain.
     pub public_key: MovePublicKey,
 }
@@ -154,7 +155,7 @@ where
             let metadata = DynamicallyLoadedObjectMetadata::from(&object);
             let field: Field<PublicKeyFieldName, MovePublicKey> = object
                 .data
-                .as_struct_opt()
+                .as_opt_struct()
                 .expect("dynamic field should never be a package object")
                 .to_rust()
                 .map_err(|_| UserInputError::InvalidAccountPublicKeyField { account_object_id })?;
@@ -169,7 +170,7 @@ where
 /// returns `None`.
 pub fn resolve_builtin_signature_scheme(
     authenticator_function_ref: &AuthenticatorFunctionRefV1,
-) -> Option<SignatureScheme> {
+) -> Option<MoveSignatureScheme> {
     // Reject non-framework packages and modules cheaply before matching on name.
     if authenticator_function_ref.module != BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
         || authenticator_function_ref.package != IOTA_FRAMEWORK_PACKAGE_ID
@@ -177,23 +178,27 @@ pub fn resolve_builtin_signature_scheme(
         return None;
     }
     match authenticator_function_ref.function.as_str() {
-        ED25519_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::ED25519),
+        ED25519_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Ed25519),
         SECP256K1_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Secp256k1),
         SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Secp256r1),
-        MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::MultiSig),
+        MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Multisig),
         PASSKEY_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::PasskeyAuthenticator),
         _ => None,
     }
+    .map(|scheme| {
+        MoveSignatureScheme::try_from(scheme)
+            .expect("built-in authenticator schemes are valid account public key schemes")
+    })
 }
 
 /// Verifies a built-in authenticator signature.
 ///
 /// `authenticator.call_args[0]` must be a `Pure` argument containing a
-/// BCS-encoded `Vec<u8>` whose bytes are a `GenericSignature` in wire format
+/// BCS-encoded `Vec<u8>` whose bytes are a `UserSignature` in wire format
 /// (`flag || payload`). This format is consistent for all schemes: Ed25519,
 /// Secp256k1, Secp256r1, MultiSig, and Passkey.
 ///
-/// `tx_data_bytes` is the BCS-encoded `TransactionData` used to reconstruct
+/// `tx_data_bytes` is the BCS-encoded `Transaction` used to reconstruct
 /// the signing message as `IntentMessage(Intent::iota_transaction(), tx_data)`.
 ///
 /// `VerifyParams` is derived from `protocol_config`.
@@ -203,20 +208,21 @@ pub fn verify_builtin_signature(
     builtin_authenticator_data: &PreloadedBuiltinAuthenticatorData,
     tx_data_bytes: &[u8],
 ) -> IotaResult<()> {
-    let expected_scheme = builtin_authenticator_data.expected_scheme;
+    let expected_scheme: SignatureScheme = builtin_authenticator_data.expected_scheme.into();
     let public_key = &builtin_authenticator_data.public_key;
 
     let signature_bytes = extract_signature_bytes(authenticator)?;
-    let signature = GenericSignature::from_bytes(&signature_bytes).map_err(|e| {
-        IotaError::InvalidSignature {
+    let signature =
+        UserSignature::from_bytes(&signature_bytes).map_err(|e| IotaError::InvalidSignature {
             error: format!("Invalid signature bytes in built-in authenticator: {e}"),
-        }
-    })?;
+        })?;
 
-    let actual_scheme = match &signature {
-        GenericSignature::Signature(s) => s.scheme(),
-        GenericSignature::MultiSig(_) => SignatureScheme::MultiSig,
-        GenericSignature::PasskeyAuthenticator(_) => SignatureScheme::PasskeyAuthenticator,
+    let actual_scheme = match signature.scheme() {
+        scheme @ (SignatureScheme::Ed25519
+        | SignatureScheme::Secp256k1
+        | SignatureScheme::Secp256r1
+        | SignatureScheme::Multisig
+        | SignatureScheme::PasskeyAuthenticator) => scheme,
         _ => {
             return Err(IotaError::InvalidSignature {
                 error: "Unsupported signature type in built-in authenticator".into(),
@@ -241,7 +247,7 @@ pub fn verify_builtin_signature(
     }
 
     // TODO: it would be nice to avoid this deserialization.
-    let tx_data: TransactionData =
+    let tx_data: Transaction =
         bcs::from_bytes(tx_data_bytes).map_err(|e| IotaError::InvalidSignature {
             error: format!("Failed to deserialize transaction data: {e}"),
         })?;
@@ -261,7 +267,7 @@ pub fn verify_builtin_signature(
     signature.verify_claims(&intent_msg, address, &verify_params)
 }
 
-/// Extracts the `GenericSignature` wire bytes from `call_args[0]`.
+/// Extracts the `UserSignature` wire bytes from `call_args[0]`.
 ///
 /// `call_args[0]` must be a `Pure` argument whose BCS payload decodes to a
 /// `Vec<u8>` containing the flag-prefixed signature bytes.

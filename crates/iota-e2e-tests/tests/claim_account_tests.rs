@@ -6,7 +6,7 @@
 #[cfg(msim)]
 use iota_macros::sim_test;
 #[cfg(msim)]
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::Owner;
 #[cfg(msim)]
 use test_cluster::TestClusterBuilder;
 
@@ -18,14 +18,13 @@ use test_cluster::TestClusterBuilder;
 async fn test_claim_account_mutable_succeeds() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+        TransactionKind,
     };
-    use iota_types::{
-        crypto::IotaKeyPair,
-        transaction::{
-            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
-        },
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
     };
 
     telemetry_subscribers::init_for_testing();
@@ -44,7 +43,7 @@ async fn test_claim_account_mutable_succeeds() {
         .next()
         .expect("wallet must have at least one account");
 
-    let keypair: IotaKeyPair = test_cluster
+    let keypair: SimpleKeypair = test_cluster
         .wallet
         .config()
         .keystore()
@@ -64,14 +63,18 @@ async fn test_claim_account_mutable_succeeds() {
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
 
     let rgp = test_cluster.get_reference_gas_price().await;
-    let tx_data = TransactionData::new(
+    let tx_data = Transaction::new(
         kind,
         owner,
         first_gas_coin(&test_cluster.wallet, owner).await,
         rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         rgp,
     );
-    let response = test_cluster.sign_and_execute_transaction(&tx_data).await;
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
+        .await
+        .expect("ClaimAccount transaction must execute");
 
     let effects = response.effects.expect("response must include effects");
     assert!(
@@ -105,14 +108,13 @@ async fn test_claim_account_mutable_succeeds() {
 async fn test_claim_account_immutable_succeeds() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+        TransactionKind,
     };
-    use iota_types::{
-        crypto::IotaKeyPair,
-        transaction::{
-            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
-        },
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
     };
 
     telemetry_subscribers::init_for_testing();
@@ -126,7 +128,7 @@ async fn test_claim_account_immutable_succeeds() {
     let addresses = test_cluster.wallet.config().keystore().addresses();
     let owner: Address = addresses.get(1).copied().unwrap_or(addresses[0]);
 
-    let keypair: IotaKeyPair = test_cluster
+    let keypair: SimpleKeypair = test_cluster
         .wallet
         .config()
         .keystore()
@@ -146,14 +148,18 @@ async fn test_claim_account_immutable_succeeds() {
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
 
     let rgp = test_cluster.get_reference_gas_price().await;
-    let tx_data = TransactionData::new(
+    let tx_data = Transaction::new(
         kind,
         owner,
         first_gas_coin(&test_cluster.wallet, owner).await,
         rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         rgp,
     );
-    let response = test_cluster.sign_and_execute_transaction(&tx_data).await;
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
+        .await
+        .expect("ClaimAccount transaction must execute");
 
     let effects = response.effects.expect("response must include effects");
     assert!(
@@ -194,14 +200,13 @@ async fn test_claim_account_immutable_succeeds() {
 async fn test_claim_account_twice_is_not_yet_prevented() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+        TransactionKind,
     };
-    use iota_types::{
-        crypto::IotaKeyPair,
-        transaction::{
-            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
-        },
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
     };
 
     telemetry_subscribers::init_for_testing();
@@ -220,7 +225,7 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
         .next()
         .expect("wallet must have at least one account");
 
-    let keypair: IotaKeyPair = test_cluster
+    let keypair: SimpleKeypair = test_cluster
         .wallet
         .config()
         .keystore()
@@ -240,14 +245,18 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
             public_key_raw_bytes,
             build_kind: SmartAccountBuildKind::Immutable,
         };
-        let tx_data = TransactionData::new(
+        let tx_data = Transaction::new(
             TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
             owner,
             first_gas_coin(&test_cluster.wallet, owner).await,
             rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
             rgp,
         );
-        let response = test_cluster.sign_and_execute_transaction(&tx_data).await;
+        let response = test_cluster
+            .wallet
+            .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
+            .await
+            .expect("ClaimAccount transaction must execute");
         let effects = response.effects.expect("response must include effects");
 
         assert!(
@@ -294,14 +303,13 @@ async fn test_claim_account_rejected_when_disabled() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+        TransactionKind,
     };
-    use iota_types::{
-        crypto::IotaKeyPair,
-        transaction::{
-            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
-        },
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
     };
 
     telemetry_subscribers::init_for_testing();
@@ -322,7 +330,7 @@ async fn test_claim_account_rejected_when_disabled() {
         .next()
         .expect("wallet must have at least one account");
 
-    let keypair: IotaKeyPair = test_cluster
+    let keypair: SimpleKeypair = test_cluster
         .wallet
         .config()
         .keystore()
@@ -342,7 +350,7 @@ async fn test_claim_account_rejected_when_disabled() {
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
 
     let rgp = test_cluster.get_reference_gas_price().await;
-    let tx_data = TransactionData::new(
+    let tx_data = Transaction::new(
         kind,
         owner,
         first_gas_coin(&test_cluster.wallet, owner).await,
@@ -394,14 +402,13 @@ async fn test_claim_account_rejected_without_builtin_authenticators() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+        TransactionKind,
     };
-    use iota_types::{
-        crypto::IotaKeyPair,
-        transaction::{
-            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
-        },
+    use iota_types::transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
     };
 
     telemetry_subscribers::init_for_testing();
@@ -422,7 +429,7 @@ async fn test_claim_account_rejected_without_builtin_authenticators() {
         .next()
         .expect("wallet must have at least one account");
 
-    let keypair: IotaKeyPair = test_cluster
+    let keypair: SimpleKeypair = test_cluster
         .wallet
         .config()
         .keystore()
@@ -442,7 +449,7 @@ async fn test_claim_account_rejected_without_builtin_authenticators() {
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
 
     let rgp = test_cluster.get_reference_gas_price().await;
-    let tx_data = TransactionData::new(
+    let tx_data = Transaction::new(
         kind,
         owner,
         first_gas_coin(&test_cluster.wallet, owner).await,
@@ -491,10 +498,11 @@ async fn test_claim_account_rejected_with_invalid_public_key() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+        TransactionKind,
     };
     use iota_types::transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
     };
 
     telemetry_subscribers::init_for_testing();
@@ -521,7 +529,7 @@ async fn test_claim_account_rejected_with_invalid_public_key() {
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
 
     let rgp = test_cluster.get_reference_gas_price().await;
-    let tx_data = TransactionData::new(
+    let tx_data = Transaction::new(
         kind,
         owner,
         first_gas_coin(&test_cluster.wallet, owner).await,
@@ -604,10 +612,10 @@ fn created_smart_accounts(
         .collect()
 }
 
-/// Build the scheme flag and raw key bytes of a `SmartAccountClaim` from an
-/// iota-types `IotaKeyPair`.
+/// Build the scheme flag and raw key bytes of a `SmartAccountClaim` from a
+/// `SimpleKeypair`.
 #[cfg(msim)]
-fn claim_public_key(kp: &iota_types::crypto::IotaKeyPair) -> (u8, Vec<u8>) {
-    let public_key = kp.public();
-    (public_key.flag(), public_key.as_ref().to_vec())
+fn claim_public_key(kp: &iota_sdk_crypto::simple::SimpleKeypair) -> (u8, Vec<u8>) {
+    let public_key = kp.public_key();
+    (public_key.scheme().to_u8(), public_key.as_ref().to_vec())
 }

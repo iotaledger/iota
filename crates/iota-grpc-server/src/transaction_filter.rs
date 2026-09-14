@@ -330,7 +330,6 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
         | TransactionKind::EndOfEpoch
         | TransactionKind::RandomnessStateUpdate => true,
         TransactionKind::Programmable | TransactionKind::ClaimAccount => false,
-        _ => panic!("Unhandled transaction kind"),
     }
 }
 

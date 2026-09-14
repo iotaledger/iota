@@ -1,32 +1,34 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_crypto::{ToFromBytes, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey};
-use iota_sdk_types::{Address, Ed25519PublicKey, Secp256k1PublicKey};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    simple::SimpleKeypair,
+};
+use iota_sdk_types::{
+    Address, Ed25519PublicKey, Secp256k1PublicKey, SignatureScheme,
+    crypto::{MultisigCommittee, MultisigMember},
+};
 use rand::{SeedableRng, rngs::StdRng};
 
-use crate::{
-    account_abstraction::public_key::MovePublicKey,
-    crypto::{IotaKeyPair, PublicKey, SignatureScheme, get_key_pair_from_rng},
-    multisig::{MultiSigPublicKey, MultisigMember},
-};
+use crate::{account_abstraction::public_key::MovePublicKey, crypto::PublicKey};
 
 // === scheme() ===
 
 #[test]
 fn scheme_ed25519() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
     assert_eq!(
         MovePublicKey::from(&key_pair).scheme(),
-        SignatureScheme::ED25519
+        SignatureScheme::Ed25519
     );
 }
 
 #[test]
 fn scheme_secp256k1() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut rng));
     assert_eq!(
         MovePublicKey::from(&key_pair).scheme(),
         SignatureScheme::Secp256k1
@@ -36,7 +38,7 @@ fn scheme_secp256k1() {
 #[test]
 fn scheme_secp256r1() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut rng));
     assert_eq!(
         MovePublicKey::from(&key_pair).scheme(),
         SignatureScheme::Secp256r1
@@ -46,11 +48,9 @@ fn scheme_secp256r1() {
 #[test]
 fn scheme_multisig() {
     let mut rng = seeded_rng();
-    let key_pair1 = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
-    let key_pair2 = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
-    let kp1 = Ed25519PrivateKey::from_bytes(key_pair1.to_bytes_no_flag()).unwrap();
-    let kp2 = Secp256k1PrivateKey::from_bytes(key_pair2.to_bytes_no_flag()).unwrap();
-    let multisig_public_key = MultiSigPublicKey::new(
+    let kp1 = Ed25519PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256k1PrivateKey::random_with(&mut rng);
+    let multisig_public_key = MultisigCommittee::new(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
             MultisigMember::new(kp2.public_key(), 1),
@@ -60,12 +60,12 @@ fn scheme_multisig() {
     .unwrap();
     assert_eq!(
         MovePublicKey::new(
-            SignatureScheme::MultiSig,
+            SignatureScheme::Multisig,
             bcs::to_bytes(&multisig_public_key).unwrap()
         )
         .unwrap()
         .scheme(),
-        SignatureScheme::MultiSig
+        SignatureScheme::Multisig
     );
 }
 
@@ -73,11 +73,11 @@ fn scheme_multisig() {
 fn scheme_passkey() {
     // Passkey uses Secp256r1 key bytes under the passkey flag.
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut rng).1);
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut rng));
     assert_eq!(
         MovePublicKey::new(
             SignatureScheme::PasskeyAuthenticator,
-            key_pair.public().as_ref().to_vec(),
+            key_pair.public_key().as_ref().to_vec(),
         )
         .unwrap()
         .scheme(),
@@ -90,7 +90,7 @@ fn scheme_passkey() {
 #[test]
 fn new_error_on_empty_bytes() {
     assert_eq!(
-        MovePublicKey::new(SignatureScheme::ED25519, vec![])
+        MovePublicKey::new(SignatureScheme::Ed25519, vec![])
             .unwrap_err()
             .to_string(),
         "Public key bytes are empty"
@@ -102,9 +102,8 @@ fn new_error_on_unsupported_scheme() {
     // BLS12381, ZkLoginAuthenticatorDeprecated, and MoveAuthenticator are
     // recognized by SignatureScheme but not valid for account public keys.
     for scheme in [
-        SignatureScheme::BLS12381,
+        SignatureScheme::Bls12381,
         #[allow(deprecated)]
-        SignatureScheme::ZkLoginAuthenticatorDeprecated,
         SignatureScheme::MoveAuthenticator,
     ] {
         let err = MovePublicKey::new(scheme, vec![0x00])
@@ -120,7 +119,7 @@ fn new_error_on_unsupported_scheme() {
 #[test]
 fn new_error_on_invalid_key_bytes() {
     // Valid ED25519 scheme but garbage raw bytes.
-    let err = MovePublicKey::new(SignatureScheme::ED25519, vec![0x01, 0x02])
+    let err = MovePublicKey::new(SignatureScheme::Ed25519, vec![0x01, 0x02])
         .unwrap_err()
         .to_string();
     assert!(
@@ -131,19 +130,19 @@ fn new_error_on_invalid_key_bytes() {
 
 #[test]
 fn new_error_on_multisig_zero_threshold() {
-    let committee = MultiSigPublicKey::new_unchecked(multisig_members(), 0);
+    let committee = MultisigCommittee::new_unchecked(multisig_members(), 0);
     assert_eq!(
         multisig_error(committee),
-        "Invalid MultiSigPublicKey: Multisig threshold must be non-zero"
+        "Invalid MultisigCommittee: Multisig threshold must be non-zero"
     );
 }
 
 #[test]
 fn new_error_on_multisig_empty_committee() {
-    let committee = MultiSigPublicKey::new_unchecked(vec![], 1);
+    let committee = MultisigCommittee::new_unchecked(vec![], 1);
     assert_eq!(
         multisig_error(committee),
-        "Invalid MultiSigPublicKey: Multisig committee must have at least one member"
+        "Invalid MultisigCommittee: Multisig committee must have at least one member"
     );
 }
 
@@ -151,20 +150,20 @@ fn new_error_on_multisig_empty_committee() {
 fn new_error_on_multisig_duplicate_member() {
     let mut members = multisig_members();
     members[1] = members[0].clone();
-    let committee = MultiSigPublicKey::new_unchecked(members, 1);
+    let committee = MultisigCommittee::new_unchecked(members, 1);
     assert_eq!(
         multisig_error(committee),
-        "Invalid MultiSigPublicKey: Duplicate public key"
+        "Invalid MultisigCommittee: Duplicate public key"
     );
 }
 
 #[test]
 fn new_error_on_multisig_weight_below_threshold() {
     // Two members of weight 1 each, so a threshold of 3 cannot be met.
-    let committee = MultiSigPublicKey::new_unchecked(multisig_members(), 3);
+    let committee = MultisigCommittee::new_unchecked(multisig_members(), 3);
     assert_eq!(
         multisig_error(committee),
-        "Invalid MultiSigPublicKey: Insufficient total weight 2 for threshold 3"
+        "Invalid MultisigCommittee: Insufficient total weight 2 for threshold 3"
     );
 }
 
@@ -173,7 +172,7 @@ fn new_error_on_multisig_member_not_on_curve() {
     // A compressed secp256k1 key must start with 0x02 or 0x03, so these bytes
     // are the right length but off the curve. Committee validation ignores key
     // bytes, so only the per-member curve check rejects this.
-    let committee = MultiSigPublicKey::new_unchecked(
+    let committee = MultisigCommittee::new_unchecked(
         vec![MultisigMember::new(Secp256k1PublicKey::new([0xff; 33]), 1)],
         1,
     );
@@ -185,14 +184,14 @@ fn new_error_on_multisig_member_not_on_curve() {
 
 #[test]
 fn new_error_on_multisig_trailing_bytes() {
-    let committee = MultiSigPublicKey::new(multisig_members(), 1).unwrap();
+    let committee = MultisigCommittee::new(multisig_members(), 1).unwrap();
     let mut bytes = bcs::to_bytes(&committee).unwrap();
     bytes.push(0x00);
 
-    let err = MovePublicKey::new(SignatureScheme::MultiSig, bytes)
+    let err = MovePublicKey::new(SignatureScheme::Multisig, bytes)
         .unwrap_err()
         .to_string();
-    assert_eq!(err, "Invalid MultiSigPublicKey: remaining input");
+    assert_eq!(err, "Invalid MultisigCommittee: remaining input");
 }
 
 // === address() ===
@@ -200,35 +199,33 @@ fn new_error_on_multisig_trailing_bytes() {
 #[test]
 fn address_ed25519_matches_iota_address() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
-    let expected = Address::from(&key_pair.public());
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
+    let expected = key_pair.public_key().derive_address();
     assert_eq!(MovePublicKey::from(&key_pair).address().unwrap(), expected);
 }
 
 #[test]
 fn address_secp256k1_matches_iota_address() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
-    let expected = Address::from(&key_pair.public());
+    let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut rng));
+    let expected = key_pair.public_key().derive_address();
     assert_eq!(MovePublicKey::from(&key_pair).address().unwrap(), expected);
 }
 
 #[test]
 fn address_secp256r1_matches_iota_address() {
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut rng).1);
-    let expected = Address::from(&key_pair.public());
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut rng));
+    let expected = key_pair.public_key().derive_address();
     assert_eq!(MovePublicKey::from(&key_pair).address().unwrap(), expected);
 }
 
 #[test]
 fn address_multisig_matches_iota_address() {
     let mut rng = seeded_rng();
-    let key_pair1 = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
-    let key_pair2 = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
-    let kp1 = Ed25519PrivateKey::from_bytes(key_pair1.to_bytes_no_flag()).unwrap();
-    let kp2 = Secp256k1PrivateKey::from_bytes(key_pair2.to_bytes_no_flag()).unwrap();
-    let multisig_public_key = MultiSigPublicKey::new(
+    let kp1 = Ed25519PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256k1PrivateKey::random_with(&mut rng);
+    let multisig_public_key = MultisigCommittee::new(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
             MultisigMember::new(kp2.public_key(), 1),
@@ -239,7 +236,7 @@ fn address_multisig_matches_iota_address() {
     let expected = Address::from(&multisig_public_key);
     assert_eq!(
         MovePublicKey::new(
-            SignatureScheme::MultiSig,
+            SignatureScheme::Multisig,
             bcs::to_bytes(&multisig_public_key).unwrap()
         )
         .unwrap()
@@ -254,8 +251,8 @@ fn address_passkey_matches_iota_address() {
     // Passkey uses Secp256r1 raw bytes but hashes with the Passkey flag (0x06),
     // so the address differs from the Secp256r1 address for the same key.
     let mut rng = seeded_rng();
-    let key_pair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut rng).1);
-    let raw = key_pair.public().as_ref().to_vec();
+    let key_pair = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut rng));
+    let raw = key_pair.public_key().as_ref().to_vec();
     let passkey_public_key =
         PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator, &raw).unwrap();
     let expected = Address::from(&passkey_public_key);
@@ -268,14 +265,14 @@ fn address_passkey_matches_iota_address() {
         expected
     );
     // Sanity-check: passkey address is distinct from the Secp256r1 address.
-    assert_ne!(expected, Address::from(&key_pair.public()));
+    assert_ne!(expected, key_pair.public_key().derive_address());
 }
 
 #[test]
 fn address_error_on_secp256k1_zero_bytes() {
     // 33 zero bytes have the correct length for Secp256k1 but are not a valid
     // compressed curve point (prefix 0x00 is neither 0x02 nor 0x03).
-    let mut bcs_bytes = vec![SignatureScheme::Secp256k1.flag()];
+    let mut bcs_bytes = vec![SignatureScheme::Secp256k1.to_u8()];
     bcs_bytes.extend(bcs::to_bytes(&vec![0u8; 33]).unwrap());
     let invalid: MovePublicKey = bcs::from_bytes(&bcs_bytes).unwrap();
 
@@ -290,7 +287,7 @@ fn address_error_on_secp256k1_zero_bytes() {
 fn address_error_on_wrong_length_bytes() {
     // Construct a MovePublicKey with 1 raw byte for ED25519 (requires 32) by
     // bypassing new() via BCS deserialization.
-    let mut bcs_bytes = vec![SignatureScheme::ED25519.flag()];
+    let mut bcs_bytes = vec![SignatureScheme::Ed25519.to_u8()];
     bcs_bytes.extend(bcs::to_bytes(&vec![0u8; 1]).unwrap());
     let invalid: MovePublicKey = bcs::from_bytes(&bcs_bytes).unwrap();
 
@@ -313,7 +310,7 @@ fn address_multisig_ed25519_only_matches_move_vector() {
     // the hash input — the IOTA legacy rule mirrored by update_hasher_with_flag.
     let ed25519_pk =
         Ed25519PublicKey::new(hex::decode(ED25519_PK_HEX).unwrap().try_into().unwrap());
-    let multisig_pk = MultiSigPublicKey::new(vec![MultisigMember::new(ed25519_pk, 1)], 1).unwrap();
+    let multisig_pk = MultisigCommittee::new(vec![MultisigMember::new(ed25519_pk, 1)], 1).unwrap();
 
     let addr = Address::from(&multisig_pk);
     let expected = Address::new(
@@ -325,7 +322,7 @@ fn address_multisig_ed25519_only_matches_move_vector() {
     assert_eq!(addr, expected);
 
     let move_pk = MovePublicKey::new(
-        SignatureScheme::MultiSig,
+        SignatureScheme::Multisig,
         bcs::to_bytes(&multisig_pk).unwrap(),
     )
     .unwrap();
@@ -340,7 +337,7 @@ fn address_multisig_mixed_matches_move_vector() {
         Ed25519PublicKey::new(hex::decode(ED25519_PK_HEX).unwrap().try_into().unwrap());
     let secp256k1_pk =
         Secp256k1PublicKey::new(hex::decode(SECP256K1_PK_HEX).unwrap().try_into().unwrap());
-    let multisig_pk = MultiSigPublicKey::new(
+    let multisig_pk = MultisigCommittee::new(
         vec![
             MultisigMember::new(ed25519_pk, 1),
             MultisigMember::new(secp256k1_pk, 1),
@@ -359,7 +356,7 @@ fn address_multisig_mixed_matches_move_vector() {
     assert_eq!(addr, expected);
 
     let move_pk = MovePublicKey::new(
-        SignatureScheme::MultiSig,
+        SignatureScheme::Multisig,
         bcs::to_bytes(&multisig_pk).unwrap(),
     )
     .unwrap();
@@ -369,9 +366,9 @@ fn address_multisig_mixed_matches_move_vector() {
 // === Helpers ===
 
 /// The error from building a `MovePublicKey` around `committee`.
-fn multisig_error(committee: MultiSigPublicKey) -> String {
+fn multisig_error(committee: MultisigCommittee) -> String {
     MovePublicKey::new(
-        SignatureScheme::MultiSig,
+        SignatureScheme::Multisig,
         bcs::to_bytes(&committee).unwrap(),
     )
     .unwrap_err()
@@ -382,10 +379,8 @@ fn multisig_error(committee: MultiSigPublicKey) -> String {
 /// invalid committee around them.
 fn multisig_members() -> Vec<MultisigMember> {
     let mut rng = seeded_rng();
-    let key_pair1 = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rng).1);
-    let key_pair2 = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut rng).1);
-    let kp1 = Ed25519PrivateKey::from_bytes(key_pair1.to_bytes_no_flag()).unwrap();
-    let kp2 = Secp256k1PrivateKey::from_bytes(key_pair2.to_bytes_no_flag()).unwrap();
+    let kp1 = Ed25519PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256k1PrivateKey::random_with(&mut rng);
     vec![
         MultisigMember::new(kp1.public_key(), 1),
         MultisigMember::new(kp2.public_key(), 1),
