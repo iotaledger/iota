@@ -27,6 +27,7 @@ stacker.workspace = true
 vfs.workspace = true
 
 # internal dependencies
+move-abstract-interpreter.workspace = true
 move-binary-format.workspace = true
 move-borrow-graph.workspace = true
 move-bytecode-source-map.workspace = true
