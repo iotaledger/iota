@@ -27,7 +27,7 @@ use typed_store::{
     traits::Map,
 };
 
-use crate::epoch_buckets::{EpochBuckets, bucket_cf_epoch};
+use crate::epoch_buckets::{BucketReopen, EpochBuckets, bucket_cf_epoch};
 
 /// Column-family prefix of the historic ledger buckets; a bucket's family
 /// is `{prefix}{epoch}`.
@@ -64,7 +64,7 @@ pub struct HistoricLedgerBucket {
     pub(crate) tx_to_checkpoint: TaggedDBMap<TransactionDigest, CheckpointSequenceNumber>,
 }
 
-impl HistoricLedgerBucket {
+impl BucketReopen for HistoricLedgerBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
         Ok(Self {
             transactions: TaggedDBMap::reopen(
@@ -211,7 +211,6 @@ impl HistoricLedger {
             cf_options,
             earliest_retained_table,
             buckets,
-            HistoricLedgerBucket::reopen,
         )?;
         Ok(Self {
             buckets,
