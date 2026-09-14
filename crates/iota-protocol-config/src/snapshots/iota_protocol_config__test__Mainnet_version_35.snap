@@ -37,6 +37,7 @@ feature_flags:
   metadata_in_module_bytes: true
   publish_package_metadata: true
   enable_move_authentication: true
+  enable_move_authentication_for_sponsor: true
   pass_validator_scores_to_advance_epoch: true
   consensus_fast_commit_sync: true
   consensus_block_restrictions: true
@@ -49,6 +50,8 @@ feature_flags:
   validator_metadata_verify_v2: true
   package_metadata_with_dynamic_module_metadata: true
   report_move_authentication_error: true
+  consensus_enable_sliding_window_leader_schedule: true
+  consensus_enable_absolute_score_leader_schedule: true
   max_ptb_value_size_v2: true
   allow_unbounded_system_objects: true
 max_tx_size_bytes: 131072

@@ -38,6 +38,8 @@ pub enum QuorumDriverError {
     QuorumDriverInternal(IotaError),
     #[error("Invalid user signature: {0}.")]
     InvalidUserSignature(IotaError),
+    /// The fullnode's local validity check proved the transaction invalid.
+    /// The same bytes can never execute.
     #[error("Invalid transaction: {0}.")]
     InvalidTransaction(IotaError),
     #[error(
@@ -72,15 +74,48 @@ pub enum QuorumDriverError {
         errors: GroupedErrors,
         retry_after_secs: u64,
     },
+    /// Over 1/3 of validator stake rejected the transaction during
+    /// submission. The verdicts may depend on validator-local state, and an
+    /// earlier submission attempt may already be in consensus, so the
+    /// transaction may still execute.
+    #[error("Invalid transaction: {0}.")]
+    RejectedByValidators(IotaError),
 }
 
 impl QuorumDriverError {
+    /// Stable machine-readable discriminant for clients. The JSON-RPC layer
+    /// exposes it as the error object's `data.reason` field on errors whose
+    /// `data` was previously empty. `ObjectsDoubleUsed` is the exception: it
+    /// keeps its pre-existing conflicting-transactions `data` payload.
+    pub fn reason(&self) -> &'static str {
+        match self {
+            QuorumDriverError::QuorumDriverInternal(_) => "internal",
+            QuorumDriverError::InvalidUserSignature(_) => "invalid_user_signature",
+            QuorumDriverError::InvalidTransaction(_) => "invalid_transaction",
+            QuorumDriverError::RejectedByValidators(_) => "rejected_by_validators",
+            QuorumDriverError::ObjectsDoubleUsed { .. } => "objects_double_used",
+            QuorumDriverError::TimeoutBeforeFinality => "timeout_before_finality",
+            QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. } => {
+                "failed_with_transient_error_after_maximum_attempts"
+            }
+            QuorumDriverError::NonRecoverableTransactionError { .. } => {
+                "non_recoverable_transaction_error"
+            }
+            QuorumDriverError::SystemOverload { .. } => "system_overload",
+            QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {
+                "tx_already_finalized_with_different_user_signatures"
+            }
+            QuorumDriverError::SystemOverloadRetryAfter { .. } => "system_overload_retry_after",
+        }
+    }
+
     pub fn to_error_message(&self) -> String {
         match self {
             QuorumDriverError::InvalidUserSignature(err) => {
                 format!("Invalid user signature: {err}")
             }
-            QuorumDriverError::InvalidTransaction(err) => {
+            QuorumDriverError::InvalidTransaction(err)
+            | QuorumDriverError::RejectedByValidators(err) => {
                 format!("Invalid transaction: {err}")
             }
             QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {

@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.32.0-alpha"
+    "version": "1.33.0-alpha"
   },
   "methods": [
     {
@@ -313,7 +313,7 @@
           "name": "Write API"
         }
       ],
-      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to    client. This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the    node executed the transaction locally before returning the client. The    local execution makes sure this node is aware of this transaction when    client fires subsequent queries. However if the node fails to execute the    transaction locally in a timely manner, a bool type in the response is    set to false to indicated the case. request_type is default to be `WaitForEffectsCert` unless options.show_events or options.show_effects is true",
+      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to    client. This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the    node executed the transaction locally before returning the client. The    local execution makes sure this node is aware of this transaction when    client fires subsequent queries. However if the node fails to execute the    transaction locally in a timely manner, a bool type in the response is    set to false to indicated the case. request_type defaults to `WaitForEffectsCert` when omitted.",
       "params": [
         {
           "name": "tx_bytes",
@@ -343,7 +343,7 @@
         },
         {
           "name": "request_type",
-          "description": "The request type, derived from `IotaTransactionBlockResponseOptions` if None",
+          "description": "The request type, `WaitForEffectsCert` if None",
           "schema": {
             "$ref": "#/components/schemas/ExecuteTransactionRequestType"
           }
@@ -1347,7 +1347,7 @@
                 "passkey_auth": true,
                 "pcool_skip_immutable_object_locks": true,
                 "pcool_verifier_limits_from_protocol_config": true,
-                "pre_consensus_sponsor_only_move_authentication": true,
+                "pre_consensus_sponsor_only_move_authentication": false,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
                 "relocate_event_module": true,
