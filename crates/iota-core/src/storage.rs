@@ -30,7 +30,7 @@ use tracing::instrument;
 use crate::{
     authority::AuthorityState, checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore, execution_cache::ExecutionCacheTraitPointers,
-    grpc_indexes::GrpcIndexesStore,
+    rpc_indexes::grpc_api::GrpcIndexesStore,
 };
 
 #[derive(Clone)]

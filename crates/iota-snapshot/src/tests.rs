@@ -22,8 +22,10 @@ use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
-    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR, JsonRpcIndexRestorer},
+    rpc_indexes::{
+        IndexStore, JSONRPC_INDEXES_DIR, JsonRpcIndexRestorer,
+        grpc_api::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
+    },
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,

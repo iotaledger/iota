@@ -112,7 +112,7 @@ pub struct MetricGroups {
     /// API servers and RPC-facing indexes.
     ///
     /// Modules: `iota_json_rpc`, `iota_grpc_server`, `iota_graphql_rpc`,
-    /// `iota_core::jsonrpc_index`, `iota_core::subscription_handler`.
+    /// `iota_core::rpc_indexes`, `iota_core::subscription_handler`.
     pub rpc: MetricLevel,
     /// Epoch reconfiguration and protocol versioning.
     ///
@@ -219,7 +219,7 @@ impl MetricGroups {
                 "iota_json_rpc",
                 "iota_grpc_server",
                 "iota_graphql_rpc",
-                "iota_core::jsonrpc_index",
+                "iota_core::rpc_indexes",
                 "iota_core::subscription_handler",
             ],
             "epoch" => &[

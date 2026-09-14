@@ -45,8 +45,7 @@ use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark},
-    grpc_indexes::GrpcIndexesStore,
-    jsonrpc_index::IndexStore,
+    rpc_indexes::{IndexStore, grpc_api::GrpcIndexesStore},
 };
 
 static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
