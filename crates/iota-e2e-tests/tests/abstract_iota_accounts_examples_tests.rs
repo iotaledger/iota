@@ -1887,9 +1887,9 @@ async fn run_account_for_benchmarks(
     let bench_refs: Vec<ObjectReference> = bench_effects
         .all_changed_objects()
         .into_iter()
-        .filter_map(|(obj_ref, kind)| {
-            (matches!(kind, WriteKind::Create) && matches!(obj_ref.owner(), Owner::Immutable))
-                .then_some(*obj_ref.reference())
+        .filter_map(|(owned_obj_ref, kind)| {
+            (matches!(kind, WriteKind::Create) && matches!(owned_obj_ref.owner(), Owner::Immutable))
+                .then_some(*owned_obj_ref.reference())
         })
         .collect();
     assert_eq!(
@@ -2098,10 +2098,11 @@ fn first_created_shared(effects: &TransactionEffects) -> anyhow::Result<ObjectRe
     effects
         .all_changed_objects()
         .into_iter()
-        .find_map(|(created, kind)| {
+        .find_map(|(owned_obj_ref, kind)| {
             matches!(kind, WriteKind::Create)
                 .then(|| {
-                    matches!(created.owner(), Owner::Shared(_)).then_some(*created.reference())
+                    matches!(owned_obj_ref.owner(), Owner::Shared(_))
+                        .then_some(*owned_obj_ref.reference())
                 })
                 .flatten()
         })
