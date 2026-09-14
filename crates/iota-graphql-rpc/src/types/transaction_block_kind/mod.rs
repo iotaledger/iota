@@ -6,6 +6,7 @@ use async_graphql::*;
 use iota_sdk_types::TransactionKind as NativeTransactionKind;
 
 use self::{
+    claim_account::ClaimAccountTransaction,
     consensus_commit_prologue::ConsensusCommitPrologueTransaction, genesis::GenesisTransaction,
     randomness_state_update::RandomnessStateUpdateTransaction,
     transaction_deny_rules_update::TransactionDenyRulesUpdateTransaction,
@@ -17,6 +18,7 @@ use crate::{
     },
 };
 
+pub(crate) mod claim_account;
 pub(crate) mod consensus_commit_prologue;
 pub(crate) mod end_of_epoch;
 pub(crate) mod genesis;
@@ -34,6 +36,7 @@ pub(crate) enum TransactionBlockKind {
     Randomness(RandomnessStateUpdateTransaction),
     TransactionDenyRulesUpdate(TransactionDenyRulesUpdateTransaction),
     EndOfEpoch(EndOfEpochTransaction),
+    ClaimAccount(ClaimAccountTransaction),
 }
 
 impl TransactionBlockKind {
@@ -82,6 +85,10 @@ impl TransactionBlockKind {
                     checkpoint_viewed_at,
                 },
             )),
+            K::ClaimAccount(claim) => Ok(T::ClaimAccount(ClaimAccountTransaction {
+                native: claim,
+                checkpoint_viewed_at,
+            })),
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),

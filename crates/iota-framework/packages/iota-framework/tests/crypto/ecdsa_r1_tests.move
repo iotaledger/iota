@@ -78,3 +78,49 @@ fun test_secp256r1_invalid_public_key_length() {
     let verify = ecdsa_r1::secp256r1_verify(&sig, &pk, &msg, 0);
     assert!(verify == false);
 }
+
+#[test]
+fun test_secp256r1_validate_pubkey_valid() {
+    let pk = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+    assert!(ecdsa_r1::secp256r1_validate_pubkey(&pk));
+}
+
+#[test]
+fun test_secp256r1_validate_pubkey_invalid() {
+    // Prefix 0x00 is not a valid compressed-point prefix (must be 0x02 or 0x03).
+    assert!(
+        !ecdsa_r1::secp256r1_validate_pubkey(
+            &x"000000000000000000000000000000000000000000000000000000000000000000",
+        ),
+    );
+
+    // Prefix 0x01 is also not a valid compressed-point prefix.
+    assert!(
+        !ecdsa_r1::secp256r1_validate_pubkey(
+            &x"010000000000000000000000000000000000000000000000000000000000000000",
+        ),
+    );
+
+    // Prefix 0x04 is the uncompressed-point prefix; secp256r1_validate_pubkey only
+    // accepts the 33-byte compressed form, so a 33-byte 0x04-prefixed input is invalid.
+    assert!(
+        !ecdsa_r1::secp256r1_validate_pubkey(
+            &x"040000000000000000000000000000000000000000000000000000000000000000",
+        ),
+    );
+
+    // Wrong lengths return false (the function does not abort).
+    assert!(!ecdsa_r1::secp256r1_validate_pubkey(&x""));
+    // 32 bytes — one byte too short
+    assert!(
+        !ecdsa_r1::secp256r1_validate_pubkey(
+            &x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def576260",
+        ),
+    );
+    // 34 bytes — one byte too long
+    assert!(
+        !ecdsa_r1::secp256r1_validate_pubkey(
+            &x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a00",
+        ),
+    );
+}

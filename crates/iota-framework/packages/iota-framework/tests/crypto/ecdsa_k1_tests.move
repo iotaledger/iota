@@ -231,3 +231,49 @@ fun test_generate_keypair_invalid_seed() {
     let seed = b"Seed is not 32 bytes long";
     ecdsa_k1::secp256k1_keypair_from_seed(&seed);
 }
+
+#[test]
+fun test_secp256k1_validate_pubkey_valid() {
+    let pk = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+    assert!(ecdsa_k1::secp256k1_validate_pubkey(&pk));
+}
+
+#[test]
+fun test_secp256k1_validate_pubkey_invalid() {
+    // Prefix 0x00 is not a valid compressed-point prefix (must be 0x02 or 0x03).
+    assert!(
+        !ecdsa_k1::secp256k1_validate_pubkey(
+            &x"000000000000000000000000000000000000000000000000000000000000000000",
+        ),
+    );
+
+    // Prefix 0x01 is also not a valid compressed-point prefix.
+    assert!(
+        !ecdsa_k1::secp256k1_validate_pubkey(
+            &x"010000000000000000000000000000000000000000000000000000000000000000",
+        ),
+    );
+
+    // Prefix 0x02 with x = 0: y² = 0³ + 7 = 7 mod p. 7 is not a quadratic residue
+    // mod secp256k1's prime, so no valid y exists for x = 0.
+    assert!(
+        !ecdsa_k1::secp256k1_validate_pubkey(
+            &x"020000000000000000000000000000000000000000000000000000000000000000",
+        ),
+    );
+
+    // Wrong lengths return false (the function does not abort).
+    assert!(!ecdsa_k1::secp256k1_validate_pubkey(&x""));
+    // 32 bytes — one byte too short
+    assert!(
+        !ecdsa_k1::secp256k1_validate_pubkey(
+            &x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c",
+        ),
+    );
+    // 34 bytes — one byte too long
+    assert!(
+        !ecdsa_k1::secp256k1_validate_pubkey(
+            &x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c00",
+        ),
+    );
+}

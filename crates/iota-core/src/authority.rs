@@ -59,10 +59,14 @@ use iota_transaction_checks::VerifierLimitsSource;
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-        authenticator_function_ref_v1_from_dynamic_field_object,
-        derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
+    account_abstraction::{
+        authenticator_function::{
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+            AuthenticatorFunctionRefForSigning,
+            authenticator_function_ref_v1_from_dynamic_field_object,
+            derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
+        },
+        builtin_authenticator_functions::{self, PreloadedBuiltinAuthenticatorData},
     },
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
@@ -79,6 +83,7 @@ use iota_types::{
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
+    execution::DynamicallyLoadedObjectMetadata,
     execution_config_utils::to_binary_config,
     fp_ensure,
     gas::IotaGasStatus,
@@ -1114,7 +1119,7 @@ impl AuthorityState {
                     .iter()
                     .zip(per_authenticator_checked_inputs.iter())
                     .find(|(move_authenticator, _)| move_authenticator.address() == address)
-                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
+                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.authenticator_function_ref.clone())
             });
 
         // Filter the authenticators and their checked inputs down to those that must
@@ -1155,11 +1160,14 @@ impl AuthorityState {
                 .map(
                     |(
                         move_authenticator,
-                        (authenticator_checked_input_objects, authenticator_function_ref),
+                        (
+                            authenticator_checked_input_objects,
+                            authenticator_function_ref_for_signing,
+                        ),
                     )| {
                         (
                             move_authenticator.to_owned(),
-                            authenticator_function_ref,
+                            authenticator_function_ref_for_signing,
                             authenticator_checked_input_objects,
                         )
                     },
@@ -5773,18 +5781,58 @@ impl AuthorityState {
         let authenticator_function_ref_field_id =
             derive_authenticator_function_ref_v1_dynamic_field_id(auth_account_object_id)?;
 
-        let authenticator_function_ref_field = self
+        let authenticator_function_ref_field_obj = self
             .get_object_cache_reader()
             .try_find_object_lt_or_eq_version(
                 authenticator_function_ref_field_id,
                 auth_account_object_seq_number,
             )?;
 
-        if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
-            Ok(authenticator_function_ref_v1_from_dynamic_field_object(
+        if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field_obj {
+            let mut auth_ref = authenticator_function_ref_v1_from_dynamic_field_object(
                 auth_account_object_id,
                 &authenticator_function_ref_field_obj,
-            )?)
+            )?;
+
+            let expected_scheme = match &auth_ref.authenticator_function_ref {
+                AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                    builtin_authenticator_functions::resolve_builtin_signature_scheme(
+                        authenticator_function_ref_v1,
+                    )
+                }
+            };
+
+            // For built-in authenticators, also load the public key dynamic field so
+            // the executor can verify the signature without running Move VM.
+            if let Some(expected_scheme) = expected_scheme {
+                let (public_key_field_id, loaded_data) =
+                    builtin_authenticator_functions::load_builtin_public_key(
+                        auth_account_object_id,
+                        |public_key_field_id| {
+                            self.get_object_cache_reader()
+                                .try_find_object_lt_or_eq_version(
+                                    public_key_field_id,
+                                    auth_account_object_seq_number,
+                                )
+                        },
+                    )?;
+
+                let (public_key, public_key_loaded_metadata) =
+                    loaded_data.ok_or(UserInputError::AccountPublicKeyNotFound {
+                        public_key_id: public_key_field_id,
+                        account_object_id: auth_account_object_id,
+                        account_object_version: auth_account_object_seq_number,
+                    })?;
+
+                auth_ref.builtin_authenticator_data = Some(PreloadedBuiltinAuthenticatorData {
+                    expected_scheme,
+                    public_key,
+                });
+                auth_ref.builtin_public_key_loaded_object =
+                    Some((public_key_field_id, public_key_loaded_metadata));
+            }
+
+            Ok(auth_ref)
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {
                 authenticator_function_ref_id: authenticator_function_ref_field_id,
@@ -5837,7 +5885,7 @@ impl AuthorityState {
     ) -> IotaResult<(
         IotaGasStatus,
         CheckedInputObjects,
-        Vec<(CheckedInputObjects, AuthenticatorFunctionRef)>,
+        Vec<(CheckedInputObjects, AuthenticatorFunctionRefForSigning)>,
     )> {
         let authenticator_gas_budget = if move_authenticators.is_empty() {
             0
@@ -5868,16 +5916,15 @@ impl AuthorityState {
                     let signer = move_authenticator.address();
 
                     // Make sure the signer is a Move account.
-                    let AuthenticatorFunctionRefForExecution {
-                        authenticator_function_ref,
-                        ..
-                    } = self.check_move_account_for_validation(
-                        auth_account_object_id,
-                        auth_account_object_seq_number,
-                        auth_account_object_digest,
-                        account_object,
-                        &signer,
-                    )?;
+                    let authenticator_function_ref_for_signing: AuthenticatorFunctionRefForSigning =
+                        self.check_move_account_for_validation(
+                            auth_account_object_id,
+                            auth_account_object_seq_number,
+                            auth_account_object_digest,
+                            account_object,
+                            &signer,
+                        )?
+                        .into();
 
                     // Check the MoveAuthenticator input objects.
                     let authenticator_checked_input_objects =
@@ -5887,7 +5934,7 @@ impl AuthorityState {
 
                     Ok((
                         authenticator_checked_input_objects,
-                        authenticator_function_ref,
+                        authenticator_function_ref_for_signing,
                     ))
                 },
             )

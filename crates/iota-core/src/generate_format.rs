@@ -11,16 +11,16 @@ use iota_sdk_crypto::{
     secp256r1::Secp256r1PrivateKey,
 };
 use iota_sdk_types::{
-    Address, Argument, ChangeEpoch, CheckpointContentsDigest, CheckpointDigest, Command,
-    CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
+    AccountClaimKind, Address, Argument, ChangeEpoch, CheckpointContentsDigest, CheckpointDigest,
+    Command, CommandArgumentError, ConsensusCommitDigest, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, Event, ExecutionError,
     ExecutionStatus, GenesisObject, GenesisTransaction, IdOperation, Identifier, MoveLocation,
     MoveObjectType, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectIn, ObjectOut,
     ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, RandomnessStateUpdate,
-    SenderSignedTransaction, SharedObjectReference, SimpleSignature, StructTag, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
-    TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
-    UserSignature,
+    SenderSignedTransaction, SharedObjectReference, SimpleSignature, SmartAccountBuildKind,
+    StructTag, Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents, TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag,
+    UnchangedSharedKind, UserSignature,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
@@ -538,6 +538,10 @@ fn get_registry() -> Result<Registry> {
         .unwrap();
     tracer
         .trace_type::<EndOfEpochTransactionKind>(&samples)
+        .unwrap();
+    tracer.trace_type::<AccountClaimKind>(&samples).unwrap();
+    tracer
+        .trace_type::<SmartAccountBuildKind>(&samples)
         .unwrap();
 
     tracer.trace_type::<IdOperation>(&samples).unwrap();
