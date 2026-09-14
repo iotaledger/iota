@@ -1118,7 +1118,7 @@ async fn safe_mode_reconfig_test() {
 
     let system_state = test_cluster
         .grpc_client()
-        .get_epoch(None, EpochField::BCS_SYSTEM_STATE)
+        .epoch(None, EpochField::BCS_SYSTEM_STATE)
         .await
         .unwrap()
         .into_inner()
