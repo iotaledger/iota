@@ -140,3 +140,12 @@ jobs:
     uses: ./.github/workflows/_execution_cut.yml
     with:
       isNightly: ${{ inputs.isNightly }}
+
+  non-exhaustive-lint:
+    if: (!cancelled() && !failure() && (inputs.isRustWorkspaceConfig || inputs.isNightly))
+    needs:
+      - rust-lints
+    uses: ./.github/workflows/_rust_non_exhaustive_lint.yml
+    with:
+      isRustWorkspaceConfig: ${{ inputs.isRustWorkspaceConfig }}
+      isNightly: ${{ inputs.isNightly }}
