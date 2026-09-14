@@ -11,6 +11,13 @@
 
 use std::{num::NonZeroUsize, time::Duration};
 
+use futures::StreamExt;
+use iota_grpc_types::{
+    field::FieldMaskUtil,
+    v1::ledger_service::{
+        GetTransactionsRequest, TransactionRequest, TransactionRequests, transaction_result,
+    },
+};
 use iota_json_rpc_api::{CoinReadApiClient, IndexerApiClient};
 use iota_json_rpc_types::{EventFilter, IotaTransactionBlockResponseQuery, TransactionFilter};
 use iota_macros::sim_test;
@@ -18,6 +25,7 @@ use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{Address, TransactionDigest};
 use iota_swarm::memory::Swarm;
 use iota_test_transaction_builder::TestTransactionBuilder;
+use prost_types::FieldMask;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Transfers an object between the wallet's first two accounts and returns
@@ -185,5 +193,92 @@ async fn node_without_jsonrpc_api_mounts_no_http_server() {
     assert!(
         tokio::net::TcpStream::connect(address).await.is_err(),
         "nothing must listen on the JSON-RPC address when the API is off"
+    );
+}
+
+/// A transaction still held by the ledger reports its checkpoint over gRPC
+/// even when the RPC index retains fewer epochs than the ledger does — the
+/// finality answer lives with the transaction, not with the query indexes.
+#[sim_test]
+async fn transaction_checkpoint_survives_a_shorter_index_window() {
+    let cluster = TestClusterBuilder::new()
+        .with_fullnode_num_epochs_to_retain_for_indexes(Some(1))
+        // The ledger must outlive the index window for the test to say
+        // anything, so keep every transaction rather than leaving that to
+        // how far the transaction pruner happens to have got.
+        .disable_fullnode_pruning()
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    let (_sender, digest) = transfer_coin(&cluster.wallet).await;
+    let indexes = cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().rpc_indexes_store.clone().unwrap());
+
+    // Advance past the index retention so the transaction's epoch bucket is
+    // dropped, while the ledger still holds the transaction itself.
+    for _ in 0..=1 {
+        cluster.force_new_epoch().await;
+    }
+    tokio::task::spawn_blocking({
+        let indexes = indexes.clone();
+        move || indexes.prune()
+    })
+    .await
+    .unwrap()
+    .unwrap();
+
+    let checkpoint = cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            node.state()
+                .get_checkpoint_cache()
+                .try_get_transaction_perpetual_checkpoint(&digest)
+        })
+        .unwrap();
+    let (_epoch, checkpoint_seq) = checkpoint.unwrap_or_else(|| {
+        panic!("the ledger must still answer which checkpoint confirmed {digest}")
+    });
+
+    // The query index is what the shorter window costs: the transaction can
+    // no longer be found by query, while remaining fetchable by digest.
+    assert_eq!(
+        indexes.lookup_digest(&digest).unwrap(),
+        None,
+        "the pruned index must no longer place {digest} in the query order"
+    );
+
+    let mut ledger_client = cluster.grpc_client().ledger_service_client();
+    let request = GetTransactionsRequest::default()
+        .with_requests(TransactionRequests::default().with_requests(vec![
+            TransactionRequest::default().with_digest(
+                iota_grpc_types::v1::types::Digest::default().with_digest(digest.bytes().to_vec()),
+            ),
+        ]))
+        .with_read_mask(FieldMask::from_paths(["checkpoint"]));
+    let mut responses = ledger_client
+        .get_transactions(request)
+        .await
+        .expect("gRPC must serve the transaction")
+        .into_inner();
+    let response = responses
+        .next()
+        .await
+        .expect("gRPC must return a response")
+        .expect("gRPC must return a response");
+    let Some(transaction_result::Result::ExecutedTransaction(transaction)) = response
+        .transaction_results
+        .first()
+        .and_then(|result| result.result.as_ref())
+    else {
+        panic!("gRPC must return {digest} as an executed transaction");
+    };
+    assert_eq!(
+        transaction.checkpoint,
+        Some(checkpoint_seq),
+        "gRPC must report the checkpoint of {digest} once its index bucket is gone"
     );
 }

@@ -324,6 +324,26 @@ impl AuthorityStorePruner {
     /// based on the specified checkpoint number and list of checkpoints to
     /// prune. This function removes outdated data, updates pruning metrics,
     /// and maintains database consistency by updating watermarks.
+    ///
+    /// These tables follow the ledger's retention rather than the RPC
+    /// index's, and go in one batch:
+    ///
+    /// - `transactions` and `effects` are the two halves of the `ExecutionData`
+    ///   peers sync, and the transaction body and effects every API read
+    ///   returns. `effects` also carries `events_digest`, the only marker
+    ///   distinguishing "produced no events" from "events missing".
+    /// - `executed_effects` tracks the same execution record.
+    /// - `events_2` only the APIs read, but the event indexes are rebuilt from
+    ///   it and have no other source, and a read of a transaction whose events
+    ///   were pruned cannot currently be told from one racing execution — so
+    ///   the two must disappear together.
+    /// - `executed_transactions_to_checkpoint` answers whether a transaction
+    ///   was confirmed, and a missing answer cannot be told from "not
+    ///   confirmed", so it must not expire before the transaction it describes.
+    ///
+    /// Object versions are not among them: they prune on their own knob,
+    /// since peers never need old versions to sync and both APIs already
+    /// degrade explicitly when a version is gone.
     fn prune_checkpoints(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_db: &Arc<CheckpointStore>,
@@ -541,6 +561,12 @@ impl AuthorityStorePruner {
             checkpoint_number = checkpoint.sequence_number();
             last_pruned_timestamp_ms = checkpoint.timestamp_ms;
 
+            // Both pruners walk this loop, and it needs the checkpoint's contents
+            // and effects to know what to delete. So the objects retention must
+            // not exceed the checkpoint retention: otherwise the checkpoint
+            // pruner deletes these rows first and the objects pruner fails here
+            // when it reaches the same checkpoint.
+            // TODO: remove once the objects historic table split is implemented
             let content = checkpoint_store
                 .get_checkpoint_contents(&checkpoint.contents_digest)?
                 .ok_or_else(|| {
