@@ -448,11 +448,7 @@ async fn get_all_coins() {
     let fullnode_coins = cluster
         .fullnode_handle
         .iota_node
-        .with(|node| {
-            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO);
-            node.state()
-                .get_owned_coins(address, coin_cursor, 100, false)
-        })
+        .with(|node| node.state().get_owned_coins(address, None, None, 100))
         .unwrap();
 
     assert_eq!(rpc_all_coins.data.len(), fullnode_coins.len());
@@ -497,11 +493,7 @@ async fn get_all_coins_with_multiple_coin_types() {
     let fullnode_coins = cluster
         .fullnode_handle
         .iota_node
-        .with(|node| {
-            let coin_cursor = (String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO);
-            node.state()
-                .get_owned_coins(address, coin_cursor, 100, false)
-        })
+        .with(|node| node.state().get_owned_coins(address, None, None, 100))
         .unwrap();
 
     assert_eq!(rpc_all_coins.data.len(), fullnode_coins.len());
