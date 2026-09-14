@@ -432,12 +432,9 @@ impl TryFrom<iota_sdk_types::ObjectChange> for ObjectChange {
                 version,
                 digest,
             },
-            // `iota_sdk_types::ObjectChange` is `#[non_exhaustive]`, so this
-            // arm is required. Reporting an error rather than panicking keeps
-            // an added upstream variant a failed conversion.
-            change => {
+            _ => {
                 return Err(anyhow::anyhow!(
-                    "unhandled iota_sdk_types::ObjectChange variant: {change:?}"
+                    "a new ObjectChange enum variant was added and needs to be handled"
                 ));
             }
         })
