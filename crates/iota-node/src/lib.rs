@@ -9,7 +9,7 @@ use std::{
     fmt,
     future::Future,
     num::NonZeroUsize,
-    sync::{Arc, Weak},
+    sync::{Arc, Weak, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -68,7 +68,7 @@ use iota_core::{
     execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
+    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR, remove_legacy_jsonrpc_indexes_dir},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     safe_client::SafeClientMetricsBase,
@@ -77,7 +77,6 @@ use iota_core::{
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
-use iota_genesis_common::MigrationTxDataExt;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_json_rpc::{
     JsonRpcServerBuilder, coin_api::CoinReadApi, governance_api::GovernanceReadApi,
@@ -300,6 +299,7 @@ impl IotaNode {
             registry_service,
             ServerVersion::new("iota-node", "unknown"),
             tokio::runtime::Handle::current(),
+            Arc::default(),
         )
         .await
     }
@@ -349,11 +349,14 @@ impl IotaNode {
         }))
     }
 
+    /// Setting `index_rebuild_cancelled` stops an RPC index rebuild running
+    /// during startup, which no other shutdown path can reach.
     pub async fn start_async(
         mut config: NodeConfig,
         registry_service: RegistryService,
         server_version: ServerVersion,
         serving_rt_handle: tokio::runtime::Handle,
+        index_rebuild_cancelled: Arc<AtomicBool>,
     ) -> Result<Arc<IotaNode>> {
         config.validate()?;
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
@@ -596,15 +599,41 @@ impl IotaNode {
             checkpoint_store.clone(),
         );
 
+        // The legacy database can no longer be adopted, so remove it whether
+        // or not indexing stays enabled: left in place it holds on to
+        // potentially hundreds of gigabytes.
+        if is_full_node {
+            if let Err(e) = remove_legacy_jsonrpc_indexes_dir(&config.db_path()) {
+                warn!("failed to remove the legacy JSON-RPC index database: {e}");
+            }
+        }
         let index_store = if is_full_node && config.enable_index_processing {
             info!("creating index store");
-            Some(Arc::new(IndexStore::new(
-                config.db_path().join("indexes"),
-                &prometheus_registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
+            if config
+                .authority_store_pruning_config
+                .num_epochs_to_retain_for_indexes
+                .is_none()
+            {
+                warn!(
+                    "index pruning is off (num_epochs_to_retain_for_indexes is unset): the history index adds a column family per epoch and grows without bound"
+                );
+            }
+            Some(
+                IndexStore::new(
+                    config.db_path().join(JSONRPC_INDEXES_DIR),
+                    &prometheus_registry,
+                    epoch_store
+                        .protocol_config()
+                        .max_move_identifier_len_as_option(),
+                    config
+                        .authority_store_pruning_config
+                        .num_epochs_to_retain_for_indexes,
+                    &store,
+                    &checkpoint_store,
+                    index_rebuild_cancelled.clone(),
+                )
+                .await?,
+            )
         } else {
             None
         };
@@ -615,8 +644,9 @@ impl IotaNode {
                     config.db_path().join(GRPC_INDEXES_DIR),
                     Arc::clone(&store),
                     &checkpoint_store,
+                    &index_rebuild_cancelled,
                 )
-                .await,
+                .await?,
             ))
         } else {
             None
@@ -666,11 +696,6 @@ impl IotaNode {
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
-        let mut genesis_objects = genesis.objects().to_vec();
-        if let Some(migration_tx_data) = migration_tx_data.as_ref() {
-            genesis_objects.extend(migration_tx_data.get_objects());
-        }
-
         let authority_name = config.authority_public_key();
         let validator_tx_finalizer =
             config
@@ -694,7 +719,6 @@ impl IotaNode {
             grpc_indexes_store,
             checkpoint_store.clone(),
             &prometheus_registry,
-            &genesis_objects,
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
@@ -741,7 +765,7 @@ impl IotaNode {
             .expensive_safety_check_config
             .enable_secondary_index_checks()
         {
-            if let Some(indexes) = state.indexes.clone() {
+            if let Some(indexes) = state.jsonrpc_indexes_store.clone() {
                 iota_core::verify_indexes::verify_indexes(
                     state.get_global_state_hash_store().as_ref(),
                     indexes,
@@ -2168,9 +2192,18 @@ impl IotaNode {
         }
     }
 
-    async fn shutdown(&self) {
+    /// Stops the node's background work — consensus, the JSON-RPC index
+    /// history backfill and the gRPC server — before its runtimes go away.
+    /// Does nothing the second time it is called.
+    pub async fn shutdown(&self) {
         if let Some(validator_components) = &*self.validator_components.lock().await {
             validator_components.consensus_manager.shutdown().await;
+        }
+
+        // Stop the background index backfill so shutdown does not block on
+        // a full history replay.
+        if let Some(indexes) = &self.state.jsonrpc_indexes_store {
+            indexes.shutdown().await;
         }
 
         // Shutdown the gRPC server if it's running

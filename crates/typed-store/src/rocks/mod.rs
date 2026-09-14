@@ -28,8 +28,8 @@ pub use crate::{
     database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
     rocks::options::{
         BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
-        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
-        read_size_from_env,
+        bulk_ingestion_options, bulk_ingestion_options_split_between, bulk_ingestion_write_options,
+        default_db_options, list_tables, read_size_from_env, synced_write_options,
     },
 };
 use crate::{
@@ -71,14 +71,17 @@ impl Drop for RocksDB {
     }
 }
 
+/// Resolves a column family handle. Fails with
+/// [`TypedStoreError::UnregisteredColumn`] if the column family is not open,
+/// which includes one dropped after the caller obtained its map.
 pub(crate) fn rocks_cf<'a>(
     rocks_db: &'a RocksDB,
     cf_name: &str,
-) -> Arc<rocksdb::BoundColumnFamily<'a>> {
+) -> Result<Arc<rocksdb::BoundColumnFamily<'a>>, TypedStoreError> {
     rocks_db
         .underlying
         .cf_handle(cf_name)
-        .expect("the column family was deleted unexpectedly")
+        .ok_or_else(|| TypedStoreError::UnregisteredColumn(cf_name.to_string()))
 }
 
 // Check if the database is corrupted, and if so, panic.
@@ -114,7 +117,9 @@ pub fn unmark_db_corruption(path: &Path) -> Result<(), Error> {
 
 /// Opens a database with options, and a number of column families with
 /// individual options that are created if they do not exist.
-#[tracing::instrument(level="debug", skip_all, fields(path = ?path.as_ref()), err)]
+// Whether a failed open is fatal is the caller's call: some wipe and rebuild the
+// database, and the ones that abort carry the error in their panic message.
+#[tracing::instrument(level = "debug", skip_all, fields(path = ?path.as_ref()), err(level = "warn"))]
 pub fn open_cf_opts<P: AsRef<Path>>(
     path: P,
     db_options: Option<rocksdb::Options>,
