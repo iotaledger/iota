@@ -48,6 +48,7 @@ use crate::{
 pub(crate) struct ConsensusCommitOutput {
     // Consensus and reconfig state
     consensus_round: CommitRound,
+    commit_index: CommitIndex,
     consensus_messages_processed: BTreeSet<SequencedConsensusTransactionKey>,
     end_of_publish: BTreeSet<AuthorityName>,
     reconfig_state: Option<ReconfigState>,
@@ -111,12 +112,15 @@ pub(crate) struct ConsensusCommitOutput {
     // injected any. Written to `deny_rule_mirror` atomically with
     // `last_consensus_stats`.
     deny_rule_mirror: Option<DenyRuleSet>,
+
+    handler_latest_rows: Option<BTreeMap<ObjectId, HandlerLatestObject>>,
 }
 
 impl ConsensusCommitOutput {
-    pub fn new(consensus_round: CommitRound) -> Self {
+    pub fn new(consensus_round: CommitRound, commit_index: CommitIndex) -> Self {
         Self {
             consensus_round,
+            commit_index,
             ..Default::default()
         }
     }
@@ -281,6 +285,14 @@ impl ConsensusCommitOutput {
     /// Records the mirror state reached by this commit's injected updates.
     pub fn record_deny_rule_mirror(&mut self, rules: DenyRuleSet) {
         self.deny_rule_mirror = Some(rules);
+    }
+
+    /// Records the mirror state reached by this commit's injected updates.
+    pub fn set_handler_latest_rows(
+        &mut self,
+        handler_latest_rows: BTreeMap<ObjectId, HandlerLatestObject>,
+    ) {
+        self.handler_latest_rows = Some(handler_latest_rows);
     }
 
     pub fn write_to_batch(
@@ -1304,7 +1316,7 @@ mod tests {
         round: CommitRound,
         checkpoint_heights: impl IntoIterator<Item = CheckpointHeight>,
     ) -> ConsensusCommitOutput {
-        let mut output = ConsensusCommitOutput::new(round);
+        let mut output = ConsensusCommitOutput::new(round, round);
         output.set_default_commit_stats_for_testing();
         for checkpoint_height in checkpoint_heights {
             output.insert_pending_checkpoint(pending_checkpoint(vec![], checkpoint_height));
@@ -1529,7 +1541,7 @@ mod tests {
 
         let regular_height = 40;
         let randomness_height = regular_height + 1;
-        let mut output = ConsensusCommitOutput::new(1);
+        let mut output = ConsensusCommitOutput::new(1, 1);
         output.set_default_commit_stats_for_testing();
         output.insert_pending_checkpoint(pending_checkpoint(vec![], regular_height));
         output.insert_pending_checkpoint(pending_checkpoint(

@@ -1081,7 +1081,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
         let epoch_store = epoch_store.clone();
         let authority = &authority;
         async move {
-            let mut output = ConsensusCommitOutput::new(round);
+            let mut output = ConsensusCommitOutput::new(round, round);
             // Roots are prefilled per transaction by randomness use, as the
             // commit boundary does; scheduling filters out deferred ones.
             let mut non_randomness_roots = BTreeSet::new();
