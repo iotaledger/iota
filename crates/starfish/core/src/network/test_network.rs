@@ -16,7 +16,6 @@ use crate::{
     block_header::{BlockRef, VerifiedBlockHeader},
     commit::{CommitRange, TrustedCommit},
     commit_syncer::CommitSyncType,
-    encoder::ShardEncoder,
     error::ConsensusResult,
     network::{BlockBundleStream, NetworkService, SerializedBlockBundle, StreamPosition},
     transaction_ref::TransactionRef,
@@ -76,7 +75,6 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        _encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
         _last_streamed_block: &mut StreamPosition,
     ) -> ConsensusResult<()> {
         let release = {
