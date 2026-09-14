@@ -253,7 +253,7 @@ impl Merge<iota_types::object::Object> for Object {
             return Ok(());
         }
 
-        let sdk_object: iota_sdk_types::object::Object =
+        let sdk_object: iota_sdk_types::Object =
             source.try_into().map_err(|e: SdkTypeConversionError| {
                 RpcError::from(e).with_context("failed to convert object")
             })?;
@@ -262,12 +262,12 @@ impl Merge<iota_types::object::Object> for Object {
     }
 }
 
-impl Merge<&iota_sdk_types::object::Object> for Object {
+impl Merge<&iota_sdk_types::Object> for Object {
     type Error = RpcError;
 
     fn merge(
         &mut self,
-        source: &iota_sdk_types::object::Object,
+        source: &iota_sdk_types::Object,
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if mask.contains(Self::BCS_FIELD.name) {

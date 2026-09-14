@@ -174,6 +174,9 @@ macro_rules! fetch_child_object_unbounded {
                     ));
                 }
                 ObjectData::Struct(_) => Some(object),
+                _ => unimplemented!(
+                    "a new ObjectData enum variant was added and needs to be handled"
+                ),
             }
         } else {
             None
@@ -239,6 +242,9 @@ impl Inner<'_> {
                     ));
                 }
                 ObjectData::Struct(mo @ MoveStruct { .. }) => Some((mo, loaded_metadata)),
+                _ => unimplemented!(
+                    "a new ObjectData enum variant was added and needs to be handled"
+                ),
             }
         } else {
             None

@@ -39,14 +39,13 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
-    ExecutionStatus, InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference,
-    Owner, RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
+    Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+    CheckpointSummary, Digest, EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary,
+    InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
+    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
     TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
     TransactionKind, TypeTag, Version, WriteKind,
-    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
-    gas::GasCostSummary,
 };
 use iota_storage::{
     key_value_store::{
@@ -2486,7 +2485,7 @@ impl AuthorityState {
             effects
                 .all_changed_objects()
                 .into_iter()
-                .map(|(changed, _kind)| (changed.reference, changed.owner)),
+                .map(|(changed, _kind)| (*changed.reference(), *changed.owner())),
             transaction
                 .data()
                 .transaction()
@@ -2554,7 +2553,7 @@ impl AuthorityState {
         let modified_at_version = effects
             .modified_at_versions()
             .into_iter()
-            .map(|modified| (modified.object_id, modified.version))
+            .map(|modified| (*modified.object_id(), modified.version()))
             .collect::<HashMap<_, _>>();
 
         let tx_digest = effects.transaction_digest();
@@ -2579,7 +2578,7 @@ impl AuthorityState {
         let mut new_dynamic_fields = vec![];
 
         for (changed, kind) in effects.all_changed_objects() {
-            let (oref, owner) = (changed.reference, changed.owner);
+            let (oref, owner) = (*changed.reference(), *changed.owner());
             let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
@@ -4798,7 +4797,7 @@ impl AuthorityState {
         // "written_coins" but their input isn't included in the set of input
         // objects in a inner_temporary_store.
         for modified in effects.modified_at_versions() {
-            let (object_id, version) = (modified.object_id, modified.version);
+            let (object_id, version) = (*modified.object_id(), modified.version());
             if inner_temporary_store
                 .loaded_runtime_objects
                 .contains_key(&object_id)
@@ -6411,8 +6410,11 @@ impl NodeStateDump {
                 }
                 InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::MutateDeleted(..)
-                | InputSharedObject::Canceled(..) => (), /* TODO: consider record congested
-                                                          * objects. */
+                | InputSharedObject::Canceled(..) => (), // TODO: consider record congested
+                // objects.
+                _ => unimplemented!(
+                    "a new InputSharedObject enum variant was added and needs to be handled"
+                ),
             }
         }
 
@@ -6428,8 +6430,8 @@ impl NodeStateDump {
         // Record all modified objects
         let mut modified_at_versions = Vec::new();
         for modified in effects.modified_at_versions() {
-            let (id, ver) = (modified.object_id, modified.version);
-            if let Some(w) = object_store.try_get_object_by_key(&id, ver)? {
+            let (id, ver) = (modified.object_id(), modified.version());
+            if let Some(w) = object_store.try_get_object_by_key(id, ver)? {
                 modified_at_versions.push(ObjDumpFormat::new(w))
             }
         }

@@ -23,11 +23,11 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
 
     let modify_at_version = modified_at_versions
         .into_iter()
-        .map(|modified| (modified.object_id, modified.version))
+        .map(|modified| (*modified.object_id(), modified.version()))
         .collect::<BTreeMap<_, _>>();
 
     for (changed, kind) in all_changed_objects {
-        let OwnedObjectReference { reference, owner } = changed;
+        let (reference, owner) = (*changed.reference(), *changed.owner());
         let ObjectReference {
             object_id,
             version,
@@ -67,6 +67,9 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                     version,
                     digest,
                 }),
+                _ => {
+                    unimplemented!("a new WriteKind enum variant was added and needs to be handled")
+                }
             }
         } else if let Some(p) = o.data.as_opt_package() {
             if kind == WriteKind::Create {
@@ -106,6 +109,9 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                         object_id: id,
                         version,
                     }),
+                    _ => unimplemented!(
+                        "a new ObjectRemoveKind enum variant was added and needs to be handled"
+                    ),
                 }
             }
         };

@@ -74,8 +74,9 @@ pub enum Table {
     TransactionsByAddress,
     /// Stores a mapping of
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
-    /// to [`CheckpointContents`](iota_sdk_types::checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
-    /// every checkpoint.
+    /// to [`CheckpointContents`](iota_sdk_types::CheckpointContents) and
+    /// [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary)
+    /// for every checkpoint.
     Checkpoints,
     /// Stores a mapping of
     /// [`CheckpointDigest`](iota_sdk_types::CheckpointDigest) to
@@ -220,8 +221,8 @@ pub fn transactions_by_address<'a>(
                 std::iter::once(txn.sender())
                     .chain(std::iter::once(txn.gas_owner()))
                     .chain(tx.effects.all_changed_objects().into_iter().filter_map(
-                        |(changed, _)| match changed.owner {
-                            Owner::Address(a) => Some(a),
+                        |(changed, _)| match changed.owner() {
+                            Owner::Address(a) => Some(*a),
                             _ => None,
                         },
                     ))

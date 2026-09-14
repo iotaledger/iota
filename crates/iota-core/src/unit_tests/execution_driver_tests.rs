@@ -11,7 +11,7 @@ use std::{
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, OwnedObjectReference, Owner, TransactionDigest, TransactionEffects};
+use iota_sdk_types::{Address, Owner, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     committee::Committee,
@@ -364,7 +364,7 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
         execute_owned_on_first_three_authorities(&authority_clients, &aggregator.committee, &tx1)
             .await;
     executed_owned_certs.push(cert);
-    let mut owned_object_ref = effects1.created()[0].reference;
+    let mut owned_object_ref = *effects1.created()[0].reference();
 
     // Initialize a shared counter, re-using gas_ref_0 so it has to execute after
     // tx1.
@@ -376,10 +376,8 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
         execute_owned_on_first_three_authorities(&authority_clients, &aggregator.committee, &tx2)
             .await;
     executed_owned_certs.push(cert);
-    let OwnedObjectReference {
-        reference: mut shared_counter_ref,
-        owner,
-    } = effects2.created()[0];
+    let created = effects2.created()[0];
+    let (mut shared_counter_ref, owner) = (*created.reference(), *created.owner());
     let shared_counter_initial_version = if let Owner::Shared(initial_shared_version) = owner {
         // Because the gas object used has version 2, the initial lamport timestamp of
         // the shared counter is 3.
@@ -421,7 +419,7 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
         )
         .await;
         executed_owned_certs.push(cert);
-        owned_object_ref = effects.mutated_excluding_gas().first().unwrap().reference;
+        owned_object_ref = *effects.mutated_excluding_gas().first().unwrap().reference();
 
         let gas_ref = get_latest_ref(
             authority_clients[source_index].clone(),
@@ -442,7 +440,7 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
         )
         .await;
         executed_shared_certs.push(cert);
-        shared_counter_ref = effects.mutated_excluding_gas().first().unwrap().reference;
+        shared_counter_ref = *effects.mutated_excluding_gas().first().unwrap().reference();
     }
 
     // ---- Execute transactions in reverse dependency order on the last authority.
@@ -567,10 +565,8 @@ async fn test_per_object_overload() {
         .await
         .pop()
         .unwrap();
-    let OwnedObjectReference {
-        reference: shared_counter_ref,
-        owner,
-    } = create_counter_effects.created()[0];
+    let created = create_counter_effects.created()[0];
+    let (shared_counter_ref, owner) = (*created.reference(), *created.owner());
     let Owner::Shared(shared_counter_initial_version) = owner else {
         panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");
     };
@@ -706,10 +702,8 @@ async fn test_txn_age_overload() {
         .await
         .pop()
         .unwrap();
-    let OwnedObjectReference {
-        reference: shared_counter_ref,
-        owner,
-    } = create_counter_effects.created()[0];
+    let created = create_counter_effects.created()[0];
+    let (shared_counter_ref, owner) = (*created.reference(), *created.owner());
     let Owner::Shared(shared_counter_initial_version) = owner else {
         panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");
     };

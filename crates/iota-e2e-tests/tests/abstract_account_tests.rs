@@ -1397,13 +1397,13 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
         summary.status.is_success(),
         "Expected the TX1 execution to succeed"
     );
-    let conflict_coin_ref = effects_cert
+    let conflict_coin_ref = *effects_cert
         .all_changed_objects()
         .iter()
-        .find(|(changed, _)| changed.reference.object_id == conflict_coin_ref.object_id)
+        .find(|(changed, _)| changed.reference().object_id == conflict_coin_ref.object_id)
         .expect("Expected to find the updated conflict coin object")
         .0
-        .reference;
+        .reference();
 
     // Step 3: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
@@ -1926,7 +1926,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
         "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
     );
     assert_eq!(
-        effects_cert.data().gas_object().reference.object_id,
+        effects_cert.data().gas_object().reference().object_id,
         sponsor_gas.object_id,
         "Expected the sponsor's gas coin to be used for the failed TX"
     );
@@ -2905,11 +2905,14 @@ fn abstract_account_from_all_changed_objects(
     all_changed_objects: &[(OwnedObjectReference, WriteKind)],
 ) -> ObjectReference {
     // Extract the only created shared object which is the abstract account
-    all_changed_objects
+    *all_changed_objects
         .iter()
         .find_map(|(changed, kind)| {
-            matches!((changed.owner, kind), (Owner::Shared(_), WriteKind::Create))
-                .then_some(changed.reference)
+            matches!(
+                (changed.owner(), kind),
+                (Owner::Shared(_), WriteKind::Create)
+            )
+            .then_some(changed.reference())
         })
         .expect("Expected a shared object in the transaction response")
 }

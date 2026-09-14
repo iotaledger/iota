@@ -77,7 +77,7 @@ use iota_data_ingestion_core::{
     ShimProgressStore, Worker, WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
-use iota_sdk_types::{CheckpointDigest, checkpoint::EndOfEpochData};
+use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{

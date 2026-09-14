@@ -160,11 +160,14 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
         self.input_shared_objects()
             .into_iter()
             .filter_map(|kind| match kind {
-                InputSharedObject::MutateDeleted(object) => Some(object.object_id),
+                InputSharedObject::MutateDeleted(object) => Some(*object.object_id()),
                 InputSharedObject::Mutate(..)
                 | InputSharedObject::ReadOnly(..)
                 | InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::Canceled(..) => None,
+                _ => unimplemented!(
+                    "a new InputSharedObject enum variant was added and needs to be handled"
+                ),
             })
             .collect()
     }
@@ -579,7 +582,7 @@ impl TransactionEffectsExt for TransactionEffects {
     }
 
     fn all_affected_objects(&self) -> Vec<ObjectReference> {
-        let reference = |owned: OwnedObjectReference| owned.reference;
+        let reference = |owned: OwnedObjectReference| *owned.reference();
         self.created()
             .into_iter()
             .map(reference)

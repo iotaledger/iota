@@ -781,7 +781,7 @@ impl ToolCommand {
             }
             ToolCommand::GrpcHealthCheck { address } => {
                 let client = iota_grpc_client::Client::new(address)?;
-                client.get_health(None).await?;
+                client.health(None).await?;
                 println!("OK");
             }
         };

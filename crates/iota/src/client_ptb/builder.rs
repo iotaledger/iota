@@ -14,8 +14,8 @@ use iota_move_build::CompiledPackage;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_transaction_builder::TransactionBuilderLedgerClient;
 use iota_sdk_types::{
-    Address, Argument, Command, Identifier, Object, ObjectData, ObjectId, Owner,
-    ProgrammableTransaction, SharedObjectReference, TypeTag, move_package::MovePackage,
+    Address, Argument, Command, Identifier, MovePackage, Object, ObjectData, ObjectId, Owner,
+    ProgrammableTransaction, SharedObjectReference, TypeTag,
 };
 use iota_types::{
     base_types::{TxContext, TxContextKind, is_primitive_type_tag},

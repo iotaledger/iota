@@ -6,10 +6,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
-    Owner, SenderSignedTransaction, SharedObjectReference, StructTag, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind, TypeTag, Version,
-    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+    Address, CheckpointContents, CheckpointSummary, EndOfEpochData, EndOfEpochTransactionKind,
+    Event, Identifier, MoveStruct, ObjectId, ObjectReference, Owner, SenderSignedTransaction,
+    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEvents, TransactionKind, TypeTag, Version,
 };
 use tap::Pipe;
 
@@ -782,8 +782,8 @@ mod tests {
             tx.effects
                 .created()
                 .iter()
-                .any(|created| created.reference.object_id == created_obj_id
-                    && created.owner.address_or_object().unwrap()
+                .any(|created| created.reference().object_id == created_obj_id
+                    && created.owner().address_or_object().unwrap()
                         == &TestCheckpointDataBuilder::derive_address(0))
         );
     }
@@ -811,7 +811,7 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|changed| changed.reference.object_id == obj_id)
+                .any(|changed| changed.reference().object_id == obj_id)
         );
     }
 
@@ -882,7 +882,7 @@ mod tests {
             tx.effects
                 .unwrapped()
                 .iter()
-                .any(|changed| changed.reference.object_id == obj_id)
+                .any(|changed| changed.reference().object_id == obj_id)
         );
     }
 
@@ -909,8 +909,8 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|changed| changed.reference.object_id == obj_id
-                    && changed.owner.address_or_object().unwrap()
+                .any(|changed| changed.reference().object_id == obj_id
+                    && changed.owner().address_or_object().unwrap()
                         == &TestCheckpointDataBuilder::derive_address(1))
         );
     }

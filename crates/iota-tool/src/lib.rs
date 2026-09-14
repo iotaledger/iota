@@ -44,8 +44,8 @@ use iota_multiaddr::Multiaddr;
 use iota_network::default_iota_network_config;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    CheckpointContentsDigest, ObjectDigest, ObjectId, Owner, TransactionDigest, Version,
-    checkpoint::CheckpointCommitment,
+    CheckpointCommitment, CheckpointContentsDigest, ObjectDigest, ObjectId, Owner,
+    TransactionDigest, Version,
 };
 use iota_snapshot::{
     VerifiedEpochInfo,

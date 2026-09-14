@@ -17,8 +17,8 @@ use std::{
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    Version,
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -112,13 +112,13 @@ impl HistoricalFallbackReader {
         let input_object_keys = transaction_effects
             .modified_at_versions()
             .into_iter()
-            .map(|modified| (modified.object_id, modified.version))
+            .map(|modified| (*modified.object_id(), modified.version()))
             .collect::<Vec<(ObjectId, Version)>>();
 
         let output_object_keys = transaction_effects
             .all_changed_objects()
             .into_iter()
-            .map(|(changed, _kind)| (changed.reference.object_id, changed.reference.version))
+            .map(|(changed, _kind)| (changed.reference().object_id, changed.reference().version))
             .collect::<Vec<(ObjectId, Version)>>();
 
         let (raw_input_objects, raw_output_objects) = tokio::try_join!(

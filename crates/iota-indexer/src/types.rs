@@ -7,10 +7,9 @@ use iota_json_rpc_types::{
     IotaTransactionKind, ObjectChange,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ObjectDigest, ObjectId, Owner,
-    SenderSignedTransaction, StructTag, TransactionDigest, TransactionEffects, TypeTag, Version,
-    checkpoint::{CheckpointCommitment, CheckpointContents, EndOfEpochData},
-    move_package::MovePackage,
+    Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+    EndOfEpochData, MovePackage, ObjectDigest, ObjectId, Owner, SenderSignedTransaction, StructTag,
+    TransactionDigest, TransactionEffects, TypeTag, Version,
 };
 use iota_types::{
     crypto::AggregateAuthoritySignature,

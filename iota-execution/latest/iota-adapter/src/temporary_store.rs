@@ -12,9 +12,9 @@ use std::{
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ChangedObject, ExecutionStatus, IdOperation, ObjectId, ObjectIn, ObjectOut,
-    ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    gas::GasCostSummary,
+    Address, ChangedObject, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
+    ObjectOut, ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version,
 };
 use iota_types::{
     auth_context::AuthContext,

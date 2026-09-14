@@ -30,9 +30,9 @@ use iota_common::{
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, GasCostSummary, TransactionDigest,
-    TransactionEffects, TransactionKind, UserSignature,
-    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
+    CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+    CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionDigest, TransactionEffects,
+    TransactionKind, UserSignature,
 };
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
@@ -3102,8 +3102,8 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{
-        GenesisObject, Identifier, ObjectData, ObjectId, Owner, TransactionEffects,
-        TransactionEffectsDigest, TransactionEvents, Version, move_package::MovePackage,
+        GenesisObject, Identifier, MovePackage, ObjectData, ObjectId, Owner, TransactionEffects,
+        TransactionEffectsDigest, TransactionEvents, Version,
     };
     use iota_types::{
         effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},

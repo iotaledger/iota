@@ -36,9 +36,9 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference,
-    OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
-    Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind, crypto::Intent,
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SharedObjectReference, SignatureScheme, Transaction,
+    TransactionEffects, TypeTag, UserSignature, WriteKind, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -1887,18 +1887,10 @@ async fn run_account_for_benchmarks(
     let bench_refs: Vec<ObjectReference> = bench_effects
         .all_changed_objects()
         .into_iter()
-        .filter_map(
-            |(
-                OwnedObjectReference {
-                    reference: oref,
-                    owner,
-                },
-                kind,
-            )| {
-                (matches!(kind, WriteKind::Create) && matches!(owner, Owner::Immutable))
-                    .then_some(oref)
-            },
-        )
+        .filter_map(|(created, kind)| {
+            (matches!(kind, WriteKind::Create) && matches!(created.owner(), Owner::Immutable))
+                .then_some(*created.reference())
+        })
         .collect();
     assert_eq!(
         bench_refs.len(),
@@ -2106,19 +2098,13 @@ fn first_created_shared(effects: &TransactionEffects) -> anyhow::Result<ObjectRe
     effects
         .all_changed_objects()
         .into_iter()
-        .find_map(
-            |(
-                OwnedObjectReference {
-                    reference: oref,
-                    owner,
-                },
-                kind,
-            )| {
-                matches!(kind, WriteKind::Create)
-                    .then(|| matches!(owner, Owner::Shared(_)).then_some(oref))
-                    .flatten()
-            },
-        )
+        .find_map(|(created, kind)| {
+            matches!(kind, WriteKind::Create)
+                .then(|| {
+                    matches!(created.owner(), Owner::Shared(_)).then_some(*created.reference())
+                })
+                .flatten()
+        })
         .ok_or_else(|| anyhow::anyhow!("no created shared object in effects"))
 }
 

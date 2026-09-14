@@ -4,7 +4,7 @@
 use iota_core::checkpoints::CheckpointStore;
 use iota_macros::sim_test;
 use iota_sdk_types::{
-    TransactionDigest, TransactionEffects, TransactionEvents, checkpoint::CheckpointContents,
+    CheckpointContents, TransactionDigest, TransactionEffects, TransactionEvents,
 };
 use iota_snapshot::{EpochInfo, EpochInfoV1};
 use iota_types::{

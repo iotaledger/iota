@@ -31,10 +31,10 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, CanceledTransaction, CheckpointTimestamp, DenyRuleSet, ObjectId, ObjectReference,
-    RandomnessRound, SenderSignedTransaction, TransactionDenyRulesUpdate, TransactionDigest,
-    TransactionEffects, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
-    checkpoint::{CheckpointContents, CheckpointSummary},
+    Address, CanceledTransaction, CheckpointContents, CheckpointSummary, CheckpointTimestamp,
+    DenyRuleSet, ObjectId, ObjectReference, RandomnessRound, SenderSignedTransaction,
+    TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionKind, UserSignature, Version,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{

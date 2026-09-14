@@ -1179,13 +1179,15 @@ impl AuthorityStore {
         let all_new_object_keys = effects
             .all_changed_objects()
             .into_iter()
-            .map(|(changed, _)| ObjectKey(changed.reference.object_id, changed.reference.version));
+            .map(|(changed, _)| {
+                ObjectKey(changed.reference().object_id, changed.reference().version)
+            });
         write_batch.delete_batch(&self.perpetual_tables.objects, all_new_object_keys.clone())?;
 
         let modified_object_keys = effects
             .modified_at_versions()
             .into_iter()
-            .map(|modified| ObjectKey(modified.object_id, modified.version));
+            .map(|modified| ObjectKey(*modified.object_id(), modified.version()));
 
         macro_rules! get_objects_and_locks {
             ($object_keys: expr) => {
@@ -1629,9 +1631,9 @@ impl AuthorityStore {
         let mut object_keys_to_prune = vec![];
         for effects in &transaction_effects {
             for modified in effects.modified_at_versions() {
-                let (object_id, version) = (modified.object_id, modified.version);
+                let (object_id, version) = (modified.object_id(), modified.version());
                 info!("Pruning object {object_id} version {version:?}");
-                object_keys_to_prune.push(ObjectKey(object_id, version));
+                object_keys_to_prune.push(ObjectKey(*object_id, version));
             }
         }
 
