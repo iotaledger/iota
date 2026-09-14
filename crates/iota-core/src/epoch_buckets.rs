@@ -1,12 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-epoch history column families for the RPC index stores.
+//! Per-epoch column families, shared by the stores that retain their rows
+//! epoch by epoch: the RPC index history and the superseded object
+//! versions.
 //!
-//! History rows are partitioned by the epoch that produced them, one column
-//! family per epoch, so pruning an epoch is one constant-time column-family
-//! drop instead of per-row deletes. The stores differ only in what one
-//! bucket holds; everything about creating, finding, and dropping buckets is
+//! Rows are partitioned by the epoch that produced them, one column family
+//! per epoch, so pruning an epoch is one constant-time column-family drop
+//! instead of per-row deletes. The stores differ only in what one bucket
+//! holds; everything about creating, finding, and dropping buckets is
 //! shared here.
 
 use std::{
@@ -28,11 +30,12 @@ use typed_store::{
     traits::Map,
 };
 
-/// Options for the per-epoch history column families. Each bucket is
+/// Options for the RPC index stores' history buckets. Each bucket is
 /// write-once (appended during its epoch or the backfill, then only read)
 /// and queried by bounded range scans plus exact-key digest probes, which
 /// the block-based bloom filters answer from RAM. `set_block_options`
 /// creates the single block cache that every clone of these options shares.
+/// A store with another access pattern builds its own options.
 pub(crate) fn history_cf_options(
     db_options: &DBOptions,
     block_cache_size_mb: usize,
@@ -56,9 +59,8 @@ pub(crate) fn bucket_cf_epoch(cf_prefix: &str, cf_name: &str) -> Option<EpochId>
         .and_then(|epoch| epoch.parse().ok())
 }
 
-/// The per-epoch history buckets of one RPC index store. `B` is the store's
-/// view of one bucket, built by `reopen` from the bucket's column-family
-/// name.
+/// The per-epoch buckets of one store. `B` is that store's view of one
+/// bucket, built by `reopen` from the bucket's column-family name.
 ///
 /// On-disk column-family names are the ground truth for which buckets exist;
 /// the map here mirrors them for reads.
@@ -107,10 +109,13 @@ impl<B> EpochBuckets<B> {
             .map(|(&epoch, _)| epoch)
             .collect();
         for epoch in pruned {
-            info!(store = name, epoch, "dropping a pruned bucket at open");
+            info!(
+                store = name,
+                epoch, "dropping a pruned bucket column family at open"
+            );
             buckets.remove(&epoch);
             if let Err(e) = db.drop_cf(&bucket_cf_name(cf_prefix, epoch)) {
-                warn!(epoch, "failed to drop a pruned history column family: {e}");
+                warn!(epoch, "failed to drop a pruned bucket column family: {e}");
             }
         }
         Ok(Self {
@@ -152,7 +157,7 @@ impl<B> EpochBuckets<B> {
         self.earliest_retained_epoch.load(Ordering::Relaxed)
     }
 
-    /// The bucket holding `epoch`'s history, created if absent. Pruned
+    /// The bucket holding `epoch`'s rows, created if absent. Pruned
     /// epochs are refused: recreating a pruned epoch's column family would
     /// resurrect it under the same name, and a reader holding the dropped
     /// bucket would silently read the new, empty one.
@@ -160,7 +165,7 @@ impl<B> EpochBuckets<B> {
         let refuse_pruned = |earliest_retained: EpochId| {
             if epoch < earliest_retained {
                 return Err(TypedStoreError::Pruned(format!(
-                    "the history bucket of epoch {epoch} was pruned: only epochs from \
+                    "the bucket of epoch {epoch} was pruned: only epochs from \
                      {earliest_retained} on are retained"
                 )));
             }
@@ -199,7 +204,7 @@ impl<B> EpochBuckets<B> {
     /// Returns the earliest epoch to retain, `None` when there is no history
     /// at all. It is persisted before the drops and never moves backwards,
     /// so dropped epochs are never backfilled or recreated, even across a
-    /// reopen or a raised `epochs_to_retain`. Indexing below it is refused,
+    /// reopen or a raised `epochs_to_retain`. Writing below it is refused,
     /// and an epoch whose drop failed is gone from the store all the same:
     /// RocksDB unregisters the column family before dropping it, so the
     /// bucket can no longer be read, and the next open drops the column
@@ -261,10 +266,7 @@ impl<B> EpochBuckets<B> {
                 epoch, "dropping the bucket of an expired epoch"
             );
             if let Err(e) = self.db.drop_cf(&bucket_cf_name(self.cf_prefix, epoch)) {
-                warn!(
-                    epoch,
-                    "failed to drop an expired history column family: {e}"
-                );
+                warn!(epoch, "failed to drop an expired bucket column family: {e}");
             }
             // RocksDB unregisters the column family before it attempts the
             // drop, so a failed drop leaves a bucket that can neither be read

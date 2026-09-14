@@ -72,11 +72,11 @@ use self::{
 use crate::{
     authority::AuthorityStore,
     checkpoints::CheckpointStore,
+    epoch_buckets::{self, EpochBuckets},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::{
         PROGRESS_REPORT_INTERVAL, eta_display, par_index_live_object_set, progress_rate,
     },
-    rpc_index_history::{self, EpochBuckets},
 };
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
@@ -839,7 +839,7 @@ impl RpcIndexesStore {
     /// block cache).
     fn open_index_db(path: &Path) -> IotaResult<OpenedIndexDb> {
         let db_options = default_db_options().disable_write_throttling();
-        let history_cf_options = rpc_index_history::history_cf_options(
+        let history_cf_options = epoch_buckets::history_cf_options(
             &db_options,
             read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
                 .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),

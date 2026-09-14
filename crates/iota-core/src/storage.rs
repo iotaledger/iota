@@ -477,12 +477,23 @@ impl ObjectStore for GrpcReadStore {
         self.rocks.try_get_object(object_id)
     }
 
+    /// Unlike [`RocksDbStore`], this reads through to the historic buckets
+    /// after a live miss. Everything served from here is a gRPC response,
+    /// and responses read past versions by exact key: a transaction's input
+    /// pre-images, a checkpoint's transaction objects, an explicitly
+    /// requested past version. Those versions leave the live table when
+    /// their checkpoint commits.
+    ///
+    /// `RocksDbStore` keeps no fallback because state sync holds it too, and
+    /// there a miss is a bug rather than a relocated version.
     fn try_get_object_by_key(
         &self,
         object_id: &iota_sdk_types::ObjectId,
         version: iota_types::base_types::VersionNumber,
     ) -> iota_types::storage::error::Result<Option<Object>> {
-        self.rocks.try_get_object_by_key(object_id, version)
+        self.state
+            .get_object_with_historic_fallback(&ObjectKey(*object_id, version))
+            .map_err(StorageError::custom)
     }
 }
 

@@ -103,8 +103,11 @@ use iota_types::{
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticatorExt,
-    object::{Object, ObjectRead, PastObjectRead},
-    storage::{BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore},
+    object::{Object, ObjectRead, ObjectSet, PastObjectRead},
+    storage::{
+        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
+        TrackingBackingStore,
+    },
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -148,6 +151,7 @@ use crate::{
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
         authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
+        historic_objects::HistoricObjects,
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
     authority_client::NetworkAuthorityClient,
@@ -225,6 +229,7 @@ pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
 pub mod epoch_start_configuration;
+pub mod historic_objects;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
 pub mod suggested_gas_price_calculator;
@@ -284,6 +289,12 @@ pub struct AuthorityMetrics {
     pub(crate) execution_queueing_delay_s: Histogram,
     pub(crate) prepare_cert_gas_latency_ratio: Histogram,
     pub(crate) execution_gas_latency_ratio: Histogram,
+
+    /// Count of modified object versions whose pre-image could not be found
+    /// in either the transaction's input objects or its tracked read
+    /// objects, and so were left uncaptured for relocation into the
+    /// historic store.
+    pub(crate) superseded_capture_misses: IntCounter,
 
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
@@ -670,6 +681,13 @@ impl AuthorityMetrics {
                 registry
             )
                 .unwrap(),
+            superseded_capture_misses: register_int_counter_with_registry!(
+                "superseded_capture_misses",
+                "Count of modified object versions whose pre-image could not be captured for relocation into the historic store",
+                registry;
+                MetricLevel::Warn,
+            )
+                .unwrap(),
             skipped_consensus_txns: register_int_counter_with_registry!(
                 "skipped_consensus_txns",
                 "Total number of consensus transactions skipped",
@@ -877,6 +895,18 @@ impl ExecutionEnv {
     }
 }
 
+/// `execute_transaction()`'s result: the temporary store of updates, the
+/// resulting effects, an execution error if one occurred and every object read
+/// during execution (by value) — where a mutated object's pre-image is found
+/// when it isn't among the transaction's declared inputs, as with a
+/// runtime-loaded dynamic field.
+type TransactionExecutionResult = (
+    InnerTemporaryStore,
+    TransactionEffects,
+    Option<ExecutionError>,
+    ObjectSet,
+);
+
 pub struct AuthorityState {
     // Fixed size, static, identity of the authority
     /// The name of this authority.
@@ -899,6 +929,10 @@ pub struct AuthorityState {
 
     /// The RPC index store, absent when this node maintains no index group.
     pub rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
+
+    /// The object versions superseded by executed transactions, bucketed by
+    /// the epoch that superseded them.
+    historic_objects: Arc<HistoricObjects>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
     pub checkpoint_store: Arc<CheckpointStore>,
@@ -1711,13 +1745,14 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
-        let (inner_temporary_store, effects, execution_error_opt) = match self.execute_transaction(
-            &execution_guard,
-            transaction,
-            tx_input_objects,
-            per_authenticator_inputs,
-            epoch_store,
-        ) {
+        let (inner_temporary_store, effects, execution_error_opt, read_objects) = match self
+            .execute_transaction(
+                &execution_guard,
+                transaction,
+                tx_input_objects,
+                per_authenticator_inputs,
+                epoch_store,
+            ) {
             Err(e) => {
                 info!(name = ?self.name, ?digest, "Error preparing transaction: {e}");
                 tx_guard.release();
@@ -1769,6 +1804,7 @@ impl AuthorityState {
             transaction,
             inner_temporary_store,
             &effects,
+            read_objects,
             tx_guard,
             execution_guard,
             expected_effects_digest,
@@ -1803,6 +1839,7 @@ impl AuthorityState {
         transaction: &VerifiedExecutableTransaction,
         inner_temporary_store: InnerTemporaryStore,
         effects: &TransactionEffects,
+        read_objects: ObjectSet,
         tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -1843,6 +1880,8 @@ impl AuthorityState {
             transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
+            read_objects,
+            &self.metrics,
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -1939,11 +1978,7 @@ impl AuthorityState {
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<(
-        InnerTemporaryStore,
-        TransactionEffects,
-        Option<ExecutionError>,
-    )> {
+    ) -> IotaResult<TransactionExecutionResult> {
         let _scope = monitored_scope("Execution::execute_certificate");
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
         let prepare_transaction_start_time = tokio::time::Instant::now();
@@ -1958,7 +1993,8 @@ impl AuthorityState {
             .epoch_data()
             .epoch_start_timestamp();
 
-        let backing_store = self.get_backing_store().as_ref();
+        let tracking_store = TrackingBackingStore::new(self.get_backing_store().as_ref());
+        let backing_store = &tracking_store;
 
         let tx_digest = *transaction.digest();
 
@@ -2165,7 +2201,14 @@ impl AuthorityState {
                 .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
         }
 
-        Ok((inner_temp_store, effects, execution_error_opt.err()))
+        let read_objects = tracking_store.into_read_objects();
+
+        Ok((
+            inner_temp_store,
+            effects,
+            execution_error_opt.err(),
+            read_objects,
+        ))
     }
 
     pub fn prepare_transaction_for_benchmark(
@@ -2188,6 +2231,9 @@ impl AuthorityState {
             vec![],
             epoch_store,
         )
+        .map(|(inner_temp_store, effects, execution_error, _)| {
+            (inner_temp_store, effects, execution_error)
+        })
     }
 
     /// Simulate a transaction without committing it.
@@ -2600,9 +2646,11 @@ impl AuthorityState {
             ObjectInfoRequestKind::PastObjectInfoDebug(seq) => seq,
         };
 
+        // Through the historic fallback: a `PastObjectInfoDebug` request names
+        // an older version by definition, and relocation moves exactly those
+        // out of the live table.
         let object = self
-            .get_object_store()
-            .try_get_object_by_key(&request.object_id, requested_object_seq)?
+            .get_object_with_historic_fallback(&ObjectKey(request.object_id, requested_object_seq))?
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id: request.object_id,
@@ -2769,6 +2817,7 @@ impl AuthorityState {
             input_loader,
             execution_cache_trait_pointers,
             rpc_indexes_store,
+            historic_objects: store.get_historic_objects().clone(),
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
             committee_store,
@@ -2799,6 +2848,12 @@ impl AuthorityState {
 
     pub fn epoch_db_pruner(&self) -> &AuthorityPerEpochStorePruner {
         &self.authority_per_epoch_pruner
+    }
+
+    /// The object versions this authority's transactions superseded, bucketed
+    /// by the epoch that superseded them.
+    pub fn get_historic_objects(&self) -> &Arc<HistoricObjects> {
+        &self.historic_objects
     }
 
     // TODO: Consolidate our traits to reduce the number of methods here.
@@ -3095,6 +3150,11 @@ impl AuthorityState {
         }
 
         let new_epoch = new_committee.epoch;
+        // Create the new epoch's historic-object bucket while execution is
+        // stopped: creating a column family is a blocking RocksDB operation,
+        // and the first checkpoint commit of the epoch would otherwise wait
+        // for it.
+        self.historic_objects.ensure(new_epoch)?;
         let new_epoch_store = self
             .reopen_epoch_db(
                 cur_epoch_store,
@@ -3579,15 +3639,30 @@ impl AuthorityState {
         object_id: &ObjectId,
         version: Version,
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
-        let Some(object) = self
-            .get_object_cache_reader()
-            .try_get_object_by_key(object_id, version)?
+        let Some(object) =
+            self.get_object_with_historic_fallback(&ObjectKey(*object_id, version))?
         else {
             return Ok(None);
         };
 
         let layout = self.get_object_layout(&object)?;
         Ok(Some((object, layout)))
+    }
+
+    /// The object at an exact version: the live table first, the buckets after
+    /// a miss there. See [`HistoricObjects::fill_missing`] for when a read may
+    /// do this.
+    pub(crate) fn get_object_with_historic_fallback(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<Object>> {
+        match self
+            .get_object_cache_reader()
+            .try_get_object_by_key(&key.0, key.1)?
+        {
+            Some(object) => Ok(Some(object)),
+            None => self.historic_objects.get(key),
+        }
     }
 
     fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
@@ -3835,20 +3910,34 @@ impl AuthorityState {
             .ok_or(IotaError::TransactionEventsNotFound { digest: *digest })
     }
 
+    /// The transaction's input objects, reaching the historic buckets for
+    /// versions the live table no longer holds. Use for assembling responses
+    /// only — see [`HistoricObjects::fill_missing`].
     pub fn get_transaction_input_objects(
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        iota_types::storage::get_transaction_input_objects(self.get_object_store(), effects)
-            .map_err(Into::into)
+        historic_objects::get_transaction_input_objects(
+            self.get_object_store().as_ref(),
+            &self.historic_objects,
+            effects,
+        )
+        .map_err(Into::into)
     }
 
+    /// The transaction's output objects, reaching the historic buckets for
+    /// versions the live table no longer holds. Use for assembling responses
+    /// only — see [`HistoricObjects::fill_missing`].
     pub fn get_transaction_output_objects(
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        iota_types::storage::get_transaction_output_objects(self.get_object_store(), effects)
-            .map_err(Into::into)
+        historic_objects::get_transaction_output_objects(
+            self.get_object_store().as_ref(),
+            &self.historic_objects,
+            effects,
+        )
+        .map_err(Into::into)
     }
 
     fn get_indexes(&self) -> IotaResult<Arc<RpcIndexesStore>> {
@@ -3937,17 +4026,6 @@ impl AuthorityState {
             .ok_or(IotaError::UserInput {
                 error: UserInputError::LatestCheckpointSequenceNumberNotFound,
             })
-    }
-
-    #[cfg(msim)]
-    pub fn get_highest_pruned_checkpoint_for_testing(
-        &self,
-    ) -> IotaResult<CheckpointSequenceNumber> {
-        self.database_for_testing()
-            .perpetual_tables
-            .get_highest_pruned_checkpoint()
-            .map(|c| c.unwrap_or(0))
-            .map_err(Into::into)
     }
 
     #[instrument(level = "trace", skip_all)]
@@ -5102,7 +5180,7 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
+        let (temporary_store, effects, _execution_error_opt, _) = self.execute_transaction(
             &execution_guard,
             &executable_tx,
             input_objects,
@@ -5773,8 +5851,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         object_id: ObjectId,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
-        self.get_object_cache_reader()
-            .try_get_object_by_key(&object_id, version)
+        self.get_object_with_historic_fallback(&ObjectKey(object_id, version))
     }
 
     #[instrument(skip_all)]
@@ -5782,9 +5859,12 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         &self,
         object_keys: &[ObjectKey],
     ) -> IotaResult<Vec<Option<Object>>> {
-        Ok(self
+        let mut objects = self
             .get_object_cache_reader()
-            .multi_get_objects_by_key(object_keys))
+            .multi_get_objects_by_key(object_keys);
+        self.historic_objects
+            .fill_missing(object_keys, &mut objects)?;
+        Ok(objects)
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(
