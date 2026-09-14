@@ -2195,10 +2195,10 @@ mod tests {
         let td_error = TransactionDriverError::RejectedByValidators {
             submission_non_retriable_errors: AggregatedRequestErrors {
                 errors: vec![(
-                    "Object lock conflict".to_string(),
+                    "Deny rule violation".to_string(),
                     vec![],
                     3334,
-                    ErrorCategory::LockConflict,
+                    ErrorCategory::InvalidTransaction,
                 )],
                 total_stake: 3334,
                 stake_requested_retry_after: Default::default(),
@@ -2210,7 +2210,7 @@ mod tests {
         let QuorumDriverError::RejectedByValidators(inner) = &qd_error else {
             panic!("expected RejectedByValidators, got {qd_error:?}");
         };
-        assert!(inner.to_string().contains("Object lock conflict"));
+        assert!(inner.to_string().contains("Deny rule violation"));
         assert_eq!(qd_error.reason(), "rejected_by_validators");
     }
 

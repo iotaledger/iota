@@ -155,8 +155,9 @@ impl<A> RequestRetrier<A> {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::TransactionDigest;
     use iota_types::{
-        base_types::ConciseableName,
+        base_types::{ConciseableName, random_object_ref},
         error::{IotaError, UserInputError},
     };
 
@@ -345,6 +346,36 @@ mod tests {
                 .unwrap_err();
             // The aggregated error is non-retriable.
             assert!(!aggregated_error.is_submission_retriable());
+        }
+
+        // Soft-lock conflicts are retriable and must not count toward the
+        // validity threshold: the locks expire within their TTL.
+        {
+            let client_monitor = ValidatorClientMonitor::new_for_test();
+            let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, &[], &[]);
+
+            for authority in &authorities {
+                retrier
+                    .add_error(
+                        *authority,
+                        TransactionRequestError::RejectedAtValidator(
+                            IotaError::ObjectLockConflict {
+                                obj_ref: random_object_ref(),
+                                pending_transaction: TransactionDigest::random(),
+                            },
+                        ),
+                    )
+                    .unwrap();
+            }
+            while retrier.next_target().is_ok() {}
+            let Err(aggregated_error) = retrier.next_target() else {
+                panic!("expected an aggregated error");
+            };
+            assert!(
+                matches!(aggregated_error, TransactionDriverError::Aborted { .. }),
+                "lock conflicts must aggregate as retriable, got {aggregated_error:?}"
+            );
+            assert!(aggregated_error.is_submission_retriable());
         }
     }
 }

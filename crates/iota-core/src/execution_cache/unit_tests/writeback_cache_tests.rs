@@ -1605,3 +1605,78 @@ async fn concurrent_latest_object_cache_collision_test() {
     // but now we get a cache miss on object2 instead of getting the latest version
     assert!(cache.object_by_id_cache.get(&object2_id).is_none());
 }
+
+/// Missing-input disambiguation: a request at or below the latest version,
+/// live or tombstoned, is terminal. A request above it and an unseen object
+/// stay retriable.
+#[tokio::test]
+async fn test_unavailable_input_object_error() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        use iota_sdk_types::ObjectReference;
+        use iota_types::error::{IotaError, UserInputError};
+
+        s.with_created(&[1]);
+        s.do_tx().await;
+        let created_ref = s.obj_ref(1);
+
+        s.with_deleted(&[1]);
+        s.do_tx().await;
+
+        // Tombstoned at or above the requested version: terminal.
+        let err = s
+            .cache()
+            .try_unavailable_input_object_error(&created_ref)
+            .unwrap();
+        assert!(
+            matches!(
+                &err,
+                IotaError::UserInput {
+                    error: UserInputError::ObjectVersionUnavailableForConsumption { .. }
+                }
+            ),
+            "expected terminal consumption error, got {err:?}"
+        );
+
+        // Requested version above the tombstone: retriable, this node may
+        // simply not have seen the newer version yet.
+        let tombstone = s
+            .cache()
+            .get_latest_object_ref_or_tombstone(created_ref.object_id)
+            .unwrap();
+        let future_ref = ObjectReference::new(
+            created_ref.object_id,
+            tombstone.version + 1,
+            created_ref.digest,
+        );
+        let err = s
+            .cache()
+            .try_unavailable_input_object_error(&future_ref)
+            .unwrap();
+        assert!(
+            matches!(
+                &err,
+                IotaError::UserInput {
+                    error: UserInputError::ObjectNotFound { .. }
+                }
+            ),
+            "expected retriable not-found, got {err:?}"
+        );
+
+        // Never-seen object: retriable.
+        let err = s
+            .cache()
+            .try_unavailable_input_object_error(&random_object_ref())
+            .unwrap();
+        assert!(
+            matches!(
+                &err,
+                IotaError::UserInput {
+                    error: UserInputError::ObjectNotFound { .. }
+                }
+            ),
+            "expected retriable not-found, got {err:?}"
+        );
+    })
+    .await;
+}

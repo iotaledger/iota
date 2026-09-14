@@ -337,14 +337,36 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
+    /// Best error for an input object that is unavailable at the requested
+    /// version. Terminal `ObjectVersionUnavailableForConsumption` when the
+    /// requested version can never become live again: the latest version of
+    /// the object, live or tombstoned, is at or above it. Retriable
+    /// `ObjectNotFound` otherwise, since a lagging node may not have seen
+    /// the object yet.
+    fn try_unavailable_input_object_error(
+        &self,
+        object_ref: &ObjectReference,
+    ) -> Result<IotaError, IotaError> {
+        let error = match self.try_get_latest_object_ref_or_tombstone(object_ref.object_id)? {
+            Some(latest_ref) if latest_ref.version >= object_ref.version => {
+                UserInputError::ObjectVersionUnavailableForConsumption {
+                    provided_obj_ref: *object_ref,
+                    current_version: latest_ref.version,
+                }
+            }
+            _ => UserInputError::ObjectNotFound {
+                object_id: object_ref.object_id,
+                version: Some(object_ref.version),
+            },
+        };
+        Ok(IotaError::UserInput { error })
+    }
+
     /// Load a list of objects from the store by object reference.
     /// If they exist in the store, they are returned directly.
-    /// If any object missing, we try to figure out the best error to return.
-    /// If the object we are asking is currently locked at a future version, we
-    /// know this transaction is out-of-date and we return a
-    /// ObjectVersionUnavailableForConsumption, which indicates this is not
-    /// retriable. Otherwise, we return a ObjectNotFound error, which
-    /// indicates this is retriable.
+    /// If any object is missing, the error follows
+    /// `try_unavailable_input_object_error`: out-of-date references are not
+    /// retriable, unseen objects are.
     fn try_multi_get_objects_with_more_accurate_error_return(
         &self,
         object_refs: &[ObjectReference],
@@ -356,19 +378,7 @@ pub trait ObjectCacheRead: Send + Sync {
         for (object_opt, object_ref) in objects.into_iter().zip(object_refs) {
             match object_opt {
                 None => {
-                    let live_objref = self._try_get_live_objref(object_ref.object_id)?;
-                    let error = if live_objref.version >= object_ref.version {
-                        UserInputError::ObjectVersionUnavailableForConsumption {
-                            provided_obj_ref: *object_ref,
-                            current_version: live_objref.version,
-                        }
-                    } else {
-                        UserInputError::ObjectNotFound {
-                            object_id: object_ref.object_id,
-                            version: Some(object_ref.version),
-                        }
-                    };
-                    return Err(IotaError::UserInput { error });
+                    return Err(self.try_unavailable_input_object_error(object_ref)?);
                 }
                 Some(object) => {
                     result.push(object);

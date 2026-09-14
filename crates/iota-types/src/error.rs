@@ -1024,10 +1024,14 @@ pub enum ErrorCategory {
 
 impl ErrorCategory {
     /// Whether the failure is retriable with new transaction submission.
+    /// Lock conflicts are retriable: pre-consensus soft locks expire within
+    /// their TTL, and a conflict lost post-consensus surfaces as a version
+    /// freshness error on resubmission.
     pub fn is_submission_retriable(&self) -> bool {
         matches!(
             self,
             ErrorCategory::Aborted
+                | ErrorCategory::LockConflict
                 | ErrorCategory::ValidatorOverloaded
                 | ErrorCategory::Unavailable
         )

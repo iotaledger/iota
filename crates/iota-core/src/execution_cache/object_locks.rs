@@ -4,7 +4,7 @@
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::debug_fatal;
-use iota_sdk_types::{ObjectId, ObjectReference};
+use iota_sdk_types::ObjectReference;
 use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
@@ -14,7 +14,10 @@ use iota_types::{
 use tracing::{debug, info, instrument, trace};
 
 use super::writeback_cache::WritebackCache;
-use crate::authority::authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails};
+use crate::{
+    authority::authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
+    execution_cache::ObjectCacheRead,
+};
 
 type RefCount = usize;
 
@@ -175,20 +178,16 @@ impl ObjectLocks {
 
     fn multi_get_objects_must_exist(
         cache: &WritebackCache,
-        object_ids: &[ObjectId],
+        object_refs: &[ObjectReference],
     ) -> IotaResult<Vec<Object>> {
-        let objects = cache.try_multi_get_objects(object_ids)?;
+        let object_ids: Vec<_> = object_refs.iter().map(|o| o.object_id).collect();
+        let objects = cache.try_multi_get_objects(&object_ids)?;
         let mut result = Vec::with_capacity(objects.len());
         for (i, object) in objects.into_iter().enumerate() {
             if let Some(object) = object {
                 result.push(object);
             } else {
-                return Err(IotaError::UserInput {
-                    error: UserInputError::ObjectNotFound {
-                        object_id: object_ids[i],
-                        version: None,
-                    },
-                });
+                return Err(cache.try_unavailable_input_object_error(&object_refs[i])?);
             }
         }
         Ok(result)
@@ -203,8 +202,7 @@ impl ObjectLocks {
         if owned_input_objects.is_empty() {
             return Ok(());
         }
-        let object_ids: Vec<_> = owned_input_objects.iter().map(|o| o.object_id).collect();
-        let live_objects = Self::multi_get_objects_must_exist(cache, &object_ids)?;
+        let live_objects = Self::multi_get_objects_must_exist(cache, owned_input_objects)?;
         for (obj_ref, live_object) in owned_input_objects.iter().zip(live_objects.iter()) {
             Self::verify_live_object(obj_ref, live_object)?;
         }
@@ -221,11 +219,7 @@ impl ObjectLocks {
     ) -> IotaResult {
         let tx_digest = *transaction.digest();
 
-        let object_ids = owned_input_objects
-            .iter()
-            .map(|o| o.object_id)
-            .collect::<Vec<_>>();
-        let live_objects = Self::multi_get_objects_must_exist(cache, &object_ids)?;
+        let live_objects = Self::multi_get_objects_must_exist(cache, owned_input_objects)?;
 
         // Only live objects can be locked
         for (obj_ref, live_object) in owned_input_objects.iter().zip(live_objects.iter()) {
