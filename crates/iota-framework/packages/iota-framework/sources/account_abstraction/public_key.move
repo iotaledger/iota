@@ -26,9 +26,11 @@
 /// authenticatable rather than bricking the account at verification time.
 module iota::public_key;
 
+use iota::address;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
+use iota::hash;
 use iota::multisig;
 use iota::signature_scheme::{Self, SignatureScheme};
 
@@ -104,6 +106,16 @@ public fun raw_bytes(self: &PublicKey): &vector<u8> {
 /// See `to_iota_address_impl` for the exact per-scheme derivation rules.
 public fun to_iota_address(self: &PublicKey): address {
     to_iota_address_impl(self.scheme.flag(), &self.raw_bytes)
+}
+
+/// Canonical identity hash of this key: `blake2b256(flag || raw_bytes)` as an address.
+///
+/// The scheme flag is included for every scheme. Used as the identity key of the
+/// account-discoverability event stream.
+public fun key_id(self: &PublicKey): address {
+    let mut flag = vector[self.scheme.flag()];
+    flag.append(self.raw_bytes);
+    address::from_bytes(hash::blake2b256(&flag))
 }
 
 // === Admin Functions ===
