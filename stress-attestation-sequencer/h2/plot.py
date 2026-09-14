@@ -6,21 +6,22 @@ written by aggregate.py, which owns the pooling arithmetic) and renders into
 <results>/summary_plots/:
 
   modes_admitted_rate.png
-                      checkpoint lag and cancelled fraction against the
-                      admitted rate (tx/commit x commits/s), one curve per
-                      cost point. Run A admits the same rate in every config,
-                      so it is one vertical line: where that line sits right
-                      of a curve's bend the count limit admits more than the
-                      object executes, left of it less.
+                      checkpoint lag and cancelled fraction against the rate
+                      the limit allows (tx/commit x commits/s), one curve per
+                      cost point. Run A allows the same rate in every config,
+                      so it is one vertical line: left of it the curves are
+                      still moving, right of it they mostly flatten, since
+                      what arrives caps admission rather than the limit.
   modes_heatmaps.png  every config at a glance: success tps, cancelled
                       fraction, lag mean and the share of checkpoints past
                       30 s, for Run A and every Run B config, coloured on one
                       scale per panel so equal values look equal everywhere.
   modes_utilization.png
-                      the same lag and cancelled curves over admitted rate
-                      divided by each cost point's drain rate. If cost acts
-                      only through how full the object is, the curves land
-                      on one line.
+                      the same lag and cancelled curves over the allowed
+                      rate divided by each cost point's drain rate. The
+                      cancelled curves land on almost one line; the lag
+                      curves rise at the same place but settle at
+                      different heights.
   modes_tradeoff.png  success tps against checkpoint lag mean, one point per
                       config, Run A starred. The lower-right corner is fast
                       and stable.
@@ -113,10 +114,10 @@ plt.rcParams.update(
         "axes.facecolor": SURFACE,
         "savefig.facecolor": SURFACE,
         "text.color": INK,
-        "axes.labelcolor": INK2,
+        "axes.labelcolor": INK,
         "axes.edgecolor": AXIS,
-        "xtick.color": MUTED,
-        "ytick.color": MUTED,
+        "xtick.color": INK,
+        "ytick.color": INK,
         "grid.color": GRID,
         "grid.linewidth": 0.8,
         "font.family": "sans-serif",
@@ -240,12 +241,12 @@ class Point:
         return None
 
     def drain(self):
-        """How fast one object executes this cost: in a config whose success
-        settles well below what the limit admits while cancellations stay
-        quiet, execution is the only constraint left, so the success rate is
-        the drain rate. Configs whose limit admits more than the client
-        offers are excluded — there the shortfall is the offered rate, not
-        execution (cu1k's whole ladder)."""
+        """How fast transactions of this cost execute on one object: in a
+        config whose success settles well below what the limit allows while
+        cancellations stay quiet, execution is the only constraint left, so
+        the success rate is the drain rate. Configs whose limit allows more
+        than the client offers are excluded — there what holds throughput
+        down is the offered rate, not execution (cu1k's whole ladder)."""
         vs = []
         for adm, c in self.curve():
             succ, canc = c["b_succ_tps"], c["b_cancelled_per_s"]
@@ -359,7 +360,7 @@ def plot_admitted_rate(points, outdir):
         bot.set_ylim(-0.03, 1.03)
         style_axes(top)
         style_axes(bot)
-        bot.set_xlabel("admitted rate (tx/s = tx/commit x commits/s, log)")
+        bot.set_xlabel("rate the limit allows (tx/s = tx/commit x commits/s, log)")
         if j == 0:
             top.set_ylabel("checkpoint lag mean (s, log)")
             bot.set_ylabel("cancelled fraction of offered")
@@ -369,19 +370,13 @@ def plot_admitted_rate(points, outdir):
             fontsize=8,
             loc="upper right",
         )
-    axes[0][0].set_title(
-        "stars = Run A; dashed = Run A's admitted rate (10 per commit)",
-        loc="left",
-        color=INK2,
-        fontsize=9,
-    )
     fig.suptitle(
-        "What a per-object limit admits vs what the object can execute",
-        x=0.01,
-        ha="left",
+        "Checkpoint lag mean and cancelled fraction of offered against the rate"
+        " each limit allows.\n"
+        "Stars mark Run A, the dashed line its rate of 10 per commit.",
         fontsize=12,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
     fig.savefig(os.path.join(outdir, f"modes_admitted_rate{FILE_SUFFIX}.png"), dpi=150)
     plt.close(fig)
 
@@ -391,7 +386,7 @@ HEAT_PANELS = [
     ("b_succ_tps", "success tps (colour on a log scale)", "{:.0f}", "log"),
     ("canc_frac", "cancelled fraction of offered", "{:.2f}", "unit"),
     ("b_lag_mean_s", "checkpoint lag mean (s, colour on a log scale)", "{:.2f}", "log"),
-    ("b_lag_over_30s_share", "checkpoint lag: share over 30s", "{:.2f}", "unit"),
+    ("b_lag_over_30s_share", "share of checkpoint lag over 30 s", "{:.2f}", "unit"),
 ]
 
 # Sequential blue, light -> dark (the reference ramp's 100..700 steps).
@@ -481,27 +476,30 @@ def plot_heatmaps(points, outdir):
         # Limits along the top (Run A's count limit is always 10); the run
         # names sit centered underneath their columns.
         top_y = nrow + 0.2
-        ax.text(-1.7, top_y, "CUs/tx", ha="right", va="bottom", fontsize=7.5, color=INK2)
-        ax.text(-1.0, top_y, "10", ha="center", va="bottom", fontsize=7.5, color=INK2)
+        ax.text(-1.7, top_y, "CUs/tx", ha="right", va="bottom", fontsize=7.5, color=INK)
+        ax.text(-1.0, top_y, "10", ha="center", va="bottom", fontsize=7.5, color=INK)
         for x, v in enumerate(limits):
             lbl = kfmt(v) + (" CUs" if x == ncol - 1 else "")
             ax.text(
-                x + 0.5, top_y, lbl, ha="center", va="bottom", fontsize=7.5, color=INK2
+                x + 0.5, top_y, lbl, ha="center", va="bottom", fontsize=7.5, color=INK
             )
-        ax.text(-1.0, -0.25, "Run A", ha="center", va="top", fontsize=7.5, color=INK2)
-        ax.text(ncol / 2, -0.25, "Run B", ha="center", va="top", fontsize=7.5, color=INK2)
+        ax.text(-1.0, -0.25, "Run A", ha="center", va="top", fontsize=7.5, color=INK)
+        ax.text(ncol / 2, -0.25, "Run B", ha="center", va="top", fontsize=7.5, color=INK)
         ax.set_xlim(-1.6, ncol)
         ax.set_ylim(-0.75, nrow + 0.8)
         ax.set_xticks([])
         ax.set_yticks([nrow - 1 - i + 0.5 for i in range(len(points))])
-        ax.set_yticklabels([kfmt(p.units) for p in points], fontsize=7.5, color=INK2)
+        ax.set_yticklabels([kfmt(p.units) for p in points], fontsize=7.5, color=INK)
         ax.set_title(title, loc="left", fontsize=9)
         ax.tick_params(length=0)
         for side in ax.spines.values():
             side.set_visible(False)
     fig.suptitle(
-        "Per-config values; colour = magnitude, one scale per panel; "
-        "dark outline = admits 10 per commit like Run A",
+        "Success tps, cancelled fraction of offered, checkpoint lag, and the"
+        " share of checkpoint lag over 30 s.\n"
+        "Within a panel, the same colour means the same value."
+        " The outlined cells are the 10 \u00d7 cost unit limit,"
+        " matching the count limit.",
         fontsize=11,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.97))
@@ -510,10 +508,10 @@ def plot_heatmaps(points, outdir):
 
 
 def plot_utilization(points, outdir):
-    """Lag and cancelled fraction against admitted rate divided by the drain
-    rate. If cost only acts through how full the object is, the per-cost
-    curves land on one line. Points with no config that measures a drain rate
-    are left out."""
+    """Lag and cancelled fraction against the allowed rate divided by the
+    drain rate. The cancelled curves land on almost one line, the lag curves
+    on parallel ones. Points with no config that measures a drain rate are
+    left out."""
     withd = [(p, p.drain()) for p in points]
     withd = [(p, d) for p, d in withd if d]
     if len(withd) < 2:
@@ -536,18 +534,18 @@ def plot_utilization(points, outdir):
     bot.set_xticklabels([f"{t:g}" for t in ticks])
     bot.minorticks_off()
     bot.set_ylim(-0.03, 1.03)
-    bot.set_xlabel("admitted rate / drain rate (log)")
+    bot.set_xlabel("rate the limit allows / drain rate (log)")
     top.set_ylabel("checkpoint lag mean (s, log)")
     bot.set_ylabel("cancelled fraction of offered")
     top.legend(frameon=False, fontsize=8, loc="upper left")
     top.set_title(
-        "dashed = the limit admits exactly what the object executes",
+        "dashed = the limit allows exactly the drain rate",
         loc="left",
         color=INK2,
         fontsize=9,
     )
     fig.suptitle(
-        "The same curves over admitted rate divided by drain rate",
+        "The same curves over the allowed rate divided by the drain rate",
         x=0.01,
         ha="left",
         fontsize=12,
@@ -673,20 +671,20 @@ def plot_matched(points, outdir):
             plt.Line2D([], [], color=B_COLOR, marker="o", ls="", ms=6),
         ],
         [A_NAME, "Run B — TotalComputationUnits, limit 10 × cost"],
-        loc="upper right",
+        loc="lower center",
         frameon=False,
         fontsize=8,
         ncol=2,
-        bbox_to_anchor=(0.99, 0.985),
+        bbox_to_anchor=(0.5, 0.0),
     )
     fig.suptitle(
-        "One cost per run: the count limit and its unit-limit equivalent agree\n"
-        "error bars = one standard deviation across iterations; number = B / A",
-        x=0.01,
-        ha="left",
+        "Fixed-cost matched configurations: the count limit and its unit limit"
+        " equivalent behave nearly identically.\n"
+        "Error bars indicate STD across iterations, "
+        "numbers \u2014 B/A ratio of the corresponding metric",
         fontsize=12,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.tight_layout(rect=(0, 0.055, 1, 1.0))
     fig.savefig(os.path.join(outdir, f"modes_matched{FILE_SUFFIX}.png"), dpi=150)
     plt.close(fig)
 
