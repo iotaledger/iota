@@ -10735,7 +10735,7 @@
             ]
           },
           "oldestAvailableCheckpoint": {
-            "description": "The oldest checkpoint from which this response is complete.\n\nData from this checkpoint onwards is included in full. Data from before it may be missing, because it has been pruned.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10771,7 +10771,7 @@
             ]
           },
           "oldestAvailableCheckpoint": {
-            "description": "The oldest checkpoint from which this response is complete.\n\nData from this checkpoint onwards is included in full. Data from before it may be missing, because it has been pruned.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10807,7 +10807,7 @@
             ]
           },
           "oldestAvailableCheckpoint": {
-            "description": "The oldest checkpoint from which this response is complete.\n\nData from this checkpoint onwards is included in full. Data from before it may be missing, because it has been pruned.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10839,7 +10839,7 @@
             ]
           },
           "oldestAvailableCheckpoint": {
-            "description": "The oldest checkpoint from which this response is complete.\n\nData from this checkpoint onwards is included in full. Data from before it may be missing, because it has been pruned.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10871,7 +10871,7 @@
             ]
           },
           "oldestAvailableCheckpoint": {
-            "description": "The oldest checkpoint from which this response is complete.\n\nData from this checkpoint onwards is included in full. Data from before it may be missing, because it has been pruned.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10907,7 +10907,7 @@
             ]
           },
           "oldestAvailableCheckpoint": {
-            "description": "The oldest checkpoint from which this response is complete.\n\nData from this checkpoint onwards is included in full. Data from before it may be missing, because it has been pruned.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10943,7 +10943,7 @@
             ]
           },
           "oldestAvailableCheckpoint": {
-            "description": "The oldest checkpoint from which this response is complete.\n\nData from this checkpoint onwards is included in full. Data from before it may be missing, because it has been pruned.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"
@@ -10979,7 +10979,7 @@
             ]
           },
           "oldestAvailableCheckpoint": {
-            "description": "The oldest checkpoint from which this response is complete.\n\nData from this checkpoint onwards is included in full. Data from before it may be missing, because it has been pruned.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nAbsent for methods that do not return historical data, and for servers that do not report it.",
             "type": [
               "string",
               "null"

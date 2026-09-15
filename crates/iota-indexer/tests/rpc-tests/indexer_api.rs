@@ -154,81 +154,76 @@ async fn wait_for_events_oldest_available_checkpoint(
     .expect("timeout waiting for the reported oldest available checkpoint")
 }
 
-#[test]
-fn query_events_reports_oldest_available_checkpoint() {
-    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn query_events_reports_oldest_available_checkpoint() {
+    // Only `tx_senders` is pruned; every other table, `events` included, is
+    // retained. A sender-filtered query reads `tx_senders` while a
+    // package-filtered one does not, so they report different checkpoints.
+    let overrides = HashMap::from([(PrunableTable::TxSenders, 1)]);
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_query_events_reports_oldest_available_checkpoint"),
+        None,
+        Some(RetentionConfig::new(100, overrides)),
+    )
+    .await;
 
-    runtime.block_on(async move {
-        // Only `tx_senders` is pruned; every other table, `events` included, is
-        // retained. A sender-filtered query reads `tx_senders` while a
-        // package-filtered one does not, so they report different checkpoints.
-        let overrides = HashMap::from([(PrunableTable::TxSenders, 1)]);
-        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
-            Some("test_query_events_reports_oldest_available_checkpoint"),
-            None,
-            Some(RetentionConfig::new(100, overrides)),
-        )
-        .await;
+    indexer_wait_for_checkpoint(store, 1).await;
 
-        indexer_wait_for_checkpoint(store, 1).await;
+    let by_sender = EventFilter::Sender(
+        Address::from_str("0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99")
+            .unwrap(),
+    );
+    let by_package = EventFilter::Package(ObjectId::from_str("0x2").unwrap());
 
-        let by_sender = EventFilter::Sender(
-            Address::from_str("0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99")
-                .unwrap(),
-        );
-        let by_package = EventFilter::Package(ObjectId::from_str("0x2").unwrap());
-
-        assert_eq!(
-            wait_for_events_oldest_available_checkpoint(client, by_sender.clone(), |cp| cp
-                .is_some())
+    assert_eq!(
+        wait_for_events_oldest_available_checkpoint(client, by_sender.clone(), |cp| cp.is_some())
             .await,
-            Some(0)
-        );
-        assert_eq!(
-            events_oldest_available_checkpoint(client, by_package.clone()).await,
-            Some(0)
-        );
+        Some(0)
+    );
+    assert_eq!(
+        events_oldest_available_checkpoint(client, by_package.clone()).await,
+        Some(0)
+    );
 
-        let transactions = client
-            .query_transaction_blocks(
-                IotaTransactionBlockResponseQuery {
-                    filter: None,
-                    options: None,
-                },
-                None,
-                Some(1),
-                None,
-            )
-            .await
-            .unwrap();
-        let tx_digest = transactions
-            .data
-            .first()
-            .expect("the indexer has at least one transaction")
-            .digest;
-        assert_eq!(
-            events_oldest_available_checkpoint(client, EventFilter::Transaction(tx_digest)).await,
-            Some(0)
-        );
+    let transactions = client
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery {
+                filter: None,
+                options: None,
+            },
+            None,
+            Some(1),
+            None,
+        )
+        .await
+        .unwrap();
+    let tx_digest = transactions
+        .data
+        .first()
+        .expect("the indexer has at least one transaction")
+        .digest;
+    assert_eq!(
+        events_oldest_available_checkpoint(client, EventFilter::Transaction(tx_digest)).await,
+        Some(0)
+    );
 
-        cluster.force_new_epoch().await;
+    cluster.force_new_epoch().await;
 
-        // Once `tx_senders` is pruned, the sender filter reports a checkpoint
-        // above the genesis one.
-        let oldest =
-            wait_for_events_oldest_available_checkpoint(client, by_sender, |cp| cp > Some(0)).await;
-        assert!(
-            oldest > Some(0),
-            "expected a checkpoint above the pruned genesis one, got {oldest:?}"
-        );
+    // Once `tx_senders` is pruned, the sender filter reports a checkpoint
+    // above the genesis one.
+    let oldest =
+        wait_for_events_oldest_available_checkpoint(client, by_sender, |cp| cp > Some(0)).await;
+    assert!(
+        oldest > Some(0),
+        "expected a checkpoint above the pruned genesis one, got {oldest:?}"
+    );
 
-        // The package filter does not read `tx_senders`, so pruning it does not
-        // change what that filter reports.
-        assert_eq!(
-            events_oldest_available_checkpoint(client, by_package).await,
-            Some(0)
-        );
-    });
+    // The package filter does not read `tx_senders`, so pruning it does not
+    // change what that filter reports.
+    assert_eq!(
+        events_oldest_available_checkpoint(client, by_package).await,
+        Some(0)
+    );
 }
 
 #[test]

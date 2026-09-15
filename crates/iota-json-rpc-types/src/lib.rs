@@ -70,10 +70,10 @@ pub struct Page<T, C> {
     pub data: Vec<T>,
     pub next_cursor: Option<C>,
     pub has_next_page: bool,
-    /// The oldest checkpoint from which this response is complete.
+    /// The oldest checkpoint this response can contain data from.
     ///
-    /// Data from this checkpoint onwards is included in full. Data from before
-    /// it may be missing, because it has been pruned.
+    /// Anything before it has been pruned and may be missing from the
+    /// response.
     ///
     /// Absent for methods that do not return historical data, and for servers
     /// that do not report it.

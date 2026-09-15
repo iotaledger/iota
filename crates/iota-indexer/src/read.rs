@@ -282,13 +282,10 @@ impl IndexerReader {
     /// A table absent from the cache has not been written yet, and so has not
     /// been pruned either, which is why it cannot raise the result. This relies
     /// on the cache being filled before the RPC server starts serving.
-    fn oldest_available_cp_and_tx(&self, tables: &[CommitterTables]) -> (u64, i64) {
-        let (cp, tx) = self
-            .watermark_cache
+    fn oldest_available_cp_and_tx(&self, tables: &[CommitterTables]) -> (i64, i64) {
+        self.watermark_cache
             .get_lowest_available_cp_and_tx_for_tables(tables)
-            .unwrap_or((0, 0));
-
-        (cp as u64, tx)
+            .unwrap_or((0, 0))
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
@@ -2168,7 +2165,7 @@ impl IndexerReader {
         } else {
             let (oldest_available_cp, _min_available_tx) =
                 self.oldest_available_cp_and_tx(Self::EVENTS_BY_DIGEST_TABLES);
-            oldest_available_cp
+            oldest_available_cp as u64
         };
 
         let mut iota_event_futures = vec![];
@@ -2344,7 +2341,7 @@ impl IndexerReader {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
-        Ok((iota_events, oldest_available_cp))
+        Ok((iota_events, oldest_available_cp as u64))
     }
 
     pub async fn get_dynamic_fields_in_blocking_task(
