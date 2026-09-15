@@ -6240,7 +6240,6 @@ dependencies = [
  "iota-vm-sdk",
  "jsonrpsee",
  "move-binary-format",
- "move-bytecode-verifier",
  "move-command-line-common",
  "move-core-types",
  "move-package",
