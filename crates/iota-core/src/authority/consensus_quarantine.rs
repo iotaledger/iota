@@ -113,7 +113,7 @@ pub(crate) struct ConsensusCommitOutput {
     // `last_consensus_stats`.
     deny_rule_mirror: Option<DenyRuleSet>,
 
-    handler_latest_rows: Option<BTreeMap<ObjectId, HandlerLatestObject>>,
+    handler_latest_rows: Option<BTreeMap<ObjectId, HandlerProcessedObject>>,
 }
 
 impl ConsensusCommitOutput {
@@ -290,7 +290,7 @@ impl ConsensusCommitOutput {
     /// Records the mirror state reached by this commit's injected updates.
     pub fn set_handler_latest_rows(
         &mut self,
-        handler_latest_rows: BTreeMap<ObjectId, HandlerLatestObject>,
+        handler_latest_rows: BTreeMap<ObjectId, HandlerProcessedObject>,
     ) {
         self.handler_latest_rows = Some(handler_latest_rows);
     }

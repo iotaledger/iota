@@ -586,11 +586,18 @@ impl ExecutionWatcher {
             let effects = effects_store
                 .try_notify_read_executed_effects(EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME, &digests)
                 .await?;
+            // TODO: check if the quarantine queue still contains commit at `index` and skip
+            // this if it's been processed and flushed already by an executed and finalized
+            // checkpoint before this watcher was notified.
             let upserts: Vec<_> = effects
                 .iter()
                 .flat_map(|effects| handler_latest_upserts(effects, index))
                 .collect();
             epoch_store.record_commit_fully_executed(index, &upserts)?;
+            // TODO: should we also copy the handler_latest rows into the
+            // consensuscommitoutput here as well? or should this only be done
+            // when the corresponding checkpoint is finalized? I don't think so
+            // - this is done as it is.
         }
         Ok(())
     }

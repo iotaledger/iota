@@ -35,7 +35,7 @@ use crate::{
             LockDetails,
             consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::{
-                CommitIndex, HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
+                CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind, SyncAheadRecord,
                 handler_latest_upserts,
             },
         },
@@ -2177,7 +2177,7 @@ impl BookkeepingSetup {
 
     /// The handler-latest row of `id`, which the handler must have written.
     #[track_caller]
-    fn handler_latest(&self, id: &ObjectId) -> HandlerLatestObject {
+    fn handler_latest(&self, id: &ObjectId) -> HandlerProcessedObject {
         self.epoch_store
             .handler_latest(id)
             .unwrap()
@@ -2486,7 +2486,7 @@ async fn handler_known_transaction_writes_handler_latest_only() {
         let row = s.handler_latest(id);
         assert_eq!(row.version, effects.lamport_version());
         assert_eq!(row.produced_at, 7);
-        assert_eq!(row.kind, HandlerLatestObjectKind::Live);
+        assert_eq!(row.kind, HandlerProcessedObjectKind::Live);
 
         assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
         s.assert_not_sheltered(consumed_ref);
@@ -2514,7 +2514,7 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
     let created_ref = create_effects.created()[0].reference;
     assert_eq!(
         s.handler_latest(created_ref.object_id()).kind,
-        HandlerLatestObjectKind::Live
+        HandlerProcessedObjectKind::Live
     );
 
     // The deletion in a later commit replaces the live row with a tombstone
@@ -2529,10 +2529,10 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
     );
     assert_eq!(
         s.handler_latest(created_ref.object_id()),
-        HandlerLatestObject {
+        HandlerProcessedObject {
             version: delete_effects.lamport_version(),
             digest: ObjectDigest::OBJECT_DELETED,
-            kind: HandlerLatestObjectKind::Deleted,
+            kind: HandlerProcessedObjectKind::Deleted,
             produced_at: 4,
             initial_shared_version: None,
         }
@@ -2571,10 +2571,10 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
     );
     assert_eq!(
         s.handler_latest(created_ref.object_id()),
-        HandlerLatestObject {
+        HandlerProcessedObject {
             version: wrap_effects.lamport_version(),
             digest: ObjectDigest::OBJECT_WRAPPED,
-            kind: HandlerLatestObjectKind::Wrapped,
+            kind: HandlerProcessedObjectKind::Wrapped,
             produced_at: 5,
             initial_shared_version: None,
         }
@@ -2582,7 +2582,7 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
     let wrapper_ref = wrap_effects.created()[0].reference;
     assert_eq!(
         s.handler_latest(wrapper_ref.object_id()).kind,
-        HandlerLatestObjectKind::Live
+        HandlerProcessedObjectKind::Live
     );
 
     // Unwrapping resurfaces the id at a higher version: the tombstone gives
@@ -2599,20 +2599,20 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
     assert_eq!(unwrapped_ref.object_id(), created_ref.object_id());
     assert_eq!(
         s.handler_latest(created_ref.object_id()),
-        HandlerLatestObject {
+        HandlerProcessedObject {
             version: unwrapped_ref.version,
             digest: unwrapped_ref.digest,
-            kind: HandlerLatestObjectKind::Live,
+            kind: HandlerProcessedObjectKind::Live,
             produced_at: 6,
             initial_shared_version: None,
         }
     );
     assert_eq!(
         s.handler_latest(wrapper_ref.object_id()),
-        HandlerLatestObject {
+        HandlerProcessedObject {
             version: unwrap_effects.lamport_version(),
             digest: ObjectDigest::OBJECT_DELETED,
-            kind: HandlerLatestObjectKind::Deleted,
+            kind: HandlerProcessedObjectKind::Deleted,
             produced_at: 6,
             initial_shared_version: None,
         }
@@ -2637,10 +2637,10 @@ async fn handler_known_share_records_the_initial_shared_version() {
     // initial shared version, which the shared-input checks read.
     assert_eq!(
         s.handler_latest(shared.reference.object_id()),
-        HandlerLatestObject {
+        HandlerProcessedObject {
             version: shared.reference.version,
             digest: shared.reference.digest,
-            kind: HandlerLatestObjectKind::Live,
+            kind: HandlerProcessedObjectKind::Live,
             produced_at: 5,
             initial_shared_version: Some(initial_shared_version(&shared.owner)),
         }
@@ -2699,7 +2699,7 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
         let row = s.handler_latest(id);
         assert_eq!(row.version, effects.lamport_version());
         assert_eq!(row.produced_at, 4);
-        assert_eq!(row.kind, HandlerLatestObjectKind::Live);
+        assert_eq!(row.kind, HandlerProcessedObjectKind::Live);
         assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
     }
     assert_eq!(state.commit_index_of(&key), None);

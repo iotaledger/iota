@@ -174,7 +174,7 @@ use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
 use handler_object_state::{
-    AssignedCommit, CommitIndex, HandlerLatestObject, HandlerObjectState, SyncAheadRecord,
+    AssignedCommit, CommitIndex, HandlerObjectState, HandlerProcessedObject, SyncAheadRecord,
 };
 use iota_types::crypto::AuthorityPublicKey;
 use scorer::Scoreboard;
@@ -849,7 +849,7 @@ pub struct AuthorityEpochTables {
     /// access profile as the lock table: one write per touched object per
     /// commit, one point lookup per validated input.
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
-    handler_latest_objects: DBMap<ObjectId, HandlerLatestObject>,
+    handler_latest_objects: DBMap<ObjectKey, HandlerProcessedObject>,
 
     /// Sync-ahead records (see [`handler_object_state`]); empty in normal
     /// operation.
@@ -1801,7 +1801,7 @@ impl AuthorityPerEpochStore {
     pub fn record_commit_fully_executed(
         &self,
         index: CommitIndex,
-        upserts: &[(ObjectId, HandlerLatestObject)],
+        upserts: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult {
         let tables = self.tables()?;
         self.handler_object_state
@@ -1809,7 +1809,7 @@ impl AuthorityPerEpochStore {
     }
 
     /// The latest state of `id` as of the handler frontier.
-    pub fn handler_latest(&self, id: &ObjectId) -> IotaResult<Option<HandlerLatestObject>> {
+    pub fn handler_latest(&self, id: &ObjectId) -> IotaResult<Option<HandlerProcessedObject>> {
         let tables = self.tables()?;
         self.handler_object_state.handler_latest(&tables, id)
     }
@@ -1837,13 +1837,17 @@ impl AuthorityPerEpochStore {
     #[cfg(test)]
     pub fn flush_commit_rows_for_testing(
         &self,
-        handler_rows: Vec<(ObjectId, HandlerLatestObject)>,
+        commit_index: CommitIndex,
+        handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
     ) -> IotaResult {
         let tables = self.tables()?;
-        let handler_rows = handler_object_state::highest_row_per_id(&handler_rows);
         let mut batch = tables.handler_latest_objects.batch();
-        self.handler_object_state
-            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+        self.handler_object_state.write_commit_rows_to_batch(
+            commit_index,
+            &tables,
+            &mut batch,
+            &handler_rows,
+        )?;
         batch.write()?;
         self.handler_object_state
             .evict_flushed_commit_rows(&handler_rows);
@@ -2144,6 +2148,16 @@ impl AuthorityPerEpochStore {
         let seq = checkpoint.sequence_number();
 
         let mut quarantine = self.consensus_quarantine.write();
+        // TODO: commit the handler latest rows derived from the checkpoint's
+        // transaction effects to consensus quarantine -  do we even need to
+        // copy it to the consensuscommitoutput or can we just use  the handler
+        // latest rows directly from the handler overlay? I think it should
+        //  be safe to add those directly to a batch.
+        //  Answer: derive them from effects. The overlay works on the live
+        //  path, but after a restart it is empty for transactions that were
+        //  already executed (the hook does not run again for them), so a
+        //  flush reading the overlay would write nothing for a replayed
+        //  commit.
         quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
         batch.write()?;
 
