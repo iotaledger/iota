@@ -679,14 +679,6 @@ fn runtime_module_metadata(
 /// bound by `max_move_package_size` like any other package. Upgrades of an
 /// existing system package never reach this check at all (see
 /// `MovePackage::new_system`).
-///
-/// The epoch change transaction that adds a system package executes under the
-/// outgoing epoch's protocol config, so a package added by the same upgrade
-/// that changes this limit is held to the previous value; a new value applies
-/// from the epoch after it takes effect. Together with the exemption for
-/// upgrades, that leaves two cases where this bound is the one that applies:
-/// genesis, and a system package added once the new value is already in
-/// effect.
 pub fn max_package_size(storage_id: ObjectId, protocol_config: &ProtocolConfig) -> u64 {
     if storage_id.is_system_package() {
         protocol_config
