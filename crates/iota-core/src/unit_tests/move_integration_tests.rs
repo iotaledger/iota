@@ -3131,9 +3131,9 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for SharedTraceBuffer {
 }
 
 /// Re-executing the same transactions must produce byte-identical resource
-/// profiles: in phase 4 of the multidimensional gas metering plan the same
-/// counters trigger per-dimension budget aborts, so any nondeterminism in
-/// them (wall-clock, cache state, map iteration order) would fork consensus.
+/// profiles: the counters are meant to feed consensus-visible decisions, so
+/// any nondeterminism in them (wall-clock, cache state, map iteration order)
+/// would fork consensus.
 ///
 /// The workload runs publish + create + mutate + delete on a fresh authority
 /// twice, with a fixed sender key and gas object id so transaction digests
