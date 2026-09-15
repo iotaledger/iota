@@ -26,7 +26,6 @@ use rand::{SeedableRng, prelude::StdRng};
 use starfish_config::AuthorityIndex;
 use tap::TapFallible;
 use tokio::{
-    runtime::Handle,
     sync::{mpsc::error::TrySendError, oneshot},
     task::{JoinError, JoinSet},
     time::{Instant, sleep, sleep_until, timeout},
@@ -53,6 +52,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
+    task::spawn_blocking,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -803,27 +803,25 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
 
         // Verify all the fetched block headers
         let verify_start = Instant::now();
-        let block_headers = Handle::current()
-            .spawn_blocking({
-                let block_verifier = block_verifier.clone();
-                let verified_cache = verified_cache.clone();
-                let context = context.clone();
-                let sync_method = sync_method.to_string();
-                let misbehavior_store = misbehavior_store.clone();
-                move || {
-                    Self::verify_block_headers(
-                        serialized_headers,
-                        block_verifier,
-                        verified_cache,
-                        &context,
-                        peer_index,
-                        &sync_method,
-                        &misbehavior_store,
-                    )
-                }
-            })
-            .await
-            .expect("Spawn blocking should not fail");
+        let block_headers = spawn_blocking({
+            let block_verifier = block_verifier.clone();
+            let verified_cache = verified_cache.clone();
+            let context = context.clone();
+            let sync_method = sync_method.to_string();
+            let misbehavior_store = misbehavior_store.clone();
+            move || {
+                Self::verify_block_headers(
+                    serialized_headers,
+                    block_verifier,
+                    verified_cache,
+                    &context,
+                    peer_index,
+                    &sync_method,
+                    &misbehavior_store,
+                )
+            }
+        })
+        .await?;
         // Fetch and verification both count against the peer, matching the
         // commit syncer.
         let elapsed = fetched.elapsed + verify_start.elapsed();
