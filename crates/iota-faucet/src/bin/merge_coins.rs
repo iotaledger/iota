@@ -6,14 +6,12 @@ use std::{str::FromStr, time::Duration};
 
 use iota_config::{IOTA_CLIENT_CONFIG, iota_config_dir};
 use iota_faucet::FaucetError;
-use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
+use iota_grpc_client::Client as GrpcClient;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{
-    Address, ObjectId, SignedTransaction, StructTag, Transaction, TransactionEffects,
-    crypto::Intent,
-};
-use iota_types::{gas_coin::GasCoin, transaction::TransactionEnvelope};
+use iota_sdk_transaction_builder::{TransactionBuilder, WaitForTransaction};
+use iota_sdk_types::{Address, ObjectId, StructTag, TransactionEffects};
+use iota_types::gas_coin::GasCoin;
 use tracing::info;
 
 #[tokio::main]
@@ -58,9 +56,9 @@ async fn _split_coins_equally(
         .move_call(ObjectId::FRAMEWORK, "pay", "divide_and_keep")
         .type_tags([StructTag::new_gas().into()])
         .arguments((coin_object_id, count));
-    let tx = builder.finish_with_budget(50000000000).await?;
+    builder.gas_budget(50000000000);
 
-    let effects = _sign_and_execute(&client, &wallet, active_address, tx).await?;
+    let effects = _execute(builder, &wallet, active_address).await?;
     println!("{effects:?}");
     Ok(())
 }
@@ -97,31 +95,25 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
 
         let mut builder = client.transaction_builder(active_address);
         builder.pay(coin_vector, [(active_address, total_balance)]);
-        let tx = builder.finish_with_budget(1000000).await?;
+        builder.gas_budget(1000000);
 
-        _sign_and_execute(&client, &wallet, active_address, tx).await?;
+        _execute(builder, &wallet, active_address).await?;
     }
     Ok(())
 }
 
-async fn _sign_and_execute(
-    client: &GrpcClient,
+async fn _execute(
+    builder: TransactionBuilder<&GrpcClient>,
     wallet: &WalletContext,
     signer: Address,
-    tx: Transaction,
 ) -> Result<TransactionEffects, anyhow::Error> {
-    let signature =
-        wallet
-            .config()
-            .keystore()
-            .sign_secure(&signer, &tx, Intent::iota_transaction())?;
-    let signed_tx: SignedTransaction = TransactionEnvelope::from_data(tx, vec![signature]).into();
-    let executed = client
-        .execute_transaction(signed_tx, None, [TransactionField::EFFECTS_BCS])
-        .await?
-        .into_parts()
-        .0;
-    Ok(executed.effects()?.effects()?)
+    let keystore = wallet.config().keystore();
+    Ok(builder
+        .execute(
+            keystore.get_key(&signer)?.as_keypair()?,
+            WaitForTransaction::Finalized,
+        )
+        .await?)
 }
 
 pub fn create_wallet_context(timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {

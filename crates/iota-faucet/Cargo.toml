@@ -39,6 +39,7 @@ iota-keys.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-sdk.workspace = true
+iota-sdk-transaction-builder.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 prometheus-filtered.workspace = true
@@ -47,7 +48,6 @@ typed-store.workspace = true
 
 [dev-dependencies]
 iota-common.workspace = true
-iota-sdk-transaction-builder.workspace = true
 test-cluster.workspace = true
 
 [[bin]]
