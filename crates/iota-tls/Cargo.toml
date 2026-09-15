@@ -8,13 +8,13 @@ publish = false
 description = "tools for rustls-based certificate generation and verification"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 arc-swap.workspace = true
 # Axum support
 axum.workspace = true
 axum-server.workspace = true
 ed25519 = { version = "2.2", features = ["pkcs8", "alloc", "zeroize"] }
-fastcrypto.workspace = true
 pkcs8 = { version = "0.10", features = ["std"] }
 rcgen = "0.13"
 # reqwest support
@@ -26,8 +26,16 @@ tower-layer = "0.3.2"
 webpki = { version = "0.103", package = "rustls-webpki", features = ["alloc", "ring", "std"] }
 x509-parser = "0.17.0"
 
+# internal dependencies
+iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
+iota-sdk-types = { workspace = true, features = ["serde"] }
+
 [dev-dependencies]
+# external dependencies
 rand.workspace = true
+
+# internal dependencies
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
 
 [lints]
 workspace = true

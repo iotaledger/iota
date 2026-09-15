@@ -69,6 +69,7 @@ iota-network.workspace = true
 iota-network-stack.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
 iota-sdk-types.workspace = true
 iota-simulator.workspace = true
 iota-storage.workspace = true
