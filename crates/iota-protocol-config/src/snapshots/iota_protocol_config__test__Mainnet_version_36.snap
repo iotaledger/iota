@@ -352,3 +352,4 @@ min_validator_joining_stake: 2000000000000000
 validator_low_stake_threshold: 1500000000000000
 validator_very_low_stake_threshold: 1000000000000000
 validator_low_stake_grace_period: 7
+max_move_system_package_size: 204800

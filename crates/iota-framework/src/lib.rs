@@ -4,15 +4,15 @@
 
 use std::{fmt::Formatter, sync::LazyLock};
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{MovePackage, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
-    move_package::MovePackageExt,
+    execution_config_utils::to_binary_config,
+    move_package::{MovePackageExt, max_package_size},
     object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,
 };
-use move_binary_format::{
-    CompiledModule, binary_config::BinaryConfig, compatibility::Compatibility, normalized,
-};
+use move_binary_format::{CompiledModule, compatibility::Compatibility, normalized};
 use move_core_types::gas_algebra::InternalGas;
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -184,33 +184,55 @@ pub fn legacy_test_cost() -> InternalGas {
 ///   without a framework upgrade).
 /// - Returns the digest of the new framework (and version) if it is compatible
 ///   (indicates support for a protocol upgrade with a framework upgrade).
+/// - Returns `None` if the package does not exist on-chain yet and exceeds the
+///   size a system package may occupy (This is grounds not to upgrade).
+///
+/// `protocol_config` must be the config of the epoch the upgrade would be
+/// performed in, which is the one the resulting change epoch transaction
+/// executes under.
 pub async fn compare_system_package<S: ObjectStore>(
     object_store: &S,
     id: &ObjectId,
     modules: &[CompiledModule],
     dependencies: Vec<ObjectId>,
-    binary_config: &BinaryConfig,
+    protocol_config: &ProtocolConfig,
 ) -> Option<ObjectReference> {
+    let binary_config = &to_binary_config(protocol_config);
     let cur_object = match object_store.try_get_object(id) {
         Ok(Some(cur_object)) => cur_object,
 
         Ok(None) => {
-            // creating a new framework package--nothing to check
-            return Some(
-                Object::new_system_package(
-                    modules,
-                    // note: execution_engine assumes any system package with version
-                    // OBJECT_START_VERSION is freshly created rather than
-                    // upgraded
-                    OBJECT_START_VERSION,
-                    dependencies,
-                    // Genesis is fine here, we only use it to calculate an object ref that we can
-                    // use for all validators to commit to the same bytes in
-                    // the update
-                    TransactionDigest::GENESIS_MARKER,
-                )
-                .object_ref(),
+            // creating a new framework package--nothing to check for compatibility
+            let new_object = Object::new_system_package(
+                modules,
+                // note: execution_engine assumes any system package with version
+                // OBJECT_START_VERSION is freshly created rather than
+                // upgraded
+                OBJECT_START_VERSION,
+                dependencies,
+                // Genesis is fine here, we only use it to calculate an object ref that we can
+                // use for all validators to commit to the same bytes in
+                // the update
+                TransactionDigest::GENESIS_MARKER,
             );
+
+            // Adding a package runs it through the publish path, which enforces this
+            // bound and aborts the change epoch transaction if it is exceeded.
+            // Refusing the upgrade leaves the network on its current version
+            // instead. Upgrades of an existing package are exempt from the
+            // bound, so the branch below does not check it.
+            let size = new_object
+                .data
+                .as_opt_package()
+                .expect("Created as package")
+                .size() as u64;
+            let max_size = max_package_size(*id, protocol_config);
+            if size > max_size {
+                error!("New system package {id} is {size} bytes, over the {max_size} byte limit");
+                return None;
+            }
+
+            return Some(new_object.object_ref());
         }
 
         Err(e) => {
@@ -271,4 +293,38 @@ pub async fn compare_system_package<S: ObjectStore>(
         .expect("package version should never overflow");
 
     Some(new_object.object_ref())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    /// Every system package has to fit `max_move_system_package_size`, the
+    /// bound it is held to when it is published for the first time, at genesis
+    /// or when it is added at an epoch change. Its bytes are fixed when the
+    /// binary is built, so a package that has outgrown the bound is caught
+    /// here, rather than by a network that will not start or an epoch change
+    /// that aborts.
+    #[test]
+    fn system_packages_fit_the_size_limit() {
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let mut published: BTreeMap<ObjectId, MovePackage> = BTreeMap::new();
+
+        for package in BuiltInFramework::iter_system_packages() {
+            let dependencies: Vec<_> = package
+                .dependencies
+                .iter()
+                .map(|id| &published[id])
+                .collect();
+
+            MovePackage::new_initial(&package.modules(), &protocol_config, dependencies)
+                .unwrap_or_else(|e| {
+                    panic!("system package {} cannot be published: {e}", package.id)
+                });
+
+            published.insert(package.id, package.genesis_move_package());
+        }
+    }
 }
