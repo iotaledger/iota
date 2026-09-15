@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["TRANSACTIONS_NOT_FOUND_MSG_PREFIX","TRANSACTION_NOT_FOUND_MSG_PREFIX"],"enum":["ErrorCategory","IotaError","UserInputError","VMMVerifierErrorSubStatusCode","VMMemoryLimitExceededSubStatusCode"],"fn":["categorize","command_argument_error"],"struct":["ExecutionError"],"type":["ExecutionErrorKind","IotaResult","UserInputResult"]};

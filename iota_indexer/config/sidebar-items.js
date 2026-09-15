@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_PRUNING_BATCH_SIZE","DEFAULT_PRUNING_DELAY_MS"],"enum":["Command","RestoreCommand"],"struct":["BackfillConfig","HistoricFallbackOptions","IndexerConfig","IngestionConfig","IngestionSources","IotaNamesOptions","JsonRpcConfig","PruningOptions","RetentionConfig"]};

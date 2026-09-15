@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["setting_type"],"struct":["Config","Setting","SettingData"]};

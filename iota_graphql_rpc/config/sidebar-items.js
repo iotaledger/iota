@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["BackgroundTasksConfig","ConnectionConfig","Experiments","HistoricFallbackOptions","Ide","InternalFeatureConfig","Limits","ServerConfig","ServiceConfig","TxExecFullNodeConfig","Version","Versions"]};
