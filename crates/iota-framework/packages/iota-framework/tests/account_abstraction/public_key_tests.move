@@ -455,3 +455,43 @@ fun to_iota_address_vectors() {
         MULTISIG_MIXED_ADDR,
     );
 }
+
+// === key_id — cross-checked against Rust-computed vectors ===
+
+// key_id is blake2b256 of the flag-prefixed bytes, so these are the hashes of
+// the *_PK constants above. Computed independently by the Rust node.
+const ED25519_KEY_ID: address = @0x43541042c153e0e498a08a8db868f1614c9366694fa730bd8a07fc5d7c931f0d;
+const MULTISIG_KEY_ID: address = @0x37330e88388d526046696b5b5113cd64e81eb1b1bcd403372666cc54970ddbf4;
+const MULTISIG_MIXED_KEY_ID: address =
+    @0xdd22eb5c98cdc27de98174a69b68ca1603bdda8aeb226c5232273cfdc9655811;
+
+#[test]
+fun key_id_vectors() {
+    assert_eq(public_key::from_prefixed_bytes(ED25519_PK).key_id(), ED25519_KEY_ID);
+    assert_eq(public_key::from_prefixed_bytes(MULTISIG_PK).key_id(), MULTISIG_KEY_ID);
+    assert_eq(
+        public_key::from_prefixed_bytes(MULTISIG_MIXED_PK).key_id(),
+        MULTISIG_MIXED_KEY_ID,
+    );
+}
+
+#[test]
+fun key_id_includes_the_flag_for_every_scheme() {
+    // Ed25519 address derivation omits the flag and MultiSig hashes a
+    // structured committee preimage, so for those key_id must differ from the
+    // address. Pin the difference: a later "simplification" toward the address
+    // would otherwise pass a test covering only the schemes below.
+    assert!(public_key::from_prefixed_bytes(ED25519_PK).key_id() != ED25519_ADDR);
+    assert!(public_key::from_prefixed_bytes(MULTISIG_PK).key_id() != MULTISIG_ADDR);
+    assert!(public_key::from_prefixed_bytes(MULTISIG_MIXED_PK).key_id() != MULTISIG_MIXED_ADDR);
+}
+
+#[test]
+fun key_id_coincides_with_address_for_flag_prefixed_schemes() {
+    // For these schemes address derivation is exactly blake2b256(flag || pk),
+    // which is the key_id formula. Harmless, but it means key_id == address is
+    // never a usable test for anything.
+    assert_eq(public_key::from_prefixed_bytes(SECP256K1_PK).key_id(), SECP256K1_ADDR);
+    assert_eq(public_key::from_prefixed_bytes(SECP256R1_PK).key_id(), SECP256R1_ADDR);
+    assert_eq(public_key::from_prefixed_bytes(PASSKEY_PK).key_id(), PASSKEY_ADDR);
+}
