@@ -7,7 +7,6 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use fastcrypto::traits::KeyPair;
 use iota_sdk_types::{
     SenderSignedTransaction,
     crypto::{Intent, IntentScope},
@@ -22,7 +21,7 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthorityKeyPair, AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait,
-        AuthoritySignature, AuthorityStrongQuorumSignInfo, EmptySignInfo, Signer,
+        AuthoritySignature, AuthorityStrongQuorumSignInfo, EmptySignInfo,
     },
     error::IotaResult,
     executable_transaction::CertificateProof,
@@ -157,7 +156,7 @@ where
     pub fn new(
         epoch: EpochId,
         data: T,
-        secret: &dyn Signer<AuthoritySignature>,
+        secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
         authority: AuthorityName,
     ) -> Self {
         let auth_signature = Self::sign(epoch, &data, secret, authority);
@@ -171,7 +170,7 @@ where
     pub fn sign(
         epoch: EpochId,
         data: &T,
-        secret: &dyn Signer<AuthoritySignature>,
+        secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
         authority: AuthorityName,
     ) -> AuthoritySignInfo {
         AuthoritySignInfo::new(epoch, &data, Intent::iota_app(T::SCOPE), authority, secret)
@@ -225,7 +224,7 @@ where
                     committee.epoch(),
                     &data,
                     Intent::iota_app(T::SCOPE),
-                    keypair.public().into(),
+                    (&keypair.verifying_key()).into(),
                     keypair,
                 )
             })

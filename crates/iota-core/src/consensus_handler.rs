@@ -1212,10 +1212,7 @@ mod tests {
         attestation::{Attestation, AttestationData, AttestedTransaction},
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::{
-            AccountPrivateKey, KeypairTraits, deterministic_random_account_private_key,
-            get_key_pair,
-        },
+        crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
         effects::TransactionEffectsAPI,
         error::{IotaError, UserInputError},
         messages_consensus::{
@@ -3243,7 +3240,7 @@ mod tests {
         let keypairs: Vec<_> = network_config
             .validator_configs()
             .iter()
-            .map(|config| config.authority_key_pair().copy())
+            .map(|config| config.authority_key_pair().clone())
             .collect();
         let certificate = CertifiedTransaction::new_from_keypairs_for_testing(
             transfer.into_message(),

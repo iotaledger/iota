@@ -21,7 +21,7 @@ use iota_protocol_config::MAX_PROTOCOL_VERSION;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_types::{
     committee::ProtocolVersion,
-    crypto::{AuthorityKeyPair, KeypairTraits, NetworkPrivateKey, generate_proof_of_possession},
+    crypto::{AuthorityKeyPair, NetworkPrivateKey, generate_proof_of_possession},
 };
 
 use crate::genesis_inspector::examine_genesis_checkpoint;
@@ -195,7 +195,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             builder = builder.add_validator(
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
-                    authority_key: authority_keypair.public().into(),
+                    authority_key: (&authority_keypair.verifying_key()).into(),
                     protocol_key: protocol_private_key.public_key(),
                     account_address: account_keypair.public_key().derive_address(),
                     network_key: network_private_key.public_key(),
@@ -357,7 +357,7 @@ mod test {
                 let account_private_key = AccountPrivateKey::random();
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),
-                    authority_key: authority_keypair.public().into(),
+                    authority_key: (&authority_keypair.verifying_key()).into(),
                     protocol_key: protocol_private_key.public_key(),
                     account_address: account_private_key.public_key().derive_address(),
                     network_key: network_private_key.public_key(),

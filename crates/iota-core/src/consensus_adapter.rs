@@ -1622,10 +1622,6 @@ pub fn position_submit_certificate(
 mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
-    use fastcrypto::{
-        bls12381::min_sig::BLS12381PrivateKey,
-        traits::{KeyPair, ToFromBytes},
-    };
     use iota_sdk_types::TransactionDigest;
     use iota_types::{
         committee::Committee,
@@ -1682,10 +1678,8 @@ mod adapter_tests {
             .iter()
             .enumerate()
             .map(|(i, stake)| {
-                let key_pair = AuthorityKeyPair::from(
-                    BLS12381PrivateKey::from_bytes(&[i as u8 + 1; 32]).unwrap(),
-                );
-                (AuthorityPublicKeyBytes::from(key_pair.public()), *stake)
+                let key = AuthorityKeyPair::new([i as u8 + 1; 32]).unwrap();
+                (AuthorityPublicKeyBytes::from(&key.verifying_key()), *stake)
             })
             .collect();
         Committee::new_for_testing_with_normalized_voting_power(0, authorities)

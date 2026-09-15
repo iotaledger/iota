@@ -4,7 +4,6 @@
 use std::{sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
-use fastcrypto::traits::KeyPair;
 use futures::FutureExt;
 use iota_core::epoch_start_consensus_committee::get_consensus_committee;
 use iota_metrics::{RegistryService, monitored_mpsc::unbounded_channel};
@@ -74,7 +73,7 @@ async fn test_starfish_manager() {
 
     let consensus_config = config.consensus_config().unwrap();
     let registry_service = RegistryService::new(Registry::new());
-    let secret = Arc::pin(config.authority_key_pair().copy());
+    let secret = Arc::pin(config.authority_key_pair().clone());
     let genesis = config.genesis().unwrap();
 
     let metrics = Arc::new(ConsensusManagerMetrics::new(&Registry::new()));
@@ -162,7 +161,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
         .build();
 
     let config = &configs.validator_configs()[0];
-    let secret = Arc::pin(config.authority_key_pair().copy());
+    let secret = Arc::pin(config.authority_key_pair().clone());
     let genesis = config.genesis().unwrap();
 
     let state = TestAuthorityBuilder::new()
