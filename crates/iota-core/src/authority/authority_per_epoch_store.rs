@@ -842,14 +842,15 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
 
-    /// Latest object state as of the handler frontier, for P-COOL
-    /// deterministic post-consensus validation (see [`handler_object_state`]
-    /// for the three-view design). Flushed through each commit's quarantined
-    /// `ConsensusCommitOutput`, atomically with `last_consensus_stats`. Same
-    /// access profile as the lock table: one write per touched object per
-    /// commit, one point lookup per validated input.
+    /// Every object version produced by a commit the handler processed, for
+    /// P-COOL deterministic post-consensus validation (see
+    /// [`handler_object_state`] for the three-view design). Flushed through
+    /// each commit's quarantined `ConsensusCommitOutput`, atomically with
+    /// `last_consensus_stats`. Same access profile as the lock table: one
+    /// write per written object version per commit, one point lookup per
+    /// validated input.
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
-    handler_latest_objects: DBMap<ObjectKey, HandlerProcessedObject>,
+    handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
 
     /// Sync-ahead records (see [`handler_object_state`]); empty in normal
     /// operation.
@@ -1808,10 +1809,15 @@ impl AuthorityPerEpochStore {
             .record_commit_fully_executed(&tables, index, upserts)
     }
 
-    /// The latest state of `id` as of the handler frontier.
-    pub fn handler_latest(&self, id: &ObjectId) -> IotaResult<Option<HandlerProcessedObject>> {
+    /// The handler-processed row at `key`, the exact version a transaction
+    /// names.
+    pub fn handler_processed_object(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<HandlerProcessedObject>> {
         let tables = self.tables()?;
-        self.handler_object_state.handler_latest(&tables, id)
+        self.handler_object_state
+            .handler_processed_object(&tables, key)
     }
 
     /// The sync-ahead record for `id`.
@@ -1841,7 +1847,7 @@ impl AuthorityPerEpochStore {
         handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
     ) -> IotaResult {
         let tables = self.tables()?;
-        let mut batch = tables.handler_latest_objects.batch();
+        let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state.write_commit_rows_to_batch(
             commit_index,
             &tables,

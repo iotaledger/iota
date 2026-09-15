@@ -8,8 +8,8 @@
 //! Three views are kept, each an epoch table plus an in-memory overlay
 //! holding the entries not yet durable:
 //! - **handler-latest** - every version a commit the handler has processed
-//!   produced, one row per (object, version); a read takes the highest row of
-//!   the object, so writes need no ordering among themselves. Blind to
+//!   produced, one row per (object, version), read by the exact version a
+//!   transaction names, so writes need no ordering among themselves. Blind to
 //!   execution driven by state sync running ahead of the handler.
 //! - **sync-ahead records** - per-object markers written by state-sync-driven
 //!   execution the handler has not reached yet, restoring the pre-sync view
@@ -22,8 +22,8 @@
 //!
 //! [`HandlerObjectState`] owns the overlays, the transaction-key ->
 //! commit-index map,
-//! and every invariant on them: highest-version reads across overlay and
-//! table, and eviction only after the corresponding table row is durable.
+//! and every invariant on them: overlay-first reads, and eviction only after
+//! the corresponding table row is durable.
 //!
 //! The in-memory state changes at five points: the handler registers a
 //! commit's kept transaction keys before they can be scheduled
@@ -50,7 +50,6 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    ops::RangeInclusive,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -69,12 +68,12 @@ use iota_types::{
     transaction::TransactionKey,
 };
 use itertools::chain;
+use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use typed_store::{Map, rocks::DBBatch};
 
 use super::AuthorityEpochTables;
-use crate::execution_cache::cache_types::{IsNewer, MonotonicCache, Ticket};
 
 /// Position of a consensus commit in the epoch's commit sequence: dense,
 /// starting at 1, identical on every validator. The node-side counterpart of
@@ -97,10 +96,9 @@ pub enum HandlerProcessedObjectKind {
     Wrapped,
 }
 
-/// The latest state of an object as of the consensus handler's frontier.
+/// One version an object took at a commit the consensus handler processed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HandlerProcessedObject {
-    pub version: Version,
     pub digest: ObjectDigest,
     pub kind: HandlerProcessedObjectKind,
     /// Index of the commit whose execution produced this row; reads at commit
@@ -109,12 +107,6 @@ pub struct HandlerProcessedObject {
     /// `Some` iff the object was created as shared this epoch; doubles as the
     /// created-shared flag for the shared-input checks.
     pub initial_shared_version: Option<Version>,
-}
-
-impl IsNewer for HandlerProcessedObject {
-    fn is_newer_than(&self, other: &Self) -> bool {
-        self.version > other.version
-    }
 }
 
 /// Marker for an object written by sync-ahead execution, restoring the
@@ -151,12 +143,6 @@ pub struct SyncAheadWrite {
     pub created: Version,
 }
 
-/// The key range holding every row of `id`, for the highest-version reads
-/// over the overlay and the table.
-fn versions_of(id: &ObjectId) -> RangeInclusive<ObjectKey> {
-    ObjectKey::min_for_id(id)..=ObjectKey::max_for_id(id)
-}
-
 /// Derives the handler-latest upserts for one executed transaction of the
 /// commit at `produced_at`: created / mutated / unwrapped objects become
 /// `Live` rows, deletions and wraps become tombstone rows.
@@ -180,7 +166,6 @@ pub fn handler_latest_upserts(
         rows.push((
             ObjectKey(owned_ref.reference.object_id, owned_ref.reference.version),
             HandlerProcessedObject {
-                version: owned_ref.reference.version,
                 digest: owned_ref.reference.digest,
                 kind: HandlerProcessedObjectKind::Live,
                 produced_at,
@@ -198,7 +183,6 @@ pub fn handler_latest_upserts(
         rows.push((
             ObjectKey(reference.object_id, reference.version),
             HandlerProcessedObject {
-                version: reference.version,
                 digest: reference.digest,
                 kind,
                 produced_at,
@@ -288,7 +272,7 @@ pub struct AssignedCommit {
 /// In-memory side of the bookkeeping plus every operation composing it with
 /// the durable tables. Overlays hold entries of commits whose rows are not
 /// yet durable; an entry leaves only after the corresponding table row is
-/// durable, and reads take the highest row across both, so the transient
+/// durable, and the read paths check the overlay first, so the transient
 /// both-present state is harmless.
 pub struct HandlerObjectState {
     /// Transaction key -> producing commit index for every kept transaction of
@@ -325,16 +309,22 @@ pub struct HandlerObjectState {
     /// deletion is queued cancels the deletion and counts as a fresh record.
     live_sync_ahead_records_count: AtomicU64,
 
-    /// Read-through cache over the durable handler-latest table, keyed by
-    /// object and holding its highest durable row, so the cold path of the
-    /// hot per-input lookup is usually served without a table range read.
-    /// Holds present rows only (absence could go stale the moment a flush
-    /// lands); refreshed write-through by `evict_flushed_commit_rows`, with
-    /// the ticket protocol rejecting stale inserts from readers racing a
-    /// flush. The other two tables get no cache: they are consulted only
+    /// Read-through cache over the durable handler-latest table, so the cold
+    /// path of the hot per-input lookup is usually served without a table
+    /// read. Holds present rows only (absence could go stale the moment a
+    /// flush lands), filled by reads alone: a row never changes once written,
+    /// so a flush has nothing to refresh or expire and a plain cache is
+    /// enough. The other two tables get no cache: they are consulted only
     /// after a handler-latest miss and are empty in normal operation, where
     /// a table miss is a cheap bloom-filter negative.
-    handler_latest_cache: MonotonicCache<ObjectId, HandlerProcessedObject>,
+    handler_latest_cache: MokaCache<ObjectKey, HandlerProcessedObject>,
+}
+
+fn new_handler_latest_cache(capacity: u64) -> MokaCache<ObjectKey, HandlerProcessedObject> {
+    MokaCache::builder(8)
+        .max_capacity(randomize_cache_capacity_in_tests(capacity))
+        .eviction_policy(EvictionPolicy::lru())
+        .build()
 }
 
 impl HandlerObjectState {
@@ -359,7 +349,7 @@ impl HandlerObjectState {
             sheltered_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_record_deletions: Mutex::new(BTreeMap::new()),
             live_sync_ahead_records_count: AtomicU64::new(live_sync_ahead_records_count),
-            handler_latest_cache: MonotonicCache::new(randomize_cache_capacity_in_tests(100_000)),
+            handler_latest_cache: new_handler_latest_cache(100_000),
         }
     }
 
@@ -472,70 +462,26 @@ impl HandlerObjectState {
         Ok(())
     }
 
-    /// The latest state of `id` as of the handler frontier: the highest row
-    /// across the overlay and the durable table.
+    /// The handler-processed row at `key`, from the overlay or the durable
+    /// table.
     ///
     /// Returns the row unconditionally; a caller validating at a commit index
     /// must apply the reading condition itself (`produced_at` above its
-    /// horizon answers missing). Writers and cleanup need the unfiltered
-    /// frontier row, so no horizon is applied here.
-    pub fn handler_latest(
+    /// horizon answers missing).
+    pub fn handler_processed_object(
         &self,
         tables: &AuthorityEpochTables,
-        id: &ObjectId,
+        key: &ObjectKey,
     ) -> IotaResult<Option<HandlerProcessedObject>> {
-        // The ticket snapshots this object's cache generation before any
-        // read, so a flush landing between the overlay check and the cache
-        // fill cannot be shadowed by the table row read here.
-        let ticket = self.handler_latest_cache.get_ticket_for_read(id);
-        // Both sides are consulted: an earlier commit's row can still be in
-        // the overlay after a later commit's row became durable (the flushes
-        // land in any order), so neither side alone is the highest.
-        // TODO: what is the exact scenario in which a later commit's handler rows
-        //  become durable before an earlier one?
-        //  The checkpoint executor will persist a checkpoint's rows as soon
-        //  as it executes it, while the quarantine flush of the same commit
-        //  waits for the checkpoint builder. With state sync ahead of the
-        //  builder, commit C+1's rows are durable while commit C's are still
-        //  in the overlay.
-        let overlay_row = self
-            .handler_latest_overlay
-            .read()
-            .range(versions_of(id))
-            .next_back()
-            .map(|(_, row)| *row);
-        let durable_row = self.durable_handler_latest(tables, id, ticket)?;
-        Ok(match (overlay_row, durable_row) {
-            (Some(overlay), Some(durable)) if durable.is_newer_than(&overlay) => Some(durable),
-            (Some(overlay), _) => Some(overlay),
-            (None, durable) => durable,
-        })
-    }
-
-    /// The durable handler-latest row of `id`, through the read-through
-    /// cache. `ticket` must have been taken before any read for this call: the
-    /// cache fill below succeeds only if the object's cache generation is
-    /// still the one the ticket saw; a flush that caches a newer row in the
-    /// meantime (`Ticket::Write` in `evict_flushed_commit_rows`) bumps it, and
-    /// the fill is discarded - the row read from the table here would be
-    /// older than what the flush cached, and must not replace it.
-    fn durable_handler_latest(
-        &self,
-        tables: &AuthorityEpochTables,
-        id: &ObjectId,
-        ticket: Ticket,
-    ) -> IotaResult<Option<HandlerProcessedObject>> {
-        if let Some(entry) = self.handler_latest_cache.get(id) {
-            return Ok(Some(*entry.lock()));
+        if let Some(row) = self.handler_latest_overlay.read().get(key) {
+            return Ok(Some(*row));
         }
-        let row = tables
-            .handler_latest_objects
-            .safe_range_iter_reversed(versions_of(id))
-            .next()
-            .transpose()?
-            .map(|(_, row)| row);
+        if let Some(row) = self.handler_latest_cache.get(key) {
+            return Ok(Some(row));
+        }
+        let row = tables.handler_processed_objects.get(key)?;
         if let Some(row) = row {
-            self.handler_latest_cache.insert(id, row, ticket).ok();
+            self.handler_latest_cache.insert(*key, row);
         }
         Ok(row)
     }
@@ -587,7 +533,7 @@ impl HandlerObjectState {
         handler_rows: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult {
         batch.insert_batch(
-            &tables.handler_latest_objects,
+            &tables.handler_processed_objects,
             handler_rows.iter().map(|(key, row)| (key, row)),
         )?;
         // Only this commit's deletions are staged: a later commit's must not
@@ -604,19 +550,11 @@ impl HandlerObjectState {
 
     /// Evicts a commit's handler-latest overlay entries once their rows are
     /// durable; the caller's write-then-evict order is what keeps a concurrent
-    /// reader from finding a row in neither the overlay nor the table. Each
-    /// row is cached on the way out with a write ticket, which expires the
-    /// read tickets of readers still holding the pre-flush table row (see
-    /// [`Self::durable_handler_latest`]); the cached value itself is
-    /// best-effort. A row below the cached one leaves the cache alone.
+    /// reader from finding a row in neither the overlay nor the table.
     ///
     /// The commit's queued sync-record deletions are dropped here too, now
     /// that they are durable. A deletion lost to a batch that never became
     /// durable is re-queued when the commit replays.
-    // TODO: a flushed row is cached as the object's highest durable row, which
-    // holds only while flushes land in commit order; the exact-key reads
-    // planned for the Check #5 reader remove the highest-row cache and this
-    // assumption with it.
     pub fn evict_flushed_commit_rows(
         &self,
         commit_index: CommitIndex,
@@ -626,18 +564,8 @@ impl HandlerObjectState {
             .lock()
             .remove(&commit_index);
         let mut overlay = self.handler_latest_overlay.write();
-        for (key, row) in handler_rows {
+        for (key, _) in handler_rows {
             overlay.remove(key);
-            let id = &key.0;
-            let cached_is_newer = self
-                .handler_latest_cache
-                .get(id)
-                .is_some_and(|entry| entry.lock().version >= row.version);
-            if !cached_is_newer {
-                self.handler_latest_cache
-                    .insert(id, *row, Ticket::Write)
-                    .ok();
-            }
         }
     }
 
@@ -833,7 +761,7 @@ impl HandlerObjectState {
         }
         let mut overlay = self.sync_ahead_overlay.write();
         let mut deletions = self.sync_ahead_record_deletions.lock();
-        for (key, row) in upserts {
+        for (key, _) in upserts {
             let record = match overlay.get(&key.0) {
                 Some(record) => Some(*record),
                 None => tables.sync_ahead_records.get(&key.0)?,
@@ -841,7 +769,7 @@ impl HandlerObjectState {
             // The handler has caught up past the whole sync-ahead chain; the
             // handler-latest row (already visible) now answers every read the
             // record used to.
-            if record.is_some_and(|record| record.latest_created <= row.version) {
+            if record.is_some_and(|record| record.latest_created <= key.1) {
                 overlay.remove(&key.0);
                 // Queue the durable deletion even when the record was found
                 // only in the overlay: an extended record leaves its older
@@ -939,15 +867,18 @@ mod tests {
         let lamport = fixture.effects.lamport_version();
         let index: CommitIndex = 9;
         // Every id in the fixture is written once, so keying by id is exact.
-        let rows: BTreeMap<ObjectId, HandlerProcessedObject> =
+        let rows: BTreeMap<ObjectId, (Version, HandlerProcessedObject)> =
             handler_latest_upserts(&fixture.effects, index)
                 .into_iter()
-                .map(|(key, row)| (key.0, row))
+                .map(|(key, row)| (key.0, (key.1, row)))
                 .collect();
+        let version = |id: &ObjectId| rows[id].0;
+        let rows: BTreeMap<ObjectId, HandlerProcessedObject> =
+            rows.iter().map(|(id, (_, row))| (*id, *row)).collect();
 
         let created_owned = &rows[&fixture.created_owned];
         assert_eq!(created_owned.kind, HandlerProcessedObjectKind::Live);
-        assert_eq!(created_owned.version, lamport);
+        assert_eq!(version(&fixture.created_owned), lamport);
         assert_eq!(created_owned.produced_at, index);
         assert_eq!(created_owned.initial_shared_version, None);
 
@@ -962,7 +893,7 @@ mod tests {
             rows[&fixture.mutated_owned].kind,
             HandlerProcessedObjectKind::Live
         );
-        assert_eq!(rows[&fixture.mutated_owned].version, lamport);
+        assert_eq!(version(&fixture.mutated_owned), lamport);
         assert_eq!(rows[&fixture.gas].kind, HandlerProcessedObjectKind::Live);
         assert_eq!(
             rows[&fixture.unwrapped].kind,
@@ -973,12 +904,12 @@ mod tests {
             rows[&fixture.deleted].kind,
             HandlerProcessedObjectKind::Deleted
         );
-        assert_eq!(rows[&fixture.deleted].version, lamport);
+        assert_eq!(version(&fixture.deleted), lamport);
         assert_eq!(
             rows[&fixture.wrapped].kind,
             HandlerProcessedObjectKind::Wrapped
         );
-        assert_eq!(rows[&fixture.wrapped].version, lamport);
+        assert_eq!(version(&fixture.wrapped), lamport);
 
         assert_eq!(rows.len(), 7);
     }
@@ -1086,7 +1017,7 @@ mod tests {
             sheltered_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_record_deletions: Mutex::new(BTreeMap::new()),
             live_sync_ahead_records_count: AtomicU64::new(0),
-            handler_latest_cache: MonotonicCache::new(100),
+            handler_latest_cache: new_handler_latest_cache(100),
         };
         let key_a = TransactionKey::Digest(TransactionDigest::random());
         let key_b = TransactionKey::Digest(TransactionDigest::random());

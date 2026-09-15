@@ -1903,9 +1903,8 @@ mod handler_object_state_storage {
         (effects, inputs)
     }
 
-    fn generate_live_entry(version: Version, produced_at: CommitIndex) -> HandlerProcessedObject {
+    fn generate_live_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
         HandlerProcessedObject {
-            version,
             digest: ObjectDigest::random(),
             kind: HandlerProcessedObjectKind::Live,
             produced_at,
@@ -1914,27 +1913,30 @@ mod handler_object_state_storage {
     }
 
     #[tokio::test]
-    async fn handler_latest_reads_take_the_highest_version_across_overlay_and_table() {
+    async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
         let id = ObjectId::random();
         let key = |version: u64| ObjectKey(id, Version::from_u64(version));
+        let read_processed_object =
+            |version: u64| epoch_store.handler_processed_object(&key(version)).unwrap();
 
-        let v5 = generate_live_entry(Version::from_u64(5), 1);
+        let v5 = generate_live_entry(1);
         epoch_store
             .record_commit_fully_executed(1, &[(key(5), v5)])
             .unwrap();
-        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
+        assert_eq!(read_processed_object(5), Some(v5));
+        assert_eq!(read_processed_object(4), None);
 
-        // An earlier commit's row arriving later sits beside the newer one
-        // and never shadows it.
-        let v3 = generate_live_entry(Version::from_u64(3), 0);
+        // An earlier commit's row arriving later sits beside the newer one.
+        let v3 = generate_live_entry(0);
         epoch_store
             .record_commit_fully_executed(0, &[(key(3), v3)])
             .unwrap();
         assert_eq!(state.overlay_sizes_for_testing(), (2, 0, 0));
-        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
 
         // Flushing the newer commit moves only its row out of the overlay,
         // without a read gap.
@@ -1942,31 +1944,36 @@ mod handler_object_state_storage {
             .flush_commit_rows_for_testing(1, vec![(key(5), v5)])
             .unwrap();
         assert_eq!(state.overlay_sizes_for_testing(), (1, 0, 0));
-        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
 
         // The earlier commit flushing afterwards (out of commit order) adds
-        // its row to the table without regressing the read.
+        // its row to the table beside the newer one.
         epoch_store
             .flush_commit_rows_for_testing(0, vec![(key(3), v3)])
             .unwrap();
         assert_eq!(state.overlay_sizes_for_testing(), (0, 0, 0));
         let tables = epoch_store.tables().unwrap();
         assert_eq!(
-            tables.handler_latest_objects.get(&key(3)).unwrap(),
+            tables.handler_processed_objects.get(&key(3)).unwrap(),
             Some(v3)
         );
         assert_eq!(
-            tables.handler_latest_objects.get(&key(5)).unwrap(),
+            tables.handler_processed_objects.get(&key(5)).unwrap(),
             Some(v5)
         );
-        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
+        assert_eq!(read_processed_object(3), Some(v3));
+        assert_eq!(read_processed_object(5), Some(v5));
+        assert_eq!(read_processed_object(4), None);
 
-        // A later commit's row supersedes the durable ones through the overlay.
-        let v7 = generate_live_entry(Version::from_u64(7), 2);
+        // A later commit's row is readable through the overlay while the
+        // durable ones stay readable too.
+        let v7 = generate_live_entry(2);
         epoch_store
             .record_commit_fully_executed(2, &[(key(7), v7)])
             .unwrap();
-        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v7));
+        assert_eq!(read_processed_object(7), Some(v7));
+        assert_eq!(read_processed_object(5), Some(v5));
     }
 
     #[tokio::test]
@@ -1981,45 +1988,38 @@ mod handler_object_state_storage {
         // outputs into one batch, so commit 2's flush below carries commit
         // 1's row as well, out of version order; only commit 2's deletion
         // bucket is drained.
-        let v3 = generate_live_entry(Version::from_u64(3), 1);
-        let v5 = generate_live_entry(Version::from_u64(5), 2);
+        let key = |version: u64| ObjectKey(id, Version::from_u64(version));
+        let v3 = generate_live_entry(1);
+        let v5 = generate_live_entry(2);
         epoch_store
-            .record_commit_fully_executed(1, &[(ObjectKey(id, v3.version), v3)])
+            .record_commit_fully_executed(1, &[(key(3), v3)])
             .unwrap();
         epoch_store
-            .record_commit_fully_executed(2, &[(ObjectKey(id, v5.version), v5)])
+            .record_commit_fully_executed(2, &[(key(5), v5)])
             .unwrap();
-        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
 
-        // Both versions become durable and the read still takes the highest,
-        // with the write-through cache insert of the older row not tripping
-        // the cache's monotonicity check.
+        // Both versions become durable and stay readable by their key.
         epoch_store
-            .flush_commit_rows_for_testing(
-                2,
-                vec![
-                    (ObjectKey(id, v5.version), v5),
-                    (ObjectKey(id, v3.version), v3),
-                ],
-            )
+            .flush_commit_rows_for_testing(2, vec![(key(5), v5), (key(3), v3)])
             .unwrap();
         assert_eq!(state.overlay_sizes_for_testing(), (0, 0, 0));
         let tables = epoch_store.tables().unwrap();
         assert_eq!(
-            tables
-                .handler_latest_objects
-                .get(&ObjectKey(id, v3.version))
-                .unwrap(),
+            tables.handler_processed_objects.get(&key(3)).unwrap(),
             Some(v3)
         );
         assert_eq!(
-            tables
-                .handler_latest_objects
-                .get(&ObjectKey(id, v5.version))
-                .unwrap(),
+            tables.handler_processed_objects.get(&key(5)).unwrap(),
             Some(v5)
         );
-        assert_eq!(epoch_store.handler_latest(&id).unwrap(), Some(v5));
+        assert_eq!(
+            epoch_store.handler_processed_object(&key(3)).unwrap(),
+            Some(v3)
+        );
+        assert_eq!(
+            epoch_store.handler_processed_object(&key(5)).unwrap(),
+            Some(v5)
+        );
     }
 
     #[tokio::test]
@@ -2050,10 +2050,7 @@ mod handler_object_state_storage {
         epoch_store
             .record_commit_fully_executed(
                 8,
-                &[(
-                    ObjectKey(mutated, first_chain_head),
-                    generate_live_entry(first_chain_head, 8),
-                )],
+                &[(ObjectKey(mutated, first_chain_head), generate_live_entry(8))],
             )
             .unwrap();
         assert_eq!(
@@ -2114,11 +2111,10 @@ mod handler_object_state_storage {
             .unwrap();
 
         let row = epoch_store
-            .handler_latest(&mutated)
+            .handler_processed_object(&ObjectKey(mutated, effects.lamport_version()))
             .unwrap()
             .expect("handler-latest row must exist for a handler-known commit");
         assert_eq!(row.produced_at, 6);
-        assert_eq!(row.version, effects.lamport_version());
         assert_eq!(epoch_store.sync_ahead_record(&mutated).unwrap(), None);
         assert_eq!(
             epoch_store

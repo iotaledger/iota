@@ -2175,15 +2175,28 @@ impl BookkeepingSetup {
         effects
     }
 
-    /// The handler-latest row of `id`, which the handler must have written.
+    /// The handler-processed row of `id` at `version`, which the handler must
+    /// have written.
     #[track_caller]
-    fn handler_latest(&self, id: &ObjectId) -> HandlerProcessedObject {
+    fn handler_processed_object(&self, id: &ObjectId, version: Version) -> HandlerProcessedObject {
         self.epoch_store
-            .handler_latest(id)
+            .handler_processed_object(&ObjectKey(*id, version))
             .unwrap()
             .unwrap_or_else(|| {
-                panic!("the handler must have written a handler-latest row for {id}")
+                panic!("the handler must have written a handler-latest row for {id} at {version}")
             })
+    }
+
+    /// Asserts that no handler-processed row exists for `id` at `version` -
+    /// the version a sync-ahead execution produced.
+    #[track_caller]
+    fn assert_no_handler_row(&self, id: &ObjectId, version: Version) {
+        assert_eq!(
+            self.epoch_store
+                .handler_processed_object(&ObjectKey(*id, version))
+                .unwrap(),
+            None
+        );
     }
 
     /// Registers `tx`'s key in the transaction-key -> commit-index map for
@@ -2427,7 +2440,7 @@ async fn executed_transaction_updates_sync_ahead_bookkeeping() {
         Some(obj_genesis_ref.version),
         first.lamport_version(),
     );
-    assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
+    s.assert_no_handler_row(&obj_id, first.lamport_version());
 
     // A second transfer extends the object's chain: the base stays the
     // version the chain originally grew from while the chain head advances.
@@ -2483,8 +2496,7 @@ async fn handler_known_transaction_writes_handler_latest_only() {
     // The gas coin is a written object like any other.
     for consumed_ref in [obj_genesis_ref, gas_genesis_ref] {
         let id = consumed_ref.object_id();
-        let row = s.handler_latest(id);
-        assert_eq!(row.version, effects.lamport_version());
+        let row = s.handler_processed_object(id, effects.lamport_version());
         assert_eq!(row.produced_at, 7);
         assert_eq!(row.kind, HandlerProcessedObjectKind::Live);
 
@@ -2513,7 +2525,8 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
     );
     let created_ref = create_effects.created()[0].reference;
     assert_eq!(
-        s.handler_latest(created_ref.object_id()).kind,
+        s.handler_processed_object(created_ref.object_id(), created_ref.version)
+            .kind,
         HandlerProcessedObjectKind::Live
     );
 
@@ -2528,9 +2541,8 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
         4,
     );
     assert_eq!(
-        s.handler_latest(created_ref.object_id()),
+        s.handler_processed_object(created_ref.object_id(), delete_effects.lamport_version()),
         HandlerProcessedObject {
-            version: delete_effects.lamport_version(),
             digest: ObjectDigest::OBJECT_DELETED,
             kind: HandlerProcessedObjectKind::Deleted,
             produced_at: 4,
@@ -2570,9 +2582,8 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
         5,
     );
     assert_eq!(
-        s.handler_latest(created_ref.object_id()),
+        s.handler_processed_object(created_ref.object_id(), wrap_effects.lamport_version()),
         HandlerProcessedObject {
-            version: wrap_effects.lamport_version(),
             digest: ObjectDigest::OBJECT_WRAPPED,
             kind: HandlerProcessedObjectKind::Wrapped,
             produced_at: 5,
@@ -2581,12 +2592,14 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
     );
     let wrapper_ref = wrap_effects.created()[0].reference;
     assert_eq!(
-        s.handler_latest(wrapper_ref.object_id()).kind,
+        s.handler_processed_object(wrapper_ref.object_id(), wrapper_ref.version)
+            .kind,
         HandlerProcessedObjectKind::Live
     );
 
-    // Unwrapping resurfaces the id at a higher version: the tombstone gives
-    // way to a live row, and the wrapper's row becomes the tombstone.
+    // Unwrapping resurfaces the id at a higher version with a live row; the
+    // wrapped tombstone stays at its own version, and the wrapper gets a
+    // deleted tombstone.
     let unwrap_effects = s.handler_known_object_basics_call(
         "unwrap",
         vec![CallArg::ImmutableOrOwned(wrapper_ref)],
@@ -2598,9 +2611,8 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
     let unwrapped_ref = unwrap_effects.unwrapped()[0].reference;
     assert_eq!(unwrapped_ref.object_id(), created_ref.object_id());
     assert_eq!(
-        s.handler_latest(created_ref.object_id()),
+        s.handler_processed_object(created_ref.object_id(), unwrapped_ref.version),
         HandlerProcessedObject {
-            version: unwrapped_ref.version,
             digest: unwrapped_ref.digest,
             kind: HandlerProcessedObjectKind::Live,
             produced_at: 6,
@@ -2608,9 +2620,13 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
         }
     );
     assert_eq!(
-        s.handler_latest(wrapper_ref.object_id()),
+        s.handler_processed_object(created_ref.object_id(), wrap_effects.lamport_version())
+            .kind,
+        HandlerProcessedObjectKind::Wrapped
+    );
+    assert_eq!(
+        s.handler_processed_object(wrapper_ref.object_id(), unwrap_effects.lamport_version()),
         HandlerProcessedObject {
-            version: unwrap_effects.lamport_version(),
             digest: ObjectDigest::OBJECT_DELETED,
             kind: HandlerProcessedObjectKind::Deleted,
             produced_at: 6,
@@ -2636,9 +2652,8 @@ async fn handler_known_share_records_the_initial_shared_version() {
     // The creation row doubles as the created-shared flag: it carries the
     // initial shared version, which the shared-input checks read.
     assert_eq!(
-        s.handler_latest(shared.reference.object_id()),
+        s.handler_processed_object(shared.reference.object_id(), shared.reference.version),
         HandlerProcessedObject {
-            version: shared.reference.version,
             digest: shared.reference.digest,
             kind: HandlerProcessedObjectKind::Live,
             produced_at: 5,
@@ -2679,7 +2694,7 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
         Some(obj_genesis_ref.version),
         effects.lamport_version(),
     );
-    assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
+    s.assert_no_handler_row(&obj_id, effects.lamport_version());
 
     // The handler reaches that commit: it registers the digest (the hook
     // already ran, so nothing consults the entry) and, with the commit
@@ -2696,8 +2711,7 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
     // records whose whole chain the handler passed are gone, and the
     // commit's map entries are dropped.
     for id in [&obj_id, &gas_id] {
-        let row = s.handler_latest(id);
-        assert_eq!(row.version, effects.lamport_version());
+        let row = s.handler_processed_object(id, effects.lamport_version());
         assert_eq!(row.produced_at, 4);
         assert_eq!(row.kind, HandlerProcessedObjectKind::Live);
         assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
@@ -2745,7 +2759,11 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
     s.epoch_store
         .record_commit_fully_executed(4, &handler_latest_upserts(&first, 4))
         .unwrap();
-    assert_eq!(s.handler_latest(&obj_id).version, first.lamport_version());
+    assert_eq!(
+        s.handler_processed_object(&obj_id, first.lamport_version())
+            .produced_at,
+        4
+    );
     s.assert_record(&obj_id, Some(obj_genesis_version), second.lamport_version());
     assert_eq!(s.epoch_store.sync_ahead_record(&gas1_id).unwrap(), None);
 
@@ -2757,8 +2775,7 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
     s.epoch_store
         .record_commit_fully_executed(5, &handler_latest_upserts(&second, 5))
         .unwrap();
-    let row = s.handler_latest(&obj_id);
-    assert_eq!(row.version, second.lamport_version());
+    let row = s.handler_processed_object(&obj_id, second.lamport_version());
     assert_eq!(row.produced_at, 5);
     assert_eq!(s.epoch_store.sync_ahead_record(&obj_id).unwrap(), None);
     assert_eq!(s.epoch_store.sync_ahead_record(&gas2_id).unwrap(), None);
@@ -2780,9 +2797,9 @@ async fn bookkeeping_disabled_writes_nothing() {
     .await;
 
     let obj_genesis_ref = s.latest_ref(&obj_id);
-    s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let effects = s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
 
-    assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
+    s.assert_no_handler_row(&obj_id, effects.lamport_version());
     assert_eq!(s.epoch_store.sync_ahead_record(&obj_id).unwrap(), None);
     s.assert_not_sheltered(obj_genesis_ref);
 }
