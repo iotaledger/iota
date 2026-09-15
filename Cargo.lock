@@ -5895,6 +5895,7 @@ dependencies = [
  "tonic 0.14.2",
  "tower 0.4.13",
  "tracing",
+ "tracing-subscriber",
  "twox-hash 1.6.3",
  "typed-store",
 ]

@@ -475,6 +475,7 @@ impl Interpreter {
             NativeContext::new(self, resolver, extensions, gas_meter.remaining_gas());
         let native_function = function.get_native()?;
 
+        gas_meter.record_native_function_identity(function.module_id(), function.name());
         gas_meter.charge_native_function_before_execution(
             ty_args.iter().map(|ty| TypeWithLoader {
                 ty,
