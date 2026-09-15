@@ -32,8 +32,8 @@ use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
-        get_key_pair, random_committee_key_pairs_of_size,
+        AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthorityPublicKeyBytes,
+        AuthoritySignInfo, get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
@@ -5297,10 +5297,10 @@ async fn test_consensus_message_processed() {
 
     let sec1 = network_config.validator_configs[0]
         .authority_key_pair()
-        .copy();
+        .clone();
     let sec2 = network_config.validator_configs[1]
         .authority_key_pair()
-        .copy();
+        .clone();
 
     let authority1 = init_state_with_objects_and_committee(
         vec![gas_object.clone(), shared_object.clone()],
@@ -5781,13 +5781,17 @@ async fn test_choose_next_system_packages() {
         .iter()
         .skip(4) // Skip the first 4 keys that are used by the committee
         .take(3) // Take the next 3 keys for zero-weight authorities
-        .map(|key| AuthorityName::from(key.public()))
+        .map(|key| AuthorityName::from(&key.verifying_key()))
         .collect();
 
     // Create expanded active_validators list including zero-weight authorities
     let mut all_active_validators = active_validators;
     for (i, _auth) in zero_weight_authorities.iter().enumerate() {
-        all_active_validators.push(all_keys[4 + i].public().clone()); // Indices 4, 5, 6 for zero-weight authorities
+        all_active_validators.push(
+            AuthorityPublicKeyBytes::from(&all_keys[4 + i].verifying_key())
+                .try_into()
+                .unwrap(),
+        ); // Indices 4, 5, 6 for zero-weight authorities
     }
 
     // Test 1: Zero-weight authorities support the same version as quorum - should

@@ -53,7 +53,7 @@ async fn init_genesis(
     let mut key_pairs = Vec::new();
     for i in 0..committee_size {
         let authority_key_pair: AuthorityKeyPair = get_key_pair().1;
-        let authority_pubkey_bytes = authority_key_pair.public().into();
+        let authority_pubkey_bytes = (&authority_key_pair.verifying_key()).into();
         let protocol_key_pair: NetworkKeyPair = get_key_pair().1;
         let protocol_pubkey = protocol_key_pair.public().clone();
         let account_key_pair: SimpleKeypair = AccountPrivateKey::random().into();

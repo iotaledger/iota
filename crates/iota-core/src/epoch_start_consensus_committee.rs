@@ -57,7 +57,7 @@ mod test {
     use iota_sdk_types::Address;
     use iota_types::{
         committee::CommitteeTrait,
-        crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
+        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, get_key_pair},
         iota_system_state::epoch_start_iota_system_state::{
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
@@ -77,7 +77,9 @@ mod test {
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: authority_key.public().clone(),
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                    .try_into()
+                    .unwrap(),
                 network_pubkey: protocol_network_key.public().clone(),
                 protocol_pubkey: protocol_network_key.public().clone(),
                 iota_net_address: Multiaddr::empty(),
@@ -146,7 +148,9 @@ mod test {
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: authority_key.public().clone(),
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                    .try_into()
+                    .unwrap(),
                 network_pubkey: protocol_network_key.public().clone(),
                 protocol_pubkey: protocol_network_key.public().clone(),
                 iota_net_address: Multiaddr::empty(),
@@ -161,7 +165,9 @@ mod test {
 
             non_committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: authority_key.public().clone(),
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                    .try_into()
+                    .unwrap(),
                 network_pubkey: protocol_network_key.public().clone(),
                 protocol_pubkey: protocol_network_key.public().clone(),
                 iota_net_address: Multiaddr::empty(),

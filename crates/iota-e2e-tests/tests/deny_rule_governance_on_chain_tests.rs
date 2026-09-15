@@ -1383,7 +1383,7 @@ async fn deny_rule_committee_joiner_derives_identical_deltas() {
         .build();
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let joiner_name: iota_types::base_types::AuthorityName =
-        new_validator.authority_key_pair.public().into();
+        (&new_validator.authority_key_pair.verifying_key()).into();
     let candidate_address = new_validator.account_key_pair.public_key().derive_address();
     let mut test_cluster = TestClusterBuilder::new()
         .with_transaction_deny_config(deny_config)

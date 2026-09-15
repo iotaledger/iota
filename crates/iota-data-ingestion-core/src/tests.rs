@@ -21,7 +21,6 @@ use iota_sdk_types::{
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId,
-    crypto::KeypairTraits,
     effects::TransactionEffectsExtForTesting,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
@@ -762,7 +761,7 @@ fn mock_checkpoint_data_bytes_with_opt(
     let sign_infos: Vec<_> = keys
         .iter()
         .map(|k| {
-            let name = k.public().into();
+            let name = (&k.verifying_key()).into();
             SignedCheckpointSummary::sign(committee.epoch, &summary, k, name)
         })
         .collect();

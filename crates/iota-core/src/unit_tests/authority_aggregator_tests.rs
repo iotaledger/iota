@@ -28,7 +28,7 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
-        IotaAuthoritySignature, KeypairTraits, Signer, get_key_pair, get_key_pair_from_rng,
+        IotaAuthoritySignature, get_key_pair, get_key_pair_from_rng,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsExtForTesting},
     error::{IotaError, UserInputError},
@@ -700,7 +700,7 @@ fn get_authorities(
     let mut clients = BTreeMap::new();
     for _ in 0..committee_size {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-        let name: AuthorityName = sec.public().into();
+        let name: AuthorityName = (&sec.verifying_key()).into();
         authorities.insert(name, 1);
         authorities_vec.push((name, 1));
         clients.insert(name, new_client(1000));
@@ -743,7 +743,7 @@ fn sign_tx(
     tx: VerifiedTransaction,
     epoch: EpochId,
     authority: AuthorityName,
-    secret: &dyn Signer<AuthoritySignature>,
+    secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
 ) -> SignedTransaction {
     SignedTransaction::new(epoch, tx.into_inner().into_data(), secret, authority)
 }
@@ -752,7 +752,7 @@ fn sign_tx_effects(
     effects: TransactionEffects,
     epoch: EpochId,
     authority: AuthorityName,
-    secret: &dyn Signer<AuthoritySignature>,
+    secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
 ) -> SignedTransactionEffects {
     SignedTransactionEffects::new(epoch, effects, secret, authority)
 }
@@ -2325,7 +2325,7 @@ fn make_fake_authorities() -> (
     let mut authority_keys = Vec::new();
     for _ in 0..4 {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
-        let name: AuthorityName = sec.public().into();
+        let name: AuthorityName = (&sec.verifying_key()).into();
         authorities.insert(name, 1);
         authority_keys.push((name, sec));
         clients.insert(name, HandleTransactionTestAuthorityClient::new());
@@ -2348,9 +2348,9 @@ async fn run_aggregator(
     // Assign a few authorities as byzantines represented in a list of pubkeys.
     for i in 0..num_byzantines {
         let byzantine =
-            get_key_pair_from_rng::<AuthorityKeyPair, StdRng>(&mut StdRng::from_seed([i; 32]))
+            (&get_key_pair_from_rng::<AuthorityKeyPair, StdRng>(&mut StdRng::from_seed([i; 32]))
                 .1
-                .public()
+                .verifying_key())
                 .into();
         byzantines.push(byzantine);
     }
@@ -2359,7 +2359,7 @@ async fn run_aggregator(
     for i in 0..num_authorities {
         let (_, sec): (_, AuthorityKeyPair) =
             get_key_pair_from_rng(&mut StdRng::from_seed([i; 32]));
-        let name: AuthorityName = sec.public().into();
+        let name: AuthorityName = (&sec.verifying_key()).into();
         authorities.insert(name, 1);
         authority_keys.push((name, sec));
         clients.insert(name, HandleTransactionTestAuthorityClient::new());
@@ -2413,9 +2413,9 @@ async fn process_with_cert(
     // Assign a few authorities as byzantines represented in a list of pubkeys.
     for i in 0..num_byzantines {
         let byzantine =
-            get_key_pair_from_rng::<AuthorityKeyPair, StdRng>(&mut StdRng::from_seed([i; 32]))
+            (&get_key_pair_from_rng::<AuthorityKeyPair, StdRng>(&mut StdRng::from_seed([i; 32]))
                 .1
-                .public()
+                .verifying_key())
                 .into();
         byzantines.push(byzantine);
     }
@@ -2424,7 +2424,7 @@ async fn process_with_cert(
     for i in 0..num_authorities {
         let (_, sec): (_, AuthorityKeyPair) =
             get_key_pair_from_rng(&mut StdRng::from_seed([i; 32]));
-        let name: AuthorityName = sec.public().into();
+        let name: AuthorityName = (&sec.verifying_key()).into();
         authorities.insert(name, 1);
         authority_keys.push((name, sec));
         clients.insert(name, HandleTransactionTestAuthorityClient::new());
@@ -2643,7 +2643,7 @@ fn test_retryable_overload_info() {
 // Helper function to create a test capability notification request
 fn create_test_capability_notification_request() -> HandleCapabilityNotificationRequestV1 {
     let (_, keypair): (_, AuthorityKeyPair) = get_key_pair();
-    let authority_name: AuthorityName = keypair.public().into();
+    let authority_name: AuthorityName = (&keypair.verifying_key()).into();
 
     let capabilities = AuthorityCapabilitiesV1::new(
         authority_name,
@@ -2740,7 +2740,7 @@ fn create_capability_notification_mock_clients_with_errors(
 
     for i in 0..committee_size {
         let (_, keypair): (_, AuthorityKeyPair) = get_key_pair();
-        let name: AuthorityName = keypair.public().into();
+        let name: AuthorityName = (&keypair.verifying_key()).into();
         authorities.insert(name, 1);
 
         let delay = if i >= config.success_count + total_error_clients {

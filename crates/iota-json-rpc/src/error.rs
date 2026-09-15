@@ -293,9 +293,7 @@ mod tests {
     use expect_test::expect;
     use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
     use iota_types::{
-        base_types::AuthorityName,
-        committee::StakeUnit,
-        crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
+        base_types::AuthorityName, committee::StakeUnit, crypto::AuthorityPublicKeyBytes,
     };
 
     use super::*;
@@ -409,7 +407,6 @@ mod tests {
 
         #[test]
         fn test_objects_double_used() {
-            use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
                 (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
@@ -419,13 +416,15 @@ mod tests {
             // 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi has enough stake to escape
             // equivocation
             let stake_unit: StakeUnit = 8000;
-            let authority_name = AuthorityPublicKeyBytes([0; AuthorityPublicKey::LENGTH]);
+            let authority_name =
+                AuthorityPublicKeyBytes([0; iota_sdk_types::Bls12381PublicKey::LENGTH]);
             conflicting_txes.insert(tx_digest, (vec![(authority_name, object_ref)], stake_unit));
 
             // 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR stake below quorum threshold
             let tx_digest = TransactionDigest::from([2; 32]);
             let stake_unit: StakeUnit = 500;
-            let authority_name = AuthorityPublicKeyBytes([1; AuthorityPublicKey::LENGTH]);
+            let authority_name =
+                AuthorityPublicKeyBytes([1; iota_sdk_types::Bls12381PublicKey::LENGTH]);
             conflicting_txes.insert(tx_digest, (vec![(authority_name, object_ref)], stake_unit));
 
             let quorum_driver_error = QuorumDriverError::ObjectsDoubleUsed { conflicting_txes };
@@ -449,7 +448,6 @@ mod tests {
 
         #[test]
         fn test_objects_double_used_equivocated() {
-            use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
                 (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
@@ -459,14 +457,16 @@ mod tests {
 
             // 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi has lower stake at 10
             let stake_unit: StakeUnit = 4000;
-            let authority_name = AuthorityPublicKeyBytes([0; AuthorityPublicKey::LENGTH]);
+            let authority_name =
+                AuthorityPublicKeyBytes([0; iota_sdk_types::Bls12381PublicKey::LENGTH]);
             conflicting_txes.insert(tx_digest, (vec![(authority_name, object_ref)], stake_unit));
 
             // 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR is a higher stake and should be
             // first in the list
             let tx_digest = TransactionDigest::from([2; 32]);
             let stake_unit: StakeUnit = 5000;
-            let authority_name = AuthorityPublicKeyBytes([1; AuthorityPublicKey::LENGTH]);
+            let authority_name =
+                AuthorityPublicKeyBytes([1; iota_sdk_types::Bls12381PublicKey::LENGTH]);
             conflicting_txes.insert(tx_digest, (vec![(authority_name, object_ref)], stake_unit));
 
             let quorum_driver_error = QuorumDriverError::ObjectsDoubleUsed { conflicting_txes };

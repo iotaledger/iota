@@ -14,7 +14,10 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
-    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation},
+    crypto::{
+        AggregateAuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation,
+        to_aggregate_signature,
+    },
     error::{IotaError, IotaResult},
     message_envelope::Message,
     messages_checkpoint::{CheckpointSummaryExt, SignedCheckpointSummary},
@@ -376,7 +379,9 @@ impl SignatureVerifier {
                     .signatures
                     .get_mut(idx)
                     .ok_or(IotaError::InvalidAuthenticator)?
-                    .add_signature(signed_authority_capabilities.auth_sig().clone())
+                    .add_signature(to_aggregate_signature(
+                        signed_authority_capabilities.auth_sig(),
+                    )?)
                     .map_err(|_| IotaError::InvalidSignature {
                         error: "Failed to add authority signature to obligation".to_string(),
                     })?;

@@ -29,7 +29,7 @@ use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
-    crypto::{AccountPrivateKey, AuthoritySignature, Signer},
+    crypto::{AccountPrivateKey, AuthoritySignature},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     executable_transaction::VerifiedExecutableTransaction,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
@@ -356,7 +356,10 @@ impl SingleValidator {
 }
 
 impl ValidatorKeypairProvider for SingleValidator {
-    fn get_validator_key(&self, name: &AuthorityName) -> &dyn Signer<AuthoritySignature> {
+    fn get_validator_key(
+        &self,
+        name: &AuthorityName,
+    ) -> &dyn iota_sdk_crypto::Signer<AuthoritySignature> {
         assert_eq!(name, &self.get_validator().name);
         &*self.get_validator().secret
     }

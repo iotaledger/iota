@@ -199,7 +199,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_allowed_validators() {
-        use iota_types::crypto::{AuthorityKeyPair, KeypairTraits, get_key_pair};
+        use iota_types::crypto::{AuthorityKeyPair, get_key_pair};
 
         let auth_agg = get_authority_aggregator(4);
         let client_monitor = ValidatorClientMonitor::new_for_test();
@@ -207,8 +207,8 @@ mod tests {
         // Create validators that don't exist in the auth_agg
         let (_, key_pair1): (_, AuthorityKeyPair) = get_key_pair();
         let (_, key_pair2): (_, AuthorityKeyPair) = get_key_pair();
-        let unknown_validator1: AuthorityName = key_pair1.public().into();
-        let unknown_validator2: AuthorityName = key_pair2.public().into();
+        let unknown_validator1: AuthorityName = (&key_pair1.verifying_key()).into();
+        let unknown_validator2: AuthorityName = (&key_pair2.verifying_key()).into();
 
         // Mix of unknown validators and one known validator
         let authorities: Vec<_> = auth_agg.committee.names().copied().collect();

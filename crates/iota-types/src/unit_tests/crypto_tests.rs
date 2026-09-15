@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_crypto::{ToFromBech32, ToFromBytes as _};
+use iota_sdk_crypto::{Signer as _, ToFromBech32, ToFromBytes as _};
 use iota_sdk_types::crypto::SimpleSignature;
 use proptest::{collection, prelude::*};
 
@@ -85,12 +85,12 @@ fn test_proof_of_possession() {
     let kp: AuthorityKeyPair = get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
     let pop = generate_proof_of_possession(&kp, address);
     let mut msg = vec![];
-    msg.extend_from_slice(kp.public().as_bytes());
+    msg.extend_from_slice(kp.public_key().bytes());
     msg.extend_from_slice(address.as_ref());
     println!("Address: {address:?}");
-    println!("Pubkey: {:?}", Hex::encode(kp.public().as_bytes()));
+    println!("Pubkey: {:?}", Hex::encode(kp.public_key().bytes()));
     println!("Proof of possession: {:?}", Hex::encode(&pop));
-    assert!(verify_proof_of_possession(&pop, kp.public(), address).is_ok());
+    assert!(verify_proof_of_possession(&pop, &kp.verifying_key(), address).is_ok());
 
     // Result from: target/debug/iota validator serialize-payload-pop
     // --account-address
@@ -99,7 +99,7 @@ fn test_proof_of_possession() {
     // 99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10
     let msg = Base64::decode("BQAAgAGZ8l72H4AyuRRjZGCYLFzG8TTvHdrnZlfyy/7B6/yNCXN0CA32/PDcuLxLDY4K9dgOu/8rTFmfVPQtYxLfwxQnYHjBzDR+u77FGYviWFE/OGuTDQLCdJqAPiMwlV69GhAaRiM0PNQr5H1nMU/OCtBC88gmhVRLyR2MEdJOdLpzVwAAAAAAAAAA").unwrap();
     let sig = kp.sign(&msg);
-    assert!(verify_proof_of_possession(&sig, kp.public(), address).is_ok());
+    assert!(verify_proof_of_possession(&sig, &kp.verifying_key(), address).is_ok());
 }
 
 proptest! {
@@ -108,7 +108,7 @@ proptest! {
     fn test_get_key_pair_from_bytes(
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
-        let _key_pair = get_key_pair_from_bytes::<AuthorityKeyPair>(&bytes);
+        let _key = AuthorityKeyPair::from_bytes(&bytes);
         let _key_pair = get_key_pair_from_bytes::<NetworkKeyPair>(&bytes);
         let _key = AccountPrivateKey::from_bytes(&bytes);
     }

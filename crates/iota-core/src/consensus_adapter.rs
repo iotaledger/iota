@@ -1502,7 +1502,6 @@ pub fn position_submit_certificate(
 mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
-    use fastcrypto::traits::KeyPair;
     use iota_sdk_types::TransactionDigest;
     use iota_types::{
         committee::Committee,
@@ -1524,7 +1523,9 @@ mod adapter_tests {
             .map(|_k| {
                 (
                     AuthorityPublicKeyBytes::from(
-                        get_key_pair_from_rng::<AuthorityKeyPair, _>(rng).1.public(),
+                        &get_key_pair_from_rng::<AuthorityKeyPair, _>(rng)
+                            .1
+                            .verifying_key(),
                     ),
                     rng.gen_range(0u64..10u64),
                 )

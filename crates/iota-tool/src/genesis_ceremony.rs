@@ -194,7 +194,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             builder = builder.add_validator(
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
-                    authority_key: authority_keypair.public().into(),
+                    authority_key: (&authority_keypair.verifying_key()).into(),
                     protocol_key: protocol_keypair.public().clone(),
                     account_address: account_keypair.public_key().derive_address(),
                     network_key: network_keypair.public().clone(),
@@ -358,7 +358,7 @@ mod test {
                 let account_private_key = AccountPrivateKey::random();
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),
-                    authority_key: authority_keypair.public().into(),
+                    authority_key: (&authority_keypair.verifying_key()).into(),
                     protocol_key: protocol_keypair.public().clone(),
                     account_address: account_private_key.public_key().derive_address(),
                     network_key: network_keypair.public().clone(),

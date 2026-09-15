@@ -14,7 +14,7 @@ use fastcrypto::{
     error::{FastCryptoError, FastCryptoResult},
     groups::bls12381,
     serde_helpers::ToFromByteArray,
-    traits::{KeyPair, ToFromBytes},
+    traits::ToFromBytes,
 };
 use fastcrypto_tbls::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
 use futures::{StreamExt, stream::FuturesUnordered};
@@ -192,7 +192,7 @@ impl RandomnessManager {
         let tables = epoch_store.tables()?;
         let protocol_config = epoch_store.protocol_config();
 
-        let name: AuthorityName = authority_key_pair.public().into();
+        let name: AuthorityName = (&authority_key_pair.verifying_key()).into();
         let committee = epoch_store.committee();
         let info = RandomnessManager::randomness_dkg_info_from_committee(committee);
         if tracing::enabled!(tracing::Level::DEBUG) {
@@ -262,12 +262,7 @@ impl RandomnessManager {
             committee.epoch()
         );
         let randomness_private_key = bls12381::Scalar::from_byte_array(
-            authority_key_pair
-                .copy()
-                .private()
-                .as_bytes()
-                .try_into()
-                .expect("key length should match"),
+            &iota_sdk_crypto::ToFromBytes::to_bytes(authority_key_pair),
         )
         .expect("should work to convert BLS key to Scalar");
         let party = dkg_v1::Party::<PkG, EncG>::new(

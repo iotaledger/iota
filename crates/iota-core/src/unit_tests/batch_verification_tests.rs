@@ -4,7 +4,6 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
-use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
@@ -54,7 +53,7 @@ fn gen_ckpts(
     (0..count)
         .map(|i| {
             let k = &key_pairs[i % key_pairs.len()];
-            let name = k.public().into();
+            let name = (&k.verifying_key()).into();
             SignedCheckpointSummary::new(
                 committee.epoch,
                 CheckpointSummary::new_with_protocol_config(

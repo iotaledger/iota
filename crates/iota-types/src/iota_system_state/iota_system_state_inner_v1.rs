@@ -26,7 +26,7 @@ use crate::{
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
         AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
-        verify_proof_of_possession,
+        authority_pubkey_from_bytes, verify_proof_of_possession,
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
@@ -134,11 +134,11 @@ impl ValidatorMetadataV1 {
     /// Verify validator metadata and return a verified version (on success) or
     /// error code (on failure)
     pub fn verify(&self, metadata_v2: bool) -> Result<VerifiedValidatorMetadataV1, u64> {
-        let authority_pubkey = AuthorityPublicKey::from_bytes(self.authority_pubkey_bytes.as_ref())
+        let authority_pubkey = authority_pubkey_from_bytes(self.authority_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?;
 
         // Verify proof of possession for the authority key
-        let pop = AuthoritySignature::from_bytes(self.proof_of_possession_bytes.as_ref())
+        let pop = AuthoritySignature::from_bytes(&self.proof_of_possession_bytes)
             .map_err(|_| E_METADATA_INVALID_POP)?;
         verify_proof_of_possession(&pop, &authority_pubkey, self.iota_address)
             .map_err(|_| E_METADATA_INVALID_POP)?;
@@ -175,7 +175,7 @@ impl ValidatorMetadataV1 {
         let next_epoch_authority_pubkey = match self.next_epoch_authority_pubkey_bytes.clone() {
             None => Ok::<Option<AuthorityPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
-                AuthorityPublicKey::from_bytes(bytes.as_ref())
+                authority_pubkey_from_bytes(bytes.as_ref())
                     .map_err(|_| E_METADATA_INVALID_AUTHORITY_PUBKEY)?,
             )),
         }?;
@@ -183,8 +183,7 @@ impl ValidatorMetadataV1 {
         let next_epoch_pop = match self.next_epoch_proof_of_possession.clone() {
             None => Ok::<Option<AuthoritySignature>, u64>(None),
             Some(bytes) => Ok(Some(
-                AuthoritySignature::from_bytes(bytes.as_ref())
-                    .map_err(|_| E_METADATA_INVALID_POP)?,
+                AuthoritySignature::from_bytes(&bytes).map_err(|_| E_METADATA_INVALID_POP)?,
             )),
         }?;
         // Verify proof of possession for the next epoch authority key
