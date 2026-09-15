@@ -1626,3 +1626,80 @@ async fn assert_paginated_events_descending(
 
     Ok(())
 }
+
+#[test]
+fn query_transaction_blocks_move_function_rejects_non_identifier() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let package = ObjectId::FRAMEWORK;
+
+        let invalid_payloads = [
+            "coin' OR 1=1) --",
+            "coin'; SELECT 1",
+            "coin)",
+            "coin%",
+            "coin--",
+            "",
+        ];
+
+        for invalid_payload in invalid_payloads {
+            let module_filter = TransactionFilterV2::MoveFunction {
+                package,
+                module: Some(invalid_payload.to_string()),
+                function: None,
+            };
+            let res = client
+                .query_transaction_blocks_v2(
+                    IotaTransactionBlockResponseQueryV2::new_with_filter(module_filter),
+                    None,
+                    Some(20),
+                    Some(true),
+                )
+                .await;
+            assert!(
+                res.is_err(),
+                "module payload {invalid_payload:?} was not rejected"
+            );
+
+            let function_filter = TransactionFilterV2::MoveFunction {
+                package,
+                module: Some("coin".to_string()),
+                function: Some(invalid_payload.to_string()),
+            };
+            let res = client
+                .query_transaction_blocks_v2(
+                    IotaTransactionBlockResponseQueryV2::new_with_filter(function_filter),
+                    None,
+                    Some(20),
+                    Some(true),
+                )
+                .await;
+            assert!(
+                res.is_err(),
+                "function payload {invalid_payload:?} was not rejected"
+            );
+        }
+
+        let valid_filter = TransactionFilterV2::MoveFunction {
+            package,
+            module: Some("coin".to_string()),
+            function: Some("split".to_string()),
+        };
+        client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2::new_with_filter(valid_filter),
+                None,
+                Some(20),
+                Some(true),
+            )
+            .await
+            .expect("valid MoveFunction filter must succeed");
+    })
+}
