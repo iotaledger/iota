@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::ToFromBytes;
+use iota_sdk_types::Address;
 use iota_types::{
     base_types::{AuthorityName, EpochId},
     committee::Committee,
@@ -17,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    MoveFunctionName, Page,
+    MoveFunctionName, Page, iota_primitives::Address as AddressSchema,
     iota_system_state_summary::IotaValidatorSummary as IotaValidatorSummarySchema,
 };
 
@@ -217,4 +218,60 @@ pub struct AddressMetrics {
 pub struct ParticipationMetrics {
     /// The count of distinct addresses with delegated stake.
     pub total_addresses: u64,
+}
+
+/// An account a public key controls, or used to control, as folded from the
+/// on-chain account-discoverability event stream.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountKeyLink {
+    /// The account's address.
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub address: Address,
+    /// Whether the link is current. An unlinked account is one the key was
+    /// rotated away from or detached from; it is only returned when the query
+    /// asks for unlinked results.
+    pub status: AccountKeyLinkStatus,
+    /// How the link came about.
+    pub source: AccountKeyLinkSource,
+    /// Whether the account was created by a `ClaimAccount` transaction, rather
+    /// than by someone attaching this key to an account they created. Only a
+    /// claimed account is one the key holder made for themselves.
+    pub claimed: bool,
+    /// Whether a claimed account was frozen at creation, so that its links can
+    /// never change. `None` for an account that was not claimed, where the
+    /// property is unknown rather than false.
+    pub immutable: Option<bool>,
+    /// The signature scheme flag of the key, as recorded on chain. Not resolved
+    /// to a named scheme: a link stays indexable under a flag this build does
+    /// not recognize.
+    pub scheme: u8,
+    /// The epoch of the last change to this link.
+    #[serde_as(as = "DisplayFromStr")]
+    #[schemars(with = "String")]
+    pub last_change_epoch: EpochId,
+}
+
+/// Whether an [`AccountKeyLink`] is current.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountKeyLinkStatus {
+    Active,
+    Unlinked,
+}
+
+/// What established an [`AccountKeyLink`].
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountKeyLinkSource {
+    /// The key was attached to an account that already existed.
+    Attach,
+    /// The account rotated onto, or away from, this key.
+    Rotate,
+    /// The key was detached from the account.
+    Detach,
+    /// The account was created by claiming the address this key derives.
+    Claim,
 }

@@ -76,6 +76,20 @@ pub enum LinkSource {
     Claim = 3,
 }
 
+impl LinkSource {
+    /// The variant a persisted `source` value stands for, or `None` if it was
+    /// written by a build that knows a provenance this one does not.
+    pub fn from_stored(value: i16) -> Option<Self> {
+        match value {
+            0 => Some(Self::Attach),
+            1 => Some(Self::Rotate),
+            2 => Some(Self::Detach),
+            3 => Some(Self::Claim),
+            _ => None,
+        }
+    }
+}
+
 /// One step of the fold: the effect a single event has on one
 /// `(key_id, account_id)` pair.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -258,6 +272,21 @@ mod tests {
             decoded.key_id().to_vec(),
             hex::decode(ED25519_KEY_ID_HEX).unwrap()
         );
+    }
+
+    #[test]
+    fn link_source_discriminants_round_trip() {
+        // The discriminants are persisted, so this pins them against a
+        // renumbering that would silently reinterpret existing rows.
+        for source in [
+            LinkSource::Attach,
+            LinkSource::Rotate,
+            LinkSource::Detach,
+            LinkSource::Claim,
+        ] {
+            assert_eq!(LinkSource::from_stored(source as i16), Some(source));
+        }
+        assert_eq!(LinkSource::from_stored(4), None);
     }
 
     #[test]
