@@ -1982,7 +1982,7 @@ impl IotaClientCommands {
                 }
             },
         };
-        Ok(ret.prerender_clever_errors(context).await)
+        ret.prerender_clever_errors(context).await
     }
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
@@ -2749,14 +2749,19 @@ impl IotaClientCommandResult {
         }
     }
 
-    pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
+    pub async fn prerender_clever_errors(
+        mut self,
+        context: &mut WalletContext,
+    ) -> Result<Self, anyhow::Error> {
         match &mut self {
             IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
             | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
             }) => {
-                let client = context.get_client().await.expect("Cannot connect to RPC");
+                let client = context.get_client().await.context(
+                    "rendering a Move abort needs the JSON-RPC endpoint; set `rpc` for the active env in client.yaml",
+                )?;
                 prerender_clever_errors(effects, client.read_api()).await
             }
             IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
@@ -2789,7 +2794,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::VerifyBytecodeMeter { .. }
             | IotaClientCommandResult::VerifySource => (),
         }
-        self
+        Ok(self)
     }
 }
 
@@ -3246,10 +3251,9 @@ pub async fn execute_dry_run(
     debug!("Executing dry run");
     let response = client.read_api().dry_run_transaction_block(tx).await?;
     debug!("Finished executing dry run {response:?}");
-    let resp = IotaClientCommandResult::DryRun(response)
+    IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
-        .await;
-    Ok(resp)
+        .await
 }
 
 /// Call a dry run with the transaction data to estimate the gas budget.
