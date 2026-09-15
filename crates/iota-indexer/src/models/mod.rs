@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod account_key_links;
 pub mod address_metrics;
 pub mod checkpoints;
+pub mod claimed_accounts;
 pub mod display;
 pub mod epoch;
 pub mod event_indices;
