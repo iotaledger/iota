@@ -573,10 +573,12 @@ impl HandlerObjectState {
     /// (say, through the checkpoint executor's batch) would, after a crash,
     /// leave reads falling through to the epoch-start rule against sync-ahead
     /// store state. After the batch is durably written - never before - pass
-    /// the same rows to [`Self::evict_flushed_commit_rows`].
+    /// the same commit index and rows to [`Self::evict_flushed_commit_rows`].
     ///
     /// Rows are keyed per version, so flushes of different commits may land
-    /// in any order without one overwriting another.
+    /// in any order without one overwriting another. The staged deletions stay
+    /// queued until eviction, so a sync-ahead write landing before the batch
+    /// is durable still sees the record as dead.
     pub fn write_commit_rows_to_batch(
         &self,
         commit_index: CommitIndex,
@@ -588,13 +590,13 @@ impl HandlerObjectState {
             &tables.handler_latest_objects,
             handler_rows.iter().map(|(key, row)| (key, row)),
         )?;
-        // A deletion in a batch that never becomes durable is re-queued when
-        // the commit replays. Only this commit's deletions are drained: a
-        // later commit's must not become durable before that commit's rows.
+        // Only this commit's deletions are staged: a later commit's must not
+        // become durable before that commit's rows.
         let deletions = self
             .sync_ahead_record_deletions
             .lock()
-            .remove(&commit_index)
+            .get(&commit_index)
+            .cloned()
             .unwrap_or_default();
         batch.delete_batch(&tables.sync_ahead_records, deletions)?;
         Ok(())
@@ -607,11 +609,22 @@ impl HandlerObjectState {
     /// read tickets of readers still holding the pre-flush table row (see
     /// [`Self::durable_handler_latest`]); the cached value itself is
     /// best-effort. A row below the cached one leaves the cache alone.
+    ///
+    /// The commit's queued sync-record deletions are dropped here too, now
+    /// that they are durable. A deletion lost to a batch that never became
+    /// durable is re-queued when the commit replays.
     // TODO: a flushed row is cached as the object's highest durable row, which
     // holds only while flushes land in commit order; the exact-key reads
     // planned for the Check #5 reader remove the highest-row cache and this
     // assumption with it.
-    pub fn evict_flushed_commit_rows(&self, handler_rows: &[(ObjectKey, HandlerProcessedObject)]) {
+    pub fn evict_flushed_commit_rows(
+        &self,
+        commit_index: CommitIndex,
+        handler_rows: &[(ObjectKey, HandlerProcessedObject)],
+    ) {
+        self.sync_ahead_record_deletions
+            .lock()
+            .remove(&commit_index);
         let mut overlay = self.handler_latest_overlay.write();
         for (key, row) in handler_rows {
             overlay.remove(key);

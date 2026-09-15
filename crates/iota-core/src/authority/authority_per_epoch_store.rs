@@ -1850,7 +1850,7 @@ impl AuthorityPerEpochStore {
         )?;
         batch.write()?;
         self.handler_object_state
-            .evict_flushed_commit_rows(&handler_rows);
+            .evict_flushed_commit_rows(commit_index, &handler_rows);
         Ok(())
     }
 
