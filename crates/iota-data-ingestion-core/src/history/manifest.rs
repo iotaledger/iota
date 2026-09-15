@@ -196,11 +196,11 @@ pub async fn verify_historical_checkpoints_with_checksums(
         manifest.next_checkpoint_seq_num()
     );
 
-    let file_metadata = reader.verify_and_get_manifest_files(manifest)?;
+    let file_metadata = reader.manifest_files().await;
 
     // Account for both summary and content files
     let num_files = file_metadata.len() * 2;
-    reader.verify_file_consistency(file_metadata).await?;
+    reader.verify_file_consistency(&file_metadata).await?;
     info!("all {num_files} files are valid");
     Ok(())
 }
