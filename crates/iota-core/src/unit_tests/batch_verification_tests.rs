@@ -7,7 +7,6 @@ use std::{collections::BTreeSet, sync::Arc};
 use fastcrypto::{
     hash::{HashFunction, Sha256},
     rsa::{Base64UrlUnpadded, Encoding as _},
-    traits::KeyPair,
 };
 use futures::future::join_all;
 use iota_macros::sim_test;
@@ -76,7 +75,7 @@ fn gen_ckpts(
     (0..count)
         .map(|i| {
             let k = &key_pairs[i % key_pairs.len()];
-            let name = k.public().into();
+            let name = (&k.verifying_key()).into();
             SignedCheckpointSummary::new(
                 committee.epoch,
                 CheckpointSummary::new_with_protocol_config(
@@ -249,7 +248,7 @@ fn certify(
                 committee.epoch(),
                 transaction.clone().into_data(),
                 key_pair,
-                AuthorityPublicKeyBytes::from(key_pair.public()),
+                AuthorityPublicKeyBytes::from(&key_pair.verifying_key()),
             )
             .auth_sig()
             .clone()
@@ -329,7 +328,7 @@ fn test_authority_capabilities_cache_hit_still_checks_signature() {
     let epoch = committee.epoch();
     let (_, signer_key): (_, AuthorityKeyPair) = get_authority_key_pair();
     let (_, other_key): (_, AuthorityKeyPair) = get_authority_key_pair();
-    let signer = AuthorityName::from(signer_key.public());
+    let signer = AuthorityName::from(&signer_key.verifying_key());
 
     let capabilities = AuthorityCapabilitiesV1::new(
         signer,

@@ -9,10 +9,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use fastcrypto::{
-    encoding::{Encoding, Hex},
-    traits::KeyPair,
-};
+use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     AUTHORITIES_DB_NAME, CONSENSUS_DB_NAME, ConsensusConfig, FULL_NODE_DB_PATH,
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, NodeConfig, local_ip_utils,
@@ -731,7 +728,7 @@ impl FullnodeConfigBuilder {
 /// Given a validator keypair, return a path that can be used to identify the
 /// validator.
 fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
-    let public_key: AuthorityPublicKeyBytes = key_pair.public().into();
+    let public_key: AuthorityPublicKeyBytes = (&key_pair.verifying_key()).into();
     let mut key_path = Hex::encode(public_key);
     // 12 is rather arbitrary here but it's a nice balance between being short and
     // being unique.

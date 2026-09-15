@@ -11,7 +11,7 @@ use std::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits, error::IotaResult,
+    base_types::AuthorityName, committee::Committee, error::IotaResult,
     messages_consensus::TransactionDenyRuleProposal, transaction::TransactionKey,
 };
 use tokio::time::timeout;
@@ -582,7 +582,10 @@ fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: Transactio
 #[test]
 fn compute_active_transaction_deny_rules_applies_stake_thresholds() {
     let (committee, keys) = Committee::new_simple_test_committee();
-    let names: Vec<AuthorityName> = keys.iter().map(|key| key.public().into()).collect();
+    let names: Vec<AuthorityName> = keys
+        .iter()
+        .map(|key| (&key.verifying_key()).into())
+        .collect();
     let active_address = Address::new([1u8; 32]);
     let minority_address = Address::new([2u8; 32]);
     let non_member_address = Address::new([3u8; 32]);
@@ -958,7 +961,10 @@ async fn restart_seed_restores_persisted_deny_rules() {
 #[test]
 fn compute_removable_transaction_deny_rules_waits_for_explicit_non_support() {
     let (committee, keys) = Committee::new_simple_test_committee_of_size(10);
-    let names: Vec<AuthorityName> = keys.iter().map(|key| key.public().into()).collect();
+    let names: Vec<AuthorityName> = keys
+        .iter()
+        .map(|key| (&key.verifying_key()).into())
+        .collect();
     let address = Address::new([1u8; 32]);
     let mirror = DenyRuleSet {
         denied_addresses: [address].into(),
@@ -1043,7 +1049,10 @@ fn compute_removable_transaction_deny_rules_waits_for_explicit_non_support() {
 #[test]
 fn compute_removable_transaction_deny_rules_cuts_over_per_field_at_the_exact_stake() {
     let (members, keys) = Committee::new_simple_test_committee_of_size(3);
-    let names: Vec<AuthorityName> = keys.iter().map(|key| key.public().into()).collect();
+    let names: Vec<AuthorityName> = keys
+        .iter()
+        .map(|key| (&key.verifying_key()).into())
+        .collect();
     let total = members.total_votes();
     let quorum = members.quorum_threshold();
     let validity = members.validity_threshold();
@@ -1157,10 +1166,18 @@ fn removable_deny_rules_cannot_be_reactivated_by_silent_stake() {
         let committee = Committee::new_for_testing_with_normalized_voting_power(
             members.epoch,
             keys.iter()
-                .map(|key| (AuthorityName::from(key.public()), rng.random_range(1..=100)))
+                .map(|key| {
+                    (
+                        AuthorityName::from(&key.verifying_key()),
+                        rng.random_range(1..=100),
+                    )
+                })
                 .collect(),
         );
-        let names: Vec<AuthorityName> = keys.iter().map(|key| key.public().into()).collect();
+        let names: Vec<AuthorityName> = keys
+            .iter()
+            .map(|key| (&key.verifying_key()).into())
+            .collect();
 
         let mut proposals = BTreeMap::new();
         let mut silent = Vec::new();

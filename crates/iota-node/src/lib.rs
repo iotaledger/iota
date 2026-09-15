@@ -119,7 +119,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
-    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
+    crypto::{AuthoritySignature, IotaAuthoritySignature},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -466,7 +466,7 @@ impl IotaNode {
 
         remove_legacy_db_checkpoints(&config);
 
-        let secret = Arc::pin(config.authority_key_pair().copy());
+        let secret = Arc::pin(config.authority_key_pair().clone());
         let genesis_committee = genesis.committee()?;
         let committee_store = Arc::new(CommitteeStore::new(
             config.db_path().join("epochs"),
