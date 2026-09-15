@@ -75,6 +75,7 @@ fn gen_ckpts(
                     None,
                     0,
                     Vec::new(),
+                    Vec::new(),
                 ),
                 k,
                 name,

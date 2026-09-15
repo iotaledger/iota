@@ -9,7 +9,8 @@ use execution_scheduler_impl::ExecutionScheduler;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_sdk_types::{SenderSignedTransaction, TransactionEffectsDigest};
 use iota_types::{
-    error::IotaResult, executable_transaction::VerifiedExecutableTransaction, storage::InputKey,
+    attestation::AttestationRecord, error::IotaResult,
+    executable_transaction::VerifiedExecutableTransaction, storage::InputKey,
     transaction::VerifiedCertificate,
 };
 use prometheus_filtered::IntGauge;
@@ -42,7 +43,9 @@ pub(crate) struct PendingTransactionStats {
 /// objects to become available before it can be sent to the execution driver.
 #[derive(Debug)]
 pub(crate) struct PendingTransaction {
-    /// The transaction to be executed.
+    /// The transaction to be executed, paired with its pre-consensus
+    /// attestation when sequenced as `UserTransactionV2`, or with the certified
+    /// verdict when executed from a checkpoint.
     pub(crate) transaction: VerifiedExecutableAttestedTransaction,
     /// When executing from checkpoint, the certified effects digest is
     /// provided, so that forks can be detected prior to committing the
@@ -100,26 +103,22 @@ pub(crate) trait ExecutionSchedulerAPI {
 
     /// Enqueues transactions whose effects are already certified — the
     /// checkpoint-execution path — so execution is checked against the
-    /// expected effects digest.
+    /// expected effects digest. The effects do not depend on the attestation,
+    /// so it is not needed; the certified verdict is carried along instead.
     fn enqueue_with_expected_effects_digest(
         &self,
-        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
+        transactions: Vec<(
+            VerifiedExecutableTransaction,
+            TransactionEffectsDigest,
+            Option<AttestationRecord>,
+        )>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
         let transactions = transactions
             .into_iter()
-            .map(|(txn, fx)| {
+            .map(|(txn, fx, record)| {
                 (
-                    // TODO: checkpoint replay executes an attested transaction
-                    // without its attestation. On the Move-authentication-failure
-                    // path the attestation decides the effects (the verdict and
-                    // its `InvalidAttestation` status), so replayed effects would
-                    // diverge from the certified ones and the replaying node
-                    // would report a fork. Before `enable_validator_attestation`
-                    // can be enabled, the attested object versions must be
-                    // persisted, carried in the checkpoint contents, and passed
-                    // here instead of `None`.
-                    VerifiedExecutableAttestedTransaction::new(txn, None),
+                    VerifiedExecutableAttestedTransaction::new_certified(txn, record),
                     Some(fx),
                 )
             })
