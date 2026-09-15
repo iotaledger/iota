@@ -3,7 +3,10 @@
 
 use eyre::eyre;
 use fastcrypto::{
-    ed25519::Ed25519PublicKey, secp256k1::Secp256k1PublicKey, secp256r1::Secp256r1PublicKey,
+    ed25519::Ed25519PublicKey,
+    hash::{Blake2b256, HashFunction},
+    secp256k1::Secp256k1PublicKey,
+    secp256r1::Secp256r1PublicKey,
     traits::ToFromBytes,
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
@@ -106,6 +109,43 @@ impl MovePublicKey {
             Ok(Address::from(&public_key))
         }
     }
+
+    /// The canonical identity hash of this key, as described on [`key_id`].
+    ///
+    /// Unlike [`Self::address`], this cannot fail: it hashes the stored bytes
+    /// without parsing them, so it is defined even for a chain-read value whose
+    /// key material is not valid.
+    pub fn key_id(&self) -> [u8; 32] {
+        key_id(self.scheme.flag(), &self.raw_bytes)
+    }
+}
+
+/// Canonical identity hash of a public key: `Blake2b256(scheme_flag ||
+/// raw_key_bytes)`.
+///
+/// This is an **index identity with no protocol role**. Authentication verifies
+/// a signature against the address derived from the key
+/// ([`MovePublicKey::address`]), and the two values are deliberately different:
+/// the scheme flag is included here for every scheme, whereas Ed25519 address
+/// derivation omits it and MultiSig hashes a structured committee preimage. The
+/// two coincide for Secp256k1, Secp256r1 and Passkey, so `key_id == address` is
+/// never a usable test for anything.
+///
+/// Must stay in sync with `iota::public_key::key_id` in the Move framework.
+pub fn key_id(scheme_flag: u8, raw_key_bytes: &[u8]) -> [u8; 32] {
+    let mut hasher = Blake2b256::default();
+    hasher.update([scheme_flag]);
+    hasher.update(raw_key_bytes);
+    hasher.finalize().digest
+}
+
+/// [`key_id`] for flag-prefixed key bytes (`flag || raw_key_bytes`), the wire
+/// format of `iota::public_key::from_prefixed_bytes`.
+///
+/// Returns `None` only for empty input, which carries no scheme flag.
+pub fn key_id_from_prefixed_bytes(prefixed_bytes: &[u8]) -> Option<[u8; 32]> {
+    let (flag, raw_key_bytes) = prefixed_bytes.split_first()?;
+    Some(key_id(*flag, raw_key_bytes))
 }
 
 impl From<&SimpleKeypair> for MovePublicKey {
