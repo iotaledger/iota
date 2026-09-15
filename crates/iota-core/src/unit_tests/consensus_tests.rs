@@ -4,7 +4,6 @@
 
 use std::{collections::HashSet, time::Duration};
 
-use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
@@ -382,7 +381,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
     );
 
     let authority_key = &keys[0];
-    let authority = authority_key.public().into();
+    let authority = (&authority_key.verifying_key()).into();
     let signed_checkpoint_summary = SignedCheckpointSummary::new(
         committee.epoch,
         checkpoint_summary.clone(),

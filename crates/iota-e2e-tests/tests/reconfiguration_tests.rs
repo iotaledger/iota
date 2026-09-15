@@ -8,7 +8,6 @@ use std::{
     time::Duration,
 };
 
-use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_core::{
     authority_aggregator::AggregatorSendCapabilityNotificationError,
@@ -674,7 +673,7 @@ async fn test_reconfig_with_committee_change_basic() {
     // and then leave.
 
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let new_authority_name = new_validator.authority_key_pair.public().into();
+    let new_authority_name = (&new_validator.authority_key_pair.verifying_key()).into();
     let address = new_validator.account_key_pair.public_key().derive_address();
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
@@ -806,7 +805,7 @@ async fn test_reconfig_with_committee_change_basic() {
 #[sim_test]
 async fn test_reconfig_with_same_validator() {
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
-    use iota_types::crypto::{AuthorityPublicKeyBytes, KeypairTraits};
+    use iota_types::crypto::AuthorityPublicKeyBytes;
     use rand::{SeedableRng, rngs::StdRng};
 
     // ValidatorGenesisConfig doesn't impl Clone
@@ -821,7 +820,8 @@ async fn test_reconfig_with_same_validator() {
 
     // the node that will re-join committee
     let node_config = build_node_config();
-    let node_name: AuthorityPublicKeyBytes = node_config.authority_key_pair.public().into();
+    let node_name: AuthorityPublicKeyBytes =
+        (&node_config.authority_key_pair.verifying_key()).into();
     let node_address = node_config.account_key_pair.public_key().derive_address();
     let mut node_handle = None;
 
@@ -1178,8 +1178,8 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
     // Create a random authority key pair that's not a validator
     let mut rng = StdRng::from_seed([0; 32]);
 
-    let random_authority_key_pair = AuthorityKeyPair::generate(&mut rng);
-    let random_authority_name: AuthorityName = random_authority_key_pair.public().into();
+    let random_authority_key_pair = AuthorityKeyPair::random_with(&mut rng);
+    let random_authority_name: AuthorityName = (&random_authority_key_pair.verifying_key()).into();
 
     // Get the current epoch store
     let epoch_store = test_cluster
@@ -1245,7 +1245,7 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
     // Test that SignedAuthorityCapabilities signed with an incorrect epoch
     // is rejected by the committee
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let new_authority_name = new_validator.authority_key_pair.public().into();
+    let new_authority_name = (&new_validator.authority_key_pair.verifying_key()).into();
     let address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])

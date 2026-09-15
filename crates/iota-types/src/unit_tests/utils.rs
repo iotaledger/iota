@@ -4,7 +4,6 @@
 
 use std::collections::BTreeMap;
 
-use fastcrypto::traits::KeyPair as KeypairTraits;
 use iota_sdk_crypto::{
     Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
@@ -46,7 +45,7 @@ where
         let (_, inner_authority_key): (_, AuthorityKeyPair) = get_key_pair_from_rng(rand);
         authorities.insert(
             // address
-            AuthorityPublicKeyBytes::from(inner_authority_key.public()),
+            AuthorityPublicKeyBytes::from(&inner_authority_key.verifying_key()),
             // voting right
             1,
         );

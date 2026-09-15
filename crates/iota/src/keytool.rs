@@ -24,7 +24,6 @@ use fastcrypto::{
     encoding::{Base64, Encoding, Hex},
     hash::HashFunction,
     secp256k1::recoverable::Secp256k1Sig,
-    traits::KeyPair,
 };
 use iota_keys::{
     key_derive::generate_new_key,
@@ -618,13 +617,13 @@ impl KeyToolCommand {
                     write_authority_keypair_to_file(&kp, file_name)?;
                     let public_base64_key_with_flag = encode_public_key_with_flag_base64(
                         SignatureScheme::Bls12381.to_u8(),
-                        kp.public().as_ref(),
+                        kp.public_key().bytes(),
                     );
                     CommandOutput::Generate(Key {
                         alias: None,
                         iota_address,
                         source: "keypair".to_string(),
-                        public_base64_key: Some(kp.public().encode_base64()),
+                        public_base64_key: Some(Base64::encode(kp.public_key().bytes())),
                         public_base64_key_with_flag: Some(public_base64_key_with_flag),
                         key_scheme: Some(lowercase_key_scheme(key_scheme)),
                         flag: Some(SignatureScheme::Bls12381.to_u8()),
@@ -775,14 +774,14 @@ impl KeyToolCommand {
                     }
                     Err(_) => match read_authority_keypair_from_file(&file) {
                         Ok(keypair) => {
-                            let public_base64_key = keypair.public().encode_base64();
+                            let public_base64_key = Base64::encode(keypair.public_key().bytes());
                             let public_base64_key_with_flag = encode_public_key_with_flag_base64(
                                 SignatureScheme::Bls12381.to_u8(),
-                                keypair.public().as_ref(),
+                                keypair.public_key().bytes(),
                             );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
-                                iota_address: authority_key_address(keypair.public().as_ref()),
+                                iota_address: authority_key_address(keypair.public_key().bytes()),
                                 source: "keypair".to_string(),
                                 public_base64_key: Some(public_base64_key),
                                 public_base64_key_with_flag: Some(public_base64_key_with_flag),

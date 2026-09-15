@@ -14,7 +14,7 @@ use std::{
 
 use anyhow::{Context, bail};
 use camino::Utf8Path;
-use fastcrypto::{hash::HashFunction, traits::KeyPair};
+use fastcrypto::hash::HashFunction;
 use iota_config::genesis::{
     Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
     UnsignedGenesis,
@@ -153,7 +153,7 @@ impl Builder {
     }
 
     pub fn add_validator_signature(mut self, keypair: &AuthorityKeyPair) -> Self {
-        let name = keypair.public().into();
+        let name = (&keypair.verifying_key()).into();
         assert!(
             self.validators.contains_key(&name),
             "provided keypair does not correspond to a validator in the validator set"
@@ -383,7 +383,7 @@ impl Builder {
             assert_eq!(validator.info.network_key, metadata.network_pubkey);
             assert_eq!(validator.info.protocol_key, metadata.protocol_pubkey);
             assert_eq!(
-                validator.proof_of_possession.as_ref().to_vec(),
+                validator.proof_of_possession.bytes().to_vec(),
                 metadata.proof_of_possession_bytes
             );
             assert_eq!(validator.info.name(), &metadata.name);
@@ -1229,7 +1229,7 @@ mod test {
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: "0".into(),
-            authority_key: authority_key.public().into(),
+            authority_key: (&authority_key.verifying_key()).into(),
             protocol_key: protocol_key.public().clone(),
             account_address,
             network_key: network_key.public().clone(),

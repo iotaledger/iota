@@ -6,7 +6,7 @@
 use core::default::Default;
 use std::sync::Arc;
 
-use fastcrypto::{hash::MultisetHash, traits::KeyPair};
+use fastcrypto::hash::MultisetHash;
 use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, Owner, RandomnessRound, Transaction, TransactionEffects,
@@ -248,7 +248,7 @@ pub async fn init_state_with_objects<I: IntoIterator<Item = Object>>(
     let genesis = network_config.genesis;
     let keypair = network_config.validator_configs[0]
         .authority_key_pair()
-        .copy();
+        .clone();
     init_state_with_objects_and_committee(objects, &genesis, &keypair).await
 }
 

@@ -18,7 +18,7 @@ use tracing::warn;
 use crate::{
     base_types::{AuthorityName, EpochId},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit},
-    crypto::{AggregateAuthorityPublicKey, NetworkPublicKey},
+    crypto::{AggregateAuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
     iota_system_state::iota_system_state_inner_v1::ValidatorV1,
 };
 
@@ -395,7 +395,9 @@ pub fn convert_validator_to_epoch_start_info(validator: &ValidatorV1) -> EpochSt
     let metadata = validator.verified_metadata();
     EpochStartValidatorInfoV1 {
         iota_address: metadata.iota_address,
-        authority_pubkey: metadata.authority_pubkey.clone(),
+        authority_pubkey: AuthorityPublicKeyBytes::from(&metadata.authority_pubkey)
+            .try_into()
+            .expect("verified metadata holds a valid authority public key"),
         network_pubkey: metadata.network_pubkey.clone(),
         protocol_pubkey: metadata.protocol_pubkey.clone(),
         iota_net_address: metadata.net_address.clone(),
@@ -416,7 +418,7 @@ mod test {
     use rand::thread_rng;
 
     use crate::{
-        crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
+        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, get_key_pair},
         iota_system_state::epoch_start_iota_system_state::{
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
@@ -433,7 +435,9 @@ mod test {
 
         let committee_validator = EpochStartValidatorInfoV1 {
             iota_address: iota_address1,
-            authority_pubkey: authority_key1.public().clone(),
+            authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key1.verifying_key())
+                .try_into()
+                .unwrap(),
             network_pubkey: protocol_network_key1.public().clone(),
             protocol_pubkey: protocol_network_key1.public().clone(),
             iota_net_address: net_address1,
@@ -451,7 +455,9 @@ mod test {
 
         let non_committee_validator = EpochStartValidatorInfoV1 {
             iota_address: iota_address2,
-            authority_pubkey: authority_key2.public().clone(),
+            authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key2.verifying_key())
+                .try_into()
+                .unwrap(),
             network_pubkey: protocol_network_key2.public().clone(),
             protocol_pubkey: protocol_network_key2.public().clone(),
             iota_net_address: net_address2,

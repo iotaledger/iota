@@ -9,7 +9,6 @@ use std::{
     sync::Arc,
 };
 
-use fastcrypto::traits::KeyPair;
 use iota_config::{
     ExecutionCacheConfig,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
@@ -594,9 +593,10 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                             SupportedProtocolVersions::SYSTEM_DEFAULT
                         }
                         ProtocolVersionsConfig::Global(v) => *v,
-                        ProtocolVersionsConfig::PerValidator(func) => {
-                            func(idx, Some(validator.authority_key_pair.public().into()))
-                        }
+                        ProtocolVersionsConfig::PerValidator(func) => func(
+                            idx,
+                            Some((&validator.authority_key_pair.verifying_key()).into()),
+                        ),
                     };
                     builder = builder.with_supported_protocol_versions(supported_versions);
                 }

@@ -4,7 +4,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use fastcrypto::{hash::MultisetHash, traits::KeyPair};
+use fastcrypto::hash::MultisetHash;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
     crypto::{Intent, IntentScope},
@@ -14,7 +14,7 @@ use iota_types::{
     committee::Committee,
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
-        AuthoritySignature, Signer,
+        AuthoritySignature,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
@@ -94,7 +94,7 @@ where
     let genesis = network_config.genesis;
     let authority_key = network_config.validator_configs[0]
         .authority_key_pair()
-        .copy();
+        .clone();
 
     (genesis, authority_key)
 }
@@ -139,7 +139,7 @@ pub fn create_fake_cert_and_effect_digest<'a>(
     signers: impl Iterator<
         Item = (
             &'a AuthorityName,
-            &'a (dyn Signer<AuthoritySignature> + Send + Sync),
+            &'a (dyn iota_sdk_crypto::Signer<AuthoritySignature> + Send + Sync),
         ),
     >,
     committee: &Committee,
@@ -293,7 +293,7 @@ pub fn make_cert_with_large_committee(
                 committee.epoch(),
                 transaction.clone().into_data(),
                 key_pair,
-                AuthorityPublicKeyBytes::from(key_pair.public()),
+                AuthorityPublicKeyBytes::from(&key_pair.verifying_key()),
             )
             .auth_sig()
             .clone()

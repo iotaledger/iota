@@ -437,7 +437,7 @@ impl IotaNode {
             None
         };
 
-        let secret = Arc::pin(config.authority_key_pair().copy());
+        let secret = Arc::pin(config.authority_key_pair().clone());
         let genesis_committee = genesis.committee()?;
         let committee_store = Arc::new(CommitteeStore::new(
             config.db_path().join("epochs"),
