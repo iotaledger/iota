@@ -145,6 +145,12 @@ impl IndexerReader {
         CommitterTables::Transactions,
     ];
 
+    /// Tables read when a transaction's events are looked up by its digest:
+    /// `events` for the events themselves, and `tx_global_order` to resolve
+    /// the digest to a transaction sequence number.
+    const EVENTS_BY_DIGEST_TABLES: &[CommitterTables] =
+        &[CommitterTables::Events, CommitterTables::TxGlobalOrder];
+
     pub fn new(pool: ConnectionPool, watermark_cache: WatermarkCache) -> Self {
         let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
         let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
@@ -269,6 +275,17 @@ impl IndexerReader {
         self.watermark_cache()
             .get_lowest_available_tx_for_tables(Self::TRANSACTIONS_BY_ADDRESS_TABLES)
             .unwrap_or(0)
+    }
+
+    /// Returns the oldest checkpoint and transaction available across `tables`.
+    ///
+    /// A table absent from the cache has not been written yet, and so has not
+    /// been pruned either, which is why it cannot raise the result. This relies
+    /// on the cache being filled before the RPC server starts serving.
+    fn oldest_available_cp_and_tx(&self, tables: &[CommitterTables]) -> (i64, i64) {
+        self.watermark_cache
+            .get_lowest_available_cp_and_tx_for_tables(tables)
+            .unwrap_or((0, 0))
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
@@ -1746,6 +1763,38 @@ impl IndexerReader {
         .await
     }
 
+    /// Returns the set of tables read by [`EventFilter`], used for data
+    /// availability checks.
+    ///
+    /// Omits `tx_global_order` used for pagination: a cursor below its
+    /// retention errors instead of silently truncating the page.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the filter is not supported.
+    fn event_tables_for_filter(filter: &EventFilter) -> IndexerResult<&'static [CommitterTables]> {
+        use CommitterTables::*;
+
+        Ok(match filter {
+            EventFilter::Sender(_) => &[Events, TxSenders],
+            EventFilter::Package(_)
+            | EventFilter::MoveModule { .. }
+            | EventFilter::MoveEventType(_)
+            | EventFilter::MoveEventModule { .. } => &[Events],
+            EventFilter::Transaction(_) => Self::EVENTS_BY_DIGEST_TABLES,
+            EventFilter::MoveEventField { .. }
+            | EventFilter::All(_)
+            | EventFilter::Any(_)
+            | EventFilter::And(_, _)
+            | EventFilter::Or(_, _)
+            | EventFilter::TimeRange { .. } => {
+                return Err(IndexerError::NotSupported(
+                    "This type of EventFilter is not supported.".into(),
+                ));
+            }
+        })
+    }
+
     /// Returns the minimal set of tables read by [`TransactionFilterKind`],
     /// used to scope both the `min_available_tx` watermark and the cursor
     /// pruning check.
@@ -2091,13 +2140,15 @@ impl IndexerReader {
         db_res
     }
 
+    /// Returns a transaction's events, along with the oldest checkpoint whose
+    /// events this lookup can serve.
     async fn query_events_by_tx_digest_with_fallback(
         &self,
         tx_digest: TransactionDigest,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<Vec<IotaEvent>> {
+    ) -> IndexerResult<(Vec<IotaEvent>, u64)> {
         let stored_events = self
             .query_stored_events_by_tx_digest_with_fallback(
                 tx_digest,
@@ -2107,6 +2158,16 @@ impl IndexerReader {
             )
             .await?;
 
+        // The historical fallback serves transactions the indexer has pruned,
+        // so with one configured the lookup reaches the genesis checkpoint.
+        let oldest_available_cp = if self.is_fallback_enabled() {
+            0
+        } else {
+            let (oldest_available_cp, _min_available_tx) =
+                self.oldest_available_cp_and_tx(Self::EVENTS_BY_DIGEST_TABLES);
+            oldest_available_cp as u64
+        };
+
         let mut iota_event_futures = vec![];
         for stored_event in stored_events {
             iota_event_futures.push(tokio::task::spawn(
@@ -2114,45 +2175,35 @@ impl IndexerReader {
             ));
         }
 
-        futures::future::join_all(iota_event_futures)
+        let events = futures::future::join_all(iota_event_futures)
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
+            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
+
+        Ok((events, oldest_available_cp))
     }
 
+    /// Returns a page of events, along with the oldest checkpoint from which
+    /// that page is complete.
     pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
         &self,
         filter: EventFilter,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<Vec<IotaEvent>> {
+    ) -> IndexerResult<(Vec<IotaEvent>, u64)> {
         if let EventFilter::Transaction(tx_digest) = filter {
             return self
                 .query_events_by_tx_digest_with_fallback(tx_digest, cursor, limit, descending_order)
                 .await;
         }
 
-        // All event-related tables that could be used by any filter
-        let event_tables = [
-            CommitterTables::Events,
-            CommitterTables::EventEmitPackage,
-            CommitterTables::EventEmitModule,
-            CommitterTables::EventSenders,
-            CommitterTables::EventStructPackage,
-            CommitterTables::EventStructModule,
-            CommitterTables::EventStructName,
-            CommitterTables::EventStructInstantiation,
-            CommitterTables::TxSenders,
-        ];
-        let min_available_tx = self
-            .watermark_cache
-            .get_lowest_available_tx_for_tables(&event_tables)
-            .unwrap_or(0);
+        let event_tables = Self::event_tables_for_filter(&filter)?;
+        let (oldest_available_cp, min_available_tx) = self.oldest_available_cp_and_tx(event_tables);
 
         let (tx_seq, event_seq) = if let Some(cursor) = cursor {
             let EventID {
@@ -2163,7 +2214,7 @@ impl IndexerReader {
                 .db()
                 .resolve_cursor_tx_digest_to_seq_num(tx_digest)
                 .await?;
-            self.ensure_data_not_pruned_for_tx(tx_seq, &event_tables)?;
+            self.ensure_data_not_pruned_for_tx(tx_seq, event_tables)?;
             (tx_seq, event_seq as i64)
         } else if descending_order {
             let max_tx_seq = i64::MAX;
@@ -2290,7 +2341,7 @@ impl IndexerReader {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
-        Ok(iota_events)
+        Ok((iota_events, oldest_available_cp as u64))
     }
 
     pub async fn get_dynamic_fields_in_blocking_task(
@@ -2942,6 +2993,7 @@ impl DataReader for IndexerReader {
             data: res,
             next_cursor,
             has_next_page: next_cursor.is_some(),
+            oldest_available_checkpoint: None,
         })
     }
 
