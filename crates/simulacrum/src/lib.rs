@@ -1288,4 +1288,73 @@ mod tests {
             );
         }
     }
+
+    /// An owned input object whose owner is not the sender is rejected under
+    /// [`VmChecks::Enabled`] and accepted under [`VmChecks::Disabled`].
+    #[test]
+    fn simulate_distinguishes_owned_input_owner_by_check_mode() {
+        use iota_sdk_types::ExecutionStatus;
+        use iota_types::{
+            error::{IotaError, UserInputError},
+            transaction::CallArg,
+            transaction_executor::VmChecks,
+        };
+
+        let sim = Simulacrum::new();
+        let (sender, other) = sim.with_keystore(|keystore| {
+            let mut accounts = keystore.accounts();
+            let (sender, _) = accounts.next().unwrap();
+            let (other, _) = accounts.next().unwrap();
+            (*sender, *other)
+        });
+
+        let (foreign_object, gas_object) = sim.with_store(|store| {
+            let foreign = store
+                .owned_objects(other)
+                .find(|object| object.is_gas_coin())
+                .unwrap()
+                .clone();
+            let gas = store
+                .owned_objects(sender)
+                .find(|object| object.is_gas_coin())
+                .unwrap()
+                .clone();
+            (foreign, gas)
+        });
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder
+                .input(CallArg::ImmutableOrOwned(foreign_object.object_ref()))
+                .unwrap();
+            builder.transfer_iota(Address::random(), Some(1000));
+            builder.finish()
+        };
+        let kind = TransactionKind::Programmable(pt);
+        let gas_data = GasPayment {
+            objects: vec![gas_object.object_ref()],
+            owner: sender,
+            price: sim.reference_gas_price(),
+            budget: 1_000_000_000,
+        };
+        let transaction = Transaction::new_with_gas_data(kind, sender, gas_data);
+
+        let Err(error) = sim.simulate_transaction(transaction.clone(), VmChecks::Enabled) else {
+            panic!("a dry run must reject an owned input owned by a different address");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::IncorrectUserSignature { .. }
+                }
+            ),
+            "unexpected error: {error:?}"
+        );
+
+        let result = sim
+            .simulate_transaction(transaction, VmChecks::Disabled)
+            .expect("a dev inspect must accept an owned input owned by a different address");
+        assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+    }
 }
