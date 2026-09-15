@@ -57,7 +57,7 @@ use iota_types::{
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
-use move_core_types::annotated_value::MoveStructLayout;
+use move_core_types::{annotated_value::MoveStructLayout, identifier::Identifier};
 use tap::TapFallible;
 
 use crate::{
@@ -1543,7 +1543,6 @@ impl IndexerReader {
             | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. })) => {
                 unreachable!("handled in earlier match statement")
             }
-            // FIXME: sanitize module & function
             Some(TransactionFilterKind::V1(TransactionFilter::MoveFunction {
                 package,
                 module,
@@ -1555,6 +1554,12 @@ impl IndexerReader {
                 function,
             })) => {
                 let package = Hex::encode(package.as_bytes());
+                let module = module.map(Identifier::new).transpose().map_err(|e| {
+                    IndexerError::InvalidArgument(format!("Invalid module name: {e}"))
+                })?;
+                let function = function.map(Identifier::new).transpose().map_err(|e| {
+                    IndexerError::InvalidArgument(format!("Invalid function name: {e}"))
+                })?;
                 match (module, function) {
                     (Some(module), Some(function)) => (
                         "tx_calls_fun".into(),
