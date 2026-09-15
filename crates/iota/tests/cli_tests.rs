@@ -4473,6 +4473,32 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Dry run `command` on the node and then locally, returning both responses.
+///
+/// Callers await this behind a `Box::pin`: holding one response across the
+/// other run's await is what makes a test's own future outgrow the test
+/// thread's stack.
+#[cfg(not(msim))]
+async fn dry_run_on_both_backends(
+    context: &mut WalletContext,
+    command: impl Fn(bool) -> IotaClientCommands,
+) -> Result<
+    (
+        iota_json_rpc_types::DryRunTransactionBlockResponse,
+        iota_json_rpc_types::DryRunTransactionBlockResponse,
+    ),
+    anyhow::Error,
+> {
+    let node = command(false).execute(context).await?;
+    let local = command(true).execute(context).await?;
+    let (IotaClientCommandResult::DryRun(node), IotaClientCommandResult::DryRun(local)) =
+        (node, local)
+    else {
+        panic!("expected DryRun results");
+    };
+    Ok((node, local))
+}
+
 /// Point the wallet's active env at the cluster's own gRPC endpoint, which
 /// `--local` needs to resolve objects.
 ///
@@ -4563,15 +4589,8 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
             },
         };
 
-        let node_dry_run = transfer(false).execute(context).await?;
-        let local_dry_run = transfer(true).execute(context).await?;
-        let (
-            IotaClientCommandResult::DryRun(node_response),
-            IotaClientCommandResult::DryRun(local_response),
-        ) = (node_dry_run, local_dry_run)
-        else {
-            panic!("expected DryRun results");
-        };
+        let (node_response, local_response) =
+            Box::pin(dry_run_on_both_backends(context, transfer)).await?;
 
         assert_eq!(
             *node_response.effects.status(),
@@ -4614,16 +4633,8 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
                 ..Default::default()
             },
         };
-        let (
-            IotaClientCommandResult::DryRun(node_failed),
-            IotaClientCommandResult::DryRun(local_failed),
-        ) = (
-            failing_transfer(false).execute(context).await?,
-            failing_transfer(true).execute(context).await?,
-        )
-        else {
-            panic!("expected DryRun results");
-        };
+        let (node_failed, local_failed) =
+            Box::pin(dry_run_on_both_backends(context, failing_transfer)).await?;
         assert!(matches!(
             node_failed.effects.status(),
             IotaExecutionStatus::Failure { .. }
@@ -4634,125 +4645,60 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
             local_failed.execution_error_source
         );
 
-        // Without a budget both paths fall back to the balance of the gas
-        // coins they were given, so the budget they report must agree.
-        let unbudgeted_transfer = |local: bool| IotaClientCommands::Transfer {
-            to: KeyIdentity::Address(recipient),
-            object_id: object_to_send,
-            payment: PaymentArgs { gas: vec![gas_id] },
-            gas_data: GasDataArgs::default(),
-            processing: TxProcessingArgs {
-                dry_run: true,
-                local,
-                ..Default::default()
-            },
-        };
-        let (
-            IotaClientCommandResult::DryRun(node_unbudgeted),
-            IotaClientCommandResult::DryRun(local_unbudgeted),
-        ) = (
-            unbudgeted_transfer(false).execute(context).await?,
-            unbudgeted_transfer(true).execute(context).await?,
-        )
-        else {
-            panic!("expected DryRun results");
-        };
-        assert_eq!(
-            *node_unbudgeted.effects.status(),
-            IotaExecutionStatus::Success
-        );
-        assert_eq!(node_unbudgeted.input, local_unbudgeted.input);
-        assert_eq!(node_unbudgeted.effects, local_unbudgeted.effects);
+        Ok(())
+    })
+    .await
+}
 
-        // A budget of zero asks both paths to report the gas the run used.
-        let estimating_transfer = |local: bool| IotaClientCommands::Transfer {
-            to: KeyIdentity::Address(recipient),
-            object_id: object_to_send,
-            payment: PaymentArgs { gas: vec![gas_id] },
-            gas_data: GasDataArgs {
-                gas_budget: Some(0),
-                ..Default::default()
-            },
-            processing: TxProcessingArgs {
-                dry_run: true,
-                local,
-                ..Default::default()
-            },
-        };
-        let (
-            IotaClientCommandResult::DryRun(node_estimating),
-            IotaClientCommandResult::DryRun(local_estimating),
-        ) = (
-            estimating_transfer(false).execute(context).await?,
-            estimating_transfer(true).execute(context).await?,
-        )
-        else {
-            panic!("expected DryRun results");
-        };
-        assert_eq!(node_estimating.input, local_estimating.input);
-        assert_eq!(
-            node_estimating.input.gas_data().budget,
-            node_estimating.effects.gas_cost_summary().gas_used(),
-            "a zero budget must be reported as the gas the run used"
-        );
+// `--local` is rejected before anything is simulated, so this needs no
+// comparison against the node — just a wallet to run the command through.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_is_rejected_without_dry_run() -> Result<(), anyhow::Error> {
+    Box::pin(async move {
+        let mut test_cluster = TestClusterBuilder::new()
+            .with_num_validators(2)
+            .build()
+            .await;
+        let address = test_cluster.get_address_0();
+        let context = &mut test_cluster.wallet;
+        let client = context.get_client().await?;
+        let object_to_send = client
+            .read_api()
+            .get_owned_objects(address, None, None, None)
+            .await?
+            .data
+            .first()
+            .unwrap()
+            .object()
+            .unwrap()
+            .object_id;
 
-        // With no gas coin of its own each path funds the run with a coin of
-        // its own making, and must still report the same run.
-        let gasless_transfer = |local: bool| IotaClientCommands::Transfer {
-            to: KeyIdentity::Address(recipient),
+        let transfer = |processing| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(Address::random()),
             object_id: object_to_send,
             payment: PaymentArgs::default(),
             gas_data: GasDataArgs::default(),
-            processing: TxProcessingArgs {
-                dry_run: true,
-                local,
-                sender: Some(address),
-                ..Default::default()
-            },
+            processing,
         };
-        let (
-            IotaClientCommandResult::DryRun(node_gasless),
-            IotaClientCommandResult::DryRun(local_gasless),
-        ) = (
-            gasless_transfer(false).execute(context).await?,
-            gasless_transfer(true).execute(context).await?,
-        )
-        else {
-            panic!("expected DryRun results");
-        };
-        assert_eq!(*node_gasless.effects.status(), IotaExecutionStatus::Success);
-        assert_eq!(node_gasless.effects, local_gasless.effects);
-        assert_eq!(node_gasless.input, local_gasless.input);
 
-        // --local is a dry-run option only.
-        let err = IotaClientCommands::Transfer {
-            to: KeyIdentity::Address(recipient),
-            object_id: object_to_send,
-            payment: PaymentArgs { gas: vec![gas_id] },
-            gas_data: GasDataArgs::default(),
-            processing: TxProcessingArgs {
-                local: true,
-                ..Default::default()
-            },
-        }
+        // --local is a dry-run option only ...
+        let err = transfer(TxProcessingArgs {
+            local: true,
+            ..Default::default()
+        })
         .execute(context)
         .await
         .unwrap_err();
         assert!(err.to_string().contains("--local"));
 
         // ... and does not carry over to a dev inspect.
-        let err = IotaClientCommands::Transfer {
-            to: KeyIdentity::Address(recipient),
-            object_id: object_to_send,
-            payment: PaymentArgs { gas: vec![gas_id] },
-            gas_data: GasDataArgs::default(),
-            processing: TxProcessingArgs {
-                dry_run: true,
-                dev_inspect: true,
-                local: true,
-                ..Default::default()
-            },
-        }
+        let err = transfer(TxProcessingArgs {
+            dry_run: true,
+            dev_inspect: true,
+            local: true,
+            ..Default::default()
+        })
         .execute(context)
         .await
         .unwrap_err();
@@ -4847,16 +4793,8 @@ async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result
                 ..Default::default()
             },
         };
-        let (
-            IotaClientCommandResult::DryRun(node_receive),
-            IotaClientCommandResult::DryRun(local_receive),
-        ) = (
-            receive(false).execute(context).await?,
-            receive(true).execute(context).await?,
-        )
-        else {
-            panic!("expected DryRun results");
-        };
+        let (node_receive, local_receive) =
+            Box::pin(dry_run_on_both_backends(context, receive)).await?;
 
         assert_eq!(
             *node_receive.effects.status(),
@@ -4872,6 +4810,108 @@ async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result
             sorted_by_owner_and_coin(node_receive.balance_changes),
             sorted_by_owner_and_coin(local_receive.balance_changes)
         );
+
+        Ok(())
+    })
+    .await
+}
+
+// The budget a run reports when the caller leaves it unset, or sets it to
+// zero, or brings no gas coin at all. Its own test rather than more cases in
+// `test_local_dry_run_matches_node_dry_run`, whose future is already close to
+// the test thread's stack limit.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::Error> {
+    Box::pin(async move {
+        let mut test_cluster = TestClusterBuilder::new()
+            .with_num_validators(2)
+            .build()
+            .await;
+        let address = test_cluster.get_address_0();
+        point_env_at_grpc(&mut test_cluster)?;
+        let context = &mut test_cluster.wallet;
+
+        let client = context.get_client().await?;
+        let object_refs = client
+            .read_api()
+            .get_owned_objects(address, None, None, None)
+            .await?;
+        let gas_id = object_refs
+            .data
+            .first()
+            .unwrap()
+            .object()
+            .unwrap()
+            .object_id;
+        let object_to_send = object_refs.data.get(1).unwrap().object().unwrap().object_id;
+        let recipient = Address::random();
+
+        // Without a budget both paths fall back to the balance of the gas
+        // coins they were given, so the budget they report must agree.
+        let unbudgeted_transfer = |local: bool| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs::default(),
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                ..Default::default()
+            },
+        };
+        let (node_unbudgeted, local_unbudgeted) =
+            Box::pin(dry_run_on_both_backends(context, unbudgeted_transfer)).await?;
+        assert_eq!(
+            *node_unbudgeted.effects.status(),
+            IotaExecutionStatus::Success
+        );
+        assert_eq!(node_unbudgeted.input, local_unbudgeted.input);
+        assert_eq!(node_unbudgeted.effects, local_unbudgeted.effects);
+
+        // A budget of zero asks both paths to report the gas the run used.
+        let estimating_transfer = |local: bool| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(0),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                ..Default::default()
+            },
+        };
+        let (node_estimating, local_estimating) =
+            Box::pin(dry_run_on_both_backends(context, estimating_transfer)).await?;
+        assert_eq!(node_estimating.input, local_estimating.input);
+        assert_eq!(
+            node_estimating.input.gas_data().budget,
+            node_estimating.effects.gas_cost_summary().gas_used(),
+            "a zero budget must be reported as the gas the run used"
+        );
+
+        // With no gas coin of its own each path funds the run with a coin of
+        // its own making, and must still report the same run.
+        let gasless_transfer = |local: bool| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs::default(),
+            gas_data: GasDataArgs::default(),
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                sender: Some(address),
+                ..Default::default()
+            },
+        };
+        let (node_gasless, local_gasless) =
+            Box::pin(dry_run_on_both_backends(context, gasless_transfer)).await?;
+        assert_eq!(*node_gasless.effects.status(), IotaExecutionStatus::Success);
+        assert_eq!(node_gasless.effects, local_gasless.effects);
+        assert_eq!(node_gasless.input, local_gasless.input);
 
         Ok(())
     })
@@ -4930,16 +4970,8 @@ async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
 
         // A dry run leaves the package it publishes uncommitted, so its types
         // resolve only through the run's own output.
-        let (
-            IotaClientCommandResult::DryRun(node_publish),
-            IotaClientCommandResult::DryRun(local_publish),
-        ) = (
-            publish(true, false).execute(context).await?,
-            publish(true, true).execute(context).await?,
-        )
-        else {
-            panic!("expected DryRun results");
-        };
+        let (node_publish, local_publish) =
+            Box::pin(dry_run_on_both_backends(context, |local| publish(true, local))).await?;
         assert_eq!(*node_publish.effects.status(), IotaExecutionStatus::Success);
         assert_eq!(node_publish.effects, local_publish.effects);
         assert_eq!(node_publish.events, local_publish.events);
@@ -5004,16 +5036,8 @@ async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
                 ..Default::default()
             },
         };
-        let (
-            IotaClientCommandResult::DryRun(node_delete),
-            IotaClientCommandResult::DryRun(local_delete),
-        ) = (
-            delete(false).execute(context).await?,
-            delete(true).execute(context).await?,
-        )
-        else {
-            panic!("expected DryRun results");
-        };
+        let (node_delete, local_delete) =
+            Box::pin(dry_run_on_both_backends(context, delete)).await?;
         assert_eq!(*node_delete.effects.status(), IotaExecutionStatus::Success);
         assert_eq!(node_delete.effects, local_delete.effects);
         assert_eq!(
@@ -5049,11 +5073,13 @@ async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
         point_env_at_grpc(&mut test_cluster)?;
         let context = &mut test_cluster.wallet;
 
+        // One recipient for every run, so the transactions only differ in how
+        // they are simulated.
+        let recipient = Address::random();
         let ptb = |extra: &str| {
             let args = shlex::split(&format!(
-                "--split-coins gas [1000] --assign coins --transfer-objects [coins.0] @{} \
+                "--split-coins gas [1000] --assign coins --transfer-objects [coins.0] @{recipient} \
                  --gas-budget {} {extra}",
-                Address::random(),
                 rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
             ))
             .unwrap();
