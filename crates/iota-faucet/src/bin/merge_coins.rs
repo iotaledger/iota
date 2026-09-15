@@ -6,11 +6,10 @@ use std::{str::FromStr, time::Duration};
 
 use iota_config::{IOTA_CLIENT_CONFIG, iota_config_dir};
 use iota_faucet::FaucetError;
-use iota_grpc_client::Client as GrpcClient;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_transaction_builder::{TransactionBuilder, WaitForTransaction};
-use iota_sdk_types::{Address, ObjectId, StructTag, TransactionEffects};
+use iota_sdk_transaction_builder::WaitForTransaction;
+use iota_sdk_types::{ObjectId, StructTag};
 use iota_types::gas_coin::GasCoin;
 use tracing::info;
 
@@ -58,7 +57,10 @@ async fn _split_coins_equally(
         .arguments((coin_object_id, count));
     builder.gas_budget(50000000000);
 
-    let effects = _execute(builder, &wallet, active_address).await?;
+    let signer = wallet.config().keystore().get_key(&active_address)?;
+    let effects = builder
+        .execute(signer.as_keypair()?, WaitForTransaction::Finalized)
+        .await?;
     println!("{effects:?}");
     Ok(())
 }
@@ -81,6 +83,8 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
         .filter(|coin| coin.0.balance.value() <= 10000000000)
         .collect::<Vec<GasCoin>>();
 
+    let signer = wallet.config().keystore().get_key(&active_address)?;
+
     // Smash coins togethers 254 objects at a time
     for chunk in small_coins.chunks(254) {
         let total_balance: u64 = chunk.iter().map(|coin| coin.0.balance.value()).sum();
@@ -97,23 +101,11 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
         builder.pay(coin_vector, [(active_address, total_balance)]);
         builder.gas_budget(1000000);
 
-        _execute(builder, &wallet, active_address).await?;
+        builder
+            .execute(signer.as_keypair()?, WaitForTransaction::Finalized)
+            .await?;
     }
     Ok(())
-}
-
-async fn _execute(
-    builder: TransactionBuilder<&GrpcClient>,
-    wallet: &WalletContext,
-    signer: Address,
-) -> Result<TransactionEffects, anyhow::Error> {
-    let keystore = wallet.config().keystore();
-    Ok(builder
-        .execute(
-            keystore.get_key(&signer)?.as_keypair()?,
-            WaitForTransaction::Finalized,
-        )
-        .await?)
 }
 
 pub fn create_wallet_context(timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {

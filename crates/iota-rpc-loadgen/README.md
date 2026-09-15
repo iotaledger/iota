@@ -2,8 +2,6 @@
 
 `iota-rpc-loadgen` is a utility that facilitates the generation of read and write loads on single or multiple IOTA RPC servers. Its primary functions include performance testing and data correctness verification.
 
-The tool stays on the JSON-RPC client: the load it generates is the point, so its reads, its transaction building and its execution all go through JSON-RPC, unlike the other clients that have moved their transaction building to gRPC.
-
 ## Features
 
 - **Easily extendable** to support any read/write endpoint.
