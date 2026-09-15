@@ -12,6 +12,68 @@
 
 ---
 
+## Implementation status (as of 15 Sep 2026)
+
+All nine tasks are implemented on `vm-lang/10722-fix-after-rebase`, commits `a772a4433c`..`7a19a54b3a`.
+`cargo clippy --all-targets --all-features -- -D warnings` is clean on every touched crate; 335 `iota-types`
+and 44 `iota-indexer` unit tests and 35 `smart_account` / 3 `key_id` Move tests pass.
+
+### Still missing
+
+1. **The `pg_integration` tests have never been run.** No PostgreSQL was reachable on `localhost:5432`.
+   `crates/iota-indexer/tests/account_key_links_tests.rs` compiles under `--features pg_integration` but every
+   assertion in it is unproven. Run:
+   `cargo nextest run -p iota-indexer --features pg_integration --test account_key_links_tests`.
+2. **`schema.rs` was hand-edited, not generated.** `scripts/indexer-schema/generate.sh` needs Docker (daemon not
+   running) and the `diesel` CLI (not installed). The two `diesel::table!` blocks and the `for_all_tables!`
+   entries were written to match what generation produces — alphabetical placement, matching column types — but
+   that has not been confirmed. Re-run the script and check the diff is empty.
+3. **`dprint fmt` was not run** (dprint not installed), so TOML/Markdown/YAML formatting is unverified for
+   `.config/nextest.toml`, `iota-indexer.mdx` and this document.
+4. **`cargo simtest -p iota-e2e-tests --test claim_account_tests` was not run** — the rollout's regression gate.
+5. **Rotation and detach are not covered end to end.** Both need the account itself as transaction sender, hence
+   a `MoveAuthenticator`; they are driven from event payloads in the unit tests only.
+
+### Decisions still open, and what was assumed
+
+* **#1 (`key_id` in Move)** — assumed **keep**, on the conservative reading that shipped code should not be
+  deleted while the decision is open. Tests and the snapshot entry were added on that basis. If the decision goes
+  the other way, `public_key::key_id`, its three Move tests and its `published_api.txt` entry all come back out;
+  the Rust definition is unaffected.
+* **#2 (what the events emit)** — unresolved; the implementation assumes the events keep carrying the full
+  `PublicKey`, which is what is on the branch today.
+* **#3 (`smart_account` attach/detach/rotate events)** — unresolved; **not implemented**, matching the leaning
+  recorded below.
+
+### Pre-existing failures on the branch (not caused by this work, still red)
+
+Both were verified to fail at `HEAD` with these changes stashed:
+
+* `iota-cost` `test_good_snapshot` — genesis aborts with
+  `PackageTooBig: Move package with size 104133 is larger than the maximum object size 102400`. The framework
+  package is over the limit; this work adds ~250 bytes to a package that was already ~1.5 KB over.
+* `iota-framework` Move `bls12381_tests::test_uncompressed_g1_sum_too_long` — runs out of gas instead of aborting
+  with code 2.
+
+Both block the "suites green" gate in the rollout checklist and need fixing independently.
+
+### Deviations from this document, for review
+
+* `AccountKeyLink.immutable` is `Option<bool>`, not `bool`: an account with no claim record has an unknown
+  immutability, not a false one.
+* `MovePublicKey::scheme_flag()` was added to `iota-types` (not in the plan). `scheme()` panics on a flag byte the
+  build does not know, which a chain-read value may carry once the framework gains a scheme — that would break
+  the fold's totality.
+* `LinkSource::from_stored` was added so the persisted discriminants are interpreted in one place; a test pins
+  them against renumbering.
+* `crates/iota-indexer/tests/account_key_links_tests.rs` carries `#[expect(dead_code)]` on the shared `mod
+  common`, matching `ingestion_tests.rs`. It is a lint suppression, which the repo conventions forbid; flagged
+  rather than removed because every test file in that directory does it.
+* The regenerated `openrpc.json` also absorbs pre-existing branch drift (protocol version 35 → 36, a
+  transaction-kind description), as does the refreshed `iota-swarm-config` genesis snapshot.
+
+---
+
 ## 1. Design
 
 ### 1.1. Current state
@@ -806,6 +868,19 @@ git commit -m "feat(indexer): serve iotax_getAccountsByPublicKey from the accoun
 
 **Interfaces:** consumes everything above.
 
+> **⚠️ Not yet verified — needs a local Postgres.** The tests in this task were written and compile
+> (`cargo check -p iota-indexer --features pg_integration --tests` is clean), but they have **never been
+> executed**: no PostgreSQL instance was reachable on `localhost:5432` in the environment they were written
+> in, and `pg_integration` tests cannot run without one. Before this task can be ticked off, someone must
+> start a local Postgres and run:
+>
+> ```sh
+> cargo nextest run -p iota-indexer --features pg_integration --test account_key_links_tests
+> ```
+>
+> Treat every assertion in this file as unproven until that passes. The same caveat applies to the whole
+> `pg_integration` gate in the rollout checklist below.
+
 * \[ \] **Step 1: Write the tests**
 
 Use the existing harness (`Simulacrum` + `common::indexer_wait_for_checkpoint`). Mirror the genesis overrides in `crates/iota-e2e-tests/tests/claim_account_tests.rs` — `enable_claim_account_transaction` and `enable_builtin_move_authenticators` both on.
@@ -893,9 +968,9 @@ git commit -m "docs(indexer): account discoverability index operator and integra
 
 ## Rollout checklist
 
-1. **Finish Task 1 and Task 2** as the first PR into `vm-lang/10722-fix-after-rebase`: the missing Move tests plus the framework snapshot refresh for `SmartAccountClaimed` and (if it stays) `key_id`. The branch currently carries two framework commits whose snapshots were never regenerated, so this is a prerequisite for anything downstream, not bookkeeping. Resolve **Decisions needed** #1 and #2 before this PR lands — the event schema freezes at testnet activation.
+1. **Finish Task 1 and Task 2** as the first PR into `vm-lang/10722-fix-after-rebase`: the missing Move tests plus the framework snapshot refresh for `SmartAccountClaimed` and (if it stays) `key_id`. The branch currently carries two framework commits whose snapshots were never regenerated, so this is a prerequisite for anything downstream, not bookkeeping. Resolve **Decisions needed** #1–#3 before this PR lands — the event schema freezes at testnet activation.
 2. Land Tasks 3–6 (Rust identity, mirrors, tables, ingestion) as the second PR. Task 7 third. Tasks 8–9 with or after.
-3. Before each PR: `cargo ci-clippy && cargo +nightly fmt && dprint fmt`; `IOTA_SKIP_SIMTESTS=1 cargo nextest run -p <touched crates>`; the `pg_integration` suite; and `cargo simtest -p iota-e2e-tests --test claim_account_tests` must stay green.
+3. Before each PR: `cargo ci-clippy && cargo +nightly fmt && dprint fmt`; `IOTA_SKIP_SIMTESTS=1 cargo nextest run -p <touched crates>`; the `pg_integration` suite; and `cargo simtest -p iota-e2e-tests --test claim_account_tests` must stay green. **The `pg_integration` suite has not been run** — see the note in Task 8; it needs a local PostgreSQL instance.
 4. Deploy the updated indexer for the alpha devnet. From-genesis sync builds both tables with no migration or backfill step: the fold starts at the first emitted event.
 5. **Ordering constraint:** an indexer must not be pointed at a network whose framework predates `ea2da5d222`, or claims on that network are indexed as plain attachments with no `claimed_accounts` row.
 6. Event schema freezes at first Testnet activation — from then on, additive-only.
@@ -915,17 +990,32 @@ Nothing here blocks on `iota-rust-sdk`.
 
     A decision to carry `key_id` in addition to `public_key` would also make the Move `key_id` function load-bearing, which settles #1 in favour of keeping it. The three are entangled: decide #2 first.
 
+3. **Should `smart_account` emit its own attach / detach / rotate events?** `SmartAccountClaimed` gave the claim path an event of its own; the same question applies to the other three key operations, which today emit only the shared `builtin_authenticator_functions` events. **Open.**
+
+    The ambiguity is real. `attach_public_key`, `detach_public_key` and `rotate_public_key` are `public fun` over a bare `&mut UID` (`builtin_authenticator_functions.move:265`, `:283`, `:304`), and `attach_public_key` asserts only that no key is already attached — nothing requires the `UID` to carry an `AuthenticatorFunctionRefV1`, or to be an account at all. Any package holding a `&mut UID` can therefore emit a `PublicKeyAttached` for an arbitrary object. That the framework's only caller today is `smart_account` — at five sites, `smart_account.move:114`, `:235`, `:263`, `:312`, `:388` — is a property of the current framework, not of the event contract.
+
+    **For adding them.** It would make "is this a framework `SmartAccount`?" a read rather than an inference, which is the same argument that justifies `SmartAccountClaimed` (§1.3), and it would bound the set of objects that can enter the index at all rather than admitting any `UID` whose owner chose to attach a key.
+
+    **Against:**
+
+    * **Pure duplication on the hot path.** Every attach, detach and rotate on a `SmartAccount` would emit two events carrying the same `account_id` and the same key material, doubling payload and gas — and for MultiSig the key is variable-length, the same cost point as #2. `SmartAccountClaimed` has no such duplicate: it adds facts (`immutable`, and that a claim happened at all) that nothing else on the wire carries.
+    * **The fold gains branches with no consumer.** It would have to consume one of each pair and ignore the other, or dedupe them, to guard a distinction nothing currently asks for — the same trap as shipping `key_id` in Move ahead of a consumer (#1).
+    * **It does not fix the case it resembles.** Dust gifting goes through `builtin_auth_builder_v1`, which produces a genuine `SmartAccount`, so a `smart_account`-scoped attach event would not filter it. `claimed_accounts` is what does (§1.3).
+    * **Deferring is cheap.** The freeze is additive-only for *new event types*, so three more can be added after testnet activation.
+
+    Leaning no for v1, with Task 9 documenting that `PublicKeyAttached.account_id` is not guaranteed to be an account. The reason to settle it now rather than later is that the cheaper alternative shape — a discriminating field on the three existing events — closes at the freeze, while adding whole event types does not.
+
 Carried over from V3 and still open:
 
-3. **Accounts with custom authenticators** (`builder_v1`, no key attached) never enter either table — no standard key binding, nothing to index. Confirm that is intended.
-4. **MultiSig: index committee members?** Without it, MultiSig accounts are undiscoverable from a seed (§1.4). With it, committee membership becomes queryable rather than merely replayable. Recommend deferring to a follow-up with its own privacy review, and documenting the gap now.
-5. **Double-claim prevention** is being fixed separately. Confirm the fix does not change the emitted event sequence; the `claimed_accounts` upsert is indifferent either way, but the assumption should be checked rather than assumed.
+4. **Accounts with custom authenticators** (`builder_v1`, no key attached) never enter either table — no standard key binding, nothing to index. Confirm that is intended.
+5. **MultiSig: index committee members?** Without it, MultiSig accounts are undiscoverable from a seed (§1.4). With it, committee membership becomes queryable rather than merely replayable. Recommend deferring to a follow-up with its own privacy review, and documenting the gap now.
+6. **Double-claim prevention** is being fixed separately. Confirm the fix does not change the emitted event sequence; the `claimed_accounts` upsert is indifferent either way, but the assumption should be checked rather than assumed.
 
 ## Deferred (explicitly out of scope)
 
 * Indexer WebSocket/SSE push feed — the fullnode `iota_subscribeEvent` path covers live wallets in v1.
 * Salted key ids — requires a protocol change to carry user-supplied salt in the claim payload.
 * Consuming the `iota::account` lifecycle events (`MutableAccountCreated`, `ImmutableAccountCreated`, `AuthenticatorFunctionRefV1Rotated`) — they carry no key material, and their generic `StructTag`s would each need a type-parameter-tolerant matcher.
-* Indexing MultiSig committee members against the account (**Decisions needed** #4).
+* Indexing MultiSig committee members against the account (**Decisions needed** #5).
 * GraphQL/gRPC surfaces for the two tables — JSON-RPC first; add on demand.
 * Checkpoint-anchored table snapshots for fast third-party bootstrap.
