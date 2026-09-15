@@ -12,7 +12,6 @@ mod compatibility_tests {
     use iota_framework_snapshot::{load_bytecode_snapshot, load_bytecode_snapshot_manifest};
     use iota_move_build::published_at_property;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use iota_types::execution_config_utils::to_binary_config;
     use move_package::source_package::{
         manifest_parser::parse_move_manifest_from_file, parsed_manifest::SourceManifest,
     };
@@ -25,7 +24,6 @@ mod compatibility_tests {
         for (version, _snapshots) in load_bytecode_snapshot_manifest() {
             let config =
                 ProtocolConfig::get_for_version(ProtocolVersion::new(version), Chain::Unknown);
-            let binary_config = to_binary_config(&config);
             let framework = load_bytecode_snapshot(version).unwrap();
             let old_framework_store: BTreeMap<_, _> = framework
                 .into_iter()
@@ -37,7 +35,7 @@ mod compatibility_tests {
                     &cur_package.id,
                     &cur_package.modules(),
                     cur_package.dependencies.to_vec(),
-                    &binary_config,
+                    &config,
                 )
                 .await
                 .is_none()

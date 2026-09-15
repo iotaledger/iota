@@ -235,6 +235,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             and deriving IOTA addresses from public keys.
 //             Set the gas costs of those natives and of the built-in Move
 //             authenticators on all networks.
+//             Bound system Move packages by `max_move_system_package_size`
+//             rather than the limit that applies to user packages.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1643,6 +1645,12 @@ pub struct ProtocolConfig {
     // Cost param for the Move native function `public_key::to_iota_address_impl(flag: u8,
     // raw_bytes: &vector<u8>): address`
     public_key_to_iota_address_impl_cost_base: Option<u64>,
+
+    /// Maximum size of a system Move package object, in bytes. System packages
+    /// are published by the network rather than by users, so they are held to a
+    /// larger bound than `max_move_package_size`. When unset, system packages
+    /// are bound by `max_move_package_size` like any other package.
+    max_move_system_package_size: Option<u64>,
 }
 
 // feature flags
@@ -2852,6 +2860,8 @@ impl ProtocolConfig {
             multisig_multisig_validate_pubkey_cost_per_secp256r1_member: None,
             public_key_to_iota_address_impl_cost_base: None,
 
+            max_move_system_package_size: None,
+
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3571,6 +3581,14 @@ impl ProtocolConfig {
                     cfg.multisig_multisig_validate_pubkey_cost_per_secp256k1_member = Some(52);
                     cfg.multisig_multisig_validate_pubkey_cost_per_secp256r1_member = Some(52);
                     cfg.public_key_to_iota_address_impl_cost_base = Some(52);
+
+                    // A system package is published by the network, not by a
+                    // user, so the user-package bound was never meant to apply
+                    // to it: an existing system package is already exempt when
+                    // it is upgraded at an epoch change, and only a first
+                    // publish (genesis, or a newly added system package) is
+                    // checked against it.
+                    cfg.max_move_system_package_size = Some(200 * 1024);
                 }
                 // Use this template when making changes:
                 //

@@ -366,7 +366,7 @@ impl MovePackageExt for MovePackage {
             storage_id,
             version,
             module_map,
-            protocol_config.max_move_package_size(),
+            max_package_size(storage_id, protocol_config),
             type_origin_table,
             linkage_table,
         )?)
@@ -668,6 +668,33 @@ fn runtime_module_metadata(
             }
         })?;
     metadata_wrapper.try_into_runtime_module_metadata(&build_config)
+}
+
+/// The size bound a package published at `storage_id` must stay within.
+///
+/// A system package published for the first time — at genesis, or when a new
+/// one is added at an epoch change — goes through the same path as a user
+/// package, but is not a user package and is bound by
+/// `max_move_system_package_size`. When that is unset, system packages are
+/// bound by `max_move_package_size` like any other package. Upgrades of an
+/// existing system package never reach this check at all (see
+/// `MovePackage::new_system`).
+///
+/// The epoch change transaction that adds a system package executes under the
+/// outgoing epoch's protocol config, so a package added by the same upgrade
+/// that changes this limit is held to the previous value; a new value applies
+/// from the epoch after it takes effect. Together with the exemption for
+/// upgrades, that leaves two cases where this bound is the one that applies:
+/// genesis, and a system package added once the new value is already in
+/// effect.
+pub fn max_package_size(storage_id: ObjectId, protocol_config: &ProtocolConfig) -> u64 {
+    if storage_id.is_system_package() {
+        protocol_config
+            .max_move_system_package_size_as_option()
+            .unwrap_or_else(|| protocol_config.max_move_package_size())
+    } else {
+        protocol_config.max_move_package_size()
+    }
 }
 
 fn build_linkage_table<'p>(
@@ -1206,4 +1233,59 @@ pub struct AuthenticatorMetadataV1 {
     pub function_name: String,
     #[serde_as(as = "TypeName")]
     pub account_type: TypeTag,
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_protocol_config::{Chain, ProtocolVersion};
+
+    use super::*;
+
+    /// A protocol version where `max_move_system_package_size` is unset.
+    const VERSION_WITHOUT_SYSTEM_PACKAGE_SIZE: u64 = 35;
+
+    fn config(version: u64) -> ProtocolConfig {
+        ProtocolConfig::get_for_version(ProtocolVersion::new(version), Chain::Unknown)
+    }
+
+    #[test]
+    fn user_packages_keep_the_user_bound() {
+        let protocol_config = config(ProtocolVersion::MAX.as_u64());
+        let user_package = ObjectId::random();
+
+        assert!(!user_package.is_system_package());
+        assert_eq!(
+            max_package_size(user_package, &protocol_config),
+            protocol_config.max_move_package_size(),
+        );
+    }
+
+    #[test]
+    fn system_packages_get_the_system_bound() {
+        let protocol_config = config(ProtocolVersion::MAX.as_u64());
+
+        assert_eq!(
+            max_package_size(ObjectId::FRAMEWORK, &protocol_config),
+            protocol_config.max_move_system_package_size(),
+        );
+        assert!(
+            protocol_config.max_move_system_package_size()
+                > protocol_config.max_move_package_size(),
+        );
+    }
+
+    #[test]
+    fn system_packages_fall_back_to_the_user_bound_when_unset() {
+        let protocol_config = config(VERSION_WITHOUT_SYSTEM_PACKAGE_SIZE);
+
+        assert!(
+            protocol_config
+                .max_move_system_package_size_as_option()
+                .is_none()
+        );
+        assert_eq!(
+            max_package_size(ObjectId::FRAMEWORK, &protocol_config),
+            protocol_config.max_move_package_size(),
+        );
+    }
 }
