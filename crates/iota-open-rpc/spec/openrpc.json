@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 37
+              "value": 38
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "37",
-              "protocolVersion": "37",
+              "maxSupportedProtocolVersion": "38",
+              "protocolVersion": "38",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1970,6 +1970,9 @@
                 },
                 "max_move_package_size": {
                   "u64": "102400"
+                },
+                "max_move_system_package_size": {
+                  "u64": "204800"
                 },
                 "max_move_value_depth": {
                   "u64": "128"
