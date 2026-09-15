@@ -87,12 +87,19 @@ mod sim_only_tests {
             IOTA_SYSTEM_STATE_SIM_TEST_V1, IotaSystemState, IotaSystemStateTrait,
             epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
         },
-        object::Object,
+        move_package::max_package_size,
+        object::{OBJECT_START_VERSION, Object},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI},
     };
-    use move_binary_format::CompiledModule;
+    use move_binary_format::{
+        CompiledModule,
+        file_format::{self, Constant, SignatureToken},
+    };
+    use move_core_types::{
+        account_address::AccountAddress, identifier::Identifier as MoveIdentifier,
+    };
     use test_cluster::TestCluster;
     use tokio::time::{Duration, sleep};
     use tracing::info;
@@ -408,13 +415,7 @@ mod sim_only_tests {
         let iota_extra = ObjectId::from_u16(0x42);
         framework_injection::set_override(iota_extra, fixture_modules("extra_package"));
 
-        let cluster = TestClusterBuilder::new()
-            .with_epoch_duration_ms(20000)
-            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
-                START, FINISH,
-            ))
-            .build()
-            .await;
+        let cluster = upgrade_cluster().await;
 
         expect_upgrade_succeeded(&cluster).await;
 
@@ -461,6 +462,177 @@ mod sim_only_tests {
             .await,
             43,
         );
+    }
+
+    #[sim_test]
+    async fn test_new_system_package_over_size_limit_is_not_added() {
+        ProtocolConfig::poison_get_for_min_version();
+
+        let (_under, over) = modules_around_size_limit();
+        framework_injection::set_override(NEW_SYSTEM_PACKAGE, over);
+
+        let cluster = upgrade_cluster().await;
+
+        // No validator can offer the over-sized package, and a validator that offers no
+        // packages votes against the upgrade as a whole, so the protocol version does
+        // not move.
+        expect_upgrade_failed(&cluster).await;
+
+        let (added, framework_version) = cluster.fullnode_handle.iota_node.with(|node| {
+            let objects = node.state().get_object_cache_reader().clone();
+            (
+                objects.get_object(&NEW_SYSTEM_PACKAGE).is_some(),
+                objects.get_object(&ObjectId::FRAMEWORK).unwrap().version(),
+            )
+        });
+
+        assert!(!added, "an over-sized system package was added");
+        assert_eq!(
+            framework_version, OBJECT_START_VERSION,
+            "the rest of the framework was upgraded anyway",
+        );
+    }
+
+    #[sim_test]
+    async fn test_new_system_package_within_size_limit_is_added() {
+        ProtocolConfig::poison_get_for_min_version();
+
+        let (under, _over) = modules_around_size_limit();
+        framework_injection::set_override(NEW_SYSTEM_PACKAGE, under);
+
+        let cluster = upgrade_cluster().await;
+
+        // The same modules one short of the limit, so size is the only thing that
+        // separates this from the package the network refused.
+        expect_upgrade_succeeded(&cluster).await;
+
+        let added = cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .get_object_cache_reader()
+                .get_object(&NEW_SYSTEM_PACKAGE)
+                .is_some()
+        });
+
+        assert!(added, "a system package within the limit was not added");
+    }
+
+    /// A system package that is already on-chain is upgraded rather than
+    /// published, and an upgrade is not held to the size limit at all. One
+    /// grown past the limit is still upgraded.
+    #[sim_test]
+    async fn test_system_package_upgrade_is_not_bound_by_size_limit() {
+        ProtocolConfig::poison_get_for_min_version();
+
+        let limit = size_limit(&ObjectId::SYSTEM);
+        let mut modules = BuiltInFramework::get_package_by_id(&ObjectId::SYSTEM).modules();
+        // Adding modules leaves the existing ones untouched, so the package
+        // stays compatible with the one the network already has.
+        modules.extend(filler_modules(&ObjectId::SYSTEM, limit));
+        framework_injection::set_override(ObjectId::SYSTEM, modules);
+
+        let cluster = upgrade_cluster().await;
+
+        expect_upgrade_succeeded(&cluster).await;
+
+        let size = cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .get_object_cache_reader()
+                .get_object(&ObjectId::SYSTEM)
+                .unwrap()
+                .data
+                .as_opt_package()
+                .unwrap()
+                .size() as u64
+        });
+
+        assert!(
+            size > limit,
+            "the upgraded system package is {size} bytes, not over the {limit} byte limit",
+        );
+    }
+
+    /// A cluster that supports the upgrade from [`START`] to [`FINISH`], with
+    /// epochs short enough to sit through a few of them.
+    async fn upgrade_cluster() -> TestCluster {
+        TestClusterBuilder::new()
+            .with_epoch_duration_ms(20000)
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                START, FINISH,
+            ))
+            .build()
+            .await
+    }
+
+    /// A system package id that is not one of the built-in packages, standing
+    /// in for one being added to the network. Bound by
+    /// `max_move_system_package_size`.
+    const NEW_SYSTEM_PACKAGE: ObjectId = ObjectId::GENESIS_BRIDGE;
+
+    /// Bytes of filler each module carries. A module name is capped at
+    /// `max_move_identifier_len`, so the room has to come from somewhere that
+    /// is not capped as tightly, and a constant keeps the module count in the
+    /// range a real system package uses.
+    const FILLER_LEN: usize = 8192;
+
+    /// Modules for a package at [`NEW_SYSTEM_PACKAGE`] that is within the size
+    /// limit, and the same modules plus one more that takes it over. Every one
+    /// of them verifies, so size is the only thing that separates the two.
+    ///
+    /// The limit is not overridden here: the override is global, and genesis
+    /// publishes the real framework under the same one, so it cannot be set
+    /// below the size of the framework itself.
+    fn modules_around_size_limit() -> (Vec<CompiledModule>, Vec<CompiledModule>) {
+        let over = filler_modules(&NEW_SYSTEM_PACKAGE, size_limit(&NEW_SYSTEM_PACKAGE));
+        let mut under = over.clone();
+        under.pop();
+
+        (under, over)
+    }
+
+    /// Modules at `package_id` whose bytes alone exceed `bytes`. They are
+    /// publishable -- `test_new_system_package_within_size_limit_is_added`
+    /// publishes a package made of them, which runs the verifier the network
+    /// would -- so the only thing wrong with a package that overruns its limit
+    /// on them is its size.
+    fn filler_modules(package_id: &ObjectId, bytes: u64) -> Vec<CompiledModule> {
+        let mut modules: Vec<CompiledModule> = Vec::new();
+        let mut size = 0;
+
+        while size <= bytes {
+            let mut module = file_format::empty_module();
+            module.address_identifiers[0] = AccountAddress::new(package_id.into_bytes());
+            module.identifiers[0] =
+                MoveIdentifier::new(format!("filler_{}", modules.len())).unwrap();
+            module.constant_pool.push(Constant {
+                type_: SignatureToken::Vector(Box::new(SignatureToken::U8)),
+                data: bcs::to_bytes(&vec![0u8; FILLER_LEN]).unwrap(),
+            });
+
+            let mut serialized = Vec::new();
+            module
+                .serialize_with_version(module.version, &mut serialized)
+                .unwrap();
+
+            size += serialized.len() as u64;
+            modules.push(module);
+        }
+
+        modules
+    }
+
+    /// The size a package at `package_id` is held to when it is published.
+    ///
+    /// The limit is not overridden in these tests: the override is global, and
+    /// genesis publishes the real framework under the same one, so it cannot be
+    /// set below the size of the framework itself.
+    fn size_limit(package_id: &ObjectId) -> u64 {
+        max_package_size(*package_id, &protocol_config())
+    }
+
+    /// The config the validators vote under, which is the one the resulting
+    /// change epoch transaction executes under.
+    fn protocol_config() -> ProtocolConfig {
+        ProtocolConfig::get_for_version(ProtocolVersion::new(START), Chain::Unknown)
     }
 
     async fn run_framework_upgrade(from: &str, to: &str) -> TestCluster {

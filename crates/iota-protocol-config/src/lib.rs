@@ -230,6 +230,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 36: Reject a transaction that names an object version in the range
 //             assigned to canceled transactions, or one below it, from the
 //             transaction bytes, before any object is loaded.
+//             Bound system Move packages by `max_move_system_package_size`
+//             rather than the limit that applies to user packages.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1612,6 +1614,12 @@ pub struct ProtocolConfig {
     /// over (the scoring depth). When unset, defaults to 600. Consulted only
     /// when `consensus_enable_sliding_window_leader_schedule` is set.
     consensus_leader_schedule_window_size: Option<u32>,
+
+    /// Maximum size of a system Move package object, in bytes. System packages
+    /// are published by the network rather than by users, so they are held to a
+    /// larger bound than `max_move_package_size`. When unset, system packages
+    /// are bound by `max_move_package_size` like any other package.
+    max_move_system_package_size: Option<u64>,
 }
 
 // feature flags
@@ -2792,6 +2800,8 @@ impl ProtocolConfig {
             validator_very_low_stake_threshold: None,
             validator_low_stake_grace_period: None,
             consensus_leader_schedule_window_size: None,
+
+            max_move_system_package_size: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3496,6 +3506,13 @@ impl ProtocolConfig {
                     // assigned to canceled transactions before any object is
                     // loaded, by consulting the transaction bytes only.
                     cfg.feature_flags.validate_input_object_versions = true;
+                    // A system package is published by the network, not by a
+                    // user, so the user-package bound was never meant to apply
+                    // to it: an existing system package is already exempt when
+                    // it is upgraded at an epoch change, and only a first
+                    // publish (genesis, or a newly added system package) is
+                    // checked against it.
+                    cfg.max_move_system_package_size = Some(200 * 1024);
                 }
                 // Use this template when making changes:
                 //

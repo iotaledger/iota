@@ -119,7 +119,6 @@ use iota_types::{
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
-    execution_config_utils::to_binary_config,
     full_checkpoint_content::CheckpointData,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
@@ -1844,7 +1843,6 @@ impl IotaNode {
                 tokio::time::sleep(Duration::from_millis(1)).await;
 
                 let config = cur_epoch_store.protocol_config();
-                let binary_config = to_binary_config(config);
                 let transaction = ConsensusTransaction::new_capability_notification_v1(
                     AuthorityCapabilitiesV1::new(
                         self.state.name,
@@ -1854,9 +1852,7 @@ impl IotaNode {
                             .expect("Supported versions should be populated")
                             // no need to send digests of versions less than the current version
                             .truncate_below(config.version),
-                        self.state
-                            .get_available_system_packages(&binary_config)
-                            .await,
+                        self.state.get_available_system_packages(config).await,
                     ),
                 );
                 info!(?transaction, "submitting capabilities to consensus");
@@ -2296,7 +2292,6 @@ impl IotaNode {
 
         // Create the capability notification once
         let config = epoch_store.protocol_config();
-        let binary_config = to_binary_config(config);
 
         // Create the capability notification
         let capabilities = AuthorityCapabilitiesV1::new(
@@ -2306,9 +2301,7 @@ impl IotaNode {
                 .supported_protocol_versions
                 .expect("Supported versions should be populated")
                 .truncate_below(config.version),
-            self.state
-                .get_available_system_packages(&binary_config)
-                .await,
+            self.state.get_available_system_packages(config).await,
         );
 
         // Sign the capabilities using the authority key pair from config

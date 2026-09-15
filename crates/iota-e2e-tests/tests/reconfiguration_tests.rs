@@ -28,7 +28,6 @@ use iota_types::{
     crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
     effects::TransactionEffectsAPI,
     error::IotaError,
-    execution_config_utils::to_binary_config,
     iota_system_state::{
         IotaSystemStateTrait, get_validator_from_table,
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
@@ -1188,7 +1187,6 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
 
     // Create the capability notification
     let available_system_packages = test_cluster
@@ -1196,7 +1194,7 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
         .iota_node
         .with(|node| {
             let state = node.state();
-            async move { state.get_available_system_packages(&binary_config).await }
+            async move { state.get_available_system_packages(config).await }
         })
         .await;
     let capabilities = AuthorityCapabilitiesV1::new(
@@ -1262,13 +1260,12 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
     let available_system_packages = test_cluster
         .fullnode_handle
         .iota_node
         .with(|node| {
             let state = node.state();
-            async move { state.get_available_system_packages(&binary_config).await }
+            async move { state.get_available_system_packages(config).await }
         })
         .await;
     // Create the capability notification

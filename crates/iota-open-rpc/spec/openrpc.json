@@ -1962,6 +1962,9 @@
                 "max_move_package_size": {
                   "u64": "102400"
                 },
+                "max_move_system_package_size": {
+                  "u64": "204800"
+                },
                 "max_move_value_depth": {
                   "u64": "128"
                 },

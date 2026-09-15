@@ -6157,6 +6157,7 @@ dependencies = [
  "capitalize",
  "iota-common",
  "iota-move-build",
+ "iota-protocol-config",
  "iota-sdk-types",
  "iota-types",
  "move-binary-format",
