@@ -1261,4 +1261,99 @@ mod tests {
         assert_eq!(&checkpoint.epoch_rolling_gas_cost_summary, gas_summary);
         assert_eq!(checkpoint.network_total_transactions, 2); // genesis + 1 txn
     }
+
+    /// A system transaction kind is rejected under both check modes.
+    ///
+    /// Simulating one would run it outside the sequencing that gives it
+    /// meaning, and the shared input checks treat a system transaction as
+    /// exempt from the gas and object rules rather than rejecting it, so the
+    /// entry point is where this belongs — as it is on the node and in the SDK.
+    #[test]
+    fn simulate_rejects_system_transactions() {
+        use iota_types::{error::IotaError, transaction_executor::VmChecks};
+
+        let sim = Simulacrum::new();
+        let (tx, _) = sim.transfer_txn(Address::random());
+        let mut transaction = tx.data().transaction().clone();
+        *transaction.kind_mut() = TransactionKind::EndOfEpoch(vec![]);
+
+        for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+            let Err(error) = sim.simulate_transaction(transaction.clone(), checks) else {
+                panic!("{checks:?} must not simulate a system transaction");
+            };
+            assert!(
+                matches!(error, IotaError::UnsupportedFeature { .. }),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        }
+    }
+
+    /// An owned input object whose owner is not the sender is rejected under
+    /// [`VmChecks::Enabled`] and accepted under [`VmChecks::Disabled`].
+    #[test]
+    fn simulate_distinguishes_owned_input_owner_by_check_mode() {
+        use iota_sdk_types::ExecutionStatus;
+        use iota_types::{
+            error::{IotaError, UserInputError},
+            transaction::CallArg,
+            transaction_executor::VmChecks,
+        };
+
+        let sim = Simulacrum::new();
+        let (sender, other) = sim.with_keystore(|keystore| {
+            let mut accounts = keystore.accounts();
+            let (sender, _) = accounts.next().unwrap();
+            let (other, _) = accounts.next().unwrap();
+            (*sender, *other)
+        });
+
+        let (foreign_object, gas_object) = sim.with_store(|store| {
+            let foreign = store
+                .owned_objects(other)
+                .find(|object| object.is_gas_coin())
+                .unwrap()
+                .clone();
+            let gas = store
+                .owned_objects(sender)
+                .find(|object| object.is_gas_coin())
+                .unwrap()
+                .clone();
+            (foreign, gas)
+        });
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder
+                .input(CallArg::ImmutableOrOwned(foreign_object.object_ref()))
+                .unwrap();
+            builder.transfer_iota(Address::random(), Some(1000));
+            builder.finish()
+        };
+        let kind = TransactionKind::Programmable(pt);
+        let gas_data = GasPayment {
+            objects: vec![gas_object.object_ref()],
+            owner: sender,
+            price: sim.reference_gas_price(),
+            budget: 1_000_000_000,
+        };
+        let transaction = Transaction::new_with_gas_data(kind, sender, gas_data);
+
+        let Err(error) = sim.simulate_transaction(transaction.clone(), VmChecks::Enabled) else {
+            panic!("a dry run must reject an owned input owned by a different address");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::IncorrectUserSignature { .. }
+                }
+            ),
+            "unexpected error: {error:?}"
+        );
+
+        let result = sim
+            .simulate_transaction(transaction, VmChecks::Disabled)
+            .expect("a dev inspect must accept an owned input owned by a different address");
+        assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+    }
 }
