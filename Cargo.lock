@@ -6116,7 +6116,6 @@ dependencies = [
  "http 1.4.0",
  "iota-common",
  "iota-config",
- "iota-json-rpc-types",
  "iota-keys",
  "iota-metrics",
  "iota-network-stack",
