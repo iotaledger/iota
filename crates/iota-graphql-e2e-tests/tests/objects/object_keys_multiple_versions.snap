@@ -1,7 +1,7 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 12 tasks
+processed 13 tasks
 
 init:
 A: object(0,0)
@@ -182,6 +182,27 @@ Response: {
       ],
       "pageInfo": {
         "hasNextPage": true,
+        "hasPreviousPage": false
+      }
+    }
+  }
+}
+
+task 12, lines 146-167:
+//# run-graphql
+Response: {
+  "data": {
+    "objects": {
+      "nodes": [
+        {
+          "version": 5
+        },
+        {
+          "version": 6
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
         "hasPreviousPage": false
       }
     }

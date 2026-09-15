@@ -142,3 +142,26 @@ module Test::M1 {
     }
   }
 }
+
+//# run-graphql
+# An `objectIds` and an `objectKeys` entry that resolve to the same version of
+# the same object yield a single node, not one per filter.
+{
+  objects(
+    filter: {
+      objectIds: ["@{obj_2_0}"]
+      objectKeys: [
+        {objectId: "@{obj_2_0}", version: 5},
+        {objectId: "@{obj_2_0}", version: 6}
+      ]
+    }
+  ) {
+    pageInfo {
+      hasPreviousPage
+      hasNextPage
+    }
+    nodes {
+      version
+    }
+  }
+}

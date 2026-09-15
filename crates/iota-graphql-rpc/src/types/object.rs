@@ -1336,10 +1336,11 @@ impl StoredBackwardObject {
 }
 
 impl RawPaginated<Cursor> for StoredBackwardObject {
-    // Returns rows lexicographically greater or equal to (object_id,
-    // object_version). The AND/OR form is used instead of ROW(object_id,
-    // object_version) because the latter was producing slower plans when combined
-    // with other filters.
+    // Returns rows greater or equal to (object_id, object_version). Equivalent to
+    // `ROW(object_id, object_version) >= ROW(X, V)` and to
+    // `object_id > X OR (object_id = X AND object_version >= V)`, but the `ROW`
+    // form is slow when `object_keys` is used, and the `OR` form is slow when it
+    // is not.
     fn filter_ge(cursor: &Cursor, query: RawQuery) -> RawQuery {
         let id = hex::encode(cursor.object_id.clone());
         filter!(
@@ -2024,7 +2025,7 @@ pub(crate) async fn deserialize_move_struct(
 /// Falls back to historical view only for object-key lookups (specific
 /// id+version pairs) which don't need consistency filtering. When both
 /// `object_ids` and `object_keys` are provided, the results from both views
-/// are unioned.
+/// are unioned and deduplicated on `(object_id, object_version)`.
 fn backward_objects_query(
     filter: &ObjectFilter,
     checkpoint_viewed_at: u64,
@@ -2050,8 +2051,13 @@ fn backward_objects_query(
         .expect("object_keys is Some by match-arm guard");
         let (key_query, key_bindings) = historical::query(page, &keys_filter).finish();
 
+        // Same object version can be returned by both views, so the union has to
+        // deduplicate.
         RawQuery::new(
-            format!("SELECT * FROM (({id_query}) UNION ALL ({key_query})) AS candidates",),
+            format!(
+                "SELECT DISTINCT ON (candidates.object_id, candidates.object_version) * \
+                 FROM (({id_query}) UNION ALL ({key_query})) AS candidates",
+            ),
             id_bindings.into_iter().chain(key_bindings).collect(),
         )
     } else if let Ok(keys_filter) = HistoricalFilter::try_from(filter.clone()) {
