@@ -29,6 +29,7 @@ use tracing::instrument;
 use tracing::warn;
 
 use crate::{
+    attestation::AttestationRecord,
     base_types::{ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref},
     committee::{Committee, EpochId},
     crypto::{
@@ -134,6 +135,7 @@ pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
         end_of_epoch_data: Option<EndOfEpochData>,
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
+        attestations: Vec<Option<AttestationRecord>>,
     ) -> Self;
 
     fn verify_epoch(&self, epoch: EpochId) -> IotaResult;
@@ -161,6 +163,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
         end_of_epoch_data: Option<EndOfEpochData>,
         timestamp_ms: CheckpointTimestamp,
         randomness_rounds: Vec<RandomnessRound>,
+        attestations: Vec<Option<AttestationRecord>>,
     ) -> Self {
         let contents_digest = transactions.digest();
 
@@ -171,6 +174,20 @@ impl CheckpointSummaryExt for CheckpointSummary {
                     CheckpointVersionSpecificDataV1 { randomness_rounds },
                 ))
                 .expect("version specific data should serialize"),
+                Some(2) => {
+                    assert_eq!(
+                        attestations.len(),
+                        transactions.len(),
+                        "one attestation slot per transaction"
+                    );
+                    bcs::to_bytes(&CheckpointVersionSpecificData::V2(
+                        CheckpointVersionSpecificDataV2 {
+                            randomness_rounds,
+                            attestations,
+                        },
+                    ))
+                    .expect("version specific data should serialize")
+                }
                 _ => unimplemented!(
                     "unrecognized version_specific_data version for
     CheckpointSummary"
@@ -228,7 +245,7 @@ impl CheckpointSummaryExt for CheckpointSummary {
     ) -> Result<Option<CheckpointVersionSpecificData>> {
         match config.checkpoint_summary_version_specific_data_as_option() {
             None | Some(0) => Ok(None),
-            Some(1) => Ok(Some(bcs::from_bytes(&self.version_specific_data)?)),
+            Some(1) | Some(2) => Ok(Some(bcs::from_bytes(&self.version_specific_data)?)),
             _ => unimplemented!("unrecognized version_specific_data version in CheckpointSummary"),
         }
     }
@@ -696,18 +713,29 @@ impl VerifiedCheckpointContents {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CheckpointVersionSpecificData {
     V1(CheckpointVersionSpecificDataV1),
+    V2(CheckpointVersionSpecificDataV2),
 }
 
 impl CheckpointVersionSpecificData {
-    pub fn as_v1(&self) -> &CheckpointVersionSpecificDataV1 {
+    pub fn randomness_rounds(&self) -> &[RandomnessRound] {
         match self {
-            Self::V1(v) => v,
+            Self::V1(v) => &v.randomness_rounds,
+            Self::V2(v) => &v.randomness_rounds,
         }
     }
 
-    pub fn into_v1(self) -> CheckpointVersionSpecificDataV1 {
+    pub fn into_randomness_rounds(self) -> Vec<RandomnessRound> {
         match self {
-            Self::V1(v) => v,
+            Self::V1(v) => v.randomness_rounds,
+            Self::V2(v) => v.randomness_rounds,
+        }
+    }
+
+    /// Empty for V1.
+    pub fn attestations(&self) -> &[Option<AttestationRecord>] {
+        match self {
+            Self::V1(_) => &[],
+            Self::V2(v) => &v.attestations,
         }
     }
 
@@ -725,6 +753,16 @@ pub struct CheckpointVersionSpecificDataV1 {
     pub randomness_rounds: Vec<RandomnessRound>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CheckpointVersionSpecificDataV2 {
+    /// Lists the rounds for which RandomnessStateUpdate transactions are
+    /// present in the checkpoint.
+    pub randomness_rounds: Vec<RandomnessRound>,
+    /// One entry per transaction in checkpoint-contents order; `None` for
+    /// unattested transactions.
+    pub attestations: Vec<Option<AttestationRecord>>,
+}
+
 #[cfg(test)]
 mod tests {
     use fastcrypto::traits::KeyPair;
@@ -732,7 +770,10 @@ mod tests {
     use rand::{SeedableRng, prelude::StdRng};
 
     use super::*;
-    use crate::{transaction::VerifiedTransaction, utils::make_committee_key};
+    use crate::{
+        attestation::AttestationVerdict, transaction::VerifiedTransaction,
+        utils::make_committee_key,
+    };
 
     // TODO use the file name as a seed
     const RNG_SEED: [u8; 32] = [
@@ -767,6 +808,7 @@ mod tests {
                         GasCostSummary::default(),
                         None,
                         0,
+                        Vec::new(),
                         Vec::new(),
                     ),
                     k,
@@ -803,6 +845,7 @@ mod tests {
             GasCostSummary::default(),
             None,
             0,
+            Vec::new(),
             Vec::new(),
         );
 
@@ -847,6 +890,7 @@ mod tests {
                         None,
                         0,
                         Vec::new(),
+                        Vec::new(),
                     ),
                     k,
                     name,
@@ -885,6 +929,7 @@ mod tests {
                 GasCostSummary::default(),
                 None,
                 0,
+                Vec::new(),
                 Vec::new(),
             )
         };
@@ -952,6 +997,7 @@ mod tests {
             None,
             100,
             Vec::new(),
+            Vec::new(),
         )
     }
 
@@ -1002,5 +1048,75 @@ mod tests {
             let c2 = generate_test_checkpoint_summary_from_digest(*t2.digest());
             assert_ne!(c1.digest(), c2.digest());
         }
+    }
+
+    fn attestation_record(attestor: u8, verdict: AttestationVerdict) -> AttestationRecord {
+        AttestationRecord { attestor, verdict }
+    }
+
+    #[test]
+    fn version_specific_data_v2_bcs_round_trip() {
+        let v1 = CheckpointVersionSpecificData::V1(CheckpointVersionSpecificDataV1 {
+            randomness_rounds: vec![RandomnessRound::new(3)],
+        });
+        let v2 = CheckpointVersionSpecificData::V2(CheckpointVersionSpecificDataV2 {
+            randomness_rounds: vec![RandomnessRound::new(3)],
+            attestations: vec![
+                None,
+                Some(attestation_record(2, AttestationVerdict::Refuted)),
+            ],
+        });
+
+        let v1_bytes = bcs::to_bytes(&v1).unwrap();
+        let v2_bytes = bcs::to_bytes(&v2).unwrap();
+        // The variant tag leaves the V1 encoding unchanged.
+        assert_eq!(v1_bytes[0], 0);
+        assert_eq!(v2_bytes[0], 1);
+        assert_eq!(
+            bcs::from_bytes::<CheckpointVersionSpecificData>(&v1_bytes).unwrap(),
+            v1
+        );
+        assert_eq!(
+            bcs::from_bytes::<CheckpointVersionSpecificData>(&v2_bytes).unwrap(),
+            v2
+        );
+    }
+
+    #[test]
+    fn summary_version_specific_data_follows_the_protocol_knob() {
+        let contents = CheckpointContents::new_with_digests_only_for_tests([
+            ExecutionDigests::random(),
+            ExecutionDigests::random(),
+        ]);
+        let parsed_for = |version: u64| {
+            let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+            config.set_checkpoint_summary_version_specific_data_for_testing(version);
+            let attestations = vec![None, Some(attestation_record(0, AttestationVerdict::Valid))];
+            let parsed = CheckpointSummary::new_with_protocol_config(
+                &config,
+                1,
+                2,
+                10,
+                &contents,
+                None,
+                GasCostSummary::default(),
+                None,
+                100,
+                vec![RandomnessRound::new(5)],
+                attestations.clone(),
+            )
+            .parse_version_specific_data(&config)
+            .unwrap()
+            .expect("version specific data is present from version 1");
+            (parsed, attestations)
+        };
+
+        let (v1, _) = parsed_for(1);
+        assert_eq!(v1.randomness_rounds(), &[RandomnessRound::new(5)]);
+        assert!(v1.attestations().is_empty());
+
+        let (v2, attestations) = parsed_for(2);
+        assert_eq!(v2.randomness_rounds(), &[RandomnessRound::new(5)]);
+        assert_eq!(v2.attestations(), attestations.as_slice());
     }
 }

@@ -3,7 +3,8 @@
 
 //! Judges the attestation of a transaction whose Move authentication failed at
 //! execution, by re-running authentication at the object versions the attestor
-//! recorded. An attestor is charged only when the attestation is refuted.
+//! recorded. The verdict is recorded as `AttestationRecord::verdict` and
+//! certified in the checkpoint summary; the transaction effects are unaffected.
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -20,7 +21,7 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
-    attestation::{Attestation, AttestationJudge},
+    attestation::Attestation,
     auth_context::AuthContextData,
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind},
@@ -70,8 +71,7 @@ pub(crate) struct AttestationVerdictContext<'a> {
     pub gas_data: GasPayment,
     /// Each Move authenticator with the input objects execution loaded for it.
     pub authenticators: Vec<(MoveAuthenticator, InputObjects)>,
-    /// Versions of the authenticator inputs and function-ref fields execution
-    /// ran against.
+    /// Versions of every input and function-ref field execution loaded.
     pub executed_versions: BTreeMap<ObjectId, Version>,
     pub transaction_kind: TransactionKind,
     pub transaction_signer: Address,
@@ -96,16 +96,20 @@ pub(crate) fn authenticator_inputs(
         .collect()
 }
 
-/// The versions execution authenticates against: every authenticator input
-/// plus each resolved function-ref field object.
+/// The versions execution loaded: every transaction and authenticator input
+/// plus each resolved function-ref field object. A recorded version is judged
+/// against all of them, so a body input deleted after the dry run counts as
+/// drift rather than as a failure reproducing at the attestor's state.
 pub(crate) fn executed_versions(
     authenticators: &[MoveAuthenticatorForExecution<
         Option<AuthenticatorFunctionRefForExecution>,
     >],
+    transaction_inputs: &InputObjects,
 ) -> BTreeMap<ObjectId, Version> {
-    authenticators
+    transaction_inputs
         .iter()
-        .flat_map(|authenticator| {
+        .map(|object| (object.id(), object.version()))
+        .chain(authenticators.iter().flat_map(|authenticator| {
             authenticator
                 .input_objects
                 .inner()
@@ -117,12 +121,17 @@ pub(crate) fn executed_versions(
                         function_ref.loaded_object_metadata.version,
                     )
                 }))
-        })
+        }))
         .collect()
 }
 
-impl AttestationJudge for AttestationVerdictContext<'_> {
-    fn is_refuted(&self) -> bool {
+impl AttestationVerdictContext<'_> {
+    /// Whether the authentication failure `error` refutes the attestation. A
+    /// failure the attestor's dry run could not have foreseen never does.
+    pub(crate) fn is_refuted(&self, error: &ExecutionError) -> bool {
+        if !is_authenticator_rejection(authentication_error_kind(error)) {
+            return false;
+        }
         let reauthenticate = should_reauthenticate(
             self.attestation.object_versions(),
             &self.executed_versions,
@@ -306,7 +315,7 @@ impl AttestationVerdictContext<'_> {
 
         match result {
             Ok(()) => true,
-            Err(error) => !is_authentication_rejection(&error),
+            Err(error) => !is_authenticator_rejection(authentication_error_kind(&error)),
         }
     }
 
@@ -342,17 +351,51 @@ impl AttestationVerdictContext<'_> {
     }
 }
 
-/// Whether a re-run failure is the authenticator rejecting the transaction.
-/// An invariant violation is the validator's own and cannot judge the attestor.
-fn is_authentication_rejection(error: &ExecutionError) -> bool {
-    let kind = match error.kind() {
+/// The error the authentication phase raised, unwrapped from the effects
+/// status it is reported as.
+fn authentication_error_kind(error: &ExecutionError) -> &ExecutionErrorKind {
+    match error.kind() {
         ExecutionErrorKind::MoveAuthentication { error } => error.as_ref(),
         kind => kind,
-    };
-    !matches!(
+    }
+}
+
+/// What execution established for the verdict on an attested transaction.
+pub(crate) struct ExecutionOutcome {
+    /// Authentication failed and the failure refutes the attestation.
+    pub refuted: bool,
+    /// The body ran, so its computation cost is measurable against the claim.
+    pub body_ran: bool,
+}
+
+/// Whether the transaction body ran, so its computation cost measures the same
+/// work the attestor's dry run did.
+pub(crate) fn body_ran(authentication_failed: bool, error: Option<&ExecutionError>) -> bool {
+    !authentication_failed
+        && error.is_none_or(|error| !is_pre_execution_failure(authentication_error_kind(error)))
+}
+
+/// The input checks that run before the transaction body, on the
+/// authenticator's inputs and the transaction's alike.
+fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::CertificateDenied
+            | ExecutionErrorKind::InputObjectDeleted
+            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
+    )
+}
+
+/// Whether the failure is the authenticator rejecting the transaction.
+fn is_authenticator_rejection(kind: &ExecutionErrorKind) -> bool {
+    let unforeseeable = matches!(
         kind,
         ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
-    )
+    ) || (is_pre_execution_failure(kind)
+        && !matches!(kind, ExecutionErrorKind::InputObjectDeleted));
+    !unforeseeable
 }
 
 #[cfg(test)]
@@ -362,6 +405,69 @@ mod tests {
     use iota_types::base_types::random_object_ref;
 
     use super::*;
+
+    fn wrapped(kind: ExecutionErrorKind) -> ExecutionError {
+        ExecutionError::from_kind(kind).into_move_authentication_error()
+    }
+
+    /// Only a body that ran, successfully or not, is measured against the
+    /// claim; failed authentication and pre-execution input checks are not.
+    #[test]
+    fn body_ran_excludes_authentication_and_input_check_failures() {
+        let abort = ExecutionError::from_kind(ExecutionErrorKind::InsufficientGas);
+        assert!(body_ran(false, None));
+        assert!(body_ran(false, Some(&abort)));
+        assert!(!body_ran(
+            true,
+            Some(&wrapped(ExecutionErrorKind::InsufficientGas))
+        ));
+        for kind in [
+            ExecutionErrorKind::CertificateDenied,
+            ExecutionErrorKind::InputObjectDeleted,
+            ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
+        ] {
+            let error = ExecutionError::from_kind(kind);
+            assert!(!body_ran(false, Some(&error)), "{error:?}");
+        }
+    }
+
+    /// An authenticator abort, out-of-gas, unresolved function or deleted
+    /// input is the attestor's to foresee; the effects wrapper does not change
+    /// that.
+    #[test]
+    fn authenticator_failures_are_rejections() {
+        for kind in [
+            ExecutionErrorKind::InsufficientGas,
+            ExecutionErrorKind::FunctionNotFound,
+            ExecutionErrorKind::InputObjectDeleted,
+        ] {
+            let error = wrapped(kind);
+            assert!(
+                is_authenticator_rejection(authentication_error_kind(&error)),
+                "{error:?}"
+            );
+        }
+    }
+
+    /// Deny lists, cancellations and invariant violations are decided after
+    /// the dry run and cannot judge the attestor.
+    #[test]
+    fn failures_the_attestor_cannot_foresee_are_not_rejections() {
+        for kind in [
+            ExecutionErrorKind::CertificateDenied,
+            ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
+                congested_objects: vec![ObjectId::random()],
+            },
+            ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
+            ExecutionErrorKind::InvariantViolation,
+        ] {
+            let error = wrapped(kind);
+            assert!(
+                !is_authenticator_rejection(authentication_error_kind(&error)),
+                "{error:?}"
+            );
+        }
+    }
 
     fn ref_at(version: u64) -> ObjectReference {
         let base = random_object_ref();

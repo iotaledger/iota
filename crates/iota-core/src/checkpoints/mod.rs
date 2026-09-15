@@ -35,6 +35,7 @@ use iota_sdk_types::{
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use iota_types::{
+    attestation::AttestationRecord,
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
@@ -1658,15 +1659,26 @@ impl CheckpointBuilder {
         &self,
         transactions_effects_and_sizes: Vec<(TransactionEnvelope, TransactionEffects, usize)>,
         signatures: Vec<Vec<UserSignature>>,
+        attestations: Vec<Option<AttestationRecord>>,
     ) -> CheckpointBuilderResult<
-        Vec<Vec<(TransactionEnvelope, TransactionEffects, Vec<UserSignature>)>>,
+        Vec<
+            Vec<(
+                TransactionEnvelope,
+                TransactionEffects,
+                Vec<UserSignature>,
+                Option<AttestationRecord>,
+            )>,
+        >,
     > {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
         let mut chunk_size: usize = 0;
-        for ((transaction, effects, transaction_size), signatures) in
-            transactions_effects_and_sizes.into_iter().zip(signatures)
+        for (((transaction, effects, transaction_size), signatures), attestation) in
+            transactions_effects_and_sizes
+                .into_iter()
+                .zip(signatures)
+                .zip(attestations)
         {
             // Roll over to a new chunk after either max count or max size is reached.
             // The size calculation here is intended to estimate the size of the
@@ -1691,7 +1703,7 @@ impl CheckpointBuilder {
                 }
             }
 
-            chunk.push((transaction, effects, signatures));
+            chunk.push((transaction, effects, signatures, attestation));
             chunk_size += size;
         }
 
@@ -1766,6 +1778,12 @@ impl CheckpointBuilder {
             .state
             .get_transaction_cache_reader()
             .try_get_transactions_and_serialized_sizes(&all_digests)?;
+        // Written in the same batch as the effects, so present for every executed
+        // digest.
+        let all_attestations = self
+            .state
+            .get_transaction_cache_reader()
+            .try_multi_get_attestation_records(&all_digests)?;
         let mut all_effects_and_transaction_sizes = Vec::with_capacity(all_effects.len());
         let mut transactions = Vec::with_capacity(all_effects.len());
         let mut transaction_keys = Vec::with_capacity(all_effects.len());
@@ -1841,7 +1859,11 @@ impl CheckpointBuilder {
             .zip(all_effects_and_transaction_sizes)
             .map(|(transaction, (effects, size))| (transaction.into_inner(), effects, size))
             .collect();
-        let chunks = self.split_checkpoint_chunks(transactions_effects_and_sizes, signatures)?;
+        let chunks = self.split_checkpoint_chunks(
+            transactions_effects_and_sizes,
+            signatures,
+            all_attestations,
+        )?;
         let chunks_count = chunks.len();
 
         let mut checkpoints = Vec::with_capacity(chunks_count);
@@ -1879,10 +1901,11 @@ impl CheckpointBuilder {
                 }
             }
 
-            let (chunk_transactions, mut effects, mut signatures): (
-                Vec<TransactionEnvelope>,
-                Vec<TransactionEffects>,
-                Vec<Vec<UserSignature>>,
+            let (chunk_transactions, mut effects, mut signatures, mut attestations): (
+                Vec<_>,
+                Vec<_>,
+                Vec<_>,
+                Vec<_>,
             ) = chunk.into_iter().multiunzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
@@ -1905,6 +1928,7 @@ impl CheckpointBuilder {
                         timestamp_ms,
                         &mut effects,
                         &mut signatures,
+                        &mut attestations,
                         sequence_number,
                         scores,
                     )
@@ -2001,6 +2025,7 @@ impl CheckpointBuilder {
                 end_of_epoch_data,
                 timestamp_ms,
                 matching_randomness_rounds,
+                attestations,
             );
             summary.report_checkpoint_age(&self.metrics.last_created_checkpoint_age);
             if last_checkpoint_of_epoch {
@@ -2079,6 +2104,7 @@ impl CheckpointBuilder {
         epoch_start_timestamp_ms: CheckpointTimestamp,
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<UserSignature>>,
+        attestations: &mut Vec<Option<AttestationRecord>>,
         checkpoint: CheckpointSequenceNumber,
         scores: Vec<u64>,
     ) -> CheckpointBuilderResult<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
@@ -2094,6 +2120,7 @@ impl CheckpointBuilder {
             .await?;
         checkpoint_effects.push(effects);
         signatures.push(vec![]);
+        attestations.push(None);
         Ok((system_state, system_epoch_info_event))
     }
 
@@ -3101,6 +3128,7 @@ mod tests {
         TransactionEffectsDigest, TransactionEvents, Version, move_package::MovePackage,
     };
     use iota_types::{
+        attestation::AttestationVerdict,
         effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
         messages_checkpoint::SignedCheckpointSummary,
         transaction::VerifiedTransaction,
@@ -3316,6 +3344,125 @@ mod tests {
             cached.checkpoint_contents().digest(),
             summary.contents_digest
         );
+    }
+
+    /// The summary's attestation records are positional: one slot per
+    /// transaction in contents order, `None` where nothing was recorded.
+    #[tokio::test]
+    async fn summary_attestation_records_are_positional() {
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_checkpoint_summary_version_specific_data_for_testing(2);
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        let make_tx = |seed: u8| {
+            let mut id = [0u8; 32];
+            id[0] = seed;
+            VerifiedTransaction::new_genesis_transaction(
+                vec![GenesisObject::new(
+                    ObjectData::Package(
+                        MovePackage::new(
+                            ObjectId::new(id),
+                            Version::default(),
+                            BTreeMap::from([(Identifier::new_unchecked("m"), vec![])]),
+                            100_000,
+                            Vec::new(),
+                            BTreeMap::new(),
+                        )
+                        .unwrap(),
+                    ),
+                    Owner::Immutable,
+                )],
+                vec![],
+            )
+        };
+        let txs = [make_tx(1), make_tx(2)];
+        let digests: Vec<_> = txs.iter().map(|tx| *tx.digest()).collect();
+        let mut effects_map = HashMap::new();
+        for tx in &txs {
+            let digest = *tx.digest();
+            state
+                .database_for_testing()
+                .perpetual_tables
+                .transactions
+                .insert(&digest, tx.serializable_ref())
+                .unwrap();
+            commit_cert_for_test(
+                &mut effects_map,
+                state.clone(),
+                digest,
+                vec![],
+                GasCostSummary::new(1, 1, 1, 1, 1),
+            );
+            let signature = iota_types::crypto::zero_ed25519_signature().into();
+            epoch_store.test_insert_user_signature(digest, vec![signature]);
+        }
+        // Only the second transaction carries a verdict.
+        let record = AttestationRecord {
+            attestor: 0,
+            verdict: AttestationVerdict::Valid,
+        };
+        state
+            .database_for_testing()
+            .perpetual_tables
+            .attestation_records
+            .insert(&digests[1], &record)
+            .unwrap();
+        let effects: Vec<_> = digests.iter().map(|d| effects_map[d].clone()).collect();
+
+        let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let tmp_dir = iota_common::tempdir();
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            CheckpointStore::new(tmp_dir.path()),
+            epoch_store.clone(),
+            Arc::new(effects_map),
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let (builder, _aggregator, _hasher) = checkpoint_service.state.lock().take_unstarted();
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, digests.clone(), 0))
+            .unwrap();
+        let details = PendingCheckpointInfo {
+            timestamp_ms: 0,
+            last_of_epoch: false,
+            checkpoint_height: 0,
+        };
+        let new_checkpoints = builder
+            .create_checkpoints(
+                effects,
+                &details,
+                &digests.iter().copied().collect::<HashSet<_>>(),
+            )
+            .await
+            .unwrap();
+        let built = new_checkpoints.first();
+
+        let attestations = built
+            .summary
+            .parse_version_specific_data(epoch_store.protocol_config())
+            .unwrap()
+            .expect("version 2 summaries carry version specific data")
+            .attestations()
+            .to_vec();
+        let contents: Vec<_> = built.contents.iter().map(|d| d.transaction).collect();
+        assert_eq!(attestations.len(), contents.len());
+        let slot = |digest| contents.iter().position(|d| *d == digest).unwrap();
+        assert_eq!(attestations[slot(digests[1])], Some(record));
+        assert_eq!(attestations[slot(digests[0])], None);
     }
 
     #[sim_test]
@@ -3761,6 +3908,13 @@ mod tests {
     }
 
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
+        fn try_multi_get_attestation_records(
+            &self,
+            digests: &[TransactionDigest],
+        ) -> IotaResult<Vec<Option<AttestationRecord>>> {
+            Ok(vec![None; digests.len()])
+        }
+
         fn try_notify_read_executed_effects(
             &self,
             _: &str,

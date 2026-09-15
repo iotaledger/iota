@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, ObjectReference, TransactionDigest, UserSignature};
+use iota_sdk_types::{Address, GasCostSummary, ObjectReference, TransactionDigest, UserSignature};
 use serde::{Deserialize, Serialize};
 
 use crate::transaction::TransactionEnvelope;
@@ -97,12 +97,74 @@ impl Attestation {
     }
 }
 
-/// Judges an attestation whose transaction failed Move authentication at
-/// execution.
-pub trait AttestationJudge {
-    /// Whether the failure refutes the attestation, so it is charged to the
-    /// attestor instead of the issuer.
-    fn is_refuted(&self) -> bool;
+pub fn computation_units(gas_cost_summary: &GasCostSummary, gas_price: u64) -> u64 {
+    gas_cost_summary
+        .computation_cost
+        .checked_div(gas_price)
+        .unwrap_or(0)
+}
+
+/// The verdict on an attested, executed transaction. The variant order is
+/// protocol-significant: append, never reorder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AttestationVerdict {
+    /// The attestation stood and, whenever the transaction body ran, the
+    /// claimed computation units were within tolerance of the executed ones.
+    Valid,
+    /// The attestation stood but the claimed computation units were not.
+    Inaccurate,
+    /// Authentication failed at the versions the attestor recorded.
+    Refuted,
+}
+
+impl AttestationVerdict {
+    /// `executed_units` is `None` when the transaction body never ran, so the
+    /// claim cannot be assessed. `tolerance_percentage` bounds
+    /// `|attested - executed|` as a percentage of the executed units; `None`
+    /// disables the accuracy check.
+    pub fn new(
+        refuted: bool,
+        attested_units: u64,
+        executed_units: Option<u64>,
+        tolerance_percentage: Option<u64>,
+    ) -> Self {
+        if refuted {
+            return Self::Refuted;
+        }
+        let accurate = match (executed_units, tolerance_percentage) {
+            (Some(executed), Some(tolerance)) => {
+                attested_units.abs_diff(executed).saturating_mul(100)
+                    <= tolerance.saturating_mul(executed)
+            }
+            _ => true,
+        };
+        if accurate {
+            Self::Valid
+        } else {
+            Self::Inaccurate
+        }
+    }
+}
+
+/// The validator's verdict on an attested, executed transaction, certified in
+/// the checkpoint summary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AttestationRecord {
+    pub attestor: AuthorityIndex,
+    pub verdict: AttestationVerdict,
+}
+
+impl AttestationRecord {
+    /// `None` for explicit attestations, which never reach execution.
+    pub fn new(attestation: &Attestation, verdict: AttestationVerdict) -> Option<Self> {
+        match attestation {
+            Attestation::Validator { attestor_index, .. } => Some(Self {
+                attestor: *attestor_index,
+                verdict,
+            }),
+            Attestation::Explicit { .. } => None,
+        }
+    }
 }
 
 impl AttestedTransaction {
@@ -162,6 +224,32 @@ mod tests {
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
         assert_eq!(decoded, attestation);
+    }
+
+    #[test]
+    fn verdict_accuracy_band() {
+        let judge = |attested, executed, tolerance| {
+            AttestationVerdict::new(false, attested, Some(executed), tolerance)
+        };
+        assert_eq!(judge(90, 100, Some(10)), AttestationVerdict::Valid);
+        assert_eq!(judge(110, 100, Some(10)), AttestationVerdict::Valid);
+        assert_eq!(judge(89, 100, Some(10)), AttestationVerdict::Inaccurate);
+        assert_eq!(judge(111, 100, Some(10)), AttestationVerdict::Inaccurate);
+        // Zero executed units accept only a zero claim.
+        assert_eq!(judge(0, 0, Some(10)), AttestationVerdict::Valid);
+        assert_eq!(judge(1, 0, Some(10)), AttestationVerdict::Inaccurate);
+        // No tolerance configured disables the check.
+        assert_eq!(judge(1_000, 1, None), AttestationVerdict::Valid);
+        // A body that never ran cannot be assessed.
+        assert_eq!(
+            AttestationVerdict::new(false, 1_000, None, Some(10)),
+            AttestationVerdict::Valid
+        );
+        // A refutation wins over accuracy.
+        assert_eq!(
+            AttestationVerdict::new(true, 100, Some(100), Some(10)),
+            AttestationVerdict::Refuted
+        );
     }
 
     #[test]
