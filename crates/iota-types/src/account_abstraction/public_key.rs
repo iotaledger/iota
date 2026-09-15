@@ -92,8 +92,17 @@ impl MovePublicKey {
     }
 
     /// Returns the `SignatureScheme` for this public key.
+    ///
+    /// Panics if the stored flag byte is not a scheme this build knows, which a
+    /// chain-read value may carry. Use [`Self::scheme_flag`] where the caller
+    /// must not fail on such a value.
     pub fn scheme(&self) -> SignatureScheme {
         self.scheme.into()
+    }
+
+    /// Returns the raw scheme flag byte, without interpreting it.
+    pub fn scheme_flag(&self) -> u8 {
+        self.scheme.flag()
     }
 
     /// Derives the `Address` for this public key.
