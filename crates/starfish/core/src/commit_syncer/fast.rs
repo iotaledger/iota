@@ -1108,7 +1108,7 @@ mod tests {
     use crate::{
         authority_node::tests::make_authority_with_params, commit::CommittedSubDag,
         commit_consumer::CommitConsumerMonitor, commit_syncer::tests::FakeNetworkClient,
-        context::Context, core_thread::tests::MockCoreThreadDispatcher,
+        context::Context, core_thread::tests::MockCoreThreadDispatcher, transaction::Priority,
     };
 
     mod fetch_once {
@@ -2615,7 +2615,7 @@ mod tests {
             let txn = vec![txn_counter as u8; 16];
             authorities[authority_index]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
             txn_counter += 1;
@@ -2680,7 +2680,7 @@ mod tests {
             let txn = vec![txn_counter as u8; 16];
             authorities[authority_index]
                 .transaction_client()
-                .submit(vec![txn])
+                .submit(vec![txn], Priority::Normal)
                 .await
                 .unwrap();
             txn_counter += 1;

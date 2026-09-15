@@ -9,7 +9,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
-use starfish_core::{ClientError, TransactionClient};
+use starfish_core::{ClientError, Priority, TransactionClient};
 use tap::prelude::*;
 use tokio::time::{Instant, sleep};
 use tracing::{error, info, warn};
@@ -93,10 +93,16 @@ impl ConsensusClient for LazyStarfishClient {
             .map(|t| bcs::to_bytes(t).expect("Serializing consensus transaction cannot fail"))
             .collect::<Vec<_>>();
 
+        // Only a lone system message uses the reserved lane; soft bundles are user
+        // traffic.
+        let priority = match transactions {
+            [transaction] if transaction.is_system_message() => Priority::High,
+            _ => Priority::Normal,
+        };
         let (block_ref, status_waiter) = client
             .as_ref()
             .expect("Client should always be returned")
-            .submit(transactions_bytes)
+            .submit(transactions_bytes, priority)
             .await
             .tap_err(|err| {
                 // Will be logged by caller as well.

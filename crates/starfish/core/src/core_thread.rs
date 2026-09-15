@@ -783,8 +783,10 @@ pub(crate) mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let (signals, signal_receivers) = CoreSignals::new(context.clone());
         let _block_receiver = signal_receivers.block_broadcast_receiver();
         let (sender, _receiver) = unbounded_channel("consensus_output");
@@ -933,8 +935,10 @@ pub(crate) mod tests {
         assert_eq!(dag_state.read().threshold_clock_round(), 3);
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
-        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
-        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (_transaction_client, tx_receiver, priority_tx_receiver) =
+            TransactionClient::new(context.clone());
+        let transaction_consumer =
+            TransactionConsumer::new(tx_receiver, priority_tx_receiver, context.clone());
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),

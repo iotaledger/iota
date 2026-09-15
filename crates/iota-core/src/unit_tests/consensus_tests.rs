@@ -144,7 +144,10 @@ pub fn make_consensus_adapter_for_test(
         ) -> IotaResult<BlockStatusReceiver> {
             let sequenced_transactions: Vec<SequencedConsensusTransaction> = transactions
                 .iter()
-                .map(|txn| SequencedConsensusTransaction::new_test(txn.clone()))
+                .map(|txn| SequencedConsensusTransaction {
+                    certificate_author: self.state.name,
+                    ..SequencedConsensusTransaction::new_test(txn.clone())
+                })
                 .collect();
 
             let checkpoint_service = Arc::new(CheckpointServiceNoop {});
@@ -345,6 +348,69 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
         )
         .unwrap();
     waiter.await.unwrap();
+}
+
+#[tokio::test]
+async fn system_message_bypasses_exhausted_submit_semaphore() {
+    let shared_object = Object::shared_for_testing();
+    let mut objects = test_gas_objects();
+    objects.push(shared_object.clone());
+    let state = init_state_with_objects(objects).await;
+    let certificates = test_certificates(&state, shared_object).await;
+    let raw_transactions = certificates
+        .iter()
+        .cloned()
+        .map(|certificate| ConsensusTransaction::new_user_transaction(certificate.into_unsigned()))
+        .collect::<Vec<_>>();
+    let certified_transactions = certificates
+        .into_iter()
+        .map(|certificate| ConsensusTransaction::new_certificate_message(&state.name, certificate))
+        .collect::<Vec<_>>();
+    let epoch_store = state.epoch_store_for_testing();
+    let mut adapter = make_consensus_adapter_for_test(
+        state.clone(),
+        HashSet::new(),
+        false,
+        vec![with_block_status(BlockStatus::Sequenced(
+            starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+        ))],
+    );
+    Arc::get_mut(&mut adapter).unwrap().submit_semaphore = Semaphore::new(0);
+
+    for transactions in [
+        &certified_transactions[..1],
+        &raw_transactions[..1],
+        &certified_transactions[..2],
+        &raw_transactions[..2],
+    ] {
+        let mut waiter = adapter
+            .submit_batch(
+                transactions,
+                Some(&epoch_store.get_reconfig_state_read_lock_guard()),
+                &epoch_store,
+            )
+            .unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(1), &mut waiter)
+                .await
+                .is_err()
+        );
+        assert_eq!(adapter.metrics.sequencing_in_flight_semaphore_wait.get(), 1);
+        waiter.abort();
+        assert!(waiter.await.unwrap_err().is_cancelled());
+    }
+
+    let waiter = adapter
+        .submit(
+            ConsensusTransaction::new_end_of_publish(state.name),
+            None,
+            &epoch_store,
+        )
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), waiter)
+        .await
+        .unwrap()
+        .unwrap();
 }
 
 #[sim_test]
