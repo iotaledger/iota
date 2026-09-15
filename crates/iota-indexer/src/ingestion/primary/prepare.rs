@@ -30,6 +30,7 @@ use itertools::Itertools;
 use tracing::{info, warn};
 
 use crate::{
+    account_key_events::{AccountKeyLinkOp, account_key_link_ops, claimed_account_row},
     db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
@@ -38,6 +39,7 @@ use crate::{
     },
     metrics::IndexerMetrics,
     models::{
+        claimed_accounts::StoredClaimedAccount,
         display::{
             StoredDisplay, display_id_from_created_event, displayed_type_from_created_event,
         },
@@ -56,6 +58,13 @@ use crate::{
 pub struct PrimaryWorker {
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+}
+
+/// The account-discoverability rows a checkpoint's events fold into.
+#[derive(Default)]
+pub struct AccountDiscoverability {
+    pub link_ops: Vec<AccountKeyLinkOp>,
+    pub claimed_accounts: Vec<StoredClaimedAccount>,
 }
 
 pub type IndexedTransactionComponents = (
@@ -229,21 +238,35 @@ impl PrimaryWorker {
         let object_versions = Self::index_object_versions(data);
         let backward_history_changes = Self::index_objects_backward_history(data)?;
 
-        let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
+        let (
+            checkpoint,
+            db_transactions,
+            db_events,
+            db_tx_indices,
+            db_event_indices,
+            db_displays,
+            discoverability,
+        ) = {
             let CheckpointData {
                 transactions,
                 checkpoint_summary,
                 checkpoint_contents,
             } = data;
 
-            let (db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) =
-                Self::index_transactions(
-                    transactions,
-                    checkpoint_summary,
-                    checkpoint_contents,
-                    &metrics,
-                )
-                .await?;
+            let (
+                db_transactions,
+                db_events,
+                db_tx_indices,
+                db_event_indices,
+                db_displays,
+                discoverability,
+            ) = Self::index_transactions(
+                transactions,
+                checkpoint_summary,
+                checkpoint_contents,
+                &metrics,
+            )
+            .await?;
 
             let successful_tx_num: u64 = db_transactions.iter().map(|t| t.successful_tx_num).sum();
             (
@@ -257,6 +280,7 @@ impl PrimaryWorker {
                 db_tx_indices,
                 db_event_indices,
                 db_displays,
+                discoverability,
             )
         };
         let time_now_ms = chrono::Utc::now().timestamp_millis();
@@ -286,6 +310,8 @@ impl PrimaryWorker {
             object_versions,
             packages,
             epoch,
+            account_key_link_ops: discoverability.link_ops,
+            claimed_accounts: discoverability.claimed_accounts,
         })
     }
 
@@ -300,8 +326,10 @@ impl PrimaryWorker {
         Vec<TxIndex>,
         Vec<EventIndex>,
         BTreeMap<String, StoredDisplay>,
+        AccountDiscoverability,
     )> {
         let checkpoint_seq = checkpoint_summary.sequence_number();
+        let checkpoint_epoch = checkpoint_summary.epoch();
 
         let mut tx_seq_num_iter = checkpoint_contents
             .enumerate_transactions(checkpoint_summary)
@@ -320,6 +348,7 @@ impl PrimaryWorker {
         let mut db_displays = BTreeMap::new();
         let mut db_tx_indices = Vec::new();
         let mut db_event_indices = Vec::new();
+        let mut discoverability = AccountDiscoverability::default();
 
         for tx in transactions {
             // Unwrap safe - we checked they have equal length above
@@ -345,6 +374,22 @@ impl PrimaryWorker {
             db_events.extend(indexed_events);
             db_event_indices.extend(events_indices);
             db_displays.extend(stored_displays);
+
+            // Folded here rather than in index_transaction_components because
+            // this is the level that has the checkpoint epoch, and it keeps
+            // speculative pre-checkpoint transactions out of the index.
+            for event in tx.events.iter().flat_map(|events| events.0.iter()) {
+                discoverability.link_ops.extend(account_key_link_ops(
+                    event,
+                    tx_sequence_number,
+                    checkpoint_epoch,
+                ));
+                discoverability.claimed_accounts.extend(claimed_account_row(
+                    event,
+                    tx_sequence_number,
+                    checkpoint_epoch,
+                ));
+            }
         }
         Ok((
             db_transactions,
@@ -352,6 +397,7 @@ impl PrimaryWorker {
             db_tx_indices,
             db_event_indices,
             db_displays,
+            discoverability,
         ))
     }
 
