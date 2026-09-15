@@ -386,6 +386,13 @@ impl CheckpointExecutor {
 
         finish_stage!(pipeline_handle, BuildDbBatch);
 
+        // TODO: here we should write aux batch that contains sync ahead rows as well as
+        //  handler latest rows for transactions in this checkpoint - so that if a node
+        //  restarts, newly created and persisted objects are known to have been
+        // executed  by a transaction that was processed by a commit handler.
+        // This should  be done  holding the quarantine write lock so that we don't have
+        // a race with the handler comitting the ConsensuscommitOutput while we
+        // update it.
         let mut ckpt_state = tokio::task::spawn_blocking({
             let this = self.clone();
             move || {
