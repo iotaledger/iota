@@ -93,7 +93,7 @@ async fn publish_view_demo(
     // back from the store.
     let mut package_id = None;
     for object in &effects.created() {
-        let object_id = object.reference.object_id;
+        let object_id = object.reference().object_id;
         let stored = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await

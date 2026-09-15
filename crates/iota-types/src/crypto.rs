@@ -1036,8 +1036,8 @@ mod bcs_signable {
 
     pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
     impl BcsSignable for crate::committee::Committee {}
-    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointSummary {}
-    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointContents {}
+    impl BcsSignable for iota_sdk_types::CheckpointSummary {}
+    impl BcsSignable for iota_sdk_types::CheckpointContents {}
     #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 

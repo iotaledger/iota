@@ -74,7 +74,7 @@ pub(crate) struct CordialKnowledge {
     /// and AuthorityService
     cordial_knowledge_receiver: Receiver<CordialKnowledgeMessage>,
     /// Receives eviction rounds from DagState (latest-only).
-    eviction_rounds_receiver: tokio::sync::watch::Receiver<Vec<Round>>,
+    eviction_rounds_receiver: tokio::sync::watch::Receiver<EvictionRounds>,
     /// Latest round per author whose shards are useful to fetch from peers:
     /// we know of the block header but lack its payload. Global input from
     /// which each peer's shard requests are selected.
@@ -273,7 +273,7 @@ impl CordialKnowledge {
         Self,
         Vec<Arc<RwLock<ConnectionKnowledge>>>,
         Sender<CordialKnowledgeMessage>,
-        tokio::sync::watch::Sender<Vec<Round>>,
+        tokio::sync::watch::Sender<EvictionRounds>,
     ) {
         let num_authorities = context.committee.size();
 
@@ -283,7 +283,7 @@ impl CordialKnowledge {
             Receiver<CordialKnowledgeMessage>,
         ) = monitored_mpsc::channel("cordial_knowledge", CORDIAL_KNOWLEDGE_CHANNEL_CAPACITY);
         let (eviction_rounds_sender, eviction_rounds_receiver) =
-            tokio::sync::watch::channel(Vec::new());
+            tokio::sync::watch::channel(EvictionRounds::default());
 
         let mut connection_knowledges = Vec::with_capacity(num_authorities);
 
@@ -442,10 +442,10 @@ impl CordialKnowledge {
             return;
         }
         let evicted_rounds = self.eviction_rounds_receiver.borrow_and_update().clone();
-        if evicted_rounds.len() != self.context.committee.size() {
+        if evicted_rounds.headers.len() != self.context.committee.size() {
             warn!(
                 "Eviction rounds length {} does not match committee size {}; skipping eviction",
-                evicted_rounds.len(),
+                evicted_rounds.headers.len(),
                 self.context.committee.size()
             );
             return;
@@ -846,12 +846,12 @@ impl CordialKnowledge {
     /// Called when older rounds should be pruned globally.
     fn handle_evict_below(
         &mut self,
-        evicted_rounds: Vec<Round>,
+        evicted_rounds: EvictionRounds,
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         // Evict locally
         for (index, btree_map) in &mut self.cordial_knowledge.iter_mut().enumerate() {
             // Increase by 1 for splitting as the evicted rounds are gone from memory
-            let split_round = evicted_rounds[index] + 1;
+            let split_round = evicted_rounds.headers[index] + 1;
             // Remove everything strictly below this round
             *btree_map = btree_map.split_off(&split_round);
         }
@@ -862,7 +862,7 @@ impl CordialKnowledge {
     #[inline]
     fn prepare_evict_msgs(
         &self,
-        rounds: Vec<Round>,
+        rounds: EvictionRounds,
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
             Vec::with_capacity(self.cordial_knowledge.len());
@@ -1042,8 +1042,16 @@ pub enum ConnectionKnowledgeMessage {
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
         useful_shards_to_peer: BTreeMap<AuthorityIndex, Round>,
     },
-    /// Global eviction (prune below round)
-    EvictBelow(Vec<Round>),
+    /// Global eviction (prune at or below the rounds)
+    EvictBelow(EvictionRounds),
+}
+
+/// Rounds at or below which DagState evicted after a flush: headers per
+/// author, shards for all authors.
+#[derive(Clone, Debug, Default)]
+pub struct EvictionRounds {
+    pub headers: Vec<Round>,
+    pub shards: Round,
 }
 
 /// Manages the knowledge state for a single connection to a peer.
@@ -1220,7 +1228,10 @@ impl ConnectionKnowledge {
                 self.handle_remove_shard(gen_tx_ref);
             }
             ConnectionKnowledgeMessage::EvictBelow(rounds) => {
-                self.evict_below(rounds);
+                self.evict_below(rounds.headers);
+                for map in self.shards_not_known.iter_mut() {
+                    *map = map.split_off(&(rounds.shards + 1));
+                }
             }
             ConnectionKnowledgeMessage::SetUsefulHeadersFromPeer(authorities_with_round) => {
                 self.set_useful_headers_from(authorities_with_round);
@@ -1500,7 +1511,44 @@ mod tests {
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
+        transaction_ref::TransactionRef,
     };
+
+    /// Shard knowledge is pruned at the shard round, independently of the
+    /// per-author header rounds.
+    #[tokio::test]
+    async fn test_evict_below_prunes_shard_knowledge_at_shard_round() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let dag_state = Arc::new(RwLock::new(DagState::new(
+            context.clone(),
+            Arc::new(MemStore::new()),
+        )));
+        let mut connection_knowledge = ConnectionKnowledge::new(context.clone(), dag_state);
+        let author = AuthorityIndex::new_for_test(1);
+        for round in [3, 14, 15, 20] {
+            connection_knowledge.process_one_message(ConnectionKnowledgeMessage::NewShard {
+                gen_tx_ref: GenericTransactionRef::TransactionRef(TransactionRef {
+                    round,
+                    author,
+                    transactions_commitment: TransactionsCommitment::MIN,
+                }),
+            });
+        }
+
+        connection_knowledge.process_one_message(ConnectionKnowledgeMessage::EvictBelow(
+            EvictionRounds {
+                headers: vec![GENESIS_ROUND; context.committee.size()],
+                shards: 14,
+            },
+        ));
+
+        let remaining = connection_knowledge.shards_not_known[author]
+            .keys()
+            .copied()
+            .collect::<Vec<Round>>();
+        assert_eq!(remaining, vec![15, 20]);
+    }
 
     fn cordial_knowledge_for_test(
         validators: usize,

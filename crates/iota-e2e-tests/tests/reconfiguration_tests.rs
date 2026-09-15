@@ -18,9 +18,8 @@ use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, TransactionExpiration,
+    Address, GasCostSummary, TransactionExpiration,
     crypto::{Intent, IntentMessage, IntentScope},
-    gas::GasCostSummary,
 };
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
@@ -1119,7 +1118,7 @@ async fn safe_mode_reconfig_test() {
 
     let system_state = test_cluster
         .grpc_client()
-        .get_epoch(None, EpochField::BCS_SYSTEM_STATE)
+        .epoch(None, EpochField::BCS_SYSTEM_STATE)
         .await
         .unwrap()
         .into_inner()

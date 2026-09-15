@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, ObjectData, ObjectId};
+use iota_sdk_types::{Identifier, ObjectId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -52,15 +52,12 @@ impl StakedIota {
 impl TryFrom<&Object> for StakedIota {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if o.struct_tag().is_staked_iota() {
-                    return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
-                        error: format!("Unable to deserialize StakedIota object: {err:?}"),
-                    });
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if o.struct_tag().is_staked_iota() {
+                return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
+                    error: format!("Unable to deserialize StakedIota object: {err:?}"),
+                });
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

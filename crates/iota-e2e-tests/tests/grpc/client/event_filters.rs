@@ -99,7 +99,7 @@ async fn event_filter_scenarios() {
         let client = client.clone();
         async move {
             let mut stream = client
-                .stream_checkpoints(
+                .checkpoints_stream(
                     Some(0),
                     Some(latest_seq),
                     None,

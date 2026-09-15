@@ -17,8 +17,8 @@ use std::{
 };
 
 use iota_sdk_types::{
-    ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, TransactionEffects,
-    Version, WriteKind, move_package::MovePackage,
+    MovePackage, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
+    TransactionEffects, Version, WriteKind,
 };
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
@@ -571,7 +571,7 @@ pub fn get_transaction_input_objects(
     let input_object_keys = effects
         .modified_at_versions()
         .into_iter()
-        .map(|modified| ObjectKey(modified.object_id, modified.version))
+        .map(|modified| ObjectKey(*modified.object_id(), modified.version()))
         .collect::<Vec<_>>();
 
     let input_objects = object_store
@@ -598,7 +598,7 @@ pub fn get_transaction_output_objects(
     let output_object_keys = effects
         .all_changed_objects()
         .into_iter()
-        .map(|(changed, _kind)| ObjectKey::from(changed.reference))
+        .map(|(changed, _kind)| ObjectKey::from(*changed.reference()))
         .collect::<Vec<_>>();
 
     let output_objects = object_store
@@ -630,7 +630,7 @@ pub fn extend_input_objects_with_loaded_runtime_objects(
     let modified_at: BTreeMap<_, _> = effects
         .modified_at_versions()
         .into_iter()
-        .map(|modified| (modified.object_id, modified.version))
+        .map(|modified| (*modified.object_id(), modified.version()))
         .collect();
     for (id, metadata) in loaded_runtime_objects {
         if input_objects.contains_key(id) || modified_at.get(id) != Some(&metadata.version) {

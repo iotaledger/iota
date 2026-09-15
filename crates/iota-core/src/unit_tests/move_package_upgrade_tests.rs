@@ -13,8 +13,8 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
-    ObjectId, ObjectReference, OwnedObjectReference, Owner, PackageUpgradeError,
-    ProgrammableTransaction, StructTag, TransactionEffects,
+    ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
+    TransactionEffects,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -226,10 +226,10 @@ impl UpgradeStateRunner {
         let cap = effects
             .created()
             .into_iter()
-            .find(|created| matches!(created.owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner(), Owner::Address(_)))
             .unwrap();
 
-        (package, cap.reference)
+        (package, *cap.reference())
     }
 
     pub async fn upgrade(
@@ -280,7 +280,8 @@ impl UpgradeStateRunner {
         .unwrap();
 
         if let Some(updated_cap) = effects.mutated().into_iter().find_map(|mutated| {
-            (mutated.reference.object_id == self.upgrade_cap.object_id).then_some(mutated.reference)
+            (mutated.reference().object_id == self.upgrade_cap.object_id)
+                .then_some(*mutated.reference())
         }) {
             self.upgrade_cap = updated_cap;
         }
@@ -410,7 +411,9 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     let created = effects
         .created()
         .into_iter()
-        .find_map(|created| matches!(created.owner, Owner::Address(_)).then_some(created.reference))
+        .find_map(|created| {
+            matches!(*created.owner(), Owner::Address(_)).then_some(*created.reference())
+        })
         .unwrap();
 
     let b = runner
@@ -850,9 +853,9 @@ async fn test_multiple_upgrades(
     let package_v2 = effects
         .created()
         .into_iter()
-        .find(|created| matches!(created.owner, Owner::Immutable))
+        .find(|created| matches!(created.owner(), Owner::Immutable))
         .unwrap()
-        .reference
+        .reference()
         .object_id;
 
     // Second upgrade: May also adds a dep on the iota framework and stdlib.
@@ -914,12 +917,12 @@ async fn test_interleaved_upgrades() {
     let effects = runner.run(pt1).await;
     assert!(effects.status().is_success(), "{:#?}", effects.status());
 
-    let dep_v2_package = effects
+    let dep_v2_package = *effects
         .created()
         .into_iter()
-        .find(|created| matches!(created.owner, Owner::Immutable))
+        .find(|created| matches!(created.owner(), Owner::Immutable))
         .unwrap()
-        .reference;
+        .reference();
 
     let pt2 = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -981,12 +984,12 @@ async fn test_publish_override_happy_path() {
     let effects = runner.run(pt1).await;
     assert!(effects.status().is_success(), "{:#?}", effects.status());
 
-    let dep_v2_package = effects
+    let dep_v2_package = *effects
         .created()
         .into_iter()
-        .find(|created| matches!(created.owner, Owner::Immutable))
+        .find(|created| matches!(created.owner(), Owner::Immutable))
         .unwrap()
-        .reference;
+        .reference();
 
     // Publish P that depends on both `dep_on_upgrading_package` and
     // `stage1_basic_compatibility_valid` Dependency graph for dep_on_dep:
@@ -1127,12 +1130,12 @@ async fn test_publish_transitive_override_happy_path() {
     // Dependency graph: base(v1) <-- dep_on_upgrading_package
     //                   base(v2)
 
-    let base_v2_package = effects
+    let base_v2_package = *effects
         .created()
         .into_iter()
-        .find(|created| matches!(created.owner, Owner::Immutable))
+        .find(|created| matches!(created.owner(), Owner::Immutable))
         .unwrap()
-        .reference;
+        .reference();
 
     // publish a root package that depends on the dependent package and on version 2
     // of the base package (overriding base package dependency of the dependent
@@ -1236,7 +1239,9 @@ async fn test_upgraded_types_in_one_txn() {
     let created_b = effects
         .created()
         .into_iter()
-        .find_map(|created| matches!(created.owner, Owner::Address(_)).then_some(created.reference))
+        .find_map(|created| {
+            matches!(*created.owner(), Owner::Address(_)).then_some(*created.reference())
+        })
         .unwrap();
 
     // Create an instance of the type introduced at version 3 using function from
@@ -1253,12 +1258,9 @@ async fn test_upgraded_types_in_one_txn() {
     let created_c = effects
         .created()
         .into_iter()
-        .find_map(
-            |OwnedObjectReference {
-                 reference: c,
-                 owner,
-             }| matches!(owner, Owner::Address(_)).then_some(c),
-        )
+        .find_map(|created| {
+            matches!(created.owner(), Owner::Address(_)).then_some(*created.reference())
+        })
         .unwrap();
 
     // modify objects created of types introduced at versions 2 and 3 and emit
@@ -1307,9 +1309,9 @@ async fn test_different_versions_across_calls() {
     let package_v3 = effects
         .created()
         .into_iter()
-        .find(|created| matches!(created.owner, Owner::Immutable))
+        .find(|created| matches!(created.owner(), Owner::Immutable))
         .unwrap()
-        .reference
+        .reference()
         .object_id;
 
     // call the same function twice within the same block but from two different
@@ -1353,12 +1355,12 @@ async fn test_conflicting_versions_across_calls() {
     let effects = runner.run(pt1).await;
     assert!(effects.status().is_success(), "{:#?}", effects.status());
 
-    let base_v2_package = effects
+    let base_v2_package = *effects
         .created()
         .into_iter()
-        .find(|created| matches!(created.owner, Owner::Immutable))
+        .find(|created| matches!(created.owner(), Owner::Immutable))
         .unwrap()
-        .reference;
+        .reference();
 
     // publish a dependent package at version 2 that depends on the base package at
     // version 2
@@ -1399,12 +1401,12 @@ async fn test_conflicting_versions_across_calls() {
     let effects = runner.run(pt2).await;
     assert!(effects.status().is_success(), "{:#?}", effects.status());
 
-    let dependent_v2_package = effects
+    let dependent_v2_package = *effects
         .created()
         .into_iter()
-        .find(|created| matches!(created.owner, Owner::Immutable))
+        .find(|created| matches!(created.owner(), Owner::Immutable))
         .unwrap()
-        .reference;
+        .reference();
 
     // call the same function twice within the same block but from two different
     // module versions that differ only by having different dependencies

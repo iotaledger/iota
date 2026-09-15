@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use iota_sdk_types::{
-    ObjectId, ObjectReference, TransactionEffects, TransactionEvents, TransactionKind,
-    checkpoint::CheckpointContents,
+    CheckpointContents, ObjectId, ObjectReference, TransactionEffects, TransactionEvents,
+    TransactionKind,
 };
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
@@ -191,7 +191,7 @@ impl CheckpointTransaction {
             .all_changed_objects()
             .into_iter()
             .map(|(changed, _)| {
-                let object_id = changed.reference.object_id;
+                let object_id = changed.reference().object_id;
                 let object = self
                     .output_objects
                     .iter()
@@ -211,7 +211,7 @@ impl CheckpointTransaction {
             .into_iter()
             // Lookup Objects in output Objects as well as old versions for mutated objects
             .map(|created| {
-                let object_ref = created.reference;
+                let object_ref = created.reference();
                 self.output_objects
                     .iter()
                     .find(|o| o.id() == object_ref.object_id && o.version() == object_ref.version)

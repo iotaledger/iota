@@ -124,7 +124,7 @@ impl SimpleFaucet {
             GrpcClient::new(&config.fullnode_grpc_url).map_err(FaucetError::internal)?;
 
         let coins = grpc_client
-            .list_owned_objects(
+            .owned_objects(
                 active_address,
                 StructTag::new_gas_coin(),
                 None,
@@ -371,12 +371,12 @@ impl SimpleFaucet {
     async fn get_object(&self, object_id: ObjectId) -> anyhow::Result<Option<Object>> {
         let response = self
             .grpc_client
-            .get_objects([object_id], ObjectReadMask::default())
+            .objects([object_id], ObjectReadMask::default())
             .await?;
         match response.into_parts().0.into_iter().next() {
             Some(Ok(proto_object)) => Ok(Some(Object::from(proto_object.object()?))),
             // Per-item error: the object does not exist (anymore).
-            Some(Err(iota_grpc_client::Error::Server(status)))
+            Some(Err(iota_grpc_client::GrpcError::Server(status)))
                 if status.code == tonic::Code::NotFound as i32 =>
             {
                 Ok(None)
@@ -390,7 +390,7 @@ impl SimpleFaucet {
     async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectReference> {
         let response = self
             .grpc_client
-            .get_objects([object_id], ObjectField::REFERENCE)
+            .objects([object_id], ObjectField::REFERENCE)
             .await?;
         let proto_object = response
             .into_parts()
@@ -724,7 +724,7 @@ impl SimpleFaucet {
 
     async fn get_gas_price(&self) -> Result<u64, FaucetError> {
         self.grpc_client
-            .get_reference_gas_price()
+            .reference_gas_price()
             .await
             .map(|response| *response.body())
             .map_err(|e| FaucetError::FullnodeReading(format!("Error fetch gas price {e:?}")))
@@ -760,14 +760,12 @@ impl SimpleFaucet {
                 "PayIota Transaction should create exact {number_of_coins:?} new coins, but got {created:?}"
             )));
         }
-        assert!(
-            created.iter().all(
-                |owned_ref| matches!(owned_ref.owner, Owner::Address(addr) if addr == recipient)
-            )
-        );
+        assert!(created.iter().all(
+            |owned_ref| matches!(owned_ref.owner(), Owner::Address(addr) if *addr == recipient)
+        ));
         let coin_ids: Vec<ObjectId> = created
             .iter()
-            .map(|owned_ref| *owned_ref.reference.object_id())
+            .map(|owned_ref| *owned_ref.reference().object_id())
             .collect();
         Ok((digest, coin_ids))
     }
@@ -805,9 +803,9 @@ impl SimpleFaucet {
         created.iter().for_each(|owned_ref| {
             // Insert the coins into the map based on the destination address
             address_coins_map
-                .entry(*owned_ref.owner.address_or_object().unwrap())
+                .entry(*owned_ref.owner().address_or_object().unwrap())
                 .or_default()
-                .push(owned_ref.reference);
+                .push(*owned_ref.reference());
         });
 
         // Assert that the number of times a iota_address occurs is the number of times
@@ -1750,7 +1748,7 @@ mod tests {
         .await
         .unwrap();
 
-        let tiny_coin_id = effects.created()[0].reference.object_id;
+        let tiny_coin_id = *effects.created()[0].reference().object_id();
 
         // Get the latest list of gas
         let gas_coins = context.gas_objects(address).await.unwrap();

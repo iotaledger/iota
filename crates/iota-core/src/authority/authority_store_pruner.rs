@@ -13,9 +13,7 @@ use anyhow::anyhow;
 use bincode::Options;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{
-    CheckpointDigest, ObjectId, TransactionEffects, Version, checkpoint::CheckpointContents,
-};
+use iota_sdk_types::{CheckpointContents, CheckpointDigest, ObjectId, TransactionEffects, Version};
 use iota_types::{
     base_types::VersionNumber,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -243,7 +241,8 @@ impl AuthorityStorePruner {
         let mut object_tombstones_to_prune = vec![];
         for effects in &transaction_effects {
             for modified in effects.modified_at_versions() {
-                live_object_keys_to_prune.push(ObjectKey(modified.object_id, modified.version));
+                live_object_keys_to_prune
+                    .push(ObjectKey(*modified.object_id(), modified.version()));
             }
 
             for deleted_object_key in effects.all_tombstones() {

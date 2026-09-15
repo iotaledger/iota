@@ -18,8 +18,8 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Address, Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError,
-        ProgrammableTransaction, StructTag, TypeTag, move_package::MovePackage,
+        Address, Command, CommandArgumentError, Identifier, MovePackage, ObjectId,
+        PackageUpgradeError, ProgrammableTransaction, StructTag, TypeTag,
     };
     use iota_types::{
         auth_context,

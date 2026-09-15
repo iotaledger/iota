@@ -18,11 +18,10 @@ mod checked {
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
-        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction,
+        Identifier, MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
         SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
         TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
-        gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;

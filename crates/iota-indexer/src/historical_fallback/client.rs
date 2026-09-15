@@ -11,8 +11,8 @@ use futures::{
     stream::{self, StreamExt},
 };
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
-    Version, checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
