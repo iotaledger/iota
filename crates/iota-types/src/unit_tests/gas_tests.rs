@@ -34,4 +34,23 @@ fn check_gas_balance_bounds_the_budget_only_when_asked() {
         Err(UserInputError::GasBudgetTooLow { .. })
     ));
     assert!(status.check_gas_balance(&gas_objs, 0, false).is_ok());
+
+    let over_budget = config.max_tx_gas() + 1;
+    let funded_gas_object =
+        Object::new_gas_with_balance_and_owner_for_testing(over_budget, Address::random());
+    let funded_read = ObjectReadResult::new(
+        InputObjectKind::ImmOrOwnedMoveObject(funded_gas_object.object_ref()),
+        funded_gas_object.into(),
+    );
+    let funded_gas_objs = [&funded_read];
+
+    assert!(matches!(
+        status.check_gas_balance(&funded_gas_objs, over_budget, true),
+        Err(UserInputError::GasBudgetTooHigh { .. })
+    ));
+    assert!(
+        status
+            .check_gas_balance(&funded_gas_objs, over_budget, false)
+            .is_ok()
+    );
 }
