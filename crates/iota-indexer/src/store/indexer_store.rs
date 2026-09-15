@@ -15,6 +15,8 @@ use crate::{
         primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
     },
     models::{
+        account_key_links::StoredAccountKeyLink,
+        claimed_accounts::StoredClaimedAccount,
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
@@ -63,6 +65,19 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     ) -> Result<(), IndexerError>;
 
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
+
+    /// Upserts the key->account links folded from the discoverability event
+    /// stream. Not prunable: see [`crate::pruning::pruner::PrunableTable`].
+    async fn persist_account_key_links(
+        &self,
+        links: Vec<StoredAccountKeyLink>,
+    ) -> Result<(), IndexerError>;
+
+    /// Upserts the accounts created by a `ClaimAccount` transaction.
+    async fn persist_claimed_accounts(
+        &self,
+        claimed_accounts: Vec<StoredClaimedAccount>,
+    ) -> Result<(), IndexerError>;
 
     async fn persist_event_indices(
         &self,
