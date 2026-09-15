@@ -7,8 +7,13 @@
 //! Objects and chain parameters are resolved on demand from the active env's
 //! gRPC endpoint; execution itself happens in-process, against the same Move
 //! engine a node uses. The result is assembled into the same
-//! [`DryRunTransactionBlockResponse`] the node returns, so the rendered output
-//! matches the node-backed path.
+//! [`DryRunTransactionBlockResponse`] the node returns, so it renders through
+//! the same display code.
+//!
+//! Two checks a validator applies are out of reach here, so a transaction a
+//! node's dry run rejects can still succeed locally: the operator's
+//! transaction deny-list, and the network's signing verifier limits — this
+//! runs with an empty deny-list and the default limits.
 
 use anyhow::{Context, Result, anyhow};
 use iota_json_rpc_types::{
@@ -17,7 +22,9 @@ use iota_json_rpc_types::{
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{Address, ObjectReference, Transaction, TransactionKind};
 use iota_types::{
-    effects::TransactionEffectsAPI, gas::get_gas_balance, transaction::TransactionAPI,
+    effects::TransactionEffectsAPI,
+    gas::{get_gas_balance, report_simulation_gas},
+    transaction::TransactionAPI,
 };
 use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, grpc::GrpcStore};
 
@@ -83,17 +90,18 @@ pub(crate) async fn execute_local_dry_run(
         sponsor.unwrap_or(signer),
     );
 
-    let result = vm.execute(tx_data, ExecuteOptions::dry_run())?;
-    let response = dry_run_response(&vm, result)?;
-    Ok(IotaClientCommandResult::DryRun(response)
+    let result = vm.execute(tx_data.clone(), ExecuteOptions::dry_run())?;
+    let response = dry_run_response(&vm, tx_data, result)?;
+    IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
-        .await)
+        .await
 }
 
 /// Assemble a [`DryRunTransactionBlockResponse`] from a local run, resolving
 /// Move layouts from the packages the run wrote and those in the VM's store.
 fn dry_run_response(
     vm: &LocalVm,
+    mut tx_data: Transaction,
     mut result: ExecutionResult,
 ) -> Result<DryRunTransactionBlockResponse> {
     let tx_digest = *result.effects.transaction_digest();
@@ -102,9 +110,6 @@ fn dry_run_response(
         .execution_error
         .as_ref()
         .and_then(|error| error.source().as_ref().map(|source| source.to_string()));
-    // Both change sets are derived from the effects, so they come out in a
-    // different order than the node reports them in. Consumers that compare
-    // the two backends have to sort first.
     let object_changes = result
         .object_changes()?
         .into_iter()
@@ -123,11 +128,15 @@ fn dry_run_response(
     let events = IotaTransactionBlockEvents::try_from_using_module_resolver(
         raw_events, tx_digest, None, &resolver,
     )?;
-    let input = IotaTransactionBlockData::try_from_with_module_cache(
-        result.transaction.clone(),
-        &resolver,
-        tx_digest,
-    )?;
+    // Report the gas the run used in place of whatever the caller left unset,
+    // as the node does before it builds the response's input.
+    report_simulation_gas(
+        tx_data.gas_data_mut(),
+        result.transaction.gas_data(),
+        result.effects.gas_cost_summary().gas_used(),
+    );
+    let input =
+        IotaTransactionBlockData::try_from_with_module_cache(tx_data, &resolver, tx_digest)?;
 
     let ExecutionResult {
         effects,
@@ -141,7 +150,10 @@ fn dry_run_response(
         object_changes,
         balance_changes,
         input,
-        suggested_gas_price,
+        // Congestion is only observable on a node, so where the SDK withholds
+        // a suggestion report the reference gas price — what a node suggests
+        // when nothing is congested.
+        suggested_gas_price: Some(suggested_gas_price.unwrap_or_else(|| vm.reference_gas_price())),
         execution_error_source,
     })
 }

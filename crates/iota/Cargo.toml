@@ -135,9 +135,4 @@ iota-names = [
   "dep:iota-names",
   "iota-sdk/iota-names",
 ]
-tracing = [
-  "iota-types/tracing",
-  "iota-execution/tracing",
-  "iota-move/tracing",
-  "iota-vm-sdk/tracing",
-]
+tracing = ["iota-types/tracing", "iota-execution/tracing", "iota-move/tracing"]
