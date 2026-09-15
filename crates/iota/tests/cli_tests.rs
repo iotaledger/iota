@@ -30,11 +30,10 @@ use iota::{
 use iota_config::IOTA_CLIENT_CONFIG;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    BalanceChange, IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery,
-    IotaRawData, IotaTransactionBlockDataAPI, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, ObjectChange, OwnedObjectRef,
-    get_new_package_obj_from_response,
+    IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseError, IotaObjectResponseQuery, IotaRawData,
+    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    ObjectChange, OwnedObjectRef, get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
@@ -4475,6 +4474,10 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
 
 /// Point the wallet's active env at the cluster's own gRPC endpoint, which
 /// `--local` needs to resolve objects.
+///
+/// This and everything else gated the same way stay off under the simulator:
+/// resolving an object blocks the calling thread, which needs a real
+/// multi-threaded runtime.
 #[cfg(not(msim))]
 fn point_env_at_grpc(test_cluster: &mut TestCluster) -> Result<(), anyhow::Error> {
     let grpc_url = test_cluster.grpc_url();
@@ -4485,17 +4488,19 @@ fn point_env_at_grpc(test_cluster: &mut TestCluster) -> Result<(), anyhow::Error
     Ok(())
 }
 
-/// Object changes in a comparable order: the two dry-run backends may report
-/// them in different orders.
+/// Object changes in a fixed order, so an assertion does not depend on the
+/// order the backends happen to derive them in.
 #[cfg(not(msim))]
 fn sorted_by_object_id(mut changes: Vec<ObjectChange>) -> Vec<ObjectChange> {
     changes.sort_by_key(|change| change.object_id());
     changes
 }
 
-/// Balance changes in a comparable order, for the same reason.
+/// Balance changes in a fixed order, for the same reason.
 #[cfg(not(msim))]
-fn sorted_by_owner_and_coin(mut changes: Vec<BalanceChange>) -> Vec<BalanceChange> {
+fn sorted_by_owner_and_coin(
+    mut changes: Vec<iota_json_rpc_types::BalanceChange>,
+) -> Vec<iota_json_rpc_types::BalanceChange> {
     changes.sort_by_key(|change| (change.owner, change.coin_type.clone()));
     changes
 }
@@ -4628,6 +4633,96 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
             local_failed.execution_error_source
         );
 
+        // Without a budget both paths fall back to the balance of the gas
+        // coins they were given, so the budget they report must agree.
+        let unbudgeted_transfer = |local: bool| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs::default(),
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                ..Default::default()
+            },
+        };
+        let (
+            IotaClientCommandResult::DryRun(node_unbudgeted),
+            IotaClientCommandResult::DryRun(local_unbudgeted),
+        ) = (
+            unbudgeted_transfer(false).execute(context).await?,
+            unbudgeted_transfer(true).execute(context).await?,
+        )
+        else {
+            panic!("expected DryRun results");
+        };
+        assert_eq!(
+            *node_unbudgeted.effects.status(),
+            IotaExecutionStatus::Success
+        );
+        assert_eq!(node_unbudgeted.input, local_unbudgeted.input);
+        assert_eq!(node_unbudgeted.effects, local_unbudgeted.effects);
+
+        // A budget of zero asks both paths to report the gas the run used.
+        let estimating_transfer = |local: bool| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(0),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                ..Default::default()
+            },
+        };
+        let (
+            IotaClientCommandResult::DryRun(node_estimating),
+            IotaClientCommandResult::DryRun(local_estimating),
+        ) = (
+            estimating_transfer(false).execute(context).await?,
+            estimating_transfer(true).execute(context).await?,
+        )
+        else {
+            panic!("expected DryRun results");
+        };
+        assert_eq!(node_estimating.input, local_estimating.input);
+        assert_eq!(
+            node_estimating.input.gas_data().budget,
+            node_estimating.effects.gas_cost_summary().gas_used(),
+            "a zero budget must be reported as the gas the run used"
+        );
+
+        // With no gas coin of its own each path funds the run with a coin of
+        // its own making, and must still report the same run.
+        let gasless_transfer = |local: bool| IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs::default(),
+            gas_data: GasDataArgs::default(),
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                sender: Some(address),
+                ..Default::default()
+            },
+        };
+        let (
+            IotaClientCommandResult::DryRun(node_gasless),
+            IotaClientCommandResult::DryRun(local_gasless),
+        ) = (
+            gasless_transfer(false).execute(context).await?,
+            gasless_transfer(true).execute(context).await?,
+        )
+        else {
+            panic!("expected DryRun results");
+        };
+        assert_eq!(*node_gasless.effects.status(), IotaExecutionStatus::Success);
+        assert_eq!(node_gasless.effects, local_gasless.effects);
+        assert_eq!(node_gasless.input, local_gasless.input);
+
         // --local is a dry-run option only.
         let err = IotaClientCommands::Transfer {
             to: KeyIdentity::Address(recipient),
@@ -4635,6 +4730,24 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
             payment: PaymentArgs { gas: vec![gas_id] },
             gas_data: GasDataArgs::default(),
             processing: TxProcessingArgs {
+                local: true,
+                ..Default::default()
+            },
+        }
+        .execute(context)
+        .await
+        .unwrap_err();
+        assert!(err.to_string().contains("--local"));
+
+        // ... and does not carry over to a dev inspect.
+        let err = IotaClientCommands::Transfer {
+            to: KeyIdentity::Address(recipient),
+            object_id: object_to_send,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs::default(),
+            processing: TxProcessingArgs {
+                dry_run: true,
+                dev_inspect: true,
                 local: true,
                 ..Default::default()
             },
@@ -4758,6 +4871,226 @@ async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result
             sorted_by_owner_and_coin(node_receive.balance_changes),
             sorted_by_owner_and_coin(local_receive.balance_changes)
         );
+
+        Ok(())
+    })
+    .await
+}
+
+// A mutable shared input is what makes a node price in congestion, and a
+// package published by the run itself is the one case whose types cannot be
+// resolved from the store. Needs a real multi-threaded runtime, as
+// `test_local_dry_run_matches_node_dry_run` does.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
+-> Result<(), anyhow::Error> {
+    Box::pin(async move {
+        let mut test_cluster = TestClusterBuilder::new()
+            .with_num_validators(2)
+            .build()
+            .await;
+        let rgp = test_cluster.get_reference_gas_price().await;
+        let address = test_cluster.get_address_0();
+        point_env_at_grpc(&mut test_cluster)?;
+        let context = &mut test_cluster.wallet;
+
+        let client = context.get_client().await?;
+        let gas_id = client
+            .read_api()
+            .get_owned_objects(address, None, None, None)
+            .await?
+            .data
+            .first()
+            .unwrap()
+            .object()
+            .unwrap()
+            .object_id;
+
+        let mut package_path = PathBuf::from(TEST_DATA_DIR);
+        package_path.push("sod");
+        let publish = |dry_run: bool, local: bool| IotaClientCommands::Publish {
+            package_path: package_path.clone(),
+            build_config: BuildConfig::new_for_testing().config,
+            skip_dependency_verification: false,
+            verify_deps: true,
+            with_unpublished_dependencies: false,
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs {
+                dry_run,
+                local,
+                ..Default::default()
+            },
+        };
+
+        // A dry run leaves the package it publishes uncommitted, so its types
+        // resolve only through the run's own output.
+        let (
+            IotaClientCommandResult::DryRun(node_publish),
+            IotaClientCommandResult::DryRun(local_publish),
+        ) = (
+            publish(true, false).execute(context).await?,
+            publish(true, true).execute(context).await?,
+        )
+        else {
+            panic!("expected DryRun results");
+        };
+        assert_eq!(*node_publish.effects.status(), IotaExecutionStatus::Success);
+        assert_eq!(node_publish.effects, local_publish.effects);
+        assert_eq!(node_publish.events, local_publish.events);
+        assert_eq!(
+            sorted_by_object_id(node_publish.object_changes),
+            sorted_by_object_id(local_publish.object_changes)
+        );
+
+        let IotaClientCommandResult::TransactionBlock(publish_response) =
+            publish(false, false).execute(context).await?
+        else {
+            panic!("expected a TransactionBlock result");
+        };
+        let package_id = publish_response
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .find(|OwnedObjectRef { owner, .. }| owner == &Owner::Immutable)
+            .expect("must find the published package")
+            .reference
+            .object_id;
+
+        let IotaClientCommandResult::TransactionBlock(start_response) = IotaClientCommands::Call {
+            package: package_id,
+            module: "sod".to_string(),
+            function: "start".to_string(),
+            type_args: vec![],
+            args: vec![],
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs::default(),
+        }
+        .execute(context)
+        .await?
+        else {
+            panic!("expected a TransactionBlock result");
+        };
+        let shared_id = start_response.effects.unwrap().created()[0]
+            .reference
+            .object_id;
+
+        // `delete` takes the shared object by value, so the transaction has a
+        // mutable shared input.
+        let delete = |local: bool| IotaClientCommands::Call {
+            package: package_id,
+            module: "sod".to_string(),
+            function: "delete".to_string(),
+            type_args: vec![],
+            args: vec![IotaJsonValue::from_str(&shared_id.to_string()).unwrap()],
+            payment: PaymentArgs { gas: vec![gas_id] },
+            gas_data: GasDataArgs {
+                gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs {
+                dry_run: true,
+                local,
+                ..Default::default()
+            },
+        };
+        let (
+            IotaClientCommandResult::DryRun(node_delete),
+            IotaClientCommandResult::DryRun(local_delete),
+        ) = (
+            delete(false).execute(context).await?,
+            delete(true).execute(context).await?,
+        )
+        else {
+            panic!("expected DryRun results");
+        };
+        assert_eq!(*node_delete.effects.status(), IotaExecutionStatus::Success);
+        assert_eq!(node_delete.effects, local_delete.effects);
+        assert_eq!(
+            sorted_by_object_id(node_delete.object_changes),
+            sorted_by_object_id(local_delete.object_changes)
+        );
+        assert_eq!(
+            sorted_by_owner_and_coin(node_delete.balance_changes),
+            sorted_by_owner_and_coin(local_delete.balance_changes)
+        );
+        assert_eq!(
+            local_delete.suggested_gas_price, node_delete.suggested_gas_price,
+            "an uncongested chain suggests the reference gas price either way"
+        );
+
+        Ok(())
+    })
+    .await
+}
+
+// The PTB command reaches the local path through its own parser rather than
+// clap. Needs a real multi-threaded runtime, as
+// `test_local_dry_run_matches_node_dry_run` does.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
+    Box::pin(async move {
+        let mut test_cluster = TestClusterBuilder::new()
+            .with_num_validators(2)
+            .build()
+            .await;
+        let rgp = test_cluster.get_reference_gas_price().await;
+        point_env_at_grpc(&mut test_cluster)?;
+        let context = &mut test_cluster.wallet;
+
+        let ptb = |extra: &str| {
+            let args = shlex::split(&format!(
+                "--split-coins gas [1000] --assign coins --transfer-objects [coins.0] @{} \
+                 --gas-budget {} {extra}",
+                Address::random(),
+                rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+            ))
+            .unwrap();
+            iota::client_ptb::ptb::PTB {
+                args,
+                display: HashSet::new(),
+            }
+        };
+
+        let PTBCommandResult::CommandResult(node_result) =
+            ptb("--dry-run").execute(context).await?
+        else {
+            panic!("expected a dry-run result");
+        };
+        let PTBCommandResult::CommandResult(local_result) =
+            ptb("--dry-run --local").execute(context).await?
+        else {
+            panic!("expected a dry-run result");
+        };
+        let (
+            IotaClientCommandResult::DryRun(node_response),
+            IotaClientCommandResult::DryRun(local_response),
+        ) = (*node_result, *local_result)
+        else {
+            panic!("expected DryRun results");
+        };
+        assert_eq!(
+            *node_response.effects.status(),
+            IotaExecutionStatus::Success
+        );
+        assert_eq!(node_response.effects, local_response.effects);
+        assert_eq!(node_response.input, local_response.input);
+
+        // The PTB parser accepts --local on its own; the command rejects it.
+        let Err(err) = ptb("--local").execute(context).await else {
+            panic!("--local without --dry-run must be rejected");
+        };
+        assert!(err.to_string().contains("--local"));
 
         Ok(())
     })
