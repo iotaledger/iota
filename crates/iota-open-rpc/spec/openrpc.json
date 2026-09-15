@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 35
+              "value": 36
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "35",
-              "protocolVersion": "35",
+              "maxSupportedProtocolVersion": "36",
+              "protocolVersion": "36",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1327,6 +1327,8 @@
                 "dependency_linkage_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
+                "enable_builtin_move_authenticators": true,
+                "enable_claim_account_transaction": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
@@ -1488,6 +1490,9 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
+                "builtin_move_authenticator_cost_base": {
+                  "u64": "0"
+                },
                 "check_zklogin_id_cost_base": null,
                 "check_zklogin_issuer_cost_base": null,
                 "checkpoint_rate_window_size": {
@@ -1606,6 +1611,9 @@
                 "ecdsa_k1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_k1_secp256k1_validate_pubkey_cost_base": {
+                  "u64": "52"
+                },
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
                   "u64": "1470"
                 },
@@ -1642,6 +1650,9 @@
                 "ecdsa_r1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_r1_secp256r1_validate_pubkey_cost_base": {
+                  "u64": "52"
+                },
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
                   "u64": "4225"
                 },
@@ -1668,6 +1679,9 @@
                 },
                 "ecvrf_ecvrf_verify_cost_base": {
                   "u64": "4848"
+                },
+                "ed25519_ed25519_validate_pubkey_cost_base": {
+                  "u64": "52"
                 },
                 "ed25519_ed25519_verify_cost_base": {
                   "u64": "1802"
@@ -2069,6 +2083,18 @@
                 "move_binary_format_version": {
                   "u32": "7"
                 },
+                "multisig_multisig_validate_pubkey_cost_base": {
+                  "u64": "52"
+                },
+                "multisig_multisig_validate_pubkey_cost_per_ed25519_member": {
+                  "u64": "52"
+                },
+                "multisig_multisig_validate_pubkey_cost_per_secp256k1_member": {
+                  "u64": "52"
+                },
+                "multisig_multisig_validate_pubkey_cost_per_secp256r1_member": {
+                  "u64": "52"
+                },
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
                 },
@@ -2119,6 +2145,9 @@
                 },
                 "poseidon_bn254_cost_per_block": {
                   "u64": "388"
+                },
+                "public_key_to_iota_address_impl_cost_base": {
+                  "u64": "52"
                 },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
@@ -3403,6 +3432,42 @@
         "required": true,
         "schema": {
           "$ref": "#/components/schemas/IotaMoveViewCallResults"
+        }
+      }
+    },
+    {
+      "name": "iotax_getAccountsByPublicKey",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the accounts controlled by the given public key, folded from the on-chain account-discoverability event stream (`SmartAccountClaimed`, `PublicKeyAttached`, `PublicKeyRotated`, `PublicKeyDetached`).\n\nResults are not authenticated by this call: anyone can create an account and attach someone else's public key to it. Use the `claimed` flag to tell accounts the key holder created for themselves from accounts someone else created with their key, or verify a returned account on chain.\n\nExclusively served by the indexer.",
+      "params": [
+        {
+          "name": "public_key",
+          "description": "Base64 of the scheme-flag-prefixed public key bytes (`flag || raw key bytes`).",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Base64"
+          }
+        },
+        {
+          "name": "include_unlinked",
+          "description": "Whether to also return links rotated away from or detached (default false).",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "Vec<AccountKeyLink>",
+        "required": true,
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AccountKeyLink"
+          }
         }
       }
     },
@@ -6131,6 +6196,106 @@
   ],
   "components": {
     "schemas": {
+      "AccountKeyLink": {
+        "description": "An account a public key controls, or used to control, as folded from the on-chain account-discoverability event stream.",
+        "type": "object",
+        "required": [
+          "address",
+          "claimed",
+          "lastChangeEpoch",
+          "scheme",
+          "source",
+          "status"
+        ],
+        "properties": {
+          "address": {
+            "description": "The account's address.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Address"
+              }
+            ]
+          },
+          "claimed": {
+            "description": "Whether the account was created by a `ClaimAccount` transaction, rather than by someone attaching this key to an account they created. Only a claimed account is one the key holder made for themselves.",
+            "type": "boolean"
+          },
+          "immutable": {
+            "description": "Whether a claimed account was frozen at creation, so that its links can never change. `None` for an account that was not claimed, where the property is unknown rather than false.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lastChangeEpoch": {
+            "description": "The epoch of the last change to this link.",
+            "type": "string"
+          },
+          "scheme": {
+            "description": "The signature scheme flag of the key, as recorded on chain. Not resolved to a named scheme: a link stays indexable under a flag this build does not recognize.",
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          },
+          "source": {
+            "description": "How the link came about.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountKeyLinkSource"
+              }
+            ]
+          },
+          "status": {
+            "description": "Whether the link is current. An unlinked account is one the key was rotated away from or detached from; it is only returned when the query asks for unlinked results.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountKeyLinkStatus"
+              }
+            ]
+          }
+        }
+      },
+      "AccountKeyLinkSource": {
+        "description": "What established an [`AccountKeyLink`].",
+        "oneOf": [
+          {
+            "description": "The key was attached to an account that already existed.",
+            "type": "string",
+            "enum": [
+              "attach"
+            ]
+          },
+          {
+            "description": "The account rotated onto, or away from, this key.",
+            "type": "string",
+            "enum": [
+              "rotate"
+            ]
+          },
+          {
+            "description": "The key was detached from the account.",
+            "type": "string",
+            "enum": [
+              "detach"
+            ]
+          },
+          {
+            "description": "The account was created by claiming the address this key derives.",
+            "type": "string",
+            "enum": [
+              "claim"
+            ]
+          }
+        ]
+      },
+      "AccountKeyLinkStatus": {
+        "description": "Whether an [`AccountKeyLink`] is current.",
+        "type": "string",
+        "enum": [
+          "active",
+          "unlinked"
+        ]
+      },
       "Address": {
         "description": "IOTA address as a hex string",
         "type": "string",
@@ -7620,6 +7785,51 @@
           }
         ]
       },
+      "IotaAccountClaimKind": {
+        "description": "The type of account created by an `IotaClaimAccountTransaction`.",
+        "oneOf": [
+          {
+            "description": "Parameters the claimed `SmartAccount` was created with.",
+            "type": "object",
+            "required": [
+              "build_kind",
+              "public_key_raw_bytes",
+              "public_key_scheme",
+              "type"
+            ],
+            "properties": {
+              "build_kind": {
+                "description": "Whether the created account object is mutable or immutable.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IotaSmartAccountBuildKind"
+                  }
+                ]
+              },
+              "public_key_raw_bytes": {
+                "description": "Raw public key bytes of the claimed address, without the scheme flag prefix. For MultiSig this is a BCS-encoded multisig public key.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Base64"
+                  }
+                ]
+              },
+              "public_key_scheme": {
+                "description": "Signature scheme flag of the public key of the claimed address (0=Ed25519, 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).",
+                "type": "integer",
+                "format": "uint8",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "smartAccount"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
         "oneOf": [
@@ -8687,6 +8897,14 @@
           }
         }
       },
+      "IotaSmartAccountBuildKind": {
+        "description": "Whether a claimed account object can be changed after the claim.",
+        "type": "string",
+        "enum": [
+          "Mutable",
+          "Immutable"
+        ]
+      },
       "IotaSystemStateSummary": {
         "description": "This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent either V1 or V2 system state objects.",
         "oneOf": [
@@ -9384,7 +9602,7 @@
         ]
       },
       "IotaTransactionKind": {
-        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` and `ClaimAccount` are considered system transactions.",
         "oneOf": [
           {
             "type": "string",
@@ -9394,7 +9612,8 @@
               "ConsensusCommitPrologueV1",
               "RandomnessStateUpdate",
               "EndOfEpochTransaction",
-              "TransactionDenyRulesUpdate"
+              "TransactionDenyRulesUpdate",
+              "ClaimAccount"
             ]
           },
           {
@@ -11813,6 +12032,30 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
+              }
+            }
+          },
+          {
+            "description": "A transaction that claims an on-chain account object",
+            "type": "object",
+            "required": [
+              "account_kind",
+              "kind"
+            ],
+            "properties": {
+              "account_kind": {
+                "description": "The type of account created by the claim.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IotaAccountClaimKind"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ClaimAccount"
+                ]
               }
             }
           }

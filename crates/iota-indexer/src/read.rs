@@ -67,8 +67,10 @@ use crate::{
     historical_fallback::reader::HistoricalFallbackReader,
     ingestion::common::persist::CommitterTables,
     models::{
+        account_key_links::{LINK_STATUS_ACTIVE, StoredAccountKeyLink},
         address_metrics::StoredAddressMetrics,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint},
+        claimed_accounts::StoredClaimedAccount,
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
@@ -86,9 +88,9 @@ use crate::{
     },
     pruning::watermark_task::WatermarkCache,
     schema::{
-        address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
-        objects, objects_version, optimistic_transactions, packages, pruner_cp_watermark,
-        transactions, tx_global_order,
+        account_key_links, address_metrics, addresses, chain_identifier, checkpoints,
+        claimed_accounts, display, epochs, events, objects, objects_version,
+        optimistic_transactions, packages, pruner_cp_watermark, transactions, tx_global_order,
     },
     store::{
         diesel_macro::{mark_in_blocking_pool, *},
@@ -361,6 +363,42 @@ impl IndexerReader {
 
         let object = stored_package.try_into()?;
         Ok(Some(object))
+    }
+
+    /// The accounts `key_id` controls, newest change first, each paired with
+    /// its claim record if it has one.
+    fn get_accounts_by_key_id(
+        &self,
+        key_id: Vec<u8>,
+        include_unlinked: bool,
+    ) -> Result<Vec<(StoredAccountKeyLink, Option<StoredClaimedAccount>)>, IndexerError> {
+        run_query!(&self.pool, |conn| {
+            let mut query = account_key_links::table
+                .left_join(
+                    claimed_accounts::table
+                        .on(claimed_accounts::account_id.eq(account_key_links::account_id)),
+                )
+                .filter(account_key_links::key_id.eq(key_id.clone()))
+                .select((
+                    StoredAccountKeyLink::as_select(),
+                    Option::<StoredClaimedAccount>::as_select(),
+                ))
+                .order(account_key_links::last_change_tx_sequence_number.desc())
+                .into_boxed();
+            if !include_unlinked {
+                query = query.filter(account_key_links::status.eq(LINK_STATUS_ACTIVE));
+            }
+            query.load(conn)
+        })
+    }
+
+    pub async fn get_accounts_by_key_id_in_blocking_task(
+        &self,
+        key_id: Vec<u8>,
+        include_unlinked: bool,
+    ) -> Result<Vec<(StoredAccountKeyLink, Option<StoredClaimedAccount>)>, IndexerError> {
+        self.spawn_blocking(move |this| this.get_accounts_by_key_id(key_id, include_unlinked))
+            .await
     }
 
     pub async fn get_object_in_blocking_task(

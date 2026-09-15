@@ -2,9 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::encoding::Base64;
 use iota_json_rpc_types::{
-    AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
-    NetworkMetrics, Page, ParticipationMetrics,
+    AccountKeyLink, AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage,
+    MoveCallMetrics, NetworkMetrics, Page, ParticipationMetrics,
+    iota_primitives::Base64 as Base64Schema,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::iota_serde::BigInt;
@@ -48,6 +50,29 @@ pub trait ExtendedApi {
     /// Return current epoch info. Exclusively served by the indexer.
     #[method(name = "getCurrentEpoch")]
     async fn get_current_epoch(&self) -> RpcResult<EpochInfo>;
+
+    /// Return the accounts controlled by the given public key, folded from the
+    /// on-chain account-discoverability event stream (`SmartAccountClaimed`,
+    /// `PublicKeyAttached`, `PublicKeyRotated`, `PublicKeyDetached`).
+    ///
+    /// Results are not authenticated by this call: anyone can create an account
+    /// and attach someone else's public key to it. Use the `claimed` flag to
+    /// tell accounts the key holder created for themselves from accounts
+    /// someone else created with their key, or verify a returned account on
+    /// chain.
+    ///
+    /// Exclusively served by the indexer.
+    #[method(name = "getAccountsByPublicKey")]
+    async fn get_accounts_by_public_key(
+        &self,
+        /// Base64 of the scheme-flag-prefixed public key bytes (`flag || raw
+        /// key bytes`).
+        #[schemars(with = "Base64Schema")]
+        public_key: Base64,
+        /// Whether to also return links rotated away from or detached (default
+        /// false).
+        include_unlinked: Option<bool>,
+    ) -> RpcResult<Vec<AccountKeyLink>>;
 
     /// Return Network metrics. Exclusively served by the indexer.
     #[method(name = "getNetworkMetrics")]
