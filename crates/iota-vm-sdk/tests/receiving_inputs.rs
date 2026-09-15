@@ -168,6 +168,31 @@ fn dry_run_rejects_wrong_receiving_digest() {
     );
 }
 
+/// Dev-inspect skips the receiving sign-time checks, matching the node: a
+/// wrong digest is not rejected up front.
+#[test]
+fn dev_inspect_accepts_a_wrong_receiving_digest() {
+    let sender = Address::ZERO;
+    let (mut vm, gas, receivable_ref) = vm_with_receivable_coin(sender, ObjectId::random());
+
+    let wrong_digest_ref = ObjectReference::new(
+        receivable_ref.object_id,
+        receivable_ref.version,
+        iota_sdk_types::ObjectDigest::ZERO,
+    );
+    let result = vm
+        .execute(
+            tx_with_receiving_input(sender, &gas, wrong_digest_ref),
+            ExecuteOptions::dev_inspect(),
+        )
+        .expect("dev-inspect must not reject a wrong receiving digest up front");
+    assert!(
+        result.status.is_success(),
+        "the receiving input is unused, so the run must succeed, got {:?}",
+        result.status
+    );
+}
+
 /// Dev-inspect skips the receiving sign-time checks, matching the node: an
 /// outdated reference is not rejected up front — a failure would only surface
 /// when the receive is executed, which resolves at the declared version.
@@ -335,6 +360,82 @@ fn both_modes_reject_receiving_a_package() {
                 error,
                 UserInputError::MovePackageAsObject { object_id } if *object_id == ObjectId::FRAMEWORK
             )
+        });
+    }
+}
+
+/// A receiving reference to an object that is not address-owned is rejected
+/// under both modes: only an address-owned object can be received.
+#[test]
+fn both_modes_reject_receiving_an_object_that_is_not_address_owned() {
+    struct Case {
+        label: &'static str,
+        owner: Owner,
+        expected: fn(&UserInputError) -> bool,
+    }
+
+    let cases = [
+        Case {
+            label: "a child object",
+            owner: Owner::Object(ObjectId::random()),
+            expected: |error| matches!(error, UserInputError::InvalidChildObjectArgument { .. }),
+        },
+        Case {
+            label: "a shared object",
+            owner: Owner::Shared(Version::from(1)),
+            expected: |error| matches!(error, UserInputError::NotSharedObject),
+        },
+        Case {
+            label: "an immutable object",
+            owner: Owner::Immutable,
+            expected: |error| matches!(error, UserInputError::MutableParameterExpected { .. }),
+        },
+    ];
+
+    for case in cases {
+        let sender = Address::ZERO;
+        let gas = Object::new_move(
+            MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), GAS_COIN_VALUE),
+            Owner::Address(sender),
+            TransactionDigest::ZERO,
+        );
+        let receivable = Object::new_move(
+            MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), 1),
+            case.owner,
+            TransactionDigest::ZERO,
+        );
+        let receivable_ref = receivable.object_ref();
+
+        let mut store = InMemoryStore::with_framework();
+        store.insert(gas.clone());
+        store.insert(receivable);
+        let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+        let tx = tx_with_receiving_input(sender, &gas, receivable_ref);
+
+        for (label, result) in execute_under_both_modes(&mut vm, tx) {
+            assert_user_input_error(&format!("{} ({label})", case.label), result, case.expected);
+        }
+    }
+}
+
+/// A receiving reference with an invalid version is rejected under both
+/// modes.
+#[test]
+fn both_modes_reject_a_receiving_reference_with_an_invalid_version() {
+    let sender = Address::ZERO;
+    let (mut vm, gas, receivable_ref) = vm_with_receivable_coin(sender, ObjectId::random());
+
+    let invalid_ref = ObjectReference::new(
+        receivable_ref.object_id,
+        Version::MAX_VALID_EXCL,
+        receivable_ref.digest,
+    );
+    let tx = tx_with_receiving_input(sender, &gas, invalid_ref);
+
+    for (label, result) in execute_under_both_modes(&mut vm, tx) {
+        assert_user_input_error(label, result, |error| {
+            matches!(error, UserInputError::InvalidSequenceNumber)
         });
     }
 }
