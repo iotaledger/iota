@@ -169,7 +169,7 @@ pub(crate) mod scorer;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
-use iota_types::crypto::AuthorityPublicKey;
+use iota_types::crypto::AggregateAuthorityPublicKey;
 use scorer::Scoreboard;
 
 // `TxLockGuard` and `TxGuard` are functionally identical right now, but we
@@ -1600,7 +1600,7 @@ impl AuthorityPerEpochStore {
         self.epoch_start_state().protocol_version()
     }
 
-    pub fn active_validators(&self) -> Vec<AuthorityPublicKey> {
+    pub fn active_validators(&self) -> Vec<AggregateAuthorityPublicKey> {
         self.epoch_start_state().get_active_validators()
     }
 
