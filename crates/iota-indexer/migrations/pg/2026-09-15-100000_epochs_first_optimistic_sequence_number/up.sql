@@ -51,3 +51,9 @@ SET lowest_unpruned_key = bounds.min_seq,
     min_available_tx = bounds.min_seq
 FROM bounds
 WHERE entity = 'optimistic_transactions';
+
+-- Pruning now deletes by `optimistic_sequence_number` bounded by
+-- `epochs.first_optimistic_sequence_number`, making `global_sequence_number`
+-- obsolete.
+DROP INDEX optimistic_transactions_global_seq;
+ALTER TABLE optimistic_transactions DROP COLUMN global_sequence_number;
