@@ -16,7 +16,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{ExecutionDigests, VersionNumber, random_object_ref},
     committee::Committee,
-    crypto::{AccountPrivateKey, KeypairTraits, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::IotaResult,
     messages_checkpoint::{
@@ -105,7 +105,7 @@ impl MockTxStore {
             committee.epoch,
             summary.clone(),
             &keys[0],
-            keys[0].public().into(),
+            (&keys[0].verifying_key()).into(),
         );
         let sign_info = signed.into_sig();
 

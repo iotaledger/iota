@@ -9,7 +9,6 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use fastcrypto::traits::KeyPair;
 use iota_multiaddr::Multiaddr;
 pub use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{TransactionDigest, ValidatorCommitteeMember};
@@ -318,7 +317,11 @@ impl Committee {
             key_pairs
                 .iter()
                 .map(|key| {
-                    (AuthorityName::from(key.public()), /* voting right */ 1)
+                    (
+                        AuthorityName::from(&key.verifying_key()),
+                        // voting right
+                        1,
+                    )
                 })
                 .collect(),
         );
@@ -572,7 +575,6 @@ impl CommitteeChainVerifier {
 
 #[cfg(test)]
 mod test {
-    use fastcrypto::traits::KeyPair;
     use iota_sdk_types::{CheckpointSummary, EndOfEpochData};
 
     use super::*;
@@ -592,9 +594,9 @@ mod test {
         let (_, sec1): (_, AuthorityKeyPair) = get_key_pair();
         let (_, sec2): (_, AuthorityKeyPair) = get_key_pair();
         let (_, sec3): (_, AuthorityKeyPair) = get_key_pair();
-        let a1: AuthorityName = sec1.public().into();
-        let a2: AuthorityName = sec2.public().into();
-        let a3: AuthorityName = sec3.public().into();
+        let a1: AuthorityName = (&sec1.verifying_key()).into();
+        let a2: AuthorityName = (&sec2.verifying_key()).into();
+        let a3: AuthorityName = (&sec3.verifying_key()).into();
 
         let mut authorities = BTreeMap::new();
         authorities.insert(a1, 1);
@@ -661,7 +663,9 @@ mod test {
             };
             let signatures = keys
                 .iter()
-                .map(|k| SignedCheckpointSummary::sign(epoch, &summary, k, k.public().into()))
+                .map(|k| {
+                    SignedCheckpointSummary::sign(epoch, &summary, k, (&k.verifying_key()).into())
+                })
                 .collect();
             let committee_at_epoch =
                 Committee::new(epoch, committee.voting_rights.iter().cloned().collect());
@@ -708,7 +712,7 @@ mod test {
             };
             let signatures = other_keys
                 .iter()
-                .map(|k| SignedCheckpointSummary::sign(0, &summary, k, k.public().into()))
+                .map(|k| SignedCheckpointSummary::sign(0, &summary, k, (&k.verifying_key()).into()))
                 .collect();
             CertifiedCheckpointSummary::new(summary, signatures, &other_committee)
                 .expect("certifies under the foreign committee")

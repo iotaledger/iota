@@ -243,7 +243,7 @@ impl IotaValidatorCommand {
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
-                        authority_key: authority_keypair.public().into(),
+                        authority_key: (&authority_keypair.verifying_key()).into(),
                         protocol_key: protocol_keypair.public().clone(),
                         account_address,
                         network_key: network_keypair.public().clone(),
@@ -281,7 +281,7 @@ impl IotaValidatorCommand {
                     )?),
                     CallArg::pure(&validator.network_key().as_bytes().to_vec()),
                     CallArg::pure(&validator.protocol_key().as_bytes().to_vec()),
-                    CallArg::pure(&validator_info.proof_of_possession.as_ref().to_vec()),
+                    CallArg::pure(&validator_info.proof_of_possession.bytes().to_vec()),
                     CallArg::pure(&validator.name().to_owned().into_bytes()),
                     CallArg::pure(&validator.description.clone().into_bytes()),
                     CallArg::pure(&validator.image_url.clone().into_bytes()),
@@ -1039,13 +1039,13 @@ async fn update_metadata(
             can_validator_mutate_all_data(context).await?;
             let iota_address = context.active_address()?;
             let authority_key_pair: AuthorityKeyPair = read_authority_keypair_from_file(file)?;
-            let authority_pub_key: AuthorityPublicKey = authority_key_pair.public().clone();
+            let authority_pub_key: AuthorityPublicKey = authority_key_pair.verifying_key();
             let pop = generate_proof_of_possession(&authority_key_pair, iota_address);
             let args = vec![
                 CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
-                    authority_pub_key.as_bytes(),
+                    authority_pub_key.public_key().bytes(),
                 )?),
-                CallArg::pure(&pop.as_ref().to_vec()),
+                CallArg::pure(&pop.bytes().to_vec()),
             ];
             call_0x5(
                 context,

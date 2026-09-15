@@ -10,10 +10,7 @@ use std::{
 use futures::FutureExt;
 use iota_config::NodeConfig;
 use iota_node::{IotaNode, IotaNodeHandle};
-use iota_types::{
-    base_types::ConciseableName,
-    crypto::{AuthorityPublicKeyBytes, KeypairTraits},
-};
+use iota_types::{base_types::ConciseableName, crypto::AuthorityPublicKeyBytes};
 use telemetry_subscribers::get_global_telemetry_config;
 use tracing::{info, trace};
 
@@ -51,7 +48,7 @@ impl Container {
     pub async fn spawn(config: NodeConfig, runtime: RuntimeType) -> Self {
         let (startup_sender, startup_receiver) = tokio::sync::oneshot::channel();
         let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
-        let name = AuthorityPublicKeyBytes::from(config.authority_key_pair().public())
+        let name = AuthorityPublicKeyBytes::from(&config.authority_key_pair().verifying_key())
             .concise()
             .to_string();
 
@@ -66,7 +63,7 @@ impl Container {
                 Some(tracing::span!(
                     tracing::Level::INFO,
                     "node",
-                    name =% AuthorityPublicKeyBytes::from(config.authority_key_pair().public()).concise(),
+                    name =% AuthorityPublicKeyBytes::from(&config.authority_key_pair().verifying_key()).concise(),
                 ))
             };
 

@@ -803,8 +803,8 @@ impl RpcExampleProvider {
 
     fn iota_get_committee_info(&mut self) -> Examples {
         let epoch = 5000;
-        let committee = json!(Committee::new_simple_test_committee_of_size(4));
-        let vals = json!(committee[0]["voting_rights"]);
+        let committee = json!(Committee::new_simple_test_committee_of_size(4).0);
+        let vals = json!(committee["voting_rights"]);
         let iotacomm = IotaCommittee {
             epoch,
             validators: serde_json::from_value(vals).unwrap(),

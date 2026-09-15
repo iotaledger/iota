@@ -21,8 +21,8 @@ pub use fastcrypto::traits::{
 };
 use fastcrypto::{
     bls12381::min_sig::{
-        BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
-        BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
+        BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381PublicKey,
+        BLS12381Signature,
     },
     ed25519::{Ed25519KeyPair, Ed25519PublicKey, Ed25519PublicKeyAsBytes, Ed25519Signature},
     encoding::{Base64, Encoding, Hex},
@@ -33,12 +33,16 @@ use fastcrypto::{
     serde_helpers::BytesRepresentation,
 };
 use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    Verifier as _,
+    bls12381::{Bls12381PrivateKey, Bls12381VerifyingKey},
+    ed25519::Ed25519PrivateKey,
+    secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
     simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, SignatureScheme,
-    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+    crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use rand::{
     SeedableRng,
@@ -80,10 +84,12 @@ mod intent_tests;
 // ton of compilation errors, and worse: it will not make sense!
 
 // Authority Objects
-pub type AuthorityKeyPair = BLS12381KeyPair;
-pub type AuthorityPublicKey = BLS12381PublicKey;
-pub type AuthorityPrivateKey = BLS12381PrivateKey;
-pub type AuthoritySignature = BLS12381Signature;
+pub type AuthorityKeyPair = Bls12381PrivateKey;
+pub type AuthorityPublicKey = Bls12381VerifyingKey;
+pub type AuthorityPrivateKey = Bls12381PrivateKey;
+pub type AuthoritySignature = iota_sdk_types::Bls12381Signature;
+// Aggregation and the batch check stay on fastcrypto, which owns the batch
+// multiplier policy; the two meet at byte conversions.
 pub type AggregateAuthorityPublicKey = BLS12381PublicKey;
 pub type AggregateAuthoritySignature = BLS12381AggregateSignature;
 pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
@@ -99,6 +105,14 @@ pub type DefaultHash = Blake2b256;
 pub const DEFAULT_EPOCH_ID: EpochId = 0;
 pub const IOTA_PRIV_KEY_PREFIX: &str = "iotaprivkey";
 
+/// Authority signatures cross into fastcrypto to be aggregated and batch
+/// checked.
+pub fn to_aggregate_signature(signature: &AuthoritySignature) -> IotaResult<BLS12381Signature> {
+    BLS12381Signature::from_bytes(signature.bytes()).map_err(|e| IotaError::InvalidSignature {
+        error: e.to_string(),
+    })
+}
+
 /// Creates a proof of that the authority account address is owned by the
 /// holder of authority key, and also ensures that the authority
 /// public key exists. A proof of possession is an authority
@@ -109,14 +123,7 @@ pub fn generate_proof_of_possession(
     keypair: &AuthorityKeyPair,
     address: Address,
 ) -> AuthoritySignature {
-    let mut msg: Vec<u8> = Vec::new();
-    msg.extend_from_slice(keypair.public().as_bytes());
-    msg.extend_from_slice(address.as_ref());
-    AuthoritySignature::new_secure(
-        &IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg),
-        &DEFAULT_EPOCH_ID,
-        keypair,
-    )
+    keypair.generate_proof_of_possession(address)
 }
 
 /// Verify proof of possession against the expected intent message,
@@ -127,17 +134,55 @@ pub fn verify_proof_of_possession(
     iota_address: Address,
 ) -> Result<(), IotaError> {
     authority_pubkey
-        .validate()
-        .map_err(|_| IotaError::InvalidSignature {
-            error: "Fail to validate pubkey".to_string(),
-        })?;
-    let mut msg = authority_pubkey.as_bytes().to_vec();
-    msg.extend_from_slice(iota_address.as_ref());
-    pop.verify_secure(
-        &IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg),
-        DEFAULT_EPOCH_ID,
-        authority_pubkey.into(),
-    )
+        .verify_proof_of_possession(iota_address, pop)
+        .map_err(|e| IotaError::InvalidSignature {
+            error: format!("Fail to verify proof of possession: {e}"),
+        })
+}
+
+/// Reads and writes an authority keypair the way the node has always stored
+/// it: base64 of the raw private key in configs, the raw bytes elsewhere.
+pub mod authority_keypair_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
+
+    use super::AuthorityKeyPair;
+
+    pub fn serialize<S: Serializer>(
+        value: &AuthorityKeyPair,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        use iota_sdk_crypto::{ToFromBase64 as _, ToFromBytes as _};
+
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&value.to_base64())
+        } else {
+            value.to_bytes().serialize(serializer)
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<AuthorityKeyPair, D::Error> {
+        use iota_sdk_crypto::ToFromBase64 as _;
+
+        if deserializer.is_human_readable() {
+            let encoded = String::deserialize(deserializer)?;
+            AuthorityKeyPair::from_base64(&encoded).map_err(D::Error::custom)
+        } else {
+            let bytes = <[u8; AuthorityKeyPair::LENGTH]>::deserialize(deserializer)?;
+            AuthorityKeyPair::new(bytes).map_err(D::Error::custom)
+        }
+    }
+}
+
+/// Parse an authority public key, rejecting bytes that do not encode a valid
+/// group element.
+pub fn authority_pubkey_from_bytes(
+    bytes: &[u8],
+) -> Result<AuthorityPublicKey, iota_sdk_crypto::SignatureError> {
+    let bytes = AuthorityPublicKeyBytes::from_bytes(bytes)
+        .map_err(iota_sdk_crypto::SignatureError::from_source)?;
+    AuthorityPublicKey::try_from(bytes)
 }
 
 /// The validator network stacks keep using the fastcrypto ed25519 keypair
@@ -283,7 +328,7 @@ impl PublicKey {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, AsRef)]
 #[as_ref(forward)]
 pub struct AuthorityPublicKeyBytes(
-    #[serde_as(as = "Readable<Base64, Bytes>")] pub [u8; AuthorityPublicKey::LENGTH],
+    #[serde_as(as = "Readable<Base64, Bytes>")] pub [u8; iota_sdk_types::Bls12381PublicKey::LENGTH],
 );
 
 impl AuthorityPublicKeyBytes {
@@ -344,6 +389,14 @@ impl Display for ConciseAuthorityPublicKeyBytes {
     }
 }
 
+impl TryFrom<AuthorityPublicKeyBytes> for AuthorityPublicKey {
+    type Error = iota_sdk_crypto::SignatureError;
+
+    fn try_from(bytes: AuthorityPublicKeyBytes) -> Result<AuthorityPublicKey, Self::Error> {
+        AuthorityPublicKey::new(&iota_sdk_types::Bls12381PublicKey::new(bytes.0))
+    }
+}
+
 impl TryFrom<AuthorityPublicKeyBytes> for AggregateAuthorityPublicKey {
     type Error = FastCryptoError;
 
@@ -354,9 +407,16 @@ impl TryFrom<AuthorityPublicKeyBytes> for AggregateAuthorityPublicKey {
     }
 }
 
+impl From<&AuthorityPublicKey> for AuthorityPublicKeyBytes {
+    fn from(pk: &AuthorityPublicKey) -> AuthorityPublicKeyBytes {
+        AuthorityPublicKeyBytes(pk.public_key().into_bytes())
+    }
+}
+
 impl From<&AggregateAuthorityPublicKey> for AuthorityPublicKeyBytes {
     fn from(pk: &AggregateAuthorityPublicKey) -> AuthorityPublicKeyBytes {
-        AuthorityPublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
+        AuthorityPublicKeyBytes::from_bytes(pk.as_ref())
+            .expect("authority public keys are 96 bytes")
     }
 }
 
@@ -374,7 +434,7 @@ impl Display for AuthorityPublicKeyBytes {
 
 impl ToFromBytes for AuthorityPublicKeyBytes {
     fn from_bytes(bytes: &[u8]) -> Result<Self, fastcrypto::error::FastCryptoError> {
-        let bytes: [u8; AuthorityPublicKey::LENGTH] = bytes
+        let bytes: [u8; iota_sdk_types::Bls12381PublicKey::LENGTH] = bytes
             .try_into()
             .map_err(|_| fastcrypto::error::FastCryptoError::InvalidInput)?;
         Ok(AuthorityPublicKeyBytes(bytes))
@@ -382,11 +442,13 @@ impl ToFromBytes for AuthorityPublicKeyBytes {
 }
 
 impl AuthorityPublicKeyBytes {
-    pub const ZERO: Self = Self::new([0u8; AuthorityPublicKey::LENGTH]);
+    pub const ZERO: Self = Self::new([0u8; iota_sdk_types::Bls12381PublicKey::LENGTH]);
 
     /// This ensures it's impossible to construct an instance with other than
     /// registered lengths
-    pub const fn new(bytes: [u8; AuthorityPublicKey::LENGTH]) -> AuthorityPublicKeyBytes
+    pub const fn new(
+        bytes: [u8; iota_sdk_types::Bls12381PublicKey::LENGTH],
+    ) -> AuthorityPublicKeyBytes
 where {
         AuthorityPublicKeyBytes(bytes)
     }
@@ -423,7 +485,7 @@ pub trait IotaAuthoritySignature {
     fn new_secure<T>(
         value: &IntentMessage<T>,
         epoch_id: &EpochId,
-        secret: &dyn Signer<Self>,
+        secret: &dyn iota_sdk_crypto::Signer<Self>,
     ) -> Self
     where
         T: Serialize;
@@ -431,7 +493,11 @@ pub trait IotaAuthoritySignature {
 
 impl IotaAuthoritySignature for AuthoritySignature {
     #[instrument(level = "trace", skip_all)]
-    fn new_secure<T>(value: &IntentMessage<T>, epoch: &EpochId, secret: &dyn Signer<Self>) -> Self
+    fn new_secure<T>(
+        value: &IntentMessage<T>,
+        epoch: &EpochId,
+        secret: &dyn iota_sdk_crypto::Signer<Self>,
+    ) -> Self
     where
         T: Serialize,
     {
@@ -478,15 +544,15 @@ pub trait RandomKeyPair: Sized {
     fn generate_with_address(rng: &mut StdRng) -> (Address, Self);
 }
 
-impl RandomKeyPair for BLS12381KeyPair {
+impl RandomKeyPair for Bls12381PrivateKey {
     fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-        let kp = <BLS12381KeyPair as KeypairTraits>::generate(rng);
+        let key = Bls12381PrivateKey::random_with(rng);
         // Authority keys have no on-chain account; this address only labels
         // key files and `keytool` output.
         let mut hasher = DefaultHash::default();
         hasher.update([SignatureScheme::Bls12381.to_u8()]);
-        hasher.update(kp.public().as_ref());
-        (Address::new(hasher.finalize().digest), kp)
+        hasher.update(key.public_key().into_bytes());
+        (Address::new(hasher.finalize().digest), key)
     }
 }
 
@@ -718,7 +784,7 @@ impl AuthoritySignInfoTrait for AuthoritySignInfo {
             .signatures
             .get_mut(message_index)
             .ok_or(IotaError::InvalidAddress)?
-            .add_signature(self.signature.clone())
+            .add_signature(to_aggregate_signature(&self.signature)?)
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Fail to aggregator auth sig".to_string(),
             })?;
@@ -732,7 +798,7 @@ impl AuthoritySignInfo {
         value: &T,
         intent: Intent,
         name: AuthorityName,
-        secret: &dyn Signer<AuthoritySignature>,
+        secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
     ) -> Self
     where
         T: Serialize,
@@ -958,7 +1024,10 @@ impl<const STRONG_THRESHOLD: bool> AuthorityQuorumSignInfo<STRONG_THRESHOLD> {
                     })?,
             );
         }
-        let sigs: Vec<AuthoritySignature> = signatures.into_values().collect();
+        let sigs: Vec<BLS12381Signature> = signatures
+            .values()
+            .map(to_aggregate_signature)
+            .collect::<IotaResult<_>>()?;
 
         Ok(AuthorityQuorumSignInfo {
             epoch: committee.epoch,
@@ -1135,7 +1204,7 @@ impl<'a> VerificationObligation<'a> {
         self.signatures
             .get_mut(idx)
             .ok_or(IotaError::InvalidAuthenticator)?
-            .add_signature(signature.clone())
+            .add_signature(to_aggregate_signature(&signature)?)
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Failed to add signature to obligation".to_string(),
             })?;

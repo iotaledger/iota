@@ -66,7 +66,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
+    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature},
     deny_list_v1::check_coin_deny_list_v1,
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
@@ -848,7 +848,8 @@ impl AuthorityMetrics {
 /// - Sync, i.e. can be safely shared between threads.
 ///
 /// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
-pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
+pub type StableSyncAuthoritySigner =
+    Pin<Arc<dyn iota_sdk_crypto::Signer<AuthoritySignature> + Send + Sync>>;
 
 /// Execution env contains the "environment" for the transaction to be executed
 /// in, that is, all the information necessary for execution that is not

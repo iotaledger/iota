@@ -21,8 +21,8 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
     crypto::{
-        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng, simple_to_network_keypair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
+        get_key_pair_from_rng, simple_to_network_keypair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
@@ -776,7 +776,7 @@ impl NodeConfig {
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
-        self.authority_key_pair().public().into()
+        (&self.authority_key_pair().verifying_key()).into()
     }
 
     pub fn db_path(&self) -> PathBuf {
@@ -1613,8 +1613,33 @@ pub struct AuthorityKeyPairWithPath {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
 #[serde(untagged)]
 enum AuthorityKeyPairLocation {
-    InPlace { value: Arc<AuthorityKeyPair> },
-    File { path: PathBuf },
+    InPlace {
+        #[serde(with = "authority_keypair_bytes")]
+        value: Arc<AuthorityKeyPair>,
+    },
+    File {
+        path: PathBuf,
+    },
+}
+
+mod authority_keypair_bytes {
+    use std::sync::Arc;
+
+    use iota_types::crypto::{AuthorityKeyPair, authority_keypair_serde};
+    use serde::{Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        value: &Arc<AuthorityKeyPair>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        authority_keypair_serde::serialize(value, serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Arc<AuthorityKeyPair>, D::Error> {
+        authority_keypair_serde::deserialize(deserializer).map(Arc::new)
+    }
 }
 
 impl AuthorityKeyPairWithPath {
@@ -1879,8 +1904,8 @@ mod tests {
         const TEMPLATE: &str = include_str!("../data/fullnode-template-with-path.yaml");
         let template: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
         assert_eq!(
-            template.authority_key_pair().public(),
-            authority_key_pair.public()
+            template.authority_key_pair().public_key(),
+            authority_key_pair.public_key()
         );
         assert_eq!(
             template.network_key_pair().public(),
