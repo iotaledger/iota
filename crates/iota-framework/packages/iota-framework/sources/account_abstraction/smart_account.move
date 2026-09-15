@@ -413,3 +413,12 @@ public fun claim_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) 
 public fun claim_immutable_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
     claim_immutable_account_v1(public_key, ctx)
 }
+
+/// The fields of a `SmartAccountClaimed` event, which are private to this
+/// module.
+#[test_only]
+public fun smart_account_claimed_fields_for_testing(
+    event: &SmartAccountClaimed,
+): (ID, PublicKey, bool) {
+    (event.account_id, event.public_key, event.immutable)
+}
