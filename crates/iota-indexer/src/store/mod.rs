@@ -427,6 +427,10 @@ mod tests {
         blocking_call_is_ok_or_panic, mark_in_blocking_pool, spawn_blocking_task,
     };
 
+    // The simulator's `tokio::runtime::Handle::try_current` panics instead of
+    // reporting that no runtime is running, so this case can only be checked
+    // outside the simulator.
+    #[cfg(not(msim))]
     #[test]
     fn blocking_call_is_allowed_outside_a_runtime() {
         blocking_call_is_ok_or_panic!();
