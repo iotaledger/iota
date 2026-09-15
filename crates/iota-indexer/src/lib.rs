@@ -24,6 +24,7 @@ use crate::{
     store::PgIndexerStore,
 };
 
+pub mod account_key_events;
 pub mod apis;
 pub mod backfill;
 pub mod config;
