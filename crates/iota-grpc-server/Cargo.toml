@@ -27,6 +27,7 @@ tokio-stream.workspace = true
 tokio-util.workspace = true
 tonic = { workspace = true, features = ["tls-ring"] }
 tower.workspace = true
+tower-http.workspace = true
 tracing.workspace = true
 
 # internal dependencies
@@ -48,6 +49,7 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 async-trait.workspace = true
+semver.workspace = true
 
 # internal dependencies
 iota-grpc-client.workspace = true
