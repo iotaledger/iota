@@ -509,12 +509,11 @@ pub struct KeyStore {
 
 impl Clone for KeyStore {
     fn clone(&self) -> Self {
-        use fastcrypto::traits::KeyPair;
         Self {
             validator_keys: self
                 .validator_keys
                 .iter()
-                .map(|(k, v)| (*k, v.copy()))
+                .map(|(k, v)| (*k, v.clone()))
                 .collect(),
             account_keys: self
                 .account_keys
@@ -529,15 +528,13 @@ impl KeyStore {
     pub fn from_network_config(
         network_config: &iota_swarm_config::network_config::NetworkConfig,
     ) -> Self {
-        use fastcrypto::traits::KeyPair;
-
         let validator_keys = network_config
             .validator_configs()
             .iter()
             .map(|config| {
                 (
                     config.authority_public_key(),
-                    config.authority_key_pair().copy(),
+                    config.authority_key_pair().clone(),
                 )
             })
             .collect();

@@ -7,7 +7,7 @@ use std::time::Duration;
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
 use iota_types::{
     base_types::AuthorityName,
-    crypto::{AuthorityKeyPair, KeypairTraits, get_key_pair},
+    crypto::{AuthorityKeyPair, get_key_pair},
 };
 use tokio::time::Instant;
 
@@ -20,7 +20,7 @@ use crate::validator_client_monitor::stats::ClientObservedStats;
 
 fn gen_validator() -> AuthorityName {
     let (_, kp): (_, AuthorityKeyPair) = get_key_pair();
-    kp.public().into()
+    (&kp.verifying_key()).into()
 }
 
 fn gen_validators(n: usize) -> Vec<AuthorityName> {

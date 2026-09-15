@@ -342,10 +342,7 @@ where
 mod stake_aggregator_insert_tests {
     use std::{collections::BTreeMap, sync::Arc};
 
-    use fastcrypto::{
-        hash::{HashFunction, Sha3_256},
-        traits::KeyPair,
-    };
+    use fastcrypto::hash::{HashFunction, Sha3_256};
     use iota_sdk_types::crypto::IntentScope;
     use iota_types::{
         base_types::AuthorityName,
@@ -383,7 +380,7 @@ mod stake_aggregator_insert_tests {
         let key_pairs = random_committee_key_pairs_of_size(2);
         let mut names: Vec<AuthorityName> = key_pairs
             .iter()
-            .map(|kp| AuthorityName::from(kp.public()))
+            .map(|kp| AuthorityName::from(&kp.verifying_key()))
             .collect();
         names.sort();
 
@@ -400,7 +397,7 @@ mod stake_aggregator_insert_tests {
         let find_kp = |name: &AuthorityName| {
             key_pairs
                 .iter()
-                .find(|kp| &AuthorityName::from(kp.public()) == name)
+                .find(|kp| &AuthorityName::from(&kp.verifying_key()) == name)
                 .unwrap()
         };
         let (auth0, key0) = (names[0], find_kp(&names[0]));

@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::traits::KeyPair;
 use iota_config::transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder};
 use iota_network::api::{
     GetCheckpointRequest, GetTxStatusRequest, NotifyCapabilitiesRequest, SubmitTxRequest,
@@ -117,11 +116,11 @@ async fn test_authority_reject_authority_capabilities() {
     // Create an authority capabilities message containing the authority's identity
     // and supported features
     let capabilities = AuthorityCapabilitiesV1::new(
-        AuthorityName::new(sender_key.public().pubkey.to_bytes()), // Authority identifier
-        Chain::Mainnet,                                            // Target blockchain network
-        SupportedProtocolVersions::new_for_testing(1, 10),         // Protocol version range
-        vec![],                                                    /* Empty capabilities list
-                                                                    * for this test */
+        AuthorityName::new(sender_key.public_key().into_bytes()), // Authority identifier
+        Chain::Mainnet,                                           // Target blockchain network
+        SupportedProtocolVersions::new_for_testing(1, 10),        // Protocol version range
+        vec![],                                                   /* Empty capabilities list
+                                                                   * for this test */
     );
 
     // Sign the capability message with the authority's private key
@@ -213,7 +212,7 @@ async fn test_handle_capability_notification_v1_feature_disabled() {
     ));
 
     let capabilities = AuthorityCapabilitiesV1::new(
-        AuthorityName::new(sender_key.public().pubkey.to_bytes()),
+        AuthorityName::new(sender_key.public_key().into_bytes()),
         Chain::Mainnet,
         SupportedProtocolVersions::new_for_testing(1, 10),
         vec![],
@@ -1900,7 +1899,7 @@ async fn test_v2_notify_capabilities_reject_unauthorized() {
 
     // Request from an unknown authority — should be rejected.
     let capabilities = AuthorityCapabilitiesV1::new(
-        AuthorityName::new(sender_key.public().pubkey.to_bytes()),
+        AuthorityName::new(sender_key.public_key().into_bytes()),
         Chain::Mainnet,
         SupportedProtocolVersions::new_for_testing(1, 10),
         vec![],
@@ -1980,7 +1979,7 @@ async fn test_v2_notify_capabilities_feature_disabled() {
     ));
 
     let capabilities = AuthorityCapabilitiesV1::new(
-        AuthorityName::new(sender_key.public().pubkey.to_bytes()),
+        AuthorityName::new(sender_key.public_key().into_bytes()),
         Chain::Mainnet,
         SupportedProtocolVersions::new_for_testing(1, 10),
         vec![],

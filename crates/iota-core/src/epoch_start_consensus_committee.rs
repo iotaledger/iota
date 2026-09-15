@@ -52,13 +52,13 @@ pub fn get_consensus_committee<T: EpochStartSystemStateTrait>(state: &T) -> Cons
 
 #[cfg(test)]
 mod test {
-    use fastcrypto::traits::{KeyPair, ToFromBytes};
+    use fastcrypto::traits::ToFromBytes;
     use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
     use iota_types::{
         committee::CommitteeTrait,
-        crypto::{AuthorityKeyPair, NetworkPrivateKey, get_key_pair},
+        crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkPrivateKey, get_key_pair},
         iota_system_state::epoch_start_iota_system_state::{
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
@@ -77,7 +77,9 @@ mod test {
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: authority_key.public().clone(),
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                    .try_into()
+                    .unwrap(),
                 network_pubkey: protocol_network_key.public_key(),
                 protocol_pubkey: protocol_network_key.public_key(),
                 iota_net_address: Multiaddr::empty(),
@@ -146,7 +148,9 @@ mod test {
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: authority_key.public().clone(),
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                    .try_into()
+                    .unwrap(),
                 network_pubkey: protocol_network_key.public_key(),
                 protocol_pubkey: protocol_network_key.public_key(),
                 iota_net_address: Multiaddr::empty(),
@@ -161,7 +165,9 @@ mod test {
 
             non_committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
-                authority_pubkey: authority_key.public().clone(),
+                authority_pubkey: AuthorityPublicKeyBytes::from(&authority_key.verifying_key())
+                    .try_into()
+                    .unwrap(),
                 network_pubkey: protocol_network_key.public_key(),
                 protocol_pubkey: protocol_network_key.public_key(),
                 iota_net_address: Multiaddr::empty(),
