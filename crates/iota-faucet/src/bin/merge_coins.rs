@@ -97,8 +97,12 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
         // prepend big gas coin instance to vector
         coin_vector.insert(0, ObjectId::from_str(gas_coin).unwrap());
 
+        // The coins pay for the transaction, so that gas smashing is what merges
+        // them, and the whole balance is split back to the sender.
         let mut builder = client.transaction_builder(active_address);
-        builder.pay(coin_vector, [(active_address, total_balance)]);
+        builder
+            .pay_iota([(active_address, total_balance)])
+            .gas(coin_vector);
         builder.gas_budget(1000000);
 
         builder
