@@ -14,7 +14,10 @@ use fastcrypto::hash::{Digest, HashFunction};
 use iota_common::debug_fatal;
 use iota_macros::{fail_point, nondeterministic};
 use prometheus_filtered::{Histogram, HistogramTimer};
-use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
+use rocksdb::{
+    DBPinnableSlice, DBWithThreadMode, Error, LiveFile, MultiThreaded, ReadOptions,
+    SnapshotWithThreadMode, WriteBatch, checkpoint::Checkpoint,
+};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::oneshot;
 use tracing::{debug, error, instrument, warn};
@@ -67,6 +70,33 @@ pub(crate) enum Storage {
     Rocks(RocksDB),
     #[allow(dead_code)]
     InMemory(InMemoryDB),
+}
+
+/// A consistent read view of a database, as of the moment it was taken.
+///
+/// This is a RocksDB snapshot — the sequence number a read is pinned to, not a
+/// copy of anything. The name keeps it apart from the two other snapshots in
+/// this codebase: the formal state snapshot a node publishes, and the
+/// hard-linked directory `Database::checkpoint` writes.
+///
+/// Reads made through the view ignore every write that lands after it, so a
+/// scan lasting minutes still sees a single point in time. A view lives only
+/// as long as the process: nothing about it survives a restart.
+///
+/// RocksDB keeps every superseded version an open view still needs, so a view
+/// holds that data on disk for as long as it lives, and compaction cannot
+/// reclaim it: take one as late as possible and drop it as soon as the read is
+/// done.
+///
+/// The view borrows its database, so it cannot outlive the handle that keeps
+/// the versions it pins alive. It is `Send` and `Sync` in itself — a RocksDB
+/// snapshot is just a sequence number — but the borrow keeps it inside the
+/// scope holding that handle, which is why a scan takes its own view where it
+/// runs rather than being handed one.
+pub struct DbReadView<'db> {
+    /// `None` for the in-memory backend, which has no multi-version reads: a
+    /// view over it sees writes made after it was taken.
+    snapshot: Option<SnapshotWithThreadMode<'db, DBWithThreadMode<MultiThreaded>>>,
 }
 
 impl std::fmt::Debug for Storage {
@@ -424,6 +454,17 @@ impl Database {
         }
     }
 
+    /// A consistent read view of this database. See [`DbReadView`] for what
+    /// holding one costs.
+    pub fn read_view(&self) -> DbReadView<'_> {
+        DbReadView {
+            snapshot: match &self.storage {
+                Storage::Rocks(rocks) => Some(rocks.underlying.snapshot()),
+                Storage::InMemory(_) => None,
+            },
+        }
+    }
+
     pub fn checkpoint(&self, path: &Path) -> Result<(), TypedStoreError> {
         // TODO: implement for other storage types
         if let Storage::Rocks(rocks) = &self.storage {
@@ -775,6 +816,28 @@ impl<K, V> DBMap<K, V> {
             keys_scanned,
             Some(self.db_metrics.clone()),
         )
+    }
+
+    /// Iterates the whole column family as of `view` instead of the current
+    /// state of the database.
+    ///
+    /// The iterator borrows `view`, so it cannot outlive the view that keeps
+    /// the versions it reads alive.
+    pub fn safe_iter_at<'a>(&'a self, view: &'a DbReadView<'a>) -> DbIterator<'a, (K, V)>
+    where
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        match &self.db.storage {
+            Storage::Rocks(db) => {
+                let mut readopts = self.opts.readopts();
+                if let Some(snapshot) = &view.snapshot {
+                    readopts.set_snapshot(snapshot);
+                }
+                Box::new(self.rocks_safe_iter(db, readopts))
+            }
+            Storage::InMemory(db) => db.iterator(self.column_family.name(), None, None, false),
+        }
     }
 
     /// Forward iterator over the raw byte bounds `[lower_bound, upper_bound)`;

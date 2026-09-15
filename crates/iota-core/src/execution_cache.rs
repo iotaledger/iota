@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, path::Path, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
@@ -33,6 +33,7 @@ use crate::{
         AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
         authority_store::{ExecutionLockWriteGuard, IotaLockResult, ObjectLockStatus},
+        authority_store_tables::AuthorityPerpetualTables,
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
@@ -1179,12 +1180,9 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
             .expect("storage access failed")
     }
 
-    fn try_checkpoint_db(&self, path: &Path) -> IotaResult;
-
-    /// Non-fallible version of `try_checkpoint_db`.
-    fn checkpoint_db(&self, path: &Path) {
-        self.try_checkpoint_db(path).expect("storage access failed")
-    }
+    /// The perpetual store, for a reader that needs its own view of it. See
+    /// [`crate::state_snapshot::EpochSnapshotRequest`].
+    fn perpetual_tables(&self) -> Arc<AuthorityPerpetualTables>;
 }
 
 // StateSyncAPI is for writing any data that was not the result of transaction

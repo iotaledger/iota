@@ -396,6 +396,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             None,
             policy_config,
             firewall_config,
+            None,
         )
         .await;
 

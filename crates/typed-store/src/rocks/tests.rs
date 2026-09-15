@@ -254,6 +254,37 @@ async fn test_iter() {
     assert_eq!(None, iter.next());
 }
 
+/// A read view keeps reading the state it was taken at: rows written,
+/// overwritten or deleted afterwards are invisible to a scan through it,
+/// while a plain scan sees them.
+#[tokio::test]
+async fn a_read_view_scan_ignores_later_writes() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
+    db.insert(&1, &"one".to_string()).unwrap();
+    db.insert(&2, &"two".to_string()).unwrap();
+
+    let view = db.db.read_view();
+
+    db.insert(&2, &"two changed".to_string()).unwrap();
+    db.insert(&3, &"three".to_string()).unwrap();
+    db.remove(&1).unwrap();
+
+    let at_view: Vec<_> = db.safe_iter_at(&view).map(Result::unwrap).collect();
+    assert_eq!(
+        at_view,
+        vec![(1, "one".to_string()), (2, "two".to_string())],
+        "the scan must see the state the view was taken at",
+    );
+
+    let now: Vec<_> = db.safe_iter().map(Result::unwrap).collect();
+    assert_eq!(
+        now,
+        vec![(2, "two changed".to_string()), (3, "three".to_string())],
+        "a plain scan must see the writes the view is holding back",
+    );
+}
+
 #[tokio::test]
 async fn test_iter_reverse() {
     let tmp_dir = iota_common::tempdir();
