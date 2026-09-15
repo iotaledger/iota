@@ -241,6 +241,85 @@ Tables not listed here are never pruned by the indexer.
 
 Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
 
+`account_key_links` and `claimed_accounts` are also never pruned, for a different reason: see [Account discoverability index](#account-discoverability-index).
+
+## Account discoverability index
+
+The indexer folds the account-abstraction events emitted by the framework into a reverse index from a public key to the accounts it controls, served over JSON-RPC as `iotax_getAccountsByPublicKey`. A wallet holding only a seed can recover its accounts with one query per derived key.
+
+The event stream is the public contract, not this implementation: anyone replaying the same events in the same order rebuilds an identical index, so an independently run indexer can be checked against any other.
+
+### Key identity
+
+Links are keyed by a `key_id`:
+
+```
+key_id = blake2b256( scheme_flag_byte || raw_key_bytes )
+```
+
+The scheme flag is included for every scheme. This is deliberately **not** the account address: Ed25519 address derivation omits its flag, and MultiSig hashes a structured committee preimage, so `key_id` differs from the address for those two schemes and coincides for Secp256k1, Secp256r1 and Passkey. Treat the coincidence as an accident — comparing a `key_id` to an address is never a meaningful test.
+
+A `key_id` has **no protocol role**. Authentication verifies a signature against the address derived from the account's stored public key. `key_id` is an index identity and nothing else; it is a hash of bytes, so it is defined for every key, including one whose scheme a given indexer build does not recognize.
+
+### Events consumed
+
+Only events carrying key material can establish a link.
+
+| Event | Module | Fields |
+| --- | --- | --- |
+| `SmartAccountClaimed` | `iota::smart_account` | `account_id: ID, public_key: PublicKey, immutable: bool` |
+| `PublicKeyAttached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` |
+| `PublicKeyDetached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` |
+| `PublicKeyRotated` | `iota::builtin_authenticator_functions` | `account_id: ID, from: PublicKey, to: PublicKey` |
+
+The `iota::account` lifecycle events (`MutableAccountCreated`, `ImmutableAccountCreated`, `AuthenticatorFunctionRefV1Rotated`) carry no key material and are not consumed.
+
+Note that the events live in two modules, so a client subscribing over `iota_subscribeEvent` needs two `MoveEventModule` filters — `builtin_authenticator_functions` and `smart_account` — or one broader filter.
+
+### Fold semantics
+
+The index is a left-fold of those events in total order `(checkpoint, transaction, event)`:
+
+| Event | Effect |
+| --- | --- |
+| `PublicKeyAttached(account, pk)` | link `(key_id(pk), account)`, source `attach`, active |
+| `PublicKeyRotated(account, from, to)` | tombstone `(key_id(from), account)`, **then** link `(key_id(to), account)`, source `rotate` |
+| `PublicKeyDetached(account, pk)` | tombstone `(key_id(pk), account)`, source `detach` |
+| `SmartAccountClaimed(account, pk, immutable)` | link `(key_id(pk), account)`, source `claim`; **and** a `claimed_accounts` row |
+
+Two orderings are load-bearing. Within a rotation the tombstone precedes the link, so rotating a key onto itself leaves the link active. Within a claim transaction `PublicKeyAttached` precedes `SmartAccountClaimed`, and a batch collapses last-write-wins per `(key_id, account_id)`, so a claim produces exactly one row, sourced `claim`, rather than two.
+
+The fold is total: no address is derived anywhere, and an event whose type matches but whose payload does not decode contributes nothing — that is an indexer build older than the framework it is reading, not an error. Re-ingesting a checkpoint rewrites identical values, and both upserts are guarded on the transaction sequence number, so a replayed or out-of-order write cannot move a row backwards.
+
+After the first public-network activation the four event structs are additive-only: new event types may be added, existing fields never change.
+
+### Claimed versus attached
+
+`claimed_accounts` records the accounts created by a `ClaimAccount` transaction, whose object id is the address the claiming key derives. Absence of a row means the account was not claimed.
+
+This distinction is what a wallet needs to rank results, and it cannot be computed client-side from an address list:
+
+- A **claimed** account is one the key holder created for themselves. Every later change to it is self-authorized, because the account's own address must be the transaction sender — nobody else can attach a key to it.
+- An **attached** link may have been created by anyone. Creating an account whose authenticator is someone else's public key is permitted and the resulting link is true, so this is the shape that dust-gifting takes. Such an account never appears in `claimed_accounts`.
+
+Claimed status is a property of the account, not of any one link, and it outlives a rotation: an account claimed with one key and later rotated to another is still a claimed account.
+
+### Retention and bootstrapping
+
+Both tables are materialized state folded from the event stream, not history, so neither is prunable — a pruned row could only be rebuilt by replaying events the node may itself have pruned.
+
+Event retention therefore only affects **bootstrapping**. An indexer syncing from genesis builds both tables with no backfill step, since the fold starts at the first emitted event. An indexer starting against a pruned source cannot rebuild them and must bootstrap from an unpruned archive fullnode or import a table snapshot from a verified peer.
+
+An indexer must also not be pointed at a network whose framework predates the `SmartAccountClaimed` event: claims on such a network are indexed as plain attachments, with no `claimed_accounts` row.
+
+### Privacy
+
+Anyone replaying the public event stream can build the full reverse map: key material is in the event payloads and `key_id` is derived from it. The index exposes nothing that replaying checkpoints would not.
+
+### Known gap: MultiSig
+
+A MultiSig `PublicKey` holds its BCS-encoded committee as `raw_bytes`, so its `key_id` hashes the committee. A wallet restoring from a seed knows its own member key but not the committee, and so cannot compute the lookup key. MultiSig accounts are therefore not discoverable from a seed alone. Indexing individual committee members would close the gap at the cost of making committee membership queryable, and is not done today.
+
 ## Restoring from a formal snapshot
 
 The IOTA Indexer has the ability to initialize the database from a [formal snapshot](../common/snapshots.mdx#formal-snapshots) of the network instead of ingesting every checkpoint from genesis. A formal snapshot is a minimal, cryptographically verifiable capture of the end-of-epoch object state. Full nodes bootstrap from the same snapshots (see [formal-snapshot restore](../common/snapshots.mdx#restoring-a-full-node-from-snapshots)).

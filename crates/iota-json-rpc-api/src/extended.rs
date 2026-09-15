@@ -62,15 +62,14 @@ pub trait ExtendedApi {
     /// chain.
     ///
     /// Exclusively served by the indexer.
+    #[rustfmt::skip]
     #[method(name = "getAccountsByPublicKey")]
     async fn get_accounts_by_public_key(
         &self,
-        /// Base64 of the scheme-flag-prefixed public key bytes (`flag || raw
-        /// key bytes`).
+        /// Base64 of the scheme-flag-prefixed public key bytes.
         #[schemars(with = "Base64Schema")]
         public_key: Base64,
-        /// Whether to also return links rotated away from or detached (default
-        /// false).
+        /// Whether to also return rotated-away or detached links.
         include_unlinked: Option<bool>,
     ) -> RpcResult<Vec<AccountKeyLink>>;
 
