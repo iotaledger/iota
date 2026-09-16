@@ -32,8 +32,8 @@ use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, get_key_pair,
-        random_committee_key_pairs_of_size,
+        AccountPrivateKey, AggregateAuthorityPublicKey, AuthorityKeyPair, AuthoritySignInfo,
+        get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
@@ -5463,7 +5463,7 @@ async fn test_choose_next_system_packages() {
 
     // Create an active validators list for testing
     // get_validators_supporting_protocol_version
-    let active_validators: Vec<AuthorityPublicKey> = v
+    let active_validators: Vec<AggregateAuthorityPublicKey> = v
         .iter()
         .map(|(name, _weight)| committee.public_key(name).unwrap().clone())
         .collect();

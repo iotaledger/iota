@@ -84,6 +84,7 @@ pub type AuthorityKeyPair = BLS12381KeyPair;
 pub type AuthorityPublicKey = BLS12381PublicKey;
 pub type AuthorityPrivateKey = BLS12381PrivateKey;
 pub type AuthoritySignature = BLS12381Signature;
+pub type AggregateAuthorityPublicKey = BLS12381PublicKey;
 pub type AggregateAuthoritySignature = BLS12381AggregateSignature;
 pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
 
@@ -343,16 +344,18 @@ impl Display for ConciseAuthorityPublicKeyBytes {
     }
 }
 
-impl TryFrom<AuthorityPublicKeyBytes> for AuthorityPublicKey {
+impl TryFrom<AuthorityPublicKeyBytes> for AggregateAuthorityPublicKey {
     type Error = FastCryptoError;
 
-    fn try_from(bytes: AuthorityPublicKeyBytes) -> Result<AuthorityPublicKey, Self::Error> {
-        AuthorityPublicKey::from_bytes(bytes.as_ref())
+    fn try_from(
+        bytes: AuthorityPublicKeyBytes,
+    ) -> Result<AggregateAuthorityPublicKey, Self::Error> {
+        AggregateAuthorityPublicKey::from_bytes(bytes.as_ref())
     }
 }
 
-impl From<&AuthorityPublicKey> for AuthorityPublicKeyBytes {
-    fn from(pk: &AuthorityPublicKey) -> AuthorityPublicKeyBytes {
+impl From<&AggregateAuthorityPublicKey> for AuthorityPublicKeyBytes {
+    fn from(pk: &AggregateAuthorityPublicKey) -> AuthorityPublicKeyBytes {
         AuthorityPublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
@@ -1093,7 +1096,7 @@ pub fn default_hash<S: Signable<DefaultHash>>(signable: &S) -> [u8; 32] {
 pub struct VerificationObligation<'a> {
     pub messages: Vec<Vec<u8>>,
     pub signatures: Vec<AggregateAuthoritySignature>,
-    pub public_keys: Vec<Vec<&'a AuthorityPublicKey>>,
+    pub public_keys: Vec<Vec<&'a AggregateAuthorityPublicKey>>,
 }
 
 impl<'a> VerificationObligation<'a> {
@@ -1122,7 +1125,7 @@ impl<'a> VerificationObligation<'a> {
     pub fn add_signature_and_public_key(
         &mut self,
         signature: &AuthoritySignature,
-        public_key: &'a AuthorityPublicKey,
+        public_key: &'a AggregateAuthorityPublicKey,
         idx: usize,
     ) -> IotaResult<()> {
         self.public_keys
