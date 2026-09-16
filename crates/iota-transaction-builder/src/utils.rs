@@ -11,7 +11,6 @@ use iota_json::{
     resolve_move_function_args,
 };
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
-use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, Identifier, MovePackage, ObjectId, ObjectReference, Owner,
     SharedObjectReference, StructTag, TypeTag,
@@ -447,7 +446,7 @@ impl TransactionBuilder {
                 .iter()
                 .map(|(k, v)| (Identifier::new_unchecked(k.as_str()), v.clone()))
                 .collect(),
-            ProtocolConfig::get_for_min_version().max_move_package_size(),
+            u64::MAX, // safe as this pkg comes from the network
             package.type_origin_table,
             package
                 .linkage_table
