@@ -20,10 +20,24 @@ and 44 `iota-indexer` unit tests and 35 `smart_account` / 3 `key_id` Move tests 
 
 ### Still missing
 
-1. **The `pg_integration` tests have never been run.** No PostgreSQL was reachable on `localhost:5432`.
-   `crates/iota-indexer/tests/account_key_links_tests.rs` compiles under `--features pg_integration` but every
-   assertion in it is unproven. Run:
+1. **The `pg_integration` tests still do not pass — but no longer because of PostgreSQL.** A local Postgres is
+   now set up (see below) and the tests connect and execute. All five then fail inside genesis with
+   `PackageTooBig` — the branch-level blocker in the next section. Every assertion in
+   `crates/iota-indexer/tests/account_key_links_tests.rs` therefore remains unproven, and will stay so until the
+   framework package fits under the limit again. Re-run with:
    `cargo nextest run -p iota-indexer --features pg_integration --test account_key_links_tests`.
+
+   Local Postgres setup that the harness expects (`postgres://postgres:postgrespw@localhost:5432/<db>`), on
+   macOS with Homebrew — Docker is not needed, though CI uses the `postgres:15` image:
+
+   ```sh
+   brew services start postgresql@14
+   psql -h localhost -d postgres -c "CREATE ROLE postgres LOGIN SUPERUSER CREATEDB PASSWORD 'postgrespw';"
+   psql -h localhost -d postgres -c "ALTER SYSTEM SET max_connections = 500;"   # CI does the same
+   brew services restart postgresql@14
+   ```
+
+   The harness creates and resets its own databases; `brew services stop postgresql@14` undoes the above.
 2. **`schema.rs` was hand-edited, not generated.** `scripts/indexer-schema/generate.sh` needs Docker (daemon not
    running) and the `diesel` CLI (not installed). The two `diesel::table!` blocks and the `for_all_tables!`
    entries were written to match what generation produces — alphabetical placement, matching column types — but
@@ -49,9 +63,20 @@ and 44 `iota-indexer` unit tests and 35 `smart_account` / 3 `key_id` Move tests 
 
 Both were verified to fail at `HEAD` with these changes stashed:
 
-* `iota-cost` `test_good_snapshot` — genesis aborts with
-  `PackageTooBig: Move package with size 104133 is larger than the maximum object size 102400`. The framework
-  package is over the limit; this work adds ~250 bytes to a package that was already ~1.5 KB over.
+* **`PackageTooBig` — genesis cannot be built on this branch at all.** Any test that builds a genesis aborts with
+  `PackageTooBig: Move package with size 104133 is larger than the maximum object size 102400`
+  (`iota-genesis-builder/src/lib.rs:963`). That is `iota-cost` `test_good_snapshot`, all five
+  `account_key_links_tests`, and by construction anything else using a `TestCluster` or `Simulacrum` genesis —
+  including the `claim_account_tests` the rollout checklist names as its regression gate.
+
+  `max_move_package_size` is `100 * 1024` (`iota-protocol-config/src/lib.rs:2411`), set once in the base config
+  and never overridden per protocol version, so raising it is a protocol config change at a new version — not
+  something to do casually.
+
+  The overrun is the account-abstraction work as a whole, not this task: `packages_compiled/iota-framework` is
+  88046 bytes on `develop` and 95259 on this branch, and the package object is 1733 bytes over the limit. The
+  discoverability work contributes ~250 of those ~7200 bytes; the branch was already ~1.5 KB over before it.
+  **This has to be resolved before any of the integration or e2e work on this branch can be verified.**
 * `iota-framework` Move `bls12381_tests::test_uncompressed_g1_sum_too_long` — runs out of gas instead of aborting
   with code 2.
 
@@ -868,18 +893,16 @@ git commit -m "feat(indexer): serve iotax_getAccountsByPublicKey from the accoun
 
 **Interfaces:** consumes everything above.
 
-> **⚠️ Not yet verified — needs a local Postgres.** The tests in this task were written and compile
-> (`cargo check -p iota-indexer --features pg_integration --tests` is clean), but they have **never been
-> executed**: no PostgreSQL instance was reachable on `localhost:5432` in the environment they were written
-> in, and `pg_integration` tests cannot run without one. Before this task can be ticked off, someone must
-> start a local Postgres and run:
+> **⚠️ Not yet verified — blocked on `PackageTooBig`, not on PostgreSQL.** These tests compile and, with a local
+> Postgres running, execute — but all five then fail inside genesis with
+> `PackageTooBig: Move package with size 104133 is larger than the maximum object size 102400`. That blocker is
+> branch-wide and predates this work; see **Implementation status** at the top of this page for the numbers and
+> for the Postgres setup. Treat every assertion in this file as unproven until the framework package fits under
+> the limit and this passes:
 >
 > ```sh
 > cargo nextest run -p iota-indexer --features pg_integration --test account_key_links_tests
 > ```
->
-> Treat every assertion in this file as unproven until that passes. The same caveat applies to the whole
-> `pg_integration` gate in the rollout checklist below.
 
 * \[ \] **Step 1: Write the tests**
 
