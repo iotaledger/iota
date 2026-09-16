@@ -16,6 +16,9 @@ use crate::{
     errors::{IndexerError, IndexerResult},
 };
 
+/// Maximum timeout for resolving the remote checkpoint source.
+pub const MAX_URL_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(30);
+
 /// Resolves the remote checkpoint source from the provided
 /// [`remote_store_url`](IngestionSources::remote_store_url).
 ///
