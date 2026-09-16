@@ -41,8 +41,11 @@ mod compatibility_tests {
                 .is_none()
                 {
                     panic!(
-                        "The current IOTA framework {:?} is not compatible with version {:?}",
-                        cur_package.id, version
+                        "A network at version {:?} cannot adopt the current IOTA framework \
+                         {:?}: it is incompatible with the package that version has on-chain, \
+                         or, for a package that version does not have at all, over the size \
+                         limit that version holds a new system package to",
+                        version, cur_package.id,
                     );
                 }
             }
