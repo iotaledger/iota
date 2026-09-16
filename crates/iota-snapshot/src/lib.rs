@@ -524,7 +524,7 @@ fn verify_epoch_boundary_proof(entry: &EpochInfoV1Entry) -> anyhow::Result<IotaS
     let written: HashSet<ObjectReference> = effects
         .all_changed_objects()
         .into_iter()
-        .map(|(changed, _)| changed.reference)
+        .map(|(changed, _)| *changed.reference())
         .collect();
     let mut objects = Vec::with_capacity(entry.next_epoch_start_system_state_objects.len());
     for raw in &entry.next_epoch_start_system_state_objects {

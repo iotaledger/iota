@@ -7,8 +7,8 @@
 //! only the built-in framework, no Move compiler.
 
 use iota_sdk_types::{
-    Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction, TransactionDigest,
-    transaction::{GenesisTransaction, TransactionKind},
+    GenesisTransaction, Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction,
+    TransactionDigest, TransactionKind,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -103,7 +103,7 @@ fn execute_commits_writes_to_store() {
     // A new coin was created and is now committed to the store.
     let created = result.effects.created();
     assert_eq!(created.len(), 1, "transfer_iota creates exactly one coin");
-    let new_coin_id = created[0].reference.object_id;
+    let new_coin_id = created[0].reference().object_id;
     assert!(
         vm.store()
             .get_object(&new_coin_id, None)
@@ -225,7 +225,7 @@ fn dev_inspect_and_dry_run_leave_store_unchanged() {
         );
         assert!(
             vm.store()
-                .get_object(&created[0].reference.object_id, None)
+                .get_object(&created[0].reference().object_id, None)
                 .expect("store lookup")
                 .is_none(),
             "{mode:?}: created object must NOT be committed"
@@ -540,10 +540,7 @@ fn deny_config_rejects_denied_sender() {
 /// replaces those versions in the store.
 #[test]
 fn execute_reports_runtime_loaded_inputs_at_their_pre_transaction_versions() {
-    use iota_sdk_types::{
-        Argument, ObjectChange, TypeTag,
-        transaction::{Command, SplitCoins},
-    };
+    use iota_sdk_types::{Argument, Command, ObjectChange, SplitCoins, TypeTag};
     use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
 
     let sender = Address::ZERO;
@@ -597,19 +594,19 @@ fn execute_reports_runtime_loaded_inputs_at_their_pre_transaction_versions() {
     let created = result.effects.created();
     let bag_ref = created
         .iter()
-        .find(|created| created.owner == Owner::Address(sender))
+        .find(|created| created.owner() == &Owner::Address(sender))
         .expect("the bag is created and owned by the sender");
     // A dynamic object field child is owned by its `Field` wrapper, which the
     // bag owns.
     let field = created
         .iter()
-        .find(|created| created.owner == Owner::Object(bag_ref.reference.object_id))
+        .find(|created| created.owner() == &Owner::Object(bag_ref.reference().object_id))
         .expect("the field wrapper is created as a child of the bag");
     let stored_coin = created
         .iter()
-        .find(|created| created.owner == Owner::Object(field.reference.object_id))
+        .find(|created| created.owner() == &Owner::Object(field.reference().object_id))
         .expect("the coin is created as a child of the field wrapper")
-        .reference;
+        .reference();
 
     // Take the coin back out: the bag is an input, the coin is loaded at
     // runtime.
@@ -620,7 +617,7 @@ fn execute_reports_runtime_loaded_inputs_at_their_pre_transaction_versions() {
         .expect("gas coin remains");
     let bag = vm
         .store()
-        .get_object(&bag_ref.reference.object_id, None)
+        .get_object(&bag_ref.reference().object_id, None)
         .expect("store lookup")
         .expect("bag is committed");
     let mut b = ProgrammableTransactionBuilder::new();
@@ -655,7 +652,7 @@ fn execute_reports_runtime_loaded_inputs_at_their_pre_transaction_versions() {
         result
             .input_objects
             .iter()
-            .any(|object| object.object_ref() == stored_coin),
+            .any(|object| object.object_ref() == *stored_coin),
         "the coin must be reported at the version it was loaded at, got {:?}",
         result
             .input_objects
@@ -720,9 +717,9 @@ fn module_resolver_resolves_modules_a_dry_run_published() {
         .effects
         .created()
         .iter()
-        .find(|created| created.owner == Owner::Immutable)
+        .find(|created| created.owner() == &Owner::Immutable)
         .expect("the package is created immutable")
-        .reference
+        .reference()
         .object_id;
     let published = ModuleId::new(
         AccountAddress::new(package_id.into_bytes()),

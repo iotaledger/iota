@@ -102,10 +102,10 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
 
     fn changed(obj: OwnedObjectReference) -> ChangedObject {
         ChangedObject {
-            object_id: obj.reference.object_id().to_string(),
-            version: obj.reference.version().as_u64(),
-            digest: obj.reference.digest().to_string(),
-            owner: Owner::from(&obj.owner),
+            object_id: obj.reference().object_id().to_string(),
+            version: obj.reference().version().as_u64(),
+            digest: obj.reference().digest().to_string(),
+            owner: Owner::from(obj.owner()),
         }
     }
     let mutated: Vec<ChangedObject> = result.effects.mutated().into_iter().map(changed).collect();

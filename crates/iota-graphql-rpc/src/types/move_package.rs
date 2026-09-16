@@ -15,9 +15,7 @@ use diesel::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, schema::packages};
 use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
-use iota_sdk_types::{
-    Address, Identifier, ObjectData, move_package::MovePackage as NativeMovePackage,
-};
+use iota_sdk_types::{Address, Identifier, MovePackage as NativeMovePackage, ObjectData};
 use serde::{Deserialize, Serialize};
 
 use crate::{

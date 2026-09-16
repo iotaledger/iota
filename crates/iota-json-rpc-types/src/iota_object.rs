@@ -14,9 +14,8 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
-    StructTag, TransactionDigest, Version,
-    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+    Address, Identifier, MovePackage, MoveStruct, ObjectData, ObjectDigest, ObjectId,
+    ObjectReference, Owner, StructTag, TransactionDigest, TypeOrigin, UpgradeInfo, Version,
 };
 use iota_types::{
     base_types::{ObjectInfo, ObjectType},
@@ -294,6 +293,9 @@ impl IotaObjectData {
                 }
                 ObjectData::Package(p) => IotaRawData::try_from_package(p)
                     .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
+                _ => unimplemented!(
+                    "a new ObjectData enum variant was added and needs to be handled"
+                ),
             };
             Some(data)
         } else {
@@ -311,6 +313,9 @@ impl IotaObjectData {
                     IotaParsedData::try_from_object(m, layout)?
                 }
                 ObjectData::Package(p) => IotaParsedData::try_from_package(p)?,
+                _ => unimplemented!(
+                    "a new ObjectData enum variant was added and needs to be handled"
+                ),
             };
             Some(data)
         } else {
@@ -882,6 +887,9 @@ impl IotaParsedData {
                         IotaParsedData::try_from_object(m, layout)?
                     }
                     ObjectData::Package(p) => IotaParsedData::try_from_package(p)?,
+                    _ => unimplemented!(
+                        "a new ObjectData enum variant was added and needs to be handled"
+                    ),
                 };
                 Ok(data)
             }

@@ -20,6 +20,7 @@ parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
+web-time = "1.1.0"
 
 # internal dependencies
 iota-common.workspace = true

@@ -31,10 +31,10 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, CanceledTransaction, CheckpointTimestamp, DenyRuleSet, ObjectId, ObjectReference,
-    RandomnessRound, SenderSignedTransaction, TransactionDenyRulesUpdate, TransactionDigest,
-    TransactionEffects, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
-    checkpoint::{CheckpointContents, CheckpointSummary},
+    Address, CanceledTransaction, CheckpointContents, CheckpointSummary, CheckpointTimestamp,
+    DenyRuleSet, ObjectId, ObjectReference, RandomnessRound, SenderSignedTransaction,
+    TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionKind, UserSignature, Version,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
@@ -169,7 +169,7 @@ pub(crate) mod scorer;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
-use iota_types::crypto::AuthorityPublicKey;
+use iota_types::crypto::AggregateAuthorityPublicKey;
 use scorer::Scoreboard;
 
 // `TxLockGuard` and `TxGuard` are functionally identical right now, but we
@@ -1600,7 +1600,7 @@ impl AuthorityPerEpochStore {
         self.epoch_start_state().protocol_version()
     }
 
-    pub fn active_validators(&self) -> Vec<AuthorityPublicKey> {
+    pub fn active_validators(&self) -> Vec<AggregateAuthorityPublicKey> {
         self.epoch_start_state().get_active_validators()
     }
 
@@ -2463,7 +2463,7 @@ impl AuthorityPerEpochStore {
             &[(transaction, effects)],
             self,
             cache_reader,
-        );
+        )?;
         let (_, assigned_versions) = assigned_versions.0.into_iter().next().unwrap();
         Ok(assigned_versions)
     }

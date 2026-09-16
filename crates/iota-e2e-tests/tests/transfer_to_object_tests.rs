@@ -119,11 +119,11 @@ fn get_parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference,
     // of another object.
     let created_addrs: HashSet<_> = created
         .iter()
-        .map(|owned| owned.reference.object_id)
+        .map(|owned| owned.reference().object_id)
         .collect();
     let (child, parent_id) = created
         .iter()
-        .find_map(|child @ OwnedObjectReference { owner, .. }| match owner {
+        .find_map(|child| match child.owner() {
             Owner::Address(j) if created_addrs.contains(&ObjectId::from(*j)) => {
                 Some((child, (*j).into()))
             }
@@ -132,9 +132,9 @@ fn get_parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference,
         .unwrap();
     let parent = created
         .iter()
-        .find(|owned| owned.reference.object_id == parent_id)
+        .find(|owned| owned.reference().object_id == parent_id)
         .unwrap();
-    (parent.reference, child.reference)
+    (*parent.reference(), *child.reference())
 }
 
 struct TestEnvironment {
@@ -194,20 +194,22 @@ impl TestEnvironment {
         let arguments = vec![CallArg::ImmutableOrOwned(parent), CallArg::Receiving(child)];
         let fx = self.move_call("receiver", arguments).await?;
         assert!(fx.0.status().is_success());
-        let new_child_ref =
-            fx.0.mutated_excluding_gas()
-                .iter()
-                .find_map(|mutated| {
-                    (mutated.reference.object_id == child.object_id).then_some(mutated.reference)
-                })
-                .unwrap();
-        let new_parent_ref =
-            fx.0.mutated_excluding_gas()
-                .iter()
-                .find_map(|mutated| {
-                    (mutated.reference.object_id == parent.object_id).then_some(mutated.reference)
-                })
-                .unwrap();
+        let new_child_ref = fx
+            .0
+            .mutated_excluding_gas()
+            .iter()
+            .find_map(|mutated| {
+                (mutated.reference().object_id == child.object_id).then_some(*mutated.reference())
+            })
+            .unwrap();
+        let new_parent_ref = fx
+            .0
+            .mutated_excluding_gas()
+            .iter()
+            .find_map(|mutated| {
+                (mutated.reference().object_id == parent.object_id).then_some(*mutated.reference())
+            })
+            .unwrap();
         Ok((new_parent_ref, new_child_ref))
     }
 
@@ -218,7 +220,7 @@ impl TestEnvironment {
         fx.0.mutated_excluding_gas()
             .iter()
             .find_map(|mutated| {
-                (mutated.reference.object_id == parent.object_id).then_some(mutated.reference)
+                (mutated.reference().object_id == parent.object_id).then_some(*mutated.reference())
             })
             .unwrap()
     }

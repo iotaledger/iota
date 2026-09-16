@@ -63,7 +63,7 @@ module Test::M1 {
 
 //# create-checkpoint
 
-//# run-graphql --cursors bcs(@{obj_3_0},1)
+//# run-graphql --cursors bcs(@{obj_3_0},3,1)
 {
   cv1_after: owner(address: "@{obj_2_2}") {
     dynamicFields(after: "@{cursor_0}") {
@@ -87,7 +87,7 @@ module Test::M1 {
   }
 }
 
-//# run-graphql --cursors bcs(@{obj_3_0},2)
+//# run-graphql --cursors bcs(@{obj_3_0},3,2)
 {
   cv2_after: owner(address: "@{obj_2_2}") {
     dynamicFields(after: "@{cursor_0}") {
@@ -111,7 +111,7 @@ module Test::M1 {
   }
 }
 
-//# run-graphql --cursors bcs(@{obj_3_0},3)
+//# run-graphql --cursors bcs(@{obj_3_0},3,3)
 {
   cv3_after: owner(address: "@{obj_2_2}") {
     dynamicFields(after: "@{cursor_0}") {
@@ -135,7 +135,7 @@ module Test::M1 {
   }
 }
 
-//# run-graphql --cursors bcs(@{obj_3_0},4)
+//# run-graphql --cursors bcs(@{obj_3_0},3,4)
 {
   cv4_after: owner(address: "@{obj_2_2}") {
     dynamicFields(after: "@{cursor_0}") {

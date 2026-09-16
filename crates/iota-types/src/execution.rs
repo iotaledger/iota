@@ -135,6 +135,10 @@ impl ExecutionResultsV1 {
                             .expect("package version should never overflow");
                     }
                 }
+
+                _ => unimplemented!(
+                    "a new ObjectData enum variant was added and needs to be handled"
+                ),
             }
 
             // Record the version that the shared object was created at in its owner field.

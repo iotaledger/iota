@@ -21,8 +21,8 @@ use iota_core::authority::{
 use iota_json_rpc::authority_state::StateRead;
 use iota_json_rpc_types::EventFilter;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEvents, checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId,
+    Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{

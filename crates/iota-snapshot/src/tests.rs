@@ -25,9 +25,9 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
 use iota_sdk_types::{
-    Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
-    TransactionEffects, TransactionEvents,
-    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+    Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
+    EndOfEpochData, GasCostSummary, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents,
 };
 use iota_storage::object_store::util::SUCCESS_MARKER;
 use iota_types::{

@@ -8,9 +8,8 @@ use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
-    TransactionEvents,
-    checkpoint::{CheckpointContents, CheckpointSummary},
+    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary, ObjectId,
+    TransactionDigest, TransactionEffects, TransactionEvents,
 };
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;

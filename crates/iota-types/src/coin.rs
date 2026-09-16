@@ -148,13 +148,10 @@ impl TreasuryCap {
 impl TryFrom<Object> for TreasuryCap {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if o.struct_tag().is_treasury_cap() {
-                    return TreasuryCap::from_bcs_bytes(o.contents());
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if o.struct_tag().is_treasury_cap() {
+                return TreasuryCap::from_bcs_bytes(o.contents());
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {
@@ -211,13 +208,10 @@ impl TryFrom<Object> for CoinMetadata {
 impl TryFrom<&Object> for CoinMetadata {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if o.struct_tag().is_coin_metadata() {
-                    return CoinMetadata::from_bcs_bytes(o.contents());
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if o.struct_tag().is_coin_metadata() {
+                return CoinMetadata::from_bcs_bytes(o.contents());
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

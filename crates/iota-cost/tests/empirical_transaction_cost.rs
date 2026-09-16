@@ -6,8 +6,8 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag, Transaction,
-    TypeTag, gas::GasCostSummary,
+    Address, GasCostSummary, Identifier, ObjectId, ObjectReference, SharedObjectReference,
+    StructTag, Transaction, TypeTag,
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{

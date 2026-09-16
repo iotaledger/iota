@@ -25,7 +25,7 @@ mod ingestion_tests {
             transactions::{StoredTransaction, TxGlobalOrder},
         },
         schema::{checkpointed_objects, checkpoints, objects, transactions, tx_global_order},
-        store::{PgIndexerStore, indexer_store::IndexerStore},
+        store::{PgIndexerStore, diesel_macro::spawn_blocking_task, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
@@ -51,12 +51,17 @@ mod ingestion_tests {
 
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{
-            let mut pg_pool_conn = get_pool_connection($pool)?;
-            pg_pool_conn
-                .build_transaction()
-                .read_only()
-                .run($query)
-                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            let pool = $pool.clone();
+            spawn_blocking_task(move || {
+                let mut pg_pool_conn = get_pool_connection(&pool)?;
+                pg_pool_conn
+                    .build_transaction()
+                    .read_only()
+                    .run($query)
+                    .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            })
+            .await
+            .expect("failed to join Tokio blocking task")
         }};
     }
 
@@ -110,7 +115,7 @@ mod ingestion_tests {
 
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
-        let digest = effects.transaction_digest();
+        let digest = *effects.transaction_digest();
 
         // Read the transaction from the database directly.
         let db_txn: StoredTransaction = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
@@ -215,7 +220,7 @@ mod ingestion_tests {
 
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
-        let digest = effects.transaction_digest();
+        let digest = *effects.transaction_digest();
 
         let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
@@ -635,7 +640,7 @@ mod ingestion_tests {
         let created1: Vec<_> = effects1
             .created()
             .into_iter()
-            .map(|created| (created.reference.object_id, created.reference.version))
+            .map(|created| (created.reference().object_id, created.reference().version))
             .collect();
         assert_eq!(
             created1.len(),
@@ -658,7 +663,7 @@ mod ingestion_tests {
         let created2: Vec<_> = effects2
             .created()
             .into_iter()
-            .map(|created| (created.reference.object_id, created.reference.version))
+            .map(|created| (created.reference().object_id, created.reference().version))
             .collect();
         assert_eq!(created2.len(), 1);
         let (created_coin_2, created_coin_2_version) = created2[0];
@@ -675,7 +680,7 @@ mod ingestion_tests {
         let created3: Vec<_> = effects3
             .created()
             .into_iter()
-            .map(|created| (created.reference.object_id, created.reference.version))
+            .map(|created| (created.reference().object_id, created.reference().version))
             .collect();
         assert_eq!(created3.len(), 1);
         let (created_coin_3, created_coin_3_version) = created3[0];
@@ -697,7 +702,8 @@ mod ingestion_tests {
         // Both created coins should have NOT_YET_CREATED entries, with
         // object_version = lamport - 1 (the version assigned by the create tx,
         // minus one).
-        let entry = find_backward_entry(&pg_store, created_coin_1.as_bytes(), 1)?
+        let entry = find_backward_entry(&pg_store, created_coin_1.as_bytes(), 1)
+            .await?
             .expect("created coin 1 must have a backward history entry at cp 1");
         assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
@@ -707,7 +713,8 @@ mod ingestion_tests {
         assert!(entry.serialized_object.is_none());
         assert!(entry.object_digest.is_none());
 
-        let entry = find_backward_entry(&pg_store, created_coin_2.as_bytes(), 1)?
+        let entry = find_backward_entry(&pg_store, created_coin_2.as_bytes(), 1)
+            .await?
             .expect("created coin 2 must have a backward history entry at cp 1");
         assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
@@ -717,7 +724,8 @@ mod ingestion_tests {
 
         // The gas object was mutated twice in checkpoint 1 — there should be
         // two ACTIVE entries with different previous versions.
-        let gas_entries = find_all_entries_at_checkpoint(&pg_store, gas_object_id.as_bytes(), 1)?;
+        let gas_entries =
+            find_all_entries_at_checkpoint(&pg_store, gas_object_id.as_bytes(), 1).await?;
         assert_eq!(
             gas_entries.len(),
             2,
@@ -741,7 +749,8 @@ mod ingestion_tests {
 
         // === checkpoint 2 assertions (single transaction) ===
 
-        let entry = find_backward_entry(&pg_store, created_coin_3.as_bytes(), 2)?
+        let entry = find_backward_entry(&pg_store, created_coin_3.as_bytes(), 2)
+            .await?
             .expect("created coin 3 must have a backward history entry at cp 2");
         assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
@@ -749,7 +758,8 @@ mod ingestion_tests {
             created_coin_3_version.as_u64() as i64 - 1
         );
 
-        let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)?
+        let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)
+            .await?
             .expect("gas object must have a backward history entry at cp 2");
         assert_eq!(entry.object_status, ObjectStatus::Active as i16);
         assert_eq!(entry.object_version, gas_version_before_tx3.as_u64() as i64);
@@ -775,11 +785,11 @@ mod ingestion_tests {
         let gas_after_tx1 = effects1
             .mutated()
             .into_iter()
-            .find(|mutated| mutated.reference.object_id == gas_object_id)
+            .find(|mutated| mutated.reference().object_id == gas_object_id)
             .expect("gas must be mutated by tx1")
-            .reference
+            .reference()
             .version;
-        let created_coin_1 = effects1.created()[0].reference;
+        let created_coin_1 = *effects1.created()[0].reference();
 
         let (tx2, _) = sim.transfer_txn(Address::random());
         let (effects2, err) = sim.execute_transaction(tx2).unwrap();
@@ -787,11 +797,11 @@ mod ingestion_tests {
         let gas_after_tx2 = effects2
             .mutated()
             .into_iter()
-            .find(|mutated| mutated.reference.object_id == gas_object_id)
+            .find(|mutated| mutated.reference().object_id == gas_object_id)
             .expect("gas must be mutated by tx2")
-            .reference
+            .reference()
             .version;
-        let created_coin_2 = effects2.created()[0].reference;
+        let created_coin_2 = *effects2.created()[0].reference();
 
         sim.create_checkpoint();
 
@@ -802,11 +812,11 @@ mod ingestion_tests {
         let gas_after_tx3 = effects3
             .mutated()
             .into_iter()
-            .find(|mutated| mutated.reference.object_id == gas_object_id)
+            .find(|mutated| mutated.reference().object_id == gas_object_id)
             .expect("gas must be mutated by tx3")
-            .reference
+            .reference()
             .version;
-        let created_coin_3 = effects3.created()[0].reference;
+        let created_coin_3 = *effects3.created()[0].reference();
         sim.create_checkpoint();
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -835,7 +845,7 @@ mod ingestion_tests {
         ];
         cp1_expected.sort();
         assert_eq!(
-            find_object_versions_at_checkpoint(&pg_store, 1)?,
+            find_object_versions_at_checkpoint(&pg_store, 1).await?,
             cp1_expected
         );
 
@@ -846,7 +856,7 @@ mod ingestion_tests {
         ];
         cp2_expected.sort();
         assert_eq!(
-            find_object_versions_at_checkpoint(&pg_store, 2)?,
+            find_object_versions_at_checkpoint(&pg_store, 2).await?,
             cp2_expected
         );
 
@@ -899,9 +909,9 @@ mod ingestion_tests {
         let package_id = publish_fx
             .created()
             .into_iter()
-            .find(|created| matches!(created.owner, Owner::Immutable))
+            .find(|created| matches!(created.owner(), Owner::Immutable))
             .expect("publish must create an immutable package")
-            .reference
+            .reference()
             .object_id;
         sim.create_checkpoint();
 
@@ -923,12 +933,12 @@ mod ingestion_tests {
                 .programmable(builder.finish())
                 .build(),
         );
-        let sword_v0 = mint_sword_fx
+        let sword_v0 = *mint_sword_fx
             .created()
             .into_iter()
-            .find(|created| matches!(created.owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner(), Owner::Address(_)))
             .expect("mint must create the sword")
-            .reference;
+            .reference();
         sim.create_checkpoint();
 
         // cp3: mint a Warrior + equip sword
@@ -956,12 +966,12 @@ mod ingestion_tests {
                 .programmable(builder.finish())
                 .build(),
         );
-        let warrior_v0 = equip_fx
+        let warrior_v0 = *equip_fx
             .created()
             .into_iter()
-            .find(|created| matches!(created.owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner(), Owner::Address(_)))
             .expect("equip tx must create the warrior")
-            .reference;
+            .reference();
         let sword_wrapped_version = equip_fx
             .wrapped()
             .into_iter()
@@ -988,18 +998,18 @@ mod ingestion_tests {
                 .programmable(builder.finish())
                 .build(),
         );
-        let sword_unwrapped_ref = unequip_fx
+        let sword_unwrapped_ref = *unequip_fx
             .unwrapped()
             .into_iter()
-            .find(|unwrapped| unwrapped.reference.object_id == sword_v0.object_id)
+            .find(|unwrapped| unwrapped.reference().object_id == sword_v0.object_id)
             .expect("sword must be unwrapped in the unequip tx")
-            .reference;
-        let warrior_after_unequip = unequip_fx
+            .reference();
+        let warrior_after_unequip = *unequip_fx
             .mutated()
             .into_iter()
-            .find(|mutated| mutated.reference.object_id == warrior_v0.object_id)
+            .find(|mutated| mutated.reference().object_id == warrior_v0.object_id)
             .expect("warrior must be mutated by unequip")
-            .reference;
+            .reference();
         sim.create_checkpoint();
 
         // cp5: equip sword
@@ -1030,12 +1040,12 @@ mod ingestion_tests {
             .find(|r| r.object_id == sword_v0.object_id)
             .expect("sword must be wrapped in the re-equip tx")
             .version;
-        let warrior_after_reequip = reequip_fx
+        let warrior_after_reequip = *reequip_fx
             .mutated()
             .into_iter()
-            .find(|mutated| mutated.reference.object_id == warrior_v0.object_id)
+            .find(|mutated| mutated.reference().object_id == warrior_v0.object_id)
             .expect("warrior must be mutated by re-equip")
-            .reference;
+            .reference();
         sim.create_checkpoint();
 
         // cp6: destroy warrior
@@ -1092,7 +1102,7 @@ mod ingestion_tests {
             };
 
         // cp3: warrior created (output) + sword wrapped (removed)
-        let cp3 = find_object_versions_at_checkpoint(&pg_store, 3)?;
+        let cp3 = find_object_versions_at_checkpoint(&pg_store, 3).await?;
         assert_present(
             &cp3,
             warrior_v0.object_id,
@@ -1107,7 +1117,7 @@ mod ingestion_tests {
         );
 
         // cp4: sword unwrapped (output)
-        let cp4 = find_object_versions_at_checkpoint(&pg_store, 4)?;
+        let cp4 = find_object_versions_at_checkpoint(&pg_store, 4).await?;
         assert_present(
             &cp4,
             sword_v0.object_id,
@@ -1116,7 +1126,7 @@ mod ingestion_tests {
         );
 
         // cp5: sword re-wrapped (removed)
-        let cp5 = find_object_versions_at_checkpoint(&pg_store, 5)?;
+        let cp5 = find_object_versions_at_checkpoint(&pg_store, 5).await?;
         assert_present(
             &cp5,
             sword_v0.object_id,
@@ -1125,7 +1135,7 @@ mod ingestion_tests {
         );
 
         // cp6: warrior deleted + sword unwrapped_then_deleted (both removed)
-        let cp6 = find_object_versions_at_checkpoint(&pg_store, 6)?;
+        let cp6 = find_object_versions_at_checkpoint(&pg_store, 6).await?;
         assert_present(
             &cp6,
             warrior_v0.object_id,

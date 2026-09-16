@@ -205,7 +205,7 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
             .into_iter()
             .filter_map(|(name, value)| value.map(|value| (name, value.to_string())))
             .collect();
-        Ok(ProtocolConfig { attributes })
+        Ok(ProtocolConfig::new(attributes))
     }
 
     async fn reference_gas_price(

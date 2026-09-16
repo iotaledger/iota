@@ -1,6 +1,5 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
-assertion_line: 818
 ---
 processed 37 tasks
 
@@ -123,7 +122,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AQAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAABAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -190,14 +189,14 @@ task 13, line 175:
 Checkpoint created: 2
 
 task 14, lines 177-237:
-//# run-graphql --cursors bcs(@{obj_5_0},1) bcs(@{obj_5_0},2)
+//# run-graphql --cursors bcs(@{obj_5_0},3,1) bcs(@{obj_5_0},3,2)
 Response: {
   "data": {
     "parent_version_3_only_dof": {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AgAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAACAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -222,7 +221,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3AgAAAAAAAAA=",
+            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3BAAAAAAAAAACAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMw==",
@@ -236,7 +235,7 @@ Response: {
             }
           },
           {
-            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74AgAAAAAAAAA=",
+            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74BAAAAAAAAAACAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMg==",
@@ -250,7 +249,7 @@ Response: {
             }
           },
           {
-            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlAgAAAAAAAAA=",
+            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlBAAAAAAAAAACAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMQ==",
@@ -264,7 +263,7 @@ Response: {
             }
           },
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AgAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAACAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -405,14 +404,14 @@ task 19, line 286:
 Checkpoint created: 3
 
 task 20, lines 288-338:
-//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},3)
+//# run-graphql --cursors bcs(@{obj_5_0},3,2) bcs(@{obj_5_0},3,3)
 Response: {
   "data": {
     "parent_version_4_has_4_children": {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3AwAAAAAAAAA=",
+            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3BAAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMw==",
@@ -426,7 +425,7 @@ Response: {
             }
           },
           {
-            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74AwAAAAAAAAA=",
+            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74BAAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMg==",
@@ -440,7 +439,7 @@ Response: {
             }
           },
           {
-            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlAwAAAAAAAAA=",
+            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlBAAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMQ==",
@@ -454,7 +453,7 @@ Response: {
             }
           },
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -484,7 +483,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBxoBlEqIeqmI9eBax5SEVGQRo+yTy+i55I36oG94avbAwAAAAAAAAA=",
+            "cursor": "IBxoBlEqIeqmI9eBax5SEVGQRo+yTy+i55I36oG94avbBQAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNA==",
@@ -498,7 +497,7 @@ Response: {
             }
           },
           {
-            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3AwAAAAAAAAA=",
+            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3BAAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMw==",
@@ -512,7 +511,7 @@ Response: {
             }
           },
           {
-            "cursor": "IE1BzrRT50K3dCDInv5mJWqf/SVPi3/qS2aBHIz2ZVdfAwAAAAAAAAA=",
+            "cursor": "IE1BzrRT50K3dCDInv5mJWqf/SVPi3/qS2aBHIz2ZVdfBQAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNQ==",
@@ -526,7 +525,7 @@ Response: {
             }
           },
           {
-            "cursor": "IE6/qBv5bWyoRdTXt5h7xiCoGQrWaZsQFVr8OYY2DeFdAwAAAAAAAAA=",
+            "cursor": "IE6/qBv5bWyoRdTXt5h7xiCoGQrWaZsQFVr8OYY2DeFdBQAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNg==",
@@ -540,7 +539,7 @@ Response: {
             }
           },
           {
-            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74AwAAAAAAAAA=",
+            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74BAAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMg==",
@@ -554,7 +553,7 @@ Response: {
             }
           },
           {
-            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlAwAAAAAAAAA=",
+            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlBAAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMQ==",
@@ -568,7 +567,7 @@ Response: {
             }
           },
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAADAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -639,14 +638,14 @@ task 24, line 347:
 Checkpoint created: 4
 
 task 25, lines 349-399:
-//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
+//# run-graphql --cursors bcs(@{obj_5_0},3,2) bcs(@{obj_5_0},3,4)
 Response: {
   "data": {
     "parent_version_4_has_df1_2_3": {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3BAAAAAAAAAA=",
+            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3BAAAAAAAAAAEAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMw==",
@@ -660,7 +659,7 @@ Response: {
             }
           },
           {
-            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74BAAAAAAAAAA=",
+            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74BAAAAAAAAAAEAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMg==",
@@ -674,7 +673,7 @@ Response: {
             }
           },
           {
-            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlBAAAAAAAAAA=",
+            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlBAAAAAAAAAAEAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMQ==",
@@ -688,7 +687,7 @@ Response: {
             }
           },
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7BAAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAAEAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -718,7 +717,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBxoBlEqIeqmI9eBax5SEVGQRo+yTy+i55I36oG94avbBAAAAAAAAAA=",
+            "cursor": "IBxoBlEqIeqmI9eBax5SEVGQRo+yTy+i55I36oG94avbBQAAAAAAAAAEAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNA==",
@@ -732,7 +731,7 @@ Response: {
             }
           },
           {
-            "cursor": "IE1BzrRT50K3dCDInv5mJWqf/SVPi3/qS2aBHIz2ZVdfBAAAAAAAAAA=",
+            "cursor": "IE1BzrRT50K3dCDInv5mJWqf/SVPi3/qS2aBHIz2ZVdfBQAAAAAAAAAEAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNQ==",
@@ -746,7 +745,7 @@ Response: {
             }
           },
           {
-            "cursor": "IE6/qBv5bWyoRdTXt5h7xiCoGQrWaZsQFVr8OYY2DeFdBAAAAAAAAAA=",
+            "cursor": "IE6/qBv5bWyoRdTXt5h7xiCoGQrWaZsQFVr8OYY2DeFdBQAAAAAAAAAEAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNg==",
@@ -760,7 +759,7 @@ Response: {
             }
           },
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7BAAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAAEAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -829,7 +828,7 @@ task 34, line 448:
 Checkpoint created: 8
 
 task 35, lines 450-508:
-//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
+//# run-graphql --cursors bcs(@{obj_5_0},3,2) bcs(@{obj_5_0},3,4)
 Response: {
   "data": {
     "availableRange": {
@@ -844,7 +843,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3CAAAAAAAAAA=",
+            "cursor": "IBzeTue1XsgMDY1gohd7II/ts2sOHWC7tan+wRzLJfZ3BAAAAAAAAAAIAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMw==",
@@ -858,7 +857,7 @@ Response: {
             }
           },
           {
-            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74CAAAAAAAAAA=",
+            "cursor": "IHFX3O1yuKR/xMsPcBaHHwSN9iw6Ec3lhBUKIFf1S+74BAAAAAAAAAAIAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMg==",
@@ -872,7 +871,7 @@ Response: {
             }
           },
           {
-            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlCAAAAAAAAAA=",
+            "cursor": "INzmC22cxVEPsRD/sADbb+3OgasMgkaiYy9DEiP5M2dlBAAAAAAAAAAIAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmMQ==",
@@ -886,7 +885,7 @@ Response: {
             }
           },
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAAIAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",
@@ -916,7 +915,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IBxoBlEqIeqmI9eBax5SEVGQRo+yTy+i55I36oG94avbCAAAAAAAAAA=",
+            "cursor": "IBxoBlEqIeqmI9eBax5SEVGQRo+yTy+i55I36oG94avbBQAAAAAAAAAIAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNA==",
@@ -930,7 +929,7 @@ Response: {
             }
           },
           {
-            "cursor": "IE1BzrRT50K3dCDInv5mJWqf/SVPi3/qS2aBHIz2ZVdfCAAAAAAAAAA=",
+            "cursor": "IE1BzrRT50K3dCDInv5mJWqf/SVPi3/qS2aBHIz2ZVdfBQAAAAAAAAAIAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNQ==",
@@ -944,7 +943,7 @@ Response: {
             }
           },
           {
-            "cursor": "IE6/qBv5bWyoRdTXt5h7xiCoGQrWaZsQFVr8OYY2DeFdCAAAAAAAAAA=",
+            "cursor": "IE6/qBv5bWyoRdTXt5h7xiCoGQrWaZsQFVr8OYY2DeFdBQAAAAAAAAAIAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "A2RmNg==",
@@ -958,7 +957,7 @@ Response: {
             }
           },
           {
-            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7CAAAAAAAAAA=",
+            "cursor": "IO53M+MvTXpggmw3a4XxAozDxT5+PDBBgqapE3N1EXl7AwAAAAAAAAAIAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "pAEAAAAAAAA=",

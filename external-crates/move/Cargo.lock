@@ -1898,7 +1898,6 @@ dependencies = [
  "move-core-types",
  "proptest",
  "proptest-derive",
- "ref-cast",
  "serde",
  "variant_count",
 ]
@@ -2040,6 +2039,7 @@ dependencies = [
  "dunce",
  "hex",
  "lsp-types",
+ "move-abstract-interpreter",
  "move-binary-format",
  "move-borrow-graph",
  "move-bytecode-source-map",

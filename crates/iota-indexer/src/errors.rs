@@ -178,7 +178,7 @@ pub enum IndexerError {
     SdkTypeConversion(#[from] SdkTypeConversionError),
 
     #[error(transparent)]
-    IdentifierParse(#[from] iota_sdk_types::move_core::TypeParseError),
+    IdentifierParse(#[from] iota_sdk_types::TypeParseError),
 
     #[error("failed to restore from formal snapshot: {0}")]
     Restore(String),
@@ -226,8 +226,8 @@ impl From<url::ParseError> for IndexerError {
     }
 }
 
-impl From<iota_grpc_client::Error> for IndexerError {
-    fn from(err: iota_grpc_client::Error) -> Self {
+impl From<iota_grpc_client::GrpcError> for IndexerError {
+    fn from(err: iota_grpc_client::GrpcError) -> Self {
         IndexerError::Grpc(err.to_string())
     }
 }

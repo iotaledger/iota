@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
-use iota_sdk_types::{MoveStruct, ObjectId, Owner, move_package::MovePackage};
+use iota_sdk_types::{MovePackage, MoveStruct, ObjectId, Owner};
 use iota_types::{
     coin::CoinMetadata,
     gas_coin::{GasCoin, IotaTreasuryCap, NANOS_PER_IOTA},
@@ -100,6 +100,7 @@ pub fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
             iota_sdk_types::ObjectData::Package(p) => {
                 package_map.insert(object.id(), p.clone());
             }
+            _ => unimplemented!("a new ObjectData enum variant was added and needs to be handled"),
         }
     }
 

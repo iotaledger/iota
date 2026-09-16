@@ -11,9 +11,8 @@ use std::{
 
 use async_trait::async_trait;
 use iota_sdk_types::{
-    Address, Argument, Command, Identifier, MakeMoveVector, ProgrammableTransaction, StructTag,
-    TypeTag, Version,
-    move_package::{MovePackage, TypeOrigin},
+    Address, Argument, Command, Identifier, MakeMoveVector, MovePackage, ProgrammableTransaction,
+    StructTag, TypeOrigin, TypeTag, Version,
 };
 use iota_types::{
     base_types::is_primitive_type_tag,
