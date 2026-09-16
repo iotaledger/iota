@@ -44,6 +44,7 @@ async fn structural_move_auth_failure_resolves_to_failure_effect() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         config
     });
 
@@ -129,6 +130,7 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         config
     });
 
@@ -226,6 +228,7 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         config
     });
 
@@ -302,6 +305,7 @@ async fn attested_object_version_state_judges_a_deleted_object() {
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         config
     });
 

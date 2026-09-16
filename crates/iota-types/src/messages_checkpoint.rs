@@ -124,6 +124,14 @@ mod checkpoint_summary_ext {
 /// `iota_sdk_types`. These live on an extension trait because inherent methods
 /// cannot be added to a type that is foreign to this crate.
 pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
+    /// `attestations` holds one verdict slot per transaction in `transactions`
+    /// order, or nothing when no transaction was attested. It is certified from
+    /// summary version 2 on and ignored before.
+    ///
+    /// # Panics
+    ///
+    /// Under summary version 2, if `attestations` is neither empty nor one slot
+    /// per transaction.
     fn new_with_protocol_config(
         protocol_config: &ProtocolConfig,
         epoch: EpochId,
@@ -175,11 +183,16 @@ impl CheckpointSummaryExt for CheckpointSummary {
                 ))
                 .expect("version specific data should serialize"),
                 Some(2) => {
-                    assert_eq!(
-                        attestations.len(),
-                        transactions.len(),
-                        "one attestation slot per transaction"
-                    );
+                    let attestations = if attestations.is_empty() {
+                        vec![None; transactions.len()]
+                    } else {
+                        assert_eq!(
+                            attestations.len(),
+                            transactions.len(),
+                            "one attestation slot per transaction"
+                        );
+                        attestations
+                    };
                     bcs::to_bytes(&CheckpointVersionSpecificData::V2(
                         CheckpointVersionSpecificDataV2 {
                             randomness_rounds,
@@ -1088,11 +1101,10 @@ mod tests {
             ExecutionDigests::random(),
             ExecutionDigests::random(),
         ]);
-        let parsed_for = |version: u64| {
+        let parsed_for = |version: u64, attestations: Vec<Option<AttestationRecord>>| {
             let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
             config.set_checkpoint_summary_version_specific_data_for_testing(version);
-            let attestations = vec![None, Some(attestation_record(0, AttestationVerdict::Valid))];
-            let parsed = CheckpointSummary::new_with_protocol_config(
+            CheckpointSummary::new_with_protocol_config(
                 &config,
                 1,
                 2,
@@ -1103,20 +1115,24 @@ mod tests {
                 None,
                 100,
                 vec![RandomnessRound::new(5)],
-                attestations.clone(),
+                attestations,
             )
             .parse_version_specific_data(&config)
             .unwrap()
-            .expect("version specific data is present from version 1");
-            (parsed, attestations)
+            .expect("version specific data is present from version 1")
         };
+        let attestations = vec![None, Some(attestation_record(0, AttestationVerdict::Valid))];
 
-        let (v1, _) = parsed_for(1);
+        let v1 = parsed_for(1, attestations.clone());
         assert_eq!(v1.randomness_rounds(), &[RandomnessRound::new(5)]);
         assert!(v1.attestations().is_empty());
 
-        let (v2, attestations) = parsed_for(2);
+        let v2 = parsed_for(2, attestations.clone());
         assert_eq!(v2.randomness_rounds(), &[RandomnessRound::new(5)]);
         assert_eq!(v2.attestations(), attestations.as_slice());
+
+        // No attested transactions still yields one slot per transaction.
+        let v2 = parsed_for(2, Vec::new());
+        assert_eq!(v2.attestations(), &[None, None]);
     }
 }

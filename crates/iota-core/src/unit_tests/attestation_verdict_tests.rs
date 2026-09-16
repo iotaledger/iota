@@ -28,6 +28,7 @@ fn attestation_config(tolerance_percentage: Option<u64>) -> impl Drop {
     ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         if let Some(tolerance) = tolerance_percentage {
             config.set_attestor_reward_accuracy_tolerance_percentage_for_testing(tolerance);
         }

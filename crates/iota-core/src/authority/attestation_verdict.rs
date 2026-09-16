@@ -375,8 +375,9 @@ pub(crate) fn body_ran(authentication_failed: bool, error: Option<&ExecutionErro
         && error.is_none_or(|error| !is_pre_execution_failure(authentication_error_kind(error)))
 }
 
-/// The input checks that run before the transaction body, on the
-/// authenticator's inputs and the transaction's alike.
+/// The checks that run before the transaction body: the input checks on the
+/// authenticator's inputs and the transaction's alike, and the coin deny-list
+/// check that follows authentication.
 fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
     matches!(
         kind,
@@ -385,6 +386,8 @@ fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
             | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
+            | ExecutionErrorKind::AddressDeniedForCoin { .. }
+            | ExecutionErrorKind::CoinTypeGlobalPause { .. }
     )
 }
 
@@ -425,6 +428,13 @@ mod tests {
             ExecutionErrorKind::CertificateDenied,
             ExecutionErrorKind::InputObjectDeleted,
             ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
+            ExecutionErrorKind::AddressDeniedForCoin {
+                address: Address::ZERO,
+                coin_type: String::new(),
+            },
+            ExecutionErrorKind::CoinTypeGlobalPause {
+                coin_type: String::new(),
+            },
         ] {
             let error = ExecutionError::from_kind(kind);
             assert!(!body_ran(false, Some(&error)), "{error:?}");

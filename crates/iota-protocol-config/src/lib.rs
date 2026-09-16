@@ -2079,21 +2079,9 @@ impl ProtocolConfig {
         res
     }
 
+    /// Its prerequisites are checked once, in [`Self::get_for_version`].
     pub fn enable_validator_attestation(&self) -> bool {
-        let res = self.feature_flags.enable_validator_attestation;
-        assert!(
-            !res || self.enable_pcool_flow(),
-            "enable_validator_attestation requires enable_pcool_flow to be set"
-        );
-        assert!(
-            !res || self.report_move_authentication_error(),
-            "enable_validator_attestation requires report_move_authentication_error to be set"
-        );
-        assert!(
-            !res || self.checkpoint_summary_version_specific_data == Some(2),
-            "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
-        );
-        res
+        self.feature_flags.enable_validator_attestation
     }
 }
 
@@ -2156,6 +2144,22 @@ impl ProtocolConfig {
                     .expect("failed to parse ProtocolConfig feature flags override env variables");
 
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
+        }
+
+        if ret.enable_validator_attestation() {
+            assert!(
+                ret.enable_pcool_flow(),
+                "enable_validator_attestation requires enable_pcool_flow to be set"
+            );
+            assert!(
+                ret.report_move_authentication_error(),
+                "enable_validator_attestation requires report_move_authentication_error to be set"
+            );
+            // The attestation verdicts are certified in the summary's version 2.
+            assert!(
+                ret.checkpoint_summary_version_specific_data == Some(2),
+                "enable_validator_attestation requires checkpoint_summary_version_specific_data = 2"
+            );
         }
 
         // The on-chain mirror has no state to mirror without governance itself.
@@ -3690,9 +3694,6 @@ impl ProtocolConfig {
 
     pub fn set_enable_validator_attestation_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_validator_attestation = val;
-        if val {
-            self.checkpoint_summary_version_specific_data = Some(2);
-        }
     }
 }
 
