@@ -1114,6 +1114,24 @@ mod tests {
         wait_for_local_block_after_failed_delegation(PolicyKind::Error).await;
     }
 
+    #[tokio::test]
+    async fn test_a_failed_delegation_releases_the_pending_client() {
+        let (_tmp_dir, controller) = delegating_controller(false, PolicyKind::Spam);
+        controller.tally(breach(PolicyKind::Spam));
+        wait_until("the first delegation did not fail", || {
+            controller.metrics.firewall_delegation_request_fail.get() >= 1
+        })
+        .await;
+
+        // A client left pending after a failed delegation would never reach the
+        // firewall again, however many times it breaches the policy.
+        wait_until("the node delegated no second block", || {
+            controller.tally(breach(PolicyKind::Spam));
+            controller.metrics.blocks_delegated_to_firewall.get() >= 2
+        })
+        .await;
+    }
+
     fn freq_threshold(client_threshold: u64) -> PolicyType {
         PolicyType::FreqThreshold(FreqThresholdConfig {
             client_threshold,
