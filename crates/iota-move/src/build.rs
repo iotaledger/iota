@@ -37,6 +37,11 @@ pub struct ProtocolBuildConfigArgs {
     /// resolved), it reports against the compiled-in protocol default.
     #[arg(skip)]
     pub max_move_package_size: Option<u64>,
+    /// Maximum on-chain size for a system package, populated from the resolved
+    /// protocol config rather than the command line. Unset on a protocol
+    /// version that holds system packages to `max_move_package_size`.
+    #[arg(skip)]
+    pub max_move_system_package_size: Option<u64>,
 }
 
 impl ProtocolBuildConfigArgs {
@@ -49,9 +54,13 @@ impl ProtocolBuildConfigArgs {
         let ProtocolBuildConfig {
             allow_view_function,
             max_move_package_size,
+            max_move_system_package_size,
         } = *defaults;
         self.allow_view_function.get_or_insert(allow_view_function);
         self.max_move_package_size = self.max_move_package_size.or(max_move_package_size);
+        self.max_move_system_package_size = self
+            .max_move_system_package_size
+            .or(max_move_system_package_size);
     }
 }
 
@@ -65,10 +74,13 @@ impl From<ProtocolBuildConfigArgs> for ProtocolBuildConfig {
         let ProtocolBuildConfigArgs {
             allow_view_function,
             max_move_package_size,
+            max_move_system_package_size,
         } = args;
         ProtocolBuildConfig {
             allow_view_function: allow_view_function.unwrap_or(defaults.allow_view_function),
             max_move_package_size: max_move_package_size.or(defaults.max_move_package_size),
+            max_move_system_package_size: max_move_system_package_size
+                .or(defaults.max_move_system_package_size),
         }
     }
 }
@@ -153,14 +165,9 @@ impl Build {
         .build(rerooted_path)?;
 
         // The package size is protocol-independent, so it is always computed.
-        // The limit is protocol-gated: use the network-resolved value when a
-        // target network is known, otherwise fall back to the compiled-in
-        // default (identical across all protocol versions today).
         let dep_count = pkg.linkage_dependency_count();
         let size = pkg.published_size(with_unpublished_deps, dep_count);
-        let max_size = protocol_build_config
-            .max_move_package_size
-            .unwrap_or_else(|| ProtocolConfig::get_for_min_version().max_move_package_size());
+        let max_size = Self::max_package_size(&pkg, &protocol_build_config);
         // The near-limit / over-limit consequence is always surfaced. With
         // `--package-info` we additionally print the full details.
         Self::warn_on_size(size, max_size);
@@ -186,6 +193,31 @@ impl Build {
             .update_lock_file_toolchain_version(rerooted_path, env!("CARGO_PKG_VERSION").into())?;
 
         Ok(())
+    }
+
+    /// The size limit the network holds `pkg` to. System packages are published
+    /// by the network rather than by users, and are bound by
+    /// `max_move_system_package_size` on a protocol version that sets it.
+    ///
+    /// Both limits are protocol-gated: they come from the target network when
+    /// one was resolved, and from the newest protocol version this binary knows
+    /// otherwise.
+    fn max_package_size(pkg: &CompiledPackage, config: &ProtocolBuildConfig) -> u64 {
+        let (max_size, max_system_size) = match config.max_move_package_size {
+            Some(max_size) => (max_size, config.max_move_system_package_size),
+            None => {
+                let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+                (
+                    protocol_config.max_move_package_size(),
+                    protocol_config.max_move_system_package_size_as_option(),
+                )
+            }
+        };
+
+        match max_system_size {
+            Some(max_system_size) if pkg.is_system_package() => max_system_size,
+            _ => max_size,
+        }
     }
 
     /// Warn only when the package is close to or over the protocol size limit.
