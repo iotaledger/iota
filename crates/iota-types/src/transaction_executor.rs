@@ -179,21 +179,25 @@ pub struct InputCheckRules {
     /// and the object's real one, instead of rejecting it with
     /// `SharedObjectStartingVersionMismatch`.
     ///
-    /// Consensus uses the declared initial shared version to assign the object's
-    /// version, which a simulation does not do: it reads the object's latest
-    /// version, and execution never reads the declared one. System objects
-    /// that only a system transaction may take mutably are still rejected
-    /// whatever initial shared version is declared.
+    /// Consensus uses the declared initial shared version to assign the
+    /// object's version, which a simulation does not do: it reads the
+    /// object's latest version, and execution never reads the declared one.
+    /// System objects that only a system transaction may take mutably are
+    /// still rejected whatever initial shared version is declared.
     pub any_initial_shared_version: bool,
     /// Skip the match between a receiving reference's declared version and the
-    /// version of the object it names, so a simulation can run over a reference
-    /// the caller has not refreshed.
+    /// current version of the object it names, so a simulation can run over a
+    /// reference the caller has not refreshed.
     ///
-    /// A receiving reference's version is not only an optimistic-concurrency
-    /// token, unlike the two above: execution resolves the receive at exactly
-    /// the declared version, so a stale one still fails at runtime with
-    /// `E_UNABLE_TO_RECEIVE_OBJECT`. This drops the up-front rejection, not the
-    /// outcome.
+    /// This changes the outcome, not only where a failure is reported. A stale
+    /// reference that the transaction never receives no longer fails at all. A
+    /// received one is looked up at the declared version, and the result
+    /// depends on the store: a store that serves only the current version
+    /// fails the receive with `E_UNABLE_TO_RECEIVE_OBJECT`, but a node still
+    /// holds older versions and refuses one only if it was received in the
+    /// current epoch. So on a node, a simulation can receive an object at a
+    /// version it was already received at in an earlier epoch, and report
+    /// effects that execution would reject.
     ///
     /// Neither this nor [`Self::any_receiving_object_digest`] relaxes what the
     /// object is, or the rejection of a reference that duplicates another or
