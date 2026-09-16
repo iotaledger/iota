@@ -2148,7 +2148,7 @@ impl IndexerReader {
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<(Vec<IotaEvent>, u64)> {
+    ) -> IndexerResult<(Vec<IotaEvent>, CheckpointSequenceNumber)> {
         let stored_events = self
             .query_stored_events_by_tx_digest_with_fallback(
                 tx_digest,
@@ -2165,7 +2165,7 @@ impl IndexerReader {
         } else {
             let (oldest_available_cp, _min_available_tx) =
                 self.oldest_available_cp_and_tx(Self::EVENTS_BY_DIGEST_TABLES);
-            oldest_available_cp as u64
+            oldest_available_cp as CheckpointSequenceNumber
         };
 
         let mut iota_event_futures = vec![];
@@ -2195,7 +2195,7 @@ impl IndexerReader {
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<(Vec<IotaEvent>, u64)> {
+    ) -> IndexerResult<(Vec<IotaEvent>, CheckpointSequenceNumber)> {
         if let EventFilter::Transaction(tx_digest) = filter {
             return self
                 .query_events_by_tx_digest_with_fallback(tx_digest, cursor, limit, descending_order)
@@ -2341,7 +2341,7 @@ impl IndexerReader {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
-        Ok((iota_events, oldest_available_cp as u64))
+        Ok((iota_events, oldest_available_cp as CheckpointSequenceNumber))
     }
 
     pub async fn get_dynamic_fields_in_blocking_task(
