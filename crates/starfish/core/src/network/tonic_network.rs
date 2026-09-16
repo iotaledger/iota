@@ -30,7 +30,7 @@ use tracing::{debug, error, info, trace, warn};
 use super::{
     BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
-    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest},
+    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
@@ -1439,31 +1439,15 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
-/// Calculate approximate size of HTTP headers.
-/// Note: This is an approximation of uncompressed size. Actual wire size will
-/// be smaller due to HTTP/2 HPACK compression.
-fn calculate_header_size(headers: &http::HeaderMap) -> usize {
-    headers
-        .iter()
-        .map(|(name, value)| {
-            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
-            name.as_str().len() + value.len() + 4
-        })
-        .sum()
-}
-
-impl SizedRequest for http::request::Parts {
-    fn size(&self) -> usize {
-        calculate_header_size(&self.headers)
-    }
-
-    fn route(&self) -> String {
-        let path = self.uri.path();
-        path.rsplit_once('/')
-            .map(|(_, route)| route)
-            .unwrap_or("unknown")
-            .to_string()
-    }
+/// RPC name from the request path, `unknown` when the path has no `/`.
+fn request_route(request: &http::request::Parts) -> String {
+    request
+        .uri
+        .path()
+        .rsplit_once('/')
+        .map(|(_, route)| route)
+        .unwrap_or("unknown")
+        .to_string()
 }
 
 /// Error label for a failed HTTP status, `None` for a successful one.
@@ -1475,7 +1459,7 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
     type Handler = MetricsResponseCallback;
 
     fn make_handler(&self, request: &http::request::Parts) -> Self::Handler {
-        self.handle_request(request)
+        self.handle_request(request_route(request))
     }
 }
 

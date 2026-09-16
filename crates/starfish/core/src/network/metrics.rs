@@ -107,8 +107,6 @@ pub(crate) struct NetworkRouteMetrics {
     pub requests: IntCounterVec,
     /// Request latency by route
     pub request_latency: HistogramVec,
-    /// Request head size by route; request bodies are not observed
-    pub request_size: HistogramVec,
     /// Wire size of each gRPC response message by route
     pub response_size: HistogramVec,
     /// Counter of response messages exceeding the "excessive" size limit
@@ -154,16 +152,6 @@ impl NetworkRouteMetrics {
         )
         .unwrap();
 
-        let request_size = register_histogram_vec_with_registry!(
-            format!("{direction}_request_size"),
-            "Head size of a request by route; request bodies are not observed",
-            &["route"],
-            SIZE_BYTE_BUCKETS.to_vec(),
-            registry;
-            MetricLevel::Warn,
-        )
-        .unwrap();
-
         let response_size = register_histogram_vec_with_registry!(
             format!("{direction}_response_size"),
             "Wire size of each gRPC response message by route, prefix included",
@@ -201,7 +189,6 @@ impl NetworkRouteMetrics {
         Self {
             requests,
             request_latency,
-            request_size,
             response_size,
             excessive_size_responses,
             inflight_requests,
