@@ -19,7 +19,7 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::{GrpcClient, read_mask_fields::ObjectField};
+use iota_grpc_client::GrpcClient;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -3290,24 +3290,17 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
     })
 }
 
-/// Fetch the current object references for the given object IDs over gRPC.
+/// Fetch the current object references for the given object IDs over gRPC,
+/// failing if any of them does not exist.
 pub(crate) async fn grpc_input_refs(
     client: &GrpcClient,
     object_ids: &[ObjectId],
 ) -> Result<Vec<ObjectReference>, anyhow::Error> {
-    if object_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    let objects = client
-        .objects(object_ids.iter().copied(), ObjectField::REFERENCE)
-        .await?
-        .into_inner();
-    objects
-        .into_iter()
-        .map(|result| match result {
-            Ok(obj) => obj.object_reference().map_err(|e| anyhow::anyhow!(e)),
-            Err(e) => Err(anyhow::anyhow!(e)),
-        })
+    let requests: Vec<_> = object_ids.iter().map(|id| (*id, None)).collect();
+    let refs = client.object_refs_by_id(&requests).await?;
+    refs.into_iter()
+        .zip(object_ids)
+        .map(|(reference, id)| reference.ok_or_else(|| anyhow!("object {id} does not exist")))
         .collect()
 }
 
