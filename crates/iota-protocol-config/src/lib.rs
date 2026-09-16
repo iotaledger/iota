@@ -675,6 +675,16 @@ struct FeatureFlags {
     // requires `enable_builtin_move_authenticators`.
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_account_transaction: bool,
+
+    // If true, a declared `initial_shared_version` must be a valid version.
+    //
+    // For an object that does not exist yet the declared value is otherwise never checked
+    // against anything - it seeds the epoch's version chain verbatim - so a sentinel or
+    // out-of-range value reaches the version-assignment walk, which unwraps a
+    // `lamport_increment` that errors on invalid input. Tightens transaction validity, so it
+    // is version-gated.
+    #[serde(skip_serializing_if = "is_false")]
+    check_declared_initial_shared_versions: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1643,6 +1653,15 @@ pub struct ProtocolConfig {
     // Cost param for the Move native function `public_key::to_iota_address_impl(flag: u8,
     // raw_bytes: &vector<u8>): address`
     public_key_to_iota_address_impl_cost_base: Option<u64>,
+
+    // Smallest gas budget a `ClaimAccount` transaction may declare.
+    //
+    // The sequencer stages a claim entry for the address before the claim executes, so a
+    // claim it schedules must not be able to run out of gas: the address would be treated as
+    // explicit with no account object behind it. The claim runs a fixed pipeline with no user
+    // code, so its cost is bounded, and requiring the budget to clear that bound is a
+    // byte-only check.
+    claim_account_min_gas_budget: Option<u64>,
 }
 
 // feature flags
@@ -2173,7 +2192,30 @@ impl ProtocolConfig {
     }
 
     pub fn enable_claim_account_transaction(&self) -> bool {
-        self.feature_flags.enable_claim_account_transaction
+        let enable_claim_account_transaction = self.feature_flags.enable_claim_account_transaction;
+        if enable_claim_account_transaction {
+            // The account rules drop transactions in the scheduling pass, which
+            // is only sound when no transaction can execute before it is
+            // sequenced — the guarantee the P-COOL flow provides. The
+            // certificate flow's fast path executes owned-object certificates
+            // immediately, which is incompatible with the rules.
+            assert!(
+                self.enable_pcool_flow(),
+                "enable_claim_account_transaction requires enable_pcool_flow to be enabled"
+            );
+            // A scheduled claim must not be able to run out of gas: an entry
+            // would be staged for an account object that never comes to exist,
+            // bricking the address.
+            assert!(
+                self.claim_account_min_gas_budget.is_some(),
+                "enable_claim_account_transaction requires claim_account_min_gas_budget to be set"
+            );
+        }
+        enable_claim_account_transaction
+    }
+
+    pub fn check_declared_initial_shared_versions(&self) -> bool {
+        self.feature_flags.check_declared_initial_shared_versions
     }
 }
 
@@ -2846,11 +2888,14 @@ impl ProtocolConfig {
             ed25519_ed25519_validate_pubkey_cost_base: None,
             ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
             ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
+
             multisig_multisig_validate_pubkey_cost_base: None,
             multisig_multisig_validate_pubkey_cost_per_ed25519_member: None,
             multisig_multisig_validate_pubkey_cost_per_secp256k1_member: None,
             multisig_multisig_validate_pubkey_cost_per_secp256r1_member: None,
             public_key_to_iota_address_impl_cost_base: None,
+
+            claim_account_min_gas_budget: None,
 
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
@@ -3558,6 +3603,10 @@ impl ProtocolConfig {
                         // Enable claiming an account for the sender's address in
                         // devnet only.
                         cfg.feature_flags.enable_claim_account_transaction = true;
+
+                        // Floor for a ClaimAccount gas budget, so a scheduled claim
+                        // cannot run out of gas.
+                        cfg.claim_account_min_gas_budget = Some(5_000_000);
                     }
 
                     // Set the cost for built-in Move authenticators to 0 for now.
@@ -3571,6 +3620,11 @@ impl ProtocolConfig {
                     cfg.multisig_multisig_validate_pubkey_cost_per_secp256k1_member = Some(52);
                     cfg.multisig_multisig_validate_pubkey_cost_per_secp256r1_member = Some(52);
                     cfg.public_key_to_iota_address_impl_cost_base = Some(52);
+
+                    // Reject declared initial shared versions that are not valid
+                    // versions, on every chain: an invalid one otherwise seeds a
+                    // version chain and reaches the assignment walk.
+                    cfg.feature_flags.check_declared_initial_shared_versions = true;
                 }
                 // Use this template when making changes:
                 //

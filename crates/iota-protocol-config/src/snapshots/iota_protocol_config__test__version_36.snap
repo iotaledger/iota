@@ -65,6 +65,7 @@ feature_flags:
   allow_unbounded_system_objects: true
   enable_builtin_move_authenticators: true
   enable_claim_account_transaction: true
+  check_declared_initial_shared_versions: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -375,3 +376,4 @@ multisig_multisig_validate_pubkey_cost_per_ed25519_member: 52
 multisig_multisig_validate_pubkey_cost_per_secp256k1_member: 52
 multisig_multisig_validate_pubkey_cost_per_secp256r1_member: 52
 public_key_to_iota_address_impl_cost_base: 52
+claim_account_min_gas_budget: 5000000

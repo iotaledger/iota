@@ -729,6 +729,17 @@ pub enum IotaError {
         id: ObjectId,
         key: String,
     },
+
+    #[error("Account {address} is already explicit; it cannot be claimed again")]
+    AccountAlreadyExplicit { address: Address },
+    #[error(
+        "Account {address} is explicit; a transaction for it must authenticate with a MoveAuthenticator instead of a plain signature"
+    )]
+    PlainSignatureForExplicitAccount { address: Address },
+    #[error(
+        "Transaction depends on account {address} whose claim was cancelled in the same commit"
+    )]
+    DependencyOnCancelledClaim { address: Address },
 }
 
 #[repr(u64)]
@@ -912,6 +923,13 @@ impl IotaError {
             IotaError::FailedToVerifyTxCertWithExecutedEffects { .. } => false,
             IotaError::ObjectLockConflict { .. } => false,
 
+            // Account rules — non-retryable: the transaction must be rebuilt
+            // (with a MoveAuthenticator, or against the retried claim's new
+            // account reference).
+            IotaError::AccountAlreadyExplicit { .. } => false,
+            IotaError::PlainSignatureForExplicitAccount { .. } => false,
+            IotaError::DependencyOnCancelledClaim { .. } => false,
+
             // NB: This is not an internal overload, but instead an imposed rate
             // limit / blocking of a client. It must be non-retryable otherwise
             // we will make the threat worse through automatic retries.
@@ -1000,7 +1018,10 @@ pub fn categorize(error: &IotaError) -> ErrorCategory {
         | IotaError::SignerSignatureNumberMismatch { .. }
         | IotaError::IncorrectSigner { .. }
         | IotaError::UnknownSigner { .. }
-        | IotaError::TransactionExpired => ErrorCategory::InvalidTransaction,
+        | IotaError::TransactionExpired
+        | IotaError::AccountAlreadyExplicit { .. }
+        | IotaError::PlainSignatureForExplicitAccount { .. }
+        | IotaError::DependencyOnCancelledClaim { .. } => ErrorCategory::InvalidTransaction,
 
         IotaError::ObjectLockConflict { .. } => ErrorCategory::LockConflict,
 

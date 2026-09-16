@@ -95,7 +95,7 @@ use super::{
 };
 use crate::{
     authority::{
-        AuthorityMetrics, AuthorityState, ResolverWrapper,
+        AuthorityMetrics, AuthorityState, ResolverWrapper, account_rules,
         authority_per_epoch_store::{
             misbehavior::MisbehaviorReportVersion, misbehavior_monitor::MisbehaviorMonitor,
             report_aggregator::ReportAggregator,
@@ -125,7 +125,7 @@ use crate::{
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{ObjectCacheRead, cache_types::CacheResult},
+    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
@@ -536,6 +536,14 @@ pub enum ConsensusTransactionResult {
             CancelConsensusTransactionReason,
         ),
     ),
+
+    /// The transaction was dropped by the account rules before taking any
+    /// scheduling capacity. It will not execute; the error is reported to
+    /// waiting clients through the dropped-transaction status cache.
+    DroppedByAccountRules {
+        digest: TransactionDigest,
+        error: IotaError,
+    },
 }
 
 /// ConsensusStats is versioned because we may iterate on the struct, and it is
@@ -852,6 +860,16 @@ pub struct AuthorityEpochTables {
 
     /// Next available shared object versions for each shared object.
     next_shared_object_versions: DBMap<ObjectId, Version>,
+
+    /// Accounts claimed by a `ClaimAccount` transaction scheduled in this
+    /// epoch. Maps the claimed address (equal to the id of the account object
+    /// the claim creates) to the claiming transaction and the version the
+    /// account object is created at. Entries are written at version
+    /// assignment, before the claim executes, so the explicit/implicit
+    /// resolution of an address never depends on local execution progress.
+    /// Claims settled in previous epochs are answered by the object store
+    /// instead.
+    claimed_accounts: DBMap<ObjectId, (TransactionDigest, Version)>,
 
     /// Track which transactions have been processed in
     /// handle_consensus_transaction. We must be sure to advance
@@ -2020,6 +2038,33 @@ impl AuthorityPerEpochStore {
             .next_shared_object_versions
             .get(obj)
             .unwrap()
+    }
+
+    /// Returns the claim entry for `address` if a `ClaimAccount` transaction
+    /// for it has been scheduled in this epoch. Claims settled in previous
+    /// epochs are visible in the object store instead.
+    pub(crate) fn get_claimed_account(
+        &self,
+        address: &ObjectId,
+    ) -> IotaResult<Option<(TransactionDigest, Version)>> {
+        let tables = self.tables()?;
+        self.consensus_quarantine
+            .read()
+            .get_claimed_account(&tables, address)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert_claimed_account_for_testing(
+        &self,
+        address: ObjectId,
+        digest: TransactionDigest,
+        version: Version,
+    ) {
+        self.tables()
+            .expect("test should not cross epoch boundary")
+            .claimed_accounts
+            .insert(&address, &(digest, version))
+            .unwrap();
     }
 
     pub fn insert_finalized_transactions(
@@ -4055,6 +4100,7 @@ impl AuthorityPerEpochStore {
                 &end_of_publish_transactions,
                 checkpoint_service,
                 cache_reader,
+                authority_state.get_transaction_cache_reader().as_ref(),
                 consensus_commit_info,
                 &mut roots,
                 &mut randomness_roots,
@@ -4381,14 +4427,15 @@ impl AuthorityPerEpochStore {
             match key.as_digest().and_then(|d| cancelled_txns.get(d)) {
                 Some(CancelConsensusTransactionReason::Congested { .. })
                 | Some(CancelConsensusTransactionReason::DkgFailed) => {
-                    let version_assignments = SharedObjVerManager::assign_versions_for_transaction(
-                        self,
-                        txn,
-                        &mut shared_input_next_version,
-                        cancelled_txns,
-                        self.protocol_config
-                            .congestion_control_gas_price_feedback_mechanism(),
-                    );
+                    let (version_assignments, _lamport_version) =
+                        SharedObjVerManager::assign_versions_for_transaction(
+                            self,
+                            txn,
+                            &mut shared_input_next_version,
+                            cancelled_txns,
+                            self.protocol_config
+                                .congestion_control_gas_price_feedback_mechanism(),
+                        );
                     cancelled_transactions.push(CanceledTransaction {
                         digest: *key.unwrap_digest(),
                         version_assignments,
@@ -4448,6 +4495,7 @@ impl AuthorityPerEpochStore {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts,
         } = SharedObjVerManager::assign_versions_from_consensus(
             self,
             cache_reader,
@@ -4456,6 +4504,7 @@ impl AuthorityPerEpochStore {
         )?;
 
         output.set_next_shared_object_versions(shared_input_next_versions);
+        output.set_claimed_accounts(claimed_accounts);
         Ok(assigned_versions)
     }
 
@@ -4553,6 +4602,7 @@ impl AuthorityPerEpochStore {
         end_of_publish_transactions: &[VerifiedSequencedConsensusTransaction],
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
+        tx_reader: &dyn TransactionCacheRead,
         consensus_commit_info: &ConsensusCommitInfo,
         non_randomness_roots: &mut BTreeSet<TransactionKey>,
         randomness_roots: &mut BTreeSet<TransactionKey>,
@@ -4626,6 +4676,8 @@ impl AuthorityPerEpochStore {
         let mut randomness_state_updated = false;
         let mut sequenced_non_randomness = Vec::new();
         let mut sequenced_randomness = Vec::new();
+        let mut account_rules_state = account_rules::AccountRulesState::new();
+        let mut account_rules_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
 
         for entry in non_randomness_transactions
             .iter()
@@ -4667,6 +4719,8 @@ impl AuthorityPerEpochStore {
                     output,
                     tx,
                     checkpoint_service,
+                    cache_reader,
+                    tx_reader,
                     consensus_commit_info.round,
                     &previously_deferred_tx_digests,
                     randomness_manager.as_deref_mut(),
@@ -4674,6 +4728,7 @@ impl AuthorityPerEpochStore {
                     randomness_round.is_some(),
                     congestion_tracker,
                     sgp_calculator,
+                    &account_rules_state,
                     authority_metrics,
                 )
                 .await?
@@ -4682,6 +4737,7 @@ impl AuthorityPerEpochStore {
                     transaction,
                     start_time,
                 } => {
+                    account_rules_state.record_scheduled(transaction.data());
                     notifications.push(key.clone());
                     // Transactions using randomness execute in the separate
                     // randomness phase and checkpoint, whichever list they
@@ -4710,6 +4766,7 @@ impl AuthorityPerEpochStore {
                     }
                 }
                 ConsensusTransactionResult::Cancelled((transaction, reason)) => {
+                    account_rules_state.record_cancelled(transaction.data());
                     notifications.push(key.clone());
                     assert!(
                         cancelled_txns
@@ -4722,6 +4779,11 @@ impl AuthorityPerEpochStore {
                     } else {
                         sequenced_non_randomness.push((transaction, start_time));
                     }
+                }
+                ConsensusTransactionResult::DroppedByAccountRules { digest, error } => {
+                    notifications.push(key.clone());
+                    filter_roots = true;
+                    account_rules_dropped.push((digest, error));
                 }
                 ConsensusTransactionResult::RandomnessConsensusMessage => {
                     randomness_state_updated = true;
@@ -4772,6 +4834,18 @@ impl AuthorityPerEpochStore {
             verified_randomness_transactions
                 .push_front(Schedulable::RandomnessStateUpdate(self.epoch(), round));
         }
+
+        // Transactions dropped by the account rules never took scheduling
+        // capacity and never reach version assignment; report them to waiting
+        // clients.
+        if !account_rules_dropped.is_empty() {
+            authority_metrics
+                .consensus_handler_account_rules_dropped_transactions
+                .inc_by(account_rules_dropped.len() as u64);
+            self.dropped_tx_status_cache
+                .insert_and_notify(&account_rules_dropped);
+        }
+
         let commit_has_deferred_txns = !deferred_txns.is_empty();
         let mut total_deferred_txns = 0;
         {
@@ -5035,6 +5109,8 @@ impl AuthorityPerEpochStore {
         output: &mut ConsensusCommitOutput,
         transaction: &VerifiedSequencedConsensusTransaction,
         checkpoint_service: &Arc<C>,
+        cache_reader: &dyn ObjectCacheRead,
+        tx_reader: &dyn TransactionCacheRead,
         commit_round: CommitRound,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         mut randomness_manager: Option<&mut RandomnessManager>,
@@ -5042,6 +5118,7 @@ impl AuthorityPerEpochStore {
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
+        account_rules_state: &account_rules::AccountRulesState,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusTransactionResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
@@ -5356,6 +5433,37 @@ impl AuthorityPerEpochStore {
                         CertificateProof::ConsensusOrdered(self.epoch()),
                     ),
                 );
+
+                // An already-executed transaction is a committee-agreed winner: it is
+                // retained rather than dropped, exactly as in post-consensus validation
+                // (issue #11649). Dropping it would make this pass disagree with the one
+                // that originally scheduled it - the case that arises when unflushed
+                // commits are replayed after a crash, or when checkpoint execution has run
+                // ahead of consensus processing and the object store already shows the
+                // account. Retaining it also keeps a claim on the path to the
+                // version-assignment walk, so it still contributes its claim entry and
+                // version seed.
+                //
+                // Store-ahead visibility only comes from checkpoint execution, which is
+                // prefix-ordered: every transaction sequenced before the state that would
+                // poison this check is itself executed, and so is exempt too.
+                let already_executed =
+                    tx_reader.try_is_tx_already_executed(executable_tx.digest())?;
+
+                // The account rules run before the scheduling decision, so a
+                // violating transaction never takes scheduling capacity.
+                if !already_executed {
+                    if let Some(error) = account_rules_state.check_transaction(
+                        self,
+                        cache_reader,
+                        executable_tx.data(),
+                    )? {
+                        return Ok(ConsensusTransactionResult::DroppedByAccountRules {
+                            digest: *executable_tx.digest(),
+                            error,
+                        });
+                    }
+                }
 
                 let scheduling_result = self.try_schedule(
                     &executable_tx,

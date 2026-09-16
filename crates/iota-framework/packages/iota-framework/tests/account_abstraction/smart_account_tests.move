@@ -97,6 +97,8 @@ fun claim_immutable_account_v1_creates_immutable_account_at_sender_address() {
     scenario.end();
 }
 
+// Double-claiming no longer aborts here: the sequencer rejects a claim for an
+// address that is already explicit before it reaches execution.
 #[test]
 #[expected_failure(abort_code = iota::claim::EAddressMismatch)]
 fun claim_account_v1_aborts_on_address_mismatch() {

@@ -222,6 +222,7 @@ pub mod auth_unit_test_utils;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod authority_test_utils;
 
+pub(crate) mod account_rules;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
@@ -324,6 +325,7 @@ pub struct AuthorityMetrics {
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
     pub consensus_handler_load_shedding_dropped_transactions: IntCounter,
+    pub consensus_handler_account_rules_dropped_transactions: IntCounter,
     /// Stake-weighted quorum (2f+1) load shedding percentage enforced on user
     /// transactions in the most recent consensus commit. This is the cluster
     /// value actually applied post-consensus, as opposed to this authority's
@@ -773,6 +775,11 @@ impl AuthorityMetrics {
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_load_shedding_dropped_transactions",
                 "Number of user transactions dropped by post-consensus load shedding, based on the quorum load shedding percentage",
+                registry,
+            ).unwrap(),
+            consensus_handler_account_rules_dropped_transactions: register_int_counter_with_registry!(
+                "consensus_handler_account_rules_dropped_transactions",
+                "Number of transactions dropped by consensus handler because they violate the account rules",
                 registry,
             ).unwrap(),
             consensus_handler_load_shedding_percentage: register_int_gauge_with_registry!(
