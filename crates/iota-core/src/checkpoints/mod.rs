@@ -524,6 +524,9 @@ impl CheckpointStore {
     }
 
     #[instrument(level = "trace", skip_all)]
+    /// Two summaries over identical contents can still differ in their
+    /// attestation verdicts; those differences are otherwise invisible in the
+    /// fork dump.
     fn check_for_checkpoint_fork(
         &self,
         local_checkpoint: &CheckpointSummary,
@@ -576,6 +579,8 @@ impl CheckpointStore {
                 ?verified_contents,
                 ?local_checkpoint,
                 ?local_contents,
+                attestation_verdict_differences =
+                    ?attestation_verdict_differences(local_checkpoint, verified_checkpoint),
                 "Local checkpoint fork detected!",
             );
             fatal!(
@@ -2552,6 +2557,29 @@ impl CheckpointSignatureAggregator {
 /// contents. To minimize peer chatter, we only query one validator at random
 /// from each disagreeing faction, as all honest validators that participated in
 /// this round may inevitably run the same process.
+/// The attestation slots on which two summaries disagree, by position in the
+/// contents. Empty when either summary carries no decodable attestations.
+fn attestation_verdict_differences(
+    local: &CheckpointSummary,
+    verified: &CheckpointSummary,
+) -> Vec<(usize, Option<AttestationRecord>, Option<AttestationRecord>)> {
+    let decode = |summary: &CheckpointSummary| {
+        bcs::from_bytes::<iota_types::messages_checkpoint::CheckpointVersionSpecificData>(
+            &summary.version_specific_data,
+        )
+        .map(|data| data.attestations().to_vec())
+        .unwrap_or_default()
+    };
+    let (local, verified) = (decode(local), decode(verified));
+    (0..local.len().max(verified.len()))
+        .filter_map(|slot| {
+            let local = local.get(slot).copied().flatten();
+            let verified = verified.get(slot).copied().flatten();
+            (local != verified).then_some((slot, local, verified))
+        })
+        .collect()
+}
+
 async fn diagnose_split_brain(
     all_unique_values: BTreeMap<CheckpointDigest, (Vec<AuthorityName>, StakeUnit)>,
     local_summary: CheckpointSummary,

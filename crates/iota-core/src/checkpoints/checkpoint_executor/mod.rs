@@ -48,7 +48,7 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use tap::{TapFallible, TapOptional};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use crate::{
     authority::{
@@ -906,6 +906,39 @@ impl CheckpointExecutor {
         }
     }
 
+    /// Compares the verdicts this node recorded for the already-executed
+    /// transactions with the certified ones.
+    fn check_executed_attestation_records(
+        &self,
+        tx_digests: &[TransactionDigest],
+        executed_fx_digests: &[Option<TransactionEffectsDigest>],
+        certified_attestations: &[Option<AttestationRecord>],
+    ) {
+        let (digests, certified): (Vec<_>, Vec<_>) =
+            itertools::izip!(tx_digests, executed_fx_digests, certified_attestations)
+                .filter_map(|(digest, executed, record)| {
+                    executed.and(*record).map(|record| (*digest, record))
+                })
+                .unzip();
+        if digests.is_empty() {
+            return;
+        }
+        let local = self
+            .transaction_cache_reader
+            .multi_get_attestation_records(&digests);
+        for (digest, certified, local) in itertools::izip!(digests, certified, local) {
+            if local != Some(certified) {
+                self.metrics.attestation_verdict_mismatches.inc();
+                warn!(
+                    ?digest,
+                    ?local,
+                    ?certified,
+                    "locally recorded attestation verdict differs from the certified one"
+                );
+            }
+        }
+    }
+
     // Schedule all unexecuted transactions in the checkpoint for execution
     #[instrument(level = "info", skip_all)]
     fn schedule_transaction_execution(
@@ -923,6 +956,11 @@ impl CheckpointExecutor {
 
         // Find unexecuted transactions and their expected effects digests
         let certified_attestations = ckpt_state.data.certified_attestations();
+        self.check_executed_attestation_records(
+            &ckpt_state.data.tx_digests,
+            &executed_fx_digests,
+            &certified_attestations,
+        );
         let (unexecuted_tx_digests, unexecuted_txns, unexecuted_effects): (Vec<_>, Vec<_>, Vec<_>) =
             itertools::multiunzip(
                 itertools::izip!(
@@ -931,7 +969,7 @@ impl CheckpointExecutor {
                     ckpt_state.data.fx_digests.iter(),
                     tx_data.effects.iter(),
                     executed_fx_digests.iter(),
-                    certified_attestations
+                    certified_attestations.iter().copied()
                 )
                 .filter_map(
                     |(txn, tx_digest, expected_fx_digest, effects, executed_fx_digest, record)| {

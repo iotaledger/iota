@@ -8,6 +8,7 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
+use iota_common::fatal;
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
@@ -48,11 +49,15 @@ impl AttestedObjectVersions<'_> {
         object_id: &ObjectId,
         version: Version,
     ) -> bool {
-        matches!(
-            self.object_cache
-                .try_get_object_superseded_in_epoch(object_id, version),
-            Ok(Some(epoch)) if epoch == self.current_epoch
-        )
+        // A read failure must not decide a verdict every validator has to
+        // reach alike.
+        let superseded_in = self
+            .object_cache
+            .try_get_object_superseded_in_epoch(object_id, version)
+            .unwrap_or_else(|error| {
+                fatal!("cannot read the supersession epoch of {object_id}@{version}: {error}")
+            });
+        superseded_in == Some(self.current_epoch)
     }
 }
 
@@ -126,6 +131,13 @@ impl AttestationVerdictContext<'_> {
     /// Whether the authentication failure of kind `kind` refutes the
     /// attestation. A failure the attestor's dry run could not have foreseen
     /// never does.
+    ///
+    /// # Panics
+    ///
+    /// If the recorded state cannot be read. The drift check only admits
+    /// versions superseded this epoch, which the pruner retains, so a missing
+    /// or unreadable one is a fault of this node and must not become a verdict
+    /// the other validators do not share.
     pub(crate) fn is_refuted(&self, kind: &ExecutionErrorKind) -> bool {
         if !is_authenticator_rejection(authentication_error_kind(kind)) {
             return false;
@@ -204,11 +216,8 @@ impl AttestationVerdictContext<'_> {
         // executes.
         let mut resolved = Vec::with_capacity(self.authenticators.len());
         for (authenticator, input_objects) in &self.authenticators {
-            let Some(reloaded_input_objects) =
-                self.reload_input_objects_at_attested_versions(input_objects, &attested_versions)
-            else {
-                return true;
-            };
+            let reloaded_input_objects =
+                self.reload_input_objects_at_attested_versions(input_objects, &attested_versions);
 
             let Ok((account_id, pinned_version, pinned_digest)) =
                 authenticator.object_to_authenticate_components()
@@ -241,16 +250,18 @@ impl AttestationVerdictContext<'_> {
             else {
                 return false;
             };
-            let field_object =
-                match self
-                    .store
-                    .read_child_object(&account_id, &field_object_id, account_version)
-                {
-                    Ok(Some(field_object)) => field_object,
-                    // The structural failure reproduces at the recorded state.
-                    Ok(None) => return false,
-                    Err(_) => return true,
-                };
+            let field_object = match self.store.read_child_object(
+                &account_id,
+                &field_object_id,
+                account_version,
+            ) {
+                Ok(Some(field_object)) => field_object,
+                // The structural failure reproduces at the recorded state.
+                Ok(None) => return false,
+                Err(error) => fatal!(
+                    "cannot read the authenticator field of {account_id}@{account_version}: {error}"
+                ),
+            };
             let Ok(function_ref) =
                 authenticator_function_ref_v1_from_dynamic_field_object(account_id, &field_object)
             else {
@@ -320,23 +331,25 @@ impl AttestationVerdictContext<'_> {
     /// Rebuilds the input objects for authentication at the versions the
     /// attestor recorded, reusing the executed object when the recorded
     /// version is the one execution loaded.
-    ///
-    /// Returns `None` when a recorded version cannot be loaded; the drift
-    /// check only lets retained versions through, so that is a broken
-    /// invariant rather than evidence against the attestor.
     fn reload_input_objects_at_attested_versions(
         &self,
         input_objects: &InputObjects,
         attested_versions: &BTreeMap<ObjectId, &ObjectReference>,
-    ) -> Option<InputObjects> {
+    ) -> InputObjects {
         let mut reloaded = Vec::with_capacity(input_objects.len());
         for object_read_result in input_objects.iter() {
             let object_id = object_read_result.id();
             match attested_versions.get(&object_id) {
                 Some(object_ref) if object_ref.version() != object_read_result.version() => {
+                    let version = object_ref.version();
+                    // The drift check only admits versions superseded this
+                    // epoch, which the pruner retains.
                     let object = self
                         .store
-                        .get_object_by_key(&object_id, object_ref.version())?;
+                        .get_object_by_key(&object_id, version)
+                        .unwrap_or_else(|| {
+                            fatal!("{object_id}@{version} was superseded this epoch but is gone")
+                        });
                     reloaded.push(ObjectReadResult::new(
                         object_read_result.input_object_kind,
                         ObjectReadResultKind::Object(object),
@@ -345,7 +358,7 @@ impl AttestationVerdictContext<'_> {
                 _ => reloaded.push(object_read_result.clone()),
             }
         }
-        Some(InputObjects::new(reloaded))
+        InputObjects::new(reloaded)
     }
 }
 
