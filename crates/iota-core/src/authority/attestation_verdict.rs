@@ -71,7 +71,8 @@ pub(crate) struct AttestationVerdictContext<'a> {
     pub gas_data: GasPayment,
     /// Each Move authenticator with the input objects execution loaded for it.
     pub authenticators: Vec<(MoveAuthenticator, InputObjects)>,
-    /// Versions of every input and function-ref field execution loaded.
+    /// Versions of the authenticator inputs and function-ref fields execution
+    /// ran against.
     pub executed_versions: BTreeMap<ObjectId, Version>,
     pub transaction_kind: TransactionKind,
     pub transaction_signer: Address,
@@ -96,20 +97,16 @@ pub(crate) fn authenticator_inputs(
         .collect()
 }
 
-/// The versions execution loaded: every transaction and authenticator input
-/// plus each resolved function-ref field object. A recorded version is judged
-/// against all of them, so a body input deleted after the dry run counts as
-/// drift rather than as a failure reproducing at the attestor's state.
+/// The versions execution authenticates against: every authenticator input
+/// plus each resolved function-ref field object.
 pub(crate) fn executed_versions(
     authenticators: &[MoveAuthenticatorForExecution<
         Option<AuthenticatorFunctionRefForExecution>,
     >],
-    transaction_inputs: &InputObjects,
 ) -> BTreeMap<ObjectId, Version> {
-    transaction_inputs
+    authenticators
         .iter()
-        .map(|object| (object.id(), object.version()))
-        .chain(authenticators.iter().flat_map(|authenticator| {
+        .flat_map(|authenticator| {
             authenticator
                 .input_objects
                 .inner()
@@ -121,15 +118,16 @@ pub(crate) fn executed_versions(
                         function_ref.loaded_object_metadata.version,
                     )
                 }))
-        }))
+        })
         .collect()
 }
 
 impl AttestationVerdictContext<'_> {
-    /// Whether the authentication failure `error` refutes the attestation. A
-    /// failure the attestor's dry run could not have foreseen never does.
-    pub(crate) fn is_refuted(&self, error: &ExecutionError) -> bool {
-        if !is_authenticator_rejection(authentication_error_kind(error)) {
+    /// Whether the authentication failure of kind `kind` refutes the
+    /// attestation. A failure the attestor's dry run could not have foreseen
+    /// never does.
+    pub(crate) fn is_refuted(&self, kind: &ExecutionErrorKind) -> bool {
+        if !is_authenticator_rejection(authentication_error_kind(kind)) {
             return false;
         }
         let reauthenticate = should_reauthenticate(
@@ -315,7 +313,7 @@ impl AttestationVerdictContext<'_> {
 
         match result {
             Ok(()) => true,
-            Err(error) => !is_authenticator_rejection(authentication_error_kind(&error)),
+            Err(error) => !is_authenticator_rejection(authentication_error_kind(error.kind())),
         }
     }
 
@@ -351,10 +349,9 @@ impl AttestationVerdictContext<'_> {
     }
 }
 
-/// The error the authentication phase raised, unwrapped from the effects
-/// status it is reported as.
-fn authentication_error_kind(error: &ExecutionError) -> &ExecutionErrorKind {
-    match error.kind() {
+/// The authenticator's own error, unwrapped from the status it is reported as.
+fn authentication_error_kind(kind: &ExecutionErrorKind) -> &ExecutionErrorKind {
+    match kind {
         ExecutionErrorKind::MoveAuthentication { error } => error.as_ref(),
         kind => kind,
     }
@@ -371,8 +368,7 @@ pub(crate) struct ExecutionOutcome {
 /// Whether the transaction body ran, so its computation cost measures the same
 /// work the attestor's dry run did.
 pub(crate) fn body_ran(authentication_failed: bool, error: Option<&ExecutionError>) -> bool {
-    !authentication_failed
-        && error.is_none_or(|error| !is_pre_execution_failure(authentication_error_kind(error)))
+    !authentication_failed && error.is_none_or(|error| !is_pre_execution_failure(error.kind()))
 }
 
 /// The checks that run before the transaction body: the input checks on the
@@ -381,24 +377,32 @@ pub(crate) fn body_ran(authentication_failed: bool, error: Option<&ExecutionErro
 fn is_pre_execution_failure(kind: &ExecutionErrorKind) -> bool {
     matches!(
         kind,
+        ExecutionErrorKind::InputObjectDeleted
+            | ExecutionErrorKind::AddressDeniedForCoin { .. }
+            | ExecutionErrorKind::CoinTypeGlobalPause { .. }
+    ) || is_cancellation(kind)
+}
+
+/// Decided by consensus or configuration after the dry run, so no attestor
+/// could have foreseen it.
+fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
         ExecutionErrorKind::CertificateDenied
-            | ExecutionErrorKind::InputObjectDeleted
             | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
-            | ExecutionErrorKind::AddressDeniedForCoin { .. }
-            | ExecutionErrorKind::CoinTypeGlobalPause { .. }
     )
 }
 
-/// Whether the failure is the authenticator rejecting the transaction.
+/// Whether the failure is the authenticator rejecting the transaction, rather
+/// than a cancellation or a bug in the node.
 fn is_authenticator_rejection(kind: &ExecutionErrorKind) -> bool {
-    let unforeseeable = matches!(
-        kind,
-        ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
-    ) || (is_pre_execution_failure(kind)
-        && !matches!(kind, ExecutionErrorKind::InputObjectDeleted));
-    !unforeseeable
+    !(is_cancellation(kind)
+        || matches!(
+            kind,
+            ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
+        ))
 }
 
 #[cfg(test)]
@@ -453,7 +457,7 @@ mod tests {
         ] {
             let error = wrapped(kind);
             assert!(
-                is_authenticator_rejection(authentication_error_kind(&error)),
+                is_authenticator_rejection(authentication_error_kind(error.kind())),
                 "{error:?}"
             );
         }
@@ -473,7 +477,7 @@ mod tests {
         ] {
             let error = wrapped(kind);
             assert!(
-                !is_authenticator_rejection(authentication_error_kind(&error)),
+                !is_authenticator_rejection(authentication_error_kind(error.kind())),
                 "{error:?}"
             );
         }

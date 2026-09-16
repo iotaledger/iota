@@ -16,7 +16,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
-    error::ExecutionError,
+    error::{ExecutionError, ExecutionErrorKind},
     execution::{ExecutionResult, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
@@ -115,8 +115,9 @@ pub trait Executor {
         IotaGasStatus,
         TransactionEffects,
         Result<(), ExecutionError>,
-        // Whether the Move authentication phase failed.
-        bool,
+        // The Move authentication error, when that phase failed. The body's
+        // own checks may replace it in the effects.
+        Option<ExecutionErrorKind>,
     );
 
     fn authenticate_transaction(

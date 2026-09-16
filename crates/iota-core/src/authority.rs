@@ -1298,7 +1298,7 @@ impl AuthorityState {
                     sponsor_authenticator_function_ref,
                 };
 
-                let (inner_temp_store, _, effects, _, authentication_failed) = epoch_store
+                let (inner_temp_store, _, effects, _, authentication_error) = epoch_store
                     .executor()
                     .authenticate_then_execute_transaction_to_effects(
                         backing_store.as_ref(),
@@ -1321,7 +1321,7 @@ impl AuthorityState {
                 (
                     inner_temp_store,
                     effects,
-                    authentication_failed,
+                    authentication_error.is_some(),
                     account_object_refs,
                 )
             };
@@ -2310,10 +2310,7 @@ impl AuthorityState {
                     reference_gas_price,
                     gas_data: gas_data.clone(),
                     authenticators: attestation_verdict::authenticator_inputs(&move_authenticators),
-                    executed_versions: attestation_verdict::executed_versions(
-                        &move_authenticators,
-                        authenticator_and_tx_checked_input_objects.inner(),
-                    ),
+                    executed_versions: attestation_verdict::executed_versions(&move_authenticators),
                     transaction_kind: kind.clone(),
                     transaction_signer: signer,
                     transaction_digest: tx_digest,
@@ -2340,7 +2337,7 @@ impl AuthorityState {
                 ),
             };
 
-            let (inner_temp_store, gas_status, effects, execution_error_opt, authentication_failed) =
+            let (inner_temp_store, gas_status, effects, execution_error_opt, authentication_error) =
                 epoch_store
                     .executor()
                     .authenticate_then_execute_transaction_to_effects(
@@ -2364,16 +2361,15 @@ impl AuthorityState {
                         &mut None,
                     );
             // Only an attested transaction whose authentication failed is
-            // judged, on the error the effects report.
+            // judged, on the authentication error itself: the body's own
+            // checks may have replaced it in the effects.
             let outcome = attestation_verdict::ExecutionOutcome {
-                refuted: match (&execution_error_opt, &attestation_verdict_context) {
-                    (Err(error), Some(context)) if authentication_failed => {
-                        context.is_refuted(error)
-                    }
+                refuted: match (&authentication_error, &attestation_verdict_context) {
+                    (Some(kind), Some(context)) => context.is_refuted(kind),
                     _ => false,
                 },
                 body_ran: attestation_verdict::body_ran(
-                    authentication_failed,
+                    authentication_error.is_some(),
                     execution_error_opt.as_ref().err(),
                 ),
             };

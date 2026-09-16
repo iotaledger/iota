@@ -887,9 +887,9 @@ impl LocalExec {
                 sponsor_authenticator_function_ref,
             };
 
-            // The authentication-failed flag is only used by the validator attestor's
-            // admission decision; replay must reproduce effects regardless, so drop it.
-            let (inner_store, gas_status, effects, result, _authentication_failed) = executor
+            // The authentication error only feeds the validator's attestation
+            // verdict; replay must reproduce effects regardless, so drop it.
+            let (inner_store, gas_status, effects, result, _authentication_error) = executor
                 .authenticate_then_execute_transaction_to_effects(
                     &self,
                     protocol_config,
@@ -1203,9 +1203,9 @@ impl LocalExec {
                 sponsor_authenticator_function_ref,
             };
 
-            // The authentication-failed flag is only used by the validator attestor's
-            // admission decision; replay must reproduce effects regardless, so drop it.
-            let (inner_store, gas_status, effects, exec_res, _authentication_failed) = executor
+            // The authentication error only feeds the validator's attestation
+            // verdict; replay must reproduce effects regardless, so drop it.
+            let (inner_store, gas_status, effects, exec_res, _authentication_error) = executor
                 .authenticate_then_execute_transaction_to_effects(
                     &store,
                     &protocol_config,

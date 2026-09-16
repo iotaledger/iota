@@ -26,7 +26,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
-    error::{ExecutionError, IotaError, IotaResult},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution::{ExecutionResult, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
@@ -204,7 +204,7 @@ impl executor::Executor for Executor {
         IotaGasStatus,
         TransactionEffects,
         Result<(), ExecutionError>,
-        bool,
+        Option<ExecutionErrorKind>,
     ) {
         authenticate_then_execute_transaction_to_effects::<execution_mode::Normal>(
             store,

@@ -323,8 +323,8 @@ mod checked {
         IotaGasStatus,
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
-        // Whether the Move authentication phase failed (abort or out-of-gas).
-        bool,
+        // The Move authentication error, when that phase failed.
+        Option<ExecutionErrorKind>,
     ) {
         // Preparation
         // It involves setting up the TemporaryStore, GasCharger, and TxContext, that
@@ -430,10 +430,12 @@ mod checked {
             }
         };
 
-        // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986
-        // Capture whether authentication failed before the result is moved into the
-        // body execution.
-        let authentication_failed = authentication_execution_result.is_err();
+        // The body's own checks may replace this error in the effects, so its
+        // kind is reported alongside.
+        let authentication_error = authentication_execution_result
+            .as_ref()
+            .err()
+            .map(|error| error.kind().clone());
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -469,7 +471,7 @@ mod checked {
             gas_status,
             effects,
             execution_result,
-            authentication_failed,
+            authentication_error,
         )
     }
 
