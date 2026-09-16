@@ -1434,7 +1434,7 @@ impl CheckpointBuilder {
 
             let root_digests = self
                 .epoch_store
-                .notify_read_executed_digests(roots)
+                .notify_read_tx_key_to_digest(roots)
                 .in_monitored_scope("CheckpointNotifyDigests")
                 .await?;
             let root_effects = self
@@ -1450,9 +1450,8 @@ impl CheckpointBuilder {
                 // If the roots contains consensus commit prologue transaction, we want to
                 // extract it, and put it to the front of the checkpoint.
 
-                let consensus_commit_prologue = self
-                    .extract_consensus_commit_prologue(&root_digests, &root_effects)
-                    .await?;
+                let consensus_commit_prologue =
+                    self.extract_consensus_commit_prologue(&root_digests, &root_effects)?;
 
                 // Get the un-included dependencies of the consensus commit prologue. We should
                 // expect no other dependencies that haven't been included in
@@ -1515,7 +1514,7 @@ impl CheckpointBuilder {
     // effects from the root transactions.
     // The consensus commit prologue is expected to be the first transaction in the
     // roots.
-    async fn extract_consensus_commit_prologue(
+    fn extract_consensus_commit_prologue(
         &self,
         root_digests: &[TransactionDigest],
         root_effects: &[TransactionEffects],
@@ -2853,7 +2852,11 @@ impl CheckpointService {
         let mut tasks = JoinSet::new();
 
         let (builder, aggregator, state_hasher) = self.state.lock().take_unstarted();
-        tasks.spawn(monitored_future!(builder.run(consensus_replay_waiter)));
+        let (builder_finished_tx, builder_finished_rx) = tokio::sync::oneshot::channel();
+        tasks.spawn(monitored_future!(async move {
+            builder.run(consensus_replay_waiter).await;
+            builder_finished_tx.send(()).ok();
+        }));
         tasks.spawn(monitored_future!(aggregator.run()));
         tasks.spawn(monitored_future!(state_hasher.run()));
 
@@ -2862,10 +2865,12 @@ impl CheckpointService {
         // crash would occur because we may be missing transactions that are below the
         // highest_synced_checkpoint watermark, which can cause a crash in
         // `CheckpointExecutor::extract_randomness_rounds`.
-        if tokio::time::timeout(
-            Duration::from_secs(120),
-            self.wait_for_rebuilt_checkpoints(),
-        )
+        if tokio::time::timeout(Duration::from_secs(120), async move {
+            tokio::select! {
+                _ = builder_finished_rx => { debug!("CheckpointBuilder finished"); }
+                _ = self.wait_for_rebuilt_checkpoints() => (),
+            }
+        })
         .await
         .is_err()
         {
@@ -3888,8 +3893,6 @@ mod tests {
         let epoch_store = state.epoch_store_for_testing();
         let effects = e(digest, dependencies, gas_cost_summary);
         store.insert(digest, effects);
-        epoch_store
-            .insert_tx_key_and_digest(&TransactionKey::Digest(digest), &digest)
-            .expect("Inserting cert fx and sigs should not fail");
+        epoch_store.insert_executed_in_epoch(&digest);
     }
 }

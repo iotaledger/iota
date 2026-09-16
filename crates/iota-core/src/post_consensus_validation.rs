@@ -50,6 +50,7 @@ use std::{
 
 use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
+use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
@@ -134,6 +135,19 @@ pub async fn validate_and_resolve_conflicts(
         governance_deny_rules.as_ref()
     } else {
         &authority_state.config.transaction_deny_config
+    };
+
+    // Same concern as the deny rules above: the verifier limits decide whether
+    // a transaction that publishes a package stays in the commit, so with the
+    // flag set they come from the protocol config, not from this validator's
+    // own `VerifierSigningConfig`.
+    let verifier_limits_source = if epoch_store
+        .protocol_config()
+        .pcool_verifier_limits_from_protocol_config()
+    {
+        VerifierLimitsSource::ProtocolConfig
+    } else {
+        VerifierLimitsSource::NodeConfig(&authority_state.config.verifier_signing_config)
     };
 
     // Read once for the whole commit: the protocol config is fixed for the epoch.
@@ -315,6 +329,7 @@ pub async fn validate_and_resolve_conflicts(
                 // the transaction stays in the committed set, so it must not depend
                 // on this validator's execution progress.
                 true,
+                verifier_limits_source,
             )
             .await
         {

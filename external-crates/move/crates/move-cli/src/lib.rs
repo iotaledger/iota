@@ -5,7 +5,7 @@
 
 use base::{
     build::Build, coverage::Coverage, disassemble::Disassemble, docgen::Docgen, info::Info,
-    migrate::Migrate, new::New, test::Test,
+    migrate::Migrate, new::New, summary::Summary, test::Test,
 };
 use move_package::BuildConfig;
 
@@ -76,6 +76,7 @@ pub enum Command {
         #[clap(subcommand)]
         cmd: sandbox::cli::SandboxCommand,
     },
+    Summary(Summary),
 }
 
 pub fn run_cli(
@@ -109,6 +110,9 @@ pub fn run_cli(
         ),
         Command::Sandbox { storage_dir, cmd } => {
             cmd.handle_command(natives, cost_table, &move_args, &storage_dir)
+        }
+        Command::Summary(summary) => {
+            summary.execute(move_args.package_path.as_deref(), move_args.build_config)
         }
     }
 }

@@ -104,15 +104,16 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
             let (effects, input_objects, output_objects) = source.changes_source()?;
             self.balance_changes = Some(
                 grpc_tx::BalanceChanges::default().with_balance_changes(
-                    crate::changes::derive_balance_changes(
-                        effects,
-                        input_objects,
-                        output_objects,
-                        source.mocked_coin,
-                    )?
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
+                    effects
+                        .as_v1()
+                        .balance_changes(
+                            input_objects.iter().map(|o| &**o),
+                            output_objects.iter().map(|o| &**o),
+                            source.mocked_coin,
+                        )?
+                        .into_iter()
+                        .map(crate::changes::balance_change_to_proto)
+                        .collect(),
                 ),
             );
         }
@@ -129,15 +130,16 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
             let (effects, input_objects, output_objects) = source.changes_source()?;
             self.object_changes = Some(
                 grpc_tx::ObjectChanges::default().with_object_changes(
-                    crate::changes::derive_object_changes(
-                        sender,
-                        effects,
-                        input_objects,
-                        output_objects,
-                    )?
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
+                    effects
+                        .as_v1()
+                        .object_changes(
+                            sender,
+                            input_objects.iter().map(|o| &**o),
+                            output_objects.iter().map(|o| &**o),
+                        )?
+                        .into_iter()
+                        .map(crate::changes::object_change_to_proto)
+                        .collect(),
                 ),
             );
         }
@@ -370,10 +372,10 @@ impl Merge<&CommandResultReadSource<'_>> for CommandResult {
 }
 
 /// Source for building CommandOutputs
-struct CommandOutputsReadSource<'a> {
-    reader: &'a Arc<GrpcReader>,
-    config: &'a iota_config::node::GrpcApiConfig,
-    outputs: Vec<(Option<iota_sdk_types::Argument>, &'a [u8], &'a TypeTag)>,
+pub(crate) struct CommandOutputsReadSource<'a> {
+    pub(crate) reader: &'a Arc<GrpcReader>,
+    pub(crate) config: &'a iota_config::node::GrpcApiConfig,
+    pub(crate) outputs: Vec<(Option<iota_sdk_types::Argument>, &'a [u8], &'a TypeTag)>,
 }
 
 impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {

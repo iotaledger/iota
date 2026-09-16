@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, num::NonZeroUsize, path::PathBuf};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
+    path::PathBuf,
+};
 
 use anyhow::anyhow;
 use fastcrypto::{
@@ -152,7 +156,6 @@ impl ValidatorConfigBuilder {
             .join(key_path.clone());
         let network_address = validator.network_address;
         let consensus_db_path = config_directory.join(CONSENSUS_DB_NAME).join(key_path);
-        let localhost = local_ip_utils::localhost_for_testing();
         let consensus_config = ConsensusConfig {
             db_path: consensus_db_path,
             db_retention_epochs: None,
@@ -202,13 +205,21 @@ impl ValidatorConfigBuilder {
             protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
                 &validator.protocol_key_pair,
             )),
+            // A validator serves no JSON-RPC (`build_http_server` returns
+            // early on one), so this address is never bound. It is derived
+            // from the network address rather than picked, so that the same
+            // genesis config always gives the same node config.
+            json_rpc_address: SocketAddr::new(
+                network_address
+                    .to_socket_addr()
+                    .map(|address| address.ip())
+                    .unwrap_or_else(|_| Ipv4Addr::LOCALHOST.into()),
+                network_address.port().unwrap_or_default().saturating_add(5),
+            ),
             db_path,
             network_address,
             metrics_address: validator.metrics_address,
             admin_interface_address: validator.admin_interface_address,
-            json_rpc_address: local_ip_utils::new_tcp_address_for_testing(&localhost)
-                .to_socket_addr()
-                .unwrap(),
             consensus_config: Some(consensus_config),
             enable_index_processing: default_enable_index_processing(),
             genesis: Genesis::new_empty(),
@@ -302,7 +313,6 @@ pub struct FullnodeConfigBuilder {
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
-    deterministic_port_base: Option<u16>,
 }
 
 impl FullnodeConfigBuilder {
@@ -445,17 +455,6 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    /// Give the fullnode fixed ports instead of currently-free ones:
-    /// `port_base` for the metrics endpoint, `port_base + 1` for the admin
-    /// interface and `port_base + 2` for p2p, all on the fullnode's own
-    /// address.
-    ///
-    /// Addresses set explicitly on this builder still win.
-    pub fn with_deterministic_ports(mut self, port_base: u16) -> Self {
-        self.deterministic_port_base = Some(port_base);
-        self
-    }
-
     /// Build the fullnode config against the given validator configs.
     ///
     /// # Panics
@@ -471,7 +470,28 @@ impl FullnodeConfigBuilder {
             .unwrap_or_else(|err| panic!("{err:#}"))
     }
 
-    /// Build the fullnode config against the given validator configs.
+    /// Build the fullnode config against the given validator configs, giving
+    /// the fullnode freshly generated key pairs and addresses.
+    ///
+    /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
+    pub fn try_build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+        self,
+        rng: &mut R,
+        validator_configs: &[NodeConfig],
+        genesis: iota_config::node::Genesis,
+    ) -> anyhow::Result<NodeConfig> {
+        // ValidatorGenesisConfig is the swarm config's type for a node's key
+        // pairs and addresses, on a fullnode as well as on a validator.
+        let genesis_config = ValidatorGenesisConfigBuilder::new().build(rng);
+        self.try_build_from_genesis_config(genesis_config, validator_configs, genesis)
+    }
+
+    /// Build the fullnode config against the given validator configs, taking
+    /// the fullnode's key pairs and addresses from `genesis_config`.
+    ///
+    /// Addresses set on this builder still win. A caller that persists
+    /// `genesis_config` gets the same node config, and the same db path, on
+    /// every build.
     ///
     /// Fails if a validator config has no `p2p-config.external-address`,
     /// which the fullnode's seed peers are derived from.
@@ -481,43 +501,26 @@ impl FullnodeConfigBuilder {
     /// Panics on failures the config cannot be built without: creating the
     /// temporary config directory, allocating a local port, or parsing a
     /// generated network address.
-    pub fn try_build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build_from_genesis_config(
         self,
-        rng: &mut R,
+        genesis_config: ValidatorGenesisConfig,
         validator_configs: &[NodeConfig],
         genesis: iota_config::node::Genesis,
     ) -> anyhow::Result<NodeConfig> {
-        // Take advantage of ValidatorGenesisConfigBuilder to build the keypairs and
-        // addresses, even though this is a fullnode.
-        let validator_config = ValidatorGenesisConfigBuilder::new().build(rng);
-        let node_ip = validator_config
+        let ip = genesis_config
             .network_address
             .to_socket_addr()
             .unwrap()
-            .ip();
-        let ip = node_ip.to_string();
+            .ip()
+            .to_string();
 
-        let key_path = get_key_path(&validator_config.authority_key_pair);
+        let key_path = get_key_path(&genesis_config.authority_key_pair);
         let config_directory = self
             .config_directory
             .unwrap_or_else(|| iota_common::tempdir().keep());
 
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
-
-        let deterministic_port = |offset: u16| {
-            self.deterministic_port_base.map(|port_base| {
-                port_base.checked_add(offset).unwrap_or_else(|| {
-                    panic!("the fullnode port layout does not fit above port {port_base}")
-                })
-            })
-        };
-        let deterministic_metrics_address =
-            deterministic_port(0).map(|port| SocketAddr::new(node_ip, port));
-        let deterministic_admin_interface_address =
-            deterministic_port(1).map(|port| SocketAddr::new(node_ip, port));
-        let deterministic_p2p_address = deterministic_port(2)
-            .map(|port| local_ip_utils::new_deterministic_udp_address_for_testing(&ip, port));
 
         let p2p_config = {
             let seed_peers = validator_configs
@@ -541,25 +544,17 @@ impl FullnodeConfigBuilder {
                 .collect::<anyhow::Result<Vec<_>>>()?;
 
             P2pConfig {
-                listen_address: self
-                    .p2p_listen_address
-                    .or_else(|| {
-                        deterministic_p2p_address
-                            .as_ref()
-                            .and_then(|address| address.udp_multiaddr_to_listen_address())
+                listen_address: self.p2p_listen_address.unwrap_or_else(|| {
+                    genesis_config.p2p_listen_address.unwrap_or_else(|| {
+                        genesis_config
+                            .p2p_address
+                            .udp_multiaddr_to_listen_address()
+                            .unwrap()
                     })
-                    .unwrap_or_else(|| {
-                        validator_config.p2p_listen_address.unwrap_or_else(|| {
-                            validator_config
-                                .p2p_address
-                                .udp_multiaddr_to_listen_address()
-                                .unwrap()
-                        })
-                    }),
+                }),
                 external_address: self
                     .p2p_external_address
-                    .or(deterministic_p2p_address)
-                    .or(Some(validator_config.p2p_address.clone())),
+                    .or(Some(genesis_config.p2p_address.clone())),
                 seed_peers,
                 // Set a shorter timeout for checkpoint content download in tests, since
                 // checkpoint pruning also happens much faster, and network is local.
@@ -591,7 +586,10 @@ impl FullnodeConfigBuilder {
                     ..Default::default()
                 })
             } else {
-                None
+                // The default config, as a file without the key deserializes
+                // to. A later `--node-config-override` that turns the API on
+                // then needs nothing else.
+                Some(GrpcApiConfig::default())
             }
         });
 
@@ -607,28 +605,26 @@ impl FullnodeConfigBuilder {
         };
 
         Ok(NodeConfig {
-            authority_key_pair: AuthorityKeyPairWithPath::new(validator_config.authority_key_pair),
-            account_key_pair: KeyPairWithPath::new(validator_config.account_key_pair),
+            authority_key_pair: AuthorityKeyPairWithPath::new(genesis_config.authority_key_pair),
+            account_key_pair: KeyPairWithPath::new(genesis_config.account_key_pair),
             protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
-                &validator_config.protocol_key_pair,
+                &genesis_config.protocol_key_pair,
             )),
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
-                network_to_simple_keypair(&validator_config.network_key_pair),
+                network_to_simple_keypair(&genesis_config.network_key_pair),
             )),
             db_path: self
                 .db_path
                 .unwrap_or(config_directory.join(FULL_NODE_DB_PATH).join(key_path)),
             network_address: self
                 .network_address
-                .unwrap_or(validator_config.network_address),
+                .unwrap_or(genesis_config.network_address),
             metrics_address: self
                 .metrics_address
-                .or(deterministic_metrics_address)
-                .unwrap_or_else(local_ip_utils::new_local_tcp_socket_for_testing),
+                .unwrap_or(genesis_config.metrics_address),
             admin_interface_address: self
                 .admin_interface_address
-                .or(deterministic_admin_interface_address)
-                .unwrap_or_else(local_ip_utils::new_local_tcp_socket_for_testing),
+                .unwrap_or(genesis_config.admin_interface_address),
             json_rpc_address,
             consensus_config: None,
             enable_index_processing: default_enable_index_processing(),
@@ -695,26 +691,39 @@ impl FullnodeConfigBuilder {
 
     /// Build the fullnode config against the given network config.
     ///
-    /// Fails if a validator config has no `p2p-config.external-address`,
-    /// which the fullnode's seed peers are derived from.
-    ///
-    /// # Panics
-    ///
-    /// Panics on failures the config cannot be built without: creating the
-    /// temporary config directory, allocating a local port, or parsing a
-    /// generated network address.
+    /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
     pub fn try_build<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
     ) -> anyhow::Result<NodeConfig> {
-        let genesis = self
-            .genesis
+        let genesis = self.genesis_for(network_config);
+        self.try_build_from_parts(rng, network_config.validator_configs(), genesis)
+    }
+
+    /// Build the fullnode config against the given network config, taking the
+    /// fullnode's key pairs and addresses from `genesis_config`.
+    ///
+    /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
+    pub fn try_build_with_genesis_config(
+        self,
+        genesis_config: ValidatorGenesisConfig,
+        network_config: &NetworkConfig,
+    ) -> anyhow::Result<NodeConfig> {
+        let genesis = self.genesis_for(network_config);
+        self.try_build_from_genesis_config(
+            genesis_config,
+            network_config.validator_configs(),
+            genesis,
+        )
+    }
+
+    fn genesis_for(&self, network_config: &NetworkConfig) -> Genesis {
+        self.genesis
             .as_ref()
             .or_else(|| network_config.get_validator_genesis())
             .cloned()
-            .unwrap_or_else(|| iota_config::node::Genesis::new(network_config.genesis.clone()));
-        self.try_build_from_parts(rng, network_config.validator_configs(), genesis)
+            .unwrap_or_else(|| Genesis::new(network_config.genesis.clone()))
     }
 }
 
@@ -731,37 +740,69 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-
     use rand::rngs::OsRng;
 
-    use super::{FullnodeConfigBuilder, Genesis};
+    use super::{FullnodeConfigBuilder, Genesis, ValidatorGenesisConfigBuilder};
 
+    /// The addresses and key pairs of a fullnode built from a genesis config
+    /// entry, which is what makes them the same on every build.
     #[test]
-    fn deterministic_ports_fill_the_three_slots_of_a_fullnode() {
-        let config = FullnodeConfigBuilder::new()
-            .with_deterministic_ports(9184)
-            .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
-        let ip = config.network_address.to_socket_addr().unwrap().ip();
+    fn a_fullnode_takes_its_addresses_from_its_genesis_config() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let mut genesis_config = ValidatorGenesisConfigBuilder::new()
+            .with_ip("127.0.0.1".to_owned())
+            .build(&mut OsRng);
+        genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
+        genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
+        genesis_config.p2p_address = "/ip4/127.0.0.1/udp/9186/http".parse().unwrap();
 
-        assert_eq!(config.metrics_address, SocketAddr::new(ip, 9184));
-        assert_eq!(config.admin_interface_address, SocketAddr::new(ip, 9185));
+        let config = FullnodeConfigBuilder::new()
+            .with_config_directory(dir.path().to_path_buf())
+            .try_build_from_genesis_config(
+                genesis_config.copy_with_private_keys(),
+                &[],
+                Genesis::new_empty(),
+            )
+            .unwrap();
+
+        assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
+        assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:9185");
         assert_eq!(
-            config.p2p_config.external_address.unwrap().to_string(),
-            format!("/ip4/{ip}/udp/9186/http")
+            config.p2p_config.external_address.as_ref().unwrap(),
+            &genesis_config.p2p_address
         );
-        assert_eq!(config.p2p_config.listen_address, SocketAddr::new(ip, 9186));
+        assert_eq!(
+            config.p2p_config.listen_address.to_string(),
+            "127.0.0.1:9186"
+        );
+
+        // The same entry gives the same node config, db path included.
+        let same = FullnodeConfigBuilder::new()
+            .with_config_directory(dir.path().to_path_buf())
+            .try_build_from_genesis_config(genesis_config, &[], Genesis::new_empty())
+            .unwrap();
+        assert_eq!(config.db_path, same.db_path);
+        assert_eq!(
+            config.authority_public_key(),
+            same.authority_public_key(),
+            "the fullnode's identity is not the one its genesis config gives it"
+        );
     }
 
     #[test]
-    fn an_address_set_on_the_builder_wins_over_the_deterministic_ports() {
+    fn an_address_set_on_the_builder_wins_over_the_genesis_config() {
+        let mut genesis_config = ValidatorGenesisConfigBuilder::new()
+            .with_ip("127.0.0.1".to_owned())
+            .build(&mut OsRng);
+        genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
+        genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
+
         let config = FullnodeConfigBuilder::new()
-            .with_deterministic_ports(9184)
             .with_admin_interface_address(Some(([127, 0, 0, 1], 1337)))
-            .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
-        let ip = config.network_address.to_socket_addr().unwrap().ip();
+            .try_build_from_genesis_config(genesis_config, &[], Genesis::new_empty())
+            .unwrap();
 
         assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:1337");
-        assert_eq!(config.metrics_address, SocketAddr::new(ip, 9184));
+        assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
     }
 }

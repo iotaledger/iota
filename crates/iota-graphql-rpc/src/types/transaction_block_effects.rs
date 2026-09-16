@@ -11,11 +11,16 @@ use iota_indexer::{
     optimistic_indexing::IngestionPath,
 };
 use iota_json_rpc_types::IotaExecutionStatus;
+use iota_package_resolver::CleverError;
 use iota_sdk_types::{
-    Event as NativeEvent, ExecutionStatus as NativeExecutionStatus,
-    Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects,
+    Event as NativeEvent, ExecutionError as ExecutionFailureStatus,
+    ExecutionStatus as NativeExecutionStatus, Transaction as NativeTransactionData,
+    TransactionEffects as NativeTransactionEffects,
 };
-use iota_types::effects::TransactionEffectsAPI;
+use iota_types::{
+    effects::TransactionEffectsAPI, iota_sdk_types_conversions::identifier_sdk_to_core,
+};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -25,6 +30,7 @@ use crate::{
     types::{
         balance_change::BalanceChange,
         base64::Base64,
+        big_int::BigInt,
         checkpoint::{Checkpoint, CheckpointId},
         cursor::{JsonCursor, Page},
         date_time::DateTime,
@@ -119,8 +125,8 @@ impl TransactionBlockEffects {
     /// created or modified by this transaction, immediately following this
     /// transaction.
     #[graphql(complexity = 0)]
-    async fn lamport_version(&self) -> UInt53 {
-        self.native().lamport_version().as_u64().into()
+    async fn lamport_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native().lamport_version().as_u64()).extend()
     }
 
     /// The reason for a transaction failure, if it did fail.
@@ -140,6 +146,36 @@ impl TransactionBlockEffects {
             IotaExecutionStatus::Success => Ok(None),
             IotaExecutionStatus::Failure { error } => Ok(Some(error)),
         }
+    }
+
+    /// The error code of the Move abort, populated if this transaction failed
+    /// with a Move abort.
+    #[graphql(complexity = 0)]
+    async fn abort_code(&self, ctx: &Context<'_>) -> Result<Option<BigInt>> {
+        let resolver: &PackageResolver = ctx.data_unchecked();
+
+        let NativeExecutionStatus::Failure {
+            error: ExecutionFailureStatus::MoveAbort { location, code },
+            ..
+        } = self.native().status()
+        else {
+            return Ok(None);
+        };
+
+        let module_id = ModuleId::new(
+            AccountAddress::from(location.package.into_bytes()),
+            identifier_sdk_to_core(&location.module),
+        );
+
+        let Some(CleverError {
+            error_code: Some(error_code),
+            ..
+        }) = resolver.resolve_clever_error(module_id, *code).await
+        else {
+            return Ok(Some(BigInt::from(*code)));
+        };
+
+        Ok(Some(BigInt::from(error_code as u64)))
     }
 
     /// Transactions whose outputs this transaction depends upon.
@@ -239,15 +275,13 @@ impl TransactionBlockEffects {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c);
-            match result {
-                Ok(unchanged_shared_object) => {
-                    connection
-                        .edges
-                        .push(Edge::new(c.encode_cursor(), unchanged_shared_object));
-                }
-                Err(_shared_object_changed) => continue, /* Only add unchanged shared objects to
-                                                          * the connection. */
+            // Only unchanged shared objects are added to the connection.
+            if let Some(unchanged_shared_object) =
+                UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c).extend()?
+            {
+                connection
+                    .edges
+                    .push(Edge::new(c.encode_cursor(), unchanged_shared_object));
             }
         }
 
@@ -267,10 +301,10 @@ impl TransactionBlockEffects {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let mut connection = Connection::new(false, false);
 
-        let object_changes = self.native().object_changes();
+        let changed_objects = &self.native().as_v1().changed_objects;
 
         let Some(consistent_page) =
-            page.paginate_consistent_indices(object_changes.len(), self.checkpoint_viewed_at)?
+            page.paginate_consistent_indices(changed_objects.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
@@ -287,7 +321,8 @@ impl TransactionBlockEffects {
 
         for c in consistent_page.cursors {
             let object_change = ObjectChange {
-                native: object_changes[c.ix],
+                native: changed_objects[c.ix].clone(),
+                lamport_version: self.native().lamport_version(),
                 checkpoint_viewed_at: c.c,
                 source: source.clone(),
             };
@@ -443,7 +478,7 @@ impl TransactionBlockEffects {
 
         Checkpoint::query(
             ctx,
-            CheckpointId::by_seq_num(stored_tx.checkpoint_sequence_number as u64),
+            CheckpointId::by_seq_num(stored_tx.checkpoint_sequence_number as u64).extend()?,
             self.checkpoint_viewed_at,
         )
         .await

@@ -1,23 +1,36 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 9 tasks
+processed 17 tasks
 
 init:
 A: object(0,0), B: object(0,1), C: object(0,2)
 
-task 1, lines 9-33:
+task 1, lines 9-56:
 //# publish
 created: object(1,0)
 mutated: object(0,3)
 gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
-├── Storage Cost: 5738000
+├── Storage Cost: 7501200
 ├── Storage Rebate: 0
 └── Non-Refundable Storage Fee: 0
 
-task 2, lines 34-37:
+task 2, lines 57-60:
+//# programmable --sender A
+//> 0: test::m::get_objects();
+// Move all A coins to B
+created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+mutated: object(0,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 7098400
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
+
+task 3, lines 61-64:
 //# programmable --sender A --inputs @B
 //> TransferObjects([Gas], Input(0))
 // Return a small amount of coin to A
@@ -26,15 +39,15 @@ gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 980400
-├── Storage Rebate: 0
+├── Storage Rebate: 980400
 └── Non-Refundable Storage Fee: 0
 
-task 3, lines 38-42:
+task 4, lines 65-69:
 //# programmable --sender B --inputs 2 @A
 //> SplitCoins(Gas, [Input(0)]);
 //> TransferObjects([Result(0)], Input(1))
-// Account A now has 3,0
-created: object(3,0)
+// Account A now has gas object 4,0 and a balance of 2
+created: object(4,0)
 mutated: object(0,1)
 gas summary:
 ├── Computation Cost: 1000000
@@ -43,14 +56,14 @@ gas summary:
 ├── Storage Rebate: 0
 └── Non-Refundable Storage Fee: 0
 
-task 4, lines 43-45:
-//# view-object 3,0
+task 5, lines 70-72:
+//# view-object 4,0
 Owner: Address(A)
 Version: 2
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(3,0),
+            bytes: fake(4,0),
         },
     },
     balance: iota::balance::Balance<iota::iota::IOTA> {
@@ -58,18 +71,18 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 5, lines 46-49:
-//# programmable --sender A --inputs 100 --dry-run --gas-payment 3,0
-//> 0: test::m::large_vector(Input(0));
+task 6, lines 73-76:
+//# programmable --sender A --inputs 100 --dry-run --gas-payment 4,0
+//> 0: test::m::large_storage_func(Input(0));
 // Give A enough gas to send transaction after rebates, it should still fail
 Error: Error checking transaction input objects: Balance of gas object 2 is lower than the needed amount: 5000000000
 
-task 6, lines 50-54:
+task 7, lines 77-81:
 //# programmable --sender B --inputs 2499999999 @A
 //> SplitCoins(Gas, [Input(0), Input(0)]);
 //> TransferObjects([NestedResult(0,0), NestedResult(0,1)], Input(1))
-// Account A now has 6,0 6,1 that are 2 gas short of the needed amount
-created: object(6,0), object(6,1)
+// Account A now has 7,0 7,1 that are 2 gas short of the needed amount, note gas smashing rebate also occurs
+created: object(7,0), object(7,1)
 mutated: object(0,1)
 gas summary:
 ├── Computation Cost: 1000000
@@ -78,21 +91,87 @@ gas summary:
 ├── Storage Rebate: 980400
 └── Non-Refundable Storage Fee: 0
 
-task 7, lines 55-58:
-//# programmable --sender A --inputs 100 --dry-run --gas-payment 6,0 --gas-payment 6,1
-//> 0: test::m::large_vector(Input(0));
+task 8, lines 82-85:
+//# programmable --sender A --inputs 100 --dry-run --gas-payment 7,0 --gas-payment 7,1
+//> 0: test::m::large_storage_func(Input(0));
+// Destroying an object before the transaction ends does not allow the transaction to succeed
+Error: Error checking transaction input objects: Balance of gas object 4999999998 is lower than the needed amount: 5000000000
+
+task 9, lines 86-90:
+//# programmable --sender A --inputs object(2,0) 100 --dry-run --gas-payment 7,0 --gas-payment 7,1
+//> 0: test::m::destroy_object(Input(0));
+//> 1: test::m::large_storage_func(Input(1));
 // Include 3,0 in the gas payment, it should succeed
 Error: Error checking transaction input objects: Balance of gas object 4999999998 is lower than the needed amount: 5000000000
 
-task 8, lines 59-60:
-//# programmable --sender A --inputs 100 --dry-run --gas-payment 6,0 --gas-payment 6,1 --gas-payment 3,0
-//> 0: test::m::large_vector(Input(0));
-created: object(8,0)
-mutated: object(6,0)
-deleted: object(3,0), object(6,1)
+task 10, lines 91-94:
+//# programmable --sender A --inputs 100 --dry-run --gas-payment 7,0 --gas-payment 7,1 --gas-payment 4,0
+//> 0: test::m::large_storage_func(Input(0));
+// Return the balance of A to zero
+created: object(10,0)
+mutated: object(7,0)
+deleted: object(4,0), object(7,1)
 gas summary:
 ├── Computation Cost: 1000000
 ├── Computation Cost Burned: 1000000
 ├── Storage Cost: 2204000
+├── Storage Rebate: 2941200
+└── Non-Refundable Storage Fee: 0
+
+task 11, lines 95-97:
+//# programmable --sender A --inputs object(7,0) --dry-run --gas-payment 4,0
+// Return a small amount of coin to A
+Error: Error checking transaction input objects: Balance of gas object 2 is lower than the needed amount: 5000000000
+
+task 12, lines 98-102:
+//# programmable --sender B --inputs 2 @A
+//> SplitCoins(Gas, [Input(0)]);
+//> TransferObjects([Result(0)], Input(1))
+// Give A enough gas to send transaction
+created: object(12,0)
+mutated: object(0,1)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1960800
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
+
+task 13, lines 103-107:
+//# programmable --sender B --inputs 2499999999 @A
+//> SplitCoins(Gas, [Input(0), Input(0)]);
+//> TransferObjects([NestedResult(0,0), NestedResult(0,1)], Input(1))
+// Not enough gas for large_compute_func() when excluding 12,0, gas smashing rebates
+created: object(13,0), object(13,1)
+mutated: object(0,1)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2941200
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
+
+task 14, lines 108-111:
+//# programmable --sender A --inputs 100 --dry-run --gas-payment 13,0 --gas-payment 13,1
+//> 0: test::m::large_compute_func(Input(0));
+// Destroying an object before the transaction ends does not allow the transaction to succeed
+Error: Error checking transaction input objects: Balance of gas object 4999999998 is lower than the needed amount: 5000000000
+
+task 15, lines 112-116:
+//# programmable --sender A --inputs object(2,0) 100 --dry-run --gas-payment 13,0 --gas-payment 13,1
+//> 0: test::m::destroy_object(Input(0));
+//> 1: test::m::large_compute_func(Input(1));
+// Include 3,0 in the gas payment, it should succeed
+Error: Error checking transaction input objects: Balance of gas object 4999999998 is lower than the needed amount: 5000000000
+
+task 16, lines 117-118:
+//# programmable --sender A --inputs 100 --dry-run --gas-payment 13,0 --gas-payment 13,1 --gas-payment 12,0
+//> 0: test::m::large_compute_func(Input(0));
+mutated: object(13,0)
+deleted: object(12,0), object(13,1)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 980400
 ├── Storage Rebate: 2941200
 └── Non-Refundable Storage Fee: 0

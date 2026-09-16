@@ -7,9 +7,10 @@ use std::{
     sync::Arc,
 };
 
+use iota_common::debug_fatal;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::{SenderSignedTransaction, TransactionEffectsDigest};
+use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
@@ -20,11 +21,14 @@ use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{debug, warn};
 
 use crate::{
-    authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::{
+        AuthorityMetrics, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
+        shared_object_version_manager::Schedulable,
+    },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{
         ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
-        overload_tracker::OverloadTracker,
+        executed_in_current_epoch, overload_tracker::OverloadTracker,
     },
 };
 
@@ -89,7 +93,7 @@ impl ExecutionScheduler {
     async fn schedule_transaction(
         self,
         tx: VerifiedExecutableTransaction,
-        expected_effects_digest: Option<TransactionEffectsDigest>,
+        execution_env: ExecutionEnv,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
         let enqueue_time = Instant::now();
@@ -105,25 +109,12 @@ impl ExecutionScheduler {
             // The transaction is already verified by the time it is scheduled, so
             // its input objects are well-formed.
             .expect("collect_all_input_object_kind_for_reading() cannot fail");
-        let input_object_keys: Vec<_> =
-            match epoch_store.get_input_object_keys(&tx.key(), &input_object_kinds) {
-                Ok(keys) => keys,
-                Err(_) => {
-                    // The assigned shared versions are only removed once the
-                    // transaction has executed, so this is expected for an
-                    // already-executed transaction and indicates inconsistent
-                    // state otherwise.
-                    assert!(
-                        self.transaction_cache_read
-                            .is_tx_already_executed(tx.digest())
-                    );
-                    self.metrics
-                        .transaction_manager_num_enqueued_certificates
-                        .with_label_values(&["already_executed"])
-                        .inc();
-                    return;
-                }
-            }
+        let input_object_keys: Vec<_> = epoch_store
+            .get_input_object_keys(
+                &tx.key(),
+                &input_object_kinds,
+                &execution_env.assigned_versions,
+            )
             .into_iter()
             .collect();
         let receiving_object_keys: HashSet<_> = tx_data
@@ -161,7 +152,7 @@ impl ExecutionScheduler {
                 .with_label_values(&["ready"])
                 .inc();
             debug!(?digest, "Input objects already available");
-            self.send_transaction_for_execution(&tx, expected_effects_digest, enqueue_time);
+            self.send_transaction_for_execution(&tx, execution_env, enqueue_time);
             return;
         }
 
@@ -177,7 +168,7 @@ impl ExecutionScheduler {
                         .transaction_manager_transaction_queue_age_s
                         .observe(enqueue_time.elapsed().as_secs_f64());
                     debug!(?digest, "Input objects available");
-                    self.send_transaction_for_execution(&tx, expected_effects_digest, enqueue_time);
+                    self.send_transaction_for_execution(&tx, execution_env, enqueue_time);
                 }
             _ = self.transaction_cache_read.notify_read_executed_effects_digests(
                 "ExecutionScheduler::notify_read_executed_effects_digests",
@@ -191,12 +182,12 @@ impl ExecutionScheduler {
     fn send_transaction_for_execution(
         &self,
         tx: &VerifiedExecutableTransaction,
-        expected_effects_digest: Option<TransactionEffectsDigest>,
+        execution_env: ExecutionEnv,
         _enqueue_time: Instant,
     ) {
         let pending_tx = PendingTransaction {
             transaction: tx.clone(),
-            expected_effects_digest,
+            execution_env,
             waiting_input_objects: BTreeSet::new(),
             stats: PendingTransactionStats {
                 #[cfg(test)]
@@ -218,15 +209,123 @@ impl ExecutionScheduler {
         self.metrics.transaction_manager_num_ready.inc();
         self.metrics.execution_driver_dispatch_queue.inc();
     }
+
+    /// When we schedule a transaction, it should be impossible for it to have
+    /// been executed in a previous epoch. This does not hold for a
+    /// `CertificateProof::ConsensusOrdered` transaction, whose epoch is the one
+    /// that ordered it rather than one it carries: post-consensus validation
+    /// keeps an already-executed transaction in the sequence on purpose, so
+    /// that every validator builds the same checkpoint roots (issue
+    /// #11649), and relies on the already-executed filter below to suppress
+    /// the execution.
+    #[cfg(debug_assertions)]
+    fn assert_not_executed_previous_epochs(&self, tx: &VerifiedExecutableTransaction) {
+        use iota_types::executable_transaction::CertificateProof;
+
+        if matches!(tx.auth_sig(), CertificateProof::ConsensusOrdered(_)) {
+            return;
+        }
+
+        let epoch = tx.epoch();
+        let digest = *tx.digest();
+        let digests = [digest];
+        let executed = self
+            .transaction_cache_read
+            .multi_get_executed_effects(&digests)
+            .pop()
+            .unwrap();
+        // Due to pruning, we may not always have executed effects for the
+        // transaction even if it was executed. So this is a best-effort check.
+        if let Some(executed) = executed {
+            use iota_types::effects::TransactionEffectsAPI;
+
+            assert_eq!(
+                executed.epoch(),
+                epoch,
+                "Transaction {} was executed in epoch {}, but scheduled again in epoch {}",
+                digest,
+                executed.epoch(),
+                epoch
+            );
+        }
+    }
 }
 
 impl ExecutionSchedulerAPI for ExecutionScheduler {
-    fn enqueue_impl(
+    fn enqueue(
         &self,
-        transactions: Vec<(
-            VerifiedExecutableTransaction,
-            Option<TransactionEffectsDigest>,
-        )>,
+        transactions: Vec<(Schedulable, ExecutionEnv)>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        // schedule all transactions immediately
+        let mut txns = Vec::with_capacity(transactions.len());
+        let mut rest = Vec::new();
+
+        for (schedulable, env) in transactions {
+            if let Schedulable::Transaction(tx) = schedulable {
+                txns.push((tx, env));
+            } else {
+                rest.push((schedulable, env));
+            }
+        }
+
+        self.enqueue_transactions(txns, epoch_store);
+
+        if rest.is_empty() {
+            return;
+        }
+
+        let rest_keys = rest
+            .iter()
+            .map(|(schedulable, _)| schedulable.key())
+            .collect::<Vec<_>>();
+
+        let scheduler = self.clone();
+        let epoch_store = epoch_store.clone();
+        spawn_monitored_task!(epoch_store.clone().within_alive_epoch(async move {
+            let rest_digests = epoch_store
+                .notify_read_tx_key_to_digest(&rest_keys)
+                .await
+                .expect("db error");
+            // Both writers of the key store the transaction before the key, so a
+            // resolved key naming a transaction that is neither in the store nor
+            // executed means that order broke. Skipping keeps the node running,
+            // but it drops the env holding the key's assigned versions, and the
+            // checkpoint builder then waits on that root forever.
+            let rest_transactions = scheduler
+                .transaction_cache_read
+                .multi_get_transaction_blocks(&rest_digests)
+                .into_iter()
+                .zip(rest.into_iter().map(|(_, env)| env))
+                .zip(rest_digests.iter())
+                .filter_map(|((tx, env), digest)| {
+                    let Some(tx) = tx else {
+                        if !executed_in_current_epoch(
+                            scheduler.transaction_cache_read.as_ref(),
+                            &epoch_store,
+                            digest,
+                        ) {
+                            debug_fatal!(
+                                "transaction {digest} named by a resolved key is neither \
+                                 stored nor executed"
+                            );
+                        }
+                        return None;
+                    };
+                    let tx = tx.as_ref().clone();
+                    Some((
+                        VerifiedExecutableTransaction::new_system(tx, epoch_store.epoch()),
+                        env,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            scheduler.enqueue_transactions(rest_transactions, &epoch_store);
+        }));
+    }
+
+    fn enqueue_transactions(
+        &self,
+        transactions: Vec<(VerifiedExecutableTransaction, ExecutionEnv)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
         // Filter out transactions from the wrong epoch.
@@ -234,6 +333,9 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
             .into_iter()
             .filter_map(|txn| {
                 if txn.0.epoch() == epoch_store.epoch() {
+                    #[cfg(debug_assertions)]
+                    self.assert_not_executed_previous_epochs(&txn.0);
+
                     Some(txn)
                 } else {
                     warn!(
@@ -251,9 +353,9 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
             .multi_get_executed_effects_digests(&digests);
         let mut already_executed_num = 0;
         let pending = transactions.into_iter().zip(executed).filter_map(
-            |((txn, expected_effects_digest), executed)| {
+            |((txn, execution_env), executed)| {
                 if executed.is_none() {
-                    Some((txn, expected_effects_digest))
+                    Some((txn, execution_env))
                 } else {
                     already_executed_num += 1;
                     None
@@ -261,13 +363,13 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
             },
         );
 
-        for (txn, expected_effects_digest) in pending {
+        for (txn, execution_env) in pending {
             let scheduler = self.clone();
             let epoch_store = epoch_store.clone();
             spawn_monitored_task!(
                 epoch_store.within_alive_epoch(scheduler.schedule_transaction(
                     txn,
-                    expected_effects_digest,
+                    execution_env,
                     &epoch_store,
                 ))
             );

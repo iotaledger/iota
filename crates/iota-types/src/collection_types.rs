@@ -59,34 +59,6 @@ impl Default for Table {
     }
 }
 
-/// Rust version of the Move iota::linked_table::LinkedTable type.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct LinkedTable<K> {
-    pub id: ObjectId,
-    pub size: u64,
-    pub head: Option<K>,
-    pub tail: Option<K>,
-}
-
-impl<K> Default for LinkedTable<K> {
-    fn default() -> Self {
-        LinkedTable {
-            id: ObjectId::ZERO,
-            size: 0,
-            head: None,
-            tail: None,
-        }
-    }
-}
-
-/// Rust version of the Move iota::linked_table::Node type.
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct LinkedTableNode<K, V> {
-    pub prev: Option<K>,
-    pub next: Option<K>,
-    pub value: V,
-}
-
 /// Rust version of the Move iota::bag::Bag type.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct Bag {

@@ -25,15 +25,13 @@ use iota_types::{
 };
 use tokio_stream::wrappers::ReceiverStream;
 
-/// Maximum number of transactions allowed in a single `submit_tx` request.
-/// Sized so that per-item traffic tallies from a single max-batch request
-/// stay well under `PolicyConfig::channel_capacity` (default 100), leaving
-/// room for concurrent requests before the tally channel overflows.
+/// Maximum number of transactions allowed in a single `submit_tx` request,
+/// bounding the traffic tallies and execution work one request can create.
 const MAX_TRANSACTIONS_PER_SUBMIT: usize = 32;
 
 /// Maximum number of queries allowed in a single `get_tx_status` request.
-/// Sized to match `MAX_TRANSACTIONS_PER_SUBMIT` for the same tally-channel
-/// reason.
+/// Matches `MAX_TRANSACTIONS_PER_SUBMIT` so one status poll can cover a full
+/// submit batch.
 const MAX_QUERIES_PER_GET_TX_STATUS: usize = 32;
 
 /// Timeout for waiting on transaction execution in `get_tx_status`.
@@ -326,6 +324,9 @@ impl ValidatorService {
                 // differs from the epoch-gated post-consensus read; see the
                 // read-mode notes on `handle_transaction_validation_checks`.
                 false,
+                iota_transaction_checks::VerifierLimitsSource::NodeConfig(
+                    &state.config.verifier_signing_config,
+                ),
             )
             .await
         {
@@ -511,7 +512,7 @@ impl ValidatorService {
 
         let update = match result {
             // Epoch ended before execution or rejection.
-            Ok(Err(())) => TxStatusUpdate::Expired {
+            Ok(Err(_)) => TxStatusUpdate::Expired {
                 epoch: epoch_store.epoch(),
             },
             Ok(Ok(Either::Left(effects_digests))) => {

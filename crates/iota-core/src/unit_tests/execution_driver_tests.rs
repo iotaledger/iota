@@ -18,6 +18,7 @@ use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     transaction::{
         CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
@@ -32,8 +33,9 @@ use tokio::{
 
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ExecutionEnv,
         authority_tests::{send_consensus, send_consensus_no_execution},
+        shared_object_version_manager::Schedulable,
         test_authority_builder::TestAuthorityBuilder,
     },
     authority_aggregator::authority_aggregator_tests::{
@@ -445,21 +447,33 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
 
     // ---- Execute transactions in reverse dependency order on the last authority.
 
-    // Sets shared object locks in the executed order.
+    // Assign shared object versions in the executed order.
+    let mut certs = Vec::new();
     for cert in executed_shared_certs.iter() {
-        send_consensus_no_execution(&authorities[3], cert).await;
+        let assigned_versions = send_consensus_no_execution(&authorities[3], cert).await;
+        certs.push((
+            Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
+                cert.clone(),
+            )),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        ));
     }
 
     // Enqueue certs out of dependency order for executions.
-    for cert in executed_shared_certs.iter().rev() {
-        authorities[3].enqueue_certificates_for_execution(
-            vec![cert.clone()],
+    for (cert, env) in certs.iter().rev() {
+        authorities[3].execution_scheduler().enqueue(
+            vec![(cert.clone(), env.clone())],
             &authorities[3].epoch_store_for_testing(),
         );
     }
     for cert in executed_owned_certs.iter().rev() {
-        authorities[3].enqueue_certificates_for_execution(
-            vec![cert.clone()],
+        authorities[3].execution_scheduler().enqueue(
+            vec![(
+                Schedulable::Transaction(VerifiedExecutableTransaction::new_from_certificate(
+                    cert.clone(),
+                )),
+                ExecutionEnv::new(),
+            )],
             &authorities[3].epoch_store_for_testing(),
         );
     }

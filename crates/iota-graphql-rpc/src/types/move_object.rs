@@ -219,7 +219,7 @@ impl MoveObject {
             .await
     }
 
-    pub(crate) async fn version(&self) -> UInt53 {
+    pub(crate) async fn version(&self) -> Result<UInt53> {
         ObjectImpl(&self.super_).version().await
     }
 
@@ -240,7 +240,7 @@ impl MoveObject {
     }
 
     /// The owner type of this object: Immutable, Shared, Parent, Address
-    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
+    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Result<Option<ObjectOwner>> {
         ObjectImpl(&self.super_).owner(ctx).await
     }
 

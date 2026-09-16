@@ -1,12 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2025 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// IOTA object identifiers
 module iota::object;
 
-use std::bcs;
 use iota::address;
+use std::bcs;
 
 /// Allows calling `.to_address` on an `ID` to get an `address`.
 public use fun id_to_address as ID.to_address;
@@ -40,9 +40,6 @@ const IOTA_RANDOM_ID: address = @0x8;
 
 /// The hardcoded ID for the singleton DenyList.
 const IOTA_DENY_LIST_OBJECT_ID: address = @0x403;
-
-/// The hardcoded ID for the Bridge Object.
-const IOTA_BRIDGE_ID: address = @0x9;
 
 /// Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 0;
@@ -137,15 +134,6 @@ public(package) fun iota_deny_list_object_id(): UID {
     }
 }
 
-#[allow(unused_function)]
-/// Create the `UID` for the singleton `Bridge` object.
-/// This should only be called once from `bridge`.
-fun bridge(): UID {
-    UID {
-        id: ID { bytes: IOTA_BRIDGE_ID },
-    }
-}
-
 /// Get the inner `ID` of `uid`
 public fun uid_as_inner(uid: &UID): &ID {
     &uid.id
@@ -168,7 +156,7 @@ public fun uid_to_address(uid: &UID): address {
 
 // === any object ===
 
-/// Create a new object. Returns the `UID` that must be stored in a IOTA object.
+/// Create a new object. Returns the `UID` that must be stored in an IOTA object.
 /// This is the only way to create `UID`s.
 public fun new(ctx: &mut TxContext): UID {
     UID {
@@ -177,10 +165,10 @@ public fun new(ctx: &mut TxContext): UID {
 }
 
 /// Delete the object and it's `UID`. This is the only way to eliminate a `UID`.
-// This exists to inform Iota of object deletions. When an object
-// gets unpacked, the programmer will have to do something with its
-// `UID`. The implementation of this function emits a deleted
-// system event so Iota knows to process the object deletion
+/// This exists to inform IOTA of object deletions. When an object
+/// gets unpacked, the programmer will have to do something with its
+/// `UID`. The implementation of this function emits a deleted
+/// system event so IOTA knows to process the object deletion
 public fun delete(id: UID) {
     let UID { id: ID { bytes } } = id;
     delete_impl(bytes)

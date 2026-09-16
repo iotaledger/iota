@@ -14,7 +14,6 @@ clap.workspace = true
 derive_more = { workspace = true, features = ["debug"] }
 fastcrypto.workspace = true
 futures.workspace = true
-jsonrpsee.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true

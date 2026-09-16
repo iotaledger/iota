@@ -463,8 +463,8 @@ impl PrimaryWorker {
         let wrapped_or_deleted_objects = fx
             .all_tombstones()
             .into_iter()
-            .chain(fx.created_then_wrapped_objects())
             .map(|(object_id, _)| object_id)
+            .chain(fx.created_then_wrapped_objects())
             .collect::<Vec<_>>();
 
         // Payers

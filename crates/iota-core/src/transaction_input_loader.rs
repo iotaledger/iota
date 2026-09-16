@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
-use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
     base_types::EpochId,
@@ -16,11 +15,12 @@ use iota_types::{
     },
 };
 use itertools::izip;
-use once_cell::unsync::OnceCell;
 use tracing::instrument;
 
 use crate::{
-    authority::authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
+    authority::{
+        authority_per_epoch_store::TxLockGuard, shared_object_version_manager::AssignedVersions,
+    },
     execution_cache::ObjectCacheRead,
 };
 
@@ -122,8 +122,6 @@ impl TransactionInputLoader {
 
     /// Read the inputs for a transaction that is ready to be executed.
     ///
-    /// epoch_store is used to resolve the versions of any shared input objects.
-    ///
     /// This function panics if any inputs are not available, as
     /// TransactionManager should already have verified that the transaction
     /// is ready to be executed.
@@ -140,34 +138,29 @@ impl TransactionInputLoader {
     #[instrument(level = "trace", skip_all)]
     pub fn read_objects_for_execution(
         &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
         tx_key: &TransactionKey,
         // Important to hold the _tx_lock, otherwise it would be possible for a concurrent
         // execution of the same tx to enter this point after the first execution has
         // finished and the shared locks have been deleted.
         _tx_lock: &TxLockGuard,
         input_object_kinds: &[InputObjectKind],
+        assigned_shared_object_versions: &AssignedVersions,
         epoch_id: EpochId,
     ) -> IotaResult<InputObjects> {
-        let assigned_shared_versions_cell: OnceCell<Option<HashMap<_, _>>> = OnceCell::new();
+        let assigned_shared_versions: BTreeMap<_, _> = assigned_shared_object_versions
+            .iter()
+            .map(|assignment| (assignment.object_id, assignment.version))
+            .collect();
 
         let mut results = vec![None; input_object_kinds.len()];
         let mut object_keys = Vec::with_capacity(input_object_kinds.len());
         let mut fetches = Vec::with_capacity(input_object_kinds.len());
         let mut gas_object_cancellation = None;
-        // A gas-object cancellation version can only exist when
-        // execution-worker congestion control is active, and only for
-        // transactions without shared inputs (version assignment puts the
-        // cancellation on the shared inputs otherwise). Skip the
-        // assigned-versions probe for all other transactions so they stay on
-        // the pre-existing fast path.
-        let check_gas_object_cancellation = epoch_store
-            .protocol_config()
-            .concurrent_execution_workers()
-            .is_some()
-            && !input_object_kinds
-                .iter()
-                .any(|kind| matches!(kind, InputObjectKind::SharedMoveObject { .. }));
+        // Only a transaction without shared inputs can carry a cancellation
+        // version on its gas object; every other assignment names a shared object.
+        let check_gas_object_cancellation = !input_object_kinds
+            .iter()
+            .any(|kind| matches!(kind, InputObjectKind::SharedMoveObject { .. }));
 
         for (i, input) in input_object_kinds.iter().enumerate() {
             match input {
@@ -190,55 +183,20 @@ impl TransactionInputLoader {
                     // cancelled shared input, the object is still read
                     // normally: the cancelled execution charges gas to it.
                     if check_gas_object_cancellation {
-                        if let Some(assigned_versions) = assigned_shared_versions_cell
-                            .get_or_init(|| {
-                                epoch_store.get_assigned_shared_object_versions(tx_key).map(
-                                    |versions| {
-                                        versions
-                                            .into_iter()
-                                            .map(|v| (v.object_id, v.version))
-                                            .collect()
-                                    },
-                                )
-                            })
-                            .as_ref()
-                        {
-                            if let Some(version) = assigned_versions.get(&objref.object_id) {
-                                assert!(
-                                    version.is_canceled(),
-                                    "non-shared input {} of {tx_key:?} has a non-cancellation \
-                                        assigned version {version:?}",
-                                    objref.object_id,
-                                );
-                                gas_object_cancellation = Some((objref.object_id, *version));
-                            }
+                        if let Some(version) = assigned_shared_versions.get(&objref.object_id) {
+                            assert!(
+                                version.is_canceled(),
+                                "non-shared input {} of {tx_key:?} has a non-cancellation \
+                                    assigned version {version:?}",
+                                objref.object_id,
+                            );
+                            gas_object_cancellation = Some((objref.object_id, *version));
                         }
                     }
                     object_keys.push(objref.into());
                     fetches.push((i, input));
                 }
                 InputObjectKind::SharedMoveObject { id, .. } => {
-                    let assigned_shared_versions = assigned_shared_versions_cell
-                        .get_or_init(|| {
-                            epoch_store.get_assigned_shared_object_versions(tx_key).map(
-                                |versions| {
-                                    versions
-                                        .into_iter()
-                                        .map(|v| (v.object_id, v.version))
-                                        .collect()
-                                },
-                            )
-                        })
-                        .as_ref()
-                        .unwrap_or_else(|| {
-                            // Important to hold the _tx_lock here - otherwise it would be possible
-                            // for a concurrent execution of the same tx to enter this point after
-                            // the first execution has finished and the assigned shared versions
-                            // have been deleted.
-                            fatal!(
-                                "Failed to get assigned shared versions for transaction {tx_key:?}"
-                            );
-                        });
                     // If we find a set of assigned versions but an object is missing, it indicates
                     // a serious inconsistency:
                     let version = assigned_shared_versions.get(id).unwrap_or_else(|| {

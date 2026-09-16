@@ -73,6 +73,21 @@ mod checked {
         }
     }
 
+    /// Where the metered bytecode verifier takes its limits from when
+    /// it checks the packages a transaction publishes.
+    #[derive(Clone, Copy, Debug)]
+    pub enum VerifierLimitsSource<'a> {
+        /// The validator's own `VerifierSigningConfig`. Operators may set it
+        /// differently on each validator, so this is only for decisions that
+        /// stay local to one validator: signing, admission, and simulation.
+        NodeConfig(&'a VerifierSigningConfig),
+
+        /// The protocol config, which is the same on every validator. Required
+        /// wherever the verdict has to agree across validators, as in
+        /// post-consensus validation.
+        ProtocolConfig,
+    }
+
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
@@ -81,7 +96,7 @@ mod checked {
         input_objects: InputObjects,
         receiving_objects: &ReceivingObjects,
         metrics: &Arc<BytecodeVerifierMetrics>,
-        verifier_signing_config: &VerifierSigningConfig,
+        verifier_limits_source: VerifierLimitsSource<'_>,
         authentication_gas_budget: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
@@ -99,7 +114,7 @@ mod checked {
             transaction,
             protocol_config,
             metrics,
-            verifier_signing_config,
+            verifier_limits_source,
         )?;
 
         Ok((gas_status, input_objects.into_checked()))
@@ -114,7 +129,7 @@ mod checked {
         receiving_objects: ReceivingObjects,
         gas_object: Object,
         metrics: &Arc<BytecodeVerifierMetrics>,
-        verifier_signing_config: &VerifierSigningConfig,
+        verifier_limits_source: VerifierLimitsSource<'_>,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_object_ref = gas_object.object_ref();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
@@ -134,7 +149,7 @@ mod checked {
             transaction,
             protocol_config,
             metrics,
-            verifier_signing_config,
+            verifier_limits_source,
         )?;
 
         Ok((gas_status, input_objects.into_checked()))
@@ -905,7 +920,7 @@ mod checked {
         transaction: &Transaction,
         protocol_config: &ProtocolConfig,
         metrics: &Arc<BytecodeVerifierMetrics>,
-        verifier_signing_config: &VerifierSigningConfig,
+        verifier_limits_source: VerifierLimitsSource<'_>,
     ) -> UserInputResult<()> {
         // Only meter non-system programmable transaction blocks
         if transaction.is_system_tx() {
@@ -916,11 +931,19 @@ mod checked {
             return Ok(());
         };
 
-        // Use the same verifier and meter for all packages, custom configured for
-        // signing.
-        let signing_limits = Some(verifier_signing_config.limits_for_signing());
-        let mut verifier = iota_execution::verifier(protocol_config, signing_limits, metrics);
-        let mut meter = verifier.meter(verifier_signing_config.meter_config_for_signing());
+        // Use the same verifier and meter for all packages.
+        let (signing_limits, meter_config) = match verifier_limits_source {
+            VerifierLimitsSource::NodeConfig(config) => (
+                config.limits_for_signing(),
+                config.meter_config_for_signing(),
+            ),
+            VerifierLimitsSource::ProtocolConfig => (
+                protocol_config.verifier_signing_limits(),
+                protocol_config.meter_config(),
+            ),
+        };
+        let mut verifier = iota_execution::verifier(protocol_config, Some(signing_limits), metrics);
+        let mut meter = verifier.meter(meter_config);
 
         // Measure time for verifying all packages in the PTB
         let shared_meter_verifier_timer = metrics

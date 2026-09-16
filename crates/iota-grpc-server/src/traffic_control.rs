@@ -29,7 +29,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
     task::{Context, Poll},
-    time::SystemTime,
 };
 
 use iota_traffic_controller::{
@@ -124,7 +123,7 @@ where
         let mut inner = std::mem::replace(&mut self.inner, cloned);
 
         Box::pin(async move {
-            if !traffic_controller.check(&client, &None).await {
+            if !traffic_controller.check(&client, &None) {
                 return Ok(Status::resource_exhausted("Too many requests").into_http());
             }
 
@@ -215,7 +214,6 @@ fn tally(traffic_controller: &TrafficController, client: Option<IpAddr>, code: C
         through_fullnode: None,
         error_info,
         spam_weight: Weight::one(),
-        timestamp: SystemTime::now(),
     });
 }
 

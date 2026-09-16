@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 # external dependencies
 bcs.workspace = true
+serde.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 

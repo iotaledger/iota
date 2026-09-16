@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
+use iota_core::authority::shared_object_version_manager::AssignedVersions;
 use iota_sdk_types::{ObjectId, Owner, Version};
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
@@ -23,7 +23,6 @@ use iota_types::{
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
-use once_cell::unsync::OnceCell;
 use prometheus_filtered::core::{Atomic, AtomicU64};
 
 // TODO: We won't need a special purpose InMemoryObjectStore once the
@@ -54,11 +53,14 @@ impl InMemoryObjectStore {
     // functions. (similarly the one in simulacrum)
     pub(crate) fn read_objects_for_execution(
         &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
         tx_key: &TransactionKey,
+        assigned_versions: &AssignedVersions,
         input_object_kinds: &[InputObjectKind],
     ) -> IotaResult<InputObjects> {
-        let shared_version_assignments_cell: OnceCell<Option<HashMap<_, _>>> = OnceCell::new();
+        let shared_version_assignments: HashMap<_, _> = assigned_versions
+            .iter()
+            .map(|assignment| (assignment.object_id, assignment.version))
+            .collect();
         let mut input_objects = Vec::new();
         for kind in input_object_kinds {
             let obj: Option<Object> = match kind {
@@ -68,21 +70,6 @@ impl InMemoryObjectStore {
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {
-                    let shared_version_assignments = shared_version_assignments_cell
-                        .get_or_init(|| {
-                            epoch_store.get_assigned_shared_object_versions(tx_key).map(
-                                |versions| {
-                                    versions
-                                        .into_iter()
-                                        .map(|v| (v.object_id, v.version))
-                                        .collect()
-                                },
-                            )
-                        })
-                        .as_ref()
-                        .ok_or_else(|| IotaError::GenericAuthority {
-                            error: "Shared object versions should have been assigned.".to_string(),
-                        })?;
                     let version = shared_version_assignments.get(id).unwrap_or_else(|| {
                         panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id}")
                     });

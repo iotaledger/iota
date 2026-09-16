@@ -10,7 +10,7 @@ use iota_names::config::IotaNamesConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::functional_group::FunctionalGroup;
+use crate::{functional_group::FunctionalGroup, types::int::try_into_int};
 
 pub(crate) const DEFAULT_PAGE_SIZE: u32 = 20;
 pub(crate) const MAX_PAGE_SIZE: u32 = 50;
@@ -299,14 +299,14 @@ impl ServiceConfig {
     }
 
     /// The maximum depth a GraphQL query can be to be accepted by this service.
-    pub async fn max_query_depth(&self) -> u32 {
-        self.limits.max_query_depth
+    pub async fn max_query_depth(&self) -> Result<i32> {
+        try_into_int(self.limits.max_query_depth).extend()
     }
 
     /// The maximum number of nodes (field names) the service will accept in a
     /// single query.
-    pub async fn max_query_nodes(&self) -> u32 {
-        self.limits.max_query_nodes
+    pub async fn max_query_nodes(&self) -> Result<i32> {
+        try_into_int(self.limits.max_query_nodes).extend()
     }
 
     /// The maximum number of output nodes in a GraphQL response.
@@ -321,25 +321,25 @@ impl ServiceConfig {
     /// connection with last: 20, the count at the second level would be 200
     /// nodes. This is then summed to the count of 10 nodes at the first
     /// level, for a total of 210 nodes.
-    pub async fn max_output_nodes(&self) -> u32 {
-        self.limits.max_output_nodes
+    pub async fn max_output_nodes(&self) -> Result<i32> {
+        try_into_int(self.limits.max_output_nodes).extend()
     }
 
     /// Maximum estimated cost of a database query used to serve a GraphQL
     /// request.  This is measured in the same units that the database uses
     /// in EXPLAIN queries.
-    async fn max_db_query_cost(&self) -> u32 {
-        self.limits.max_db_query_cost
+    async fn max_db_query_cost(&self) -> Result<i32> {
+        try_into_int(self.limits.max_db_query_cost).extend()
     }
 
     /// Default number of elements allowed on a single page of a connection.
-    async fn default_page_size(&self) -> u32 {
-        self.limits.default_page_size
+    async fn default_page_size(&self) -> Result<i32> {
+        try_into_int(self.limits.default_page_size).extend()
     }
 
     /// Maximum number of elements allowed on a single page of a connection.
-    async fn max_page_size(&self) -> u32 {
-        self.limits.max_page_size
+    async fn max_page_size(&self) -> Result<i32> {
+        try_into_int(self.limits.max_page_size).extend()
     }
 
     /// Maximum time in milliseconds spent waiting for a response from fullnode
@@ -348,14 +348,14 @@ impl ServiceConfig {
     /// idempotent, so a transaction that times out should be resubmitted
     /// until the network returns a definite response (success or failure, not
     /// timeout).
-    async fn mutation_timeout_ms(&self) -> u32 {
-        self.limits.mutation_timeout_ms
+    async fn mutation_timeout_ms(&self) -> Result<i32> {
+        try_into_int(self.limits.mutation_timeout_ms).extend()
     }
 
     /// Maximum time in milliseconds that will be spent to serve one query
     /// request.
-    async fn request_timeout_ms(&self) -> u32 {
-        self.limits.request_timeout_ms
+    async fn request_timeout_ms(&self) -> Result<i32> {
+        try_into_int(self.limits.request_timeout_ms).extend()
     }
 
     /// The maximum bytes allowed for transactions in queries.
@@ -367,51 +367,51 @@ impl ServiceConfig {
     /// By default, this is set to the value of the maximum transaction bytes
     /// (including the signatures) allowed by the protocol, plus the Base64
     /// overhead (roughly 1/3 of the original string).
-    async fn max_transaction_payload_size(&self) -> u32 {
-        self.limits.max_tx_payload_size
+    async fn max_transaction_payload_size(&self) -> Result<i32> {
+        try_into_int(self.limits.max_tx_payload_size).extend()
     }
 
     /// The maximum bytes allowed for the read part of GraphQL queries.
     ///
     /// In case of mutations or `dryRunTransactionBlocks` the `txBytes` and
     /// `signatures` are not included in this limit.
-    async fn max_query_payload_size(&self) -> u32 {
-        self.limits.max_query_payload_size
+    async fn max_query_payload_size(&self) -> Result<i32> {
+        try_into_int(self.limits.max_query_payload_size).extend()
     }
 
     /// Maximum nesting allowed in type arguments in Move Types resolved by this
     /// service.
-    async fn max_type_argument_depth(&self) -> u32 {
-        self.limits.max_type_argument_depth
+    async fn max_type_argument_depth(&self) -> Result<i32> {
+        try_into_int(self.limits.max_type_argument_depth).extend()
     }
 
     /// Maximum number of type arguments passed into a generic instantiation of
     /// a Move Type resolved by this service.
-    async fn max_type_argument_width(&self) -> u32 {
-        self.limits.max_type_argument_width
+    async fn max_type_argument_width(&self) -> Result<i32> {
+        try_into_int(self.limits.max_type_argument_width).extend()
     }
 
     /// Maximum number of structs that need to be processed when calculating the
     /// layout of a single Move Type.
-    async fn max_type_nodes(&self) -> u32 {
-        self.limits.max_type_nodes
+    async fn max_type_nodes(&self) -> Result<i32> {
+        try_into_int(self.limits.max_type_nodes).extend()
     }
 
     /// Maximum nesting allowed in struct fields when calculating the layout of
     /// a single Move Type.
-    async fn max_move_value_depth(&self) -> u32 {
-        self.limits.max_move_value_depth
+    async fn max_move_value_depth(&self) -> Result<i32> {
+        try_into_int(self.limits.max_move_value_depth).extend()
     }
 
     /// Maximum number of transaction ids that can be passed to a
     /// `TransactionBlockFilter`.
-    async fn max_transaction_ids(&self) -> u32 {
-        self.limits.max_transaction_ids
+    async fn max_transaction_ids(&self) -> Result<i32> {
+        try_into_int(self.limits.max_transaction_ids).extend()
     }
 
     /// Maximum number of candidates to scan when gathering a page of results.
-    async fn max_scan_limit(&self) -> u32 {
-        self.limits.max_scan_limit
+    async fn max_scan_limit(&self) -> Result<i32> {
+        try_into_int(self.limits.max_scan_limit).extend()
     }
 }
 

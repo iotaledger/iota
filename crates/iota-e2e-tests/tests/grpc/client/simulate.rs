@@ -97,7 +97,7 @@ async fn simulate_transaction_scenarios() {
     let result = client
         .simulate_transaction(transaction, false, SimulateReadMask::default())
         .await;
-    assert_grpc_error(result, Code::Internal);
+    assert_grpc_error(result, Code::InvalidArgument);
 
     // Test: transfer exceeding balance returns Ok with failed effects
     // Transfer amount validation happens during Move VM execution, not upfront,
