@@ -6,9 +6,9 @@ use std::{path::PathBuf, sync::Arc};
 
 use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
-use fastcrypto::{ed25519, traits::ToFromBytes as _};
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_types::committee::EpochId;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
@@ -63,12 +63,8 @@ impl StarfishManager {
     ) -> Self {
         let (consumer_monitor_sender, _) = broadcast::channel(1);
         Self {
-            protocol_keypair: ProtocolKeyPair::new(
-                ed25519::Ed25519KeyPair::from_bytes(&iota_sdk_crypto::ToFromBytes::to_bytes(
-                    &protocol_keypair,
-                ))
+            protocol_keypair: ProtocolKeyPair::from_bytes(&protocol_keypair.to_bytes())
                 .expect("valid ed25519 private key bytes"),
-            ),
             network_keypair: NetworkKeyPair::new(network_keypair),
             storage_base_path,
             running: Mutex::new(Running::False),

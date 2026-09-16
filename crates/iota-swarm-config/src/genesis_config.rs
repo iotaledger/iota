@@ -32,7 +32,7 @@ use tracing::info;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SsfnGenesisConfig {
     pub p2p_address: Multiaddr,
-    #[serde(with = "optional_base64_formatted_network_keypair")]
+    #[serde(with = "base64_formatted_network_keypair::option")]
     pub network_key_pair: Option<NetworkKeyPair>,
 }
 
@@ -388,31 +388,29 @@ mod base64_formatted_network_keypair {
         let s = String::deserialize(d)?;
         NetworkKeyPair::from_base64(&s).map_err(Error::custom)
     }
-}
 
-mod optional_base64_formatted_network_keypair {
-    use iota_sdk_crypto::ToFromBase64 as _;
-    use iota_types::crypto::NetworkKeyPair;
-    use serde::{Deserialize, Deserializer, Serializer};
+    pub mod option {
+        use super::*;
 
-    pub fn serialize<S: Serializer>(
-        kp: &Option<NetworkKeyPair>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        match kp {
-            Some(kp) => serializer.serialize_some(&kp.to_base64()),
-            None => serializer.serialize_none(),
+        pub fn serialize<S: Serializer>(
+            kp: &Option<NetworkKeyPair>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            match kp {
+                Some(kp) => serializer.serialize_some(&kp.to_base64()),
+                None => serializer.serialize_none(),
+            }
         }
-    }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(
-        d: D,
-    ) -> Result<Option<NetworkKeyPair>, D::Error> {
-        use serde::de::Error;
+        pub fn deserialize<'de, D: Deserializer<'de>>(
+            d: D,
+        ) -> Result<Option<NetworkKeyPair>, D::Error> {
+            use serde::de::Error;
 
-        Option::<String>::deserialize(d)?
-            .map(|s| NetworkKeyPair::from_base64(&s).map_err(Error::custom))
-            .transpose()
+            Option::<String>::deserialize(d)?
+                .map(|s| NetworkKeyPair::from_base64(&s).map_err(Error::custom))
+                .transpose()
+        }
     }
 }
 

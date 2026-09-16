@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::traits::ToFromBytes as _;
 use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
 use starfish_config::{Authority, Committee as ConsensusCommittee};
 use tracing::error;
@@ -23,12 +22,10 @@ pub fn get_consensus_committee<T: EpochStartSystemStateTrait>(state: &T) -> Cons
             authority_key: starfish_config::AuthorityPublicKey::new(
                 validator.authority_pubkey.clone(),
             ),
-            protocol_key: starfish_config::ProtocolPublicKey::new(
-                fastcrypto::ed25519::Ed25519PublicKey::from_bytes(
-                    validator.protocol_pubkey.bytes(),
-                )
-                .expect("valid ed25519 public key bytes"),
-            ),
+            protocol_key: starfish_config::ProtocolPublicKey::from_bytes(
+                validator.protocol_pubkey.bytes(),
+            )
+            .expect("valid ed25519 public key bytes"),
             network_key: starfish_config::NetworkPublicKey::new(validator.network_pubkey),
         });
     }

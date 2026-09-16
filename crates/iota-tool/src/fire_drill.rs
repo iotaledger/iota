@@ -146,12 +146,12 @@ async fn update_next_epoch_metadata(
 
     // network key
     let new_network_key_pair = NetworkKeyPair::random();
-    let new_network_key_pair_copy = new_network_key_pair.clone();
+    let new_network_pubkey = new_network_key_pair.public_key();
     new_config.network_key_pair = KeyPairWithPath::new(new_network_key_pair.into());
 
     // protocol key
     let new_protocol_key_pair = NetworkKeyPair::random();
-    let new_protocol_key_pair_copy = new_protocol_key_pair.clone();
+    let new_protocol_pubkey = new_protocol_key_pair.public_key();
     new_config.protocol_key_pair = KeyPairWithPath::new(new_protocol_key_pair.into());
 
     // needs to be active_validators instead of committee_members here, so that
@@ -228,9 +228,7 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_network_pubkey",
-        vec![CallArg::pure(
-            &new_network_key_pair_copy.public_key().bytes().to_vec(),
-        )],
+        vec![CallArg::pure(&new_network_pubkey.bytes().to_vec())],
         iota_client,
     )
     .await?;
@@ -239,9 +237,7 @@ async fn update_next_epoch_metadata(
     update_metadata_on_chain(
         account_key,
         "update_validator_next_epoch_protocol_pubkey",
-        vec![CallArg::pure(
-            &new_protocol_key_pair_copy.public_key().bytes().to_vec(),
-        )],
+        vec![CallArg::pure(&new_protocol_pubkey.bytes().to_vec())],
         iota_client,
     )
     .await?;

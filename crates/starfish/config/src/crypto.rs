@@ -89,6 +89,10 @@ impl ProtocolPublicKey {
         Self(key)
     }
 
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Ok(Self(ed25519::Ed25519PublicKey::from_bytes(bytes)?))
+    }
+
     #[instrument(level = "trace", skip_all)]
     pub fn verify(
         &self,
@@ -106,6 +110,10 @@ impl ProtocolPublicKey {
 impl ProtocolKeyPair {
     pub fn new(keypair: ed25519::Ed25519KeyPair) -> Self {
         Self(keypair)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Ok(Self(ed25519::Ed25519KeyPair::from_bytes(bytes)?))
     }
 
     pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {

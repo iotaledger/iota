@@ -102,6 +102,7 @@ use iota_network::{
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_crypto::ToFromBytes as _;
 use iota_sdk_types::{
     RandomnessRound,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -1128,9 +1129,7 @@ impl IotaNode {
             let server_name = format!("iota-{chain_identifier}");
             let network = Network::bind(config.p2p_config.listen_address)
                 .server_name(&server_name)
-                .private_key(iota_sdk_crypto::ToFromBytes::to_bytes(
-                    &config.network_key_pair(),
-                ))
+                .private_key(config.network_key_pair().to_bytes())
                 .config(anemo_config)
                 .outbound_request_layer(outbound_layer)
                 .start(service)?;
