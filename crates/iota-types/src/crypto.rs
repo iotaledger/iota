@@ -541,26 +541,6 @@ where
     KP::generate_with_address(&mut StdRng::from_rng(csprng).unwrap())
 }
 
-// TODO: C-GETTER
-pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<KP> {
-    let priv_length = <KP as KeypairTraits>::PrivKey::LENGTH;
-    let pub_key_length = <KP as KeypairTraits>::PubKey::LENGTH;
-    if bytes.len() != priv_length + pub_key_length {
-        return Err(IotaError::KeyConversion(format!(
-            "Invalid input byte length, expected {}: {}",
-            priv_length + pub_key_length,
-            bytes.len()
-        )));
-    }
-    let sk = <KP as KeypairTraits>::PrivKey::from_bytes(
-        bytes
-            .get(..priv_length)
-            .ok_or(IotaError::InvalidPrivateKey)?,
-    )
-    .map_err(|_| IotaError::InvalidPrivateKey)?;
-    Ok(sk.into())
-}
-
 /// An all-zero ed25519 [`SimpleSignature`] placeholder, used for system
 /// transactions (which are not signed) and in tests where the signature
 /// content is irrelevant.
