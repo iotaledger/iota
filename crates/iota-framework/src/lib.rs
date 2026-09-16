@@ -150,7 +150,13 @@ impl BuiltInFramework {
     }
 
     pub fn get_package_by_id(id: &ObjectId) -> &'static SystemPackage {
-        Self::iter_system_packages().find(|s| &s.id == id).unwrap()
+        Self::try_get_package_by_id(id).unwrap()
+    }
+
+    /// The built-in package at `id`, or `None` for an id that is not built in
+    /// -- including a system address that no built-in package occupies yet.
+    pub fn try_get_package_by_id(id: &ObjectId) -> Option<&'static SystemPackage> {
+        Self::iter_system_packages().find(|s| &s.id == id)
     }
 
     pub fn iter_system_packages() -> impl Iterator<Item = &'static SystemPackage> {
@@ -197,7 +203,6 @@ pub async fn compare_system_package<S: ObjectStore>(
     dependencies: Vec<ObjectId>,
     protocol_config: &ProtocolConfig,
 ) -> Option<ObjectReference> {
-    let binary_config = &to_binary_config(protocol_config);
     let cur_object = match object_store.try_get_object(id) {
         Ok(Some(cur_object)) => cur_object,
 
@@ -217,10 +222,11 @@ pub async fn compare_system_package<S: ObjectStore>(
             );
 
             // Adding a package runs it through the publish path, which enforces this
-            // bound and aborts the change epoch transaction if it is exceeded.
-            // Refusing the upgrade leaves the network on its current version
-            // instead. Upgrades of an existing package are exempt from the
-            // bound, so the branch below does not check it.
+            // bound by failing the publish -- and that failure is an `expect` in the
+            // change epoch transaction, so every validator panics on it. Refusing
+            // the upgrade here is what keeps the network off that path: it stays on
+            // its current version instead. Upgrades of an existing package are
+            // exempt from the bound, so the branch below does not check it.
             let size = new_object
                 .data
                 .as_opt_package()
@@ -267,6 +273,7 @@ pub async fn compare_system_package<S: ObjectStore>(
         .as_opt_mut_package()
         .expect("Created as package");
 
+    let binary_config = &to_binary_config(protocol_config);
     let pool = &mut normalized::RcPool::new();
     let cur_normalized = match cur_pkg.normalize(pool, binary_config, /* include code */ false) {
         Ok(v) => v,
@@ -305,8 +312,15 @@ mod tests {
     /// bound it is held to when it is published for the first time, at genesis
     /// or when it is added at an epoch change. Its bytes are fixed when the
     /// binary is built, so a package that has outgrown the bound is caught
-    /// here, rather than by a network that will not start or an epoch change
-    /// that aborts.
+    /// here, rather than by a network that will not start or validators that
+    /// panic publishing it at an epoch change.
+    ///
+    /// The bound checked here is the one the newest protocol version this
+    /// binary knows sets. A package being added is held to the bound of the
+    /// version the network is running when it is added, so a release that
+    /// raises the bound and adds a package over the old one under the same
+    /// version cannot be adopted -- validators vote that upgrade down rather
+    /// than admit the package.
     #[test]
     fn system_packages_fit_the_size_limit() {
         let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
