@@ -31,9 +31,15 @@ pub fn create_rustls_server_config_from_pem(
 
     let certs = CertificateDer::pem_file_iter(cert_file)?.collect::<Result<_, _>>()?;
     let private_key = PrivateKeyDer::from_pem_file(private_key_file)?;
-    let tls_config = rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, private_key)?;
+    // `ring` and `aws-lc-rs` are both compiled in (the Rust SDK's clients pull the
+    // latter), so rustls cannot pick a provider on its own and `builder()` would
+    // panic.
+    let tls_config = rustls::ServerConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()?
+    .with_no_client_auth()
+    .with_single_cert(certs, private_key)?;
 
     Ok(tls_config)
 }
