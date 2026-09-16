@@ -91,6 +91,32 @@ mod checked {
         ProtocolConfig,
     }
 
+    /// Cheap validity checks for a transaction that has not been through
+    /// signing, to run before any object is loaded.
+    ///
+    /// Rejects a system transaction, then runs the transaction's own validity
+    /// checks except the one requiring a gas payment, so a caller can supply
+    /// the gas payment itself. The limit on the number of gas payment objects
+    /// still applies.
+    ///
+    /// Signing rejects a system transaction before [`check_transaction_input`]
+    /// runs, and [`check_transaction_input`] itself accepts one, so a caller
+    /// with a transaction that has not been signed must call this first.
+    pub fn check_user_transaction_validity(
+        transaction: &Transaction,
+        protocol_config: &ProtocolConfig,
+    ) -> IotaResult {
+        if transaction.kind().is_system() {
+            return Err(IotaError::UnsupportedFeature {
+                error: "system transactions are not supported".to_string(),
+            });
+        }
+        transaction.check_serialized_size(protocol_config)?;
+        transaction.validity_check_no_gas_check(protocol_config)?;
+        transaction.check_gas_payment_size(protocol_config)?;
+        Ok(())
+    }
+
     /// Checks whether a transaction may run, for signing, for a certificate, or
     /// for a simulation.
     ///
