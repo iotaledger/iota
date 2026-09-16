@@ -2383,20 +2383,9 @@ impl AuthorityState {
             )
         };
 
-        fail_point_if!("cp_execution_nondeterminism", || {
-            #[cfg(msim)]
-            self.create_fail_state(transaction, epoch_store, &mut effects);
-        });
-
-        let elapsed = prepare_transaction_start_time.elapsed().as_micros() as f64;
-        if elapsed > 0.0 {
-            self.metrics
-                .prepare_cert_gas_latency_ratio
-                .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
-        }
-
         // Executing from a checkpoint copies the certified verdict through;
-        // executing from consensus judges it.
+        // executing from consensus judges it. Judged before the fork-injecting
+        // fail point below, so that only the effects diverge under it.
         let attestation_record = transaction.certified_record().or_else(|| {
             transaction.attestation().and_then(|attestation| {
                 // The claim is only measurable against a body that ran.
@@ -2412,6 +2401,18 @@ impl AuthorityState {
                 AttestationRecord::new(attestation, verdict)
             })
         });
+
+        fail_point_if!("cp_execution_nondeterminism", || {
+            #[cfg(msim)]
+            self.create_fail_state(transaction, epoch_store, &mut effects);
+        });
+
+        let elapsed = prepare_transaction_start_time.elapsed().as_micros() as f64;
+        if elapsed > 0.0 {
+            self.metrics
+                .prepare_cert_gas_latency_ratio
+                .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
+        }
 
         Ok((
             inner_temp_store,

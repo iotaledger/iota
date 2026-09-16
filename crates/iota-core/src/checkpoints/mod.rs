@@ -3282,60 +3282,23 @@ mod tests {
     #[tokio::test]
     async fn builder_caches_full_contents_only_after_durable_contents_write() {
         let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
 
         let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
         let digest = *tx.digest();
-        state
-            .database_for_testing()
-            .perpetual_tables
-            .transactions
-            .insert(&digest, tx.serializable_ref())
-            .unwrap();
-
         let mut effects_map = HashMap::new();
-        commit_cert_for_test(
-            &mut effects_map,
-            state.clone(),
-            digest,
-            vec![],
-            GasCostSummary::new(1, 1, 1, 1, 1),
-        );
+        store_executed_tx(&state, &mut effects_map, &tx);
         let effects = effects_map[&digest].clone();
-
-        let signature = iota_types::crypto::zero_ed25519_signature().into();
-        state
-            .epoch_store_for_testing()
-            .test_insert_user_signature(digest, vec![signature]);
-
-        let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
-        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
 
         let tmp_dir = iota_common::tempdir();
         let checkpoint_store = CheckpointStore::new(tmp_dir.path());
-        let epoch_store = state.epoch_store_for_testing();
-
-        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
-            state.get_global_state_hash_store().clone(),
-        ));
-
-        let checkpoint_service = CheckpointService::build(
-            state.clone(),
-            checkpoint_store.clone(),
-            epoch_store.clone(),
-            Arc::new(effects_map),
-            Arc::downgrade(&global_state_hasher),
-            Box::new(output),
-            Box::new(certified_output),
-            CheckpointMetrics::new_for_tests(),
-            3,
-            100_000,
-        );
         // Drive the builder manually instead of spawning it, to observe the
-        // store between checkpoint creation and the durable batch write. The
-        // state hasher must stay alive: `create_checkpoints` sends to it.
-        let (builder, _aggregator, _hasher) = checkpoint_service.state.lock().take_unstarted();
+        // store between checkpoint creation and the durable batch write.
+        let service = manual_checkpoint_service(&state, checkpoint_store.clone(), effects_map);
+        let (builder, _aggregator, _hasher) = service.service.state.lock().take_unstarted();
 
-        checkpoint_service
+        service
+            .service
             .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![digest], 0))
             .unwrap();
 
@@ -3398,47 +3361,11 @@ mod tests {
             .await;
         let epoch_store = state.epoch_store_for_testing();
 
-        let make_tx = |seed: u8| {
-            let mut id = [0u8; 32];
-            id[0] = seed;
-            VerifiedTransaction::new_genesis_transaction(
-                vec![GenesisObject::new(
-                    ObjectData::Package(
-                        MovePackage::new(
-                            ObjectId::new(id),
-                            Version::default(),
-                            BTreeMap::from([(Identifier::new_unchecked("m"), vec![])]),
-                            100_000,
-                            Vec::new(),
-                            BTreeMap::new(),
-                        )
-                        .unwrap(),
-                    ),
-                    Owner::Immutable,
-                )],
-                vec![],
-            )
-        };
-        let txs = [make_tx(1), make_tx(2)];
+        let txs = [genesis_package_tx(1, 1), genesis_package_tx(2, 1)];
         let digests: Vec<_> = txs.iter().map(|tx| *tx.digest()).collect();
         let mut effects_map = HashMap::new();
         for tx in &txs {
-            let digest = *tx.digest();
-            state
-                .database_for_testing()
-                .perpetual_tables
-                .transactions
-                .insert(&digest, tx.serializable_ref())
-                .unwrap();
-            commit_cert_for_test(
-                &mut effects_map,
-                state.clone(),
-                digest,
-                vec![],
-                GasCostSummary::new(1, 1, 1, 1, 1),
-            );
-            let signature = iota_types::crypto::zero_ed25519_signature().into();
-            epoch_store.test_insert_user_signature(digest, vec![signature]);
+            store_executed_tx(&state, &mut effects_map, tx);
         }
         // Only the second transaction carries a verdict.
         let record = AttestationRecord {
@@ -3453,26 +3380,12 @@ mod tests {
             .unwrap();
         let effects: Vec<_> = digests.iter().map(|d| effects_map[d].clone()).collect();
 
-        let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
-        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
         let tmp_dir = iota_common::tempdir();
-        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
-            state.get_global_state_hash_store().clone(),
-        ));
-        let checkpoint_service = CheckpointService::build(
-            state.clone(),
-            CheckpointStore::new(tmp_dir.path()),
-            epoch_store.clone(),
-            Arc::new(effects_map),
-            Arc::downgrade(&global_state_hasher),
-            Box::new(output),
-            Box::new(certified_output),
-            CheckpointMetrics::new_for_tests(),
-            3,
-            100_000,
-        );
-        let (builder, _aggregator, _hasher) = checkpoint_service.state.lock().take_unstarted();
-        checkpoint_service
+        let service =
+            manual_checkpoint_service(&state, CheckpointStore::new(tmp_dir.path()), effects_map);
+        let (builder, _aggregator, _hasher) = service.service.state.lock().take_unstarted();
+        service
+            .service
             .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, digests.clone(), 0))
             .unwrap();
         let details = PendingCheckpointInfo {
@@ -3524,39 +3437,12 @@ mod tests {
         // digest, and the assertions below rely on that order. Transactions
         // 15..20 carry a large payload to exercise size-based checkpoint
         // splitting.
-        let make_tx = |seed: u8, payload_size: usize| {
-            let mut id = [0u8; 32];
-            id[0] = seed;
-            VerifiedTransaction::new_genesis_transaction(
-                vec![GenesisObject::new(
-                    ObjectData::Package(
-                        MovePackage::new(
-                            ObjectId::new(id),
-                            Version::default(),
-                            BTreeMap::from([(
-                                Identifier::new_unchecked("m"),
-                                vec![0u8; payload_size],
-                            )]),
-                            100_000,
-                            // no modules so empty type_origin_table as no types are defined in
-                            // this package
-                            Vec::new(),
-                            // no modules so empty linkage_table as no dependencies of this package
-                            // exist
-                            BTreeMap::new(),
-                        )
-                        .unwrap(),
-                    ),
-                    Owner::Immutable,
-                )],
-                vec![],
-            )
-        };
-
-        let mut small: Vec<_> = (0..15).map(|seed| make_tx(seed, 1)).collect();
+        let mut small: Vec<_> = (0..15).map(|seed| genesis_package_tx(seed, 1)).collect();
         small.sort_by_key(|tx| *tx.digest());
 
-        let mut large: Vec<_> = (0..5).map(|seed| make_tx(100 + seed, 40000)).collect();
+        let mut large: Vec<_> = (0..5)
+            .map(|seed| genesis_package_tx(100 + seed, 40000))
+            .collect();
         large.sort_by_key(|tx| *tx.digest());
 
         let txns: Vec<_> = small.into_iter().chain(large).collect();
@@ -3803,32 +3689,7 @@ mod tests {
         // Distinct real transactions: only build timing is under test, but the
         // builder pairs each stored transaction with its effects by digest, so
         // effects must reference the digests of actually stored transactions.
-        let make_tx = |seed: u8| {
-            let mut id = [0u8; 32];
-            id[0] = seed;
-            VerifiedTransaction::new_genesis_transaction(
-                vec![GenesisObject::new(
-                    ObjectData::Package(
-                        MovePackage::new(
-                            ObjectId::new(id),
-                            Version::default(),
-                            BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
-                            100_000,
-                            // no modules so empty type_origin_table as no types are defined in
-                            // this package
-                            Vec::new(),
-                            // no modules so empty linkage_table as no dependencies of this package
-                            // exist
-                            BTreeMap::new(),
-                        )
-                        .unwrap(),
-                    ),
-                    Owner::Immutable,
-                )],
-                vec![],
-            )
-        };
-        let txns: Vec<_> = (1..=8).map(make_tx).collect();
+        let txns: Vec<_> = (1..=8).map(|seed| genesis_package_tx(seed, 1)).collect();
         let digests: Vec<TransactionDigest> = txns.iter().map(|tx| *tx.digest()).collect();
         // Digest for test index `i` (1-based).
         let d = |i: u8| digests[(i - 1) as usize];
@@ -4046,6 +3907,99 @@ mod tests {
         ) -> IotaResult {
             self.try_send(summary.clone()).unwrap();
             Ok(())
+        }
+    }
+
+    /// A distinct genesis transaction publishing an empty package whose id
+    /// starts with `seed`; `payload_size` pads it to exercise size limits.
+    fn genesis_package_tx(seed: u8, payload_size: usize) -> VerifiedTransaction {
+        let mut id = [0u8; 32];
+        id[0] = seed;
+        VerifiedTransaction::new_genesis_transaction(
+            vec![GenesisObject::new(
+                ObjectData::Package(
+                    MovePackage::new(
+                        ObjectId::new(id),
+                        Version::default(),
+                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; payload_size])]),
+                        100_000,
+                        // No modules, so no type origins and no linkage.
+                        Vec::new(),
+                        BTreeMap::new(),
+                    )
+                    .unwrap(),
+                ),
+                Owner::Immutable,
+            )],
+            vec![],
+        )
+    }
+
+    /// Stores `tx` as executed: in the transaction table, with effects in
+    /// `effects_map`, and with a user signature for the checkpoint builder.
+    fn store_executed_tx(
+        state: &Arc<AuthorityState>,
+        effects_map: &mut HashMap<TransactionDigest, TransactionEffects>,
+        tx: &VerifiedTransaction,
+    ) {
+        let digest = *tx.digest();
+        state
+            .database_for_testing()
+            .perpetual_tables
+            .transactions
+            .insert(&digest, tx.serializable_ref())
+            .unwrap();
+        commit_cert_for_test(
+            effects_map,
+            state.clone(),
+            digest,
+            vec![],
+            GasCostSummary::new(1, 1, 1, 1, 1),
+        );
+        let signature = iota_types::crypto::zero_ed25519_signature().into();
+        state
+            .epoch_store_for_testing()
+            .test_insert_user_signature(digest, vec![signature]);
+    }
+
+    /// A checkpoint service whose builder is driven by hand. Keeps alive what
+    /// the builder needs: the state hasher `create_checkpoints` sends to and
+    /// the output channels.
+    struct ManualCheckpointService {
+        service: Arc<CheckpointService>,
+        _hasher: Arc<GlobalStateHasher>,
+        _outputs: (
+            mpsc::Receiver<(CheckpointContents, CheckpointSummary)>,
+            mpsc::Receiver<CertifiedCheckpointSummary>,
+        ),
+    }
+
+    fn manual_checkpoint_service(
+        state: &Arc<AuthorityState>,
+        checkpoint_store: Arc<CheckpointStore>,
+        effects_map: HashMap<TransactionDigest, TransactionEffects>,
+    ) -> ManualCheckpointService {
+        let (output, result) = mpsc::channel(10);
+        let (certified_output, certified_result) = mpsc::channel(10);
+        let hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store,
+            state.epoch_store_for_testing().clone(),
+            Arc::new(effects_map),
+            Arc::downgrade(&hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        ManualCheckpointService {
+            service,
+            _hasher: hasher,
+            _outputs: (result, certified_result),
         }
     }
 

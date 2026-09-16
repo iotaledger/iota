@@ -141,10 +141,11 @@ fn object_retention_epochs(
         num_epochs_to_retain = 0;
     }
     // Move authentication is re-run at the object versions an attestation
-    // recorded, and the verdict goes into effects. The re-run only ever loads
-    // versions superseded in the current epoch, so whole-epoch retention keeps
-    // them loadable on every node that executes — fullnodes and state-syncing
-    // validators replay the same verdict, hence no committee-membership guard.
+    // recorded, and the verdict is certified in the checkpoint summary, which
+    // reaches quorum only if every validator judges alike. The re-run only ever
+    // loads versions superseded in the current epoch, so whole-epoch retention
+    // keeps them loadable. Fullnodes copy the certified verdict instead of
+    // judging; the floor is kept uniform across node kinds for simplicity.
     if enable_validator_attestation && num_epochs_to_retain < MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION {
         num_epochs_to_retain = MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION;
     }

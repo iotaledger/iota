@@ -108,10 +108,11 @@ pub fn computation_units(gas_cost_summary: &GasCostSummary, gas_price: u64) -> u
 /// protocol-significant: append, never reorder.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum AttestationVerdict {
-    /// The attestation stood and, whenever the transaction body ran, the
-    /// claimed computation units were within tolerance of the executed ones.
+    /// Not refuted and, whenever the transaction body ran, the claimed
+    /// computation units were within tolerance of the executed ones.
     Valid,
-    /// The attestation stood but the claimed computation units were not.
+    /// Not refuted, but the claimed computation units were not within
+    /// tolerance.
     Inaccurate,
     /// Authentication failed at the versions the attestor recorded.
     Refuted,

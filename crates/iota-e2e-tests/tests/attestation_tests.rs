@@ -252,8 +252,7 @@ async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Erro
 /// the checkpoint from state sync without the attestation, so its effects must
 /// match without it, and it stores the record the summary certifies.
 #[sim_test]
-async fn test_attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result<(), anyhow::Error>
-{
+async fn attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let _env = enable_attestation_env();
 
@@ -653,25 +652,17 @@ impl TestEnvironment {
         &self,
         digest: &TransactionDigest,
     ) -> VerifiedCheckpoint {
-        tokio::time::timeout(Duration::from_secs(60), async {
-            loop {
-                let checkpoint = self.test_cluster.fullnode_handle.iota_node.with(|node| {
-                    let state = node.state();
-                    state
-                        .get_transaction_checkpoint_for_tests(
-                            digest,
-                            &state.epoch_store_for_testing(),
-                        )
-                        .unwrap()
-                });
-                if let Some(checkpoint) = checkpoint {
-                    return checkpoint;
-                }
-                tokio::time::sleep(Duration::from_millis(200)).await;
-            }
-        })
-        .await
-        .expect("the fullnode must execute the checkpoint with the transaction")
+        let state = self.test_cluster.fullnode_handle.iota_node.state();
+        let (sequence_number, _) = state
+            .wait_for_checkpoint_inclusion(&[*digest], Duration::from_secs(60))
+            .await
+            .expect("the fullnode must execute the checkpoint with the transaction")
+            .remove(digest)
+            .expect("the transaction was waited for");
+        state
+            .get_checkpoint_by_sequence_number(sequence_number)
+            .expect("db error")
+            .expect("an executed checkpoint is stored")
     }
 
     /// Submit a transaction via the V2 gRPC path on the first available

@@ -737,13 +737,6 @@ impl CheckpointVersionSpecificData {
         }
     }
 
-    pub fn into_randomness_rounds(self) -> Vec<RandomnessRound> {
-        match self {
-            Self::V1(v) => v.randomness_rounds,
-            Self::V2(v) => v.randomness_rounds,
-        }
-    }
-
     /// Empty for V1.
     pub fn attestations(&self) -> &[Option<AttestationRecord>] {
         match self {

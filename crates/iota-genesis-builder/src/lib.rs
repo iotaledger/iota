@@ -45,8 +45,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointVersionSpecificData,
-        CheckpointVersionSpecificDataV1, CheckpointVersionSpecificDataV2,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
     },
     metrics::LimitsMetrics,
     object::{MoveStructExt, Object},
@@ -859,34 +858,20 @@ fn create_genesis_checkpoint(
         vec![genesis_execution_digests],
         vec![vec![]],
     );
-    let version_specific_data =
-        match protocol_config.checkpoint_summary_version_specific_data_as_option() {
-            None | Some(0) => Vec::new(),
-            Some(1) => bcs::to_bytes(&CheckpointVersionSpecificData::V1(
-                CheckpointVersionSpecificDataV1::default(),
-            ))
-            .unwrap(),
-            Some(2) => bcs::to_bytes(&CheckpointVersionSpecificData::V2(
-                CheckpointVersionSpecificDataV2 {
-                    randomness_rounds: Vec::new(),
-                    attestations: vec![None; contents.len()],
-                },
-            ))
-            .unwrap(),
-            _ => unimplemented!("unrecognized version_specific_data version for CheckpointSummary"),
-        };
-    let checkpoint = CheckpointSummary {
-        epoch: 0,
-        sequence_number: 0,
-        network_total_transactions: contents.len().try_into().unwrap(),
-        contents_digest: contents.digest(),
-        previous_digest: None,
-        epoch_rolling_gas_cost_summary: Default::default(),
-        end_of_epoch_data: None,
-        timestamp_ms: parameters.chain_start_timestamp_ms,
-        version_specific_data,
-        checkpoint_commitments: Default::default(),
-    };
+    // No randomness rounds and no attested transactions in genesis.
+    let checkpoint = CheckpointSummary::new_with_protocol_config(
+        protocol_config,
+        0,
+        0,
+        contents.len() as u64,
+        &contents,
+        None,
+        Default::default(),
+        None,
+        parameters.chain_start_timestamp_ms,
+        Vec::new(),
+        Vec::new(),
+    );
 
     (checkpoint, contents)
 }

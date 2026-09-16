@@ -189,7 +189,7 @@ fn should_reauthenticate(
 
 impl AttestationVerdictContext<'_> {
     /// Re-runs Move authentication at the recorded versions. Returns whether
-    /// the attestation stands: the re-run passes, or cannot judge it.
+    /// the attestation is not refuted: the re-run passes, or cannot judge it.
     fn reauthenticate_at_attested_versions(&self) -> bool {
         let attested_versions: BTreeMap<ObjectId, &ObjectReference> = self
             .attestation
