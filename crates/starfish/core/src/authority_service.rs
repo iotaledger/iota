@@ -1405,11 +1405,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             });
         }
 
-        // Bound the range based on sync type.
+        // Bound the range based on sync type. `start` is peer-controlled, so the bound
+        // saturates; a range at the top of the index space then matches no commits.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
-        let inclusive_bound = commit_range
-            .end()
-            .min(commit_range.start() + batch_size as CommitIndex - 1);
+        let inclusive_bound = commit_range.end().min(
+            commit_range
+                .start()
+                .saturating_add(batch_size as CommitIndex - 1),
+        );
 
         let fast_search_up_to = fast_sync_search_bound(&commit_range, inclusive_bound, batch_size);
 
@@ -1968,7 +1971,7 @@ mod tests {
     };
 
     use crate::{
-        CommitConsumer, Round, Transaction, TransactionClient,
+        CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
             SubscriptionCounter, fast_sync_search_bound, filtered_header_info,
@@ -4929,6 +4932,19 @@ mod tests {
             rounds - 2,
             result.0.len() as u32
         );
+
+        // A range at the top of the index space overflows the batch bound unless it
+        // saturates. Both sync types must answer with an empty response.
+        let top_range = CommitRange::new(CommitIndex::MAX - 1..=CommitIndex::MAX);
+        for commit_sync_type in [CommitSyncType::Regular, CommitSyncType::Fast] {
+            let label = commit_sync_type.as_str();
+            let result = authority_service
+                .handle_fetch_commits(peer, top_range.clone(), commit_sync_type)
+                .await
+                .unwrap();
+            assert!(result.0.is_empty(), "{label} returned commits");
+            assert!(result.1.is_empty(), "{label} returned headers");
+        }
     }
 
     #[tokio::test]
