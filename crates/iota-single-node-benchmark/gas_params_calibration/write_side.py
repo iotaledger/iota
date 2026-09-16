@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
-"""Stage 2 write-side data collection: sustained runs against the real store.
+"""Write-side data collection: sustained runs against the real store.
 
 Drives the benchmark's sustained mode (rounds of a write-heavy workload,
 committed through the real store with write stalls enabled) and reads the
