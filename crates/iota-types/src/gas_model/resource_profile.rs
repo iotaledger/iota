@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -143,9 +143,7 @@ pub struct ResourceProfile {
     /// Number of objects removed from storage (deleted or wrapped) at
     /// commit.
     pub deleted_object_count: u64,
-
-    // Cardinality.
-    /// Number of events emitted.
+    /// Number of events emitted; events are committed with the transaction.
     pub event_count: u64,
     /// Total serialized bytes of emitted events.
     pub event_bytes: u64,
