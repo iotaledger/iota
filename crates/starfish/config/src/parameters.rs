@@ -620,8 +620,11 @@ pub struct TonicParameters {
     ///
     /// If unspecified, this will default to 1MiB. `0` falls back to
     /// `message_size_limit`.
-    #[serde(default = "TonicParameters::default_max_inbound_message_size")]
-    pub max_inbound_message_size: usize,
+    #[serde(
+        default = "TonicParameters::default_max_request_message_size",
+        alias = "max_inbound_message_size"
+    )]
+    pub max_request_message_size: usize,
 
     /// Per-peer, per-RPC admission caps for the inbound consensus server.
     #[serde(default)]
@@ -640,12 +643,12 @@ pub struct TonicParameters {
 
 impl TonicParameters {
     /// Hard size limit for request messages, `message_size_limit` when
-    /// `max_inbound_message_size` is `0`.
+    /// `max_request_message_size` is `0`.
     pub fn request_message_size_limit(&self) -> usize {
-        if self.max_inbound_message_size == 0 {
+        if self.max_request_message_size == 0 {
             self.message_size_limit
         } else {
-            self.max_inbound_message_size
+            self.max_request_message_size
         }
     }
 
@@ -673,7 +676,7 @@ impl TonicParameters {
         Duration::from_secs(120)
     }
 
-    fn default_max_inbound_message_size() -> usize {
+    fn default_max_request_message_size() -> usize {
         1 << 20
     }
 
@@ -691,7 +694,7 @@ impl Default for TonicParameters {
             message_size_limit: TonicParameters::default_message_size_limit(),
             max_concurrent_streams: TonicParameters::default_max_concurrent_streams(),
             request_timeout: TonicParameters::default_request_timeout(),
-            max_inbound_message_size: TonicParameters::default_max_inbound_message_size(),
+            max_request_message_size: TonicParameters::default_max_request_message_size(),
             admission: AdmissionParameters::default(),
             subscribe_request_timeout: TonicParameters::default_subscribe_request_timeout(),
         }
