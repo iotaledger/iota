@@ -3296,12 +3296,10 @@ pub(crate) async fn grpc_input_refs(
     client: &GrpcClient,
     object_ids: &[ObjectId],
 ) -> Result<Vec<ObjectReference>, anyhow::Error> {
-    let requests: Vec<_> = object_ids.iter().map(|id| (*id, None)).collect();
-    let refs = client.object_refs_by_id(&requests).await?;
-    refs.into_iter()
-        .zip(object_ids)
-        .map(|(reference, id)| reference.ok_or_else(|| anyhow!("object {id} does not exist")))
-        .collect()
+    if object_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(client.object_refs(object_ids.iter().copied()).await?.into_inner())
 }
 
 /// Fetch the coin with the given ID over gRPC, as a reference pinning the
