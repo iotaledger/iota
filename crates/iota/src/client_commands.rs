@@ -3299,7 +3299,10 @@ pub(crate) async fn grpc_input_refs(
     if object_ids.is_empty() {
         return Ok(Vec::new());
     }
-    Ok(client.object_refs(object_ids.iter().copied()).await?.into_inner())
+    Ok(client
+        .object_references(object_ids.iter().copied())
+        .await?
+        .into_inner())
 }
 
 /// Fetch the coin with the given ID over gRPC, as a reference pinning the
