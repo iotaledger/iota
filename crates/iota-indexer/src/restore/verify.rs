@@ -14,6 +14,7 @@ use crate::{errors::IndexerError, types::IndexerResult};
 
 pub(crate) async fn verify_epoch_info(
     epoch_info: EpochInfo,
+    snapshot_epoch: u64,
     genesis: Genesis,
     snapshot_chain_id: ChainIdentifier,
 ) -> IndexerResult<VerifiedEpochInfo> {
@@ -23,6 +24,7 @@ pub(crate) async fn verify_epoch_info(
     tokio::task::spawn_blocking(move || {
         verify_epoch_info_chain(
             epoch_info,
+            snapshot_epoch,
             genesis_committee,
             genesis_system_state,
             snapshot_chain_id,
