@@ -30,7 +30,7 @@ use tracing::{debug, error, info, trace, warn};
 use super::{
     BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
-    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
+    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
@@ -1462,14 +1462,7 @@ fn calculate_header_size(headers: &http::HeaderMap) -> usize {
 
 impl SizedRequest for http::request::Parts {
     fn size(&self) -> usize {
-        let header_size = calculate_header_size(&self.headers);
-        let body_size = self
-            .headers
-            .get(http::header::CONTENT_LENGTH)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(0);
-        header_size + body_size
+        calculate_header_size(&self.headers)
     }
 
     fn route(&self) -> String {
@@ -1481,20 +1474,9 @@ impl SizedRequest for http::request::Parts {
     }
 }
 
-impl SizedResponse for http::response::Parts {
-    fn size(&self) -> usize {
-        // Return header size only. Body size is tracked separately via
-        // ResponseHandler::on_body_chunk callback to support streaming responses.
-        calculate_header_size(&self.headers)
-    }
-
-    fn error_type(&self) -> Option<String> {
-        if self.status.is_success() {
-            None
-        } else {
-            Some(self.status.to_string())
-        }
-    }
+/// Error label for a failed HTTP status, `None` for a successful one.
+fn response_error_type(response: &http::response::Parts) -> Option<String> {
+    (!response.status.is_success()).then(|| response.status.to_string())
 }
 
 impl MakeCallbackHandler for MetricsCallbackMaker {
@@ -1507,7 +1489,7 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
 
 impl ResponseHandler for MetricsResponseCallback {
     fn on_response(&mut self, response: &http::response::Parts) {
-        MetricsResponseCallback::on_response(self, response, &response.headers)
+        MetricsResponseCallback::on_response(self, response_error_type(response).as_deref())
     }
 
     fn on_error<E>(&mut self, err: &E) {
@@ -1518,8 +1500,12 @@ impl ResponseHandler for MetricsResponseCallback {
     where
         B: bytes::Buf,
     {
-        let chunk_size = chunk.chunk().len();
-        self.on_chunk(chunk_size);
+        // Body data is `Bytes`, so the first chunk is the whole buffer.
+        self.on_chunk(chunk.chunk());
+    }
+
+    fn on_end_of_stream(&mut self, _trailers: Option<&http::HeaderMap>) {
+        MetricsResponseCallback::on_end_of_stream(self);
     }
 }
 
