@@ -592,7 +592,7 @@ pub struct TonicParameters {
     /// This value is higher than strictly necessary, to allow overheads.
     /// Message size targets and soft limits are computed based on this value.
     ///
-    /// If unspecified, this will default to 1GiB.
+    /// If unspecified, this will default to 64MiB.
     #[serde(default = "TonicParameters::default_message_size_limit")]
     pub message_size_limit: usize,
 
