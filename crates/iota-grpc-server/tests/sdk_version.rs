@@ -1,8 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Integration tests for the minimum SDK version header: every response,
-//! successful or not, carries it, and the bundled SDK client accepts it.
+//! Integration tests for the minimum SDK version header: every successful
+//! response carries it, and the bundled SDK client accepts it.
 
 mod common;
 
@@ -15,8 +15,7 @@ use iota_grpc_types::{
     headers::X_IOTA_MIN_SDK_VERSION,
     v1::ledger_service::{GetServiceInfoRequest, ledger_service_client::LedgerServiceClient},
 };
-use prost_types::FieldMask;
-use tonic::{Code, metadata::MetadataMap, transport::Channel};
+use tonic::{metadata::MetadataMap, transport::Channel};
 
 async fn start_server() -> GrpcServerHandle {
     let mock = Arc::new(MockGrpcStateReader::new_from_iter(0..3));
@@ -51,24 +50,6 @@ async fn successful_response_carries_the_minimum_sdk_version() {
         .await
         .unwrap();
     assert_eq!(min_sdk_version(response.metadata()), MIN_SDK_VERSION);
-
-    handle.shutdown().await.unwrap();
-}
-
-#[tokio::test]
-async fn error_response_carries_the_minimum_sdk_version() {
-    let handle = start_server().await;
-    let mut client = connect_ledger_client(&handle).await;
-
-    let invalid_read_mask = FieldMask {
-        paths: vec!["no_such_field".to_owned()],
-    };
-    let status = client
-        .get_service_info(GetServiceInfoRequest::default().with_read_mask(invalid_read_mask))
-        .await
-        .unwrap_err();
-    assert_eq!(status.code(), Code::InvalidArgument, "{status:?}");
-    assert_eq!(min_sdk_version(status.metadata()), MIN_SDK_VERSION);
 
     handle.shutdown().await.unwrap();
 }

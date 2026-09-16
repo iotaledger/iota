@@ -6415,7 +6415,6 @@ dependencies = [
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tonic 0.14.2",
  "tower 0.4.13",
- "tower-http 0.5.2",
  "tracing",
  "typed-store-error",
 ]

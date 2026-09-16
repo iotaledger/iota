@@ -6,14 +6,10 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use http::{HeaderName, HeaderValue};
-use iota_grpc_types::{
-    headers,
-    v1::{
-        ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
-        service_methods, state_service as grpc_state_service,
-        transaction_execution_service as grpc_tx_service,
-    },
+use iota_grpc_types::v1::{
+    ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
+    service_methods, state_service as grpc_state_service,
+    transaction_execution_service as grpc_tx_service,
 };
 use iota_traffic_controller::TrafficController;
 use iota_types::{traffic_control::ClientIdSource, transaction_executor::TransactionExecutor};
@@ -21,21 +17,13 @@ use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
-use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
     MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
-    constants::MIN_SDK_VERSION, metrics::GrpcMetricsLayer, server_timing::ServerTimingLayer,
+    metrics::GrpcMetricsLayer, server_timing::ServerTimingLayer,
     traffic_control::TrafficControlLayer,
 };
-
-/// Header telling clients the lowest SDK version this node supports; a `const`
-/// so an invalid name or value fails the build instead of the first request.
-const MIN_SDK_VERSION_HEADER: (HeaderName, HeaderValue) = (
-    HeaderName::from_static(headers::X_IOTA_MIN_SDK_VERSION),
-    HeaderValue::from_static(MIN_SDK_VERSION),
-);
 
 /// Handle to control a running gRPC server
 pub struct GrpcServerHandle {
@@ -223,17 +211,10 @@ pub async fn start_grpc_server(
             .map_err(|e| anyhow::anyhow!("failed to configure TLS: {e}"))?;
     }
 
-    // Order matters: the minimum SDK version header outermost so every
-    // response carries it, including ones the layers below reject; metrics
-    // next to observe blocked requests; server-timing innermost so the timer
-    // covers only accepted requests.
-    let (header_name, header_value) = MIN_SDK_VERSION_HEADER;
+    // Order matters: metrics outermost to observe blocked requests; server-timing
+    // innermost so the timer covers only accepted requests.
     let mut layered_builder = server_builder.layer(
         tower::ServiceBuilder::new()
-            .layer(SetResponseHeaderLayer::overriding(
-                header_name,
-                header_value,
-            ))
             .option_layer(
                 metrics.map(|m| {
                     GrpcMetricsLayer::new(Arc::new(m), &service_methods::ALL_METHOD_PATHS)
