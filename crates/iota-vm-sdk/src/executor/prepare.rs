@@ -25,7 +25,7 @@ use iota_types::{
     },
     auth_context::AuthContextData,
     effects::TransactionEffectsAPI,
-    error::{IotaError, UserInputError},
+    error::UserInputError,
     gas::{IotaGasStatus, IotaGasStatusAPI, fill_in_unset_simulation_gas},
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -67,25 +67,7 @@ pub(super) fn prepare_transaction(
     move_authenticators: &[MoveAuthenticator],
     check_coin_deny_list: bool,
 ) -> Result<PreparedTransaction, VmSdkError> {
-    if transaction.kind().is_system() {
-        return Err(ValidationError::new(
-            "transaction validity check",
-            IotaError::UnsupportedFeature {
-                error: "system transactions are not supported".to_string(),
-            },
-        )
-        .into());
-    }
-    transaction
-        .check_serialized_size(&env.protocol_config)
-        .map_err(|e| ValidationError::new("transaction validity check", e))?;
-
-    transaction
-        .validity_check_no_gas_check(&env.protocol_config)
-        .map_err(|e| ValidationError::new("transaction validity check", e))?;
-
-    transaction
-        .check_gas_payment_size(&env.protocol_config)
+    iota_transaction_checks::check_user_transaction_validity(&transaction, &env.protocol_config)
         .map_err(|e| ValidationError::new("transaction validity check", e))?;
 
     // Update gas payment references to match actual object versions in the store.
