@@ -2192,7 +2192,26 @@ impl ProtocolConfig {
     }
 
     pub fn enable_claim_account_transaction(&self) -> bool {
-        self.feature_flags.enable_claim_account_transaction
+        let enable_claim_account_transaction = self.feature_flags.enable_claim_account_transaction;
+        if enable_claim_account_transaction {
+            // The account rules drop transactions in the scheduling pass, which
+            // is only sound when no transaction can execute before it is
+            // sequenced — the guarantee the P-COOL flow provides. The
+            // certificate flow's fast path executes owned-object certificates
+            // immediately, which is incompatible with the rules.
+            assert!(
+                self.enable_pcool_flow(),
+                "enable_claim_account_transaction requires enable_pcool_flow to be enabled"
+            );
+            // A scheduled claim must not be able to run out of gas: an entry
+            // would be staged for an account object that never comes to exist,
+            // bricking the address.
+            assert!(
+                self.claim_account_min_gas_budget.is_some(),
+                "enable_claim_account_transaction requires claim_account_min_gas_budget to be set"
+            );
+        }
+        enable_claim_account_transaction
     }
 
     pub fn check_declared_initial_shared_versions(&self) -> bool {

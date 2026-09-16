@@ -41,10 +41,16 @@
 //! at all.
 //!
 //! Removed transactions are dropped deterministically and surfaced to clients
-//! through the dropped-transaction status cache. Once owned-object-only
-//! transactions can execute in cancelled mode, these drops should become
-//! cancellations with failure effects instead, so that gas is charged and the
-//! outcome is checkpoint-recorded.
+//! through the dropped-transaction status cache. The drops are final by
+//! design, not pending an upgrade to cancellations with failure effects:
+//! charging gas would honor the very authorization the rule rejected. A
+//! plain-signed transaction (or duplicate claim) for an explicit account is
+//! signed by a key that no longer speaks for the account, so charging its gas
+//! would let a stale key drain an account that rotated it away; and a
+//! transaction whose authenticator names a never-created account object has
+//! no account to authenticate the charge against. The one path where a claim
+//! is charged gas is execution-worker congestion cancelling it: there the
+//! address is still implicit, so the plain signature authorizes the charge.
 
 use std::collections::HashSet;
 
