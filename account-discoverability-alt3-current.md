@@ -77,6 +77,25 @@ Both were verified to fail at `HEAD` with these changes stashed:
   88046 bytes on `develop` and 95259 on this branch, and the package object is 1733 bytes over the limit. The
   discoverability work contributes ~250 of those ~7200 bytes; the branch was already ~1.5 KB over before it.
   **This has to be resolved before any of the integration or e2e work on this branch can be verified.**
+
+  > **A fix already exists and will be cherry-picked manually.** Commit `3d8a371b44` — _feat: bound system Move
+  > packages by `max_move_system_package_size` rather than the limit that applies to user packages_ (Valerii
+  > Reutov, 15 Sep 2026), on `origin/vm-lang/12905-system-package-size-limit`, PR #12913 / issue #12905. It is on
+  > neither `develop` nor this branch.
+  >
+  > It adds a separate `max_move_system_package_size` of `200 * 1024` at protocol version 36, on the reasoning
+  > that a system package is published by the network rather than by a user, so the user-package bound was never
+  > meant to apply: an existing system package is already exempt when it is upgraded at an epoch change, and only
+  > a first publish — genesis, or a newly added system package — is checked against it. That is exactly the path
+  > genesis dies on here, and 200 KiB clears the 104133 bytes comfortably.
+  >
+  > The fix branch is three commits on top of `develop`; `3d8a371b44` alone is the functional change, the other
+  > two (`2f571c3a4d` comment cleanup, `843096e4e0` dropping an e2e dependency) are cleanup on top. Expect two
+  > conflicts when picking it: it touches `iota-protocol-config/src/lib.rs` and carries three version-36
+  > snapshots, and it edits `openrpc.json`, which this work regenerated in `519997ecc3`.
+  >
+  > Once it is in, re-run the `pg_integration` suite (§2.8), `iota-cost` `test_good_snapshot`, and
+  > `claim_account_tests` — all three fail for this one reason, so the fix should clear them together.
 * `iota-framework` Move `bls12381_tests::test_uncompressed_g1_sum_too_long` — runs out of gas instead of aborting
   with code 2.
 
