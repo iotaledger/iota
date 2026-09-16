@@ -237,8 +237,8 @@ impl ProgrammableTransactionBlock {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let input =
-                TransactionInput::try_from(self.native.inputs[c.ix].clone(), c.c).extend()?;
+            let input = TransactionInput::try_from(self.native.inputs[c.ix].clone(), c.c.into())
+                .extend()?;
             connection.edges.push(Edge::new(c.encode_cursor(), input));
         }
 
@@ -267,7 +267,7 @@ impl ProgrammableTransactionBlock {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let txn = ProgrammableTransaction::from(self.native.commands[c.ix].clone(), c.c);
+            let txn = ProgrammableTransaction::from(self.native.commands[c.ix].clone(), c.c.into());
             connection.edges.push(Edge::new(c.encode_cursor(), txn));
         }
 

@@ -18,6 +18,7 @@ use crate::{
     types::{
         cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
         transaction_block::Query,
+        uint53::UInt53,
     },
 };
 
@@ -30,9 +31,9 @@ pub(crate) type Cursor = cursor::JsonCursor<TransactionBlockCursor>;
 pub(crate) struct TransactionBlockCursor {
     /// The checkpoint sequence number this was viewed at.
     #[serde(rename = "c")]
-    pub checkpoint_viewed_at: u64,
+    pub checkpoint_viewed_at: UInt53,
     #[serde(rename = "t")]
-    pub tx_sequence_number: u64,
+    pub tx_sequence_number: UInt53,
     /// Whether the cursor was derived from a `scan_limit`. Only applicable to
     /// the `startCursor` and `endCursor` returned from a Connection's
     /// `PageInfo`, and indicates that the cursor may not
@@ -51,7 +52,7 @@ pub struct TxLookup {
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        u64::from(self.checkpoint_viewed_at)
     }
 }
 
@@ -73,11 +74,11 @@ impl Paginated<Cursor> for StoredTransaction {
     type Source = transactions::table;
 
     fn filter_ge<ST, GB>(cursor: &Cursor, query: Query<ST, GB>) -> Query<ST, GB> {
-        query.filter(transactions::dsl::tx_sequence_number.ge(cursor.tx_sequence_number as i64))
+        query.filter(transactions::dsl::tx_sequence_number.ge(i64::from(cursor.tx_sequence_number)))
     }
 
     fn filter_le<ST, GB>(cursor: &Cursor, query: Query<ST, GB>) -> Query<ST, GB> {
-        query.filter(transactions::dsl::tx_sequence_number.le(cursor.tx_sequence_number as i64))
+        query.filter(transactions::dsl::tx_sequence_number.le(i64::from(cursor.tx_sequence_number)))
     }
 
     fn order<ST, GB>(asc: bool, query: Query<ST, GB>) -> Query<ST, GB> {
@@ -93,8 +94,8 @@ impl Paginated<Cursor> for StoredTransaction {
 impl Target<Cursor> for StoredTransaction {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(TransactionBlockCursor {
-            tx_sequence_number: self.tx_sequence_number as u64,
-            checkpoint_viewed_at,
+            tx_sequence_number: UInt53::new_unchecked(self.tx_sequence_number as u64),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
             is_scan_limited: false,
         })
     }
@@ -127,8 +128,8 @@ impl RawPaginated<Cursor> for StoredTransaction {
 impl Target<Cursor> for TxLookup {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(TransactionBlockCursor {
-            tx_sequence_number: self.tx_sequence_number as u64,
-            checkpoint_viewed_at,
+            tx_sequence_number: UInt53::new_unchecked(self.tx_sequence_number as u64),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
             is_scan_limited: false,
         })
     }

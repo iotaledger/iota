@@ -5,7 +5,10 @@
 use async_graphql::connection::CursorType;
 use serde::{Deserialize, Serialize};
 
-use crate::types::cursor::{JsonCursor, ScanLimited};
+use crate::types::{
+    cursor::{JsonCursor, ScanLimited},
+    uint53::UInt53,
+};
 
 /// The checkpoint sequence number for entities not available for view.
 pub(crate) const UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER: u64 = u64::MAX;
@@ -18,7 +21,7 @@ pub(crate) struct ConsistentIndexCursor {
     pub ix: usize,
     /// The checkpoint sequence number at which the entity corresponding to this
     /// cursor was viewed at.
-    pub c: u64,
+    pub c: UInt53,
 }
 
 /// The consistent cursor for an index into a `Map` field is constructed from
@@ -30,7 +33,7 @@ pub(crate) struct ConsistentNamedCursor {
     pub name: String,
     /// The checkpoint sequence number at which the entity corresponding to this
     /// cursor was viewed at.
-    pub c: u64,
+    pub c: UInt53,
 }
 
 /// Trait for cursors that have a checkpoint sequence number associated with
@@ -41,13 +44,13 @@ pub(crate) trait Checkpointed: CursorType {
 
 impl Checkpointed for JsonCursor<ConsistentIndexCursor> {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.c
+        self.c.into()
     }
 }
 
 impl Checkpointed for JsonCursor<ConsistentNamedCursor> {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.c
+        self.c.into()
     }
 }
 

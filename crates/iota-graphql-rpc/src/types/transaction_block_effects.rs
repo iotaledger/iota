@@ -220,7 +220,7 @@ impl TransactionBlockEffects {
                 .iter()
                 .map(|d| Digest::from(*d))
                 .collect(),
-            fst.c, // Each element's cursor has the same checkpoint sequence number set
+            fst.c.into(), // Each element's cursor has the same checkpoint sequence number set
         )
         .await
         .extend()?;
@@ -277,7 +277,7 @@ impl TransactionBlockEffects {
         for c in consistent_page.cursors {
             // Only unchanged shared objects are added to the connection.
             if let Some(unchanged_shared_object) =
-                UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c).extend()?
+                UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c.into()).extend()?
             {
                 connection
                     .edges
@@ -323,7 +323,7 @@ impl TransactionBlockEffects {
             let object_change = ObjectChange {
                 native: changed_objects[c.ix].clone(),
                 lamport_version: self.native().lamport_version(),
-                checkpoint_viewed_at: c.c,
+                checkpoint_viewed_at: c.c.into(),
                 source: source.clone(),
             };
 
@@ -384,7 +384,7 @@ impl TransactionBlockEffects {
                 continue;
             };
 
-            let balance_change = BalanceChange::read(&serialized, c.c).extend()?;
+            let balance_change = BalanceChange::read(&serialized, c.c.into()).extend()?;
             connection
                 .edges
                 .push(Edge::new(c.encode_cursor(), balance_change));
@@ -428,15 +428,16 @@ impl TransactionBlockEffects {
         for c in consistent_page.cursors {
             let event = match &self.kind {
                 TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
-                    Event::try_from_stored_transaction(stored_tx, c.ix, c.c).extend()?
+                    Event::try_from_stored_transaction(stored_tx, c.ix, c.c.into()).extend()?
                 }
                 TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
-                    Event::try_from_optimistic_transaction(optimistic_tx, c.ix, c.c).extend()?
+                    Event::try_from_optimistic_transaction(optimistic_tx, c.ix, c.c.into())
+                        .extend()?
                 }
                 TransactionBlockEffectsKind::DryRun { events, .. } => Event {
                     checkpointed_info: None,
                     native: events[c.ix].clone(),
-                    checkpoint_viewed_at: c.c,
+                    checkpoint_viewed_at: c.c.into(),
                 },
             };
             connection.edges.push(Edge::new(c.encode_cursor(), event));

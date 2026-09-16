@@ -154,10 +154,10 @@ pub(crate) type Cursor = BcsCursor<PackageCursor>;
 /// from.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct PackageCursor {
-    pub checkpoint_sequence_number: u64,
+    pub checkpoint_sequence_number: UInt53,
     pub original_id: Vec<u8>,
-    pub package_version: u64,
-    pub checkpoint_viewed_at: u64,
+    pub package_version: UInt53,
+    pub checkpoint_viewed_at: UInt53,
 }
 
 /// `DataLoader` key for fetching the storage ID of the (user) package at
@@ -533,7 +533,7 @@ impl MovePackage {
 
             let cursor = JsonCursor::new(ConsistentNamedCursor {
                 name: name.clone(),
-                c: checkpoint_viewed_at,
+                c: UInt53::new_unchecked(checkpoint_viewed_at),
             })
             .encode_cursor();
             connection.edges.push(Edge::new(
@@ -913,7 +913,7 @@ impl MovePackage {
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        self.checkpoint_viewed_at.into()
     }
 }
 
@@ -970,10 +970,12 @@ impl RawPaginated<Cursor> for StoredHistoryPackage {
 impl Target<Cursor> for StoredHistoryPackage {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(PackageCursor {
-            checkpoint_sequence_number: self.object.checkpoint_sequence_number as u64,
+            checkpoint_sequence_number: UInt53::new_unchecked(
+                self.object.checkpoint_sequence_number as u64,
+            ),
             original_id: self.original_id.clone(),
-            package_version: self.object.object_version as u64,
-            checkpoint_viewed_at,
+            package_version: UInt53::new_unchecked(self.object.object_version as u64),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
         })
     }
 }

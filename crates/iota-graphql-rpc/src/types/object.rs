@@ -239,10 +239,10 @@ pub(crate) struct HistoricalObjectCursor {
     object_id: Vec<u8>,
     /// The version of the object this cursor points at.
     #[serde(rename = "v")]
-    object_version: u64,
+    object_version: UInt53,
     /// The checkpoint sequence number this was viewed at.
     #[serde(rename = "c")]
-    checkpoint_viewed_at: u64,
+    checkpoint_viewed_at: UInt53,
 }
 
 /// Interface implemented by on-chain values that are addressable by an ID (also
@@ -1259,15 +1259,15 @@ impl HistoricalObjectCursor {
     pub(crate) fn new(object_id: Vec<u8>, object_version: u64, checkpoint_viewed_at: u64) -> Self {
         Self {
             object_id,
-            object_version,
-            checkpoint_viewed_at,
+            object_version: UInt53::new_unchecked(object_version),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
         }
     }
 }
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        self.checkpoint_viewed_at.into()
     }
 }
 
