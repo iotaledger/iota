@@ -612,9 +612,10 @@ pub struct TonicParameters {
     #[serde(default = "TonicParameters::default_request_timeout")]
     pub request_timeout: Duration,
 
-    /// Hard size limit for inbound (decoded) requests. Consensus requests are
-    /// small (ref lists); large payloads belong to responses, bounded by
-    /// `message_size_limit`. A smaller inbound bound shrinks the memory a
+    /// Hard size limit for request messages: inbound requests when decoding
+    /// and outbound requests when encoding. Consensus requests are small (ref
+    /// lists); large payloads belong to responses, bounded by
+    /// `message_size_limit`. A smaller request bound shrinks the memory a
     /// single in-flight request can pin before its handler runs.
     ///
     /// If unspecified, this will default to 1MiB. `0` falls back to
@@ -638,6 +639,16 @@ pub struct TonicParameters {
 }
 
 impl TonicParameters {
+    /// Hard size limit for request messages, `message_size_limit` when
+    /// `max_inbound_message_size` is `0`.
+    pub fn request_message_size_limit(&self) -> usize {
+        if self.max_inbound_message_size == 0 {
+            self.message_size_limit
+        } else {
+            self.max_inbound_message_size
+        }
+    }
+
     fn default_keepalive_interval() -> Duration {
         Duration::from_secs(5)
     }
