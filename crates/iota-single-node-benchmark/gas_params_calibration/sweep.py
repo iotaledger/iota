@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
-"""Stage 1 calibration sweeps for the multidimensional gas metering work.
+"""Per-knob calibration sweeps for the multidimensional gas metering work.
 
 Runs iota-single-node-benchmark over one workload knob at a time, several
 runs per point, and collects the per-transaction JSONL profiles written by
@@ -29,7 +29,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BINARY = REPO_ROOT / "target/release/calibrate"
 
-# One entry per Stage 1 row reachable with today's knobs. `x_field` is the
+# One entry per calibration row reachable with today's knobs. `x_field` is the
 # profile counter the swept knob is expected to drive; the slope of median
 # measured_ns on that counter is the quick-look coefficient estimate.
 SWEEPS = {
@@ -340,8 +340,8 @@ def machine_manifest(binary: Path, argv):
             manifest["platform"]["nproc"] = len(
                 [l for l in cpuinfo.splitlines() if l.startswith("processor")]
             )
-            # The reference-machine controls the plan requires (fixed governor,
-            # turbo/boost state, SMT) are recorded rather than assumed.
+            # The machine state calibration depends on (fixed governor,
+            # turbo/boost state, SMT) is recorded rather than assumed.
             state_files = {
                 "scaling_governors": "/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor",
                 "smt_control": "/sys/devices/system/cpu/smt/control",
