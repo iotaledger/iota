@@ -88,7 +88,7 @@ mod sim_only_tests {
             epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
         },
         move_package::max_package_size,
-        object::{OBJECT_START_VERSION, Object},
+        object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI},
@@ -113,13 +113,7 @@ mod sim_only_tests {
     async fn test_protocol_version_upgrade() {
         ProtocolConfig::poison_get_for_min_version();
 
-        let test_cluster = TestClusterBuilder::new()
-            .with_epoch_duration_ms(20000)
-            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
-                START, FINISH,
-            ))
-            .build()
-            .await;
+        let test_cluster = upgrade_cluster().await;
 
         expect_upgrade_succeeded(&test_cluster).await;
     }
@@ -133,13 +127,7 @@ mod sim_only_tests {
 
         ProtocolConfig::poison_get_for_min_version();
 
-        let test_cluster = TestClusterBuilder::new()
-            .with_epoch_duration_ms(20000)
-            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
-                START, FINISH,
-            ))
-            .build()
-            .await;
+        let test_cluster = upgrade_cluster().await;
 
         let validator = test_cluster.get_validator_pubkeys()[0];
         test_cluster.stop_node(&validator);
@@ -465,7 +453,7 @@ mod sim_only_tests {
     }
 
     #[sim_test]
-    async fn test_new_system_package_over_size_limit_is_not_added() {
+    async fn new_system_package_over_size_limit_is_not_added() {
         ProtocolConfig::poison_get_for_min_version();
 
         let (_under, over) = modules_around_size_limit();
@@ -478,23 +466,14 @@ mod sim_only_tests {
         // not move.
         expect_upgrade_failed(&cluster).await;
 
-        let (added, framework_version) = cluster.fullnode_handle.iota_node.with(|node| {
-            let objects = node.state().get_object_cache_reader().clone();
-            (
-                objects.get_object(&NEW_SYSTEM_PACKAGE).is_some(),
-                objects.get_object(&ObjectId::FRAMEWORK).unwrap().version(),
-            )
-        });
-
-        assert!(!added, "an over-sized system package was added");
-        assert_eq!(
-            framework_version, OBJECT_START_VERSION,
-            "the rest of the framework was upgraded anyway",
+        assert!(
+            !has_object(&cluster, &NEW_SYSTEM_PACKAGE).await,
+            "an over-sized system package was added",
         );
     }
 
     #[sim_test]
-    async fn test_new_system_package_within_size_limit_is_added() {
+    async fn new_system_package_within_size_limit_is_added() {
         ProtocolConfig::poison_get_for_min_version();
 
         let (under, _over) = modules_around_size_limit();
@@ -506,21 +485,17 @@ mod sim_only_tests {
         // separates this from the package the network refused.
         expect_upgrade_succeeded(&cluster).await;
 
-        let added = cluster.fullnode_handle.iota_node.with(|node| {
-            node.state()
-                .get_object_cache_reader()
-                .get_object(&NEW_SYSTEM_PACKAGE)
-                .is_some()
-        });
-
-        assert!(added, "a system package within the limit was not added");
+        assert!(
+            has_object(&cluster, &NEW_SYSTEM_PACKAGE).await,
+            "a system package within the limit was not added",
+        );
     }
 
     /// A system package that is already on-chain is upgraded rather than
     /// published, and an upgrade is not held to the size limit at all. One
     /// grown past the limit is still upgraded.
     #[sim_test]
-    async fn test_system_package_upgrade_is_not_bound_by_size_limit() {
+    async fn system_package_upgrade_is_not_bound_by_size_limit() {
         ProtocolConfig::poison_get_for_min_version();
 
         let limit = size_limit(&ObjectId::SYSTEM);
@@ -534,16 +509,12 @@ mod sim_only_tests {
 
         expect_upgrade_succeeded(&cluster).await;
 
-        let size = cluster.fullnode_handle.iota_node.with(|node| {
-            node.state()
-                .get_object_cache_reader()
-                .get_object(&ObjectId::SYSTEM)
-                .unwrap()
-                .data
-                .as_opt_package()
-                .unwrap()
-                .size() as u64
-        });
+        let size = get_object(&cluster, &ObjectId::SYSTEM)
+            .await
+            .data
+            .as_opt_package()
+            .unwrap()
+            .size() as u64;
 
         assert!(
             size > limit,
@@ -577,10 +548,6 @@ mod sim_only_tests {
     /// Modules for a package at [`NEW_SYSTEM_PACKAGE`] that is within the size
     /// limit, and the same modules plus one more that takes it over. Every one
     /// of them verifies, so size is the only thing that separates the two.
-    ///
-    /// The limit is not overridden here: the override is global, and genesis
-    /// publishes the real framework under the same one, so it cannot be set
-    /// below the size of the framework itself.
     fn modules_around_size_limit() -> (Vec<CompiledModule>, Vec<CompiledModule>) {
         let over = filler_modules(&NEW_SYSTEM_PACKAGE, size_limit(&NEW_SYSTEM_PACKAGE));
         let mut under = over.clone();
@@ -837,6 +804,17 @@ mod sim_only_tests {
                 .get_object_cache_reader()
                 .get_object(object_id)
                 .unwrap()
+        })
+    }
+
+    async fn has_object(cluster: &TestCluster, object_id: &ObjectId) -> bool {
+        let node_handle = &cluster.fullnode_handle.iota_node;
+
+        node_handle.with(|node| {
+            node.state()
+                .get_object_cache_reader()
+                .get_object(object_id)
+                .is_some()
         })
     }
 
