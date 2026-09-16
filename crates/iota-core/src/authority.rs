@@ -2325,23 +2325,12 @@ impl AuthorityState {
         mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        if transaction.kind().is_system() {
-            return Err(IotaError::UnsupportedFeature {
-                error: "simulate does not support system transactions".to_string(),
-            });
-        }
-
-        transaction.check_serialized_size(epoch_store.protocol_config())?;
-
-        // Cheap validity checks for a transaction, including input size limits.
-        // This does not check if gas objects are missing since we may create a
-        // mock gas object. It checks for other transaction input validity.
-        transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
-
-        // The full validity check caps the gas payment size alongside requiring a
-        // gas payment at all, which a simulation relaxes so it can mock one. The cap
-        // still applies, and is cheapest before any object is loaded.
-        transaction.check_gas_payment_size(epoch_store.protocol_config())?;
+        // A missing gas payment is allowed here, since we may create a mock gas
+        // object below.
+        iota_transaction_checks::check_user_transaction_validity(
+            &transaction,
+            epoch_store.protocol_config(),
+        )?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();

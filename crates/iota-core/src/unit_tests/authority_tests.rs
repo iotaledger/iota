@@ -1426,6 +1426,36 @@ async fn test_simulate_rejects_a_package_used_as_an_object() {
     }
 }
 
+/// A system transaction is rejected by both check modes.
+#[tokio::test]
+async fn test_simulate_rejects_a_system_transaction() {
+    let sender = Address::random();
+    let (_validator, fullnode, _object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let transaction = Transaction::V1(TransactionV1 {
+        kind: TransactionKind::EndOfEpoch(vec![]),
+        sender,
+        gas_payment: GasPayment {
+            objects: vec![gas],
+            owner: sender,
+            price: 0,
+            budget: 0,
+        },
+        expiration: TransactionExpiration::None,
+    });
+
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject a system transaction");
+        };
+        assert!(
+            matches!(error, IotaError::UnsupportedFeature { .. }),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
 /// A child object named as an owned input is rejected by both check modes: it
 /// has to be reached through its parent, not passed directly.
 #[tokio::test]
