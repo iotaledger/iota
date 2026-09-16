@@ -19,7 +19,7 @@
 # the 1->N inflation captures the all-core clock descent alongside cache and
 # bandwidth contention.
 #
-# Stages: build → Stage 1 sweeps → mixed workload → cold reads (page cache
+# Stages: build → per-knob sweeps → mixed workload → cold reads (page cache
 # dropped when root/sudo is available) → optional sustained write run →
 # fit → validation score → optional concurrency contrast. Logs to
 # OUT_DIR/run_all.log.
@@ -71,7 +71,7 @@ bash "$here/machine_prep.sh" "$out" --turbo "$turbo"
 stage "build (release)"
 (cd "$repo" && cargo build --release -p iota-single-node-benchmark)
 
-stage "Stage 1 sweeps"
+stage "Per-knob sweeps"
 python3 "$here/sweep.py" --out "$out/sweeps"
 
 stage "mixed workload"

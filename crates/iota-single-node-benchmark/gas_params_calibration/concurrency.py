@@ -26,7 +26,7 @@ Layout:
   <out>/concurrency/summary.jsonl                one row per (workload, N)
   <out>/concurrency/inflation.json               per-workload inflation and moved-bytes rate vs N
 
-Clock policy is part of this experiment (see the plan): fit-time collections
+Clock policy is part of this experiment: fit-time collections
 run turbo off, but these contrast runs are taken under both turbo states so the
 1-worker -> N-worker inflation includes the all-core clock descent along with
 cache and bandwidth contention. Set the turbo state with machine_prep.sh before

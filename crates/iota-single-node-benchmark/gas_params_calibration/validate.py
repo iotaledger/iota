@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
-"""Stage 3 validation: score a calibration artifact on data it was not
-trained on, against the plan's acceptance criteria.
+"""Score a calibration artifact on data it was not trained on, against
+the acceptance criteria below.
 
     # collect a mixed-workload dataset (workloads interleaved within one run)
     ./validate.py collect --out DIR [--spec mixed-default.json] [--runs 5]
@@ -10,7 +10,7 @@ trained on, against the plan's acceptance criteria.
     # score an artifact against any dataset(s)
     ./validate.py score --artifact artifact.json --data DIR [DIR ...]
 
-Acceptance (from the plan): predicted cpu_time >= measured on >= 99% of
+Acceptance criteria: predicted cpu_time >= measured on >= 99% of
 transactions, and the 95th-percentile overestimate <= ~2x. Scoring a
 single-workload sweep dataset with a mixed-trained artifact is the
 "single-workload commits" check; scoring mixed data with a sweep-trained
