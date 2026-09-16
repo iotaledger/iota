@@ -612,6 +612,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     pcool_verifier_limits_from_protocol_config: bool,
 
+    // If true, a pre-execution check that fails when the transaction executes
+    // produces failure effects, charged to the gas payer, instead of an error
+    // that halts the validator. Covers the Move authenticator account
+    // resolution.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_pre_execution_failure_effects: bool,
+
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
     validator_metadata_verify_v2: bool,
@@ -2004,6 +2011,10 @@ impl ProtocolConfig {
     pub fn pcool_verifier_limits_from_protocol_config(&self) -> bool {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config
+    }
+
+    pub fn pcool_pre_execution_failure_effects(&self) -> bool {
+        self.feature_flags.pcool_pre_execution_failure_effects
     }
 
     pub fn validator_metadata_verify_v2(&self) -> bool {
@@ -3496,6 +3507,10 @@ impl ProtocolConfig {
                     // assigned to canceled transactions before any object is
                     // loaded, by consulting the transaction bytes only.
                     cfg.feature_flags.validate_input_object_versions = true;
+                    // A Move authenticator whose account cannot be resolved at
+                    // execution fails the transaction with effects instead of
+                    // halting the validator. Set on all chains.
+                    cfg.feature_flags.pcool_pre_execution_failure_effects = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3784,6 +3799,10 @@ impl ProtocolConfig {
 
     pub fn set_validate_input_object_versions_for_testing(&mut self, val: bool) {
         self.feature_flags.validate_input_object_versions = val;
+    }
+
+    pub fn set_pcool_pre_execution_failure_effects_for_testing(&mut self, val: bool) {
+        self.feature_flags.pcool_pre_execution_failure_effects = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {

@@ -56,6 +56,7 @@ feature_flags:
   enable_pcool_flow: true
   pcool_skip_immutable_object_locks: true
   pcool_verifier_limits_from_protocol_config: true
+  pcool_pre_execution_failure_effects: true
   validator_metadata_verify_v2: true
   package_metadata_with_dynamic_module_metadata: true
   report_move_authentication_error: true

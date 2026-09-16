@@ -492,6 +492,16 @@ ExecutionError:
         STRUCT:
           - value_size: U64
           - max_scaled_size: U64
+    43:
+      ReceivingObjectMismatch:
+        STRUCT:
+          - object_id:
+              TYPENAME: ObjectId
+    44:
+      MoveAuthenticatorAccountUnresolved:
+        STRUCT:
+          - account_object_id:
+              TYPENAME: ObjectId
 ExecutionStatus:
   ENUM:
     0:

@@ -15,6 +15,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    error::ExecutionError,
     object::{MoveStructExt, Object},
     storage::BackingPackageStore,
 };
@@ -220,4 +221,20 @@ pub fn is_certificate_denied(
 ) -> bool {
     certificate_deny_set.contains(transaction_digest)
         || get_denied_certificates().contains(transaction_digest)
+}
+
+/// Whether a transaction runs, or fails with the error it carries without
+/// running any of its commands.
+#[derive(Debug)]
+pub enum PreExecutionResult {
+    /// Run the transaction normally.
+    Run,
+
+    /// Skip execution and fail the transaction with this error.
+    ///
+    /// The transaction is still charged gas and still produces failure effects
+    /// carrying the error, so its gas payment must already have been checked
+    /// and its inputs loaded. With nothing to charge there is nothing to
+    /// produce.
+    Fail(ExecutionError),
 }

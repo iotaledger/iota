@@ -37,8 +37,8 @@ mod checked {
         committee::EpochId,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
-            ExecutionResults, ExecutionResultsV1, ExecutionTiming, ResultWithTimings, SharedInput,
-            is_certificate_denied,
+            ExecutionResults, ExecutionResultsV1, ExecutionTiming, PreExecutionResult,
+            ResultWithTimings, SharedInput, is_certificate_denied,
         },
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
@@ -100,6 +100,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        pre_execution_result: PreExecutionResult,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
@@ -171,7 +172,10 @@ mod checked {
             enable_expensive_checks,
             certificate_deny_set,
             trace_builder_opt,
-            None,
+            match pre_execution_result {
+                PreExecutionResult::Run => None,
+                PreExecutionResult::Fail(error) => Some(Err(error)),
+            },
         )
     }
 
@@ -306,6 +310,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        pre_execution_result: PreExecutionResult,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -393,72 +398,79 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // Prepare the authenticators for execution.
-        // Store the loaded object metadata in the `TemporaryStore` before the
-        // authenticators are executed.
-        // The temporary store must contain all the required information at this
-        // point.
-        let authenticators = authenticators
-            .into_iter()
-            .map(
-                |(
-                    authenticator,
-                    authenticator_function_ref_for_execution,
-                    authenticator_input_objects,
-                )| {
-                    let AuthenticatorFunctionRefForExecution {
-                        authenticator_function_ref,
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    } = authenticator_function_ref_for_execution;
-
-                    // Save the loaded object metadata, i.e., the field object containing the
-                    // AuthenticatorFunctionRef, in the temporary store.
-                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    )]));
-
-                    (
-                        authenticator,
-                        authenticator_function_ref,
-                        authenticator_input_objects,
-                    )
-                },
-            )
-            .collect::<Vec<_>>();
-
-        // Authentication execution.
-        // It does not alter the state, if not for command execution gas charging, and
-        // produces no effects other than possible errors.
-
-        // Run each authenticator in sequence; the first failure aborts the chain.
-        let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                match authenticator_function_ref {
-                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                        authenticate_transaction_inner(
-                            &mut temporary_store,
-                            protocol_config,
-                            metrics.clone(),
-                            &mut gas_charger,
+        // A transaction the caller has already failed skips every authenticator,
+        // so their function-ref field objects are neither recorded as loaded nor
+        // charged for.
+        let authentication_execution_result = match pre_execution_result {
+            PreExecutionResult::Fail(error) => Err(error),
+            PreExecutionResult::Run => {
+                // Prepare the authenticators for execution.
+                // Store the loaded object metadata in the `TemporaryStore` before the
+                // authenticators are executed.
+                // The temporary store must contain all the required information at this
+                // point.
+                let authenticators = authenticators
+                    .into_iter()
+                    .map(
+                        |(
                             authenticator,
-                            authenticator_function_ref_v1,
-                            &authenticator_input_objects.into_inner(),
-                            transaction_kind.clone(),
-                            transaction_digest,
-                            auth_context_data.clone(),
-                            tx_ctx.clone(),
-                            trace_builder_opt,
-                            move_vm,
-                        )
-                    }
-                }
-            },
-        );
+                            authenticator_function_ref_for_execution,
+                            authenticator_input_objects,
+                        )| {
+                            let AuthenticatorFunctionRefForExecution {
+                                authenticator_function_ref,
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            } = authenticator_function_ref_for_execution;
 
-        let authentication_execution_result =
-            report_authentication_error(authentication_execution_result, protocol_config);
+                            // Save the loaded object metadata, i.e., the field object containing
+                            // the AuthenticatorFunctionRef, in the temporary store.
+                            temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            )]));
+
+                            (
+                                authenticator,
+                                authenticator_function_ref,
+                                authenticator_input_objects,
+                            )
+                        },
+                    )
+                    .collect::<Vec<_>>();
+
+                // Authentication execution.
+                // It does not alter the state, if not for command execution gas charging, and
+                // produces no effects other than possible errors.
+
+                // Run each authenticator in sequence; the first failure aborts the chain.
+                let authentication_execution_result = authenticators.into_iter().try_for_each(
+                    |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
+                        match authenticator_function_ref {
+                            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                                authenticate_transaction_inner(
+                                    &mut temporary_store,
+                                    protocol_config,
+                                    metrics.clone(),
+                                    &mut gas_charger,
+                                    authenticator,
+                                    authenticator_function_ref_v1,
+                                    &authenticator_input_objects.into_inner(),
+                                    transaction_kind.clone(),
+                                    transaction_digest,
+                                    auth_context_data.clone(),
+                                    tx_ctx.clone(),
+                                    trace_builder_opt,
+                                    move_vm,
+                                )
+                            }
+                        }
+                    },
+                );
+
+                report_authentication_error(authentication_execution_result, protocol_config)
+            }
+        };
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the

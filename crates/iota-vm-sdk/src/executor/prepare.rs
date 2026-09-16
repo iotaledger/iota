@@ -25,6 +25,7 @@ use iota_types::{
     auth_context::AuthContextData,
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
+    execution::PreExecutionResult,
     gas::{
         IotaGasStatus, IotaGasStatusAPI, check_gas_coins_cover_budget_in_simulation,
         fill_in_unset_simulation_gas,
@@ -418,6 +419,7 @@ pub(super) fn execute_with_move_authenticators(
             env.limits_metrics.clone(),
             false,
             &HashSet::new(),
+            PreExecutionResult::Run,
             &env.epoch_id,
             env.epoch_timestamp_ms,
             gas_data,
