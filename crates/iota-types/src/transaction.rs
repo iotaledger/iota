@@ -74,6 +74,10 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
+#[cfg(test)]
+#[path = "unit_tests/claim_account_validity_tests.rs"]
+mod claim_account_validity_tests;
+
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
 
@@ -1454,6 +1458,19 @@ impl TransactionAPI for Transaction {
                 value: config.max_gas_payment_objects().to_string()
             }
         );
+        if config.enable_claim_account_transaction()
+            && matches!(self.kind(), TransactionKind::ClaimAccount(_))
+        {
+            // A claim the sequencer schedules must not run out of gas.
+            let min_budget = config.claim_account_min_gas_budget();
+            fp_ensure!(
+                self.gas_budget() >= min_budget,
+                UserInputError::GasBudgetTooLow {
+                    gas_budget: self.gas_budget(),
+                    min_budget,
+                }
+            );
+        }
         Ok(())
     }
 

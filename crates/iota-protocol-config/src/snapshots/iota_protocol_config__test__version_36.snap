@@ -375,3 +375,4 @@ multisig_multisig_validate_pubkey_cost_per_ed25519_member: 52
 multisig_multisig_validate_pubkey_cost_per_secp256k1_member: 52
 multisig_multisig_validate_pubkey_cost_per_secp256r1_member: 52
 public_key_to_iota_address_impl_cost_base: 52
+claim_account_min_gas_budget: 5000000
