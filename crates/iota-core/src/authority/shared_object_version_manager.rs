@@ -18,11 +18,12 @@ use iota_types::{
     },
     transaction::{SenderSignedTransactionAPI, TransactionAPI, TransactionKey},
 };
-use tracing::trace;
+use tracing::{trace, warn};
 
 use crate::{
     authority::{
-        AuthorityPerEpochStore, authority_per_epoch_store::CancelConsensusTransactionReason,
+        AuthorityPerEpochStore, account_rules::account_address_being_claimed,
+        authority_per_epoch_store::CancelConsensusTransactionReason,
         epoch_start_configuration::EpochStartConfigTrait,
     },
     execution_cache::ObjectCacheRead,
@@ -169,6 +170,9 @@ impl<T> Schedulable<T> {
 pub struct ConsensusSharedObjVerAssignment {
     pub shared_input_next_versions: HashMap<ObjectId, Version>,
     pub assigned_versions: AssignedTxAndVersions,
+    /// Accounts claimed by `ClaimAccount` transactions scheduled in this
+    /// commit, with the version their account object is created at.
+    pub claimed_accounts: HashMap<ObjectId, (TransactionDigest, Version)>,
 }
 
 impl SharedObjVerManager {
@@ -189,8 +193,12 @@ impl SharedObjVerManager {
             cache_reader,
         )?;
         let mut assigned_versions = Vec::new();
+        let mut claimed_accounts = HashMap::new();
         for assignable in assignables {
-            if !assignable.contains_shared_object() {
+            let address_being_claimed = assignable
+                .as_tx()
+                .and_then(|tx| account_address_being_claimed(tx.data()));
+            if !assignable.contains_shared_object() && address_being_claimed.is_none() {
                 // A transaction without shared inputs has no version
                 // assignments, except when it is cancelled (execution-worker
                 // congestion): the cancellation version is then carried on
@@ -203,7 +211,7 @@ impl SharedObjVerManager {
                     continue;
                 }
             }
-            let tx_assigned_versions = Self::assign_versions_for_transaction(
+            let (tx_assigned_versions, lamport_version) = Self::assign_versions_for_transaction(
                 epoch_store,
                 assignable,
                 &mut shared_input_next_versions,
@@ -212,12 +220,56 @@ impl SharedObjVerManager {
                     .protocol_config()
                     .congestion_control_gas_price_feedback_mechanism(),
             );
-            assigned_versions.push((assignable.key(), tx_assigned_versions));
+            if assignable.contains_shared_object() {
+                assigned_versions.push((assignable.key(), tx_assigned_versions));
+            }
+
+            // Stage scheduled claims. The account object is created at the
+            // claim's lamport version; seeding the version chain here makes
+            // that version available to the rest of the walk, so a
+            // `MoveAuthenticator` use of the freshly claimed account chains
+            // correctly within the same commit. A cancelled claim stages
+            // nothing — the address stays implicit and claimable.
+            //
+            // The seed only ever moves the chain forward because no scheduled
+            // transaction can have advanced it first: a mutable declared use of
+            // an address that does not exist yet is dropped when its inputs are
+            // loaded during post-consensus validation, and a `MoveAuthenticator`
+            // reference must be immutable. If those drops are ever removed,
+            // revisit this insert — it could then rewind the chain and hand the
+            // same version out twice.
+            if let Some(address) = address_being_claimed {
+                let digest = *assignable.key().as_digest().unwrap();
+                if !cancelled_txns.contains_key(&digest) {
+                    // The seed is authoritative, so it overwrites whatever is
+                    // there. An entry can only pre-exist adversarially; count it
+                    // so that case is visible.
+                    if let Some(previous) =
+                        shared_input_next_versions.insert(address, lamport_version)
+                    {
+                        warn!(
+                            ?address,
+                            ?previous,
+                            ?lamport_version,
+                            ?digest,
+                            "claim seed displaced an existing version-chain entry"
+                        );
+                        epoch_store.metrics.claim_seed_displaced_version_entry.inc();
+                    }
+                    let previous = claimed_accounts.insert(address, (digest, lamport_version));
+                    assert!(
+                        previous.is_none(),
+                        "two scheduled claims for account {address} in one commit; \
+                         the duplicate-claim guard must prevent this"
+                    );
+                }
+            }
         }
 
         Ok(ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions: AssignedTxAndVersions::new(assigned_versions),
+            claimed_accounts,
         })
     }
 
@@ -281,13 +333,16 @@ impl SharedObjVerManager {
         Ok(AssignedTxAndVersions::new(assigned_versions))
     }
 
+    /// Assigns versions to the transaction's shared inputs and returns them
+    /// together with the transaction's lamport version (the version every
+    /// object it creates or mutates receives at execution).
     pub fn assign_versions_for_transaction(
         epoch_store: &AuthorityPerEpochStore,
         assignable: &Schedulable<impl AsTx>,
         shared_input_next_versions: &mut HashMap<ObjectId, Version>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         enable_gas_price_feedback: bool,
-    ) -> AssignedVersions {
+    ) -> (AssignedVersions, Version) {
         let tx_key = assignable.key();
 
         // Check if the transaction is cancelled due to congestion.
@@ -453,7 +508,7 @@ impl SharedObjVerManager {
             "locking shared objects"
         );
 
-        assigned_versions
+        (assigned_versions, next_version)
     }
 }
 
@@ -548,6 +603,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -634,6 +690,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -719,6 +776,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -866,6 +924,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -995,6 +1054,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -1188,6 +1248,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -1205,7 +1266,7 @@ mod tests {
 
         // The per-transaction assignment recorded in the consensus commit
         // prologue.
-        let prologue_assignment = SharedObjVerManager::assign_versions_for_transaction(
+        let (prologue_assignment, _) = SharedObjVerManager::assign_versions_for_transaction(
             &epoch_store,
             &Schedulable::Transaction(&transaction),
             &mut HashMap::new(),
@@ -1300,6 +1361,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -1377,6 +1439,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -1451,6 +1514,7 @@ mod tests {
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
             assigned_versions,
+            claimed_accounts: _,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
@@ -1517,6 +1581,90 @@ mod tests {
             tx,
             CertificateProof::new_system(0),
         ))
+    }
+
+    #[tokio::test]
+    async fn test_assign_versions_stages_scheduled_claims() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let (account, claim_tx) =
+            crate::authority::account_rules::generate_claim_account_tx_with_gas_version(5);
+        // A same-commit use of the freshly claimed account declares a
+        // client-guessed initial version; the claim's seed must win.
+        let use_tx =
+            generate_shared_objs_tx_with_gas_version(&[(account, Version::from(2), false)], 3);
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions,
+            claimed_accounts,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            [
+                Schedulable::Transaction(&claim_tx),
+                Schedulable::Transaction(&use_tx),
+            ]
+            .iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        // The claim has no shared inputs, so the account object is created at
+        // the claim's lamport version: gas version 5 + 1 = 6, computable from
+        // the transaction bytes alone.
+        let account_version = Version::from(6);
+        assert_eq!(
+            claimed_accounts,
+            HashMap::from([(account, (*claim_tx.digest(), account_version))])
+        );
+        // The claim seeds the account's version chain.
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(account, account_version)])
+        );
+        // The later use of the account is assigned the claim's version, not
+        // its own declared one. The claim itself has no shared inputs and
+        // receives no version assignments.
+        assert_eq!(
+            assigned_versions.0,
+            vec![(
+                use_tx.key(),
+                vec![VersionAssignment::new(account, account_version)]
+            )]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cancelled_claim_stages_nothing() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let (_account, claim_tx) =
+            crate::authority::account_rules::generate_claim_account_tx_with_gas_version(5);
+        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> =
+            BTreeMap::from([(
+                *claim_tx.digest(),
+                CancelConsensusTransactionReason::Congested {
+                    congested_objects: vec![],
+                    suggested_gas_price: Some(1_000),
+                },
+            )]);
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions: _,
+            claimed_accounts,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            [Schedulable::Transaction(&claim_tx)].iter(),
+            &cancelled_txns,
+        )
+        .unwrap();
+
+        // No claim entry, no account seed: the address stays implicit and
+        // claimable.
+        assert!(claimed_accounts.is_empty());
+        assert!(shared_input_next_versions.is_empty());
     }
 
     /// Generate a transaction that uses shared objects as specified in the
