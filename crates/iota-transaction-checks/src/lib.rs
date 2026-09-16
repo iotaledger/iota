@@ -332,8 +332,8 @@ mod checked {
     /// Checks the receiving references against the objects they name.
     ///
     /// Two separable things happen here. Whether each reference is current —
-    /// its version and digest match the loaded object — is an
-    /// optimistic-concurrency question, dropped per half by
+    /// its version and digest match the loaded object — can be dropped per
+    /// half by
     /// [`InputCheckRules::any_receiving_object_version`] and
     /// [`InputCheckRules::any_receiving_object_digest`].
     /// What the object is, and that no reference duplicates another or collides
