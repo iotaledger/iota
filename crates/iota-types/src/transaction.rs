@@ -599,6 +599,9 @@ mod programmable_transaction_ext {
     impl Sealed for super::ProgrammableTransaction {}
 }
 
+/// The most inputs a programmable transaction may declare.
+pub const MAX_PROGRAMMABLE_TX_INPUTS: usize = u16::MAX as usize;
+
 pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Sealed {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
     fn receiving_objects(&self) -> Vec<ObjectReference>;
@@ -648,6 +651,17 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
                 value: config.max_programmable_tx_commands().to_string()
             }
         );
+        let too_many_inputs = || UserInputError::SizeLimitExceeded {
+            limit: "maximum inputs in a programmable transaction".to_string(),
+            value: MAX_PROGRAMMABLE_TX_INPUTS.to_string(),
+        };
+        // `max_input_objects` below does not count pure inputs, so it does not
+        // bound the list. No protocol version gates this one: a transaction
+        // with more inputs is above `max_tx_size_bytes` on every version.
+        fp_ensure!(
+            inputs.len() <= MAX_PROGRAMMABLE_TX_INPUTS,
+            too_many_inputs()
+        );
         let total_inputs = self.input_objects()?.len() + self.receiving_objects().len();
         fp_ensure!(
             total_inputs <= config.max_input_objects() as usize,
@@ -683,7 +697,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
             matches!(obj, CallArg::Shared(SharedObjectReference { object_id, .. }) if *object_id == ObjectId::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
-            let random_index = random_index.try_into().unwrap();
+            let random_index = u16::try_from(random_index).map_err(|_| too_many_inputs())?;
             for command in commands {
                 if !used_random_object {
                     used_random_object = command.is_input_arg_used(random_index);
@@ -1080,6 +1094,15 @@ pub trait TransactionAPI {
     /// skipping gas-related checks.
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult;
 
+    /// Checks the BCS size of the transaction data against the protocol's
+    /// `max_tx_size_bytes`.
+    fn check_serialized_size(&self, config: &ProtocolConfig) -> IotaResult
+    where
+        Self: Serialize + Sized,
+    {
+        check_transaction_size(self, config).map(|_| ())
+    }
+
     /// Checks the gas payment against the protocol's cap on how many objects it
     /// may name.
     fn check_gas_payment_size(&self, config: &ProtocolConfig) -> UserInputResult;
@@ -1315,6 +1338,34 @@ pub trait TransactionAPI {
     /// Consumes self and returns the transaction kind, sender address, and
     /// gas payment object references as a tuple.
     fn execution_parts(&self) -> (TransactionKind, Address, GasPayment);
+}
+
+fn tx_bcs_size<T: Serialize>(tx: &T) -> IotaResult<usize> {
+    bcs::serialized_size(tx).map_err(|e| IotaError::TransactionSerialization {
+        error: e.to_string(),
+    })
+}
+
+/// Checks the BCS size of `transaction` against the protocol's
+/// `max_tx_size_bytes` and returns it.
+fn check_transaction_size<T: Serialize>(
+    transaction: &T,
+    config: &ProtocolConfig,
+) -> IotaResult<usize> {
+    let tx_size = tx_bcs_size(transaction)?;
+    let max_tx_size_bytes = config.max_tx_size_bytes();
+    fp_ensure!(
+        tx_size as u64 <= max_tx_size_bytes,
+        IotaError::UserInput {
+            error: UserInputError::SizeLimitExceeded {
+                limit: format!(
+                    "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
+                ),
+                value: tx_size.to_string(),
+            }
+        }
+    );
+    Ok(tx_size)
 }
 
 impl TransactionAPI for Transaction {
@@ -2045,9 +2096,7 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn serialized_size(&self) -> IotaResult<usize> {
-        bcs::serialized_size(self).map_err(|e| IotaError::TransactionSerialization {
-            error: e.to_string(),
-        })
+        tx_bcs_size(self)
     }
 
     fn validity_check(&self, context: &TxValidityCheckContext<'_>) -> Result<usize, IotaError> {
@@ -2079,19 +2128,7 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
         }
 
         // Enforce overall transaction size limit.
-        let tx_size = self.serialized_size()?;
-        let max_tx_size_bytes = context.config.max_tx_size_bytes();
-        fp_ensure!(
-            tx_size as u64 <= max_tx_size_bytes,
-            IotaError::UserInput {
-                error: UserInputError::SizeLimitExceeded {
-                    limit: format!(
-                        "serialized transaction size exceeded maximum of {max_tx_size_bytes}"
-                    ),
-                    value: tx_size.to_string(),
-                }
-            }
-        );
+        let tx_size = check_transaction_size(self, context.config)?;
 
         tx.validity_check(context.config)
             .map_err(Into::<IotaError>::into)?;

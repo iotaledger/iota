@@ -817,7 +817,9 @@ pub struct ProtocolConfig {
     max_tx_size_bytes: Option<u64>,
 
     /// Maximum number of input objects to a transaction. Enforced by the
-    /// transaction input checker
+    /// transaction input checker. Pure inputs do not count towards it; all
+    /// inputs together cannot exceed
+    /// `iota_types::transaction::MAX_PROGRAMMABLE_TX_INPUTS`.
     max_input_objects: Option<u64>,
 
     /// Max size of objects a transaction can write to disk after completion.
