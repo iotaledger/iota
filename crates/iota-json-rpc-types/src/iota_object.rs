@@ -19,7 +19,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{ObjectInfo, ObjectType},
-    error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
+    error::{IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
     object::{MoveStructExt, Object, ObjectInner, ObjectRead},
@@ -629,6 +629,8 @@ impl TryInto<Object> for IotaObjectData {
                     false,
                 )?
             }),
+            // Not size-checked: this package is already on-chain, and the limit
+            // the network held it to is not knowable from here.
             Some(IotaRawData::Package(p)) => ObjectData::Package(MovePackage::new(
                 p.id,
                 self.version,
@@ -636,13 +638,12 @@ impl TryInto<Object> for IotaObjectData {
                     .iter()
                     .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
                     .collect(),
-                u64::MAX, // safe as this pkg comes from the network
                 p.type_origin_table.into_iter().collect(),
                 p.linkage_table
                     .into_iter()
                     .map(|(k, v)| (k, v.into()))
                     .collect(),
-            )?),
+            )),
             _ => Err(anyhow!(
                 "BCS data is required to convert IotaObjectData to Object"
             ))?,
@@ -1170,25 +1171,23 @@ impl From<MovePackage> for IotaRawMovePackage {
 }
 
 impl IotaRawMovePackage {
-    pub fn to_move_package(
-        &self,
-        max_move_package_size: u64,
-    ) -> Result<MovePackage, ExecutionError> {
-        Ok(MovePackage::new(
+    /// The package this describes, not size-checked: it is already on-chain,
+    /// and the limit the network held it to is not knowable from here.
+    pub fn to_move_package(&self) -> MovePackage {
+        MovePackage::new(
             self.id,
             self.version.into(),
             self.module_map
                 .iter()
                 .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
                 .collect(),
-            max_move_package_size,
             self.type_origin_table.clone(),
             self.linkage_table
                 .clone()
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
-        )?)
+        )
     }
 }
 

@@ -3654,7 +3654,7 @@ fn to_package(o: IotaObjectResponse) -> anyhow::Result<MovePackage> {
         bail!("Object {id} not a package");
     };
 
-    Ok(p.to_move_package(u64::MAX /* safe as this pkg comes from the network */)?)
+    Ok(p.to_move_package())
 }
 
 /// Fetch move packages

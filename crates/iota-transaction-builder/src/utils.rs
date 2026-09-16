@@ -438,6 +438,8 @@ impl TransactionBuilder {
             bail!("Bcs field in object [{package_id}] is missing or not a package.");
         };
 
+        // Not size-checked: this package is already on-chain, and the limit the
+        // network held it to is not knowable from here.
         Ok(MovePackage::new(
             package.id,
             object.version,
@@ -446,14 +448,13 @@ impl TransactionBuilder {
                 .iter()
                 .map(|(k, v)| (Identifier::new_unchecked(k.as_str()), v.clone()))
                 .collect(),
-            u64::MAX, // safe as this pkg comes from the network
             package.type_origin_table,
             package
                 .linkage_table
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
-        )?)
+        ))
     }
 }
 

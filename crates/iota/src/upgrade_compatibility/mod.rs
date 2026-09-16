@@ -732,7 +732,7 @@ pub(crate) async fn check_compatibility(
     compare_packages(
         AccountAddress::new(
             existing_package
-                .to_move_package(u64::MAX /* safe as this pkg comes from the network */)?
+                .to_move_package()
                 .original_package_id()
                 .into_bytes(),
         ),
