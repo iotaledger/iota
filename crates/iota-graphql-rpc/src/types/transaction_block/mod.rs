@@ -122,22 +122,6 @@ pub(crate) enum TransactionBlockKindInput {
 
 type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
 
-/// The cursor returned for each `TransactionBlock` in a connection's page of
-/// results. The `checkpoint_viewed_at` will set the consistent upper bound for
-/// subsequent queries made on this cursor.
-#[allow(unused)]
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub(crate) struct TransactionBlockCursor {
-    /// The checkpoint sequence number this was viewed at.
-    #[serde(rename = "c")]
-    pub checkpoint_viewed_at: u64,
-    #[serde(rename = "t")]
-    pub tx_sequence_number: u64,
-    /// The checkpoint sequence number when the transaction was finalized.
-    #[serde(rename = "tc")]
-    pub tx_checkpoint_number: u64,
-}
-
 /// `DataLoader` key for fetching a `TransactionBlock` by its digest, optionally
 /// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
