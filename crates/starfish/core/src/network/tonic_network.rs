@@ -112,7 +112,7 @@ impl TonicClient {
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
         let client = ConsensusServiceClient::new(channel)
-            .max_encoding_message_size(config.message_size_limit)
+            .max_encoding_message_size(config.request_message_size_limit())
             .max_decoding_message_size(config.message_size_limit)
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
@@ -1196,17 +1196,9 @@ impl<S: NetworkService> TonicManager<S> {
                 }
             });
 
-        // Inbound (decoded) requests are small; bound them tighter than the
-        // (large) response encoding limit when configured. `0` falls back to
-        // `message_size_limit`.
-        let max_decoding_message_size = if config.max_inbound_message_size == 0 {
-            config.message_size_limit
-        } else {
-            config.max_inbound_message_size
-        };
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(max_decoding_message_size)
+            .max_decoding_message_size(config.request_message_size_limit())
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
 
