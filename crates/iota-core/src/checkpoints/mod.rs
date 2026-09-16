@@ -1783,12 +1783,21 @@ impl CheckpointBuilder {
             .state
             .get_transaction_cache_reader()
             .try_get_transactions_and_serialized_sizes(&all_digests)?;
-        // Written in the same batch as the effects, so present for every executed
-        // digest.
-        let all_attestations = self
-            .state
-            .get_transaction_cache_reader()
-            .try_multi_get_attestation_records(&all_digests)?;
+        // Only attested transactions carry a verdict, and only the attestation
+        // flag lets any be attested: without it there is nothing to fetch. The
+        // records are written in the same batch as the effects, so present for
+        // every executed digest.
+        let all_attestations = if self
+            .epoch_store
+            .protocol_config()
+            .enable_validator_attestation()
+        {
+            self.state
+                .get_transaction_cache_reader()
+                .try_multi_get_attestation_records(&all_digests)?
+        } else {
+            vec![None; all_digests.len()]
+        };
         let mut all_effects_and_transaction_sizes = Vec::with_capacity(all_effects.len());
         let mut transactions = Vec::with_capacity(all_effects.len());
         let mut transaction_keys = Vec::with_capacity(all_effects.len());
@@ -3380,6 +3389,8 @@ mod tests {
     async fn summary_attestation_records_are_positional() {
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(true);
+        protocol_config.set_enable_validator_attestation_for_testing(true);
         protocol_config.set_checkpoint_summary_version_specific_data_for_testing(2);
         let state = TestAuthorityBuilder::new()
             .with_protocol_config(protocol_config)
