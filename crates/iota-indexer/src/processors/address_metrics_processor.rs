@@ -5,7 +5,11 @@
 use tap::tap::TapFallible;
 use tracing::{error, info};
 
-use crate::{metrics::IndexerMetrics, store::IndexerAnalyticalStore, types::IndexerResult};
+use crate::{
+    metrics::IndexerMetrics,
+    store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
+    types::IndexerResult,
+};
 
 const ADDRESS_PROCESSOR_BATCH_SIZE: usize = 80000;
 const PARALLELISM: usize = 10;
@@ -63,7 +67,7 @@ where
                 .step_by(step_size)
             {
                 let address_store = self.store.clone();
-                persist_tasks.push(tokio::task::spawn_blocking(move || {
+                persist_tasks.push(spawn_blocking_task(move || {
                     address_store.persist_addresses_in_tx_range(
                         chunk_start_tx_seq,
                         chunk_start_tx_seq + step_size as i64,

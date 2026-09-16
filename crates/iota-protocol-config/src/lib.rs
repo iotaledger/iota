@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 35;
+pub const MAX_PROTOCOL_VERSION: u64 = 36;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -227,6 +227,12 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the redesigned leader schedule (sliding-window reputation
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on mainnet.
+// Version 36: Reject a transaction that names an object version in the range
+//             assigned to canceled transactions, or one below it, from the
+//             transaction bytes, before any object is loaded.
+//             Reject `<SELF>` as an identifier in published modules.
+//             Make the enum variant count limit explicit in the protocol
+//             config.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -657,6 +663,18 @@ struct FeatureFlags {
     // Allow objects created or mutated in system transactions to exceed the max object size limit.
     #[serde(skip_serializing_if = "is_false")]
     allow_unbounded_system_objects: bool,
+
+    // If true, `validity_check` rejects a transaction that names an object
+    // version at or above `Version::MAX_VALID_EXCL`, the range assigned to the
+    // objects of canceled transactions, or right below it, from the transaction
+    // bytes alone. Version assignment increments the largest input version and
+    // halts the node when the result is not a valid version.
+    #[serde(skip_serializing_if = "is_false")]
+    validate_input_object_versions: bool,
+
+    // Disallow self identifier
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_self_identifier: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2113,6 +2131,10 @@ impl ProtocolConfig {
     pub fn allow_unbounded_system_objects(&self) -> bool {
         self.feature_flags.allow_unbounded_system_objects
     }
+
+    pub fn validate_input_object_versions(&self) -> bool {
+        self.feature_flags.validate_input_object_versions
+    }
 }
 
 #[cfg(not(msim))]
@@ -3476,6 +3498,14 @@ impl ProtocolConfig {
                     cfg.feature_flags
                         .pre_consensus_sponsor_only_move_authentication = false;
                 }
+                36 => {
+                    // Refuse object versions in, or right below, the range
+                    // assigned to canceled transactions before any object is
+                    // loaded, by consulting the transaction bytes only.
+                    cfg.feature_flags.validate_input_object_versions = true;
+                    cfg.feature_flags.disallow_self_identifier = true;
+                    cfg.max_move_enum_variants = Some(move_core_types::VARIANT_COUNT_MAX);
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3544,6 +3574,7 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
+            disallow_self_identifier: self.feature_flags.disallow_self_identifier,
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
             additional_borrow_checks,
@@ -3759,6 +3790,10 @@ impl ProtocolConfig {
     pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config = val;
+    }
+
+    pub fn set_validate_input_object_versions_for_testing(&mut self, val: bool) {
+        self.feature_flags.validate_input_object_versions = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {

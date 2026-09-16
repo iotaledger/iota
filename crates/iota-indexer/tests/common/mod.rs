@@ -28,7 +28,7 @@ use iota_indexer::{
     models::checkpoints::StoredCheckpoint,
     read_only_blocking,
     schema::{checkpoints, optimistic_transactions},
-    store::{PgIndexerStore, indexer_store::IndexerStore},
+    store::{PgIndexerStore, diesel_macro::spawn_blocking_task, indexer_store::IndexerStore},
     test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
 use iota_json_rpc_api::{
@@ -217,7 +217,7 @@ pub async fn indexer_wait_for_epoch(pg_store: &PgIndexerStore, expected_epoch: u
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let blocking_cp = pg_store.blocking_cp();
-            let result = tokio::task::spawn_blocking(move || {
+            let result = spawn_blocking_task(move || {
                 read_only_blocking!(&blocking_cp, |conn| {
                     checkpoints::table
                         .order(checkpoints::sequence_number.desc())
@@ -297,7 +297,7 @@ pub async fn node_wait_for_object(cluster: &TestCluster, object_id: ObjectId, ve
 
 pub async fn get_optimistic_transactions_count(pg_store: &PgIndexerStore) -> u64 {
     let blocking_cp = pg_store.blocking_cp();
-    tokio::task::spawn_blocking(move || {
+    spawn_blocking_task(move || {
         read_only_blocking!(&blocking_cp, |conn| {
             optimistic_transactions::table
                 .count()
