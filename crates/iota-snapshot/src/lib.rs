@@ -348,6 +348,15 @@ impl VerifiedEpochInfo {
         self.epoch_info.entries()
     }
 
+    /// The entry for the snapshot epoch, i.e. the last of [`Self::entries`].
+    pub fn snapshot_entry(&self) -> &EpochInfoV1Entry {
+        // `verify_epoch_info_chain` is the only constructor and rejects an
+        // entry count other than `snapshot_epoch + 1`, so there is one.
+        self.entries()
+            .last()
+            .expect("a verified EPOCH_INFO covers epochs [0, snapshot_epoch]")
+    }
+
     /// Committees for epochs `[0, snapshot_epoch + 1]`: the genesis committee
     /// plus one handed forward by each entry's `end_of_epoch_data`.
     pub fn committees(&self) -> &[Committee] {

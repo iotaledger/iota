@@ -69,11 +69,7 @@ pub(crate) async fn verify_state_hash(
         ));
     }
 
-    let last_checkpoint_summary = &verified_epoch_info
-        .entries()
-        .last()
-        .expect("there should be an entry for the associated epoch")
-        .last_checkpoint_summary;
+    let last_checkpoint_summary = &verified_epoch_info.snapshot_entry().last_checkpoint_summary;
     let commitment = last_checkpoint_summary
         .end_of_epoch_data
         .as_ref()
