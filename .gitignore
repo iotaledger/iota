@@ -116,3 +116,6 @@ authenticator_gas_profile.json.zst
 
 # iota-vm-sdk move_authenticator_publish_and_call example output
 crates/iota-vm-sdk/examples/move_authenticator_trace/
+
+# sweep run outputs
+sweeps/
