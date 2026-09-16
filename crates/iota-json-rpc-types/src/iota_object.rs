@@ -636,7 +636,7 @@ impl TryInto<Object> for IotaObjectData {
                     .iter()
                     .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
                     .collect(),
-                protocol_config.max_move_package_size(),
+                u64::MAX, // safe as this pkg comes from the network
                 p.type_origin_table.into_iter().collect(),
                 p.linkage_table
                     .into_iter()
