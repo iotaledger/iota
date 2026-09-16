@@ -312,8 +312,7 @@ pub async fn fetch_move_packages(
             let Some(IotaRawData::Package(p)) = o.bcs else {
                 panic!("Expected package");
             };
-            p.to_move_package(u64::MAX /* safe as this pkg comes from the network */)
-                .unwrap()
+            p.to_move_package()
         })
         .collect()
 }
@@ -7347,6 +7346,7 @@ fn protocol_build_config_args_resolve_to_protocol_build_config() {
         ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
             allow_view_function: Some(true),
             max_move_package_size: None,
+            max_move_system_package_size: None,
         })
         .allow_view_function
     );
@@ -7354,6 +7354,7 @@ fn protocol_build_config_args_resolve_to_protocol_build_config() {
         !ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
             allow_view_function: Some(false),
             max_move_package_size: None,
+            max_move_system_package_size: None,
         })
         .allow_view_function
     );
@@ -7369,19 +7370,24 @@ fn protocol_build_config_args_fill_unset_from_keeps_user_overrides() {
     args.fill_unset_from(&ProtocolBuildConfig {
         allow_view_function: true,
         max_move_package_size: Some(1234),
+        max_move_system_package_size: Some(5678),
     });
     assert_eq!(args.allow_view_function, Some(true));
     assert_eq!(args.max_move_package_size, Some(1234));
+    assert_eq!(args.max_move_system_package_size, Some(5678));
 
     // A command-line override is preserved even when the default differs.
     let mut args = ProtocolBuildConfigArgs {
         allow_view_function: Some(false),
         max_move_package_size: None,
+        max_move_system_package_size: None,
     };
     args.fill_unset_from(&ProtocolBuildConfig {
         allow_view_function: true,
         max_move_package_size: Some(1234),
+        max_move_system_package_size: Some(5678),
     });
     assert_eq!(args.allow_view_function, Some(false));
     assert_eq!(args.max_move_package_size, Some(1234));
+    assert_eq!(args.max_move_system_package_size, Some(5678));
 }

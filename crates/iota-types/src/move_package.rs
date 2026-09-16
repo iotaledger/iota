@@ -312,15 +312,15 @@ impl MovePackageExt for MovePackage {
             (name, bytes)
         }));
 
+        // Deliberately not size-checked: a system package is published by the
+        // network rather than by a user, and is not held to a size limit.
         MovePackage::new(
             storage_id,
             version,
             module_map,
-            u64::MAX, // System packages are not subject to the size limit
             type_origin_table,
             linkage_table,
         )
-        .expect("System packages are not subject to a size limit")
     }
 
     fn from_module_iter_with_type_origin_table<'p>(
@@ -362,14 +362,16 @@ impl MovePackageExt for MovePackage {
             protocol_config,
         )?;
 
-        Ok(MovePackage::new(
+        let package = MovePackage::new(
             storage_id,
             version,
             module_map,
-            max_package_size(storage_id, protocol_config),
             type_origin_table,
             linkage_table,
-        )?)
+        );
+        package.check_size(max_package_size(storage_id, protocol_config))?;
+
+        Ok(package)
     }
 
     /// The `Package ID` of the first version of this package.
@@ -848,6 +850,10 @@ pub struct ProtocolBuildConfig {
     /// when the config was not derived from a network protocol config, in which
     /// case the real limit is unknown.
     pub max_move_package_size: Option<u64>,
+    /// Maximum size (in bytes) a published system package may occupy on-chain.
+    /// `None` when the config was not derived from a network protocol config,
+    /// or when that config holds system packages to `max_move_package_size`.
+    pub max_move_system_package_size: Option<u64>,
 }
 
 impl ProtocolBuildConfig {
@@ -856,6 +862,7 @@ impl ProtocolBuildConfig {
         Self {
             allow_view_function: protocol_config.package_metadata_with_dynamic_module_metadata(),
             max_move_package_size: Some(protocol_config.max_move_package_size()),
+            max_move_system_package_size: protocol_config.max_move_system_package_size_as_option(),
         }
     }
 }

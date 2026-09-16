@@ -6301,8 +6301,7 @@ pub mod framework_injection {
         // A built-in package keeps the dependencies it declares. Anything else is a
         // package being added -- including one at a system address that is not built in
         // yet -- and is assumed to depend on all existing system packages.
-        let dependencies = BuiltInFramework::iter_system_packages()
-            .find(|package| package.id == *package_id)
+        let dependencies = BuiltInFramework::try_get_package_by_id(package_id)
             .map_or_else(BuiltInFramework::all_package_ids, |package| {
                 package.dependencies.to_vec()
             });
