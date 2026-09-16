@@ -1,6 +1,6 @@
 # Calibration sweeps
 
-Stage 1 data collection for the multidimensional gas metering calibration:
+Data collection for the multidimensional gas metering calibration:
 sweep one workload knob at a time, several runs per point, and collect the
 per-transaction `{tx_digest, measured_ns, profile}` rows that the benchmark's
 `--profile-output` flag writes.
@@ -19,7 +19,7 @@ never reach `--profile-output`.
 # timing data is only meaningful from a release build
 cargo build --release -p iota-single-node-benchmark --bin calibrate
 
-# full Stage 1 sweep set (defaults: 5 runs x 100 txs per point)
+# full per-knob sweep set (defaults: 5 runs x 100 txs per point)
 ./sweep.py --out ~/calibration-data/$(date +%Y%m%d-%H%M%S)-macbook
 
 # plumbing check (3 values, 2 runs, 20 txs per point)
@@ -48,7 +48,7 @@ Existing non-empty run files are skipped, so an interrupted sweep resumes.
 
 ## Sweeps
 
-| Sweep | Knob | Drives | Stage 1 row |
+| Sweep | Knob | Drives | Calibration row |
 |---|---|---|---|
 | interpreter | `--computation` | instructions + stack flow (conflated) | interpreter components |
 | reads-runtime | `--num-dynamic-fields` | child-object reads during execution | read, warm |
@@ -57,8 +57,8 @@ Existing non-empty run files are skipped, so an interrupted sweep resumes.
 | writes-bytes | `--nft-size` (8 mints) | bytes written | write path |
 
 All reads are **warm** in this setup (fresh store, state created in-process);
-the cold-read rig needs the sustained-run work — see the Phase 2 section of
-the plan. The real coefficient fit (non-negative least squares over all
+the cold-read rig needs a sustained-run setup whose store outgrows the page
+cache, which does not exist yet. The real coefficient fit (non-negative least squares over all
 counters jointly) is a later step; `slopes.json` exists to sanity-check each
 sweep's signal, not to ship constants.
 
@@ -163,7 +163,7 @@ only, deterministic given the same inputs and holdout seed.
 
 ## Write side (`write_side.py`)
 
-Stage 2 data collection: sustained rounds of a write-heavy workload committed
+Sustained data collection: rounds of a write-heavy workload committed
 through the real store, with RocksDB write stalls enabled (they are disabled
 by default in the test store — the stall onset is the signal `B` is defined
 against).
@@ -189,8 +189,8 @@ needs a create-then-delete round pattern (follow-up).
 
 ## Validation (`validate.py`) and the mixed workload
 
-Stage 3: score a calibration artifact on data it was not trained on, against
-the plan's acceptance criteria (coverage >= 99%, p95 overestimate <= ~2x).
+Score a calibration artifact on data it was not trained on, against the
+acceptance criteria (coverage >= 99%, p95 overestimate <= ~2x).
 
 ```sh
 # collect a mixed dataset: shapes interleaved within one run
@@ -259,7 +259,7 @@ curl https://sh.rustup.rs -sSf | sh            # the toolchain is pinned by rust
 
 # every session: run inside tmux so an SSH drop does not kill the collection
 tmux new -s calibration
-crates/iota-single-node-benchmark/calibration/run_all.sh /data/calibration/$(date +%Y%m%d-%H%M%S)
+crates/iota-single-node-benchmark/gas_params_calibration/run_all.sh /data/calibration/$(date +%Y%m%d-%H%M%S)
 # add --write-duration 14400 for a four-hour sustained write run
 # add --turbo on (default off) for the boosted-clock comparison run — use a separate OUT_DIR
 
@@ -269,7 +269,7 @@ rsync -az server:/data/calibration/ ~/calibration-data/server/
 
 `run_all.sh` records the machine state (`machine_prep.sh`, which also sets
 the governor to `performance` and disables turbo/boost when it has root),
-builds the release binaries, runs the Stage 1 sweeps, the mixed workload, the
+builds the release binaries, runs the per-knob sweeps, the mixed workload, the
 cold reads (dropping the page cache when root or passwordless sudo is
 available — without it the cold numbers are lower bounds and the log says
 so), the optional sustained write run, then the fit and validation scores.

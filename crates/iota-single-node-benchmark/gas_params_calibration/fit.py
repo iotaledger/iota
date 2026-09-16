@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
-"""Fit cpu_time coefficients from sweep datasets (Stage 3 of Phase 2).
+"""Fit cpu_time coefficients from sweep datasets.
 
 Model: measured_ns = c0 + sum_j w_j * count_j, fit with non-negative least
 squares over the per-transaction rows of one or more sweep.py datasets.
@@ -25,7 +25,7 @@ import sys
 import time
 from pathlib import Path
 
-# Predictors, in the plan's dimension order. Native cost is priced per
+# Predictors, one column per resource-profile counter. Native cost is priced per
 # function, directly on its deterministic observables: each function becomes
 # an input-bytes column and a call-count column ((calls, input bytes) spans
 # (per-call cost, per-byte cost); real per-call time varies far more within
@@ -301,9 +301,9 @@ def main():
     vifs = vif(columns, xs_s, INTERPRETER_COMPONENTS)
     separable = all(v < VIF_THRESHOLD for v in vifs.values())
 
-    # When the gate fails, the plan prescribes shipping one combined
-    # coefficient for the entangled components: refit with their columns
-    # summed into one, so the artifact carries the shippable constant.
+    # When the gate fails, the entangled components cannot be priced
+    # separately, so refit with their columns summed into one and ship a
+    # single combined coefficient for them.
     combined_fit = None
     entangled = sorted(t for t, v in vifs.items() if v >= VIF_THRESHOLD)
     if not separable and len(entangled) >= 2:
