@@ -667,11 +667,7 @@ mod checked {
                         // Nothing else to check for Immutable.
                     }
                     Owner::Address(actual_owner) => {
-                        // Check the owner is correct. Only this arm is relaxed: whether
-                        // the sender owns the object is a question of permission, which
-                        // a simulation may ask past. The arms below are not — those
-                        // objects cannot be owned inputs at all, and the engine treats
-                        // the checks here as having established that.
+                        // Check the owner is correct.
                         if !input_checks.any_object_owner {
                             fp_ensure!(
                                 owner == &actual_owner,
@@ -693,7 +689,10 @@ mod checked {
                     Owner::Shared(_) => {
                         // This object is a mutable shared object. However the transaction
                         // specifies it as an owned object. This is inconsistent.
-                        return Err(UserInputError::NotSharedObject);
+                        fp_ensure!(
+                            input_checks.shared_object_as_owned_input,
+                            UserInputError::NotSharedObject
+                        );
                     }
                     _ => {
                         unimplemented!("a new Owner enum variant was added and needs to be handled")
@@ -702,9 +701,13 @@ mod checked {
             }
             InputObjectKind::SharedMoveObject {
                 id: ObjectId::CLOCK,
-                initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
+                initial_shared_version,
                 mutable: true,
-            } => {
+            } if initial_shared_version == IOTA_CLOCK_OBJECT_SHARED_VERSION
+                // Without the second condition, a relaxed version check would let a
+                // wrong declared version carry a mutable Clock past this arm.
+                || input_checks.any_initial_shared_version =>
+            {
                 // Only system transactions can accept the Clock
                 // object as a mutable parameter.
                 if system_transaction {
@@ -772,7 +775,8 @@ mod checked {
                     }
                     Owner::Shared(actual_initial_shared_version) => {
                         fp_ensure!(
-                            input_initial_shared_version == actual_initial_shared_version,
+                            input_checks.any_initial_shared_version
+                                || input_initial_shared_version == actual_initial_shared_version,
                             UserInputError::SharedObjectStartingVersionMismatch
                         )
                     }

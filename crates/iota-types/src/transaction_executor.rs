@@ -145,11 +145,11 @@ pub struct InputCheckRules {
     /// sender, so a caller can ask what a transaction would do over objects it
     /// does not own.
     ///
-    /// This relaxes only whose object it is. A child object or a shared object
-    /// named as an owned input is still rejected: those are not questions of
-    /// permission but of what may be an owned input at all, and the engine
-    /// treats the input checks as having settled them — a child object reaching
-    /// it trips an invariant that names this checker.
+    /// This relaxes only whose object it is. A child object named as an owned
+    /// input is still rejected: execution treats the input checks as having
+    /// ruled it out, and a child object reaching it trips an invariant. A
+    /// shared object named as an owned input is covered by
+    /// [`Self::shared_object_as_owned_input`] instead.
     ///
     /// It also drops the check that the gas payment is owned by the
     /// transaction's gas owner, since gas coins go through the same arm. The
@@ -162,6 +162,29 @@ pub struct InputCheckRules {
     /// object is loaded by id and version, and every value is built from what
     /// was loaded. An object that does not exist still fails in the loader.
     pub any_object_digest: bool,
+    /// Accept a shared object named as an owned input, instead of rejecting it
+    /// with `NotSharedObject`.
+    ///
+    /// Whether an input is owned or shared decides how validators order the
+    /// transaction: owned inputs are locked at signing, shared ones get their
+    /// versions from consensus. A simulation does neither, and execution takes
+    /// an input's mutability from the object's real owner rather than from how
+    /// the transaction names it, so the object runs as the shared object it is.
+    ///
+    /// The reverse — an owned or immutable object named as a shared input — is
+    /// still rejected. Named as a read-only shared input, such an object trips
+    /// an invariant in execution.
+    pub shared_object_as_owned_input: bool,
+    /// Skip the match between a shared input's declared initial shared version
+    /// and the object's real one, instead of rejecting it with
+    /// `SharedObjectStartingVersionMismatch`.
+    ///
+    /// Consensus uses the declared initial shared version to assign the object's
+    /// version, which a simulation does not do: it reads the object's latest
+    /// version, and execution never reads the declared one. System objects
+    /// that only a system transaction may take mutably are still rejected
+    /// whatever initial shared version is declared.
+    pub any_initial_shared_version: bool,
     /// Skip the match between a receiving reference's declared version and the
     /// version of the object it names, so a simulation can run over a reference
     /// the caller has not refreshed.
@@ -193,6 +216,8 @@ impl InputCheckRules {
         unbounded_gas_budget: false,
         any_object_owner: false,
         any_object_digest: false,
+        shared_object_as_owned_input: false,
+        any_initial_shared_version: false,
         any_receiving_object_version: false,
         any_receiving_object_digest: false,
     };
@@ -202,6 +227,8 @@ impl InputCheckRules {
         unbounded_gas_budget: true,
         any_object_owner: true,
         any_object_digest: true,
+        shared_object_as_owned_input: true,
+        any_initial_shared_version: true,
         any_receiving_object_version: true,
         any_receiving_object_digest: true,
     };

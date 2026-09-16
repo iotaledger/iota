@@ -1464,9 +1464,10 @@ async fn test_simulate_rejects_a_child_object_used_as_owned() {
 }
 
 /// A shared object input whose declared initial version does not match the
-/// object's real initial version is rejected by both check modes.
+/// object's real initial version is rejected by a dry run, and runs in a dev
+/// inspect.
 #[tokio::test]
-async fn test_simulate_rejects_a_shared_object_with_a_wrong_initial_version() {
+async fn test_dev_inspect_accepts_a_shared_object_with_a_wrong_initial_version() {
     let sender = Address::random();
     let (_validator, fullnode, object_basics, gas, _) =
         simulation_fixture(sender, |_| vec![]).await;
@@ -1485,17 +1486,157 @@ async fn test_simulate_rejects_a_shared_object_with_a_wrong_initial_version() {
     };
 
     for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
-        let Err(error) = result else {
-            panic!("{checks:?} should reject a shared object with a wrong initial version");
+        if checks.enabled() {
+            assert!(
+                matches!(
+                    result,
+                    Err(IotaError::UserInput {
+                        error: UserInputError::SharedObjectStartingVersionMismatch
+                    })
+                ),
+                "unexpected result for {checks:?}: {:?}",
+                result.as_ref().err()
+            );
+        } else {
+            let result = result.unwrap_or_else(|error| panic!("{checks:?}: {error:?}"));
+            assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+        }
+    }
+}
+
+/// A mutable `Clock` input is rejected in a dev inspect even when its declared
+/// initial version is wrong, which a dev inspect does not check on its own.
+#[tokio::test]
+async fn test_simulate_rejects_a_mutable_clock_with_a_wrong_initial_version() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, _) =
+        simulation_fixture(sender, |_| vec![]).await;
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(2),
+                true,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let error = match result {
+            Err(IotaError::UserInput { error }) => error,
+            Err(error) => panic!("unexpected error for {checks:?}: {error:?}"),
+            Ok(_) => panic!("{checks:?} should reject a mutable Clock"),
         };
+        if checks.enabled() {
+            assert!(
+                matches!(error, UserInputError::SharedObjectStartingVersionMismatch),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    error,
+                    UserInputError::ImmutableParameterExpected { object_id } if object_id == ObjectId::CLOCK
+                ),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        }
+    }
+}
+
+/// A shared object named as an owned input is rejected by a dry run. A dev
+/// inspect runs it as the shared object it is: it can be mutated, and stays
+/// shared.
+#[tokio::test]
+async fn test_dev_inspect_accepts_a_shared_object_used_as_owned() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(
+            package,
+            Owner::Shared(OBJECT_START_VERSION),
+        )]
+    })
+    .await;
+    let shared = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(shared.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+        ],
+        commands: vec![Command::new_move_call(
+            object_basics,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("set_value"),
+            vec![],
+            vec![Argument::Input(0), Argument::Input(1)],
+        )],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        if checks.enabled() {
+            assert!(
+                matches!(
+                    result,
+                    Err(IotaError::UserInput {
+                        error: UserInputError::NotSharedObject
+                    })
+                ),
+                "unexpected result for {checks:?}: {:?}",
+                result.as_ref().err()
+            );
+        } else {
+            let result = result.unwrap_or_else(|error| panic!("{checks:?}: {error:?}"));
+            assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+            let mutated = result
+                .effects
+                .mutated()
+                .into_iter()
+                .find(|mutated| mutated.reference.object_id == shared.id())
+                .expect("the shared object should be mutated");
+            assert_eq!(mutated.owner, Owner::Shared(OBJECT_START_VERSION));
+        }
+    }
+}
+
+/// An address-owned object named as a shared input is rejected by both check
+/// modes.
+#[tokio::test]
+async fn test_simulate_rejects_an_owned_object_used_as_shared() {
+    let sender = Address::random();
+    let (_validator, fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Address(sender))]
+    })
+    .await;
+    let owned = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                owned.id(),
+                OBJECT_START_VERSION,
+                true,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
         assert!(
             matches!(
-                error,
-                IotaError::UserInput {
-                    error: UserInputError::SharedObjectStartingVersionMismatch
-                }
+                result,
+                Err(IotaError::UserInput {
+                    error: UserInputError::NotSharedObject
+                })
             ),
-            "unexpected error for {checks:?}: {error:?}"
+            "unexpected result for {checks:?}: {:?}",
+            result.as_ref().err()
         );
     }
 }
@@ -1827,9 +1968,9 @@ async fn check_under_all_entry_points(
     results
 }
 
-/// The input checks that no check mode relaxes reject the same transaction
-/// the same way at every entry point a transaction can come through: a dry
-/// run, a dev inspect, and validator signing.
+/// The input checks reject the same transaction the same way at every entry
+/// point a transaction can come through: a dry run, a dev inspect, and
+/// validator signing. Where a dev inspect relaxes a check, the case says so.
 #[tokio::test]
 async fn test_input_checks_agree_across_entry_points() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -1843,7 +1984,15 @@ async fn test_input_checks_agree_across_entry_points() {
     let parent_id = ObjectId::random();
     let child = object_basics_object(object_basics.object_id, Owner::Object(parent_id));
     let foreign = object_basics_object(object_basics.object_id, Owner::Address(Address::random()));
-    for object in [gas_coin.clone(), child.clone(), foreign.clone()] {
+    let shared = object_basics_object(object_basics.object_id, Owner::Shared(OBJECT_START_VERSION));
+    let sender_owned = object_basics_object(object_basics.object_id, Owner::Address(sender));
+    for object in [
+        gas_coin.clone(),
+        child.clone(),
+        foreign.clone(),
+        shared.clone(),
+        sender_owned.clone(),
+    ] {
         validator.insert_genesis_object(object.clone());
         fullnode.insert_genesis_object(object);
     }
@@ -1858,20 +2007,16 @@ async fn test_input_checks_agree_across_entry_points() {
         ],
         commands: vec![create_object_command(object_basics.object_id, 1)],
     };
-    let shared_pt = ProgrammableTransaction {
+    let shared_pt = |shared_ref: SharedObjectReference| ProgrammableTransaction {
         inputs: vec![
-            CallArg::Shared(SharedObjectReference::new(
-                ObjectId::CLOCK,
-                Version::from(2),
-                false,
-            )),
+            CallArg::Shared(shared_ref),
             CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
             CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
         ],
         commands: vec![create_object_command(object_basics.object_id, 1)],
     };
 
-    let cases: [EntryPointCase; 4] = [
+    let cases: [EntryPointCase; 6] = [
         Case {
             label: "a package used as an object",
             input: owned_pt(package.object_ref()),
@@ -1883,9 +2028,41 @@ async fn test_input_checks_agree_across_entry_points() {
             expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::InvalidChildObjectArgument { .. })),
         },
         Case {
+            label: "an owned object used as shared",
+            input: shared_pt(SharedObjectReference::new(
+                sender_owned.id(),
+                OBJECT_START_VERSION,
+                true,
+            )),
+            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject)),
+        },
+        Case {
+            // The initial shared version is not checked in a dev inspect.
             label: "a shared object with a wrong initial version",
-            input: shared_pt,
-            expected: |_entry_point, result| matches!(result, Err(error) if matches!(error, UserInputError::SharedObjectStartingVersionMismatch)),
+            input: shared_pt(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(2),
+                false,
+            )),
+            expected: |entry_point, result| {
+                if entry_point == "dev inspect" {
+                    matches!(result, Ok(Some(ExecutionStatus::Success)))
+                } else {
+                    matches!(result, Err(error) if matches!(error, UserInputError::SharedObjectStartingVersionMismatch))
+                }
+            },
+        },
+        Case {
+            // A dev inspect accepts a shared object named as an owned input.
+            label: "a shared object used as owned",
+            input: owned_pt(shared.object_ref()),
+            expected: |entry_point, result| {
+                if entry_point == "dev inspect" {
+                    matches!(result, Ok(Some(ExecutionStatus::Success)))
+                } else {
+                    matches!(result, Err(error) if matches!(error, UserInputError::NotSharedObject))
+                }
+            },
         },
         Case {
             // The owner check is relaxed for a dev inspect, so this entry point
