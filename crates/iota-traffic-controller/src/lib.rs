@@ -1077,6 +1077,43 @@ mod tests {
         );
     }
 
+    /// Polls `condition` for one second, naming it if it never holds.
+    async fn wait_until(condition_name: &str, mut condition: impl FnMut() -> bool) {
+        for _ in 0..100 {
+            if condition() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("{condition_name} in one second");
+    }
+
+    /// Tallies one breaching request and waits for the local block that the
+    /// failed delegation to the closed firewall port falls back to.
+    async fn wait_for_local_block_after_failed_delegation(kind: PolicyKind) {
+        let (_tmp_dir, controller) = delegating_controller(false, kind);
+        controller.tally(breach(kind));
+        wait_until("the node blocked no client", || {
+            !controller.check(&Some(CLIENT), &None)
+        })
+        .await;
+
+        // The firewall took no block, thus the node keeps the client out itself.
+        assert_eq!(controller.metrics.firewall_delegation_request_fail.get(), 1);
+        assert_eq!(controller.metrics.connection_ip_blocklist_len.get(), 1);
+        assert!(!controller.check(&Some(CLIENT), &None));
+    }
+
+    #[tokio::test]
+    async fn test_a_failed_spam_delegation_blocks_locally() {
+        wait_for_local_block_after_failed_delegation(PolicyKind::Spam).await;
+    }
+
+    #[tokio::test]
+    async fn test_a_failed_error_delegation_blocks_locally() {
+        wait_for_local_block_after_failed_delegation(PolicyKind::Error).await;
+    }
+
     fn freq_threshold(client_threshold: u64) -> PolicyType {
         PolicyType::FreqThreshold(FreqThresholdConfig {
             client_threshold,
