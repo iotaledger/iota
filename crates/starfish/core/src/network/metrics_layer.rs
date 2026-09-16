@@ -15,14 +15,6 @@ use super::metrics::NetworkRouteMetrics;
 /// flag byte followed by the big-endian `u32` payload length.
 const GRPC_MESSAGE_PREFIX_LEN: usize = 5;
 
-pub(crate) trait SizedRequest {
-    /// Size of the request head in bytes. Request bodies are not observable at
-    /// this layer.
-    fn size(&self) -> usize;
-    /// Metric label for this request, from a fixed set of values.
-    fn route(&self) -> &'static str;
-}
-
 #[derive(Clone)]
 pub(crate) struct MetricsCallbackMaker {
     metrics: Arc<NetworkRouteMetrics>,
@@ -41,21 +33,12 @@ impl MetricsCallbackMaker {
 
     // Update request metrics. And create a callback that should be called on
     // response.
-    pub(crate) fn handle_request(&self, request: &dyn SizedRequest) -> MetricsResponseCallback {
-        let route = request.route();
-
+    pub(crate) fn handle_request(&self, route: &'static str) -> MetricsResponseCallback {
         self.metrics.requests.with_label_values(&[route]).inc();
         self.metrics
             .inflight_requests
             .with_label_values(&[route])
             .inc();
-        let request_size = request.size();
-        if request_size > 0 {
-            self.metrics
-                .request_size
-                .with_label_values(&[route])
-                .observe(request_size as f64);
-        }
         let timer = self
             .metrics
             .request_latency
@@ -225,22 +208,10 @@ mod tests {
     const ROUTE: &str = "route";
     const EXCESSIVE_MESSAGE_SIZE: usize = 64;
 
-    struct TestRequest;
-
-    impl SizedRequest for TestRequest {
-        fn size(&self) -> usize {
-            0
-        }
-
-        fn route(&self) -> &'static str {
-            ROUTE
-        }
-    }
-
     fn callback() -> (Arc<NetworkRouteMetrics>, MetricsResponseCallback) {
         let metrics = Arc::new(NetworkRouteMetrics::new("test", &Registry::new()));
         let callback = MetricsCallbackMaker::new(metrics.clone(), EXCESSIVE_MESSAGE_SIZE)
-            .handle_request(&TestRequest);
+            .handle_request(ROUTE);
         (metrics, callback)
     }
 

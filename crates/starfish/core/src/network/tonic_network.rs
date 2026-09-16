@@ -30,7 +30,7 @@ use tracing::{debug, error, info, trace, warn};
 use super::{
     BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
-    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest},
+    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
@@ -1439,19 +1439,6 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
-/// Calculate approximate size of HTTP headers.
-/// Note: This is an approximation of uncompressed size. Actual wire size will
-/// be smaller due to HTTP/2 HPACK compression.
-fn calculate_header_size(headers: &http::HeaderMap) -> usize {
-    headers
-        .iter()
-        .map(|(name, value)| {
-            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
-            name.as_str().len() + value.len() + 4
-        })
-        .sum()
-}
-
 /// Path prefix the consensus service is served under.
 const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
 
@@ -1483,16 +1470,6 @@ fn route_label(path: &str) -> &'static str {
         .unwrap_or(UNKNOWN_ROUTE)
 }
 
-impl SizedRequest for http::request::Parts {
-    fn size(&self) -> usize {
-        calculate_header_size(&self.headers)
-    }
-
-    fn route(&self) -> &'static str {
-        route_label(self.uri.path())
-    }
-}
-
 /// Error label for a failed HTTP status, `None` for a successful one.
 fn response_error_type(response: &http::response::Parts) -> Option<String> {
     (!response.status.is_success()).then(|| response.status.to_string())
@@ -1502,7 +1479,7 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
     type Handler = MetricsResponseCallback;
 
     fn make_handler(&self, request: &http::request::Parts) -> Self::Handler {
-        self.handle_request(request)
+        self.handle_request(route_label(request.uri.path()))
     }
 }
 
