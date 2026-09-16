@@ -1667,6 +1667,11 @@ fn query_transaction_blocks_move_function_rejects_non_identifier() {
                 res.is_err(),
                 "module payload {invalid_payload:?} was not rejected"
             );
+            let err = res.unwrap_err().to_string();
+            assert!(
+                err.contains("Invalid module name"),
+                "module payload {invalid_payload:?} failed with an unexpected error: {err}"
+            );
 
             let function_filter = TransactionFilterV2::MoveFunction {
                 package,
@@ -1684,6 +1689,11 @@ fn query_transaction_blocks_move_function_rejects_non_identifier() {
             assert!(
                 res.is_err(),
                 "function payload {invalid_payload:?} was not rejected"
+            );
+            let err = res.unwrap_err().to_string();
+            assert!(
+                err.contains("Invalid function name"),
+                "function payload {invalid_payload:?} failed with an unexpected error: {err}"
             );
         }
 
