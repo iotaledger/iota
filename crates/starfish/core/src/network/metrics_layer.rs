@@ -26,8 +26,8 @@ pub(crate) trait SizedRequest {
 #[derive(Clone)]
 pub(crate) struct MetricsCallbackMaker {
     metrics: Arc<NetworkRouteMetrics>,
-    /// Size in bytes above which a request or response message is considered
-    /// excessively large
+    /// Size in bytes above which a response message is counted as excessively
+    /// large.
     excessive_message_size: usize,
 }
 
@@ -56,13 +56,6 @@ impl MetricsCallbackMaker {
                 .with_label_values(&[route])
                 .observe(request_size as f64);
         }
-        if request_size > self.excessive_message_size {
-            self.metrics
-                .excessive_size_requests
-                .with_label_values(&[route])
-                .inc();
-        }
-
         let timer = self
             .metrics
             .request_latency
