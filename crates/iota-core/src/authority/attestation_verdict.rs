@@ -12,8 +12,8 @@ use iota_common::fatal;
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, TransactionDigest,
-    TransactionKind, Version,
+    Address, Digest, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
+    TransactionDigest, Version,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -25,12 +25,14 @@ use iota_types::{
     attestation::Attestation,
     auth_context::AuthContextData,
     committee::EpochId,
-    error::{ExecutionError, ExecutionErrorKind},
+    error::{ExecutionError, ExecutionErrorKind, IotaError},
     gas::IotaGasStatus,
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticatorExt,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, InputObjects, ObjectReadResult, ObjectReadResultKind},
+    transaction::{
+        CheckedInputObjects, InputObjects, ObjectReadResult, ObjectReadResultKind, TransactionAPI,
+    },
 };
 
 use crate::execution_cache::ObjectCacheRead;
@@ -79,10 +81,12 @@ pub(crate) struct AttestationVerdictContext<'a> {
     /// Versions of the authenticator inputs and function-ref fields execution
     /// ran against.
     pub executed_versions: BTreeMap<ObjectId, Version>,
-    pub transaction_kind: TransactionKind,
+    /// Serialized, and its kind cloned, only when a re-run needs them.
+    pub transaction: &'a Transaction,
     pub transaction_signer: Address,
     pub transaction_digest: TransactionDigest,
-    pub auth_context_data: AuthContextData,
+    pub sender_auth_digest: Digest,
+    pub sponsor_auth_digest: Option<Digest>,
 }
 
 /// The authenticators execution runs, paired with the inputs it loaded.
@@ -256,8 +260,9 @@ impl AttestationVerdictContext<'_> {
                 account_version,
             ) {
                 Ok(Some(field_object)) => field_object,
-                // The structural failure reproduces at the recorded state.
-                Ok(None) => return false,
+                // The structural failure reproduces at the recorded state:
+                // no field, or one that is not the account's child.
+                Ok(None) | Err(IotaError::InvalidChildObjectAccess { .. }) => return false,
                 Err(error) => fatal!(
                     "cannot read the authenticator field of {account_id}@{account_version}: {error}"
                 ),
@@ -296,9 +301,15 @@ impl AttestationVerdictContext<'_> {
                     .find(|(authenticator, _, _)| authenticator.address() == address)
                     .map(|(_, function_ref, _)| function_ref.clone())
             });
-        let mut auth_context_data = self.auth_context_data.clone();
-        auth_context_data.sender_authenticator_function_ref = sender_authenticator_function_ref;
-        auth_context_data.sponsor_authenticator_function_ref = sponsor_authenticator_function_ref;
+        let auth_context_data = AuthContextData {
+            transaction_data_bytes: bcs::to_bytes(self.transaction)
+                .expect("Transaction serialization cannot fail"),
+            sender_auth_digest: self.sender_auth_digest,
+            sponsor_auth_digest: self.sponsor_auth_digest,
+            sender_authenticator_function_ref,
+            sponsor_authenticator_function_ref,
+        };
+        let (transaction_kind, _, _) = self.transaction.execution_parts();
 
         // No gas coins: the attested budget is charged to nobody.
         let gas_data = GasPayment {
@@ -315,7 +326,7 @@ impl AttestationVerdictContext<'_> {
             gas_status,
             resolved,
             aggregated_input_objects,
-            self.transaction_kind.clone(),
+            transaction_kind,
             self.transaction_signer,
             self.transaction_digest,
             auth_context_data,

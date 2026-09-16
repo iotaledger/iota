@@ -2311,10 +2311,11 @@ impl AuthorityState {
                     gas_data: gas_data.clone(),
                     authenticators: attestation_verdict::authenticator_inputs(&move_authenticators),
                     executed_versions: attestation_verdict::executed_versions(&move_authenticators),
-                    transaction_kind: kind.clone(),
+                    transaction: tx,
                     transaction_signer: signer,
                     transaction_digest: tx_digest,
-                    auth_context_data: auth_context_data.clone(),
+                    sender_auth_digest,
+                    sponsor_auth_digest,
                 }
             });
 
