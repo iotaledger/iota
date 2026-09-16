@@ -126,6 +126,15 @@ mod tests {
     }
 
     #[test]
+    fn the_default_dos_protection_policy_blocks_for_a_nonzero_time() {
+        // A TTL of zero would expire every block at once, thus the policy would
+        // never keep a client out even with dry run off.
+        let policy = super::PolicyConfig::default_dos_protection_policy();
+        assert!(policy.connection_blocklist_ttl_sec > 0);
+        assert!(policy.proxy_blocklist_ttl_sec > 0);
+    }
+
+    #[test]
     fn the_former_burst_key_still_parses() {
         let config: super::FreqThresholdConfig =
             serde_json::from_str(r#"{"window-size-secs": 7}"#).unwrap();

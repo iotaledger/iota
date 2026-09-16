@@ -1034,6 +1034,49 @@ mod tests {
         );
     }
 
+    /// The tallies the shipped default policy tolerates from one client before
+    /// its error policy blocks that client.
+    fn default_policy_error_budget() -> u64 {
+        let PolicyType::FreqThreshold(config) =
+            PolicyConfig::default_dos_protection_policy().error_policy_type
+        else {
+            panic!("the default policy rate limits errors");
+        };
+        config.client_threshold * config.burst_secs
+    }
+
+    #[tokio::test]
+    async fn test_the_default_policy_blocks_a_breaching_client_without_dry_run() {
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                dry_run: false,
+                ..PolicyConfig::default_dos_protection_policy()
+            },
+            None,
+        );
+        let budget = default_policy_error_budget();
+
+        // Within its budget the client is never blocked.
+        for _ in 0..budget {
+            controller.tally(breach(PolicyKind::Error));
+        }
+        assert!(controller.check(&Some(CLIENT), &None));
+
+        // Over the budget the shipped blocklist TTL keeps the block in place,
+        // thus a later check rejects the client. The bound leaves room for the
+        // cells the limiter replenishes while the test runs.
+        for _ in 0..budget {
+            controller.tally(breach(PolicyKind::Error));
+            if !controller.check(&Some(CLIENT), &None) {
+                return;
+            }
+        }
+        panic!(
+            "the default policy blocked no client after {} error tallies",
+            2 * budget
+        );
+    }
+
     fn freq_threshold(client_threshold: u64) -> PolicyType {
         PolicyType::FreqThreshold(FreqThresholdConfig {
             client_threshold,
