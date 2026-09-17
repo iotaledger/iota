@@ -3296,24 +3296,16 @@ impl GasPayment {
     async fn resolve(self, context: &WalletContext) -> Result<Vec<ObjectReference>, anyhow::Error> {
         match self {
             Self::Refs(refs) => Ok(refs),
-            Self::Ids(ids) => grpc_input_refs(&context.get_grpc_client().await?, &ids).await,
+            // The gRPC client rejects a request without any object IDs
+            Self::Ids(ids) if ids.is_empty() => Ok(Vec::new()),
+            Self::Ids(ids) => Ok(context
+                .get_grpc_client()
+                .await?
+                .object_references(ids)
+                .await?
+                .into_inner()),
         }
     }
-}
-
-/// Fetch the current object references for the given object IDs over gRPC,
-/// failing if any of them does not exist.
-async fn grpc_input_refs(
-    client: &GrpcClient,
-    object_ids: &[ObjectId],
-) -> Result<Vec<ObjectReference>, anyhow::Error> {
-    if object_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    Ok(client
-        .object_references(object_ids.iter().copied())
-        .await?
-        .into_inner())
 }
 
 /// Fetch the coin with the given ID over gRPC, as a reference pinning the
@@ -3378,8 +3370,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         context.get_reference_gas_price().await?
     };
 
-    let client = context.get_client().await?;
-
     let signer = sender.unwrap_or(signer);
 
     ensure!(
@@ -3409,7 +3399,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             tx_kind,
             gas_budget,
             gas_price,
-            gas_payment.clone(),
+            gas_payment,
             gas_sponsor,
         )
         .await;
@@ -3432,6 +3422,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             budget
         }
     };
+
+    let client = context.get_client().await?;
 
     let gas_payment = if !gas_payment.is_empty() {
         gas_payment
