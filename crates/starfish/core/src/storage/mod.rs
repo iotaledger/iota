@@ -9,7 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
@@ -183,6 +183,18 @@ pub(crate) trait Store: Send + Sync {
     /// Returns true if fast commit sync was ongoing when the node last shut
     /// down. Errors if the flag cannot be read from storage.
     fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool>;
+
+    /// Reads serialized transactions for `refs` in ascending ref order,
+    /// stopping once the payloads read would pass `byte_budget`. The result
+    /// can therefore cover only a prefix of `refs`, and callers must handle a
+    /// partial result. One payload is always read when any is found, so a
+    /// payload larger than the budget is returned rather than stalling the
+    /// caller.
+    fn scan_serialized_transactions(
+        &self,
+        refs: &BTreeSet<TransactionRef>,
+        byte_budget: usize,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>>;
 }
 
 /// Represents data to be written to the store together atomically.
