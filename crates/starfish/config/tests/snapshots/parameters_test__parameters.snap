@@ -46,6 +46,7 @@ tonic:
     max_header_fetches_per_peer: 32
     max_transaction_fetches_per_peer: 16
     max_commit_fetches_per_peer: 8
+    max_commit_fetches_total: 16
   subscribe_request_timeout:
     secs: 30
     nanos: 0
