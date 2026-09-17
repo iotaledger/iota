@@ -6,6 +6,12 @@ use std::{path::PathBuf, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
+/// Ceiling on the number of headers, and on the number of shards, a bundle may
+/// declare. Enforced while decoding, before the entries are materialised, so a
+/// peer cannot make the decoder build a vector far larger than the configured
+/// caps allow it to keep. Both caps are validated against it at startup.
+pub const MAX_HEADERS_OR_SHARDS_PER_BUNDLE: usize = 1024;
+
 /// Operational configurations of a consensus authority.
 ///
 /// All fields should tolerate inconsistencies among authorities, without
@@ -352,6 +358,17 @@ impl Parameters {
         for (name, value) in positive_fields {
             if value == 0 {
                 return Err(format!("{name} must be positive"));
+            }
+        }
+        let bundle_fields = [
+            ("max_headers_per_bundle", self.max_headers_per_bundle),
+            ("max_shards_per_bundle", self.max_shards_per_bundle),
+        ];
+        for (name, value) in bundle_fields {
+            if value > MAX_HEADERS_OR_SHARDS_PER_BUNDLE {
+                return Err(format!(
+                    "{name} must not exceed {MAX_HEADERS_OR_SHARDS_PER_BUNDLE}"
+                ));
             }
         }
         Ok(())
