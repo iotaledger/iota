@@ -243,6 +243,10 @@ def main():
                     help="sweep.py dataset directories")
     ap.add_argument("--out", type=Path, default=Path("calibration-artifact.json"))
     ap.add_argument("--holdout-seed", type=int, default=7)
+    ap.add_argument("--memory-bandwidth-bytes-per-sec", type=int, default=None,
+                    help="sustained memory/store bandwidth of this machine, from "
+                         "the ceiling runs; carried into the artifact because the "
+                         "protocol config ships it inside the coefficient table")
     args = ap.parse_args()
 
     rows, manifests = [], []
@@ -375,6 +379,7 @@ def main():
         },
         "c0_ns": w[columns.index("intercept")],
         "safety_multiplier": m_mult,
+        "memory_bandwidth_bytes_per_sec": args.memory_bandwidth_bytes_per_sec,
         "coverage_target": COVERAGE_TARGET,
         "holdout_p95_overestimate": p95_over,
         "train_r_squared": r2,
