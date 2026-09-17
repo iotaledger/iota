@@ -7,7 +7,7 @@ use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 use async_trait::async_trait;
 use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
-use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
+use iota_json_rpc_api::{ReadApiServer, internal_error};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaPastObjectResponse,
@@ -25,6 +25,7 @@ use iota_types::{
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
+    apis::common,
     errors::{IndexerError, IndexerResult},
     models::objects::StoredObject,
     read::IndexerReader,
@@ -200,11 +201,7 @@ impl ReadApiServer for ReadApi {
         object_ids: Vec<ObjectId>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaObjectResponse>> {
-        if object_ids.len() > *QUERY_MAX_RESULT_LIMIT {
-            return Err(
-                IotaRpcInputError::SizeLimitExceeded(QUERY_MAX_RESULT_LIMIT.to_string()).into(),
-            );
-        }
+        common::validate_input_limit(object_ids.len())?;
 
         // Doesn't take care of missing objects.
         let stored_objects = self
@@ -290,12 +287,7 @@ impl ReadApiServer for ReadApi {
         digests: Vec<TransactionDigest>,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> RpcResult<Vec<IotaTransactionBlockResponse>> {
-        let num_digests = digests.len();
-        if num_digests > *QUERY_MAX_RESULT_LIMIT {
-            Err(IotaRpcInputError::SizeLimitExceeded(
-                QUERY_MAX_RESULT_LIMIT.to_string(),
-            ))?
-        }
+        common::validate_input_limit(digests.len())?;
 
         let options = options.unwrap_or_default();
         let txns = self
@@ -343,6 +335,8 @@ impl ReadApiServer for ReadApi {
         past_objects: Vec<IotaGetPastObjectRequest>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>> {
+        common::validate_input_limit(past_objects.len())?;
+
         let mut responses = Vec::with_capacity(past_objects.len());
 
         for request in past_objects {
