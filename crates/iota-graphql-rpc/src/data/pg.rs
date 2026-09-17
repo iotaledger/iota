@@ -229,7 +229,8 @@ mod tests {
             pool_size: connection_config.db_pool_size,
             ..Default::default()
         };
-        let pool = new_connection_pool(&connection_config.db_url, &connection_pool_config).unwrap();
+        let pool = new_connection_pool(connection_config.db_url.as_str(), &connection_pool_config)
+            .unwrap();
         let mut conn = get_pool_connection(&pool).unwrap();
         reset_database(&mut conn).unwrap();
 

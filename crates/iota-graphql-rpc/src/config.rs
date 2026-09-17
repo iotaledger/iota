@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, fmt::Display};
+use std::{
+    collections::BTreeSet,
+    fmt::{self, Display},
+};
 
 use async_graphql::*;
 use iota_graphql_config::GraphQLConfig;
@@ -11,6 +14,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{functional_group::FunctionalGroup, types::int::try_into_int};
+
+const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
 
 pub(crate) const DEFAULT_PAGE_SIZE: u32 = 20;
 pub(crate) const MAX_PAGE_SIZE: u32 = 50;
@@ -41,8 +46,8 @@ pub struct ConnectionConfig {
     #[arg(long, default_value_t = ConnectionConfig::default().host)]
     pub host: String,
     /// DB URL for data fetching
-    #[arg(short, long, default_value_t = ConnectionConfig::default().db_url)]
-    pub db_url: String,
+    #[arg(short, long, default_value = DEFAULT_DB_URL)]
+    pub db_url: DbUrl,
     /// Pool size for DB connections
     #[arg(long, default_value_t = ConnectionConfig::default().db_pool_size)]
     pub db_pool_size: u32,
@@ -67,6 +72,14 @@ pub struct ConnectionConfig {
     )]
     pub max_available_range: u64,
 }
+
+/// A database connection URL, which can contain a password.
+///
+/// Its `Debug` impl hides the password, so that printing a config that
+/// contains it does not write password to the logs.
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[serde(transparent)]
+pub struct DbUrl(String);
 
 /// CLI options that control the archival fallback used when Postgres data has
 /// been pruned.
@@ -415,6 +428,47 @@ impl ServiceConfig {
     }
 }
 
+impl DbUrl {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// The URL with its password replaced by `****`. If it's impossible to
+    /// parse the url to hide only the password then the whole url is hidden.
+    fn redacted(&self) -> String {
+        const HIDDEN: &str = "****";
+
+        let Ok(mut url) = Url::parse(&self.0) else {
+            return HIDDEN.to_string();
+        };
+
+        let password = url.password().map(|_| HIDDEN);
+        if url.set_password(password).is_err() {
+            return HIDDEN.to_string();
+        }
+
+        url.to_string()
+    }
+}
+
+impl From<String> for DbUrl {
+    fn from(url: String) -> Self {
+        Self(url)
+    }
+}
+
+impl From<DbUrl> for String {
+    fn from(url: DbUrl) -> Self {
+        url.0
+    }
+}
+
+impl fmt::Debug for DbUrl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("DbUrl").field(&self.redacted()).finish()
+    }
+}
+
 impl ConnectionConfig {
     pub fn new(
         port: Option<u16>,
@@ -430,7 +484,7 @@ impl ConnectionConfig {
         Self {
             port: port.unwrap_or(default.port),
             host: host.unwrap_or(default.host),
-            db_url: db_url.unwrap_or(default.db_url),
+            db_url: db_url.map_or(default.db_url, DbUrl::from),
             db_pool_size: db_pool_size.unwrap_or(default.db_pool_size),
             prom_host: prom_host.unwrap_or(default.prom_host),
             prom_port: prom_port.unwrap_or(default.prom_port),
@@ -443,7 +497,8 @@ impl ConnectionConfig {
     pub fn ci_integration_test_cfg() -> Self {
         Self {
             db_url: "postgres://postgres:postgrespw@localhost:5432/iota_graphql_rpc_e2e_tests"
-                .to_string(),
+                .to_string()
+                .into(),
             ..Default::default()
         }
     }
@@ -454,7 +509,7 @@ impl ConnectionConfig {
         prom_port: u16,
     ) -> Self {
         Self {
-            db_url: format!("postgres://postgres:postgrespw@localhost:5432/{db_name}"),
+            db_url: format!("postgres://postgres:postgrespw@localhost:5432/{db_name}").into(),
             port,
             prom_port,
             ..Default::default()
@@ -462,11 +517,16 @@ impl ConnectionConfig {
     }
 
     pub fn db_name(&self) -> String {
-        self.db_url.split('/').next_back().unwrap().to_string()
+        self.db_url
+            .as_str()
+            .split('/')
+            .next_back()
+            .unwrap()
+            .to_string()
     }
 
     pub fn db_url(&self) -> String {
-        self.db_url.clone()
+        self.db_url.as_str().to_string()
     }
 
     pub fn db_pool_size(&self) -> u32 {
@@ -536,7 +596,7 @@ impl Default for ConnectionConfig {
         Self {
             port: 8000,
             host: "127.0.0.1".to_string(),
-            db_url: "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string(),
+            db_url: DEFAULT_DB_URL.to_string().into(),
             db_pool_size: 10,
             prom_host: "0.0.0.0".to_string(),
             prom_port: 9184,
@@ -793,5 +853,50 @@ mod tests {
         };
 
         assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn test_db_url_debug_hides_password() {
+        let cases = [
+            (
+                "postgres://user:hunter2@localhost:5432/iota_indexer",
+                "postgres://user:****@localhost:5432/iota_indexer",
+            ),
+            (
+                "postgres://user@localhost:5432/iota_indexer",
+                "postgres://user@localhost:5432/iota_indexer",
+            ),
+            (
+                "postgres://localhost:5432/iota_indexer",
+                "postgres://localhost:5432/iota_indexer",
+            ),
+            // url fails to parse, password can be anywhere
+            ("user:hunter2@localhost", "****"),
+            ("host=localhost password=hunter2", "****"),
+        ];
+
+        for (url, expect) in cases {
+            let db_url = DbUrl::from(url.to_string());
+
+            assert_eq!(format!("{db_url:?}"), format!(r#"DbUrl("{expect}")"#));
+            assert_eq!(db_url.as_str(), url);
+        }
+    }
+
+    #[test]
+    fn test_server_config_debug_hides_db_password() {
+        let config = ServerConfig {
+            connection: ConnectionConfig {
+                db_url: "postgres://user:hunter2@localhost:5432/iota_indexer"
+                    .to_string()
+                    .into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let printed = format!("{config:#?}");
+        assert!(!printed.contains("hunter2"), "{printed}");
+        assert!(printed.contains("****"), "{printed}");
     }
 }
