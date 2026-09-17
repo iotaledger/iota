@@ -594,6 +594,84 @@ mod test {
 
         server.server_handle.shutdown().await;
     }
+
+    /// The configured stream cap is advertised to the peer, so requests beyond
+    /// it on one connection never reach the server until an earlier one ends.
+    #[tokio::test]
+    async fn stream_cap_bounds_the_requests_one_connection_can_open() {
+        #[derive(Clone, Default)]
+        struct Started(Arc<std::sync::atomic::AtomicUsize>);
+
+        impl MetricsCallbackProvider for Started {
+            fn on_request(&self, _path: String) {}
+
+            fn on_response(
+                &self,
+                _path: String,
+                _latency: Duration,
+                _status: u16,
+                _grpc_status_code: Code,
+            ) {
+            }
+
+            fn on_start(&self, _path: &str) {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+
+        const STREAM_CAP: u32 = 2;
+
+        let started = Started::default();
+        let mut config = Config::new();
+        config.http2_max_concurrent_streams = Some(STREAM_CAP);
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let server = config
+            .server_builder_with_metrics(started.clone())
+            .add_service(DrainBody)
+            .bind(&address, None)
+            .await
+            .unwrap();
+
+        let stream = tokio::net::TcpStream::connect(server.local_addr().to_socket_addr().unwrap())
+            .await
+            .unwrap();
+        let (sender, connection) = hyper::client::conn::http2::handshake(
+            hyper_util::rt::TokioExecutor::new(),
+            hyper_util::rt::TokioIo::new(stream),
+        )
+        .await
+        .unwrap();
+        tokio::spawn(connection);
+
+        // One more stalled request than the cap allows; the surplus waits on
+        // the client side for a stream to free up.
+        let in_flight: Vec<_> = (0..STREAM_CAP + 1)
+            .map(|_| {
+                let mut sender = sender.clone();
+                tokio::spawn(async move {
+                    sender
+                        .send_request(
+                            http::Request::post("/test.DrainBody/Drain")
+                                .body(TestBody::Stalled)
+                                .unwrap(),
+                        )
+                        .await
+                })
+            })
+            .collect();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        assert_eq!(
+            started.0.load(std::sync::atomic::Ordering::SeqCst),
+            STREAM_CAP as usize,
+            "the server must only see as many requests as the stream cap allows"
+        );
+
+        for request in in_flight {
+            request.abort();
+        }
+        server.server_handle.shutdown().await;
+    }
 }
 
 #[derive(Clone)]
