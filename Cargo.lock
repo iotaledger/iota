@@ -8161,7 +8161,6 @@ dependencies = [
  "futures",
  "iota-json",
  "iota-json-rpc-types",
- "iota-protocol-config",
  "iota-sdk-types",
  "iota-types",
  "move-binary-format",
