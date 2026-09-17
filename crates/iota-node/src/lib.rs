@@ -1558,10 +1558,16 @@ impl IotaNode {
         // long without inbound frames and drops the connection when the ping
         // goes unanswered for as long again.
         const VALIDATOR_GRPC_KEEPALIVE: Duration = Duration::from_secs(60);
+        // Bounds the streams one connection may hold open, so a single peer
+        // cannot fill a service's admission slots on its own. A fullnode sends
+        // every request to this validator over one connection, so the cap must
+        // stay well above a busy fullnode's peak concurrency.
+        const VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS: u32 = 1000;
 
         let mut server_conf = iota_network_stack::config::Config::new();
         server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
         server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
+        server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
                 .add_service_with_concurrency_limit(
