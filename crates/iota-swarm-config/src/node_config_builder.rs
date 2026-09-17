@@ -165,6 +165,7 @@ impl ValidatorConfigBuilder {
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             parameters: Default::default(),
             graduated_load_shedding_soft_limit_pct: Default::default(),
+            graduated_load_shedding_saturation_pct: Default::default(),
         };
 
         let p2p_config = P2pConfig {

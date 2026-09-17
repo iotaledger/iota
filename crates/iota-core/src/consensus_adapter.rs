@@ -203,6 +203,29 @@ impl ConsensusAdapterMetrics {
     }
 }
 
+/// Which hard limit rejected a transaction in
+/// [`ConsensusAdapter::check_consensus_limits_reason`]. Callers turn this into
+/// a metric label so the two limits can be told apart after the fact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConsensusOverloadReason {
+    /// `num_inflight_transactions` exceeded `max_pending_transactions`.
+    MaxPendingTxsExceeded,
+
+    /// `submit_semaphore` had no available permits, so the number of
+    /// concurrent submissions is already at its own limit.
+    SemaphoreNoPermits,
+}
+
+impl ConsensusOverloadReason {
+    /// Stable label for the `source` value of `transaction_overload_sources`.
+    pub fn metric_label(&self) -> &'static str {
+        match self {
+            ConsensusOverloadReason::MaxPendingTxsExceeded => "consensus_max_pending_exceeded",
+            ConsensusOverloadReason::SemaphoreNoPermits => "consensus_semaphore_no_permits",
+        }
+    }
+}
+
 /// Block status for internal use in the consensus adapter.
 pub enum BlockStatusInternal {
     Sequenced,
@@ -294,6 +317,12 @@ pub struct ConsensusAdapter {
     /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
     /// `max_pending_transactions`. Used in the certificate-less (P-COOL) mode.
     graduated_load_shedding_soft_limit_pct: u32,
+
+    /// Percentage of `max_pending_transactions` (hard limit) at which
+    /// graduated pre-consensus load shedding reaches 100% rejection.
+    /// 100 saturates at the hard limit. Used in the certificate-less
+    /// (P-COOL) mode.
+    graduated_load_shedding_saturation_pct: u32,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -327,6 +356,7 @@ impl ConsensusAdapter {
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
         graduated_load_shedding_soft_limit_pct: u32,
+        graduated_load_shedding_saturation_pct: u32,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -345,6 +375,7 @@ impl ConsensusAdapter {
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
             graduated_load_shedding_soft_limit_pct,
+            graduated_load_shedding_saturation_pct,
         }
     }
 
@@ -363,6 +394,7 @@ impl ConsensusAdapter {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
         )
     }
 
@@ -661,6 +693,13 @@ impl ConsensusAdapter {
         self.graduated_load_shedding_soft_limit_pct
     }
 
+    /// Returns the percentage of `max_pending_transactions` (hard limit) at
+    /// which graduated pre-consensus load shedding reaches 100% rejection.
+    /// Used in the certificate-less (P-COOL) mode.
+    pub(super) fn graduated_load_shedding_saturation_pct(&self) -> u32 {
+        self.graduated_load_shedding_saturation_pct
+    }
+
     /// Returns the number of transactions currently in-flight in consensus.
     pub(super) fn num_inflight_transactions(&self) -> u64 {
         self.num_inflight_transactions.load(Ordering::Relaxed)
@@ -679,6 +718,14 @@ impl ConsensusAdapter {
     ///
     /// Uses relaxed atomic reads: the two limits are not observed atomically.
     fn check_consensus_hard_limits(&self) -> bool {
+        self.check_consensus_limits_reason().is_none()
+    }
+
+    /// Same checks as [`Self::check_consensus_hard_limits`], but reports which
+    /// limit was hit. `None` means the adapter can accept another transaction.
+    ///
+    /// Uses relaxed atomic reads: the two limits are not observed atomically.
+    pub(crate) fn check_consensus_limits_reason(&self) -> Option<ConsensusOverloadReason> {
         // First check total in-flight transactions (waiting and in submission).
         // TODO: this check is redundant in the P-COOL flow - graduated
         // shedding already rejects at 100% once `num_inflight_transactions`
@@ -689,11 +736,15 @@ impl ConsensusAdapter {
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
-            return false;
+            return Some(ConsensusOverloadReason::MaxPendingTxsExceeded);
         }
 
         // Then check if `submit_semaphore` has permits
-        self.submit_semaphore.available_permits() > 0
+        if self.submit_semaphore.available_permits() == 0 {
+            return Some(ConsensusOverloadReason::SemaphoreNoPermits);
+        }
+
+        None
     }
 
     /// `IotaResult` wrapper for `check_consensus_hard_limits`. Returns
@@ -1515,6 +1566,7 @@ mod adapter_tests {
         checkpoints::CheckpointStore,
         consensus_adapter::{
             ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+            ConsensusOverloadReason,
         },
         starfish_adapter::LazyStarfishClient,
     };
@@ -1554,6 +1606,7 @@ mod adapter_tests {
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
         );
 
         // transaction to submit
@@ -1585,6 +1638,7 @@ mod adapter_tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
         );
 
         let (delay_step, position, positions_moved, _) =
@@ -1621,5 +1675,76 @@ mod adapter_tests {
             }
             assert!(zero_found);
         }
+    }
+
+    /// Tests [`ConsensusAdapter::check_consensus_limits_reason`]: it reports
+    /// which of the two hard limits rejected a transaction, and agrees with
+    /// [`ConsensusAdapter::check_consensus_hard_limits`].
+    #[tokio::test]
+    async fn test_check_consensus_limits_reason() {
+        let mut rng = StdRng::from_seed([0; 32]);
+        let committee = test_committee(&mut rng, 4);
+        let max_pending = 10;
+
+        let adapter = ConsensusAdapter::new(
+            Arc::new(LazyStarfishClient::new()),
+            CheckpointStore::new_for_tests(),
+            *committee.authority_by_index(0).unwrap(),
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            max_pending,
+            max_pending,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+            100,
+        );
+
+        // Idle adapter: both limits allow another transaction.
+        assert_eq!(adapter.check_consensus_limits_reason(), None);
+        assert!(adapter.check_consensus_hard_limits());
+
+        // At the limit is still accepted; the check rejects only above it.
+        adapter.set_num_inflight_transactions_for_testing(max_pending as u64);
+        assert_eq!(adapter.check_consensus_limits_reason(), None);
+
+        adapter.set_num_inflight_transactions_for_testing(max_pending as u64 + 1);
+        assert_eq!(
+            adapter.check_consensus_limits_reason(),
+            Some(ConsensusOverloadReason::MaxPendingTxsExceeded),
+        );
+        assert!(!adapter.check_consensus_hard_limits());
+
+        // With the in-flight count back under the limit, exhausting the
+        // submission permits is reported separately.
+        adapter.set_num_inflight_transactions_for_testing(0);
+        let _permits = adapter
+            .submit_semaphore
+            .try_acquire_many(max_pending as u32)
+            .expect("all permits should be free");
+        assert_eq!(
+            adapter.check_consensus_limits_reason(),
+            Some(ConsensusOverloadReason::SemaphoreNoPermits),
+        );
+        assert!(!adapter.check_consensus_hard_limits());
+
+        // The in-flight limit is checked first when both are exceeded.
+        adapter.set_num_inflight_transactions_for_testing(max_pending as u64 + 1);
+        assert_eq!(
+            adapter.check_consensus_limits_reason(),
+            Some(ConsensusOverloadReason::MaxPendingTxsExceeded),
+        );
+    }
+
+    #[test]
+    fn test_consensus_overload_reason_metric_labels() {
+        assert_eq!(
+            ConsensusOverloadReason::MaxPendingTxsExceeded.metric_label(),
+            "consensus_max_pending_exceeded",
+        );
+        assert_eq!(
+            ConsensusOverloadReason::SemaphoreNoPermits.metric_label(),
+            "consensus_semaphore_no_permits",
+        );
     }
 }

@@ -111,10 +111,11 @@ pub async fn consensus_queue_overload_monitor(
         };
 
         let num_inflight_txs = adapter.num_inflight_transactions() as usize;
-        let shedding_pct = compute_graduated_load_shedding_percentage(
+        let shedding_pct = compute_graduated_load_shedding_percentage_with_saturation(
             num_inflight_txs,
             adapter.max_pending_transactions(),
             adapter.graduated_load_shedding_soft_limit_pct(),
+            adapter.graduated_load_shedding_saturation_pct(),
         );
         state
             .metrics
@@ -390,14 +391,48 @@ pub(crate) fn compute_graduated_load_shedding_percentage(
     hard_limit: usize,
     soft_limit_pct: u32,
 ) -> u32 {
+    compute_graduated_load_shedding_percentage_with_saturation(
+        current,
+        hard_limit,
+        soft_limit_pct,
+        100,
+    )
+}
+
+/// Same as [`compute_graduated_load_shedding_percentage`], but reaches 100%
+/// shedding at `saturation_pct` of `hard_limit` instead of at the hard limit
+/// itself. With `saturation_pct = 100` the two are equivalent.
+///
+/// Used on the pre-consensus path only. Saturating below the hard limit lets
+/// shedding reach 100% while in-flight transactions are still under the hard
+/// limit, so arrivals are turned away before the cutoff in
+/// `ConsensusAdapter::check_consensus_overload()` has to reject them.
+///
+/// `saturation_pct` is clamped to `[soft_limit_pct, 100]`.
+pub(crate) fn compute_graduated_load_shedding_percentage_with_saturation(
+    current: usize,
+    hard_limit: usize,
+    soft_limit_pct: u32,
+    saturation_pct: u32,
+) -> u32 {
     debug_assert!(
         soft_limit_pct <= 100,
         "soft_limit_pct must be <= 100, got {soft_limit_pct}"
     );
-    // Clamp `soft_limit_pct` to 100% to be safe in release builds.
+    debug_assert!(
+        saturation_pct <= 100,
+        "saturation_pct must be <= 100, got {saturation_pct}"
+    );
+    debug_assert!(
+        saturation_pct >= soft_limit_pct,
+        "saturation_pct ({saturation_pct}) must be >= soft_limit_pct ({soft_limit_pct})"
+    );
+    // Clamp both percentages to be safe in release builds.
     let soft_limit_pct = soft_limit_pct.min(100);
-    // Convert soft limit percentage to absolute soft limit.
+    let saturation_pct = saturation_pct.min(100).max(soft_limit_pct);
+    // Convert percentages to absolute limits.
     let soft_limit = hard_limit * soft_limit_pct as usize / 100;
+    let saturation_limit = hard_limit * saturation_pct as usize / 100;
 
     // At or above hard limit, shed at maximum percentage.
     // WARN: this hard limit check must come BEFORE the soft limit check.
@@ -408,18 +443,23 @@ pub(crate) fn compute_graduated_load_shedding_percentage(
         return 100;
     }
 
+    // At or above the saturation limit the curve has already reached 100%.
+    if current >= saturation_limit {
+        return 100;
+    }
+
     // No shedding below or at soft limit.
     if current <= soft_limit {
         return 0;
     }
 
-    // The two early returns above imply that at this point,
-    // `soft_limit < current < hard_limit`, so the following two
+    // The three early returns above imply that at this point,
+    // `soft_limit < current < saturation_limit`, so the following two
     // subtraction results are guaranteed to be strictly > 0.
-    let range = hard_limit - soft_limit;
+    let range = saturation_limit - soft_limit;
     let excess = current - soft_limit;
 
-    // Linear interpolation: 0% at `soft_limit`, 100% at `hard_limit`.
+    // Linear interpolation: 0% at `soft_limit`, 100% at `saturation_limit`.
     (excess * 100 / range) as u32
 }
 
@@ -735,6 +775,107 @@ mod tests {
             compute_graduated_load_shedding_percentage(hard_limit, hard_limit, 0),
             100,
             "soft_limit_pct=0: at hard_limit, 100% shedding expected",
+        );
+    }
+
+    /// Tests [`compute_graduated_load_shedding_percentage_with_saturation`]:
+    /// the curve reaches 100% at the saturation limit rather than at the hard
+    /// limit, and stays at 100% between the two.
+    #[test]
+    fn test_compute_graduated_load_shedding_percentage_with_saturation() {
+        let hard_limit = 20_000;
+        let soft_limit_pct = 50;
+        let saturation_pct = 90;
+        let soft_limit = 10_000; // 20_000 * 50 / 100
+        let saturation_limit = 18_000; // 20_000 * 90 / 100
+
+        // Below and at the soft limit: no shedding, same as without saturation.
+        for current in [0, soft_limit - 1, soft_limit] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage_with_saturation(
+                    current,
+                    hard_limit,
+                    soft_limit_pct,
+                    saturation_pct,
+                ),
+                0,
+                "no shedding expected at or below soft limit ({current} <= {soft_limit})",
+            );
+        }
+
+        // Linear scaling over the shortened range soft_limit..saturation_limit
+        // (8_000 wide), so the curve is steeper than it would be against the
+        // hard limit:
+        //  - At 12_000: 100 * 2_000 / 8_000 = 25
+        //  - At 14_000: 100 * 4_000 / 8_000 = 50
+        //  - At 16_000: 100 * 6_000 / 8_000 = 75
+        //  - At 17_999: 100 * 7_999 / 8_000 = 99
+        for (current, expected_pct) in [
+            (12_000, 25),
+            (14_000, 50),
+            (16_000, 75),
+            (saturation_limit - 1, 99),
+        ] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage_with_saturation(
+                    current,
+                    hard_limit,
+                    soft_limit_pct,
+                    saturation_pct,
+                ),
+                expected_pct,
+                "expected {expected_pct}% shedding at current={current}",
+            );
+        }
+
+        // From the saturation limit up to and past the hard limit: 100%.
+        for current in [saturation_limit, hard_limit - 1, hard_limit, 30_000] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage_with_saturation(
+                    current,
+                    hard_limit,
+                    soft_limit_pct,
+                    saturation_pct,
+                ),
+                100,
+                "expected 100% shedding at or above saturation limit \
+                 ({current} >= {saturation_limit})",
+            );
+        }
+
+        // saturation_pct = 100 must match the three-argument function exactly.
+        for current in [0, soft_limit, 12_500, 15_000, hard_limit - 1, hard_limit] {
+            assert_eq!(
+                compute_graduated_load_shedding_percentage_with_saturation(
+                    current,
+                    hard_limit,
+                    soft_limit_pct,
+                    100,
+                ),
+                compute_graduated_load_shedding_percentage(current, hard_limit, soft_limit_pct),
+                "saturation_pct=100 must be equivalent at current={current}",
+            );
+        }
+
+        // saturation_pct == soft_limit_pct degenerates into a binary cutoff at
+        // the soft limit.
+        assert_eq!(
+            compute_graduated_load_shedding_percentage_with_saturation(
+                soft_limit - 1,
+                hard_limit,
+                soft_limit_pct,
+                soft_limit_pct,
+            ),
+            0,
+        );
+        assert_eq!(
+            compute_graduated_load_shedding_percentage_with_saturation(
+                soft_limit,
+                hard_limit,
+                soft_limit_pct,
+                soft_limit_pct,
+            ),
+            100,
         );
     }
 

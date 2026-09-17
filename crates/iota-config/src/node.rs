@@ -953,6 +953,15 @@ pub struct ConsensusConfig {
     /// `max_pending_transactions`. Used in the certificate-less (P-COOL) mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graduated_load_shedding_soft_limit_pct: Option<u32>,
+
+    /// Percentage of `max_pending_transactions` (hard limit) at which the
+    /// graduated pre-consensus load shedding curve reaches 100% rejection.
+    /// Defaults to 100, so the curve saturates exactly at the hard limit.
+    /// Setting it below 100 makes shedding reach 100% before the hard limit,
+    /// leaving headroom above the point where everything is already rejected.
+    /// Clamped to be at least `graduated_load_shedding_soft_limit_pct`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graduated_load_shedding_saturation_pct: Option<u32>,
 }
 
 impl ConsensusConfig {
@@ -974,6 +983,16 @@ impl ConsensusConfig {
     pub fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
         self.graduated_load_shedding_soft_limit_pct
             .unwrap_or(50)
+            .min(100)
+    }
+
+    /// Returns the percentage of `max_pending_transactions` (hard limit) at
+    /// which graduated pre-consensus load shedding reaches 100% rejection.
+    /// Defaults to 100 (saturates at the hard limit). Used in the
+    /// certificate-less (P-COOL) mode.
+    pub fn graduated_load_shedding_saturation_pct(&self) -> u32 {
+        self.graduated_load_shedding_saturation_pct
+            .unwrap_or(100)
             .min(100)
     }
 

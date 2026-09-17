@@ -957,6 +957,7 @@ mod tests {
                 None,
                 ConsensusAdapterMetrics::new_test(),
                 50,
+                100,
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
@@ -1108,6 +1109,7 @@ mod tests {
                 None,
                 ConsensusAdapterMetrics::new_test(),
                 50,
+                100,
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
@@ -1219,6 +1221,7 @@ mod tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
         ));
         RandomnessManager::try_new(
             Arc::downgrade(epoch_store),
@@ -1284,6 +1287,7 @@ mod tests {
                 None,
                 ConsensusAdapterMetrics::new_test(),
                 50,
+                100,
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
@@ -1402,6 +1406,7 @@ mod tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
         ));
         let epoch_store = state.epoch_store_for_testing();
 
@@ -1475,6 +1480,7 @@ mod tests {
                 None,
                 ConsensusAdapterMetrics::new_test(),
                 50,
+                100,
             ));
             let epoch_store = state.epoch_store_for_testing();
             let randomness_manager = RandomnessManager::try_new(
