@@ -20,7 +20,6 @@ use futures::TryStreamExt;
 use iota_genesis_builder::validator_info::GenesisValidatorInfo;
 use iota_json_rpc_types::{
     IotaData, IotaMoveValue, IotaObjectDataOptions, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::{
     key_derive::generate_new_key,
@@ -34,7 +33,7 @@ use iota_multiaddr::Multiaddr;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, Transaction, TypeTag,
+    Address, ObjectId, ObjectReference, Owner, SignatureScheme, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -49,7 +48,7 @@ use iota_types::{
         iota_system_state_inner_v1::{UnverifiedValidatorOperationCap, ValidatorV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
+    transaction::CallArg,
 };
 use serde::Serialize;
 use tabled::{
@@ -60,7 +59,7 @@ use tabled::{
     },
 };
 
-use crate::{PrintableResult, signing::sign_transaction};
+use crate::{PrintableResult, system_txn::call_0x5};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -560,62 +559,6 @@ async fn get_validator_summary_from_cap_id(
     Ok((status, summary))
 }
 
-async fn construct_unsigned_0x5_txn(
-    context: &mut WalletContext,
-    sender: Address,
-    function: &'static str,
-    call_args: Vec<CallArg>,
-    gas_budget: u64,
-) -> anyhow::Result<Transaction> {
-    let iota_client = context.get_client().await?;
-    let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
-    args.extend(call_args);
-    let rgp = iota_client
-        .governance_api()
-        .get_reference_gas_price()
-        .await?;
-
-    let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
-    Transaction::new_move_call(
-        sender,
-        ObjectId::SYSTEM,
-        Identifier::IOTA_SYSTEM_MODULE,
-        Identifier::from_static(function),
-        vec![],
-        gas_obj_ref,
-        args,
-        gas_budget,
-        rgp,
-    )
-}
-
-async fn call_0x5(
-    context: &mut WalletContext,
-    function: &'static str,
-    call_args: Vec<CallArg>,
-    gas_budget: u64,
-) -> anyhow::Result<IotaTransactionBlockResponse> {
-    let sender = context.active_address()?;
-    let tx_data =
-        construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
-    let iota_client = context.get_client().await?;
-
-    let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
-    let transaction = TransactionEnvelope::from_user_sig_data(tx_data, vec![signature]);
-
-    iota_client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            transaction,
-            IotaTransactionBlockResponseOptions::new()
-                .with_input()
-                .with_effects(),
-            Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await
-        .map_err(|err| anyhow::anyhow!(err.to_string()))
-}
-
 impl PrintableResult for IotaValidatorCommandResponse {
     // pretty is unused here, as this is handled for each command separately
     fn print(&self, _pretty: bool) {
@@ -1088,21 +1031,4 @@ async fn can_validator_mutate_all_data(context: &mut WalletContext) -> Result<()
     )
     .await?;
     Ok(())
-}
-
-async fn get_gas_obj_ref(
-    iota_address: Address,
-    iota_client: &IotaClient,
-    minimal_gas_balance: u64,
-) -> anyhow::Result<ObjectReference> {
-    let coins = iota_client
-        .coin_read_api()
-        .get_coins(iota_address, Some("0x2::iota::IOTA".into()), None, None)
-        .await?
-        .data;
-    let gas_obj = coins.iter().find(|c| c.balance >= minimal_gas_balance);
-    if gas_obj.is_none() {
-        bail!("Validator doesn't have enough IOTA coins to cover transaction fees.");
-    }
-    Ok(gas_obj.unwrap().object_ref())
 }
