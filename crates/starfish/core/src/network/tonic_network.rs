@@ -28,7 +28,7 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
+    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
@@ -72,7 +72,7 @@ fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) 
 
 /// Transaction-fetch budget: the per-fetch transaction count cap times the
 /// maximum serialized per-block transaction payload. The larger of the two
-/// sync caps is used, matching `TransactionFetchMode::TransactionSync`.
+/// sync caps is used, matching the truncation the server applies.
 fn max_fetch_transactions_response_bytes(context: &Context) -> usize {
     let max_transactions = context
         .parameters
@@ -1075,11 +1075,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(
-                peer_index,
-                committed_transactions_refs,
-                TransactionFetchMode::TransactionSync,
-            )
+            .handle_fetch_transactions(peer_index, committed_transactions_refs)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 
