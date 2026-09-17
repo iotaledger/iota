@@ -14,7 +14,7 @@ use std::{
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use iota_grpc_client::{
-    Client as GrpcClient,
+    GrpcClient,
     read_mask_fields::{ObjectField, ObjectReadMask, OwnedObjectReadMask, TransactionField},
 };
 use iota_keys::keystore::AccountKeystore;
