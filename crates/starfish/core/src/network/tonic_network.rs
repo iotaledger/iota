@@ -613,6 +613,7 @@ async fn collect_transactions<S>(
 where
     S: Stream<Item = Result<FetchTransactionsResponse, tonic::Status>> + Unpin,
 {
+    let max_entry_bytes = max_serialized_transactions_entry_bytes(context);
     let max_allowed_bytes = max_fetch_transactions_response_bytes(context, requested_transactions);
     let mut total_fetched_bytes = 0;
     let mut vec_serialized_transactions = vec![];
@@ -628,6 +629,12 @@ where
                     return Err(ConsensusError::TooManyFetchedTransactionsReturned(peer));
                 }
                 for b in &transactions {
+                    if b.len() > max_entry_bytes {
+                        return Err(ConsensusError::SerializedTransactionsTooLarge {
+                            size: b.len(),
+                            limit: max_entry_bytes,
+                        });
+                    }
                     total_fetched_bytes += b.len();
                 }
                 if total_fetched_bytes > max_allowed_bytes {
@@ -1892,23 +1899,21 @@ mod tests {
         assert_eq!(transactions.len(), 3);
     }
 
-    /// The byte budget follows the request rather than the configured
-    /// per-fetch cap, so a two-reference fetch is bounded by two entries.
+    /// An entry larger than a maximally full block's payload is rejected on
+    /// arrival, naming the offending size.
     #[tokio::test]
-    async fn transactions_past_the_byte_budget_are_not_kept() {
+    async fn oversized_transaction_entries_are_rejected() {
         let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
-        let budget = max_fetch_transactions_response_bytes(&context, 2);
-        let overrunning = stream::iter([
-            Ok(transaction_chunk(1, budget / 2)),
-            Ok(transaction_chunk(1, budget)),
-        ]);
+        let limit = max_fetch_transactions_response_bytes(&context, 1);
+        let oversized = stream::iter([Ok(transaction_chunk(1, limit + 1))]);
 
-        let transactions = collect_transactions(&context, peer, overrunning, 2)
-            .await
-            .expect("the chunks within the budget are kept");
+        let result = collect_transactions(&context, peer, oversized, 2).await;
 
-        assert_eq!(transactions.len(), 1);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::SerializedTransactionsTooLarge { .. })
+        ));
     }
 
     /// A chunk that overruns the byte budget is dropped instead of landing in
