@@ -366,6 +366,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             // drop entries while we're iterating over the sequenced
             // transactions.
             let mut processed_set = HashSet::new();
+            let skipped_consensus_txns = &self.metrics.skipped_consensus_txns;
 
             for (seq, (transaction, cert_origin)) in transactions.into_iter().enumerate() {
                 // In process_consensus_transactions_and_commit_boundary(), we will add a system
@@ -393,19 +394,26 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     transaction,
                 };
 
-                let key = sequenced_transaction.key();
-                let in_set = !processed_set.insert(key);
-                let in_cache = self
-                    .processed_cache
-                    .put(sequenced_transaction.key(), ())
-                    .is_some();
+                // Verify before deduplicating. The key is derived from identities the
+                // payload claims, so a rejected transaction must not be able to shadow a
+                // later valid one carrying the same key.
+                let Some(verified_transaction) = self
+                    .epoch_store
+                    .verify_consensus_transaction(sequenced_transaction, skipped_consensus_txns)
+                else {
+                    continue;
+                };
+
+                let key = verified_transaction.0.key();
+                let in_set = !processed_set.insert(key.clone());
+                let in_cache = self.processed_cache.put(key, ()).is_some();
 
                 if in_set || in_cache {
                     self.metrics.skipped_consensus_txns_cache_hit.inc();
                     continue;
                 }
 
-                all_transactions.push(sequenced_transaction);
+                all_transactions.push(verified_transaction);
             }
         }
 
