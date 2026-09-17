@@ -30,7 +30,7 @@ use crate::{
     backward_view::{HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::Checkpointed,
+    consistency::{Checkpointed, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter, or_filter,
@@ -55,7 +55,7 @@ use crate::{
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::{ExactTypeFilter, TypeFilter},
-        uint53::{MAX_UINT53, UInt53},
+        uint53::UInt53,
     },
 };
 
@@ -1670,7 +1670,11 @@ impl Loader<OptimisticKey> for Db {
         let mut missing_keys = Vec::new();
         for key in keys {
             if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
-                let object = Object::try_from_stored_object(stored.clone(), MAX_UINT53, None)?;
+                let object = Object::try_from_stored_object(
+                    stored.clone(),
+                    UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
+                    None,
+                )?;
                 result.insert(*key, Ok(object));
             } else {
                 missing_keys.push(*key);
@@ -1684,7 +1688,7 @@ impl Loader<OptimisticKey> for Db {
                 .map(|key| HistoricalKey {
                     id: key.id,
                     version: key.version,
-                    checkpoint_viewed_at: MAX_UINT53,
+                    checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
                 })
                 .collect();
 
