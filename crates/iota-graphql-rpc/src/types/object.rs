@@ -53,10 +53,9 @@ use crate::{
         move_package::MovePackage,
         owner::{Owner, OwnerImpl},
         stake::StakedIota,
-        transaction_block,
-        transaction_block::{TransactionBlock, TransactionBlockFilter},
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::{ExactTypeFilter, TypeFilter},
-        uint53::UInt53,
+        uint53::{MAX_UINT53, UInt53},
     },
 };
 
@@ -1671,7 +1670,7 @@ impl Loader<OptimisticKey> for Db {
         let mut missing_keys = Vec::new();
         for key in keys {
             if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
-                let object = Object::try_from_stored_object(stored.clone(), u64::MAX, None)?;
+                let object = Object::try_from_stored_object(stored.clone(), MAX_UINT53, None)?;
                 result.insert(*key, Ok(object));
             } else {
                 missing_keys.push(*key);
@@ -1685,7 +1684,7 @@ impl Loader<OptimisticKey> for Db {
                 .map(|key| HistoricalKey {
                     id: key.id,
                     version: key.version,
-                    checkpoint_viewed_at: u64::MAX,
+                    checkpoint_viewed_at: MAX_UINT53,
                 })
                 .collect();
 

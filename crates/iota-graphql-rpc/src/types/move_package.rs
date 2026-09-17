@@ -41,7 +41,7 @@ use crate::{
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::ExactTypeFilter,
-        uint53::UInt53,
+        uint53::{MAX_UINT53, UInt53},
     },
 };
 
@@ -766,7 +766,7 @@ impl MovePackage {
             .as_ref()
             .and_then(|f| f.before_checkpoint)
             .map(|v| v.into())
-            .unwrap_or(u64::MAX)
+            .unwrap_or(MAX_UINT53)
             .min(checkpoint_viewed_at + 1);
 
         // Locate each `(package_id, package_version)` row in

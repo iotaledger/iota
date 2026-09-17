@@ -553,8 +553,9 @@ impl TryFrom<OptimisticTransaction> for TransactionBlockEffects {
     type Error = Error;
 
     fn try_from(tx: OptimisticTransaction) -> Result<Self, Error> {
-        // set to u64::MAX, as the executed transaction has not been indexed yet
-        let checkpoint_viewed_at = u64::MAX;
+        // set to a sentinel number, as the executed transaction has not been indexed
+        // yet
+        let checkpoint_viewed_at = UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER;
         Ok(Self {
             kind: tx.try_into()?,
             checkpoint_viewed_at,

@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{
     cursor::{JsonCursor, ScanLimited},
-    uint53::UInt53,
+    uint53::{MAX_UINT53, UInt53},
 };
 
 /// The checkpoint sequence number for entities not available for view.
-pub(crate) const UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER: u64 = u64::MAX;
+pub(crate) const UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER: u64 = MAX_UINT53;
 
 /// The consistent cursor for an index into a `Vec` field is constructed from
 /// the index of the element and the checkpoint the cursor was constructed at.

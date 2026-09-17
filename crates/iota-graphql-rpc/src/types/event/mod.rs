@@ -303,12 +303,11 @@ impl Event {
                 })
             })
         } else {
-            // Cannot do +1 when cursor=`u64::MAX`
-            page.before().and_then(|cursor| {
-                u64::from(cursor.e).checked_add(1).map(|event_seq| EventID {
+            page.before().map(|cursor| {
+                EventID {
                     tx_digest: tx_digest.into(),
-                    event_seq,
-                })
+                    event_seq: u64::from(cursor.e) + 1, // safe as cursor.e : UInt53
+                }
             })
         };
 
