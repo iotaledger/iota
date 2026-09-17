@@ -86,11 +86,7 @@ impl Builder {
             + 'static,
         ResponseBody: http_body::Body<Data = bytes::Bytes, Error: Into<BoxError>> + Send + 'static,
     {
-        let listener = listener::TcpListenerWithOptions::new(
-            addr,
-            self.config.tcp_nodelay,
-            self.config.tcp_keepalive,
-        )?;
+        let listener = listener::TcpListenerWithOptions::new(addr, self.config.tcp_keepalive)?;
 
         Self::serve_with_listener(self, listener, service)
     }
