@@ -211,9 +211,9 @@ mod tests {
 
     #[test]
     fn invalid_server_name() {
-        let keypair = Ed25519PrivateKey::random();
-        let public_key = keypair.public_key();
-        let cert = SelfSignedCertificate::new(keypair, "not-iota");
+        let private_key = Ed25519PrivateKey::random();
+        let public_key = private_key.public_key();
+        let cert = SelfSignedCertificate::new(private_key, "not-iota");
 
         let allowlist = AllowPublicKeys::new(BTreeSet::from([public_key]));
         let client_verifier =
@@ -251,12 +251,12 @@ mod tests {
 
     #[tokio::test]
     async fn axum_acceptor() {
-        let client_keypair = Ed25519PrivateKey::random();
-        let client_public_key = client_keypair.public_key();
+        let client_private_key = Ed25519PrivateKey::random();
+        let client_public_key = client_private_key.public_key();
         let client_certificate =
-            SelfSignedCertificate::new(client_keypair, IOTA_VALIDATOR_SERVER_NAME);
-        let server_keypair = Ed25519PrivateKey::random();
-        let server_certificate = SelfSignedCertificate::new(server_keypair, "localhost");
+            SelfSignedCertificate::new(client_private_key, IOTA_VALIDATOR_SERVER_NAME);
+        let server_private_key = Ed25519PrivateKey::random();
+        let server_certificate = SelfSignedCertificate::new(server_private_key, "localhost");
 
         let client = reqwest::Client::builder()
             .add_root_certificate(server_certificate.reqwest_certificate())

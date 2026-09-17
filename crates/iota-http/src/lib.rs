@@ -480,10 +480,10 @@ mod tests {
     fn test_tls_configs() -> (rustls::ServerConfig, rustls::ClientConfig) {
         use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
 
-        let keypair = Ed25519PrivateKey::new([42; 32]);
-        let public_key = keypair.public_key();
+        let private_key = Ed25519PrivateKey::new([42; 32]);
+        let public_key = private_key.public_key();
         (
-            iota_tls::create_rustls_server_config(keypair, SERVER_NAME.to_string()),
+            iota_tls::create_rustls_server_config(private_key, SERVER_NAME.to_string()),
             iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
         )
     }

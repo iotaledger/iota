@@ -172,9 +172,12 @@ pub struct CertKeyPair(pub SelfSignedCertificate, pub Ed25519PublicKey);
 
 /// Generate server certs for use with peer verification
 pub fn generate_self_cert(hostname: String) -> CertKeyPair {
-    let keypair = Ed25519PrivateKey::random();
-    let public_key = keypair.public_key();
-    CertKeyPair(SelfSignedCertificate::new(keypair, &hostname), public_key)
+    let private_key = Ed25519PrivateKey::random();
+    let public_key = private_key.public_key();
+    CertKeyPair(
+        SelfSignedCertificate::new(private_key, &hostname),
+        public_key,
+    )
 }
 
 /// Load a certificate for use by the listening service

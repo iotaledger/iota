@@ -6852,7 +6852,6 @@ dependencies = [
  "bin-version",
  "clap",
  "colored",
- "fastcrypto",
  "iota-common",
  "iota-config",
  "iota-faucet",
@@ -6955,7 +6954,6 @@ name = "iota-metrics-push-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "fastcrypto",
  "iota-metrics",
  "iota-tls",
  "iota-types",
@@ -7389,7 +7387,6 @@ dependencies = [
  "bytes",
  "clap",
  "const-str",
- "fastcrypto",
  "git-version",
  "hex",
  "hyper",
@@ -7407,7 +7404,6 @@ dependencies = [
  "prost 0.14.3",
  "prost-build",
  "protobuf",
- "rand 0.8.6",
  "reqwest",
  "rustls",
  "serde",
