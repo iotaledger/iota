@@ -1890,9 +1890,8 @@ mod tests {
         assert_eq!(status.code(), tonic::Code::DeadlineExceeded);
     }
 
-    /// The prefix the label lookup strips is the path the service is served
-    /// under, so a rename of the generated service does not send every request
-    /// to the `unknown` label.
+    /// The stripped prefix has to match the generated service name, otherwise
+    /// every request lands on the `unknown` label.
     #[test]
     fn path_prefix_matches_the_generated_service_name() {
         use crate::network::tonic_gen::consensus_service_server;
@@ -1927,8 +1926,9 @@ mod tests {
             assert_eq!(route_label(path), UNKNOWN_ROUTE, "path: {path}");
         }
     }
+
     /// Unknown method names under the service path still reach the metrics
-    /// layer, so they all have to land on one label instead of one label each.
+    /// layer, so they all have to land on one label.
     #[tokio::test]
     async fn unknown_methods_share_one_metric_label() {
         use std::time::Duration;
