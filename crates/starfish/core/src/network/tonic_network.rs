@@ -632,7 +632,10 @@ where
                             limit: max_entry_bytes,
                         });
                     }
-                    total_fetched_bytes += b.len();
+                    // An entry costs its `Bytes` descriptor whether or not it
+                    // carries a payload, so a run of empty entries consumes
+                    // budget rather than passing free.
+                    total_fetched_bytes += b.len() + size_of::<Bytes>();
                 }
                 if total_fetched_bytes > max_allowed_bytes {
                     info!(
