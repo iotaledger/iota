@@ -32,7 +32,8 @@ use iota_indexer::{
     test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
 use iota_json_rpc_api::{
-    CoinReadApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+    CoinReadApiClient, QUERY_MAX_RESULT_LIMIT, ReadApiClient, TransactionBuilderClient,
+    WriteApiClient,
 };
 use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
@@ -475,6 +476,15 @@ pub fn rpc_call_error_msg_matches<T>(
         }
         _ => false,
     })
+}
+
+/// The error an RPC method returns when its input has more entries than
+/// [`QUERY_MAX_RESULT_LIMIT`], as expected by [`rpc_call_error_msg_matches`].
+pub fn input_size_limit_exceeded_msg() -> String {
+    format!(
+        r#"{{"code":-32602,"message":"Input exceeds limit of {}"}}"#,
+        *QUERY_MAX_RESULT_LIMIT
+    )
 }
 
 /// Set up a test indexer fetching from a gRPC endpoint served by the given
