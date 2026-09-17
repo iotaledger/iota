@@ -72,6 +72,8 @@ pub struct TrafficControlReconfigParams {
     pub error_threshold: Option<u64>,
     pub spam_threshold: Option<u64>,
     pub dry_run: Option<bool>,
+    pub connection_blocklist_ttl_sec: Option<u64>,
+    pub proxy_blocklist_ttl_sec: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
