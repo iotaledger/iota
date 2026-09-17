@@ -1460,6 +1460,37 @@ fn calculate_header_size(headers: &http::HeaderMap) -> usize {
         .sum()
 }
 
+/// Path prefix the consensus service is served under.
+const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
+
+/// Methods served by the consensus service, each recorded under its own metric
+/// label.
+const CONSENSUS_SERVICE_METHODS: &[&str] = &[
+    "SubscribeBlockBundles",
+    "FetchBlockHeaders",
+    "FetchCommits",
+    "FetchCommitsAndTransactions",
+    "FetchLatestBlockHeaders",
+    "GetLatestRounds",
+    "FetchTransactions",
+];
+
+/// Label recorded for every path that is not a served method.
+const UNKNOWN_ROUTE: &str = "unknown";
+
+/// Metric label for a request path: the name of the served method, or
+/// `unknown`. Callers choose the path, so the label never derives from it.
+fn route_label(path: &str) -> &'static str {
+    path.strip_prefix(CONSENSUS_SERVICE_PATH_PREFIX)
+        .and_then(|method| {
+            CONSENSUS_SERVICE_METHODS
+                .iter()
+                .find(|served| **served == method)
+                .copied()
+        })
+        .unwrap_or(UNKNOWN_ROUTE)
+}
+
 impl SizedRequest for http::request::Parts {
     fn size(&self) -> usize {
         let header_size = calculate_header_size(&self.headers);
@@ -1472,12 +1503,8 @@ impl SizedRequest for http::request::Parts {
         header_size + body_size
     }
 
-    fn route(&self) -> String {
-        let path = self.uri.path();
-        path.rsplit_once('/')
-            .map(|(_, route)| route)
-            .unwrap_or("unknown")
-            .to_string()
+    fn route(&self) -> &'static str {
+        route_label(self.uri.path())
     }
 }
 
@@ -1680,8 +1707,9 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use super::{
-        FetchCommitsAndTransactionsResponse, collect_commits_and_transactions,
-        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
+        CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX,
+        FetchCommitsAndTransactionsResponse, UNKNOWN_ROUTE, collect_commits_and_transactions,
+        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes, route_label,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
@@ -1860,5 +1888,43 @@ mod tests {
         .expect_err("subscription without a request must be rejected");
 
         assert_eq!(status.code(), tonic::Code::DeadlineExceeded);
+    }
+
+    /// The prefix the label lookup strips is the path the service is served
+    /// under, so a rename of the generated service does not send every request
+    /// to the `unknown` label.
+    #[test]
+    fn path_prefix_matches_the_generated_service_name() {
+        use crate::network::tonic_gen::consensus_service_server;
+
+        assert_eq!(
+            CONSENSUS_SERVICE_PATH_PREFIX,
+            format!("/{}/", consensus_service_server::SERVICE_NAME)
+        );
+    }
+
+    #[test]
+    fn served_methods_keep_their_own_label() {
+        for method in CONSENSUS_SERVICE_METHODS {
+            let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}{method}");
+            assert_eq!(route_label(&path), *method);
+        }
+    }
+
+    #[test]
+    fn other_paths_share_the_unknown_label() {
+        for path in [
+            "/consensus.ConsensusService/NotAMethod",
+            "/consensus.ConsensusService/fetchcommits",
+            "/consensus.ConsensusService/FetchCommits/extra",
+            "/consensus.ConsensusService/",
+            "/consensus.ConsensusService",
+            "/other.Service/FetchCommits",
+            "/FetchCommits",
+            "/",
+            "",
+        ] {
+            assert_eq!(route_label(path), UNKNOWN_ROUTE, "path: {path}");
+        }
     }
 }

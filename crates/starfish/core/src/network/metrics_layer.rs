@@ -13,7 +13,8 @@ use super::metrics::NetworkRouteMetrics;
 
 pub(crate) trait SizedRequest {
     fn size(&self) -> usize;
-    fn route(&self) -> String;
+    /// Metric label for this request, from a fixed set of values.
+    fn route(&self) -> &'static str;
 }
 
 pub(crate) trait SizedResponse {
@@ -42,29 +43,29 @@ impl MetricsCallbackMaker {
     pub(crate) fn handle_request(&self, request: &dyn SizedRequest) -> MetricsResponseCallback {
         let route = request.route();
 
-        self.metrics.requests.with_label_values(&[&route]).inc();
+        self.metrics.requests.with_label_values(&[route]).inc();
         self.metrics
             .inflight_requests
-            .with_label_values(&[&route])
+            .with_label_values(&[route])
             .inc();
         let request_size = request.size();
         if request_size > 0 {
             self.metrics
                 .request_size
-                .with_label_values(&[&route])
+                .with_label_values(&[route])
                 .observe(request_size as f64);
         }
         if request_size > self.excessive_message_size {
             self.metrics
                 .excessive_size_requests
-                .with_label_values(&[&route])
+                .with_label_values(&[route])
                 .inc();
         }
 
         let timer = self
             .metrics
             .request_latency
-            .with_label_values(&[&route])
+            .with_label_values(&[route])
             .start_timer();
 
         MetricsResponseCallback {
@@ -82,7 +83,7 @@ pub(crate) struct MetricsResponseCallback {
     // The timer is held on to and "observed" once dropped
     #[expect(unused)]
     timer: HistogramTimer,
-    route: String,
+    route: &'static str,
     excessive_message_size: usize,
     /// If Some, response size has already been observed (exact size was known
     /// from headers). If None, response size should be tracked via body
@@ -115,20 +116,20 @@ impl MetricsResponseCallback {
         if response_size > 0 {
             self.metrics
                 .response_size
-                .with_label_values(&[&self.route])
+                .with_label_values(&[self.route])
                 .observe(response_size as f64);
         }
         if response_size > self.excessive_message_size {
             self.metrics
                 .excessive_size_responses
-                .with_label_values(&[&self.route])
+                .with_label_values(&[self.route])
                 .inc();
         }
 
         if let Some(err) = response.error_type() {
             self.metrics
                 .errors
-                .with_label_values(&[&self.route, &err])
+                .with_label_values(&[self.route, &err])
                 .inc();
         }
     }
@@ -136,7 +137,7 @@ impl MetricsResponseCallback {
     pub(crate) fn on_error<E>(&mut self, _error: &E) {
         self.metrics
             .errors
-            .with_label_values(&[self.route.as_str(), "unknown"])
+            .with_label_values(&[self.route, "unknown"])
             .inc();
     }
 
@@ -145,7 +146,7 @@ impl MetricsResponseCallback {
         if self.response_body_size.is_none() && chunk_size > 0 {
             self.metrics
                 .response_size
-                .with_label_values(&[&self.route])
+                .with_label_values(&[self.route])
                 .observe(chunk_size as f64);
         }
     }
@@ -155,7 +156,7 @@ impl Drop for MetricsResponseCallback {
     fn drop(&mut self) {
         self.metrics
             .inflight_requests
-            .with_label_values(&[&self.route])
+            .with_label_values(&[self.route])
             .dec();
     }
 }
