@@ -4,7 +4,7 @@
 //! gRPC-backed store (`feature = "grpc"`, native only); see [`GrpcStore`].
 
 use iota_grpc_client::{
-    Client,
+    GrpcClient,
     read_mask_fields::{EpochReadMask, ObjectReadMask, ServiceInfoReadMask},
 };
 use iota_sdk_types::{CheckpointDigest, Digest, ObjectId, Version};
@@ -34,7 +34,7 @@ pub struct GrpcStore {
 impl GrpcStore {
     /// Wrap an existing client. The store starts with the built-in framework
     /// packages already loaded so Move calls resolve.
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: GrpcClient) -> Self {
         Self {
             cache: CachingStore::new(GrpcFetcher { client }),
         }
@@ -48,7 +48,7 @@ impl GrpcStore {
     /// Returns [`VmSdkError::Store`] if the client cannot be created for `url`.
     pub fn connect(url: impl Into<String>) -> Result<Self, VmSdkError> {
         let url: String = url.into();
-        let client = Client::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
+        let client = GrpcClient::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
         Ok(Self::new(client))
     }
 
@@ -139,7 +139,7 @@ impl Store for GrpcStore {
 /// gRPC transport for [`CachingStore`].
 #[derive(Clone)]
 struct GrpcFetcher {
-    client: Client,
+    client: GrpcClient,
 }
 
 impl ObjectFetcher for GrpcFetcher {
