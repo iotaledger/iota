@@ -196,7 +196,7 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        collect_block_headers(&self.context, stream, commit_sync).await
+        collect_block_headers(&self.context, peer, stream, commit_sync).await
     }
 
     async fn fetch_commits(
@@ -560,24 +560,39 @@ where
 /// Collects the chunks of a `fetch_block_headers` response stream into the
 /// header buffer. A stream cut by an error after headers arrived yields the
 /// delivered chunks.
+///
+/// The header count is bounded while streaming, mirroring the cap the server
+/// truncates its own response to, since the callers only check the count on
+/// the fully-received buffer.
 async fn collect_block_headers<S>(
     context: &Context,
+    peer: AuthorityIndex,
     mut stream: S,
     commit_sync: bool,
 ) -> ConsensusResult<Vec<Bytes>>
 where
     S: Stream<Item = Result<FetchBlockHeadersResponse, tonic::Status>> + Unpin,
 {
+    let max_headers = context.parameters.max_headers_per_fetch(commit_sync);
     let max_allowed_bytes = max_fetch_block_headers_response_bytes(context, commit_sync);
     let mut vec_serialized_block_header = vec![];
     let mut total_fetched_bytes = 0;
     loop {
         match stream.try_next().await {
             Ok(Some(response)) => {
-                for b in &response.vec_serialized_block_header {
+                let headers = response.vec_serialized_block_header;
+                let received = vec_serialized_block_header.len().saturating_add(headers.len());
+                if received > max_headers {
+                    return Err(ConsensusError::TooManyFetchedHeadersReturned {
+                        peer,
+                        requested: max_headers,
+                        received,
+                    });
+                }
+                for b in &headers {
                     total_fetched_bytes += b.len();
                 }
-                vec_serialized_block_header.extend(response.vec_serialized_block_header);
+                vec_serialized_block_header.extend(headers);
                 if total_fetched_bytes > max_allowed_bytes {
                     info!(
                         "fetch_block_headers() fetched bytes exceeded limit: {} > {}, terminating stream.",
@@ -1693,8 +1708,9 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use super::{
-        FetchCommitsAndTransactionsResponse, collect_commits_and_transactions,
-        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
+        FetchBlockHeadersResponse, FetchCommitsAndTransactionsResponse, collect_block_headers,
+        collect_commits_and_transactions, max_fetch_block_headers_response_bytes,
+        max_fetch_transactions_response_bytes,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
@@ -1708,6 +1724,69 @@ mod tests {
             certifier_block_headers: vec![],
             transactions: vec![Bytes::from_static(b"transaction"); transactions],
         }
+    }
+
+    fn header_chunk(headers: usize) -> FetchBlockHeadersResponse {
+        FetchBlockHeadersResponse {
+            vec_serialized_block_header: vec![Bytes::from_static(b"header"); headers],
+        }
+    }
+
+    /// A peer returning more headers than the server-side cap is rejected
+    /// while the response is still streaming, before its chunks are kept.
+    #[tokio::test]
+    async fn headers_past_the_count_cap_are_rejected() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 3;
+        let peer = AuthorityIndex::new_for_test(1);
+        let flood = stream::iter([Ok(header_chunk(2)), Ok(header_chunk(2))]);
+
+        let result = collect_block_headers(&context, peer, flood, true).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested: 3,
+                received: 4,
+                ..
+            })
+        ));
+    }
+
+    /// A response filling the cap exactly is still collected in full.
+    #[tokio::test]
+    async fn headers_at_the_count_cap_are_collected() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 3;
+        let peer = AuthorityIndex::new_for_test(1);
+        let full = stream::iter([Ok(header_chunk(2)), Ok(header_chunk(1))]);
+
+        let headers = collect_block_headers(&context, peer, full, true)
+            .await
+            .expect("a response at the cap is kept");
+
+        assert_eq!(headers.len(), 3);
+    }
+
+    /// Header sync selects its own, smaller cap.
+    #[tokio::test]
+    async fn header_sync_uses_the_header_sync_count_cap() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 10;
+        context.parameters.max_headers_per_header_sync_fetch = 1;
+        let peer = AuthorityIndex::new_for_test(1);
+        let flood = stream::iter([Ok(header_chunk(2))]);
+
+        let result = collect_block_headers(&context, peer, flood, false).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested: 1,
+                received: 2,
+                ..
+            })
+        ));
     }
 
     /// A stream cut before anything arrived delivers nothing to keep, so the
