@@ -27,7 +27,7 @@ use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, SignatureScheme, Transaction,
 };
 use iota_types::{
-    crypto::{PublicKey, get_key_pair_from_rng},
+    crypto::PublicKey,
     dynamic_field::Field,
     iota_system_state::attestor_registry::{
         AttestorMetadataKey, AttestorMetadataV1, AttestorRegistryKey, AttestorRegistryV1,
@@ -37,7 +37,6 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionAPI},
 };
-use rand::rngs::OsRng;
 use serde::Serialize;
 
 use crate::{
@@ -326,17 +325,10 @@ fn flagged_pubkey(keypair: &SimpleKeypair) -> Vec<u8> {
 }
 
 fn generate_attestor_keypair(scheme: SignatureScheme) -> Result<SimpleKeypair> {
-    let mut rng = OsRng;
     Ok(match scheme {
-        SignatureScheme::Ed25519 => {
-            SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut rng).1)
-        }
-        SignatureScheme::Secp256k1 => {
-            SimpleKeypair::from(get_key_pair_from_rng::<Secp256k1PrivateKey, _>(&mut rng).1)
-        }
-        SignatureScheme::Secp256r1 => {
-            SimpleKeypair::from(get_key_pair_from_rng::<Secp256r1PrivateKey, _>(&mut rng).1)
-        }
+        SignatureScheme::Ed25519 => SimpleKeypair::from(Ed25519PrivateKey::random()),
+        SignatureScheme::Secp256k1 => SimpleKeypair::from(Secp256k1PrivateKey::random()),
+        SignatureScheme::Secp256r1 => SimpleKeypair::from(Secp256r1PrivateKey::random()),
         other => bail!(
             "unsupported attestor key scheme: {other}, expected ed25519, secp256k1 or secp256r1"
         ),
@@ -641,7 +633,7 @@ mod tests {
     fn attestor_key_roundtrip_and_no_overwrite() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("attestor.key");
-        let kp = SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut OsRng).1);
+        let kp = SimpleKeypair::from(Ed25519PrivateKey::random());
         write_attestor_key(&path, &kp).unwrap();
         let read = read_attestor_key(&path).unwrap();
         assert_eq!(read.public_key(), kp.public_key());
@@ -657,7 +649,7 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("attestor.key");
-        let kp = SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut OsRng).1);
+        let kp = SimpleKeypair::from(Ed25519PrivateKey::random());
         write_attestor_key(&path, &kp).unwrap();
         let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
