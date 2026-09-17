@@ -449,6 +449,9 @@ pub(crate) enum ConsensusError {
         round: Round,
         last_round: Round,
     },
+
+    #[error("Another fetch is already serving a commit that does not fit the response budget")]
+    OversizedCommitAlreadyServed,
 }
 
 impl ConsensusError {

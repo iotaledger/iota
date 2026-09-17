@@ -28,7 +28,8 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle,
+    BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
+    SerializedBlockBundle,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
@@ -936,11 +937,21 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         };
         let permit = self.admit(RpcGroup::CommitFetch, peer_index)?;
         let request = request.into_inner();
-        let (serialized_commits, serialized_headers, serialized_transactions) = self
+        let FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_headers,
+            transactions: serialized_transactions,
+            oversized_commit_permit,
+        } = self
             .service
             .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
             .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+            .map_err(|e| match e {
+                ConsensusError::OversizedCommitAlreadyServed => {
+                    tonic::Status::resource_exhausted(e.to_string())
+                }
+                e => tonic::Status::internal(format!("{e:?}")),
+            })?;
 
         // Build response as a stream of chunks to stay under gRPC message size limit.
         // Commits and transactions are chunked by size. Certifier headers are small
@@ -977,7 +988,9 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             }));
         }
 
-        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
+        let stream = PermitGuardedStream::new(iter(responses), permit)
+            .holding(oversized_commit_permit)
+            .boxed();
         Ok(Response::new(stream))
     }
 

@@ -18,7 +18,10 @@ use crate::{
     commit_syncer::CommitSyncType,
     encoder::ShardEncoder,
     error::ConsensusResult,
-    network::{BlockBundleStream, NetworkService, SerializedBlockBundle, StreamPosition},
+    network::{
+        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlockBundle,
+        StreamPosition,
+    },
     transaction_ref::TransactionRef,
 };
 
@@ -140,7 +143,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         _peer: AuthorityIndex,
         _commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+    ) -> ConsensusResult<FetchedCommitsAndTransactions> {
         unimplemented!("Unimplemented")
     }
 

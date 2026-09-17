@@ -17,7 +17,7 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::sync::{Mutex, broadcast, mpsc::Sender};
+use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, error, info, warn};
 
@@ -41,9 +41,9 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{
-        BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
-        StreamPosition,
+        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlock,
+        SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
+        SerializedTransactionsV2, StreamPosition,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -148,6 +148,9 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// useful information such as which headers and shards are needed to a
     /// specific peer
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
+    /// Reserved while a fast commit-sync fetch reads one commit without a byte
+    /// budget, so only one such response is ever held in memory.
+    oversized_commit_slot: Arc<Semaphore>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -185,6 +188,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             misbehavior_store,
             transaction_message_sender,
             cordial_knowledge,
+            oversized_commit_slot: Arc::new(Semaphore::new(1)),
         }
     }
     fn create_verified_block_and_shard(
@@ -839,8 +843,9 @@ fn fetch_commit_transactions_within_budget(
     context: &Context,
     store: &dyn Store,
     dag_state: &RwLock<DagState>,
+    oversized_commit_slot: &Arc<Semaphore>,
     commits_transaction_refs: &[Vec<TransactionRef>],
-) -> ConsensusResult<Vec<Bytes>> {
+) -> ConsensusResult<(Vec<Bytes>, Option<OwnedSemaphorePermit>)> {
     let all_refs: Vec<TransactionRef> =
         commits_transaction_refs.iter().flatten().copied().collect();
     let mut payloads = read_transaction_payloads(
@@ -876,14 +881,19 @@ fn fetch_commit_transactions_within_budget(
     }
 
     if covered_commits > 0 {
-        return Ok(result);
+        return Ok((result, None));
     }
     let Some(first_transaction_refs) = commits_transaction_refs.first() else {
-        return Ok(result);
+        return Ok((result, None));
     };
 
     // The first commit did not fit the budget, so read it on its own with no
-    // budget to keep the requester moving.
+    // budget to keep the requester moving. Only one response may do this at a
+    // time, so the memory a node can be asked to hold stays bounded.
+    let permit = oversized_commit_slot
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| ConsensusError::OversizedCommitAlreadyServed)?;
     let mut payloads =
         read_transaction_payloads(store, dag_state, first_transaction_refs, usize::MAX)?;
     for transaction_ref in first_transaction_refs {
@@ -891,7 +901,7 @@ fn fetch_commit_transactions_within_budget(
             result.push(serialize_transactions_entry(*transaction_ref, payload)?);
         }
     }
-    Ok(result)
+    Ok((result, Some(permit)))
 }
 
 /// Wraps a payload and its ref into the entry a transaction-fetch response
@@ -1658,7 +1668,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+    ) -> ConsensusResult<FetchedCommitsAndTransactions> {
         fail_point_async!("consensus-rpc-response");
 
         let (commits, certifier_block_headers) = self
@@ -1679,12 +1689,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             })
             .collect::<ConsensusResult<_>>()?;
 
-        let serialized_transactions = fetch_commit_transactions_within_budget(
-            &self.context,
-            self.store.as_ref(),
-            &self.dag_state,
-            &commits_transaction_refs,
-        )?;
+        let (serialized_transactions, oversized_commit_permit) =
+            fetch_commit_transactions_within_budget(
+                &self.context,
+                self.store.as_ref(),
+                &self.dag_state,
+                &self.oversized_commit_slot,
+                &commits_transaction_refs,
+            )?;
 
         let serialized_commits: Vec<Bytes> = commits
             .into_iter()
@@ -1696,11 +1708,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map(|h| h.serialized().clone())
             .collect();
 
-        Ok((
-            serialized_commits,
-            serialized_headers,
-            serialized_transactions,
-        ))
+        Ok(FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_headers,
+            transactions: serialized_transactions,
+            oversized_commit_permit,
+        })
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -2082,7 +2095,7 @@ mod tests {
     use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
-        sync::{broadcast, mpsc},
+        sync::{Semaphore, broadcast, mpsc},
         time::sleep,
     };
 
@@ -5710,10 +5723,12 @@ mod tests {
             refs_by_round[1].clone(),
             vec![refs_by_round[0][0], unknown_ref],
         ];
-        let served = fetch_commit_transactions_within_budget(
+        let oversized_commit_slot = Arc::new(Semaphore::new(1));
+        let (served, _) = fetch_commit_transactions_within_budget(
             &context,
             store.as_ref(),
             &dag_state,
+            &oversized_commit_slot,
             &commits_transaction_refs,
         )
         .unwrap();
@@ -5734,5 +5749,52 @@ mod tests {
             .copied()
             .collect();
         assert_eq!(served_refs, expected);
+    }
+
+    #[tokio::test]
+    async fn one_fetch_at_a_time_reads_a_commit_without_a_budget() {
+        use crate::authority_service::fetch_commit_transactions_within_budget;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=1).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+        let served_ref = dag_builder.block_headers(1..=1)[0].transaction_ref();
+        let unknown_ref = TransactionRef {
+            round: 1,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
+        };
+
+        // The first commit cannot be covered within the budget, so serving it
+        // takes the slot for reading a commit without one.
+        let commits_transaction_refs = vec![vec![served_ref, unknown_ref]];
+        let oversized_commit_slot = Arc::new(Semaphore::new(1));
+        let fetch = || {
+            fetch_commit_transactions_within_budget(
+                &context,
+                store.as_ref(),
+                &dag_state,
+                &oversized_commit_slot,
+                &commits_transaction_refs,
+            )
+        };
+
+        let (served, permit) = fetch().unwrap();
+        assert_eq!(served.len(), 1);
+        assert!(permit.is_some());
+
+        assert!(matches!(
+            fetch(),
+            Err(ConsensusError::OversizedCommitAlreadyServed)
+        ));
+
+        // The slot frees up once the response holding it has been sent.
+        drop(permit);
+        assert!(fetch().unwrap().1.is_some());
     }
 }

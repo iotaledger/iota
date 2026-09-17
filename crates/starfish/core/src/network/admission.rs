@@ -142,6 +142,7 @@ impl Drop for AdmissionGuard {
 pub(crate) struct PermitGuardedStream<St> {
     inner: St,
     _guard: Option<AdmissionGuard>,
+    _permit: Option<OwnedSemaphorePermit>,
 }
 
 impl<St> PermitGuardedStream<St> {
@@ -149,7 +150,16 @@ impl<St> PermitGuardedStream<St> {
         Self {
             inner,
             _guard: guard,
+            _permit: None,
         }
+    }
+
+    /// Holds `permit` for the same lifetime as the admission guard, for a
+    /// handler that reserved something the response keeps in use until it has
+    /// been sent.
+    pub(crate) fn holding(mut self, permit: Option<OwnedSemaphorePermit>) -> Self {
+        self._permit = permit;
+        self
     }
 }
 
