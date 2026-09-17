@@ -512,4 +512,40 @@ impl Store for MemStore {
     fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool> {
         Ok(self.inner.read().fast_sync_ongoing)
     }
+
+    fn scan_serialized_transactions(
+        &self,
+        refs: &BTreeSet<TransactionRef>,
+        byte_budget: usize,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+        let (Some(first), Some(last)) = (refs.first(), refs.last()) else {
+            return Ok(BTreeMap::new());
+        };
+        let lower = (first.round, first.author, first.transactions_commitment);
+        let upper = (last.round, last.author, last.transactions_commitment);
+
+        let inner = self.inner.read();
+        let mut transactions = BTreeMap::new();
+        let mut total_bytes = 0usize;
+        for ((round, author, transactions_commitment), stored) in inner
+            .transactions_by_tx_refs
+            .range((Included(lower), Included(upper)))
+        {
+            let transaction_ref = TransactionRef {
+                round: *round,
+                author: *author,
+                transactions_commitment: *transactions_commitment,
+            };
+            if !refs.contains(&transaction_ref) {
+                continue;
+            }
+            let serialized = stored.serialized();
+            if !transactions.is_empty() && total_bytes + serialized.len() > byte_budget {
+                break;
+            }
+            total_bytes += serialized.len();
+            transactions.insert(transaction_ref, serialized.clone());
+        }
+        Ok(transactions)
+    }
 }
