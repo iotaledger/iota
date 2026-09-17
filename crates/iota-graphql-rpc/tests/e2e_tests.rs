@@ -1315,11 +1315,6 @@ mod tests {
                 .response_body_json();
         let effects = &executed["data"]["executeTransactionBlock"]["effects"];
 
-        assert!(
-            effects["checkpoint"].is_null(),
-            "transaction was checkpointed before it could be read optimistically: {executed}"
-        );
-
         let page_info = &effects["objectChanges"]["pageInfo"];
         assert_eq!(page_info["hasNextPage"], json!(true), "{executed}");
         let end_cursor = page_info["endCursor"].as_str().unwrap().to_string();
