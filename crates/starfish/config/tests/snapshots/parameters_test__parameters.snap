@@ -62,3 +62,4 @@ enable_shard_peer_selection: true
 dag_visualizer_port: ~
 solid_commit_lag_threshold: 500
 shard_budget_per_authority: 1000
+max_fast_commit_sync_transaction_bytes: 67108864
