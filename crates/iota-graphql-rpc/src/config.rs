@@ -2,13 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeSet,
-    fmt::{self, Display},
-};
+use std::{collections::BTreeSet, fmt::Display};
 
 use async_graphql::*;
 use iota_graphql_config::GraphQLConfig;
+use iota_indexer::db::DbUrl;
 use iota_names::config::IotaNamesConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -72,14 +70,6 @@ pub struct ConnectionConfig {
     )]
     pub max_available_range: u64,
 }
-
-/// A database connection URL, which can contain a password.
-///
-/// Its `Debug` impl hides the password, so that printing a config that
-/// contains it does not write password to the logs.
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
-#[serde(transparent)]
-pub struct DbUrl(String);
 
 /// CLI options that control the archival fallback used when Postgres data has
 /// been pruned.
@@ -425,47 +415,6 @@ impl ServiceConfig {
     /// Maximum number of candidates to scan when gathering a page of results.
     async fn max_scan_limit(&self) -> Result<i32> {
         try_into_int(self.limits.max_scan_limit).extend()
-    }
-}
-
-impl DbUrl {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// The URL with its password replaced by `****`. If it's impossible to
-    /// parse the url to hide only the password then the whole url is hidden.
-    fn redacted(&self) -> String {
-        const HIDDEN: &str = "****";
-
-        let Ok(mut url) = Url::parse(&self.0) else {
-            return HIDDEN.to_string();
-        };
-
-        let password = url.password().map(|_| HIDDEN);
-        if url.set_password(password).is_err() {
-            return HIDDEN.to_string();
-        }
-
-        url.to_string()
-    }
-}
-
-impl From<String> for DbUrl {
-    fn from(url: String) -> Self {
-        Self(url)
-    }
-}
-
-impl From<DbUrl> for String {
-    fn from(url: DbUrl) -> Self {
-        url.0
-    }
-}
-
-impl fmt::Debug for DbUrl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("DbUrl").field(&self.redacted()).finish()
     }
 }
 
@@ -853,34 +802,6 @@ mod tests {
         };
 
         assert_eq!(actual, expect);
-    }
-
-    #[test]
-    fn test_db_url_debug_hides_password() {
-        let cases = [
-            (
-                "postgres://user:hunter2@localhost:5432/iota_indexer",
-                "postgres://user:****@localhost:5432/iota_indexer",
-            ),
-            (
-                "postgres://user@localhost:5432/iota_indexer",
-                "postgres://user@localhost:5432/iota_indexer",
-            ),
-            (
-                "postgres://localhost:5432/iota_indexer",
-                "postgres://localhost:5432/iota_indexer",
-            ),
-            // url fails to parse, password can be anywhere
-            ("user:hunter2@localhost", "****"),
-            ("host=localhost password=hunter2", "****"),
-        ];
-
-        for (url, expect) in cases {
-            let db_url = DbUrl::from(url.to_string());
-
-            assert_eq!(format!("{db_url:?}"), format!(r#"DbUrl("{expect}")"#));
-            assert_eq!(db_url.as_str(), url);
-        }
     }
 
     #[test]

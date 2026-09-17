@@ -439,7 +439,7 @@ impl ServerBuilder {
 
         let iota_names_config = config.service.iota_names.clone();
         let reader = PgManager::reader_with_config(
-            config.connection.db_url.clone(),
+            &config.connection.db_url,
             config.connection.db_pool_size,
             // Bound each statement in a request with the overall request timeout, to bound DB
             // utilisation (in the worst case we will use 2x the request timeout time in DB wall
@@ -815,7 +815,7 @@ pub mod tests {
 
         let registry = prometheus_filtered::Registry::new();
         let reader = PgManager::reader_with_config(
-            connection_config.db_url.clone(),
+            &connection_config.db_url,
             connection_config.db_pool_size,
             service_config.limits.request_timeout_ms.into(),
             IndexerMetrics::new(&registry),
