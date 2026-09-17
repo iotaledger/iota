@@ -4,6 +4,18 @@
 // @generated automatically by scripts/indexer-schema/generate.sh
 
 diesel::table! {
+    account_key_links (key_id, account_id) {
+        key_id -> Bytea,
+        account_id -> Bytea,
+        scheme -> Int2,
+        source -> Int2,
+        status -> Int2,
+        last_change_tx_sequence_number -> Int8,
+        last_change_epoch -> Int8,
+    }
+}
+
+diesel::table! {
     active_addresses (address) {
         address -> Bytea,
         first_appearance_tx -> Int8,
@@ -83,6 +95,16 @@ diesel::table! {
         computation_cost_burned -> Nullable<Int8>,
         content_digest -> Nullable<Bytea>,
         version_specific_data -> Nullable<Bytea>,
+    }
+}
+
+diesel::table! {
+    claimed_accounts (account_id) {
+        account_id -> Bytea,
+        key_id -> Bytea,
+        immutable -> Bool,
+        claim_tx_sequence_number -> Int8,
+        claim_epoch -> Int8,
     }
 }
 
@@ -455,12 +477,14 @@ diesel::table! {
 macro_rules! for_all_tables {
     ($action:path) => {
         $action!(
+            account_key_links,
             active_addresses,
             address_metrics,
             addresses,
             chain_identifier,
             checkpointed_objects,
             checkpoints,
+            claimed_accounts,
             display,
             epoch_peak_tps,
             epochs,

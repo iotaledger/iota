@@ -8,12 +8,15 @@ use tap::tap::TapFallible;
 use tracing::{error, info, instrument};
 
 use crate::{
+    account_key_events::AccountKeyLinkOp,
     ingestion::common::{
         persist::{CHECKPOINT_COMMIT_BATCH_SIZE, CommitterTables, CommitterWatermark},
         prepare::CheckpointObjectChanges,
     },
     metrics::IndexerMetrics,
     models::{
+        account_key_links::StoredAccountKeyLink,
+        claimed_accounts::StoredClaimedAccount,
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
@@ -38,6 +41,23 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) object_versions: Vec<StoredObjectVersion>,
     pub(crate) packages: Vec<IndexedPackage>,
     pub(crate) epoch: Option<EpochToCommit>,
+    pub(crate) account_key_link_ops: Vec<AccountKeyLinkOp>,
+    pub(crate) claimed_accounts: Vec<StoredClaimedAccount>,
+}
+
+/// Collapses `rows` to the last one seen per key.
+///
+/// The output is ordered by key so that an ingestion run produces the same
+/// write set regardless of how the batch was chunked.
+fn collapse_last_write_wins<T, K: Ord>(
+    rows: impl Iterator<Item = T>,
+    key: impl Fn(&T) -> K,
+) -> Vec<T> {
+    let mut latest = std::collections::BTreeMap::new();
+    for row in rows {
+        latest.insert(key(&row), row);
+    }
+    latest.into_values().collect()
 }
 
 #[derive(Clone, Debug, Default)]
@@ -109,6 +129,8 @@ impl PrimaryWriter {
         let mut backward_history_batch = Vec::new();
         let mut object_versions_batch = Vec::with_capacity(batch_len);
         let mut packages_batch = Vec::with_capacity(batch_len);
+        let mut account_key_link_ops = Vec::new();
+        let mut claimed_accounts = Vec::new();
 
         for indexed_checkpoint in indexed_checkpoint_batch {
             let CheckpointDataToCommit {
@@ -122,6 +144,8 @@ impl PrimaryWriter {
                 backward_history_changes,
                 object_versions,
                 packages,
+                account_key_link_ops: checkpoint_link_ops,
+                claimed_accounts: checkpoint_claimed_accounts,
                 ..
             } = indexed_checkpoint;
             checkpoint_batch.push(checkpoint);
@@ -134,7 +158,22 @@ impl PrimaryWriter {
             backward_history_batch.extend(backward_history_changes);
             object_versions_batch.push(object_versions);
             packages_batch.push(packages);
+            account_key_link_ops.extend(checkpoint_link_ops);
+            claimed_accounts.extend(checkpoint_claimed_accounts);
         }
+
+        // Both tables hold the latest state per key, so collapse the batch to
+        // one row per key before writing: the result must not depend on how the
+        // batch is chunked. Ops arrive in (checkpoint, transaction, event)
+        // order, so the last write wins — which is what makes a claim's
+        // `attach` and `claim` ops land as a single row sourced `claim`.
+        let account_key_links = collapse_last_write_wins(
+            account_key_link_ops.iter().map(StoredAccountKeyLink::from),
+            |link| (link.key_id.clone(), link.account_id.clone()),
+        );
+        let claimed_accounts = collapse_last_write_wins(claimed_accounts.into_iter(), |claimed| {
+            claimed.account_id.clone()
+        });
 
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
         let committer_watermark = CommitterWatermark::from(checkpoint_batch.last().unwrap());
@@ -166,6 +205,8 @@ impl PrimaryWriter {
                 self.state.persist_transactions(tx_batch),
                 self.state.persist_tx_indices(tx_indices_batch),
                 self.state.persist_events(events_batch),
+                self.state.persist_account_key_links(account_key_links),
+                self.state.persist_claimed_accounts(claimed_accounts),
                 self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(displays_batch),
                 self.state
@@ -301,5 +342,96 @@ impl PrimaryWriter {
         self.metrics
             .thousand_transaction_avg_db_commit_latency
             .observe(elapsed * 1000.0 / tx_count as f64);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        account_key_events::{AccountKeyLinkOp, LinkOpKind, LinkSource},
+        models::account_key_links::{LINK_STATUS_ACTIVE, LINK_STATUS_UNLINKED},
+    };
+
+    const KEY: [u8; 32] = [0xAA; 32];
+    const OTHER_KEY: [u8; 32] = [0xBB; 32];
+    const ACCOUNT: [u8; 32] = [0x11; 32];
+
+    #[test]
+    fn an_empty_batch_collapses_to_nothing() {
+        assert!(collapse(vec![]).is_empty());
+    }
+
+    #[test]
+    fn the_last_op_per_pair_wins() {
+        let rows = collapse(vec![
+            op(KEY, LinkSource::Attach, LinkOpKind::Link, 1),
+            op(KEY, LinkSource::Detach, LinkOpKind::Unlink, 2),
+        ]);
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].status, LINK_STATUS_UNLINKED);
+        assert_eq!(rows[0].last_change_tx_sequence_number, 2);
+    }
+
+    #[test]
+    fn an_attach_then_claim_in_one_batch_yields_one_claim_row() {
+        // The shape of a claim transaction: claim_builder attaches the key and
+        // the entry point then emits the claim, both for the same pair.
+        let rows = collapse(vec![
+            op(KEY, LinkSource::Attach, LinkOpKind::Link, 5),
+            op(KEY, LinkSource::Claim, LinkOpKind::Link, 5),
+        ]);
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].source, LinkSource::Claim as i16);
+        assert_eq!(rows[0].status, LINK_STATUS_ACTIVE);
+    }
+
+    #[test]
+    fn a_rotation_back_onto_the_same_key_stays_active() {
+        let rows = collapse(vec![
+            op(KEY, LinkSource::Rotate, LinkOpKind::Unlink, 3),
+            op(KEY, LinkSource::Rotate, LinkOpKind::Link, 3),
+        ]);
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].status, LINK_STATUS_ACTIVE);
+    }
+
+    #[test]
+    fn distinct_keys_keep_distinct_rows_in_key_order() {
+        let rows = collapse(vec![
+            op(OTHER_KEY, LinkSource::Rotate, LinkOpKind::Link, 4),
+            op(KEY, LinkSource::Rotate, LinkOpKind::Unlink, 4),
+        ]);
+
+        assert_eq!(rows.len(), 2);
+        // Ordered by key so the write set does not depend on batch order.
+        assert_eq!(rows[0].key_id, KEY.to_vec());
+        assert_eq!(rows[1].key_id, OTHER_KEY.to_vec());
+    }
+
+    fn collapse(ops: Vec<AccountKeyLinkOp>) -> Vec<StoredAccountKeyLink> {
+        collapse_last_write_wins(ops.iter().map(StoredAccountKeyLink::from), |link| {
+            (link.key_id.clone(), link.account_id.clone())
+        })
+    }
+
+    fn op(
+        key_id: [u8; 32],
+        source: LinkSource,
+        kind: LinkOpKind,
+        tx_sequence_number: i64,
+    ) -> AccountKeyLinkOp {
+        AccountKeyLinkOp {
+            key_id,
+            account_id: ACCOUNT,
+            scheme: 0,
+            source,
+            kind,
+            tx_sequence_number,
+            epoch: 1,
+        }
     }
 }
