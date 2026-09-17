@@ -692,11 +692,17 @@ impl ConsensusOutputQuarantine {
 
         let mut highest_committed_height = None;
 
+        // The builder inserts every checkpoint of one build together, all
+        // tagged with the build's `checkpoint_height`. The builder resumes
+        // after the highest persisted height and the loop below releases every
+        // commit at or below it, so a height must only be persisted once all
+        // of its checkpoints are executed.
+        let flush_up_to = self.last_sequence_of_executed_height_groups();
+
         while self
             .builder_checkpoint_summary
             .first_key_value()
-            .map(|(seq, _)| *seq <= self.highest_executed_checkpoint)
-            == Some(true)
+            .is_some_and(|(seq, _)| Some(*seq) <= flush_up_to)
         {
             let (seq, (builder_summary, contents)) =
                 self.builder_checkpoint_summary.pop_first().unwrap();
@@ -727,7 +733,11 @@ impl ConsensusOutputQuarantine {
                 .checkpoint_height
                 .expect("non-genesis checkpoint must have height");
             if let Some(highest) = highest_committed_height {
-                assert!(checkpoint_height > highest);
+                // Checkpoints of one build share a height.
+                assert!(
+                    checkpoint_height >= highest,
+                    "checkpoint height {checkpoint_height} must not fall below the previously flushed height {highest}"
+                );
             }
 
             highest_committed_height = Some(checkpoint_height);
@@ -784,6 +794,22 @@ impl ConsensusOutputQuarantine {
             .set(self.output_queue.len() as i64);
 
         Ok(())
+    }
+
+    /// The last executed builder checkpoint whose `checkpoint_height` is fully
+    /// executed, i.e. excluding the trailing checkpoints that share a height
+    /// with the first unexecuted one.
+    fn last_sequence_of_executed_height_groups(&self) -> Option<CheckpointSequenceNumber> {
+        let first_unexecuted_height = self
+            .builder_checkpoint_summary
+            .range(self.highest_executed_checkpoint + 1..)
+            .next()
+            .map(|(_, (summary, _))| summary.checkpoint_height);
+        self.builder_checkpoint_summary
+            .range(..=self.highest_executed_checkpoint)
+            .rev()
+            .find(|(_, (summary, _))| Some(summary.checkpoint_height) != first_unexecuted_height)
+            .map(|(seq, _)| *seq)
     }
 
     fn insert_shared_object_next_versions(&mut self, output: &ConsensusCommitOutput) {
