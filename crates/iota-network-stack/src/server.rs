@@ -6,6 +6,7 @@ use std::{
     convert::Infallible,
     num::NonZeroUsize,
     task::{Context, Poll},
+    time::Duration,
 };
 
 use eyre::{Result, eyre};
@@ -30,6 +31,14 @@ use crate::{
     multiaddr::{Multiaddr, Protocol},
 };
 
+/// Server-side deadline for a request whose config sets no `request_timeout`.
+///
+/// A request holds its admission slot from the moment its headers arrive
+/// until the handler responds, including the time spent receiving the body,
+/// so without a deadline a peer that never finishes sending pins the slot
+/// indefinitely.
+pub const DEFAULT_GRPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
     config: Config,
     metrics_provider: M,
@@ -52,6 +61,14 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
 
     pub fn health_reporter(&self) -> tonic_health::server::HealthReporter {
         self.health_reporter.clone()
+    }
+
+    /// The server-side request deadline this server enforces, unless a
+    /// request carries a shorter `grpc-timeout` header.
+    pub fn request_timeout(&self) -> Duration {
+        self.config
+            .request_timeout
+            .unwrap_or(DEFAULT_GRPC_REQUEST_TIMEOUT)
     }
 
     /// Add a new service to this Server.
@@ -99,7 +116,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
         let http_config = self.config.http_config();
 
-        let request_timeout = self.config.request_timeout;
+        let request_timeout = self.request_timeout();
         let metrics_provider = self.metrics_provider;
         let metrics = MetricsHandler::new(metrics_provider.clone());
         let request_metrics = TraceLayer::new_for_grpc()
@@ -144,7 +161,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             .layer(request_metrics)
             .layer(PropagateHeaderLayer::new(GRPC_ENDPOINT_PATH_HEADER.clone()))
             .layer_fn(move |service| {
-                crate::grpc_timeout::GrpcTimeout::new(service, request_timeout)
+                crate::grpc_timeout::GrpcTimeout::new(service, Some(request_timeout))
             });
 
         let mut builder = iota_http::Builder::new().config(http_config);
@@ -438,6 +455,139 @@ mod test {
     async fn ip6() {
         let address: Multiaddr = "/ip6/::1/tcp/0/http".parse().unwrap();
         test_multiaddr(address).await;
+    }
+
+    #[test]
+    fn request_timeout_falls_back_to_the_default() {
+        let unset = Config::new();
+        assert_eq!(
+            unset.server_builder().request_timeout(),
+            super::DEFAULT_GRPC_REQUEST_TIMEOUT
+        );
+
+        let mut configured = Config::new();
+        configured.request_timeout = Some(Duration::from_secs(7));
+        assert_eq!(
+            configured.server_builder().request_timeout(),
+            Duration::from_secs(7)
+        );
+    }
+
+    /// Answers only once the whole request body has arrived, so a body that
+    /// never completes keeps the request in flight for as long as the peer
+    /// likes.
+    #[derive(Clone)]
+    struct DrainBody;
+
+    impl tower::Service<http::Request<tonic::body::Body>> for DrainBody {
+        type Response = http::Response<tonic::body::Body>;
+        type Error = std::convert::Infallible;
+        type Future = futures::future::BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+        fn poll_ready(
+            &mut self,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Result<(), Self::Error>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+
+        fn call(&mut self, request: http::Request<tonic::body::Body>) -> Self::Future {
+            use http_body_util::BodyExt as _;
+            Box::pin(async move {
+                let _ = request.into_body().collect().await;
+                Ok(tonic::Status::new(Code::Ok, "").into_http())
+            })
+        }
+    }
+
+    impl tonic::server::NamedService for DrainBody {
+        const NAME: &'static str = "test.DrainBody";
+    }
+
+    /// A request body that either is already complete or never produces its
+    /// data, mirroring a peer that sends HEADERS and then goes silent.
+    enum TestBody {
+        Empty,
+        Stalled,
+    }
+
+    impl http_body::Body for TestBody {
+        type Data = bytes::Bytes;
+        type Error = std::convert::Infallible;
+
+        fn poll_frame(
+            self: std::pin::Pin<&mut Self>,
+            _cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+            match *self {
+                TestBody::Empty => std::task::Poll::Ready(None),
+                TestBody::Stalled => std::task::Poll::Pending,
+            }
+        }
+
+        fn is_end_stream(&self) -> bool {
+            matches!(self, TestBody::Empty)
+        }
+    }
+
+    /// A request that never finishes sending its body must be answered by the
+    /// server-side deadline, releasing the admission slot it was holding.
+    #[tokio::test]
+    async fn server_timeout_releases_a_stalled_request_and_its_admission_slot() {
+        const REQUEST_TIMEOUT: Duration = Duration::from_millis(200);
+
+        let mut config = Config::new();
+        config.request_timeout = Some(REQUEST_TIMEOUT);
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let server = config
+            .server_builder()
+            .add_service_with_concurrency_limit(DrainBody, std::num::NonZeroUsize::MIN, false)
+            .bind(&address, None)
+            .await
+            .unwrap();
+
+        let stream = tokio::net::TcpStream::connect(server.local_addr().to_socket_addr().unwrap())
+            .await
+            .unwrap();
+        let (mut sender, connection) = hyper::client::conn::http2::handshake(
+            hyper_util::rt::TokioExecutor::new(),
+            hyper_util::rt::TokioIo::new(stream),
+        )
+        .await
+        .unwrap();
+        tokio::spawn(connection);
+
+        let request = |body| {
+            http::Request::post("/test.DrainBody/Drain")
+                .header("content-type", "application/grpc")
+                .body(body)
+                .unwrap()
+        };
+        let grpc_status = |response: &http::Response<hyper::body::Incoming>| {
+            response.headers()["grpc-status"]
+                .to_str()
+                .unwrap()
+                .to_owned()
+        };
+
+        // Occupies the only admission slot without ever sending its body.
+        let stalled = tokio::time::timeout(
+            REQUEST_TIMEOUT * 25,
+            sender.send_request(request(TestBody::Stalled)),
+        )
+        .await
+        .expect("the server must answer a stalled request once its deadline passes")
+        .unwrap();
+        assert_eq!(
+            grpc_status(&stalled),
+            (Code::DeadlineExceeded as i32).to_string()
+        );
+
+        // The slot is free again, so a complete request is served.
+        let served = sender.send_request(request(TestBody::Empty)).await.unwrap();
+        assert_eq!(grpc_status(&served), (Code::Ok as i32).to_string());
+
+        server.server_handle.shutdown().await;
     }
 }
 

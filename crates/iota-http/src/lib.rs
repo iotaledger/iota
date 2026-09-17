@@ -607,6 +607,52 @@ mod tests {
         );
     }
 
+    /// A peer that completes the HTTP/2 preface and then falls silent is
+    /// closed once it fails to answer the keepalive ping.
+    #[tokio::test]
+    async fn silent_http2_peer_is_closed_by_keepalive() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const KEEPALIVE: Duration = Duration::from_millis(100);
+
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .http2_keepalive_interval(Some(KEEPALIVE))
+                    .http2_keepalive_timeout(Some(KEEPALIVE)),
+            )
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        // Connection preface and an empty SETTINGS frame, then nothing more.
+        connection
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+        connection
+            .write_all(&[0, 0, 0, 0x4, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+
+        let closed = tokio::time::timeout(KEEPALIVE * 50, async {
+            let mut buf = [0u8; 1024];
+            loop {
+                match connection.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => continue,
+                }
+            }
+        })
+        .await;
+        assert!(
+            closed.is_ok(),
+            "the server must close a peer that ignores keepalive pings"
+        );
+    }
+
     /// While the pending limit is reached the server stops accepting, and
     /// resumes once a slot frees.
     #[tokio::test]

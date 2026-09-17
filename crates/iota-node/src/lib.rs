@@ -1553,7 +1553,15 @@ impl IotaNode {
         );
         let load_shed = config.grpc_load_shed.unwrap_or_default();
 
-        let server_conf = iota_network_stack::config::Config::new();
+        // HTTP/2 keepalive is the only mechanism that closes a connection whose
+        // peer has gone away without closing it: the server pings after this
+        // long without inbound frames and drops the connection when the ping
+        // goes unanswered for as long again.
+        const VALIDATOR_GRPC_KEEPALIVE: Duration = Duration::from_secs(60);
+
+        let mut server_conf = iota_network_stack::config::Config::new();
+        server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
+        server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
                 .add_service_with_concurrency_limit(
