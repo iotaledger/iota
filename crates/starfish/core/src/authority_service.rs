@@ -1874,9 +1874,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let mut result = Vec::new();
         for transaction_ref in committed_transactions_refs {
-            // Drained rather than read, so a payload is freed as soon as its
-            // envelope is built instead of being held until the response is
-            // complete.
+            // Drained, so a payload is freed as soon as its envelope is built.
             if let Some(serialized_tx) = transactions_by_ref.remove(&transaction_ref) {
                 result.push(serialize_transactions_entry(
                     transaction_ref,
