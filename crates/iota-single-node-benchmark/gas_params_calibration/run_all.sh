@@ -6,7 +6,7 @@
 # remote machine under tmux/nohup: every stage skips work already on disk,
 # so re-running after an interruption continues where it stopped.
 #
-#   run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off] [--concurrency-runs]
+#   run_all.sh OUT_DIR [--memory-bandwidth-bytes-per-sec B] [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off] [--concurrency-runs]
 #
 # --turbo defaults to off (the fitting protocol: base clock, repeatable). A
 # second full run with --turbo on, into its own OUT_DIR, measures how much the
@@ -24,10 +24,11 @@
 # fit → validation score → optional concurrency contrast. Logs to
 # OUT_DIR/run_all.log.
 set -euo pipefail
-out="${1:?usage: run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off] [--concurrency-runs]}"; shift
-write_duration=0; skip_cold=0; skip_write=1; turbo="off"; concurrency_runs=0
+out="${1:?usage: run_all.sh OUT_DIR [--memory-bandwidth-bytes-per-sec B] [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off] [--concurrency-runs]}"; shift
+write_duration=0; skip_cold=0; skip_write=1; turbo="off"; concurrency_runs=0; memory_bandwidth=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    --memory-bandwidth-bytes-per-sec) memory_bandwidth="$2"; shift 2;;
     --write-duration) write_duration="$2"; skip_write=0; shift 2;;
     --skip-cold) skip_cold=1; shift;;
     --skip-write) skip_write=1; shift;;
@@ -94,7 +95,8 @@ if [ "$skip_write" -eq 0 ]; then
 fi
 
 stage "fit"
-python3 "$here/fit.py" --data "$out/sweeps" "$out/mixed" --out "$out/calibration-artifact.json"
+python3 "$here/fit.py" --data "$out/sweeps" "$out/mixed" --out "$out/calibration-artifact.json" \
+    ${memory_bandwidth:+--memory-bandwidth-bytes-per-sec "$memory_bandwidth"}
 
 stage "validation score (single-workload sweeps, held-out split is inside fit)"
 python3 "$here/validate.py" score --artifact "$out/calibration-artifact.json" \

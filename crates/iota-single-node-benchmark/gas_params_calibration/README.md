@@ -127,8 +127,14 @@ The joint fit over one or more sweep datasets — the real coefficients, as
 opposed to `slopes.json`'s single-knob quick looks:
 
 ```sh
-./fit.py --data DATASET_DIR [MORE_DIRS ...] --out calibration-artifact.json
+./fit.py --data DATASET_DIR [MORE_DIRS ...] --out calibration-artifact.json \
+    [--memory-bandwidth-bytes-per-sec B]
 ```
+
+`--memory-bandwidth-bytes-per-sec` records the machine's sustained
+memory/store bandwidth (measured by the ceiling runs, not by this fit) in
+the artifact, since the protocol config ships that value inside the
+coefficient table; without it the artifact records null there.
 
 Non-negative least squares of `measured_ns` on every profile counter, fit
 on 80% of the transactions. Native cost enters as two columns per native
@@ -259,7 +265,8 @@ curl https://sh.rustup.rs -sSf | sh            # the toolchain is pinned by rust
 
 # every session: run inside tmux so an SSH drop does not kill the collection
 tmux new -s calibration
-crates/iota-single-node-benchmark/gas_params_calibration/run_all.sh /data/calibration/$(date +%Y%m%d-%H%M%S)
+crates/iota-single-node-benchmark/gas_params_calibration/run_all.sh \
+    /data/calibration/$(date +%Y%m%d-%H%M%S) [--memory-bandwidth-bytes-per-sec B]
 # add --write-duration 14400 for a four-hour sustained write run
 # add --turbo on (default off) for the boosted-clock comparison run — use a separate OUT_DIR
 
