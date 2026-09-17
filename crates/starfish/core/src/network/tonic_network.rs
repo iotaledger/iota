@@ -584,7 +584,9 @@ where
         match stream.try_next().await {
             Ok(Some(response)) => {
                 let headers = response.vec_serialized_block_header;
-                let received = vec_serialized_block_header.len().saturating_add(headers.len());
+                let received = vec_serialized_block_header
+                    .len()
+                    .saturating_add(headers.len());
                 if received > max_headers {
                     return Err(ConsensusError::TooManyFetchedHeadersReturned {
                         peer,
@@ -595,7 +597,6 @@ where
                 for b in &headers {
                     total_fetched_bytes += b.len();
                 }
-                vec_serialized_block_header.extend(headers);
                 if total_fetched_bytes > max_allowed_bytes {
                     info!(
                         "fetch_block_headers() fetched bytes exceeded limit: {} > {}, terminating stream.",
@@ -603,6 +604,7 @@ where
                     );
                     break;
                 }
+                vec_serialized_block_header.extend(headers);
             }
             Ok(None) => {
                 break;
@@ -1776,9 +1778,9 @@ mod tests {
         (1..=10).into()
     }
 
-    fn header_chunk(headers: usize) -> FetchBlockHeadersResponse {
+    fn header_chunk(headers: usize, bytes_each: usize) -> FetchBlockHeadersResponse {
         FetchBlockHeadersResponse {
-            vec_serialized_block_header: vec![Bytes::from_static(b"header"); headers],
+            vec_serialized_block_header: vec![Bytes::from(vec![0u8; bytes_each]); headers],
         }
     }
 
@@ -1789,7 +1791,7 @@ mod tests {
         let (mut context, _keys) = Context::new_for_test(4);
         context.parameters.max_headers_per_commit_sync_fetch = 3;
         let peer = AuthorityIndex::new_for_test(1);
-        let flood = stream::iter([Ok(header_chunk(2)), Ok(header_chunk(2))]);
+        let flood = stream::iter([Ok(header_chunk(2, 6)), Ok(header_chunk(2, 6))]);
 
         let result = collect_block_headers(&context, peer, flood, true).await;
 
@@ -1809,13 +1811,31 @@ mod tests {
         let (mut context, _keys) = Context::new_for_test(4);
         context.parameters.max_headers_per_commit_sync_fetch = 3;
         let peer = AuthorityIndex::new_for_test(1);
-        let full = stream::iter([Ok(header_chunk(2)), Ok(header_chunk(1))]);
+        let full = stream::iter([Ok(header_chunk(2, 6)), Ok(header_chunk(1, 6))]);
 
         let headers = collect_block_headers(&context, peer, full, true)
             .await
             .expect("a response at the cap is kept");
 
         assert_eq!(headers.len(), 3);
+    }
+
+    /// A chunk that overruns the byte budget is dropped instead of landing in
+    /// the buffer first.
+    #[tokio::test]
+    async fn headers_past_the_byte_budget_are_not_kept() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 2;
+        let peer = AuthorityIndex::new_for_test(1);
+        let budget = max_fetch_block_headers_response_bytes(&context, true);
+        let overrunning =
+            stream::iter([Ok(header_chunk(1, budget / 2)), Ok(header_chunk(1, budget))]);
+
+        let headers = collect_block_headers(&context, peer, overrunning, true)
+            .await
+            .expect("the chunks within the budget are kept");
+
+        assert_eq!(headers.len(), 1);
     }
 
     /// Header sync selects its own, smaller cap.
@@ -1825,7 +1845,7 @@ mod tests {
         context.parameters.max_headers_per_commit_sync_fetch = 10;
         context.parameters.max_headers_per_header_sync_fetch = 1;
         let peer = AuthorityIndex::new_for_test(1);
-        let flood = stream::iter([Ok(header_chunk(2))]);
+        let flood = stream::iter([Ok(header_chunk(2, 6))]);
 
         let result = collect_block_headers(&context, peer, flood, false).await;
 
