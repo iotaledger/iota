@@ -394,10 +394,10 @@ where
     // carry the same count caps `verify_commits` applies
     // (`2 * fast_commit_sync_batch_size` and two headers per authority).
     // Transactions carry no configured count cap on the fast path, since the
-    // server returns every transaction the committed range references. Their
-    // count is bounded by the commits already received instead: a commit
-    // names at most one `TransactionRef` per 37 bytes it occupies, and the
-    // server serves one entry per name.
+    // server returns every transaction the committed range references. The
+    // commits already received bound them instead: a commit holds at most one
+    // `TransactionRef` per 37 bytes it occupies, and the server serves one
+    // entry per reference.
     let committee_size = context.committee.size();
     let gc_depth = context.protocol_config.gc_depth() as usize;
     let max_commits = CommitSyncType::Fast.max_commits_per_response(context);
@@ -409,9 +409,8 @@ where
     // Coarse total backstop for the buffer. The commit and certifier-header
     // terms reuse the per-category caps above so the total never trips
     // before them; the transaction term uses the commit-sync fetch cap as a
-    // coarse allowance. Each entry is charged its `Bytes` descriptor as well
-    // as its payload, so entries too short to move the total still consume
-    // it.
+    // coarse allowance. An empty entry still costs its `Bytes` descriptor,
+    // so it is charged to the total as well.
     let max_allowed_bytes = max_commits
         .saturating_mul(max_commit_size)
         .saturating_add(max_certifier_headers.saturating_mul(max_header_size))
@@ -477,8 +476,8 @@ where
                 }
                 certifier_block_headers.extend(response.certifier_block_headers);
 
-                // Transactions (streamed in subsequent chunks): count bounded by
-                // the commits received, plus per-element size.
+                // Transactions (streamed in subsequent chunks): count cap from
+                // the commits received + per-element size.
                 if transactions
                     .len()
                     .saturating_add(response.transactions.len())
@@ -540,9 +539,8 @@ where
 /// header buffer. A stream cut by an error after headers arrived yields the
 /// delivered chunks.
 ///
-/// The header count is bounded while streaming, mirroring the cap the server
-/// truncates its own response to, since the callers only check the count on
-/// the fully-received buffer.
+/// The header count is bounded to the cap the server truncates its own
+/// response to.
 async fn collect_block_headers<S>(
     context: &Context,
     peer: AuthorityIndex,
@@ -571,9 +569,7 @@ where
                     });
                 }
                 for b in &headers {
-                    // An entry costs its `Bytes` descriptor whether or not it
-                    // carries a payload, so a run of empty entries consumes
-                    // budget rather than passing free.
+                    // An empty entry still costs its `Bytes` descriptor.
                     total_fetched_bytes += b.len() + size_of::<Bytes>();
                 }
                 if total_fetched_bytes > max_allowed_bytes {
@@ -612,9 +608,8 @@ where
 /// transaction buffer. A stream cut by an error after entries arrived yields
 /// the delivered chunks.
 ///
-/// The entry count is bounded while streaming, since the callers only check it
-/// on the fully-received buffer. The server serves one entry per reference it
-/// was asked for, so the request bounds the response.
+/// The entry count is bounded to the request, since the server serves one
+/// entry per reference it was asked for.
 async fn collect_transactions<S>(
     context: &Context,
     peer: AuthorityIndex,
@@ -646,9 +641,7 @@ where
                             limit: max_entry_bytes,
                         });
                     }
-                    // An entry costs its `Bytes` descriptor whether or not it
-                    // carries a payload, so a run of empty entries consumes
-                    // budget rather than passing free.
+                    // An empty entry still costs its `Bytes` descriptor.
                     total_fetched_bytes += b.len() + size_of::<Bytes>();
                 }
                 if total_fetched_bytes > max_allowed_bytes {
@@ -1781,8 +1774,8 @@ mod tests {
 
     fn chunk(commits: usize, transactions: usize) -> FetchCommitsAndTransactionsResponse {
         FetchCommitsAndTransactionsResponse {
-            // Long enough to name four transaction references, since the
-            // transaction count is derived from the commit bytes.
+            // Sized for four transaction references, since the transaction
+            // count is derived from the commit bytes.
             commits: vec![Bytes::from(vec![0u8; 4 * SERIALIZED_TRANSACTION_REF_BYTES]); commits],
             certifier_block_headers: vec![],
             transactions: vec![Bytes::from_static(b"transaction"); transactions],
