@@ -41,7 +41,7 @@ use super::{
 use crate::{
     CommitIndex, Round,
     block_header::{BlockRef, max_signed_block_header_bytes},
-    block_verifier::serialized_transactions_size_limit,
+    block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
     commit::{CommitRange, max_commit_bytes},
     commit_syncer::{CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY},
     context::Context,
@@ -50,7 +50,7 @@ use crate::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
     },
-    transaction_ref::TransactionRef,
+    transaction_ref::{SERIALIZED_TRANSACTION_REF_BYTES, TransactionRef},
 };
 
 // Maximum bytes size in a single fetch_blocks()response.
@@ -72,19 +72,22 @@ fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) 
         .saturating_mul(max_signed_block_header_bytes(context.committee.size()))
 }
 
-/// Transaction-fetch budget: the per-fetch transaction count cap times the
-/// maximum serialized per-block transaction payload. The larger of the two
-/// sync caps is used, matching `TransactionFetchMode::TransactionSync`.
-fn max_fetch_transactions_response_bytes(context: &Context) -> usize {
-    let max_transactions = context
-        .parameters
-        .max_transactions_per_commit_sync_fetch
-        .max(
-            context
-                .parameters
-                .max_transactions_per_transaction_sync_fetch,
-        );
-    max_transactions.saturating_mul(serialized_transactions_size_limit(context))
+/// Upper bound on one fetched transaction entry: a `SerializedTransactionsV2`
+/// carrying the maximum serialized per-block transaction payload, framed with
+/// its `TransactionRef` and length prefix.
+fn max_serialized_transactions_entry_bytes(context: &Context) -> usize {
+    serialized_transactions_size_limit(context)
+        .saturating_add(SERIALIZED_TRANSACTION_REF_BYTES)
+        .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
+}
+
+/// Transaction-fetch budget: one maximum-size entry per requested reference,
+/// since the server serves at most one entry per reference it was asked for.
+fn max_fetch_transactions_response_bytes(
+    context: &Context,
+    requested_transactions: usize,
+) -> usize {
+    requested_transactions.saturating_mul(max_serialized_transactions_entry_bytes(context))
 }
 
 // Implements Tonic RPC client for Consensus.
@@ -610,7 +613,7 @@ async fn collect_transactions<S>(
 where
     S: Stream<Item = Result<FetchTransactionsResponse, tonic::Status>> + Unpin,
 {
-    let max_allowed_bytes = max_fetch_transactions_response_bytes(context);
+    let max_allowed_bytes = max_fetch_transactions_response_bytes(context, requested_transactions);
     let mut total_fetched_bytes = 0;
     let mut vec_serialized_transactions = vec![];
     loop {
@@ -1791,8 +1794,11 @@ mod tests {
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
-        block_verifier::serialized_transactions_size_limit, commit::CommitRange, context::Context,
+        block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
+        commit::CommitRange,
+        context::Context,
         error::ConsensusError,
+        transaction_ref::SERIALIZED_TRANSACTION_REF_BYTES,
     };
 
     fn chunk(commits: usize, transactions: usize) -> FetchCommitsAndTransactionsResponse {
@@ -1884,6 +1890,25 @@ mod tests {
             .expect("a response at the requested count is kept");
 
         assert_eq!(transactions.len(), 3);
+    }
+
+    /// The byte budget follows the request rather than the configured
+    /// per-fetch cap, so a two-reference fetch is bounded by two entries.
+    #[tokio::test]
+    async fn transactions_past_the_byte_budget_are_not_kept() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let budget = max_fetch_transactions_response_bytes(&context, 2);
+        let overrunning = stream::iter([
+            Ok(transaction_chunk(1, budget / 2)),
+            Ok(transaction_chunk(1, budget)),
+        ]);
+
+        let transactions = collect_transactions(&context, peer, overrunning, 2)
+            .await
+            .expect("the chunks within the budget are kept");
+
+        assert_eq!(transactions.len(), 1);
     }
 
     /// A chunk that overruns the byte budget is dropped instead of landing in
@@ -2070,10 +2095,13 @@ mod tests {
             max_fetch_block_headers_response_bytes(&context, false),
             11 * header_bytes
         );
-        // Transaction budget uses the larger of the two transaction caps.
+        // The transaction budget is one maximum-size entry per requested
+        // reference, independent of the transaction caps above.
         assert_eq!(
-            max_fetch_transactions_response_bytes(&context),
-            9 * serialized_transactions_size_limit(&context)
+            max_fetch_transactions_response_bytes(&context, 3),
+            3 * (serialized_transactions_size_limit(&context)
+                + SERIALIZED_TRANSACTION_REF_BYTES
+                + MAX_BCS_LENGTH_PREFIX_BYTES)
         );
     }
 
