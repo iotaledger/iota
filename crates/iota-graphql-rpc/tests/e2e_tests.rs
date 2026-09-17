@@ -978,6 +978,131 @@ mod tests {
         );
     }
 
+    // A dry run of a full `TransactionData` returns balance changes, object
+    // changes with resolvable object state, and the unsigned transaction bytes -
+    // none of which the dev-inspect path (transaction kind + metadata) provides.
+    #[tokio::test]
+    #[serial]
+    async fn test_transaction_dry_run_returns_balance_and_object_changes() {
+        let _guard = telemetry_subscribers::TelemetryConfig::new()
+            .with_env()
+            .init();
+
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+
+        let tx = cluster.build_transfer_iota_for_test().await;
+        let tx_bytes = tx.to_base64();
+
+        let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
+                transaction {
+                    bcsUnsigned
+                    effects {
+                        balanceChanges {
+                            nodes {
+                                amount
+                                coinType { repr }
+                                owner { address }
+                            }
+                        }
+                        objectChanges {
+                            nodes {
+                                address
+                                idCreated
+                                inputState {
+                                    address
+                                    asMoveObject {
+                                        contents { type { repr } }
+                                    }
+                                }
+                                outputState {
+                                    address
+                                    asMoveObject {
+                                        contents { type { repr } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                error
+            }
+        }"#;
+        let variables = vec![GraphqlQueryVariable {
+            name: "tx".to_string(),
+            ty: "String!".to_string(),
+            value: json!(tx_bytes),
+        }];
+        let res = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, variables, vec![])
+            .await
+            .unwrap();
+        let binding = res.response_body().data.clone().into_json().unwrap();
+        let res = binding.get("dryRunTransactionBlock").unwrap();
+        assert!(res.get("error").unwrap().is_null());
+
+        let tx = res.get("transaction").unwrap();
+
+        // The unsigned transaction bytes are available even though a dry run has no
+        // signatures.
+        let bcs_unsigned = tx.get("bcsUnsigned").unwrap().as_str().unwrap();
+        assert!(!bcs_unsigned.is_empty());
+
+        let effects = tx.get("effects").unwrap();
+
+        // The transfer moves IOTA, so there is at least one balance change.
+        let balance_changes = effects
+            .get("balanceChanges")
+            .unwrap()
+            .get("nodes")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert!(!balance_changes.is_empty());
+        assert!(balance_changes.iter().any(|change| {
+            change
+                .get("coinType")
+                .and_then(|t| t.get("repr"))
+                .and_then(|r| r.as_str())
+                .is_some_and(|repr| repr.contains("iota::IOTA"))
+        }));
+
+        // Objects the dry run writes are not indexed, but their output state is
+        // resolved from the simulation, including the Move type.
+        let object_changes = effects
+            .get("objectChanges")
+            .unwrap()
+            .get("nodes")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert!(!object_changes.is_empty());
+        let move_object_type = |change: &serde_json::Value, state: &str| -> Option<String> {
+            change
+                .get(state)
+                .and_then(|state| state.get("asMoveObject"))
+                .and_then(|obj| obj.get("contents"))
+                .and_then(|contents| contents.get("type"))
+                .and_then(|ty| ty.get("repr"))
+                .and_then(|repr| repr.as_str())
+                .map(|repr| repr.to_string())
+        };
+        // A created object resolves its output state, including the Move type.
+        assert!(object_changes.iter().any(|change| {
+            move_object_type(change, "outputState").is_some_and(|repr| repr.contains("coin::Coin"))
+        }));
+        // A mutated object (the gas coin) resolves its prior input state from the
+        // simulation's input objects, which the database does not hold.
+        assert!(object_changes.iter().any(|change| {
+            move_object_type(change, "inputState").is_some_and(|repr| repr.contains("coin::Coin"))
+        }));
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_epoch_data() {

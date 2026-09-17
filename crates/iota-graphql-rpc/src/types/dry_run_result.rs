@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use async_graphql::*;
+use iota_indexer::apis::GraphQLDryRunResult;
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionResult};
 use iota_sdk_types::{
     Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects, TypeTag,
@@ -13,6 +16,7 @@ use crate::{
     error::Error,
     types::{
         base64::Base64,
+        big_int::BigInt,
         move_type::MoveType,
         transaction_block::{TransactionBlock, TransactionBlockInner},
         transaction_block_kind::programmable::TransactionArgument,
@@ -28,6 +32,8 @@ pub(crate) struct DryRunResult {
     pub results: Option<Vec<DryRunEffect>>,
     /// The transaction block representing the dry run execution.
     pub transaction: Option<TransactionBlock>,
+    /// If an input object is congested, suggest a gas price to use.
+    pub suggested_gas_price: Option<BigInt>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]
@@ -126,19 +132,85 @@ impl TryFrom<DevInspectResults> for DryRunResult {
         let tx_data: NativeTransactionData = bcs::from_bytes(&dev_inspect_results.raw_txn_data)
             .map_err(|e| Error::Internal(format!("Unable to deserialize transaction data: {e}")))?;
         let transaction = Some(TransactionBlock {
-            inner: TransactionBlockInner::DryRun {
+            inner: TransactionBlockInner::Simulated {
                 tx_data,
                 effects,
                 events,
+                // We do not return balance changes or object changes for dev-inspect.
+                balance_changes: vec![],
+                input_objects: Arc::new(BTreeMap::new()),
+                output_objects: Arc::new(BTreeMap::new()),
             },
-            // set to a large number, as dry running a transaction makes use of a fullnode's state,
-            // which is typically ahead of the indexed state.
+            // A simulated transaction uses the fullnode's state, which is typically ahead of
+            // the indexed state, so it is not tied to a checkpoint.
             checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
         });
         Ok(Self {
             error: dev_inspect_results.error,
             results,
             transaction,
+            // Dev inspect does not report a suggested gas price.
+            suggested_gas_price: None,
+        })
+    }
+}
+
+impl TryFrom<GraphQLDryRunResult> for DryRunResult {
+    type Error = crate::error::Error;
+
+    fn try_from(results: GraphQLDryRunResult) -> Result<Self, Self::Error> {
+        let GraphQLDryRunResult {
+            transaction,
+            effects,
+            events,
+            balance_changes,
+            input_objects,
+            output_objects,
+            command_results,
+            suggested_gas_price,
+            error,
+        } = results;
+
+        // The node returns per-command results or an execution error, never both,
+        // so `command_results` is `None` for a failed dry run.
+        let results = command_results
+            .map(|results| {
+                results
+                    .into_iter()
+                    .map(DryRunEffect::try_from)
+                    .collect::<Result<Vec<_>, Error>>()
+            })
+            .transpose()?;
+
+        let create_objects_map = |objects: Vec<iota_types::object::Object>| {
+            Arc::new(
+                objects
+                    .into_iter()
+                    .map(|object| (object.id(), object))
+                    .collect::<BTreeMap<_, _>>(),
+            )
+        };
+        let input_objects = create_objects_map(input_objects);
+        let output_objects = create_objects_map(output_objects);
+
+        let transaction = Some(TransactionBlock {
+            inner: TransactionBlockInner::Simulated {
+                tx_data: transaction,
+                effects,
+                events,
+                balance_changes,
+                input_objects,
+                output_objects,
+            },
+            // A simulated transaction uses the fullnode's state, which is typically ahead of
+            // the indexed state, so it is not tied to a checkpoint.
+            checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
+        });
+        Ok(Self {
+            error,
+            results,
+            transaction,
+            suggested_gas_price: suggested_gas_price.map(BigInt::from),
         })
     }
 }

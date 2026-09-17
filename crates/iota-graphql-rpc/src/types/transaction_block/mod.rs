@@ -5,6 +5,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     ops::Bound,
+    sync::Arc,
 };
 
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
@@ -17,14 +18,17 @@ use iota_indexer::{
     models::transactions::{OptimisticTransaction, StoredTransaction},
     read::TransactionRead,
     schema::{checkpoints, transactions},
+    types::IndexedBalanceChange,
 };
 use iota_json_rpc_api::ReadApiServer;
 use iota_sdk_types::{
-    Address as NativeAddress, Event as NativeEvent,
+    Address as NativeAddress, Event as NativeEvent, ObjectId,
     SenderSignedTransaction as NativeSenderSignedTransaction, Transaction as NativeTransactionData,
     TransactionDigest, TransactionEffects as NativeTransactionEffects, TransactionExpiration,
 };
-use iota_types::{message_envelope::Message, transaction::TransactionAPI};
+use iota_types::{
+    message_envelope::Message, object::Object as NativeObject, transaction::TransactionAPI,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -82,13 +86,20 @@ pub(crate) enum TransactionBlockInner {
         native: NativeSenderSignedTransaction,
     },
 
-    /// A transaction block that has been executed via dryRunTransactionBlock.
-    /// This variant also does not return signatures or digest since only
-    /// `NativeTransactionData` is present.
-    DryRun {
+    /// A simulated transaction block - the result of `dryRunTransactionBlock`,
+    /// run either as a dry run or a dev inspect on the node. It has no
+    /// signatures or digest.
+    ///
+    /// `balance_changes`, `input_objects` and `output_objects` are populated
+    /// only for a full-`TransactionData` dry run; for dev-inspect they stay
+    /// empty.
+    Simulated {
         tx_data: NativeTransactionData,
         effects: NativeTransactionEffects,
         events: Vec<NativeEvent>,
+        balance_changes: Vec<IndexedBalanceChange>,
+        input_objects: Arc<BTreeMap<ObjectId, NativeObject>>,
+        output_objects: Arc<BTreeMap<ObjectId, NativeObject>>,
     },
 }
 
@@ -260,8 +271,11 @@ impl TransactionBlock {
             .extend()
     }
 
-    /// Serialized form of this transaction's `SenderSignedTransaction`, BCS
-    /// serialized and Base64 encoded.
+    /// This transaction's `SenderSignedTransaction`, BCS serialized and Base64
+    /// encoded.
+    ///
+    /// `null` for simulated transactions (dry run and dev inspect), which have
+    /// no signatures. use `bcsUnsigned` for them instead.
     #[graphql(complexity = 0)]
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
@@ -272,9 +286,20 @@ impl TransactionBlock {
                 Some(Base64::from(&optimistic_tx.raw_transaction))
             }
 
-            // Dry run transaction does not have signatures so no sender signed data.
-            TransactionBlockInner::DryRun { .. } => None,
+            // A simulated transaction has no signatures and so no sender signed data.
+            TransactionBlockInner::Simulated { .. } => None,
         }
+    }
+
+    /// This transaction's `TransactionData` (the transaction without its
+    /// signatures), BCS serialized and Base64 encoded.
+    ///
+    /// Available for every transaction, including simulated ones.
+    #[graphql(complexity = 0)]
+    async fn bcs_unsigned(&self) -> Option<Base64> {
+        bcs::to_bytes(self.native())
+            .ok()
+            .map(|bytes| Base64::from(&bytes))
     }
 
     /// Returns whether the transaction has been indexed on the fullnode.
@@ -312,7 +337,7 @@ impl TransactionBlock {
             TransactionBlockInner::Checkpointed { native, .. } => native.transaction(),
             TransactionBlockInner::Executed { native, .. } => native.transaction(),
 
-            TransactionBlockInner::DryRun { tx_data, .. } => tx_data,
+            TransactionBlockInner::Simulated { tx_data, .. } => tx_data,
         }
     }
 
@@ -321,7 +346,7 @@ impl TransactionBlock {
             TransactionBlockInner::Checkpointed { native, .. } => Some(native),
             TransactionBlockInner::Executed { native, .. } => Some(native),
 
-            TransactionBlockInner::DryRun { .. } => None,
+            TransactionBlockInner::Simulated { .. } => None,
         }
     }
 
@@ -934,14 +959,20 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
                 TransactionBlockInner::try_from(optimistic_tx)
             }
 
-            TransactionBlockEffectsKind::DryRun {
+            TransactionBlockEffectsKind::Simulated {
                 tx_data,
                 native: effects,
                 events,
-            } => Ok(TransactionBlockInner::DryRun {
+                balance_changes,
+                input_objects,
+                output_objects,
+            } => Ok(TransactionBlockInner::Simulated {
                 tx_data,
                 effects,
                 events,
+                balance_changes,
+                input_objects,
+                output_objects,
             }),
         }?;
 

@@ -11,7 +11,6 @@ use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
 use iota_sdk_types::{ObjectReference, StructTag, Transaction, TransactionKind, TypeTag};
-use iota_types::transaction::TransactionAPI;
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
@@ -132,63 +131,50 @@ impl Query {
         tx_meta: Option<TransactionMetadata>,
         skip_checks: Option<bool>,
     ) -> Result<DryRunResult> {
-        let skip_checks = skip_checks.unwrap_or(false);
-
         let write_api = get_write_api(ctx).extend()?;
-        let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
-            if let Some(TransactionMetadata {
-                sender,
-                gas_price,
-                gas_objects,
-                gas_budget,
-                gas_sponsor,
-            }) = tx_meta
-            {
-                // This implies `TransactionKind`
-                let tx_kind = deserialize_tx_data::<TransactionKind>(&tx_bytes)?;
 
-                // Default is 0x0
-                let sender_address = sender.unwrap_or_else(|| AccountAddress::ZERO.into()).into();
+        // The arguments decide which simulation runs: with no metadata the bytes are
+        // a full `TransactionData` (a dry run); with metadata they are a
+        // `TransactionKind` (a dev inspect).
+        let Some(TransactionMetadata {
+            sender,
+            gas_price,
+            gas_objects,
+            gas_budget,
+            gas_sponsor,
+        }) = tx_meta
+        else {
+            // Real dry run: run the full transaction so balance changes, object
+            // changes and object state are returned, matching the JSON-RPC
+            // `dry_run_transaction_block` endpoint.
+            let tx = deserialize_tx_data::<Transaction>(&tx_bytes)?;
+            let results = write_api
+                .dry_run_transaction_block_graphql(tx, skip_checks.unwrap_or(false))
+                .await
+                .map_err(|e| Error::Internal(format!("Dry run failed: {e}")))
+                .extend()?;
+            return DryRunResult::try_from(results).extend();
+        };
 
-                let gas_sponsor = gas_sponsor.map(|addr| addr.into());
+        // Dev inspect: only a `TransactionKind` is executed.
+        // Balance changes and object changes are not returned.
+        let skip_checks = skip_checks.unwrap_or(false);
+        let tx_kind = deserialize_tx_data::<TransactionKind>(&tx_bytes)?;
 
-                let gas_objects = gas_objects.map(|objs| {
-                    objs.into_iter()
-                        .map(|obj| {
-                            ObjectReference::new(
-                                obj.address.into(),
-                                obj.version.into(),
-                                obj.digest.into(),
-                            )
-                        })
-                        .collect()
-                });
+        // Default is 0x0
+        let sender_address = sender.unwrap_or_else(|| AccountAddress::ZERO.into()).into();
 
-                (
-                    sender_address,
-                    tx_kind,
-                    gas_price.map(|p| p.into()),
-                    gas_sponsor,
-                    gas_budget.map(|b| b.into()),
-                    gas_objects,
-                )
-            } else {
-                // This implies `Transaction`
-                let tx = deserialize_tx_data::<Transaction>(&tx_bytes)?;
-
-                (
-                    tx.sender(),
-                    tx.clone().into_kind(),
-                    Some(tx.gas_price().into()),
-                    Some(tx.gas_owner()),
-                    Some(tx.gas_budget()),
-                    Some(tx.gas().to_vec()),
-                )
-            };
+        let gas_objects = gas_objects.map(|objs| {
+            objs.into_iter()
+                .map(|obj| {
+                    ObjectReference::new(obj.address.into(), obj.version.into(), obj.digest.into())
+                })
+                .collect()
+        });
 
         let dev_inspect_args = DevInspectArgs {
-            gas_sponsor,
-            gas_budget,
+            gas_sponsor: gas_sponsor.map(|addr| addr.into()),
+            gas_budget: gas_budget.map(|b| b.into()),
             gas_objects,
             show_raw_txn_data_and_effects: Some(true),
             skip_checks: Some(skip_checks),
@@ -199,7 +185,7 @@ impl Query {
             .dev_inspect_transaction_block(
                 sender_address,
                 tx_bytes,
-                gas_price,
+                gas_price.map(|p| p.into()),
                 None,
                 Some(dev_inspect_args),
             )
