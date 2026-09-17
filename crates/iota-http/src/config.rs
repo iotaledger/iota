@@ -8,9 +8,12 @@ const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 /// Covers a round trip plus a few TCP retransmissions on a lossy link; an
 /// unloaded TLS 1.3 handshake completes in one round trip.
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
-/// Concurrent handshakes only build up when peers are slow or silent, so this
-/// leaves ample room for a legitimate reconnect burst.
-const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 512;
+/// Every connection to a TLS listener passes through the handshake phase, so
+/// together with the handshake deadline this bounds how many silent peers it
+/// takes to make honest connections wait in the kernel backlog. Concurrent
+/// handshakes only build up when peers are slow or silent, so this leaves ample
+/// room for a legitimate reconnect burst.
+const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 4096;
 
 #[derive(Debug, Clone)]
 pub struct Config {
