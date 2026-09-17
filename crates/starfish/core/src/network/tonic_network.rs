@@ -409,7 +409,9 @@ where
     // Coarse total backstop for the buffer. The commit and certifier-header
     // terms reuse the per-category caps above so the total never trips
     // before them; the transaction term uses the commit-sync fetch cap as a
-    // coarse allowance, since the fast path has no transaction count cap.
+    // coarse allowance. Each entry is charged its `Bytes` descriptor as well
+    // as its payload, so entries too short to move the total still consume
+    // it.
     let max_allowed_bytes = max_commits
         .saturating_mul(max_commit_size)
         .saturating_add(max_certifier_headers.saturating_mul(max_header_size))
@@ -446,7 +448,7 @@ where
                             limit: max_commit_size,
                         });
                     }
-                    total_fetched_bytes += c.len();
+                    total_fetched_bytes += c.len() + size_of::<Bytes>();
                     max_transactions =
                         max_transactions.saturating_add(c.len() / SERIALIZED_TRANSACTION_REF_BYTES);
                 }
@@ -471,7 +473,7 @@ where
                             limit: max_header_size,
                         });
                     }
-                    total_fetched_bytes += h.len();
+                    total_fetched_bytes += h.len() + size_of::<Bytes>();
                 }
                 certifier_block_headers.extend(response.certifier_block_headers);
 
@@ -491,7 +493,7 @@ where
                             limit: max_transaction_size,
                         });
                     }
-                    total_fetched_bytes += t.len();
+                    total_fetched_bytes += t.len() + size_of::<Bytes>();
                 }
                 transactions.extend(response.transactions);
 
