@@ -169,10 +169,7 @@ impl NetworkClient for TonicClient {
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
-        let max_allowed_bytes = max_fetch_block_headers_response_bytes(
-            &self.context,
-            highest_accepted_rounds.is_empty(),
-        );
+        let commit_sync = highest_accepted_rounds.is_empty();
         let mut request = Request::new(FetchBlockHeadersRequest {
             block_refs: block_refs
                 .iter()
@@ -187,7 +184,7 @@ impl NetworkClient for TonicClient {
             highest_accepted_rounds,
         });
         request.set_timeout(timeout);
-        let mut stream = client
+        let stream = client
             .fetch_block_headers(request)
             .await
             .map_err(|e| {
@@ -198,44 +195,8 @@ impl NetworkClient for TonicClient {
                 }
             })?
             .into_inner();
-        let mut vec_serialized_block_header = vec![];
-        let mut total_fetched_bytes = 0;
-        loop {
-            match stream.message().await {
-                Ok(Some(response)) => {
-                    for b in &response.vec_serialized_block_header {
-                        total_fetched_bytes += b.len();
-                    }
-                    vec_serialized_block_header.extend(response.vec_serialized_block_header);
-                    if total_fetched_bytes > max_allowed_bytes {
-                        info!(
-                            "fetch_block_headers() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, max_allowed_bytes,
-                        );
-                        break;
-                    }
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(e) => {
-                    if vec_serialized_block_header.is_empty() {
-                        if e.code() == tonic::Code::DeadlineExceeded {
-                            return Err(ConsensusError::NetworkRequestTimeout(format!(
-                                "fetch_block_headers failed mid-stream: {e:?}"
-                            )));
-                        }
-                        return Err(ConsensusError::NetworkRequest(format!(
-                            "fetch_block_headers failed mid-stream: {e:?}"
-                        )));
-                    } else {
-                        warn!("fetch_block_headers failed mid-stream: {e:?}");
-                        break;
-                    }
-                }
-            }
-        }
-        Ok(vec_serialized_block_header)
+
+        collect_block_headers(&self.context, stream, commit_sync).await
     }
 
     async fn fetch_commits(
@@ -594,6 +555,58 @@ where
     }
 
     Ok((commits, certifier_block_headers, transactions, stream_error))
+}
+
+/// Collects the chunks of a `fetch_block_headers` response stream into the
+/// header buffer. A stream cut by an error after headers arrived yields the
+/// delivered chunks.
+async fn collect_block_headers<S>(
+    context: &Context,
+    mut stream: S,
+    commit_sync: bool,
+) -> ConsensusResult<Vec<Bytes>>
+where
+    S: Stream<Item = Result<FetchBlockHeadersResponse, tonic::Status>> + Unpin,
+{
+    let max_allowed_bytes = max_fetch_block_headers_response_bytes(context, commit_sync);
+    let mut vec_serialized_block_header = vec![];
+    let mut total_fetched_bytes = 0;
+    loop {
+        match stream.try_next().await {
+            Ok(Some(response)) => {
+                for b in &response.vec_serialized_block_header {
+                    total_fetched_bytes += b.len();
+                }
+                vec_serialized_block_header.extend(response.vec_serialized_block_header);
+                if total_fetched_bytes > max_allowed_bytes {
+                    info!(
+                        "fetch_block_headers() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                        total_fetched_bytes, max_allowed_bytes,
+                    );
+                    break;
+                }
+            }
+            Ok(None) => {
+                break;
+            }
+            Err(e) => {
+                if vec_serialized_block_header.is_empty() {
+                    if e.code() == tonic::Code::DeadlineExceeded {
+                        return Err(ConsensusError::NetworkRequestTimeout(format!(
+                            "fetch_block_headers failed mid-stream: {e:?}"
+                        )));
+                    }
+                    return Err(ConsensusError::NetworkRequest(format!(
+                        "fetch_block_headers failed mid-stream: {e:?}"
+                    )));
+                } else {
+                    warn!("fetch_block_headers failed mid-stream: {e:?}");
+                    break;
+                }
+            }
+        }
+    }
+    Ok(vec_serialized_block_header)
 }
 
 // Tonic channel wrapped with layers.
