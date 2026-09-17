@@ -5,6 +5,9 @@
 use std::time::Duration;
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
+/// hyper's own default for the header read deadline; hyper only enforces it
+/// when a timer is configured, which this crate always does.
+const DEFAULT_HTTP1_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Covers a round trip plus a few TCP retransmissions on a lossy link; an
 /// unloaded TLS 1.3 handshake completes in one round trip.
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -29,6 +32,7 @@ pub struct Config {
     http2_max_header_list_size: Option<u32>,
     max_frame_size: Option<u32>,
     pub(crate) accept_http1: bool,
+    http1_header_read_timeout: Option<Duration>,
     enable_connect_protocol: bool,
     pub(crate) max_connection_age: Option<Duration>,
     pub(crate) handshake_timeout: Option<Duration>,
@@ -50,6 +54,7 @@ impl Default for Config {
             http2_max_header_list_size: None,
             max_frame_size: None,
             accept_http1: true,
+            http1_header_read_timeout: Some(DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
             enable_connect_protocol: true,
             max_connection_age: None,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
@@ -214,6 +219,19 @@ impl Config {
         }
     }
 
+    /// Sets how long an HTTP/1 connection may take to send a complete request
+    /// header block before it is closed. Until the headers arrive no request
+    /// exists that a request deadline could apply to, so this is the only bound
+    /// on a peer that stalls mid-headers.
+    ///
+    /// Default is 30 seconds. `None` disables the deadline.
+    pub fn http1_header_read_timeout(self, timeout: Option<Duration>) -> Self {
+        Config {
+            http1_header_read_timeout: timeout,
+            ..self
+        }
+    }
+
     /// Sets how long an accepted connection may take to complete its TLS
     /// handshake before it is closed. The peer is unauthenticated for the whole
     /// handshake, so without this a silent peer holds a task and a file
@@ -263,7 +281,12 @@ impl Config {
         let mut builder =
             hyper_util::server::conn::auto::Builder::new(hyper_util::rt::TokioExecutor::new());
 
-        if !self.accept_http1 {
+        if self.accept_http1 {
+            builder
+                .http1()
+                .timer(hyper_util::rt::TokioTimer::new())
+                .header_read_timeout(self.http1_header_read_timeout);
+        } else {
             builder = builder.http2_only();
         }
 

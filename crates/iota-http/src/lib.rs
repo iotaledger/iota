@@ -566,6 +566,45 @@ mod tests {
         );
     }
 
+    /// An HTTP/1 peer that never finishes sending its request headers is
+    /// closed once the header deadline passes.
+    #[tokio::test]
+    async fn http1_peer_that_never_finishes_its_headers_is_closed() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const HEADER_DEADLINE: Duration = Duration::from_millis(200);
+
+        let handle = Builder::new()
+            .config(Config::default().http1_header_read_timeout(Some(HEADER_DEADLINE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        // A request line and one header, but never the blank line that ends
+        // the header block.
+        connection
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+            .await
+            .unwrap();
+
+        let closed = tokio::time::timeout(HEADER_DEADLINE * 25, async {
+            let mut buf = [0u8; 1024];
+            loop {
+                match connection.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => continue,
+                }
+            }
+        })
+        .await;
+        assert!(
+            closed.is_ok(),
+            "the server must close a peer that stalls its request headers"
+        );
+    }
+
     /// While the pending limit is reached the server stops accepting, and
     /// resumes once a slot frees.
     #[tokio::test]
