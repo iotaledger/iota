@@ -36,6 +36,7 @@ use url::Url;
 use crate::name_commands;
 use crate::{
     PrintableResult,
+    attestor_commands::IotaAttestorCommand,
     client_commands::{IotaClientCommands, implicit_deps_for_protocol_version, pkg_tree_shake},
     keytool::{KeyToolCommand, lowercase_key_scheme},
     validator_commands::IotaValidatorCommand,
@@ -88,6 +89,20 @@ pub enum IotaCommand {
         config: Option<PathBuf>,
         #[command(subcommand)]
         cmd: Option<IotaValidatorCommand>,
+        /// Return command outputs in json format.
+        #[arg(long, global = true)]
+        json: bool,
+        #[arg(short = 'y', long = "yes")]
+        accept_defaults: bool,
+    },
+    /// A tool for registering and managing attestors.
+    Attestor {
+        /// Sets the file storing the state of our user accounts (an empty one
+        /// will be created if missing)
+        #[arg(long = "client.config")]
+        config: Option<PathBuf>,
+        #[command(subcommand)]
+        cmd: Option<IotaAttestorCommand>,
         /// Return command outputs in json format.
         #[arg(long, global = true)]
         json: bool,
@@ -189,6 +204,25 @@ impl IotaCommand {
                     let mut app: Command = IotaCommand::command();
                     app.build();
                     app.find_subcommand_mut("validator").unwrap().print_help()?;
+                }
+                Ok(())
+            }
+            IotaCommand::Attestor {
+                config,
+                cmd,
+                json,
+                accept_defaults,
+            } => {
+                let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                prompt_if_no_config(&config_path, accept_defaults, true, true)?;
+                let mut context = WalletContext::new(&config_path)?;
+                if let Some(cmd) = cmd {
+                    cmd.execute(&mut context).await?.print(!json);
+                } else {
+                    // Print help
+                    let mut app: Command = IotaCommand::command();
+                    app.build();
+                    app.find_subcommand_mut("attestor").unwrap().print_help()?;
                 }
                 Ok(())
             }

@@ -1327,6 +1327,7 @@
                 "dependency_linkage_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
+                "enable_external_attestation": false,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
@@ -1373,6 +1374,21 @@
                 },
                 "address_to_u256_cost_base": {
                   "u64": "52"
+                },
+                "attestor_inactivity_penalty": {
+                  "u64": "500000000000"
+                },
+                "attestor_joining_bond_rate": {
+                  "u64": "1000"
+                },
+                "attestor_low_bond_threshold_rate": {
+                  "u64": "500"
+                },
+                "attestor_max_inactivity_epochs": {
+                  "u64": "7"
+                },
+                "attestor_validate_pubkey_cost_base": {
+                  "u64": "4225"
                 },
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
@@ -1878,6 +1894,9 @@
                 "max_age_of_jwk_in_epochs": null,
                 "max_arguments": {
                   "u32": "512"
+                },
+                "max_attestor_count": {
+                  "u64": "1000"
                 },
                 "max_auth_gas": {
                   "u64": "250000"
