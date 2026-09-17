@@ -393,10 +393,11 @@ where
     // protect them from a malicious server. Commits and certifier headers
     // carry the same count caps `verify_commits` applies
     // (`2 * fast_commit_sync_batch_size` and two headers per authority).
-    // Transactions have no count cap on the fast path — the server returns
-    // every transaction the committed range references — so only their
-    // per-element size is enforced here; their count is validated against
-    // the commits downstream, and the coarse total below bounds the buffer.
+    // Transactions carry no configured count cap on the fast path, since the
+    // server returns every transaction the committed range references. Their
+    // count is bounded by the commits already received instead: a commit
+    // names at most one `TransactionRef` per 37 bytes it occupies, and the
+    // server serves one entry per name.
     let committee_size = context.committee.size();
     let gc_depth = context.protocol_config.gc_depth() as usize;
     let max_commits = CommitSyncType::Fast.max_commits_per_response(context);
@@ -422,6 +423,7 @@ where
     let mut commits = Vec::new();
     let mut certifier_block_headers = Vec::new();
     let mut transactions = Vec::new();
+    let mut max_transactions = 0usize;
     let mut total_fetched_bytes = 0;
     let mut stream_error = None;
 
@@ -445,6 +447,8 @@ where
                         });
                     }
                     total_fetched_bytes += c.len();
+                    max_transactions =
+                        max_transactions.saturating_add(c.len() / SERIALIZED_TRANSACTION_REF_BYTES);
                 }
                 commits.extend(response.commits);
 
@@ -471,7 +475,15 @@ where
                 }
                 certifier_block_headers.extend(response.certifier_block_headers);
 
-                // Transactions (streamed in subsequent chunks): per-element size only.
+                // Transactions (streamed in subsequent chunks): count bounded by
+                // the commits received, plus per-element size.
+                if transactions
+                    .len()
+                    .saturating_add(response.transactions.len())
+                    > max_transactions
+                {
+                    return Err(ConsensusError::TooManyFetchedTransactionsReturned(peer));
+                }
                 for t in &response.transactions {
                     if t.len() > max_transaction_size {
                         return Err(ConsensusError::SerializedTransactionsTooLarge {
@@ -1767,10 +1779,58 @@ mod tests {
 
     fn chunk(commits: usize, transactions: usize) -> FetchCommitsAndTransactionsResponse {
         FetchCommitsAndTransactionsResponse {
-            commits: vec![Bytes::from_static(b"commit"); commits],
+            // Long enough to name four transaction references, since the
+            // transaction count is derived from the commit bytes.
+            commits: vec![Bytes::from(vec![0u8; 4 * SERIALIZED_TRANSACTION_REF_BYTES]); commits],
             certifier_block_headers: vec![],
             transactions: vec![Bytes::from_static(b"transaction"); transactions],
         }
+    }
+
+    fn commit_chunk(commit_bytes: usize) -> FetchCommitsAndTransactionsResponse {
+        FetchCommitsAndTransactionsResponse {
+            commits: vec![Bytes::from(vec![0u8; commit_bytes])],
+            certifier_block_headers: vec![],
+            transactions: vec![],
+        }
+    }
+
+    /// A commit can reference one transaction per 37 bytes it occupies, so a
+    /// peer sending more entries than its commits account for is rejected.
+    #[tokio::test]
+    async fn transactions_past_what_the_commits_reference_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let flood = stream::iter([
+            Ok(commit_chunk(SERIALIZED_TRANSACTION_REF_BYTES)),
+            Ok(chunk(0, 2)),
+        ]);
+
+        let result = collect_commits_and_transactions(&context, peer, flood).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedTransactionsReturned(_))
+        ));
+    }
+
+    /// Entries the received commits account for are collected in full.
+    #[tokio::test]
+    async fn transactions_within_what_the_commits_reference_are_collected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let full = stream::iter([
+            Ok(commit_chunk(2 * SERIALIZED_TRANSACTION_REF_BYTES)),
+            Ok(chunk(0, 2)),
+        ]);
+
+        let (commits, _headers, transactions, _error) =
+            collect_commits_and_transactions(&context, peer, full)
+                .await
+                .expect("a response the commits account for is kept");
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(transactions.len(), 2);
     }
 
     fn header_chunk(headers: usize, bytes_each: usize) -> FetchBlockHeadersResponse {
