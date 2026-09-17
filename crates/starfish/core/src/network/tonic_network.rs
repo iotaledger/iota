@@ -408,7 +408,7 @@ where
         committee_size.saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     let max_commit_size = max_commit_bytes(committee_size, gc_depth);
     let max_header_size = max_signed_block_header_bytes(committee_size);
-    let max_transaction_size = serialized_transactions_size_limit(context);
+    let max_transaction_size = max_serialized_transactions_entry_bytes(context);
     // Coarse total backstop for the buffer. The commit and certifier-header
     // terms reuse the per-category caps above so the total never trips
     // before them; the transaction term uses the commit-sync fetch cap as a
