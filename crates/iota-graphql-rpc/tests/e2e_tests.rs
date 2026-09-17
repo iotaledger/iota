@@ -1272,4 +1272,89 @@ mod tests {
 
         assert!(res.errors().is_empty());
     }
+
+    /// A transaction that has been executed but is not in a checkpoint yet is
+    /// viewed at `UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER`, and the cursors its
+    /// effects hand out carry that value. The server has to read those cursors
+    /// back.
+    #[tokio::test]
+    #[serial]
+    async fn test_optimistic_transaction_effects_pagination() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+
+        // Optimistic indexing is skipped while a transaction's inputs are
+        // themselves unindexed, so we wait for the objects to be there.
+        cluster
+            .wait_for_checkpoint_catchup(1, Duration::from_secs(30))
+            .await;
+
+        let tx = cluster.build_transfer_iota_for_test().await;
+        let signed_tx = cluster.sign_transaction(&tx);
+        let digest = signed_tx.digest().to_string();
+
+        // The transfer mutates the gas coin and creates the recipient's coin,
+        // so a page of one leaves a second page to fetch.
+        let response_fields = r#"
+            effects {
+              checkpoint { sequenceNumber }
+              objectChanges(first: 1) {
+                pageInfo { hasNextPage endCursor }
+                edges { node { idCreated } }
+              }
+            }
+        "#;
+
+        let executed =
+            mutation_execute_transaction(&cluster.graphql_client, &signed_tx, response_fields)
+                .await
+                .response_body_json();
+        let effects = &executed["data"]["executeTransactionBlock"]["effects"];
+
+        let page_info = &effects["objectChanges"]["pageInfo"];
+        assert_eq!(page_info["hasNextPage"], json!(true), "{executed}");
+        let end_cursor = page_info["endCursor"].as_str().unwrap().to_string();
+
+        let query = r#"
+            {
+              transactionBlock(digest: $dig) {
+                effects {
+                  objectChanges(first: 1, after: $cursor) {
+                    edges { node { idCreated } }
+                  }
+                }
+              }
+            }
+        "#;
+        let variables = vec![
+            GraphqlQueryVariable {
+                name: "dig".to_string(),
+                ty: "String!".to_string(),
+                value: json!(digest),
+            },
+            GraphqlQueryVariable {
+                name: "cursor".to_string(),
+                ty: "String!".to_string(),
+                value: json!(end_cursor),
+            },
+        ];
+
+        let next_page = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, variables, vec![])
+            .await
+            .unwrap();
+
+        assert!(next_page.errors().is_empty(), "{:#?}", next_page.errors());
+
+        let body = next_page.response_body_json();
+        let edges = body["data"]["transactionBlock"]["effects"]["objectChanges"]["edges"]
+            .as_array()
+            .unwrap();
+        assert_eq!(edges.len(), 1, "{body}");
+    }
 }
