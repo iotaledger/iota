@@ -381,7 +381,7 @@ async fn scheduler_propagates_expected_effects_digest_fast_path() {
     let transaction = make_transaction(gas_object, vec![]);
     let expected = TransactionEffectsDigest::new([7; 32]);
     execution_scheduler.enqueue_with_expected_effects_digest(
-        vec![(transaction.clone(), expected)],
+        vec![(transaction.clone(), expected, None)],
         &state.epoch_store_for_testing(),
     );
 
@@ -409,7 +409,7 @@ async fn scheduler_propagates_expected_effects_digest_wait_path() {
 
     let expected = TransactionEffectsDigest::new([9; 32]);
     execution_scheduler.enqueue_with_expected_effects_digest(
-        vec![(transaction.clone(), expected)],
+        vec![(transaction.clone(), expected, None)],
         &state.epoch_store_for_testing(),
     );
 

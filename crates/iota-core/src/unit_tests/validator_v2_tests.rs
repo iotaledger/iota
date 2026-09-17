@@ -41,6 +41,7 @@ async fn test_submit_single_tx_produces_user_transaction_v2_with_validator_attes
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         config
     });
 
@@ -149,6 +150,7 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         config
     });
 
