@@ -770,6 +770,14 @@ pub struct AdmissionParameters {
     /// If unspecified, this will default to 8.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
+
+    /// Max concurrent commit fetches across all peers. A fast commit-sync
+    /// response is held in memory until it has been sent, so this caps what
+    /// serving them can cost the node at once.
+    ///
+    /// If unspecified, this will default to 16.
+    #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
+    pub max_commit_fetches_total: u32,
 }
 
 impl AdmissionParameters {
@@ -788,6 +796,10 @@ impl AdmissionParameters {
     fn default_max_commit_fetches_per_peer() -> u32 {
         Parameters::default_commit_sync_parallel_fetches() as u32
     }
+
+    fn default_max_commit_fetches_total() -> u32 {
+        2 * AdmissionParameters::default_max_commit_fetches_per_peer()
+    }
 }
 
 impl Default for AdmissionParameters {
@@ -798,6 +810,7 @@ impl Default for AdmissionParameters {
             max_transaction_fetches_per_peer:
                 AdmissionParameters::default_max_transaction_fetches_per_peer(),
             max_commit_fetches_per_peer: AdmissionParameters::default_max_commit_fetches_per_peer(),
+            max_commit_fetches_total: AdmissionParameters::default_max_commit_fetches_total(),
         }
     }
 }
