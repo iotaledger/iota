@@ -20,7 +20,7 @@ use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
 use crate::{
     client_commands::{
         DisplayOption, GasDataArgs, IotaClientCommandResult, TxProcessingArgs,
-        dry_run_or_execute_or_serialize, grpc_input_refs, parse_display_option,
+        dry_run_or_execute_or_serialize, parse_display_option,
     },
     client_ptb::{
         ast::{ParsedProgram, Program},
@@ -224,7 +224,7 @@ impl PTB {
 
         let grpc_client = context.get_grpc_client().await?;
 
-        let (res, warnings) = Self::build_ptb(program, context, grpc_client.clone()).await;
+        let (res, warnings) = Self::build_ptb(program, context, grpc_client).await;
 
         // Render warnings
         if !warnings.is_empty() {
@@ -299,17 +299,9 @@ impl PTB {
             sponsor_auth_type_args,
         };
 
-        let gas_payment = grpc_input_refs(&grpc_client, &gas).await?;
-
-        let transaction_response = dry_run_or_execute_or_serialize(
-            sender,
-            tx_kind,
-            context,
-            gas_payment,
-            gas_data,
-            processing,
-        )
-        .await?;
+        let transaction_response =
+            dry_run_or_execute_or_serialize(sender, tx_kind, context, gas, gas_data, processing)
+                .await?;
 
         let transaction_response = match transaction_response {
             IotaClientCommandResult::ComputeTransactionDigest(_)
