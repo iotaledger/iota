@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
-use iota_grpc_client::{Client as GrpcClient, read_mask_fields::SimulateField};
+use iota_grpc_client::{GrpcClient, read_mask_fields::SimulateField};
 use iota_json::IotaJsonValue;
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::WriteApiServer;
