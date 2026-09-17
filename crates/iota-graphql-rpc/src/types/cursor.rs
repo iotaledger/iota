@@ -703,7 +703,7 @@ mod tests {
     use super::*;
     use crate::types::uint53::MAX_UINT53;
 
-    /// A cursor index that is larger the number of elements it refers to
+    /// A cursor index that is larger than the number of elements it refers to
     /// must be rejected.
     #[test]
     fn test_consistent_indices_rejects_index_past_end() {
