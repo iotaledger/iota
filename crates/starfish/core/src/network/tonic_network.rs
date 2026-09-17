@@ -7,6 +7,7 @@ use std::{
     net::{SocketAddr, SocketAddrV4, SocketAddrV6},
     pin::Pin,
     sync::Arc,
+    task::{Context as TaskContext, Poll},
     time::{Duration, Instant},
 };
 
@@ -25,14 +26,15 @@ use parking_lot::RwLock;
 use starfish_config::{
     AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH, NetworkKeyPair, NetworkPublicKey,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedSemaphorePermit};
 use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle,
+    BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
+    SerializedBlockBundle,
     admission::AdmissionLayer,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
@@ -1022,11 +1024,21 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
         let request = request.into_inner();
-        let (serialized_commits, serialized_headers, serialized_transactions) = self
+        let FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_headers,
+            transactions: serialized_transactions,
+            oversized_commit_permit,
+        } = self
             .service
             .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
             .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+            .map_err(|e| match e {
+                ConsensusError::OversizedCommitAlreadyServed => {
+                    tonic::Status::resource_exhausted(e.to_string())
+                }
+                e => tonic::Status::internal(format!("{e:?}")),
+            })?;
 
         // Build response as a stream of chunks to stay under gRPC message size limit.
         // Commits and transactions are chunked by size. Certifier headers are small
@@ -1063,7 +1075,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             }));
         }
 
-        let stream = iter(responses).boxed();
+        let stream = PermitHoldingStream {
+            inner: iter(responses),
+            _permit: oversized_commit_permit,
+        }
+        .boxed();
         Ok(Response::new(stream))
     }
 
@@ -1762,6 +1778,21 @@ pub(crate) struct FetchTransactionsRequest {
 pub(crate) struct FetchTransactionsResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]
     vec_serialized_transactions: Vec<Bytes>,
+}
+
+/// A response stream that keeps `_permit` held until the stream is dropped,
+/// which is once the response has been sent or the peer has gone away.
+struct PermitHoldingStream<St> {
+    inner: St,
+    _permit: Option<OwnedSemaphorePermit>,
+}
+
+impl<St: Stream + Unpin> Stream for PermitHoldingStream<St> {
+    type Item = St::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.get_mut().inner).poll_next(cx)
+    }
 }
 
 // Splits a list of byte sequences into chunks where each chunk's total size

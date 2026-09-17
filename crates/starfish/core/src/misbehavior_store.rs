@@ -486,7 +486,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::MissingVotingBlockHeaderInStorage { .. }
         | ConsensusError::WrongShardVersion { .. }
         | ConsensusError::WrongCommitVersionForFlags { .. }
-        | ConsensusError::WrongBlockHeaderVersionForFlag { .. } => FaultType::Untracked,
+        | ConsensusError::WrongBlockHeaderVersionForFlag { .. }
+        | ConsensusError::OversizedCommitAlreadyServed => FaultType::Untracked,
     }
 }
 
