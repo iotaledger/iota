@@ -323,7 +323,7 @@ impl NetworkClient for TonicClient {
         });
 
         request.set_timeout(timeout);
-        let mut stream = client
+        let stream = client
             .fetch_transactions(request)
             .await
             .map_err(|e| {
@@ -337,45 +337,7 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        let max_allowed_bytes = max_fetch_transactions_response_bytes(&self.context);
-        let mut total_fetched_bytes = 0;
-        let mut vec_serialized_transactions = vec![];
-        loop {
-            match stream.message().await {
-                Ok(Some(response)) => {
-                    for b in &response.vec_serialized_transactions {
-                        total_fetched_bytes += b.len();
-                    }
-                    if total_fetched_bytes > max_allowed_bytes {
-                        info!(
-                            "fetch_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, max_allowed_bytes,
-                        );
-                        break;
-                    }
-                    vec_serialized_transactions.extend(response.vec_serialized_transactions);
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(e) => {
-                    if vec_serialized_transactions.is_empty() {
-                        if e.code() == tonic::Code::DeadlineExceeded {
-                            return Err(ConsensusError::NetworkRequestTimeout(format!(
-                                "fetch_transactions failed mid-stream: {e:?}"
-                            )));
-                        }
-                        return Err(ConsensusError::NetworkRequest(format!(
-                            "fetch_transactions failed mid-stream: {e:?}"
-                        )));
-                    } else {
-                        warn!("fetch_transactions failed mid-stream: {e:?}");
-                        break;
-                    }
-                }
-            }
-        }
-        Ok(vec_serialized_transactions)
+        collect_transactions(&self.context, stream).await
     }
 
     async fn fetch_commits_and_transactions(
@@ -627,6 +589,55 @@ where
         }
     }
     Ok(vec_serialized_block_header)
+}
+
+/// Collects the chunks of a `fetch_transactions` response stream into the
+/// transaction buffer. A stream cut by an error after entries arrived yields
+/// the delivered chunks.
+async fn collect_transactions<S>(context: &Context, mut stream: S) -> ConsensusResult<Vec<Bytes>>
+where
+    S: Stream<Item = Result<FetchTransactionsResponse, tonic::Status>> + Unpin,
+{
+    let max_allowed_bytes = max_fetch_transactions_response_bytes(context);
+    let mut total_fetched_bytes = 0;
+    let mut vec_serialized_transactions = vec![];
+    loop {
+        match stream.try_next().await {
+            Ok(Some(response)) => {
+                let transactions = response.vec_serialized_transactions;
+                for b in &transactions {
+                    total_fetched_bytes += b.len();
+                }
+                if total_fetched_bytes > max_allowed_bytes {
+                    info!(
+                        "fetch_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                        total_fetched_bytes, max_allowed_bytes,
+                    );
+                    break;
+                }
+                vec_serialized_transactions.extend(transactions);
+            }
+            Ok(None) => {
+                break;
+            }
+            Err(e) => {
+                if vec_serialized_transactions.is_empty() {
+                    if e.code() == tonic::Code::DeadlineExceeded {
+                        return Err(ConsensusError::NetworkRequestTimeout(format!(
+                            "fetch_transactions failed mid-stream: {e:?}"
+                        )));
+                    }
+                    return Err(ConsensusError::NetworkRequest(format!(
+                        "fetch_transactions failed mid-stream: {e:?}"
+                    )));
+                } else {
+                    warn!("fetch_transactions failed mid-stream: {e:?}");
+                    break;
+                }
+            }
+        }
+    }
+    Ok(vec_serialized_transactions)
 }
 
 // Tonic channel wrapped with layers.
