@@ -233,6 +233,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Reject `<SELF>` as an identifier in published modules.
 //             Make the enum variant count limit explicit in the protocol
 //             config.
+//             Check the package that holds a `MoveAuthenticator`'s
+//             authenticate function, and that package's dependencies, against
+//             the package deny list.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -631,6 +634,14 @@ struct FeatureFlags {
     // Requires `deny_rule_governance`.
     #[serde(skip_serializing_if = "is_false")]
     deny_rule_governance_on_chain: bool,
+
+    // If true, the package holding a `MoveAuthenticator`'s authenticate function,
+    // together with that package's dependencies, is checked against the package
+    // deny list. The call is assembled during execution and is named by neither a
+    // transaction command nor a linkage table, so it is checked separately from
+    // the packages a transaction's commands use.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_authenticator_packages: bool,
 
     // If true, package metadata can be published with ModuleMetadata as a dynamic
     // field.
@@ -2072,6 +2083,10 @@ impl ProtocolConfig {
         self.feature_flags.deny_rule_governance_on_chain
     }
 
+    pub fn deny_authenticator_packages(&self) -> bool {
+        self.feature_flags.deny_authenticator_packages
+    }
+
     pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
         let res = self
             .feature_flags
@@ -3505,6 +3520,9 @@ impl ProtocolConfig {
                     cfg.feature_flags.validate_input_object_versions = true;
                     cfg.feature_flags.disallow_self_identifier = true;
                     cfg.max_move_enum_variants = Some(move_core_types::VARIANT_COUNT_MAX);
+                    // Apply the package deny list to the package that holds a
+                    // `MoveAuthenticator`'s authenticate function.
+                    cfg.feature_flags.deny_authenticator_packages = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3802,6 +3820,10 @@ impl ProtocolConfig {
 
     pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
         self.feature_flags.deny_rule_governance = val;
+    }
+
+    pub fn set_deny_authenticator_packages_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_authenticator_packages = val;
     }
 
     pub fn set_deny_rule_governance_on_chain_for_testing(&mut self, val: bool) {
