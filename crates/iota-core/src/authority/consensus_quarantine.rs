@@ -899,6 +899,10 @@ impl ConsensusOutputQuarantine {
     // Read methods - all methods in this block return data from the quarantine
     // which would otherwise be found in the database.
 
+    pub(super) fn highest_executed_checkpoint(&self) -> CheckpointSequenceNumber {
+        self.highest_executed_checkpoint
+    }
+
     pub(super) fn last_built_summary(&self) -> Option<&BuilderCheckpointSummary> {
         self.builder_checkpoint_summary
             .values()
@@ -1268,7 +1272,10 @@ where
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{CheckpointSummary, GasCostSummary};
-    use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
+    use iota_types::{
+        base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt,
+        transaction::TransactionKey,
+    };
 
     use super::*;
     use crate::{
@@ -1279,20 +1286,29 @@ mod tests {
         },
     };
 
-    fn output_with_pending_checkpoint(
-        round: CommitRound,
+    fn pending_checkpoint(
+        roots: Vec<TransactionKey>,
         checkpoint_height: CheckpointHeight,
-    ) -> ConsensusCommitOutput {
-        let mut output = ConsensusCommitOutput::new(round);
-        output.set_default_commit_stats_for_testing();
-        output.insert_pending_checkpoint(PendingCheckpoint::V1(PendingCheckpointContentsV1 {
-            roots: vec![],
+    ) -> PendingCheckpoint {
+        PendingCheckpoint::V1(PendingCheckpointContentsV1 {
+            roots,
             details: PendingCheckpointInfo {
                 timestamp_ms: 0,
                 last_of_epoch: false,
                 checkpoint_height,
             },
-        }));
+        })
+    }
+
+    fn output_with_pending_checkpoints(
+        round: CommitRound,
+        checkpoint_heights: impl IntoIterator<Item = CheckpointHeight>,
+    ) -> ConsensusCommitOutput {
+        let mut output = ConsensusCommitOutput::new(round);
+        output.set_default_commit_stats_for_testing();
+        for checkpoint_height in checkpoint_heights {
+            output.insert_pending_checkpoint(pending_checkpoint(vec![], checkpoint_height));
+        }
         output
     }
 
@@ -1366,7 +1382,7 @@ mod tests {
         );
 
         quarantine
-            .push_consensus_output(output_with_pending_checkpoint(1, 40), &epoch_store)
+            .push_consensus_output(output_with_pending_checkpoints(1, [40]), &epoch_store)
             .unwrap();
         for (seq, position) in [(10, 0), (11, 1)] {
             let (summary, contents) = builder_summary(&epoch_store, seq, 40, position);
@@ -1398,7 +1414,7 @@ mod tests {
         );
 
         quarantine
-            .push_consensus_output(output_with_pending_checkpoint(1, 40), &epoch_store)
+            .push_consensus_output(output_with_pending_checkpoints(1, [40]), &epoch_store)
             .unwrap();
         for (seq, position) in [(10, 0), (11, 1)] {
             let (summary, contents) = builder_summary(&epoch_store, seq, 40, position);
@@ -1437,7 +1453,10 @@ mod tests {
 
         for (round, height) in [(1, 40), (2, 41), (3, 42)] {
             quarantine
-                .push_consensus_output(output_with_pending_checkpoint(round, height), &epoch_store)
+                .push_consensus_output(
+                    output_with_pending_checkpoints(round, [height]),
+                    &epoch_store,
+                )
                 .unwrap();
         }
         for (seq, position) in [(10, 0), (11, 1)] {
@@ -1452,5 +1471,107 @@ mod tests {
         execute_up_to(&mut quarantine, &epoch_store, 11);
 
         assert!(quarantine.output_queue.is_empty());
+    }
+
+    /// Executing a split build one checkpoint at a time persists nothing and
+    /// releases nothing until the last chunk, whichever chunk a crash would
+    /// follow.
+    #[tokio::test]
+    async fn flushes_three_chunks_only_after_the_last_one_is_executed() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let mut quarantine = ConsensusOutputQuarantine::new(
+            9,
+            HashMap::new(),
+            BTreeMap::new(),
+            epoch_store.metrics.clone(),
+        );
+
+        quarantine
+            .push_consensus_output(output_with_pending_checkpoints(1, [40]), &epoch_store)
+            .unwrap();
+        for (seq, position) in [(10, 0), (11, 1), (12, 2)] {
+            let (summary, contents) = builder_summary(&epoch_store, seq, 40, position);
+            quarantine.insert_builder_summary(seq, summary, contents);
+        }
+
+        for executed in [10, 11] {
+            execute_up_to(&mut quarantine, &epoch_store, executed);
+            assert_eq!(quarantine.output_queue.len(), 1);
+            assert_eq!(quarantine.builder_checkpoint_summary.len(), 3);
+            assert!(persisted_builder_summary_heights(&epoch_store).is_empty());
+        }
+
+        execute_up_to(&mut quarantine, &epoch_store, 12);
+
+        assert!(quarantine.output_queue.is_empty());
+        assert_eq!(
+            persisted_builder_summary_heights(&epoch_store),
+            vec![(10, Some(40)), (11, Some(40)), (12, Some(40))]
+        );
+    }
+
+    /// The epoch store records a commit that generated randomness as two
+    /// pending checkpoints in one `ConsensusCommitOutput`: the regular one at
+    /// the commit's height and the randomness one at height + 1. The commit is
+    /// released only when the randomness checkpoint is executed, so a complete
+    /// split build of the regular checkpoint is not enough on its own.
+    #[tokio::test]
+    async fn waits_for_the_randomness_checkpoint_of_a_split_commit() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let mut quarantine = ConsensusOutputQuarantine::new(
+            9,
+            HashMap::new(),
+            BTreeMap::new(),
+            epoch_store.metrics.clone(),
+        );
+
+        let regular_height = 40;
+        let randomness_height = regular_height + 1;
+        let mut output = ConsensusCommitOutput::new(1);
+        output.set_default_commit_stats_for_testing();
+        output.insert_pending_checkpoint(pending_checkpoint(vec![], regular_height));
+        output.insert_pending_checkpoint(pending_checkpoint(
+            vec![TransactionKey::RandomnessRound(
+                epoch_store.epoch(),
+                RandomnessRound::new(1),
+            )],
+            randomness_height,
+        ));
+        quarantine
+            .push_consensus_output(output, &epoch_store)
+            .unwrap();
+
+        // The regular checkpoint was split in two, the randomness checkpoint
+        // is a separate build.
+        for (seq, height, position) in [
+            (10, regular_height, 0),
+            (11, regular_height, 1),
+            (12, randomness_height, 0),
+        ] {
+            let (summary, contents) = builder_summary(&epoch_store, seq, height, position);
+            quarantine.insert_builder_summary(seq, summary, contents);
+        }
+
+        execute_up_to(&mut quarantine, &epoch_store, 11);
+
+        assert_eq!(quarantine.output_queue.len(), 1);
+        assert_eq!(
+            persisted_builder_summary_heights(&epoch_store),
+            vec![(10, Some(regular_height)), (11, Some(regular_height))]
+        );
+
+        execute_up_to(&mut quarantine, &epoch_store, 12);
+
+        assert!(quarantine.output_queue.is_empty());
+        assert_eq!(
+            persisted_builder_summary_heights(&epoch_store),
+            vec![
+                (10, Some(regular_height)),
+                (11, Some(regular_height)),
+                (12, Some(randomness_height)),
+            ]
+        );
     }
 }
