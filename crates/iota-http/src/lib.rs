@@ -254,14 +254,19 @@ where
                 (io, remote_addr) = self.listener.accept(), if self.accepts_more_connections() => {
                     self.handle_incoming(io, remote_addr);
                 },
+                // A failed task affects only its own connection, so the loop keeps serving
+                // the others.
                 Some(maybe_connection) = self.pending_connections.join_next() => {
-                    // If a task panics, just propagate it
-                    let (io, remote_addr) = match maybe_connection.unwrap() {
-                        Ok((io, remote_addr)) => {
+                    let (io, remote_addr) = match maybe_connection {
+                        Ok(Ok((io, remote_addr))) => {
                             (io, remote_addr)
                         }
-                        Err(e) => {
+                        Ok(Err(e)) => {
                             tracing::debug!(error = %e, "error accepting connection");
+                            continue;
+                        }
+                        Err(e) => {
+                            tracing::error!(error = %e, "connection handshake task failed");
                             continue;
                         }
                     };
@@ -270,8 +275,9 @@ where
                     self.handle_connection(io, remote_addr);
                 },
                 Some(connection_handler_output) = self.connection_handlers.join_next() => {
-                    // If a task panics, just propagate it
-                    let _: () = connection_handler_output.unwrap();
+                    if let Err(e) = connection_handler_output {
+                        tracing::error!(error = %e, "connection task failed");
+                    }
                 },
             }
         }
