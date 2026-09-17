@@ -1225,45 +1225,40 @@ mod tests {
         Ok(effects)
     }
 
-    /// Call a function of the framework's `pay` module on the gas coin `coin`,
-    /// paying for the transaction with the separate gas coin `gas`.
-    async fn pay_split<T: serde::Serialize>(
-        ctx: &WalletContext,
-        coin: ObjectId,
-        gas: ObjectId,
-        function: &str,
-        split: T,
-    ) -> Result<TransactionEffectsV1, anyhow::Error> {
-        let address = ctx.active_address()?;
-        let client = ctx.get_grpc_client().await?;
-        let mut builder = client.transaction_builder(address);
-        let split = builder.pure(split);
-        builder
-            .move_call(ObjectId::FRAMEWORK, "pay", function)
-            .type_tags([StructTag::new_gas().into()])
-            .arguments((coin, split));
-        builder.gas([gas]).gas_budget(TEST_GAS_BUDGET);
-        execute_tx(ctx, builder).await
-    }
-
-    /// Split `coin` into `count` coins of equal balance.
+    /// Split `coin` into `count` coins of equal balance, paying for the
+    /// transaction with the separate gas coin `gas`.
     async fn split_coin_equal(
         ctx: &WalletContext,
         coin: ObjectId,
         gas: ObjectId,
         count: u64,
     ) -> Result<TransactionEffectsV1, anyhow::Error> {
-        pay_split(ctx, coin, gas, "divide_and_keep", count).await
+        let address = ctx.active_address()?;
+        let client = ctx.get_grpc_client().await?;
+        let mut builder = client.transaction_builder(address);
+        builder.divide_coin(coin, count);
+        builder.gas([gas]).gas_budget(TEST_GAS_BUDGET);
+        execute_tx(ctx, builder).await
     }
 
-    /// Split each of `amounts` off `coin`.
+    /// Split each of `amounts` off `coin`, paying for the transaction with the
+    /// separate gas coin `gas`.
     async fn split_coin(
         ctx: &WalletContext,
         coin: ObjectId,
         gas: ObjectId,
         amounts: Vec<u64>,
     ) -> Result<TransactionEffectsV1, anyhow::Error> {
-        pay_split(ctx, coin, gas, "split_vec", amounts).await
+        let address = ctx.active_address()?;
+        let client = ctx.get_grpc_client().await?;
+        let mut builder = client.transaction_builder(address);
+        let amounts = builder.pure(amounts);
+        builder
+            .move_call(ObjectId::FRAMEWORK, "pay", "split_vec")
+            .type_tags([StructTag::new_gas().into()])
+            .arguments((coin, amounts));
+        builder.gas([gas]).gas_budget(TEST_GAS_BUDGET);
+        execute_tx(ctx, builder).await
     }
 
     /// Transfer the whole of `coin`, which also pays for the transaction, to

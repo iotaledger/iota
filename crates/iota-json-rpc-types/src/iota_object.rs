@@ -636,13 +636,12 @@ impl TryInto<Object> for IotaObjectData {
                     .iter()
                     .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
                     .collect(),
-                protocol_config.max_move_package_size(),
                 p.type_origin_table.into_iter().collect(),
                 p.linkage_table
                     .into_iter()
                     .map(|(k, v)| (k, v.into()))
                     .collect(),
-            )?),
+            )),
             _ => Err(anyhow!(
                 "BCS data is required to convert IotaObjectData to Object"
             ))?,
@@ -1174,21 +1173,22 @@ impl IotaRawMovePackage {
         &self,
         max_move_package_size: u64,
     ) -> Result<MovePackage, ExecutionError> {
-        Ok(MovePackage::new(
+        let package = MovePackage::new(
             self.id,
             self.version.into(),
             self.module_map
                 .iter()
                 .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
                 .collect(),
-            max_move_package_size,
             self.type_origin_table.clone(),
             self.linkage_table
                 .clone()
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
-        )?)
+        );
+        package.check_size(max_move_package_size)?;
+        Ok(package)
     }
 }
 

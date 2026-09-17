@@ -9,7 +9,7 @@ use iota_faucet::FaucetError;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_transaction_builder::WaitForTransaction;
-use iota_sdk_types::{ObjectId, StructTag};
+use iota_sdk_types::ObjectId;
 use iota_types::gas_coin::GasCoin;
 use tracing::info;
 
@@ -50,11 +50,7 @@ async fn _split_coins_equally(
     let coin_object_id = ObjectId::from_str(gas_coin).unwrap();
 
     let mut builder = client.transaction_builder(active_address);
-    let count = builder.pure(count);
-    builder
-        .move_call(ObjectId::FRAMEWORK, "pay", "divide_and_keep")
-        .type_tags([StructTag::new_gas().into()])
-        .arguments((coin_object_id, count));
+    builder.divide_coin(coin_object_id, count);
     builder.gas_budget(50000000000);
 
     let signer = wallet.config().keystore().get_key(&active_address)?;

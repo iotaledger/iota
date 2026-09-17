@@ -312,15 +312,14 @@ impl MovePackageExt for MovePackage {
             (name, bytes)
         }));
 
+        // System packages are not subject to the size limit, so no check_size.
         MovePackage::new(
             storage_id,
             version,
             module_map,
-            u64::MAX, // System packages are not subject to the size limit
             type_origin_table,
             linkage_table,
         )
-        .expect("System packages are not subject to a size limit")
     }
 
     fn from_module_iter_with_type_origin_table<'p>(
@@ -362,14 +361,15 @@ impl MovePackageExt for MovePackage {
             protocol_config,
         )?;
 
-        Ok(MovePackage::new(
+        let package = MovePackage::new(
             storage_id,
             version,
             module_map,
-            protocol_config.max_move_package_size(),
             type_origin_table,
             linkage_table,
-        )?)
+        );
+        package.check_size(protocol_config.max_move_package_size())?;
+        Ok(package)
     }
 
     /// The `Package ID` of the first version of this package.
