@@ -17,6 +17,7 @@ mod checked {
         gas::{self, IotaGasStatusAPI},
         gas_model::{
             gas_predicates::cost_table_for_version,
+            resource_profile::ResourceProfile,
             tables::{GasStatus, ZERO_COST_SCHEDULE},
             units_types::CostTable,
         },
@@ -208,6 +209,13 @@ mod checked {
         /// values at the end of execution to determine storage charges
         /// and rebates.
         per_object_storage: Vec<(ObjectId, PerObjectStorage)>,
+        /// Post-transaction serialized size of every mutation tracked, one
+        /// entry per written or deleted object (0 = deleted). Unlike
+        /// `per_object_storage`, which feeds fees and is skipped in unmetered
+        /// mode, this list is maintained unconditionally so the resource
+        /// profile records system transactions' writes too. Profile-only;
+        /// never read by charging.
+        profile_write_sizes: Vec<u64>,
         // storage rebate rate as defined in the ProtocolConfig
         rebate_rate: u64,
         /// Amount of storage rebate accumulated when we are running in
@@ -245,6 +253,7 @@ mod checked {
                 reference_gas_price,
                 storage_gas_price,
                 per_object_storage: Vec::new(),
+                profile_write_sizes: Vec::new(),
                 rebate_rate,
                 unmetered_storage_rebate: 0,
                 gas_rounding_step,
@@ -360,6 +369,23 @@ mod checked {
 
         pub fn per_object_storage(&self) -> &Vec<(ObjectId, PerObjectStorage)> {
             &self.per_object_storage
+        }
+
+        /// Assemble the per-transaction [`ResourceProfile`]: the VM-side
+        /// counters from the Move gas status plus the write-side signals
+        /// from storage tracking. Call after storage collection; earlier
+        /// calls see empty write-side fields.
+        pub fn resource_profile(&self) -> ResourceProfile {
+            let mut profile = self.gas_status.resource_profile();
+            for new_size in &self.profile_write_sizes {
+                if *new_size > 0 {
+                    profile.written_object_count += 1;
+                    profile.written_bytes += *new_size;
+                } else {
+                    profile.deleted_object_count += 1;
+                }
+            }
+            profile
         }
     }
 
@@ -479,7 +505,7 @@ mod checked {
 
         fn charge_publish_package(&mut self, size: usize) -> Result<(), ExecutionError> {
             self.gas_status
-                .charge_bytes(size, self.cost_table.package_publish_per_byte_cost)
+                .charge_publish_bytes(size, self.cost_table.package_publish_per_byte_cost)
                 .map_err(|e| {
                     debug_assert_eq!(e.major_status(), StatusCode::OUT_OF_GAS);
                     ExecutionErrorKind::InsufficientGas.into()
@@ -498,6 +524,7 @@ mod checked {
             new_size: usize,
             storage_rebate: u64,
         ) -> u64 {
+            self.profile_write_sizes.push(new_size as u64);
             if self.is_unmetered() {
                 self.unmetered_storage_rebate += storage_rebate;
                 return 0;
@@ -557,6 +584,28 @@ mod checked {
             max_computation_budget
         } else {
             gas_budget
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn unmetered_mutations_recorded_in_resource_profile() {
+            // System transactions run unmetered: fees skip storage tracking,
+            // but the resource profile must still record their writes and
+            // deletions (e.g. the consensus-commit prologue's Clock update).
+            let mut status = IotaGasStatus::new_unmetered();
+            status.track_storage_mutation(ObjectId::ZERO, 512, 0);
+            status.track_storage_mutation(ObjectId::ZERO, 0, 100);
+
+            let profile = status.resource_profile();
+            assert_eq!(profile.written_object_count, 1);
+            assert_eq!(profile.written_bytes, 512);
+            assert_eq!(profile.deleted_object_count, 1);
+            // Fee-side storage tracking stays untouched in unmetered mode.
+            assert!(status.per_object_storage().is_empty());
         }
     }
 }
