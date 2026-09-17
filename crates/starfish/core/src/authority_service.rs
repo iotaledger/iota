@@ -1682,7 +1682,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             vec![]
         };
 
-        let transactions_by_ref: BTreeMap<_, _> = store_transactions
+        let mut transactions_by_ref: BTreeMap<_, _> = store_transactions
             .into_iter()
             .chain(dag_transactions)
             .filter_map(|(transaction, transaction_ref)| {
@@ -1692,10 +1692,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let mut result = Vec::new();
         for transaction_ref in committed_transactions_refs {
-            if let Some(serialized_tx) = transactions_by_ref.get(&transaction_ref) {
+            // Drained rather than read, so a payload is freed as soon as its
+            // envelope is built instead of being held until the response is
+            // complete.
+            if let Some(serialized_tx) = transactions_by_ref.remove(&transaction_ref) {
                 let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
                     transaction_ref,
-                    serialized_transactions: serialized_tx.clone(),
+                    serialized_transactions: serialized_tx,
                 })
                 .map_err(ConsensusError::SerializationFailure)?;
                 result.push(Bytes::from(serialized));
