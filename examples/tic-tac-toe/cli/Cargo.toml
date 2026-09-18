@@ -21,7 +21,7 @@ tokio = { version = "1.49.0", features = ["time"] }
 # internal dependencies
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "1e3cf0a75d1c9956541cefcdaaa75d7a5401659e" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "76cb1febd932e52ca669276889d41300e6168470" }
 iota-types = { path = "../../../crates/iota-types" }
 
 [package.metadata.cargo-machete]
