@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["GENESIS_BUILDER_PARAMETERS_FILE"],"fn":["generate_genesis_system_object"],"mod":["validator_info"],"struct":["Builder"]};

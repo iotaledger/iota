@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["STARDUST_UPGRADE_LABEL_VALUE","STARDUST_UPGRADE_MODULE_NAME","STARDUST_UPGRADE_STRUCT_NAME"],"fn":["is_stardust_upgrade","stardust_upgrade_label_type"]};
