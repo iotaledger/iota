@@ -3348,17 +3348,24 @@ mod tests {
             id[0] = seed;
             VerifiedTransaction::new_genesis_transaction(
                 vec![GenesisObject::new(
-                    ObjectData::Package(MovePackage::new(
-                        ObjectId::new(id),
-                        Version::default(),
-                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; payload_size])]),
-                        // no modules so empty type_origin_table as no types are defined in
-                        // this package
-                        Vec::new(),
-                        // no modules so empty linkage_table as no dependencies of this package
-                        // exist
-                        BTreeMap::new(),
-                    )),
+                    ObjectData::Package(
+                        MovePackage::new(
+                            ObjectId::new(id),
+                            Version::default(),
+                            BTreeMap::from([(
+                                Identifier::new_unchecked("m"),
+                                vec![0u8; payload_size],
+                            )]),
+                            100_000,
+                            // no modules so empty type_origin_table as no types are defined in
+                            // this package
+                            Vec::new(),
+                            // no modules so empty linkage_table as no dependencies of this package
+                            // exist
+                            BTreeMap::new(),
+                        )
+                        .unwrap(),
+                    ),
                     Owner::Immutable,
                 )],
                 vec![],
@@ -3620,17 +3627,21 @@ mod tests {
             id[0] = seed;
             VerifiedTransaction::new_genesis_transaction(
                 vec![GenesisObject::new(
-                    ObjectData::Package(MovePackage::new(
-                        ObjectId::new(id),
-                        Version::default(),
-                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
-                        // no modules so empty type_origin_table as no types are defined in
-                        // this package
-                        Vec::new(),
-                        // no modules so empty linkage_table as no dependencies of this package
-                        // exist
-                        BTreeMap::new(),
-                    )),
+                    ObjectData::Package(
+                        MovePackage::new(
+                            ObjectId::new(id),
+                            Version::default(),
+                            BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
+                            100_000,
+                            // no modules so empty type_origin_table as no types are defined in
+                            // this package
+                            Vec::new(),
+                            // no modules so empty linkage_table as no dependencies of this package
+                            // exist
+                            BTreeMap::new(),
+                        )
+                        .unwrap(),
+                    ),
                     Owner::Immutable,
                 )],
                 vec![],
