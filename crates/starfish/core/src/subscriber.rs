@@ -19,6 +19,7 @@ use tracing::{debug, error, info};
 use crate::{
     context::Context,
     dag_state::DagState,
+    encoder::create_encoder,
     error::ConsensusError,
     network::{NetworkClient, NetworkService, StreamPosition},
 };
@@ -158,6 +159,8 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             .node_metrics
             .block_stream_resets
             .with_label_values(&[peer_hostname]);
+
+        let mut encoder = create_encoder(&context);
 
         'subscription: loop {
             context
@@ -305,7 +308,12 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block, &mut last_streamed_block)
+                            .handle_subscribed_block_bundle(
+                                peer,
+                                block,
+                                &mut encoder,
+                                &mut last_streamed_block,
+                            )
                             .await;
                         if let Err(e) = result {
                             match e {
