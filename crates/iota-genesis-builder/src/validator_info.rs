@@ -7,7 +7,7 @@ use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
 use iota_sdk_types::Address;
 use iota_types::crypto::{
-    AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
+    AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey, authority_pubkey_from_bytes,
     verify_proof_of_possession,
 };
 use serde::{Deserialize, Serialize};
@@ -141,7 +141,7 @@ impl GenesisValidatorInfo {
             bail!("commissions rate must be lower than 100%");
         }
 
-        let authority_pubkey = AuthorityPublicKey::from_bytes(self.info.authority_key.as_ref())?;
+        let authority_pubkey = authority_pubkey_from_bytes(self.info.authority_key.as_ref())?;
         if let Err(e) = verify_proof_of_possession(
             &self.proof_of_possession,
             &authority_pubkey,
@@ -174,7 +174,7 @@ impl From<GenesisValidatorInfo> for GenesisValidatorMetadata {
             gas_price: info.gas_price,
             commission_rate: info.commission_rate,
             authority_public_key: info.authority_key.as_bytes().to_vec(),
-            proof_of_possession: proof_of_possession.as_ref().to_vec(),
+            proof_of_possession: proof_of_possession.bytes().to_vec(),
             network_public_key: info.network_key.as_bytes().to_vec(),
             protocol_public_key: info.protocol_key.as_bytes().to_vec(),
             network_address: info.network_address,

@@ -11,7 +11,7 @@ use std::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest, Version};
 use iota_types::{
-    base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
+    base_types::AuthorityName, committee::Committee,
     messages_consensus::TransactionDenyRuleProposal,
 };
 use tokio::time::timeout;
@@ -491,7 +491,10 @@ fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: Transactio
 #[test]
 fn compute_active_transaction_deny_rules_applies_stake_thresholds() {
     let (committee, keys) = Committee::new_simple_test_committee();
-    let names: Vec<AuthorityName> = keys.iter().map(|key| key.public().into()).collect();
+    let names: Vec<AuthorityName> = keys
+        .iter()
+        .map(|key| (&key.verifying_key()).into())
+        .collect();
     let active_address = Address::new([1u8; 32]);
     let minority_address = Address::new([2u8; 32]);
     let non_member_address = Address::new([3u8; 32]);

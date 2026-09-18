@@ -24,7 +24,6 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use fastcrypto::traits::Signer;
 use iota_config::{
     genesis, transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
@@ -600,7 +599,10 @@ impl CommitteeWithKeys {
 }
 
 impl ValidatorKeypairProvider for CommitteeWithKeys {
-    fn get_validator_key(&self, name: &AuthorityName) -> &dyn Signer<AuthoritySignature> {
+    fn get_validator_key(
+        &self,
+        name: &AuthorityName,
+    ) -> &dyn iota_sdk_crypto::Signer<AuthoritySignature> {
         self.keystore.validator(name).unwrap()
     }
 

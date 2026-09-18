@@ -39,7 +39,7 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
-        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, Signer, zero_ed25519_signature,
+        AuthorityStrongQuorumSignInfo, DefaultHash, EmptySignInfo, zero_ed25519_signature,
     },
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -2520,7 +2520,7 @@ impl VerifiedSignedTransaction {
         epoch: EpochId,
         transaction: VerifiedTransaction,
         authority: AuthorityName,
-        secret: &dyn Signer<AuthoritySignature>,
+        secret: &dyn iota_sdk_crypto::Signer<AuthoritySignature>,
     ) -> Self {
         Self::new_from_verified(SignedTransaction::new(
             epoch,

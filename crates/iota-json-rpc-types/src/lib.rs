@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use balance_changes::*;
-use fastcrypto::{
-    encoding::{Base58, Base64},
-    traits::VerifyingKey,
-};
+use fastcrypto::encoding::{Base58, Base64};
 pub use iota_checkpoint::*;
 pub use iota_coin::*;
 pub use iota_event::*;
@@ -27,7 +24,7 @@ use iota_sdk_types::{ObjectDigest, ObjectId, TypeTag};
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{
-    crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
+    crypto::AuthorityPublicKeyBytes,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
 };
 pub use object_changes::*;
@@ -341,7 +338,7 @@ impl From<MaybeTaggedBcsName> for BcsName {
 pub struct IotaAuthorityPublicKeyBytes(
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
-    pub [u8; AuthorityPublicKey::LENGTH],
+    pub [u8; iota_sdk_types::Bls12381PublicKey::LENGTH],
 );
 
 impl From<IotaAuthorityPublicKeyBytes> for AuthorityPublicKeyBytes {

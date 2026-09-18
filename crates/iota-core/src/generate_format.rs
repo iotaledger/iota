@@ -31,8 +31,7 @@ use iota_types::{
     base_types::{ExecutionData, ExecutionDigests},
     crypto::{
         AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
-        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, KeypairTraits,
-        Signer, get_key_pair,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, get_key_pair,
     },
     effects::TransactionEffectsExtForTesting,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -151,9 +150,8 @@ fn get_registry() -> Result<Registry> {
 
     let (addr, kp): (_, AuthorityKeyPair) = get_key_pair();
     let (s_addr, s_kp): (_, fastcrypto::ed25519::Ed25519KeyPair) = get_key_pair();
-    let pk: AuthorityPublicKeyBytes = kp.public().into();
+    let pk: AuthorityPublicKeyBytes = (&kp.verifying_key()).into();
     tracer.trace_value(&mut samples, &addr).unwrap();
-    tracer.trace_value(&mut samples, &kp).unwrap();
     tracer.trace_value(&mut samples, &pk).unwrap();
 
     // `ValidatorCommitteeMember` (reachable via `EndOfEpochData`) holds an SDK
@@ -170,7 +168,7 @@ fn get_registry() -> Result<Registry> {
 
     // We have two signature types: one for Authority Signatures, which don't
     // include the PubKey ...
-    let sig: AuthoritySignature = Signer::sign(&kp, b"hello world");
+    let sig: AuthoritySignature = iota_sdk_crypto::Signer::sign(&kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
     let kp1 = Ed25519PrivateKey::random_with(StdRng::from_seed([0; 32]));

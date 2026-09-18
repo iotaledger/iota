@@ -27,7 +27,7 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 hex.workspace = true
 indexmap.workspace = true
-iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "1e3cf0a75d1c9956541cefcdaaa75d7a5401659e", features = ["serde"], default-features = false }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "435dbae554093be1d051dd1b4bb14f3678344d8d", features = ["serde"], default-features = false }
 itertools.workspace = true
 lru.workspace = true
 nonempty.workspace = true
@@ -53,7 +53,7 @@ iota-common.workspace = true
 iota-macros.workspace = true
 iota-multiaddr.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-crypto = { workspace = true, features = ["bech32", "ed25519", "passkey", "rand", "secp256k1", "secp256r1"] }
+iota-sdk-crypto = { workspace = true, features = ["bech32", "bls12381", "ed25519", "passkey", "rand", "secp256k1", "secp256r1"] }
 iota-sdk-types = { workspace = true, features = ["serde", "rand", "hash"] }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true

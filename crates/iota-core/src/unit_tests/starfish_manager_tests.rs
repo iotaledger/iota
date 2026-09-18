@@ -68,7 +68,7 @@ async fn test_starfish_manager() {
 
     let consensus_config = config.consensus_config().unwrap();
     let registry_service = RegistryService::new(Registry::new());
-    let secret = Arc::pin(config.authority_key_pair().copy());
+    let secret = Arc::pin(config.authority_key_pair().clone());
     let genesis = config.genesis().unwrap();
 
     let state = TestAuthorityBuilder::new()
@@ -155,7 +155,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
         .build();
 
     let config = &configs.validator_configs()[0];
-    let secret = Arc::pin(config.authority_key_pair().copy());
+    let secret = Arc::pin(config.authority_key_pair().clone());
     let genesis = config.genesis().unwrap();
 
     let state = TestAuthorityBuilder::new()

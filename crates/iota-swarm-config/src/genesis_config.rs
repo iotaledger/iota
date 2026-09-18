@@ -21,7 +21,8 @@ use iota_types::{
     committee::ProtocolVersion,
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
-        NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
+        NetworkPublicKey, PublicKey, authority_keypair_serde, generate_proof_of_possession,
+        get_key_pair_from_rng,
     },
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -38,7 +39,10 @@ pub struct SsfnGenesisConfig {
 // All information needed to build a NodeConfig for a validator.
 #[derive(Serialize, Deserialize)]
 pub struct ValidatorGenesisConfig {
-    #[serde(default = "default_bls12381_key_pair")]
+    #[serde(
+        default = "default_bls12381_key_pair",
+        with = "authority_keypair_serde"
+    )]
     pub authority_key_pair: AuthorityKeyPair,
     #[serde(default = "default_ed25519_key_pair")]
     pub protocol_key_pair: NetworkKeyPair,
@@ -67,7 +71,7 @@ impl ValidatorGenesisConfig {
     /// and why the name says what it copies.
     pub fn copy_with_private_keys(&self) -> Self {
         Self {
-            authority_key_pair: self.authority_key_pair.copy(),
+            authority_key_pair: self.authority_key_pair.clone(),
             protocol_key_pair: self.protocol_key_pair.copy(),
             account_key_pair: self.account_key_pair.clone(),
             network_key_pair: self.network_key_pair.copy(),
@@ -85,7 +89,8 @@ impl ValidatorGenesisConfig {
     }
 
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
-        let authority_key: AuthorityPublicKeyBytes = self.authority_key_pair.public().into();
+        let authority_key: AuthorityPublicKeyBytes =
+            (&self.authority_key_pair.verifying_key()).into();
         let account_key = PublicKey::from(&self.account_key_pair);
         let network_key: NetworkPublicKey = self.network_key_pair.public().clone();
         let protocol_key: NetworkPublicKey = self.protocol_key_pair.public().clone();
@@ -118,7 +123,7 @@ impl ValidatorGenesisConfig {
 
     /// Use validator public key as validator name.
     pub fn to_validator_info_with_random_name(&self) -> GenesisValidatorInfo {
-        self.to_validator_info(self.authority_key_pair.public().to_string())
+        self.to_validator_info(self.authority_key_pair.public_key().to_string())
     }
 }
 
