@@ -1132,6 +1132,99 @@ mod tests {
         to_keep
     }
 
+    /// The live object scan a state snapshot makes must not be disturbed by
+    /// the pruner running underneath it. This is the property the published
+    /// snapshot depends on, stated in terms of the pruner rather than of any
+    /// one pruning mechanism, so it keeps holding whatever the pruner is
+    /// built from later.
+    ///
+    /// Range deletes carry a sequence number, so a database snapshot taken
+    /// before the prune still reads the version it pinned even once the rows
+    /// are physically compacted away.
+    #[tokio::test]
+    async fn a_db_snapshot_outlives_the_pruner_and_a_compaction() {
+        let tmp_dir = iota_common::tempdir();
+        let db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
+
+        // One object at its first version, live when the snapshot is taken.
+        let id = ObjectId::ZERO;
+        let mut batch = db.objects.batch();
+        batch
+            .insert_batch(
+                &db.objects,
+                [(
+                    ObjectKey(id, Version::from_u64(0)),
+                    get_store_object(Object::immutable_with_id_for_testing(id), None),
+                )],
+            )
+            .unwrap();
+        batch.write().unwrap();
+
+        let db_snapshot = db.db_snapshot();
+        let through_snapshot = |db_snapshot: &_| -> Vec<(ObjectId, Version)> {
+            db.iter_live_object_set_at(db_snapshot)
+                .map(|live| (live.object_id(), live.version()))
+                .collect()
+        };
+        let before = through_snapshot(&db_snapshot);
+        assert_eq!(before, vec![(id, Version::from_u64(0))]);
+
+        // The next epoch supersedes that version and the pruner removes it,
+        // exactly as it does seconds after a checkpoint executes.
+        let mut batch = db.objects.batch();
+        batch
+            .insert_batch(
+                &db.objects,
+                [(
+                    ObjectKey(id, Version::from_u64(1)),
+                    get_store_object(Object::immutable_with_id_for_testing(id), None),
+                )],
+            )
+            .unwrap();
+        batch.write().unwrap();
+
+        let mut effects =
+            TransactionEffects::new_empty_v1_for_testing(TransactionDigest::default());
+        effects.unsafe_add_deleted_live_object_for_testing(ObjectReference::new(
+            id,
+            Version::from_u64(0),
+            ObjectDigest::MIN,
+        ));
+        AuthorityStorePruner::prune_objects(
+            vec![effects],
+            &db,
+            0,
+            AuthorityStorePruningMetrics::new(&Registry::default()),
+        )
+        .await
+        .unwrap();
+
+        // Physically rewrite the files, which is when a delete stops being a
+        // marker and the row is actually gone.
+        db.objects.flush().unwrap();
+        db.objects
+            .compact_range(
+                &ObjectKey(id, Version::from_u64(0)),
+                &ObjectKey(id, Version::from_u64(2)),
+            )
+            .unwrap();
+
+        assert_eq!(
+            through_snapshot(&db_snapshot),
+            before,
+            "the pruner must not take away what an open snapshot still reads",
+        );
+        // Without this the test would pass against a store where nothing had
+        // happened at all.
+        assert_eq!(
+            db.iter_live_object_set()
+                .map(|live| (live.object_id(), live.version()))
+                .collect::<Vec<_>>(),
+            vec![(id, Version::from_u64(1))],
+            "outside the snapshot the object must have moved on to its new version",
+        );
+    }
+
     // Tests pruning old version of live objects.
     #[tokio::test]
     async fn test_pruning_objects() {
