@@ -1460,6 +1460,37 @@ fn calculate_header_size(headers: &http::HeaderMap) -> usize {
         .sum()
 }
 
+/// Path prefix the consensus service is served under.
+const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
+
+/// Methods served by the consensus service, each recorded under its own metric
+/// label.
+const CONSENSUS_SERVICE_METHODS: &[&str] = &[
+    "SubscribeBlockBundles",
+    "FetchBlockHeaders",
+    "FetchCommits",
+    "FetchCommitsAndTransactions",
+    "FetchLatestBlockHeaders",
+    "GetLatestRounds",
+    "FetchTransactions",
+];
+
+/// Label recorded for every path that is not a served method.
+const UNKNOWN_ROUTE: &str = "unknown";
+
+/// Metric label for a request path: the name of the served method, or
+/// `unknown`. Callers choose the path, so the label never derives from it.
+fn route_label(path: &str) -> &'static str {
+    path.strip_prefix(CONSENSUS_SERVICE_PATH_PREFIX)
+        .and_then(|method| {
+            CONSENSUS_SERVICE_METHODS
+                .iter()
+                .find(|served| **served == method)
+                .copied()
+        })
+        .unwrap_or(UNKNOWN_ROUTE)
+}
+
 impl SizedRequest for http::request::Parts {
     fn size(&self) -> usize {
         let header_size = calculate_header_size(&self.headers);
@@ -1472,12 +1503,8 @@ impl SizedRequest for http::request::Parts {
         header_size + body_size
     }
 
-    fn route(&self) -> String {
-        let path = self.uri.path();
-        path.rsplit_once('/')
-            .map(|(_, route)| route)
-            .unwrap_or("unknown")
-            .to_string()
+    fn route(&self) -> &'static str {
+        route_label(self.uri.path())
     }
 }
 
@@ -1680,8 +1707,9 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use super::{
-        FetchCommitsAndTransactionsResponse, collect_commits_and_transactions,
-        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
+        CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX,
+        FetchCommitsAndTransactionsResponse, UNKNOWN_ROUTE, collect_commits_and_transactions,
+        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes, route_label,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
@@ -1860,5 +1888,145 @@ mod tests {
         .expect_err("subscription without a request must be rejected");
 
         assert_eq!(status.code(), tonic::Code::DeadlineExceeded);
+    }
+
+    /// The stripped prefix has to match the generated service name, otherwise
+    /// every request lands on the `unknown` label.
+    #[test]
+    fn path_prefix_matches_the_generated_service_name() {
+        use crate::network::tonic_gen::consensus_service_server;
+
+        assert_eq!(
+            CONSENSUS_SERVICE_PATH_PREFIX,
+            format!("/{}/", consensus_service_server::SERVICE_NAME)
+        );
+    }
+
+    #[test]
+    fn served_methods_keep_their_own_label() {
+        for method in CONSENSUS_SERVICE_METHODS {
+            let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}{method}");
+            assert_eq!(route_label(&path), *method);
+        }
+    }
+
+    #[test]
+    fn other_paths_share_the_unknown_label() {
+        for path in [
+            "/consensus.ConsensusService/NotAMethod",
+            "/consensus.ConsensusService/fetchcommits",
+            "/consensus.ConsensusService/FetchCommits/extra",
+            "/consensus.ConsensusService/",
+            "/consensus.ConsensusService",
+            "/other.Service/FetchCommits",
+            "/FetchCommits",
+            "/",
+            "",
+        ] {
+            assert_eq!(route_label(path), UNKNOWN_ROUTE, "path: {path}");
+        }
+    }
+
+    /// Unknown method names under the service path still reach the metrics
+    /// layer, so they all have to land on one label.
+    #[tokio::test]
+    async fn unknown_methods_share_one_metric_label() {
+        use std::time::Duration;
+
+        use http::uri::PathAndQuery;
+        use parking_lot::Mutex;
+        use prometheus_filtered::core::Collector;
+        use tonic::{Request, client::Grpc};
+        use tonic_prost::ProstCodec;
+
+        use super::{Channel, FetchCommitsRequest, FetchCommitsResponse, TonicManager};
+        use crate::network::test_network::TestService;
+
+        const UNKNOWN_METHODS: usize = 128;
+
+        /// Route label values a metric retains, sorted.
+        fn routes(metric: &impl Collector) -> Vec<String> {
+            let mut routes: Vec<String> = metric
+                .collect()
+                .iter()
+                .flat_map(|family| family.get_metric())
+                .map(|metric| metric.get_label()[0].value().to_string())
+                .collect();
+            routes.sort();
+            routes
+        }
+
+        async fn call(grpc: &mut Grpc<Channel>, path: &str) -> Result<(), tonic::Status> {
+            grpc.ready().await.expect("the channel stays connected");
+            grpc.unary::<_, FetchCommitsResponse, _>(
+                Request::new(FetchCommitsRequest { start: 1, end: 2 }),
+                PathAndQuery::try_from(path).unwrap(),
+                ProstCodec::default(),
+            )
+            .await
+            .map(|_| ())
+        }
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let server_context = Arc::new(context.clone().with_authority_index(server_index));
+        let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+        let channel = client
+            .channel_pool
+            .get_channel(
+                client.network_keypair.clone(),
+                server_index,
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap();
+        let mut grpc = Grpc::new(channel);
+
+        for i in 0..UNKNOWN_METHODS {
+            let status = call(&mut grpc, &format!("/consensus.ConsensusService/Method{i}"))
+                .await
+                .expect_err("an unknown method is not implemented");
+            assert_eq!(status.code(), tonic::Code::Unimplemented);
+        }
+
+        let inbound = &server_context.metrics.network_metrics.inbound;
+        assert_eq!(routes(&inbound.requests), ["unknown"]);
+        assert_eq!(routes(&inbound.inflight_requests), ["unknown"]);
+        assert_eq!(routes(&inbound.request_latency), ["unknown"]);
+        assert_eq!(
+            inbound.requests.with_label_values(&["unknown"]).get(),
+            UNKNOWN_METHODS as u64
+        );
+
+        // A served method keeps its own label, whether it answers or rejects.
+        call(&mut grpc, "/consensus.ConsensusService/FetchCommits")
+            .await
+            .expect("the served method answers");
+        let status = call(&mut grpc, "/consensus.ConsensusService/GetLatestRounds")
+            .await
+            .expect_err("the deprecated method rejects");
+        assert_eq!(status.code(), tonic::Code::Unimplemented);
+
+        // A path outside the service matches no route, so it never reaches the
+        // layer.
+        call(&mut grpc, "/other.Service/FetchCommits")
+            .await
+            .expect_err("a path outside the service is not served");
+
+        assert_eq!(
+            routes(&inbound.requests),
+            ["FetchCommits", "GetLatestRounds", "unknown"]
+        );
     }
 }
