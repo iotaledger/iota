@@ -21,7 +21,7 @@ use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_t
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
     config::{IotaNamesOptions, JsonRpcConfig, RetentionConfig},
-    db::{ConnectionPoolConfig, new_connection_pool},
+    db::{ConnectionPoolConfig, DbUrl, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
     metrics::IndexerMetrics,
@@ -434,7 +434,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
     };
 
     let pool = new_connection_pool(
-        &db_url,
+        &DbUrl::from(db_url.as_str()),
         &ConnectionPoolConfig {
             pool_size: 5,
             ..Default::default()
