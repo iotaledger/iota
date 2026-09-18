@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::{fmt, sync::Arc, time::Duration};
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 /// Covers a round trip plus a few TCP retransmissions on a lossy link; an
@@ -31,6 +31,27 @@ pub struct Config {
     pub(crate) allow_insecure: bool,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
+    pub(crate) max_connections_per_peer: Option<usize>,
+    pub(crate) on_connection_refused: Option<OnConnectionRefused>,
+}
+
+type ConnectionRefusedCallback = Arc<dyn Fn(&[u8]) + Send + Sync>;
+
+/// Called with the peer's public key each time a connection is refused for
+/// being over the peer's limit.
+#[derive(Clone)]
+pub(crate) struct OnConnectionRefused(ConnectionRefusedCallback);
+
+impl OnConnectionRefused {
+    pub(crate) fn call(&self, peer_public_key: &[u8]) {
+        (self.0)(peer_public_key)
+    }
+}
+
+impl fmt::Debug for OnConnectionRefused {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("OnConnectionRefused")
+    }
 }
 
 impl Default for Config {
@@ -53,6 +74,8 @@ impl Default for Config {
             allow_insecure: false,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
+            max_connections_per_peer: None,
+            on_connection_refused: None,
         }
     }
 }
@@ -255,8 +278,43 @@ impl Config {
         }
     }
 
+    /// Sets how many established connections a single peer may hold at once.
+    /// Further connections from a peer already at the limit are closed as soon
+    /// as they are accepted.
+    ///
+    /// Only connections that authenticate with a client certificate are
+    /// counted, since a peer that presents none cannot be told apart from any
+    /// other.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connections_per_peer(self, max_connections_per_peer: Option<usize>) -> Self {
+        Self {
+            max_connections_per_peer,
+            ..self
+        }
+    }
+
+    /// Sets a callback invoked with the peer's public key whenever a connection
+    /// is refused for being over that peer's limit. It runs on the accept loop,
+    /// so it must not block.
+    pub fn on_connection_refused(
+        self,
+        on_connection_refused: impl Fn(&[u8]) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            on_connection_refused: Some(OnConnectionRefused(Arc::new(on_connection_refused))),
+            ..self
+        }
+    }
+
     /// Rejects settings the accept loop cannot recover from.
     pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
+        if self.max_connections_per_peer == Some(0) {
+            return Err("'max_connections_per_peer' must be greater than zero, \
+                        a peer allowed no connection can never be served"
+                .into());
+        }
+
         match self.max_pending_connections {
             Some(0) => Err("'max_pending_connections' must be greater than zero, \
                             a server that accepts no connection is never useful"

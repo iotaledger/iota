@@ -23,6 +23,10 @@ pub(crate) struct NetworkMetrics {
     /// group (summed across peers). Shows live concurrency vs the per-peer
     /// caps.
     pub(crate) admission_in_use: IntGaugeVec,
+    /// Connections each peer currently holds on the inbound listener.
+    pub(crate) inbound_connections: IntGaugeVec,
+    /// Connections refused for being over a peer's connection limit.
+    pub(crate) inbound_connections_refused: IntCounterVec,
 }
 
 impl NetworkMetrics {
@@ -50,6 +54,22 @@ impl NetworkMetrics {
                 "inbound_admission_in_use",
                 "Inbound consensus requests currently in flight under admission control, by RPC group",
                 &["group"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            inbound_connections: register_int_gauge_vec_with_registry!(
+                "inbound_connections",
+                "Connections each peer currently holds on the inbound consensus listener",
+                &["authority"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            inbound_connections_refused: register_int_counter_vec_with_registry!(
+                "inbound_connections_refused",
+                "Connections refused for being over the peer's connection limit",
+                &["authority"],
                 registry;
                 MetricLevel::Warn,
             )
