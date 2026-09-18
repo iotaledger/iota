@@ -10,7 +10,7 @@ pub fn build_network(f: impl FnOnce(anemo::Router) -> anemo::Router) -> anemo::N
 #[cfg(test)]
 pub fn build_network_and_key(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
-) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
+) -> (anemo::Network, iota_types::crypto::NetworkPrivateKey) {
     build_network_impl(f, "localhost:0".into(), None)
 }
 
@@ -18,7 +18,7 @@ pub fn build_network_and_key(
 pub fn build_network_with_anemo_config(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
     anemo_config: anemo::Config,
-) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
+) -> (anemo::Network, iota_types::crypto::NetworkPrivateKey) {
     build_network_impl(f, "localhost:0".into(), Some(anemo_config))
 }
 
@@ -26,7 +26,7 @@ pub fn build_network_with_anemo_config(
 pub fn build_network_with_address(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
     address: anemo::types::Address,
-) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
+) -> (anemo::Network, iota_types::crypto::NetworkPrivateKey) {
     build_network_impl(f, address, None)
 }
 
@@ -35,7 +35,7 @@ pub fn build_network_with_address_and_anemo_config(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
     address: anemo::types::Address,
     anemo_config: anemo::Config,
-) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
+) -> (anemo::Network, iota_types::crypto::NetworkPrivateKey) {
     build_network_impl(f, address, Some(anemo_config))
 }
 
@@ -44,10 +44,10 @@ fn build_network_impl(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
     address: anemo::types::Address,
     anemo_config: Option<anemo::Config>,
-) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
+) -> (anemo::Network, iota_types::crypto::NetworkPrivateKey) {
     use iota_sdk_crypto::ToFromBytes as _;
 
-    let keypair = iota_types::crypto::NetworkKeyPair::random();
+    let keypair = iota_types::crypto::NetworkPrivateKey::random();
     let router = f(anemo::Router::new());
     let network = anemo::Network::bind(address)
         .private_key(keypair.to_bytes())
