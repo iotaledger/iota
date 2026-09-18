@@ -371,7 +371,7 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        collect_commits_and_transactions(&self.context, peer, stream).await
+        collect_commits_and_transactions(&self.context, peer, &commit_range, stream).await
     }
 }
 
@@ -381,6 +381,7 @@ impl NetworkClient for TonicClient {
 async fn collect_commits_and_transactions<S>(
     context: &Context,
     peer: AuthorityIndex,
+    commit_range: &CommitRange,
     mut stream: S,
 ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)>
 where
@@ -391,8 +392,8 @@ where
     // Bound the response per element and per category while streaming, since
     // `verify_commits` only runs on the fully-received buffers and so cannot
     // protect them from a malicious server. Commits and certifier headers
-    // carry the same count caps `verify_commits` applies
-    // (`2 * fast_commit_sync_batch_size` and two headers per authority).
+    // carry the same count caps `verify_commits` applies (twice the requested
+    // range and two headers per authority).
     // Transactions carry no configured count cap on the fast path, since the
     // server returns every transaction the committed range references. The
     // commits already received bound them instead: a commit holds at most one
@@ -400,7 +401,7 @@ where
     // entry per reference.
     let committee_size = context.committee.size();
     let gc_depth = context.protocol_config.gc_depth() as usize;
-    let max_commits = CommitSyncType::Fast.max_commits_per_response(context);
+    let max_commits = CommitSyncType::Fast.max_commits_per_response(commit_range);
     let max_certifier_headers =
         committee_size.saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     let max_commit_size = max_commit_bytes(committee_size, gc_depth);
@@ -1767,6 +1768,7 @@ mod tests {
     use crate::{
         block_header::max_signed_block_header_bytes,
         block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
+        commit::CommitRange,
         context::Context,
         error::ConsensusError,
         transaction_ref::SERIALIZED_TRANSACTION_REF_BYTES,
@@ -1780,6 +1782,12 @@ mod tests {
             certifier_block_headers: vec![],
             transactions: vec![Bytes::from_static(b"transaction"); transactions],
         }
+    }
+
+    /// Wide enough that the tests below trip the cap under test rather than
+    /// the commit count derived from it.
+    fn requested_range() -> CommitRange {
+        (1..=10).into()
     }
 
     fn commit_chunk(commit_bytes: usize) -> FetchCommitsAndTransactionsResponse {
@@ -1801,7 +1809,8 @@ mod tests {
             Ok(chunk(0, 2)),
         ]);
 
-        let result = collect_commits_and_transactions(&context, peer, flood).await;
+        let result =
+            collect_commits_and_transactions(&context, peer, &requested_range(), flood).await;
 
         assert!(matches!(
             result,
@@ -1820,7 +1829,7 @@ mod tests {
         ]);
 
         let (commits, _headers, transactions, _error) =
-            collect_commits_and_transactions(&context, peer, full)
+            collect_commits_and_transactions(&context, peer, &requested_range(), full)
                 .await
                 .expect("a response the commits account for is kept");
 
@@ -1970,7 +1979,8 @@ mod tests {
         let peer = AuthorityIndex::new_for_test(1);
         let cut = stream::iter([Err(tonic::Status::unknown("h2 protocol error"))]);
 
-        let result = collect_commits_and_transactions(&context, peer, cut).await;
+        let result =
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
 
         assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
     }
@@ -1989,7 +1999,7 @@ mod tests {
         ]);
 
         let (commits, _headers, transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, cut)
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut)
                 .await
                 .expect("a cut after commits arrived keeps them");
 
@@ -2010,7 +2020,7 @@ mod tests {
         let clean = stream::iter([Ok(chunk(2, 3))]);
 
         let (commits, _headers, transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, clean)
+            collect_commits_and_transactions(&context, peer, &requested_range(), clean)
                 .await
                 .expect("a clean stream is kept in full");
 
@@ -2031,13 +2041,52 @@ mod tests {
         ]);
 
         let (_commits, _headers, _transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, cut)
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut)
                 .await
                 .expect("a cut after commits arrived keeps them");
 
         assert!(matches!(
             stream_error,
             Some(ConsensusError::NetworkRequestTimeout(_))
+        ));
+    }
+
+    /// The commit cap comes from the requested range rather than a local batch
+    /// size, so a response filling the whole extension a server with a larger
+    /// batch size may add is still accepted.
+    #[tokio::test]
+    async fn commits_up_to_twice_the_requested_range_are_kept() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let requested: CommitRange = (1..=4).into();
+        let maximal = stream::iter([Ok(chunk(8, 0))]);
+
+        let (commits, _headers, _transactions, _error) =
+            collect_commits_and_transactions(&context, peer, &requested, maximal)
+                .await
+                .expect("twice the requested range is within the cap");
+
+        assert_eq!(commits.len(), 8);
+    }
+
+    /// One commit past twice the requested range is more than the extension
+    /// can reach, so the response is rejected.
+    #[tokio::test]
+    async fn commits_past_twice_the_requested_range_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let requested: CommitRange = (1..=4).into();
+        let flood = stream::iter([Ok(chunk(9, 0))]);
+
+        let result = collect_commits_and_transactions(&context, peer, &requested, flood).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitsFromPeer {
+                count: 9,
+                limit: 8,
+                ..
+            })
         ));
     }
 
