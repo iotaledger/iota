@@ -692,11 +692,17 @@ impl ConsensusOutputQuarantine {
 
         let mut highest_committed_height = None;
 
+        // The builder inserts every checkpoint of one build together, all
+        // tagged with the build's `checkpoint_height`. The builder resumes
+        // after the highest persisted height and the loop below releases every
+        // commit at or below it, so a height must only be persisted once all
+        // of its checkpoints are executed.
+        let flush_up_to = self.last_sequence_of_executed_height_groups();
+
         while self
             .builder_checkpoint_summary
             .first_key_value()
-            .map(|(seq, _)| *seq <= self.highest_executed_checkpoint)
-            == Some(true)
+            .is_some_and(|(seq, _)| Some(*seq) <= flush_up_to)
         {
             let (seq, (builder_summary, contents)) =
                 self.builder_checkpoint_summary.pop_first().unwrap();
@@ -727,7 +733,11 @@ impl ConsensusOutputQuarantine {
                 .checkpoint_height
                 .expect("non-genesis checkpoint must have height");
             if let Some(highest) = highest_committed_height {
-                assert!(checkpoint_height > highest);
+                // Checkpoints of one build share a height.
+                assert!(
+                    checkpoint_height >= highest,
+                    "checkpoint height {checkpoint_height} must not fall below the previously flushed height {highest}"
+                );
             }
 
             highest_committed_height = Some(checkpoint_height);
@@ -784,6 +794,22 @@ impl ConsensusOutputQuarantine {
             .set(self.output_queue.len() as i64);
 
         Ok(())
+    }
+
+    /// The last executed builder checkpoint whose `checkpoint_height` is fully
+    /// executed, i.e. excluding the trailing checkpoints that share a height
+    /// with the first unexecuted one.
+    fn last_sequence_of_executed_height_groups(&self) -> Option<CheckpointSequenceNumber> {
+        let first_unexecuted_height = self
+            .builder_checkpoint_summary
+            .range(self.highest_executed_checkpoint + 1..)
+            .next()
+            .map(|(_, (summary, _))| summary.checkpoint_height);
+        self.builder_checkpoint_summary
+            .range(..=self.highest_executed_checkpoint)
+            .rev()
+            .find(|(_, (summary, _))| Some(summary.checkpoint_height) != first_unexecuted_height)
+            .map(|(seq, _)| *seq)
     }
 
     fn insert_shared_object_next_versions(&mut self, output: &ConsensusCommitOutput) {
@@ -872,6 +898,10 @@ impl ConsensusOutputQuarantine {
 
     // Read methods - all methods in this block return data from the quarantine
     // which would otherwise be found in the database.
+
+    pub(super) fn highest_executed_checkpoint(&self) -> CheckpointSequenceNumber {
+        self.highest_executed_checkpoint
+    }
 
     pub(super) fn last_built_summary(&self) -> Option<&BuilderCheckpointSummary> {
         self.builder_checkpoint_summary
@@ -1236,5 +1266,312 @@ where
 
     pub fn contains_key(&self, key: &K) -> bool {
         self.map.contains_key(key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{CheckpointSummary, GasCostSummary};
+    use iota_types::{
+        base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt,
+        transaction::TransactionKey,
+    };
+
+    use super::*;
+    use crate::{
+        authority::test_authority_builder::TestAuthorityBuilder,
+        checkpoints::{
+            BuilderCheckpointSummary, CheckpointHeight, PendingCheckpointContentsV1,
+            PendingCheckpointInfo,
+        },
+    };
+
+    fn pending_checkpoint(
+        roots: Vec<TransactionKey>,
+        checkpoint_height: CheckpointHeight,
+    ) -> PendingCheckpoint {
+        PendingCheckpoint::V1(PendingCheckpointContentsV1 {
+            roots,
+            details: PendingCheckpointInfo {
+                timestamp_ms: 0,
+                last_of_epoch: false,
+                checkpoint_height,
+            },
+        })
+    }
+
+    fn output_with_pending_checkpoints(
+        round: CommitRound,
+        checkpoint_heights: impl IntoIterator<Item = CheckpointHeight>,
+    ) -> ConsensusCommitOutput {
+        let mut output = ConsensusCommitOutput::new(round);
+        output.set_default_commit_stats_for_testing();
+        for checkpoint_height in checkpoint_heights {
+            output.insert_pending_checkpoint(pending_checkpoint(vec![], checkpoint_height));
+        }
+        output
+    }
+
+    fn builder_summary(
+        epoch_store: &AuthorityPerEpochStore,
+        sequence_number: CheckpointSequenceNumber,
+        checkpoint_height: CheckpointHeight,
+        position_in_commit: usize,
+    ) -> (BuilderCheckpointSummary, CheckpointContents) {
+        let contents =
+            CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]);
+        let summary = CheckpointSummary::new_with_protocol_config(
+            epoch_store.protocol_config(),
+            epoch_store.epoch(),
+            sequence_number,
+            0,
+            &contents,
+            None,
+            GasCostSummary::default(),
+            None,
+            0,
+            vec![],
+        );
+        let builder_summary = BuilderCheckpointSummary {
+            summary,
+            checkpoint_height: Some(checkpoint_height),
+            position_in_commit,
+        };
+        (builder_summary, contents)
+    }
+
+    fn execute_up_to(
+        quarantine: &mut ConsensusOutputQuarantine,
+        epoch_store: &AuthorityPerEpochStore,
+        sequence_number: CheckpointSequenceNumber,
+    ) {
+        let mut batch = epoch_store.db_batch_for_test();
+        quarantine
+            .update_highest_executed_checkpoint(sequence_number, epoch_store, &mut batch)
+            .unwrap();
+        batch.write().unwrap();
+    }
+
+    fn persisted_builder_summary_heights(
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> Vec<(CheckpointSequenceNumber, Option<CheckpointHeight>)> {
+        epoch_store
+            .tables()
+            .unwrap()
+            .builder_checkpoint_summary
+            .safe_iter()
+            .map(|entry| {
+                let (seq, summary) = entry.unwrap();
+                (seq, summary.checkpoint_height)
+            })
+            .collect()
+    }
+
+    /// A build that splits into several checkpoints inserts all of them with
+    /// one `checkpoint_height`. Flushing them together once they are all
+    /// executed must not trip the height-monotonicity check.
+    #[tokio::test]
+    async fn flushes_chunks_sharing_a_height_together() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let mut quarantine = ConsensusOutputQuarantine::new(
+            9,
+            HashMap::new(),
+            BTreeMap::new(),
+            epoch_store.metrics.clone(),
+        );
+
+        quarantine
+            .push_consensus_output(output_with_pending_checkpoints(1, [40]), &epoch_store)
+            .unwrap();
+        for (seq, position) in [(10, 0), (11, 1)] {
+            let (summary, contents) = builder_summary(&epoch_store, seq, 40, position);
+            quarantine.insert_builder_summary(seq, summary, contents);
+        }
+
+        execute_up_to(&mut quarantine, &epoch_store, 11);
+
+        assert!(quarantine.output_queue.is_empty());
+        assert_eq!(
+            persisted_builder_summary_heights(&epoch_store),
+            vec![(10, Some(40)), (11, Some(40))]
+        );
+    }
+
+    /// A consensus commit whose checkpoints were split stays quarantined,
+    /// and none of its builder summaries are persisted, until the last chunk
+    /// is executed. Persisting only the first chunk would make the builder
+    /// resume past the unbuilt remainder after a restart.
+    #[tokio::test]
+    async fn keeps_commit_quarantined_until_last_chunk_is_executed() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let mut quarantine = ConsensusOutputQuarantine::new(
+            9,
+            HashMap::new(),
+            BTreeMap::new(),
+            epoch_store.metrics.clone(),
+        );
+
+        quarantine
+            .push_consensus_output(output_with_pending_checkpoints(1, [40]), &epoch_store)
+            .unwrap();
+        for (seq, position) in [(10, 0), (11, 1)] {
+            let (summary, contents) = builder_summary(&epoch_store, seq, 40, position);
+            quarantine.insert_builder_summary(seq, summary, contents);
+        }
+
+        execute_up_to(&mut quarantine, &epoch_store, 10);
+
+        assert_eq!(quarantine.output_queue.len(), 1);
+        assert_eq!(quarantine.builder_checkpoint_summary.len(), 2);
+        assert!(persisted_builder_summary_heights(&epoch_store).is_empty());
+
+        execute_up_to(&mut quarantine, &epoch_store, 11);
+
+        assert!(quarantine.output_queue.is_empty());
+        assert!(quarantine.builder_checkpoint_summary.is_empty());
+        assert_eq!(
+            persisted_builder_summary_heights(&epoch_store),
+            vec![(10, Some(40)), (11, Some(40))]
+        );
+    }
+
+    /// When the builder coalesces several pending checkpoints into one build,
+    /// every chunk carries the group's last height. No commit in the group may
+    /// be released before the group's last chunk is executed.
+    #[tokio::test]
+    async fn releases_grouped_commits_only_when_the_group_is_complete() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let mut quarantine = ConsensusOutputQuarantine::new(
+            9,
+            HashMap::new(),
+            BTreeMap::new(),
+            epoch_store.metrics.clone(),
+        );
+
+        for (round, height) in [(1, 40), (2, 41), (3, 42)] {
+            quarantine
+                .push_consensus_output(
+                    output_with_pending_checkpoints(round, [height]),
+                    &epoch_store,
+                )
+                .unwrap();
+        }
+        for (seq, position) in [(10, 0), (11, 1)] {
+            let (summary, contents) = builder_summary(&epoch_store, seq, 42, position);
+            quarantine.insert_builder_summary(seq, summary, contents);
+        }
+
+        execute_up_to(&mut quarantine, &epoch_store, 10);
+
+        assert_eq!(quarantine.output_queue.len(), 3);
+
+        execute_up_to(&mut quarantine, &epoch_store, 11);
+
+        assert!(quarantine.output_queue.is_empty());
+    }
+
+    /// Executing a split build one checkpoint at a time persists nothing and
+    /// releases nothing until the last chunk, whichever chunk a crash would
+    /// follow.
+    #[tokio::test]
+    async fn flushes_three_chunks_only_after_the_last_one_is_executed() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let mut quarantine = ConsensusOutputQuarantine::new(
+            9,
+            HashMap::new(),
+            BTreeMap::new(),
+            epoch_store.metrics.clone(),
+        );
+
+        quarantine
+            .push_consensus_output(output_with_pending_checkpoints(1, [40]), &epoch_store)
+            .unwrap();
+        for (seq, position) in [(10, 0), (11, 1), (12, 2)] {
+            let (summary, contents) = builder_summary(&epoch_store, seq, 40, position);
+            quarantine.insert_builder_summary(seq, summary, contents);
+        }
+
+        for executed in [10, 11] {
+            execute_up_to(&mut quarantine, &epoch_store, executed);
+            assert_eq!(quarantine.output_queue.len(), 1);
+            assert_eq!(quarantine.builder_checkpoint_summary.len(), 3);
+            assert!(persisted_builder_summary_heights(&epoch_store).is_empty());
+        }
+
+        execute_up_to(&mut quarantine, &epoch_store, 12);
+
+        assert!(quarantine.output_queue.is_empty());
+        assert_eq!(
+            persisted_builder_summary_heights(&epoch_store),
+            vec![(10, Some(40)), (11, Some(40)), (12, Some(40))]
+        );
+    }
+
+    /// The epoch store records a commit that generated randomness as two
+    /// pending checkpoints in one `ConsensusCommitOutput`: the regular one at
+    /// the commit's height and the randomness one at height + 1. The commit is
+    /// released only when the randomness checkpoint is executed, so a complete
+    /// split build of the regular checkpoint is not enough on its own.
+    #[tokio::test]
+    async fn waits_for_the_randomness_checkpoint_of_a_split_commit() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let mut quarantine = ConsensusOutputQuarantine::new(
+            9,
+            HashMap::new(),
+            BTreeMap::new(),
+            epoch_store.metrics.clone(),
+        );
+
+        let regular_height = 40;
+        let randomness_height = regular_height + 1;
+        let mut output = ConsensusCommitOutput::new(1);
+        output.set_default_commit_stats_for_testing();
+        output.insert_pending_checkpoint(pending_checkpoint(vec![], regular_height));
+        output.insert_pending_checkpoint(pending_checkpoint(
+            vec![TransactionKey::RandomnessRound(
+                epoch_store.epoch(),
+                RandomnessRound::new(1),
+            )],
+            randomness_height,
+        ));
+        quarantine
+            .push_consensus_output(output, &epoch_store)
+            .unwrap();
+
+        // The regular checkpoint was split in two, the randomness checkpoint
+        // is a separate build.
+        for (seq, height, position) in [
+            (10, regular_height, 0),
+            (11, regular_height, 1),
+            (12, randomness_height, 0),
+        ] {
+            let (summary, contents) = builder_summary(&epoch_store, seq, height, position);
+            quarantine.insert_builder_summary(seq, summary, contents);
+        }
+
+        execute_up_to(&mut quarantine, &epoch_store, 11);
+
+        assert_eq!(quarantine.output_queue.len(), 1);
+        assert_eq!(
+            persisted_builder_summary_heights(&epoch_store),
+            vec![(10, Some(regular_height)), (11, Some(regular_height))]
+        );
+
+        execute_up_to(&mut quarantine, &epoch_store, 12);
+
+        assert!(quarantine.output_queue.is_empty());
+        assert_eq!(
+            persisted_builder_summary_heights(&epoch_store),
+            vec![
+                (10, Some(regular_height)),
+                (11, Some(regular_height)),
+                (12, Some(randomness_height)),
+            ]
+        );
     }
 }
