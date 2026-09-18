@@ -878,6 +878,7 @@ pub async fn download_formal_snapshot(
     )?;
     let verified_epoch_info = iota_snapshot::verify_epoch_info_chain(
         epoch_info,
+        epoch,
         genesis_committee.clone(),
         genesis.iota_system_object(),
         snapshot_chain_id,
