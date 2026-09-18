@@ -253,7 +253,6 @@ where
 }
 
 pin_project! {
-    /// Response future of [`AdmissionService`].
     #[project = AdmissionFutureProj]
     pub(crate) enum AdmissionFuture<F> {
         Admitted {
@@ -451,8 +450,6 @@ mod tests {
             Some(RpcGroup::CommitFetch)
         ));
 
-        // The deprecated RPC, an unknown method and a path outside this
-        // service all carry no budget.
         assert!(group("GetLatestRounds").is_none());
         assert!(group("Unknown").is_none());
         assert!(RpcGroup::from_path("/other.Service/FetchCommits").is_none());
