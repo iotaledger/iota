@@ -528,11 +528,15 @@ impl StateSnapshotWriterV1 {
                 .context("Unexpected missing bucket writer")?;
             writer.write(&live_object)?;
         }
-        assert_eq!(
-            ECMHLiveObjectSetDigest::from(acc.digest()),
-            root_state_hash,
-            "Root state hash mismatch!"
-        );
+        // An error, not an assert: release builds abort on panic, and a wrong
+        // scan must cost the epoch its snapshot, not the node its process.
+        let scanned = ECMHLiveObjectSetDigest::from(acc.digest());
+        if scanned != root_state_hash {
+            bail!(
+                "the live object scan digested {scanned:?} but epoch {epoch}'s commitment is \
+                 {root_state_hash:?}; the snapshot does not describe the epoch it is filed under"
+            );
+        }
         let mut files = vec![];
         // Flushes the object and reference files to disk, informs the file channel of
         // flushed files and get the FileMetadata
