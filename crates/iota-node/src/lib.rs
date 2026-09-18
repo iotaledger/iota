@@ -278,6 +278,33 @@ impl fmt::Debug for IotaNode {
     }
 }
 
+/// Removes the `db_checkpoints` directory earlier releases wrote.
+///
+/// The state snapshot used to be scanned from a RocksDB checkpoint taken
+/// there. That is a directory of hard links, so it costs nothing until
+/// compaction rewrites the files it shares with the live store, and from then
+/// on it holds whole SST files that nothing will ever read again. Nothing
+/// writes it any more, so an upgraded node would keep paying for it forever.
+///
+/// Failing to remove it is not worth refusing to start over: it costs disk,
+/// not correctness.
+fn remove_legacy_db_checkpoints(db_path: &std::path::Path) {
+    let path = db_path.join("db_checkpoints");
+    if !path.exists() {
+        return;
+    }
+    match std::fs::remove_dir_all(&path) {
+        Ok(()) => info!(
+            "removed {}, the database checkpoint directory of an earlier release",
+            path.display()
+        ),
+        Err(e) => warn!(
+            "failed to remove the leftover database checkpoint directory {}: {e}",
+            path.display()
+        ),
+    }
+}
+
 impl IotaNode {
     /// Starts a node that hosts the client-facing servers on the caller's
     /// runtime, alongside everything else.
@@ -434,6 +461,8 @@ impl IotaNode {
         } else {
             None
         };
+
+        remove_legacy_db_checkpoints(&config.db_path());
 
         let secret = Arc::pin(config.authority_key_pair().copy());
         let genesis_committee = genesis.committee()?;
@@ -2825,7 +2854,7 @@ mod config_tests {
     use iota_metrics::RegistryService;
     use prometheus_filtered::Registry;
 
-    use super::IotaNode;
+    use super::{IotaNode, remove_legacy_db_checkpoints};
 
     /// `start_async` validates the config before it does anything else. That
     /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
@@ -2852,5 +2881,29 @@ genesis:
 
         let err = format!("{err:#}");
         assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
+    }
+
+    #[test]
+    fn a_leftover_database_checkpoint_directory_is_removed() {
+        let dir = iota_common::tempdir();
+        let leftover = dir.path().join("db_checkpoints").join("epoch_0");
+        std::fs::create_dir_all(&leftover).unwrap();
+        std::fs::write(leftover.join("CURRENT"), b"hard link to a live SST").unwrap();
+
+        remove_legacy_db_checkpoints(dir.path());
+
+        assert!(!dir.path().join("db_checkpoints").exists());
+    }
+
+    #[test]
+    fn a_database_without_one_is_left_alone() {
+        let dir = iota_common::tempdir();
+
+        remove_legacy_db_checkpoints(dir.path());
+
+        assert!(
+            !dir.path().join("db_checkpoints").exists(),
+            "the cleanup must not create what it is there to remove",
+        );
     }
 }
