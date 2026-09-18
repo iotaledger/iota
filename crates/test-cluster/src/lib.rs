@@ -182,8 +182,8 @@ impl TestCluster {
     }
 
     /// Create a gRPC client connected to the fullnode's gRPC API.
-    pub fn grpc_client(&self) -> iota_grpc_client::Client {
-        iota_grpc_client::Client::new(self.grpc_url()).expect("failed to create gRPC client")
+    pub fn grpc_client(&self) -> iota_grpc_client::GrpcClient {
+        iota_grpc_client::GrpcClient::new(self.grpc_url()).expect("failed to create gRPC client")
     }
 
     /// Create a gRPC-driven [`TransactionBuilder`] for `sender`, resolving
@@ -191,7 +191,7 @@ impl TestCluster {
     pub fn grpc_transaction_builder(
         &self,
         sender: Address,
-    ) -> TransactionBuilder<iota_grpc_client::Client> {
+    ) -> TransactionBuilder<iota_grpc_client::GrpcClient> {
         TransactionBuilder::new(sender).with_client(self.grpc_client())
     }
 

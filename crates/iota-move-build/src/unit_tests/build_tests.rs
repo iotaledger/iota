@@ -67,9 +67,11 @@ fn published_size_matches_move_package_size() {
             ObjectId::new([0; 32]),
             Version::default(),
             BTreeMap::new(),
+            u64::MAX,
             vec![],
             linkage,
         )
+        .unwrap()
     };
     let per_dep = make_pkg(BTreeMap::from([(
         ObjectId::new([1; 32]),

@@ -14,7 +14,7 @@ use std::{
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use iota_grpc_client::{
-    Client as GrpcClient,
+    GrpcClient,
     read_mask_fields::{ObjectField, ObjectReadMask, OwnedObjectReadMask, TransactionField},
 };
 use iota_keys::keystore::AccountKeystore;
@@ -1192,7 +1192,7 @@ pub async fn batch_transfer_gases(
 #[cfg(test)]
 mod tests {
     use anyhow::*;
-    use iota_grpc_client::Client as GrpcClient;
+    use iota_grpc_client::GrpcClient;
     use iota_sdk::wallet_context::WalletContext;
     use iota_sdk_transaction_builder::{TransactionBuilder, WaitForTransaction, unresolved};
     use iota_sdk_types::{ExecutionStatus, TransactionEffectsV1};

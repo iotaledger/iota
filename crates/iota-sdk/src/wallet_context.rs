@@ -36,7 +36,7 @@ pub struct WalletContext {
     config: PersistedConfig<IotaClientConfig>,
     request_timeout: Option<std::time::Duration>,
     client: Arc<RwLock<Option<IotaClient>>>,
-    grpc_client: Arc<RwLock<Option<iota_grpc_client::Client>>>,
+    grpc_client: Arc<RwLock<Option<iota_grpc_client::GrpcClient>>>,
     max_concurrent_requests: Option<u64>,
     env_override: Option<String>,
 }
@@ -127,7 +127,7 @@ impl WalletContext {
 
     /// Get the configured gRPC client, creating and caching it on first use.
     /// Errors if the active env has no `grpc` URL configured.
-    pub async fn get_grpc_client(&self) -> Result<iota_grpc_client::Client, anyhow::Error> {
+    pub async fn get_grpc_client(&self) -> Result<iota_grpc_client::GrpcClient, anyhow::Error> {
         let read = self.grpc_client.read().await;
 
         Ok(if let Some(client) = read.as_ref() {

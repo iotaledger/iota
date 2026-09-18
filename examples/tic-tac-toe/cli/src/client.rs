@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
-use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_client::GrpcClient;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
     IotaClient,
