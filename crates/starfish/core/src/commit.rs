@@ -28,7 +28,10 @@ use crate::{
     leader_scoring::ReputationScores,
     misbehavior_store::MisbehaviorCounts,
     storage::Store,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    transaction_ref::{
+        GenericTransactionRef, GenericTransactionRefAPI as _, SERIALIZED_TRANSACTION_REF_BYTES,
+        TransactionRef,
+    },
 };
 
 /// Index of a commit among all consensus commits.
@@ -60,8 +63,6 @@ pub(crate) fn max_commit_bytes(committee_size: usize, gc_depth: usize) -> usize 
     if gc_depth == 0 || committee_size == 0 {
         return usize::MAX;
     }
-    // `TransactionRef` is round (4) + author (1) + transactions_commitment (32).
-    const SERIALIZED_TRANSACTION_REF_BYTES: usize = 37;
     // enum tag (1) + index (4) + previous_digest (32) + timestamp_ms (8) +
     // leader BlockRef (37) + is_optimistic (1).
     const FIXED_COMMIT_BYTES: usize = 1 + 4 + 32 + 8 + SERIALIZED_BLOCK_REF_BYTES + 1;

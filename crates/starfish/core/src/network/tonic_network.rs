@@ -39,7 +39,7 @@ use super::{
 use crate::{
     CommitIndex, Round,
     block_header::{BlockRef, max_signed_block_header_bytes},
-    block_verifier::serialized_transactions_size_limit,
+    block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
     commit::{CommitRange, max_commit_bytes},
     commit_syncer::{CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY},
     context::Context,
@@ -48,7 +48,7 @@ use crate::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
     },
-    transaction_ref::TransactionRef,
+    transaction_ref::{SERIALIZED_TRANSACTION_REF_BYTES, TransactionRef},
 };
 
 // Maximum bytes size in a single fetch_blocks()response.
@@ -70,19 +70,22 @@ fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) 
         .saturating_mul(max_signed_block_header_bytes(context.committee.size()))
 }
 
-/// Transaction-fetch budget: the per-fetch transaction count cap times the
-/// maximum serialized per-block transaction payload. The larger of the two
-/// sync caps is used, matching `TransactionFetchMode::TransactionSync`.
-fn max_fetch_transactions_response_bytes(context: &Context) -> usize {
-    let max_transactions = context
-        .parameters
-        .max_transactions_per_commit_sync_fetch
-        .max(
-            context
-                .parameters
-                .max_transactions_per_transaction_sync_fetch,
-        );
-    max_transactions.saturating_mul(serialized_transactions_size_limit(context))
+/// Upper bound on one fetched transaction entry: a `SerializedTransactionsV2`
+/// carrying the maximum serialized per-block transaction payload, framed with
+/// its `TransactionRef` and length prefix.
+fn max_serialized_transactions_entry_bytes(context: &Context) -> usize {
+    serialized_transactions_size_limit(context)
+        .saturating_add(SERIALIZED_TRANSACTION_REF_BYTES)
+        .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
+}
+
+/// Transaction-fetch budget: one maximum-size entry per requested reference,
+/// since the server serves at most one entry per reference it was asked for.
+fn max_fetch_transactions_response_bytes(
+    context: &Context,
+    requested_transactions: usize,
+) -> usize {
+    requested_transactions.saturating_mul(max_serialized_transactions_entry_bytes(context))
 }
 
 // Implements Tonic RPC client for Consensus.
@@ -169,10 +172,7 @@ impl NetworkClient for TonicClient {
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
-        let max_allowed_bytes = max_fetch_block_headers_response_bytes(
-            &self.context,
-            highest_accepted_rounds.is_empty(),
-        );
+        let commit_sync = highest_accepted_rounds.is_empty();
         let mut request = Request::new(FetchBlockHeadersRequest {
             block_refs: block_refs
                 .iter()
@@ -187,7 +187,7 @@ impl NetworkClient for TonicClient {
             highest_accepted_rounds,
         });
         request.set_timeout(timeout);
-        let mut stream = client
+        let stream = client
             .fetch_block_headers(request)
             .await
             .map_err(|e| {
@@ -198,44 +198,8 @@ impl NetworkClient for TonicClient {
                 }
             })?
             .into_inner();
-        let mut vec_serialized_block_header = vec![];
-        let mut total_fetched_bytes = 0;
-        loop {
-            match stream.message().await {
-                Ok(Some(response)) => {
-                    for b in &response.vec_serialized_block_header {
-                        total_fetched_bytes += b.len();
-                    }
-                    vec_serialized_block_header.extend(response.vec_serialized_block_header);
-                    if total_fetched_bytes > max_allowed_bytes {
-                        info!(
-                            "fetch_block_headers() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, max_allowed_bytes,
-                        );
-                        break;
-                    }
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(e) => {
-                    if vec_serialized_block_header.is_empty() {
-                        if e.code() == tonic::Code::DeadlineExceeded {
-                            return Err(ConsensusError::NetworkRequestTimeout(format!(
-                                "fetch_block_headers failed mid-stream: {e:?}"
-                            )));
-                        }
-                        return Err(ConsensusError::NetworkRequest(format!(
-                            "fetch_block_headers failed mid-stream: {e:?}"
-                        )));
-                    } else {
-                        warn!("fetch_block_headers failed mid-stream: {e:?}");
-                        break;
-                    }
-                }
-            }
-        }
-        Ok(vec_serialized_block_header)
+
+        collect_block_headers(&self.context, peer, stream, commit_sync).await
     }
 
     async fn fetch_commits(
@@ -348,21 +312,21 @@ impl NetworkClient for TonicClient {
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
-        let mut request = Request::new(FetchTransactionsRequest {
-            transaction_refs: transactions_refs
-                .iter()
-                .filter_map(|tx_ref| match bcs::to_bytes(tx_ref) {
-                    Ok(serialized) => Some(serialized),
-                    Err(e) => {
-                        debug!("Failed to serialize TransactionRef {:?}: {e:?}", tx_ref);
-                        None
-                    }
-                })
-                .collect(),
-        });
+        let transaction_refs: Vec<Vec<u8>> = transactions_refs
+            .iter()
+            .filter_map(|tx_ref| match bcs::to_bytes(tx_ref) {
+                Ok(serialized) => Some(serialized),
+                Err(e) => {
+                    debug!("Failed to serialize TransactionRef {:?}: {e:?}", tx_ref);
+                    None
+                }
+            })
+            .collect();
+        let requested_transactions = transaction_refs.len();
+        let mut request = Request::new(FetchTransactionsRequest { transaction_refs });
 
         request.set_timeout(timeout);
-        let mut stream = client
+        let stream = client
             .fetch_transactions(request)
             .await
             .map_err(|e| {
@@ -376,45 +340,7 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        let max_allowed_bytes = max_fetch_transactions_response_bytes(&self.context);
-        let mut total_fetched_bytes = 0;
-        let mut vec_serialized_transactions = vec![];
-        loop {
-            match stream.message().await {
-                Ok(Some(response)) => {
-                    for b in &response.vec_serialized_transactions {
-                        total_fetched_bytes += b.len();
-                    }
-                    if total_fetched_bytes > max_allowed_bytes {
-                        info!(
-                            "fetch_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                            total_fetched_bytes, max_allowed_bytes,
-                        );
-                        break;
-                    }
-                    vec_serialized_transactions.extend(response.vec_serialized_transactions);
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(e) => {
-                    if vec_serialized_transactions.is_empty() {
-                        if e.code() == tonic::Code::DeadlineExceeded {
-                            return Err(ConsensusError::NetworkRequestTimeout(format!(
-                                "fetch_transactions failed mid-stream: {e:?}"
-                            )));
-                        }
-                        return Err(ConsensusError::NetworkRequest(format!(
-                            "fetch_transactions failed mid-stream: {e:?}"
-                        )));
-                    } else {
-                        warn!("fetch_transactions failed mid-stream: {e:?}");
-                        break;
-                    }
-                }
-            }
-        }
-        Ok(vec_serialized_transactions)
+        collect_transactions(&self.context, peer, stream, requested_transactions).await
     }
 
     async fn fetch_commits_and_transactions(
@@ -467,10 +393,11 @@ where
     // protect them from a malicious server. Commits and certifier headers
     // carry the same count caps `verify_commits` applies
     // (`2 * fast_commit_sync_batch_size` and two headers per authority).
-    // Transactions have no count cap on the fast path — the server returns
-    // every transaction the committed range references — so only their
-    // per-element size is enforced here; their count is validated against
-    // the commits downstream, and the coarse total below bounds the buffer.
+    // Transactions carry no configured count cap on the fast path, since the
+    // server returns every transaction the committed range references. The
+    // commits already received bound them instead: a commit holds at most one
+    // `TransactionRef` per 37 bytes it occupies, and the server serves one
+    // entry per reference.
     let committee_size = context.committee.size();
     let gc_depth = context.protocol_config.gc_depth() as usize;
     let max_commits = CommitSyncType::Fast.max_commits_per_response(context);
@@ -478,11 +405,12 @@ where
         committee_size.saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     let max_commit_size = max_commit_bytes(committee_size, gc_depth);
     let max_header_size = max_signed_block_header_bytes(committee_size);
-    let max_transaction_size = serialized_transactions_size_limit(context);
+    let max_transaction_size = max_serialized_transactions_entry_bytes(context);
     // Coarse total backstop for the buffer. The commit and certifier-header
     // terms reuse the per-category caps above so the total never trips
     // before them; the transaction term uses the commit-sync fetch cap as a
-    // coarse allowance, since the fast path has no transaction count cap.
+    // coarse allowance. An empty entry still costs its `Bytes` descriptor,
+    // so it is charged to the total as well.
     let max_allowed_bytes = max_commits
         .saturating_mul(max_commit_size)
         .saturating_add(max_certifier_headers.saturating_mul(max_header_size))
@@ -496,6 +424,7 @@ where
     let mut commits = Vec::new();
     let mut certifier_block_headers = Vec::new();
     let mut transactions = Vec::new();
+    let mut max_transactions = 0usize;
     let mut total_fetched_bytes = 0;
     let mut stream_error = None;
 
@@ -518,7 +447,9 @@ where
                             limit: max_commit_size,
                         });
                     }
-                    total_fetched_bytes += c.len();
+                    total_fetched_bytes += c.len() + size_of::<Bytes>();
+                    max_transactions =
+                        max_transactions.saturating_add(c.len() / SERIALIZED_TRANSACTION_REF_BYTES);
                 }
                 commits.extend(response.commits);
 
@@ -541,11 +472,19 @@ where
                             limit: max_header_size,
                         });
                     }
-                    total_fetched_bytes += h.len();
+                    total_fetched_bytes += h.len() + size_of::<Bytes>();
                 }
                 certifier_block_headers.extend(response.certifier_block_headers);
 
-                // Transactions (streamed in subsequent chunks): per-element size only.
+                // Transactions (streamed in subsequent chunks): count cap from
+                // the commits received + per-element size.
+                if transactions
+                    .len()
+                    .saturating_add(response.transactions.len())
+                    > max_transactions
+                {
+                    return Err(ConsensusError::TooManyFetchedTransactionsReturned(peer));
+                }
                 for t in &response.transactions {
                     if t.len() > max_transaction_size {
                         return Err(ConsensusError::SerializedTransactionsTooLarge {
@@ -553,7 +492,7 @@ where
                             limit: max_transaction_size,
                         });
                     }
-                    total_fetched_bytes += t.len();
+                    total_fetched_bytes += t.len() + size_of::<Bytes>();
                 }
                 transactions.extend(response.transactions);
 
@@ -594,6 +533,147 @@ where
     }
 
     Ok((commits, certifier_block_headers, transactions, stream_error))
+}
+
+/// Collects the chunks of a `fetch_block_headers` response stream into the
+/// header buffer. A stream cut by an error after headers arrived yields the
+/// delivered chunks.
+///
+/// The header count is bounded to the cap the server truncates its own
+/// response to.
+async fn collect_block_headers<S>(
+    context: &Context,
+    peer: AuthorityIndex,
+    mut stream: S,
+    commit_sync: bool,
+) -> ConsensusResult<Vec<Bytes>>
+where
+    S: Stream<Item = Result<FetchBlockHeadersResponse, tonic::Status>> + Unpin,
+{
+    let max_headers = context.parameters.max_headers_per_fetch(commit_sync);
+    let max_allowed_bytes = max_fetch_block_headers_response_bytes(context, commit_sync);
+    let mut vec_serialized_block_header = vec![];
+    let mut total_fetched_bytes = 0;
+    loop {
+        match stream.try_next().await {
+            Ok(Some(response)) => {
+                let headers = response.vec_serialized_block_header;
+                let received = vec_serialized_block_header
+                    .len()
+                    .saturating_add(headers.len());
+                if received > max_headers {
+                    return Err(ConsensusError::TooManyFetchedHeadersReturned {
+                        peer,
+                        requested: max_headers,
+                        received,
+                    });
+                }
+                for b in &headers {
+                    // An empty entry still costs its `Bytes` descriptor.
+                    total_fetched_bytes += b.len() + size_of::<Bytes>();
+                }
+                if total_fetched_bytes > max_allowed_bytes {
+                    info!(
+                        "fetch_block_headers() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                        total_fetched_bytes, max_allowed_bytes,
+                    );
+                    break;
+                }
+                vec_serialized_block_header.extend(headers);
+            }
+            Ok(None) => {
+                break;
+            }
+            Err(e) => {
+                if vec_serialized_block_header.is_empty() {
+                    if e.code() == tonic::Code::DeadlineExceeded {
+                        return Err(ConsensusError::NetworkRequestTimeout(format!(
+                            "fetch_block_headers failed mid-stream: {e:?}"
+                        )));
+                    }
+                    return Err(ConsensusError::NetworkRequest(format!(
+                        "fetch_block_headers failed mid-stream: {e:?}"
+                    )));
+                } else {
+                    warn!("fetch_block_headers failed mid-stream: {e:?}");
+                    break;
+                }
+            }
+        }
+    }
+    Ok(vec_serialized_block_header)
+}
+
+/// Collects the chunks of a `fetch_transactions` response stream into the
+/// transaction buffer. A stream cut by an error after entries arrived yields
+/// the delivered chunks.
+///
+/// The entry count is bounded to the request, since the server serves one
+/// entry per reference it was asked for.
+async fn collect_transactions<S>(
+    context: &Context,
+    peer: AuthorityIndex,
+    mut stream: S,
+    requested_transactions: usize,
+) -> ConsensusResult<Vec<Bytes>>
+where
+    S: Stream<Item = Result<FetchTransactionsResponse, tonic::Status>> + Unpin,
+{
+    let max_entry_bytes = max_serialized_transactions_entry_bytes(context);
+    let max_allowed_bytes = max_fetch_transactions_response_bytes(context, requested_transactions);
+    let mut total_fetched_bytes = 0;
+    let mut vec_serialized_transactions = vec![];
+    loop {
+        match stream.try_next().await {
+            Ok(Some(response)) => {
+                let transactions = response.vec_serialized_transactions;
+                if vec_serialized_transactions
+                    .len()
+                    .saturating_add(transactions.len())
+                    > requested_transactions
+                {
+                    return Err(ConsensusError::TooManyFetchedTransactionsReturned(peer));
+                }
+                for b in &transactions {
+                    if b.len() > max_entry_bytes {
+                        return Err(ConsensusError::SerializedTransactionsTooLarge {
+                            size: b.len(),
+                            limit: max_entry_bytes,
+                        });
+                    }
+                    // An empty entry still costs its `Bytes` descriptor.
+                    total_fetched_bytes += b.len() + size_of::<Bytes>();
+                }
+                if total_fetched_bytes > max_allowed_bytes {
+                    info!(
+                        "fetch_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
+                        total_fetched_bytes, max_allowed_bytes,
+                    );
+                    break;
+                }
+                vec_serialized_transactions.extend(transactions);
+            }
+            Ok(None) => {
+                break;
+            }
+            Err(e) => {
+                if vec_serialized_transactions.is_empty() {
+                    if e.code() == tonic::Code::DeadlineExceeded {
+                        return Err(ConsensusError::NetworkRequestTimeout(format!(
+                            "fetch_transactions failed mid-stream: {e:?}"
+                        )));
+                    }
+                    return Err(ConsensusError::NetworkRequest(format!(
+                        "fetch_transactions failed mid-stream: {e:?}"
+                    )));
+                } else {
+                    warn!("fetch_transactions failed mid-stream: {e:?}");
+                    break;
+                }
+            }
+        }
+    }
+    Ok(vec_serialized_transactions)
 }
 
 // Tonic channel wrapped with layers.
@@ -1680,21 +1760,206 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use super::{
-        FetchCommitsAndTransactionsResponse, collect_commits_and_transactions,
+        FetchBlockHeadersResponse, FetchCommitsAndTransactionsResponse, FetchTransactionsResponse,
+        collect_block_headers, collect_commits_and_transactions, collect_transactions,
         max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
-        block_verifier::serialized_transactions_size_limit, context::Context,
+        block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
+        context::Context,
         error::ConsensusError,
+        transaction_ref::SERIALIZED_TRANSACTION_REF_BYTES,
     };
 
     fn chunk(commits: usize, transactions: usize) -> FetchCommitsAndTransactionsResponse {
         FetchCommitsAndTransactionsResponse {
-            commits: vec![Bytes::from_static(b"commit"); commits],
+            // Sized for four transaction references, since the transaction
+            // count is derived from the commit bytes.
+            commits: vec![Bytes::from(vec![0u8; 4 * SERIALIZED_TRANSACTION_REF_BYTES]); commits],
             certifier_block_headers: vec![],
             transactions: vec![Bytes::from_static(b"transaction"); transactions],
         }
+    }
+
+    fn commit_chunk(commit_bytes: usize) -> FetchCommitsAndTransactionsResponse {
+        FetchCommitsAndTransactionsResponse {
+            commits: vec![Bytes::from(vec![0u8; commit_bytes])],
+            certifier_block_headers: vec![],
+            transactions: vec![],
+        }
+    }
+
+    /// A commit can reference one transaction per 37 bytes it occupies, so a
+    /// peer sending more entries than its commits account for is rejected.
+    #[tokio::test]
+    async fn transactions_past_what_the_commits_reference_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let flood = stream::iter([
+            Ok(commit_chunk(SERIALIZED_TRANSACTION_REF_BYTES)),
+            Ok(chunk(0, 2)),
+        ]);
+
+        let result = collect_commits_and_transactions(&context, peer, flood).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedTransactionsReturned(_))
+        ));
+    }
+
+    /// Entries the received commits account for are collected in full.
+    #[tokio::test]
+    async fn transactions_within_what_the_commits_reference_are_collected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let full = stream::iter([
+            Ok(commit_chunk(2 * SERIALIZED_TRANSACTION_REF_BYTES)),
+            Ok(chunk(0, 2)),
+        ]);
+
+        let (commits, _headers, transactions, _error) =
+            collect_commits_and_transactions(&context, peer, full)
+                .await
+                .expect("a response the commits account for is kept");
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(transactions.len(), 2);
+    }
+
+    fn header_chunk(headers: usize, bytes_each: usize) -> FetchBlockHeadersResponse {
+        FetchBlockHeadersResponse {
+            vec_serialized_block_header: vec![Bytes::from(vec![0u8; bytes_each]); headers],
+        }
+    }
+
+    /// A peer returning more headers than the server-side cap is rejected
+    /// while the response is still streaming, before its chunks are kept.
+    #[tokio::test]
+    async fn headers_past_the_count_cap_are_rejected() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 3;
+        let peer = AuthorityIndex::new_for_test(1);
+        let flood = stream::iter([Ok(header_chunk(2, 6)), Ok(header_chunk(2, 6))]);
+
+        let result = collect_block_headers(&context, peer, flood, true).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested: 3,
+                received: 4,
+                ..
+            })
+        ));
+    }
+
+    /// A response filling the cap exactly is still collected in full.
+    #[tokio::test]
+    async fn headers_at_the_count_cap_are_collected() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 3;
+        let peer = AuthorityIndex::new_for_test(1);
+        let full = stream::iter([Ok(header_chunk(2, 6)), Ok(header_chunk(1, 6))]);
+
+        let headers = collect_block_headers(&context, peer, full, true)
+            .await
+            .expect("a response at the cap is kept");
+
+        assert_eq!(headers.len(), 3);
+    }
+
+    fn transaction_chunk(transactions: usize, bytes_each: usize) -> FetchTransactionsResponse {
+        FetchTransactionsResponse {
+            vec_serialized_transactions: vec![Bytes::from(vec![0u8; bytes_each]); transactions],
+        }
+    }
+
+    /// A peer returning more entries than the fetch asked for is rejected
+    /// while the response is still streaming.
+    #[tokio::test]
+    async fn transactions_past_the_requested_count_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let flood = stream::iter([Ok(transaction_chunk(2, 6)), Ok(transaction_chunk(2, 6))]);
+
+        let result = collect_transactions(&context, peer, flood, 3).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedTransactionsReturned(_))
+        ));
+    }
+
+    /// One entry per requested reference is still collected in full.
+    #[tokio::test]
+    async fn transactions_at_the_requested_count_are_collected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let full = stream::iter([Ok(transaction_chunk(2, 6)), Ok(transaction_chunk(1, 6))]);
+
+        let transactions = collect_transactions(&context, peer, full, 3)
+            .await
+            .expect("a response at the requested count is kept");
+
+        assert_eq!(transactions.len(), 3);
+    }
+
+    /// An entry larger than a maximally full block's payload is rejected on
+    /// arrival, naming the offending size.
+    #[tokio::test]
+    async fn oversized_transaction_entries_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let limit = max_fetch_transactions_response_bytes(&context, 1);
+        let oversized = stream::iter([Ok(transaction_chunk(1, limit + 1))]);
+
+        let result = collect_transactions(&context, peer, oversized, 2).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::SerializedTransactionsTooLarge { .. })
+        ));
+    }
+
+    /// A chunk that overruns the byte budget is dropped instead of landing in
+    /// the buffer first.
+    #[tokio::test]
+    async fn headers_past_the_byte_budget_are_not_kept() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 2;
+        let peer = AuthorityIndex::new_for_test(1);
+        let budget = max_fetch_block_headers_response_bytes(&context, true);
+        let overrunning =
+            stream::iter([Ok(header_chunk(1, budget / 2)), Ok(header_chunk(1, budget))]);
+
+        let headers = collect_block_headers(&context, peer, overrunning, true)
+            .await
+            .expect("the chunks within the budget are kept");
+
+        assert_eq!(headers.len(), 1);
+    }
+
+    /// Header sync selects its own, smaller cap.
+    #[tokio::test]
+    async fn header_sync_uses_the_header_sync_count_cap() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 10;
+        context.parameters.max_headers_per_header_sync_fetch = 1;
+        let peer = AuthorityIndex::new_for_test(1);
+        let flood = stream::iter([Ok(header_chunk(2, 6))]);
+
+        let result = collect_block_headers(&context, peer, flood, false).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested: 1,
+                received: 2,
+                ..
+            })
+        ));
     }
 
     /// A stream cut before anything arrived delivers nothing to keep, so the
@@ -1803,10 +2068,13 @@ mod tests {
             max_fetch_block_headers_response_bytes(&context, false),
             11 * header_bytes
         );
-        // Transaction budget uses the larger of the two transaction caps.
+        // The transaction budget is one maximum-size entry per requested
+        // reference, independent of the transaction caps above.
         assert_eq!(
-            max_fetch_transactions_response_bytes(&context),
-            9 * serialized_transactions_size_limit(&context)
+            max_fetch_transactions_response_bytes(&context, 3),
+            3 * (serialized_transactions_size_limit(&context)
+                + SERIALIZED_TRANSACTION_REF_BYTES
+                + MAX_BCS_LENGTH_PREFIX_BYTES)
         );
     }
 

@@ -336,7 +336,7 @@ impl BlockVerifier for SignedBlockVerifier {
 
 // BCS encodes sequence lengths as ULEB128 values. Ten bytes covers any usize
 // length on supported 64-bit targets.
-const MAX_BCS_LENGTH_PREFIX_BYTES: usize = 10;
+pub(crate) const MAX_BCS_LENGTH_PREFIX_BYTES: usize = 10;
 
 /// Upper bound on the BCS-serialized size of any transaction batch that
 /// passes `check_transactions`: the maximum payload bytes plus a length
