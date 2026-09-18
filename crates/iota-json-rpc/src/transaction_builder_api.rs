@@ -82,6 +82,7 @@ impl DataReader for AuthorityStateDataReader {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 

@@ -155,8 +155,13 @@ impl Indexer {
             info!("No config for HistoricalFallbackReader provided, skipping...");
         }
 
+        // Fill the cache before the server accepts requests, so that read requests
+        // don't have to deal with not filled cache.
+        let watermark_task = WatermarkTask::new(store.clone(), watermark_cache);
+        watermark_task.update_watermarks().await?;
+
         let handle = build_json_rpc_server(
-            store.clone(),
+            store,
             registry,
             read.clone(),
             config,
@@ -167,7 +172,6 @@ impl Indexer {
         .expect("json rpc server should not run into errors upon start.");
 
         tracing::info!("Starting watermark background task to track pruning state");
-        let watermark_task = WatermarkTask::new(store, watermark_cache);
         watermark_task.start(cancel.clone());
 
         tracing::info!("Starting system package task");
