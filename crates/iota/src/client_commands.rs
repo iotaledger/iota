@@ -3298,15 +3298,12 @@ impl GasPayment {
             Self::Refs(refs) => Ok(refs),
             // The gRPC client rejects a request without any object IDs
             Self::Ids(ids) if ids.is_empty() => Ok(Vec::new()),
-            Self::Ids(ids) => context
+            Self::Ids(ids) => Ok(context
                 .get_grpc_client()
                 .await?
                 .object_references(ids)
                 .await?
-                .into_inner()
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(Into::into),
+                .into_inner()),
         }
     }
 }
