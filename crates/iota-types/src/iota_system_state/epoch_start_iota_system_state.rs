@@ -415,7 +415,7 @@ mod test {
     use iota_sdk_types::Address;
 
     use crate::{
-        crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
+        crypto::{AuthorityKeyPair, NetworkPrivateKey, get_key_pair},
         iota_system_state::epoch_start_iota_system_state::{
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
@@ -425,7 +425,7 @@ mod test {
     fn test_epoch_start_system_state_versioning() {
         // Create test validators
         let (iota_address1, authority_key1): (Address, AuthorityKeyPair) = get_key_pair();
-        let protocol_network_key1 = NetworkKeyPair::random();
+        let protocol_network_key1 = NetworkPrivateKey::random();
         let net_address1 = "/ip4/127.0.0.1/tcp/1337".parse().unwrap();
         let p2p_address1 = "/ip4/127.0.0.1/tcp/1338".parse().unwrap();
         let primary_address1 = "/ip4/127.0.0.1/tcp/1339".parse().unwrap();
@@ -443,7 +443,7 @@ mod test {
         };
 
         let (iota_address2, authority_key2): (Address, AuthorityKeyPair) = get_key_pair();
-        let protocol_network_key2 = NetworkKeyPair::random();
+        let protocol_network_key2 = NetworkPrivateKey::random();
         let net_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2337".parse().unwrap();
         let p2p_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2338".parse().unwrap();
         let primary_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2339".parse().unwrap();

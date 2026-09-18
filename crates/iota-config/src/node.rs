@@ -21,7 +21,7 @@ use iota_types::{
     committee::EpochId,
     crypto::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng,
+        NetworkPrivateKey, get_key_pair_from_rng,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
@@ -766,11 +766,11 @@ impl NodeConfig {
         self.authority_key_pair.authority_keypair()
     }
 
-    pub fn protocol_key_pair(&self) -> NetworkKeyPair {
+    pub fn protocol_key_pair(&self) -> NetworkPrivateKey {
         self.protocol_key_pair.network_keypair()
     }
 
-    pub fn network_key_pair(&self) -> NetworkKeyPair {
+    pub fn network_key_pair(&self) -> NetworkPrivateKey {
         self.network_key_pair.network_keypair()
     }
 
@@ -1576,7 +1576,7 @@ impl KeyPairWithPath {
     /// The stored keypair as an ed25519 network keypair, for the network
     /// stacks that consume that type directly. Panics if the stored keypair
     /// is not ed25519.
-    pub fn network_keypair(&self) -> NetworkKeyPair {
+    pub fn network_keypair(&self) -> NetworkPrivateKey {
         self.keypair()
             .as_opt_ed25519()
             .cloned()
@@ -1665,7 +1665,7 @@ mod tests {
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_types::{
-        crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng},
+        crypto::{AuthorityKeyPair, NetworkPrivateKey, get_key_pair_from_rng},
         traffic_control::{PolicyConfig, RemoteFirewallConfig},
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -1842,9 +1842,9 @@ mod tests {
     fn load_key_pairs_to_node_config() {
         let authority_key_pair: AuthorityKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let protocol_key_pair: NetworkKeyPair =
+        let protocol_key_pair: NetworkPrivateKey =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-        let network_key_pair: NetworkKeyPair =
+        let network_key_pair: NetworkPrivateKey =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
 
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))

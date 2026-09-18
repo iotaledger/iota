@@ -90,9 +90,8 @@ pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
 
 pub type AccountPrivateKey = Ed25519PrivateKey;
 
-pub type NetworkKeyPair = Ed25519PrivateKey;
-pub type NetworkPublicKey = iota_sdk_types::Ed25519PublicKey;
 pub type NetworkPrivateKey = Ed25519PrivateKey;
+pub type NetworkPublicKey = iota_sdk_types::Ed25519PublicKey;
 
 pub type DefaultHash = Blake2b256;
 

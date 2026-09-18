@@ -40,7 +40,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
+        NetworkPrivateKey, NetworkPublicKey, Signable, generate_proof_of_possession,
         get_authority_key_pair,
     },
     dynamic_field::{DynamicFieldName, Field},
@@ -232,9 +232,9 @@ impl IotaValidatorCommand {
 
                 let authority_keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(authority_key_file_name)?;
-                let protocol_keypair: NetworkKeyPair =
+                let protocol_keypair: NetworkPrivateKey =
                     read_network_keypair_from_file(protocol_key_file_name)?;
-                let network_keypair: NetworkKeyPair =
+                let network_keypair: NetworkPrivateKey =
                     read_network_keypair_from_file(network_key_file_name)?;
 
                 let account_address = Address::from(&account_key.public());
