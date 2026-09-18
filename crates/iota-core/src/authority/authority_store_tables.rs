@@ -7,6 +7,7 @@ use std::path::Path;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
 use serde::{Deserialize, Serialize};
+pub use typed_store::DbSnapshot;
 use typed_store::{
     DBMapUtils, DbIterator,
     metrics::SamplingInterval,
@@ -402,6 +403,28 @@ impl AuthorityPerpetualTables {
         Ok(self.objects.safe_iter().next().is_none())
     }
 
+    /// A point-in-time snapshot of the perpetual store, for a scan that must
+    /// see one state while the node keeps executing. See [`DbSnapshot`] for
+    /// what holding one costs.
+    pub fn db_snapshot(&self) -> DbSnapshot<'_> {
+        self.objects.db.snapshot()
+    }
+
+    /// [`Self::iter_live_object_set`] reading as of `db_snapshot`. Constructing
+    /// a
+    /// live object needs no further reads, so the snapshot over the objects
+    /// table covers the whole scan.
+    pub fn iter_live_object_set_at<'a>(
+        &'a self,
+        db_snapshot: &'a DbSnapshot<'a>,
+    ) -> LiveSetIter<'a> {
+        LiveSetIter {
+            iter: Box::new(self.objects.safe_iter_at_snapshot(db_snapshot)),
+            tables: self,
+            prev: None,
+        }
+    }
+
     pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
         LiveSetIter {
             iter: Box::new(self.objects.safe_iter()),
@@ -423,11 +446,6 @@ impl AuthorityPerpetualTables {
             tables: self,
             prev: None,
         }
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // This checkpoints the entire db and not just objects table
-        self.objects.checkpoint_db(path).map_err(Into::into)
     }
 
     pub fn get_root_state_hash(
@@ -674,6 +692,75 @@ fn effects_table_config(db_options: DBOptions) -> DBOptions {
 mod tests {
     use super::*;
     use crate::authority::authority_store_types::StoreObjectV2;
+
+    /// A scan through a database snapshot must see the object set as it stood
+    /// when the snapshot was taken. The state snapshot writer checks its scan
+    /// against the epoch's commitment, so a snapshot that let later writes
+    /// through would publish an object set that does not match the digest it
+    /// is filed under. Deterministic: every write here lands before the scan
+    /// starts.
+    #[tokio::test]
+    async fn a_db_snapshot_scan_is_unchanged_by_later_writes() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        let kept_id = ObjectId::random();
+        let deleted_id = ObjectId::random();
+        for id in [kept_id, deleted_id] {
+            perpetual_db
+                .insert_store_object_v2_test_only(
+                    Object::immutable_with_id_for_testing(id),
+                    Some(0),
+                )
+                .unwrap();
+        }
+        let live_set = |tables: &AuthorityPerpetualTables| -> Vec<(ObjectId, Version)> {
+            tables
+                .iter_live_object_set()
+                .map(|live| (live.object_id(), live.version()))
+                .collect()
+        };
+        let before = live_set(&perpetual_db);
+        assert_eq!(before.len(), 2);
+
+        let db_snapshot = perpetual_db.db_snapshot();
+
+        // What a running node does to the table while a scan is in flight: a
+        // new object appears, and another is tombstoned.
+        perpetual_db
+            .insert_store_object_v2_test_only(
+                Object::immutable_with_id_for_testing(ObjectId::random()),
+                Some(1),
+            )
+            .unwrap();
+        let mut wb = perpetual_db.objects.batch();
+        wb.insert_batch(
+            &perpetual_db.objects,
+            std::iter::once::<(ObjectKey, StoreObjectWrapper)>((
+                ObjectKey(deleted_id, Version::from_u64(2)),
+                StoreObjectV2::Deleted.into(),
+            )),
+        )
+        .unwrap();
+        wb.write().unwrap();
+
+        let through_view: Vec<_> = perpetual_db
+            .iter_live_object_set_at(&db_snapshot)
+            .map(|live| (live.object_id(), live.version()))
+            .collect();
+        assert_eq!(
+            through_view, before,
+            "the snapshot must not show writes made after it was taken"
+        );
+
+        // Without this the test would also pass against a snapshot that saw
+        // everything, or one that saw nothing.
+        assert_ne!(
+            live_set(&perpetual_db),
+            before,
+            "a scan outside the snapshot must show the later writes"
+        );
+    }
 
     /// `LiveSetIter` must filter `StoreObject::Wrapped` and
     /// `StoreObject::Deleted` rows at the source so downstream consumers
