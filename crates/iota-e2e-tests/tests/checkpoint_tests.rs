@@ -171,6 +171,10 @@ async fn test_checkpoint_timestamps_non_decreasing() {
 /// handling of such a split matters: a crash between the execution of two
 /// chunks, and a restart that has to rebuild chunks the network already
 /// certified.
+///
+/// Kills and restarts nodes through the simulator, so it only builds under
+/// `cargo simtest`.
+#[cfg(msim)]
 mod split_checkpoints {
     use std::{
         sync::{
