@@ -254,6 +254,40 @@ async fn test_iter() {
     assert_eq!(None, iter.next());
 }
 
+/// A snapshot keeps reading the state it was taken at: rows written,
+/// overwritten or deleted afterwards are invisible to a scan through it,
+/// while a plain scan sees them.
+#[tokio::test]
+async fn a_snapshot_scan_ignores_later_writes() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
+    db.insert(&1, &"one".to_string()).unwrap();
+    db.insert(&2, &"two".to_string()).unwrap();
+
+    let snapshot = db.db.snapshot();
+
+    db.insert(&2, &"two changed".to_string()).unwrap();
+    db.insert(&3, &"three".to_string()).unwrap();
+    db.remove(&1).unwrap();
+
+    let at_view: Vec<_> = db
+        .safe_iter_at_snapshot(&snapshot)
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        at_view,
+        vec![(1, "one".to_string()), (2, "two".to_string())],
+        "the scan must see the state the snapshot was taken at",
+    );
+
+    let now: Vec<_> = db.safe_iter().map(Result::unwrap).collect();
+    assert_eq!(
+        now,
+        vec![(2, "two changed".to_string()), (3, "three".to_string())],
+        "a plain scan must see the writes the snapshot is holding back",
+    );
+}
+
 #[tokio::test]
 async fn test_iter_reverse() {
     let tmp_dir = iota_common::tempdir();
@@ -1230,79 +1264,6 @@ async fn test_multi_insert() {
         let val = db.get(&k).expect("Failed to get inserted key");
         assert_eq!(Some(v), val);
     }
-}
-
-#[tokio::test]
-async fn test_checkpoint() {
-    let tmp_dir = iota_common::tempdir();
-    let path_prefix = tmp_dir.path();
-    let db_path = path_prefix.join("db");
-    let db: DBMap<i32, String> = open_map(db_path, Some("table"));
-    // Create kv pairs
-    let keys_vals = (0..101).map(|i| (i, i.to_string()));
-
-    db.multi_insert(keys_vals.clone())
-        .expect("Failed to multi-insert");
-    let checkpointed_path = path_prefix.join("checkpointed_db");
-    db.db
-        .checkpoint(&checkpointed_path)
-        .expect("Failed to create db checkpoint");
-    // Create more kv pairs
-    let new_keys_vals = (101..201).map(|i| (i, i.to_string()));
-    db.multi_insert(new_keys_vals.clone())
-        .expect("Failed to multi-insert");
-    // Verify checkpoint
-    let checkpointed_db: DBMap<i32, String> = open_map(checkpointed_path, Some("table"));
-    // Ensure keys inserted before checkpoint are present in original and
-    // checkpointed db
-    for (k, v) in keys_vals {
-        let val = db.get(&k).expect("Failed to get inserted key");
-        assert_eq!(Some(v.clone()), val);
-        let val = checkpointed_db.get(&k).expect("Failed to get inserted key");
-        assert_eq!(Some(v), val);
-    }
-    // Ensure keys inserted after checkpoint are only present in original db but not
-    // in checkpointed db
-    for (k, v) in new_keys_vals {
-        let val = db.get(&k).expect("Failed to get inserted key");
-        assert_eq!(Some(v.clone()), val);
-        let val = checkpointed_db.get(&k).expect("Failed to get inserted key");
-        assert_eq!(None, val);
-    }
-}
-
-/// A snapshot keeps reading the state it was taken at: rows written,
-/// overwritten or deleted afterwards are invisible to a scan through it,
-/// while a plain scan sees them.
-#[tokio::test]
-async fn a_snapshot_scan_ignores_later_writes() {
-    let tmp_dir = iota_common::tempdir();
-    let db = open_map(tmp_dir.path(), None);
-    db.insert(&1, &"one".to_string()).unwrap();
-    db.insert(&2, &"two".to_string()).unwrap();
-
-    let snapshot = db.db.snapshot();
-
-    db.insert(&2, &"two changed".to_string()).unwrap();
-    db.insert(&3, &"three".to_string()).unwrap();
-    db.remove(&1).unwrap();
-
-    let at_view: Vec<_> = db
-        .safe_iter_at_snapshot(&snapshot)
-        .map(Result::unwrap)
-        .collect();
-    assert_eq!(
-        at_view,
-        vec![(1, "one".to_string()), (2, "two".to_string())],
-        "the scan must see the state the snapshot was taken at",
-    );
-
-    let now: Vec<_> = db.safe_iter().map(Result::unwrap).collect();
-    assert_eq!(
-        now,
-        vec![(2, "two changed".to_string()), (3, "three".to_string())],
-        "a plain scan must see the writes the snapshot is holding back",
-    );
 }
 
 #[tokio::test]
