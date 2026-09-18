@@ -19,7 +19,7 @@ use diesel::{
 };
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use tracing::info;
+use tracing::{error, info};
 use url::Url;
 
 use crate::{errors::IndexerError, pruning::pruner::PrunableTable};
@@ -184,17 +184,15 @@ pub fn new_connection_pool(
         .connection_customizer(Box::new(config.connection_config()))
         .build(manager)
         .map_err(|e| {
-            IndexerError::PgConnectionPoolInit(format!(
-                "failed to initialize connection pool for {db_url:?} with error: {e:?}"
-            ))
+            error!("failed to initialize connection pool: {e:?}");
+            IndexerError::PgConnectionPoolInit
         })
 }
 
 pub fn get_pool_connection(pool: &ConnectionPool) -> Result<PoolConnection, IndexerError> {
     pool.get().map_err(|e| {
-        IndexerError::PgPoolConnection(format!(
-            "failed to get connection from PG connection pool with error: {e:?}"
-        ))
+        error!("failed to get connection from PG connection pool: {e:?}");
+        IndexerError::PgPoolConnection
     })
 }
 

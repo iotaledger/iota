@@ -58,7 +58,10 @@ mod ingestion_tests {
                     .build_transaction()
                     .read_only()
                     .run($query)
-                    .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+                    .map_err(|e| {
+                        eprintln!("failed to read from PostgresDB: {e:?}");
+                        IndexerError::PostgresRead
+                    })
             })
             .await
             .expect("failed to join Tokio blocking task")

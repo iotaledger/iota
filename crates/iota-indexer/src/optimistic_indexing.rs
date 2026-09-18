@@ -344,9 +344,8 @@ impl OptimisticTransactionExecutor {
                     .await
                     .map_err(backoff::Error::transient)?
                 {
-                    return Err(backoff::Error::transient(IndexerError::PostgresRead(
-                        "transaction not yet fully indexed".to_string(),
-                    )));
+                    tracing::debug!("transaction not yet fully indexed");
+                    return Err(backoff::Error::transient(IndexerError::PostgresRead));
                 }
                 Ok(())
             },
@@ -354,9 +353,7 @@ impl OptimisticTransactionExecutor {
         .await
         .map_err(|e| {
             tracing::warn!("timed out waiting for transaction to be fully indexed: {e}");
-            IndexerError::PostgresRead(
-                "timeout waiting for transaction to be fully indexed".to_string(),
-            )
+            IndexerError::PostgresRead
         })
     }
 
@@ -383,7 +380,7 @@ impl OptimisticTransactionExecutor {
             // The unique violation error means that checkpoint indexing was faster than the
             // optimistic indexing. Let's just return and let checkpoint indexing handle
             // the transaction.
-            Err(IndexerError::PostgresUniqueTxGlobalOrderViolation(_)) => {
+            Err(IndexerError::PostgresUniqueTxGlobalOrderViolation) => {
                 db_write_timer.stop_and_discard();
                 self.metrics
                     .optimistic_tx_unique_global_order_violations_count
@@ -393,9 +390,8 @@ impl OptimisticTransactionExecutor {
             Err(e) => {
                 db_write_timer.stop_and_discard();
                 self.metrics.optimistic_tx_failed_db_writes_count.inc();
-                Err(IndexerError::PostgresWrite(format!(
-                    "Failed to persist optimistic tx: {e:?}",
-                )))
+                tracing::error!("failed to persist optimistic tx: {e:?}");
+                Err(IndexerError::PostgresWrite)
             }
         }
     }
@@ -432,7 +428,7 @@ impl OptimisticTransactionExecutor {
                 let optimistic_tx = self.persist_optimistic_tx(conn, tx_data_to_commit)?;
                 Ok(Some(optimistic_tx))
             },
-            |e: &IndexerError| matches!(*e, IndexerError::PostgresUniqueTxGlobalOrderViolation(_)),
+            |e: &IndexerError| matches!(*e, IndexerError::PostgresUniqueTxGlobalOrderViolation),
             Duration::from_secs(3600)
         )
     }
@@ -454,9 +450,13 @@ impl OptimisticTransactionExecutor {
         .get_result::<AssignedSequenceNumber>(conn)
         .map_err(|e| match e {
             diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                IndexerError::PostgresUniqueTxGlobalOrderViolation(e.to_string())
+                tracing::error!("unique violation error: {e:?}");
+                IndexerError::PostgresUniqueTxGlobalOrderViolation
             }
-            _ => IndexerError::PostgresWrite(format!("Failed to assign global order: {e}")),
+            _ => {
+                tracing::error!("failed to assign global order: {e:?}");
+                IndexerError::PostgresWrite
+            }
         })
     }
 
