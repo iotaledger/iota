@@ -3446,7 +3446,7 @@ impl AuthorityPerEpochStore {
     /// If this function return an error, transaction is skipped and is not
     /// passed to handle_consensus_transaction This function returns unit
     /// error and is responsible for emitting log messages for internal errors
-    fn verify_consensus_transaction(
+    pub(crate) fn verify_consensus_transaction(
         &self,
         transaction: SequencedConsensusTransaction,
         skipped_consensus_txns: &IntCounter,
@@ -3660,7 +3660,7 @@ impl AuthorityPerEpochStore {
         C: CheckpointServiceNotify,
     >(
         self: &Arc<Self>,
-        transactions: Vec<SequencedConsensusTransaction>,
+        verified_transactions: Vec<VerifiedSequencedConsensusTransaction>,
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
@@ -3669,15 +3669,6 @@ impl AuthorityPerEpochStore {
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
         // Split transactions into different types for processing.
-        let verified_transactions: Vec<_> = transactions
-            .into_iter()
-            .filter_map(|transaction| {
-                self.verify_consensus_transaction(
-                    transaction,
-                    &authority_metrics.skipped_consensus_txns,
-                )
-            })
-            .collect();
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
             Vec::with_capacity(verified_transactions.len());
@@ -4479,8 +4470,17 @@ impl AuthorityPerEpochStore {
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+        let verified_transactions = transactions
+            .into_iter()
+            .filter_map(|transaction| {
+                self.verify_consensus_transaction(
+                    transaction,
+                    &authority_metrics.skipped_consensus_txns,
+                )
+            })
+            .collect();
         self.process_consensus_transactions_and_commit_boundary(
-            transactions,
+            verified_transactions,
             &ExecutionIndicesWithStats::default(),
             checkpoint_service,
             cache_reader,
@@ -4733,6 +4733,10 @@ impl AuthorityPerEpochStore {
                 }
                 // Note: ignored external transactions must not be recorded as processed. Otherwise
                 // they may not get reverted after restart during epoch change.
+                // TODO: once the P-COOL flow is rolled out there is no pre-consensus execution
+                // left to revert, so ignored transactions can be recorded as processed too. That
+                // keeps the consensus handler's duplicate cache and this table in agreement and
+                // lets waiters on `consensus_messages_processed_notify` learn about the drop.
                 ConsensusTransactionResult::Ignored => {
                     ignored = true;
                     filter_roots = true;
