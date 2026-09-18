@@ -12,6 +12,7 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes as _};
 use futures::{Stream, StreamExt as _, TryStreamExt as _, stream};
 use iota_http::ServerHandle;
 use iota_network_stack::{
@@ -1282,7 +1283,27 @@ impl<S: NetworkService> TonicManager<S> {
             .http2_keepalive_interval(Some(config.keepalive_interval))
             .http2_keepalive_timeout(Some(config.keepalive_interval))
             .accept_http1(false)
-            .max_connections_per_peer(Some(MAX_CONNECTIONS_PER_PEER));
+            .max_connections_per_peer(Some(MAX_CONNECTIONS_PER_PEER))
+            .on_connection_refused({
+                let context = self.context.clone();
+                let connections_info = connections_info.clone();
+                move |peer_public_key| {
+                    let Some(authority_index) =
+                        authority_index_from_key(&connections_info, peer_public_key)
+                    else {
+                        return;
+                    };
+                    context
+                        .metrics
+                        .network_metrics
+                        .inbound_connections_refused
+                        .with_label_values(&[&context
+                            .committee
+                            .authority(authority_index)
+                            .hostname])
+                        .inc();
+                }
+            });
 
         // Create server
         //
@@ -1375,6 +1396,15 @@ fn report_connections_per_peer(
             }
         }
     });
+}
+
+/// Resolves a peer's raw network public key to its index in the committee.
+fn authority_index_from_key(
+    connections_info: &ConnectionsInfo,
+    public_key: &[u8],
+) -> Option<AuthorityIndex> {
+    let public_key = Ed25519PublicKey::from_bytes(public_key).ok()?;
+    connections_info.authority_index(&NetworkPublicKey::new(public_key))
 }
 
 // TODO: improve iota-http to allow for providing a MakeService so that this can

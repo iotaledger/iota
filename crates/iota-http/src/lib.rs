@@ -321,9 +321,12 @@ where
         if let (Some(max), Some(peer)) =
             (self.config.max_connections_per_peer, peer_public_key(&io))
         {
-            let Some(guard) = self.peer_connection_counts.register(peer, max) else {
+            let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("peer already holds {max} connections, closing the new one");
+                if let Some(on_connection_refused) = &self.config.on_connection_refused {
+                    on_connection_refused.call(&peer);
+                }
                 return;
             };
             peer_connection_guard = Some(guard);
@@ -638,8 +641,16 @@ mod tests {
             ),
         );
 
+        let refused_peers = Arc::new(std::sync::Mutex::new(Vec::new()));
         let handle = Builder::new()
-            .config(Config::default().max_connections_per_peer(Some(MAX_PER_PEER)))
+            .config(
+                Config::default()
+                    .max_connections_per_peer(Some(MAX_PER_PEER))
+                    .on_connection_refused({
+                        let refused_peers = refused_peers.clone();
+                        move |peer| refused_peers.lock().unwrap().push(peer.to_vec())
+                    }),
+            )
             .tls_config(server_config)
             .serve(("localhost", 0), Router::new())
             .unwrap();
@@ -692,6 +703,11 @@ mod tests {
             "the server must close the connection, got {read:?}"
         );
         established(MAX_PER_PEER).await;
+        assert_eq!(
+            *refused_peers.lock().unwrap(),
+            vec![client_key(2).public().as_ref().to_vec()],
+            "the refusal must be reported against the peer that caused it"
+        );
 
         // A peer sitting at its limit must not consume anyone else's budget.
         let other_peer = connect(3).await;

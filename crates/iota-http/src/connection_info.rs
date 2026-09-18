@@ -104,19 +104,18 @@ pub(crate) struct PeerConnectionCounts(Arc<Mutex<HashMap<Vec<u8>, usize>>>);
 impl PeerConnectionCounts {
     /// Counts one more connection for `peer`, or returns `None` if the peer
     /// already holds `max` of them.
-    pub(crate) fn register(&self, peer: Vec<u8>, max: usize) -> Option<PeerConnectionGuard> {
+    pub(crate) fn register(&self, peer: &[u8], max: usize) -> Option<PeerConnectionGuard> {
         let mut counts = self.0.lock().unwrap();
-        // A zero `max` is rejected by `Config::validate`, so a count just
-        // inserted as 0 is always below it and never left behind on refusal.
-        let count = counts.entry(peer.clone()).or_insert(0);
-        if *count >= max {
+        // A zero `max` is rejected by `Config::validate`, so a peer with no
+        // entry yet is always below the limit.
+        if counts.get(peer).is_some_and(|count| *count >= max) {
             return None;
         }
-        *count += 1;
+        *counts.entry(peer.to_vec()).or_insert(0) += 1;
 
         Some(PeerConnectionGuard {
             counts: self.clone(),
-            peer,
+            peer: peer.to_vec(),
         })
     }
 }

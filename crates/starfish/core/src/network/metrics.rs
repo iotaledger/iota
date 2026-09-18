@@ -25,6 +25,8 @@ pub(crate) struct NetworkMetrics {
     pub(crate) admission_in_use: IntGaugeVec,
     /// Connections each peer currently holds on the inbound listener.
     pub(crate) inbound_connections: IntGaugeVec,
+    /// Connections refused for being over a peer's connection limit.
+    pub(crate) inbound_connections_refused: IntCounterVec,
 }
 
 impl NetworkMetrics {
@@ -59,6 +61,14 @@ impl NetworkMetrics {
             inbound_connections: register_int_gauge_vec_with_registry!(
                 "inbound_connections",
                 "Connections each peer currently holds on the inbound consensus listener",
+                &["authority"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            inbound_connections_refused: register_int_counter_vec_with_registry!(
+                "inbound_connections_refused",
+                "Connections refused for being over the peer's connection limit",
                 &["authority"],
                 registry;
                 MetricLevel::Warn,
