@@ -14,7 +14,10 @@ use fastcrypto::hash::{Digest, HashFunction};
 use iota_common::debug_fatal;
 use iota_macros::{fail_point, nondeterministic};
 use prometheus_filtered::{Histogram, HistogramTimer};
-use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
+use rocksdb::{
+    DBPinnableSlice, DBWithThreadMode, Error, LiveFile, MultiThreaded, ReadOptions,
+    SnapshotWithThreadMode, WriteBatch, checkpoint::Checkpoint,
+};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::oneshot;
 use tracing::{debug, error, instrument, warn};
@@ -67,6 +70,38 @@ pub(crate) enum Storage {
     Rocks(RocksDB),
     #[allow(dead_code)]
     InMemory(InMemoryDB),
+}
+
+/// A RocksDB snapshot of a database: the state as of the moment it was taken.
+///
+/// This is the sequence number a read is pinned to, not a copy of anything.
+/// Reads made through it ignore every write that lands after it, so a scan
+/// lasting minutes still sees a single point in time. A snapshot lives only
+/// as long as the process: nothing about it survives a restart.
+///
+/// RocksDB keeps every superseded version an open snapshot still needs, so a
+/// snapshot holds that data on disk for as long as it lives: take one as late
+/// as possible and drop it as soon as the read is done.
+///
+/// Deletes are safe to run underneath a snapshot, because they carry a
+/// sequence number the snapshot reads past. A `CompactionFilter` would not
+/// be: RocksDB ignores snapshots wherever a filter is installed, so it could
+/// drop rows a snapshot is still reading. Nothing in this repository installs
+/// one; anything that does must keep it off any column family a scan reads
+/// through a snapshot.
+///
+/// The in-memory backend has no multi-version reads at all: a snapshot over
+/// it sees writes made after it was taken.
+///
+/// The snapshot borrows its database, so it cannot outlive the handle that
+/// keeps the versions it pins alive. It is `Send` and `Sync` in itself — a
+/// RocksDB snapshot is just a sequence number — but the borrow keeps it
+/// inside the scope holding that handle, which is why a scan takes its own
+/// snapshot where it runs rather than being handed one.
+pub struct DbSnapshot<'db> {
+    /// `None` for the in-memory backend, whose lack of multi-version reads is
+    /// described on the type.
+    snapshot: Option<SnapshotWithThreadMode<'db, DBWithThreadMode<MultiThreaded>>>,
 }
 
 impl std::fmt::Debug for Storage {
@@ -424,6 +459,17 @@ impl Database {
         }
     }
 
+    /// A point-in-time snapshot of this database. See [`DbSnapshot`] for what
+    /// holding one costs.
+    pub fn snapshot(&self) -> DbSnapshot<'_> {
+        DbSnapshot {
+            snapshot: match &self.storage {
+                Storage::Rocks(rocks) => Some(rocks.underlying.snapshot()),
+                Storage::InMemory(_) => None,
+            },
+        }
+    }
+
     pub fn checkpoint(&self, path: &Path) -> Result<(), TypedStoreError> {
         // TODO: implement for other storage types
         if let Storage::Rocks(rocks) = &self.storage {
@@ -775,6 +821,36 @@ impl<K, V> DBMap<K, V> {
             keys_scanned,
             Some(self.db_metrics.clone()),
         )
+    }
+
+    /// Iterates the whole column family as of `db_snapshot` instead of the
+    /// current state of the database.
+    ///
+    /// The iterator borrows the snapshot, so it cannot outlive what keeps the
+    /// versions it reads alive.
+    ///
+    /// Blocks it reads are not put in the block cache. A scan of this kind
+    /// walks the column family once and would otherwise evict the working set
+    /// the node is serving from, for rows nothing will ask for again.
+    pub fn safe_iter_at_snapshot<'a>(
+        &'a self,
+        db_snapshot: &'a DbSnapshot<'a>,
+    ) -> DbIterator<'a, (K, V)>
+    where
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        match &self.db.storage {
+            Storage::Rocks(db) => {
+                let mut readopts = self.opts.readopts();
+                readopts.fill_cache(false);
+                if let Some(snapshot) = &db_snapshot.snapshot {
+                    readopts.set_snapshot(snapshot);
+                }
+                Box::new(self.rocks_safe_iter(db, readopts))
+            }
+            Storage::InMemory(db) => db.iterator(self.column_family.name(), None, None, false),
+        }
     }
 
     /// Forward iterator over the raw byte bounds `[lower_bound, upper_bound)`;
