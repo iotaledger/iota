@@ -106,8 +106,9 @@ impl ValidatorService {
             self.metrics.x_forwarded_for_num_hops.set(num_hops as f64);
         }
 
-        match get_client_ip(request.metadata().as_ref(), request.remote_addr(), source) {
-            ClientIpStatus::Ok(ip) => Some(ip),
+        let status = get_client_ip(request.metadata().as_ref(), request.remote_addr(), source);
+        match &status {
+            ClientIpStatus::Ok(ip) => Some(*ip),
             ClientIpStatus::SocketAddrMissing => {
                 // We will hit this case if the IO type used does not
                 // implement Connected or when using a unix domain socket.
@@ -119,15 +120,13 @@ impl ValidatorService {
                     panic!("Failed to get remote address from request");
                 } else {
                     self.metrics.connection_ip_not_found.inc();
-                    error!("Failed to get remote address from request");
+                    error!("{status}");
                 }
                 None
             }
             ClientIpStatus::XForwardedForHeaderMissing => {
                 self.metrics.forwarded_header_not_included.inc();
-                error!(
-                    "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
-                );
+                error!("{status}");
                 None
             }
             ClientIpStatus::XForwardedForInvalidUtf8 => {
@@ -136,27 +135,21 @@ impl ValidatorService {
                 // hit this case.
                 // issue: https://github.com/iotaledger/iota/issues/11756
                 self.metrics.forwarded_header_invalid.inc();
-                error!("Invalid UTF-8 in x-forwarded-for header");
+                error!("{status}");
                 None
             }
-            ClientIpStatus::XForwardedForZeroHops => {
-                error!(
-                    "x-forwarded-for: 0 specified. Please assign nonzero value for number of hops here, or use \
-                    `socket-addr` client-id-source type if requests are not being proxied to this node. \
-                    Skipping traffic controller request handling."
-                );
+            ClientIpStatus::XForwardedForZeroHops { .. } => {
+                error!("{status}");
                 None
             }
-            ClientIpStatus::XForwardedForConfigMismatch { expected, actual } => {
-                error!(
-                    "x-forwarded-for header contains {actual} values, but {expected} hops were specified. \
-                    Please correctly set the `x-forwarded-for` value under `client-id-source` in the node config."
-                );
+            ClientIpStatus::XForwardedForConfigMismatch { .. } => {
                 self.metrics.client_id_source_config_mismatch.inc();
+                error!("{status}");
                 None
             }
             ClientIpStatus::XForwardedForUnparsable => {
                 self.metrics.forwarded_header_parse_error.inc();
+                error!("{status}");
                 None
             }
         }

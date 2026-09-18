@@ -41,6 +41,10 @@ policy-config:
   # How to identify client IPs (socket-addr or x-forwarded-for)
   client-id-source: socket-addr  # or x-forwarded-for: <hops>, where hops is the number of proxy hops
   
+  # Serve these client IPs only, and refuse every other request. Rate limiting
+  # does not run in this mode. Omit the field to rate limit instead.
+  # allow-list: ["10.0.0.1", "10.0.0.2"]
+  
   # How long to block direct client IPs (in seconds)
   connection-blocklist-ttl-sec: 60
   
@@ -140,7 +144,15 @@ policy-config:
   dry-run: false
 ```
 
+The node reads the entry your proxy appended, so a client cannot hide itself by putting unreadable bytes in the part of the header it sent. The node still ends up with no client when the header is absent, when the entry it selects is not an address, or when the header holds fewer entries than the configured hop count. With a rate-limiting policy such a request is served and charged to no client, which means it is not rate limited. In allowlist mode it is refused, because an allowlist admits the clients it names.
+
+The `traffic_control_unresolved_client_requests` metric counts these requests. It should stay near zero when every client reaches the node through the proxy. A growing value means that some traffic arrives on another path, that the hop count is wrong, or that clients send malformed headers.
+
+Other nodes reach a validator over the same listener, and their requests carry no `x-forwarded-for` header. With an `allow-list` the validator therefore refuses them, whatever the list holds. Configure an `allow-list` together with `client-id-source: socket-addr`, unless every caller, other nodes included, reaches the node through the proxy.
+
 ### Determining the Correct Number of Hops
+
+While `x-forwarded-for` is set to `0` the node determines no client at all. With a rate-limiting policy that means no client is limited, and in allowlist mode it means every request is refused. Use this setting only to read the hop count off the logs, and set the correct value straight after.
 
 To determine the correct number of hops for the `x-forwarded-for` setting:
 
@@ -225,6 +237,7 @@ After enabling the `TrafficController`, monitor your node's metrics to ensure le
 - `requests_blocked_at_protocol`
 - `blocks_delegated_to_firewall`
 - `traffic_control_num_dry_run_blocked_requests`
+- `traffic_control_unresolved_client_requests`
 - `firewall_delegation_overflow`
 
 Start with `dry-run: true` to observe what would be blocked without actually blocking traffic, then adjust thresholds as needed before setting `dry-run: false`.

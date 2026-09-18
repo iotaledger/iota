@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus_filtered::{
-    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry,
+    IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 #[derive(Clone)]
 pub struct TrafficControllerMetrics {
     pub tallies: IntCounter,
+    pub unresolved_client_requests: IntCounter,
     pub connection_ip_blocklist_len: IntGauge,
     pub proxy_ip_blocklist_len: IntGauge,
     pub requests_blocked_at_protocol: IntCounter,
@@ -34,6 +36,15 @@ impl TrafficControllerMetrics {
         Self {
             tallies: register_int_counter_with_registry!("tallies", "Number of tallies", registry)
                 .unwrap(),
+            // Registered at `Warn`, so that the default metric filter exports
+            // it: an operator reads it before turning dry run off.
+            unresolved_client_requests: register_int_counter_with_registry!(
+                "traffic_control_unresolved_client_requests",
+                "Number of requests whose client IP the node could not resolve",
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
             connection_ip_blocklist_len: register_int_gauge_with_registry!(
                 "connection_ip_blocklist_len",
                 // make the below a multiline string
