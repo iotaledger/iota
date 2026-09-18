@@ -297,18 +297,17 @@ impl Event {
         let cursor = if page.is_from_front() {
             // Cannot do -1 when cursor=0
             page.after().and_then(|cursor| {
-                cursor.e.checked_sub(1).map(|event_seq| EventID {
+                u64::from(cursor.e).checked_sub(1).map(|event_seq| EventID {
                     tx_digest: tx_digest.into(),
                     event_seq,
                 })
             })
         } else {
-            // Cannot do +1 when cursor=`u64::MAX`
-            page.before().and_then(|cursor| {
-                cursor.e.checked_add(1).map(|event_seq| EventID {
+            page.before().map(|cursor| {
+                EventID {
                     tx_digest: tx_digest.into(),
-                    event_seq,
-                })
+                    event_seq: u64::from(cursor.e) + 1, // safe as cursor.e : UInt53
+                }
             })
         };
 
@@ -336,8 +335,12 @@ impl Event {
                 ev.event_sequence_number as u64,
             );
             ev.tx_sequence_number < tx_hi
-                && page.after().is_none_or(|c| (c.tx, c.e) <= key)
-                && page.before().is_none_or(|c| key <= (c.tx, c.e))
+                && page
+                    .after()
+                    .is_none_or(|c| (c.tx.into(), c.e.into()) <= key)
+                && page
+                    .before()
+                    .is_none_or(|c| key <= (c.tx.into(), c.e.into()))
         });
 
         let (prev, next, results) = page.paginate_results(

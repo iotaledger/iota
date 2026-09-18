@@ -4704,9 +4704,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.17"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f877e75f39e9827ec50a572dd592684ac28c029578726c85f1b2aa6ab807449"
+checksum = "ef8e5e5a340588f4452631496976cf8636d4a7ecf600239fdc27615d2530bc16"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -5626,6 +5626,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "web-time",
 ]
 
 [[package]]
@@ -7356,6 +7357,7 @@ dependencies = [
  "clap",
  "insta",
  "iota-protocol-config-macros",
+ "move-core-types",
  "move-vm-config",
  "schemars",
  "serde",
@@ -9425,7 +9427,6 @@ dependencies = [
  "indexmap 2.11.0",
  "move-abstract-interpreter",
  "move-core-types",
- "ref-cast",
  "serde",
  "variant_count",
 ]

@@ -1,7 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_api::{GovernanceReadApiClient, TransactionBuilderClient};
+use iota_json_rpc_api::{
+    GovernanceReadApiClient, QUERY_MAX_RESULT_LIMIT, TransactionBuilderClient,
+};
 use iota_json_rpc_types::{
     DelegatedStake, DelegatedTimelockedStake, StakeStatus, TransactionBlockBytes,
 };
@@ -18,8 +20,8 @@ use iota_types::{
 
 use crate::common::{
     ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
-    indexer_wait_for_object, indexer_wait_for_transaction,
-    start_test_cluster_with_read_write_indexer,
+    indexer_wait_for_object, indexer_wait_for_transaction, input_size_limit_exceeded_msg,
+    rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
 };
 
 #[test]
@@ -595,5 +597,73 @@ fn get_validators_apy() {
 
         assert_eq!(apys.len(), 4);
         assert!(apys.iter().any(|apy| apy.apy >= 0.0));
+    });
+}
+
+#[test]
+fn get_stakes_by_ids_at_and_above_limit() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let at_limit = std::iter::repeat_with(ObjectId::random)
+            .take(*QUERY_MAX_RESULT_LIMIT)
+            .collect();
+
+        let stakes = client
+            .get_stakes_by_ids(at_limit)
+            .await
+            .expect("request at the limit should succeed");
+        assert!(stakes.is_empty());
+
+        let above_limit = std::iter::repeat_with(ObjectId::random)
+            .take(*QUERY_MAX_RESULT_LIMIT + 1)
+            .collect();
+
+        let result = client.get_stakes_by_ids(above_limit).await;
+        assert!(rpc_call_error_msg_matches(
+            result,
+            &input_size_limit_exceeded_msg()
+        ));
+    });
+}
+
+#[test]
+fn get_timelocked_stakes_by_ids_at_and_above_limit() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let at_limit = std::iter::repeat_with(ObjectId::random)
+            .take(*QUERY_MAX_RESULT_LIMIT)
+            .collect();
+
+        let stakes = client
+            .get_timelocked_stakes_by_ids(at_limit)
+            .await
+            .expect("request at the limit should succeed");
+        assert!(stakes.is_empty());
+
+        let above_limit = std::iter::repeat_with(ObjectId::random)
+            .take(*QUERY_MAX_RESULT_LIMIT + 1)
+            .collect();
+
+        let result = client.get_timelocked_stakes_by_ids(above_limit).await;
+        assert!(rpc_call_error_msg_matches(
+            result,
+            &input_size_limit_exceeded_msg()
+        ));
     });
 }

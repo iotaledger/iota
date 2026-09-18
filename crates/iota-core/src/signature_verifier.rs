@@ -14,7 +14,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
-    crypto::{AuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation},
+    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation},
     error::{IotaError, IotaResult},
     message_envelope::Message,
     messages_checkpoint::{CheckpointSummaryExt, SignedCheckpointSummary},
@@ -360,10 +360,12 @@ impl SignatureVerifier {
                 );
 
                 // Add the signature and public key to the obligation
-                let authority_key = AuthorityPublicKey::from_bytes(authority_name.as_bytes())
-                    .map_err(|_| IotaError::IncorrectSigner {
-                        error: "Invalid authority public key bytes".to_string(),
-                    })?;
+                let authority_key = AggregateAuthorityPublicKey::from_bytes(
+                    authority_name.as_bytes(),
+                )
+                .map_err(|_| IotaError::IncorrectSigner {
+                    error: "Invalid authority public key bytes".to_string(),
+                })?;
                 obligation
                     .public_keys
                     .get_mut(idx)

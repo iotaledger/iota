@@ -277,7 +277,7 @@ module Test::M1 {
   }
 }
 
-//# run-graphql --cursors bcs(@{obj_1_0},6)
+//# run-graphql --cursors bcs(@{obj_1_0},1,6)
 {
   availableRange {
     first {

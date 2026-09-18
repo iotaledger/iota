@@ -66,7 +66,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
+    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
@@ -5204,7 +5204,7 @@ impl AuthorityState {
     fn get_validators_supporting_protocol_version(
         target_protocol_version: ProtocolVersion,
         target_digest: Digest,
-        active_validators: &[AuthorityPublicKey],
+        active_validators: &[AggregateAuthorityPublicKey],
         capabilities: &[AuthorityCapabilitiesV1],
     ) -> Vec<u64> {
         let mut eligible_validators = Vec::new();
@@ -5238,7 +5238,7 @@ impl AuthorityState {
     /// to committee members to get their weights.
     fn calculate_eligible_validators_weight(
         eligible_validator_indices: &[u64],
-        active_validators: &[AuthorityPublicKey],
+        active_validators: &[AggregateAuthorityPublicKey],
         committee: &Committee,
     ) -> u64 {
         let mut total_weight = 0u64;

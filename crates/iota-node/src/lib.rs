@@ -2418,10 +2418,10 @@ impl SpawnOnce {
                     if handle_tx.send(server.handle().clone()).is_err() {
                         return;
                     }
-                    if let Err(err) = server.serve().await {
-                        info!("Server stopped: {err}");
+                    match server.serve().await {
+                        Ok(()) => info!("Server stopped"),
+                        Err(err) => info!("Server stopped: {err}"),
                     }
-                    info!("Server stopped");
                 });
                 let handle = handle_rx
                     .await

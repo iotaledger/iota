@@ -12,7 +12,6 @@ mod checked {
         fmt,
         rc::Rc,
         sync::Arc,
-        time::Instant,
     };
 
     use iota_move_natives::object_runtime::ObjectRuntime;
@@ -70,6 +69,7 @@ mod checked {
     use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
     use serde::{Deserialize, de::DeserializeSeed};
     use tracing::instrument;
+    use web_time::Instant;
 
     use crate::{
         adapter::substitute_package_id,

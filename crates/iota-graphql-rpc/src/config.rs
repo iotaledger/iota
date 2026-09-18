@@ -6,11 +6,14 @@ use std::{collections::BTreeSet, fmt::Display};
 
 use async_graphql::*;
 use iota_graphql_config::GraphQLConfig;
+use iota_indexer::db::DbUrl;
 use iota_names::config::IotaNamesConfig;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{functional_group::FunctionalGroup, types::int::try_into_int};
+
+const DEFAULT_DB_URL: &str = "postgres://postgres:postgrespw@localhost:5432/iota_indexer";
 
 pub(crate) const DEFAULT_PAGE_SIZE: u32 = 20;
 pub(crate) const MAX_PAGE_SIZE: u32 = 50;
@@ -41,8 +44,8 @@ pub struct ConnectionConfig {
     #[arg(long, default_value_t = ConnectionConfig::default().host)]
     pub host: String,
     /// DB URL for data fetching
-    #[arg(short, long, default_value_t = ConnectionConfig::default().db_url)]
-    pub db_url: String,
+    #[arg(short, long, default_value = DEFAULT_DB_URL)]
+    pub db_url: DbUrl,
     /// Pool size for DB connections
     #[arg(long, default_value_t = ConnectionConfig::default().db_pool_size)]
     pub db_pool_size: u32,
@@ -430,7 +433,7 @@ impl ConnectionConfig {
         Self {
             port: port.unwrap_or(default.port),
             host: host.unwrap_or(default.host),
-            db_url: db_url.unwrap_or(default.db_url),
+            db_url: db_url.map_or(default.db_url, DbUrl::from),
             db_pool_size: db_pool_size.unwrap_or(default.db_pool_size),
             prom_host: prom_host.unwrap_or(default.prom_host),
             prom_port: prom_port.unwrap_or(default.prom_port),
@@ -443,7 +446,8 @@ impl ConnectionConfig {
     pub fn ci_integration_test_cfg() -> Self {
         Self {
             db_url: "postgres://postgres:postgrespw@localhost:5432/iota_graphql_rpc_e2e_tests"
-                .to_string(),
+                .to_string()
+                .into(),
             ..Default::default()
         }
     }
@@ -454,7 +458,7 @@ impl ConnectionConfig {
         prom_port: u16,
     ) -> Self {
         Self {
-            db_url: format!("postgres://postgres:postgrespw@localhost:5432/{db_name}"),
+            db_url: format!("postgres://postgres:postgrespw@localhost:5432/{db_name}").into(),
             port,
             prom_port,
             ..Default::default()
@@ -462,11 +466,16 @@ impl ConnectionConfig {
     }
 
     pub fn db_name(&self) -> String {
-        self.db_url.split('/').next_back().unwrap().to_string()
+        self.db_url
+            .as_str()
+            .split('/')
+            .next_back()
+            .unwrap()
+            .to_string()
     }
 
     pub fn db_url(&self) -> String {
-        self.db_url.clone()
+        self.db_url.as_str().to_string()
     }
 
     pub fn db_pool_size(&self) -> u32 {
@@ -536,7 +545,7 @@ impl Default for ConnectionConfig {
         Self {
             port: 8000,
             host: "127.0.0.1".to_string(),
-            db_url: "postgres://postgres:postgrespw@localhost:5432/iota_indexer".to_string(),
+            db_url: DEFAULT_DB_URL.to_string().into(),
             db_pool_size: 10,
             prom_host: "0.0.0.0".to_string(),
             prom_port: 9184,
@@ -793,5 +802,22 @@ mod tests {
         };
 
         assert_eq!(actual, expect);
+    }
+
+    #[test]
+    fn test_server_config_debug_hides_db_password() {
+        let config = ServerConfig {
+            connection: ConnectionConfig {
+                db_url: "postgres://user:hunter2@localhost:5432/iota_indexer"
+                    .to_string()
+                    .into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let printed = format!("{config:#?}");
+        assert!(!printed.contains("hunter2"), "{printed}");
+        assert!(printed.contains("****"), "{printed}");
     }
 }

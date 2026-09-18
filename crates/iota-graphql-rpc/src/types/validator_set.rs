@@ -102,7 +102,7 @@ impl ValidatorSet {
 
         for c in consistent_page.cursors {
             let mut validator = validators[c.ix].clone();
-            validator.checkpoint_viewed_at = c.c;
+            validator.checkpoint_viewed_at = c.c.into();
             connection
                 .edges
                 .push(Edge::new(c.encode_cursor(), validator));
@@ -138,7 +138,7 @@ impl ValidatorSet {
 
         for c in consistent_page.cursors {
             let mut validator = validators[c.ix].clone();
-            validator.checkpoint_viewed_at = c.c;
+            validator.checkpoint_viewed_at = c.c.into();
             connection
                 .edges
                 .push(Edge::new(c.encode_cursor(), validator));

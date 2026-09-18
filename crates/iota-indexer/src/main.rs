@@ -7,7 +7,8 @@ use iota_indexer::{
     backfill::runner::BackfillRunner,
     config::{Command, IndexerConfig, RestoreCommand},
     db::{
-        check_prunable_tables_valid, get_pool_connection, new_connection_pool, reset_database,
+        DbUrl, check_prunable_tables_valid, get_pool_connection, new_connection_pool,
+        reset_database,
         setup_postgres::{check_db_migration_consistency, run_migrations},
     },
     errors::IndexerError,
@@ -56,12 +57,11 @@ async fn main() -> Result<(), IndexerError> {
     iota_metrics::init_metrics(&registry);
     let indexer_metrics = IndexerMetrics::new(&registry);
 
+    let database_url = opts.database_url.ok_or(IndexerError::InvalidArgument(
+        "--database-url argument is mandatory for this command".into(),
+    ))?;
     let connection_pool = new_connection_pool(
-        opts.database_url
-            .ok_or(IndexerError::InvalidArgument(
-                "--database-url argument is mandatory for this command".into(),
-            ))?
-            .as_str(),
+        &DbUrl::from(database_url.as_str()),
         &opts.connection_pool_config,
     )?;
     spawn_connection_pool_metric_collector(indexer_metrics.clone(), connection_pool.clone());

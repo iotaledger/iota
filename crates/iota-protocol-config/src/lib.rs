@@ -230,6 +230,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 36: Reject a transaction that names an object version in the range
 //             assigned to canceled transactions, or one below it, from the
 //             transaction bytes, before any object is loaded.
+//             Reject `<SELF>` as an identifier in published modules.
+//             Make the enum variant count limit explicit in the protocol
+//             config.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -668,6 +671,10 @@ struct FeatureFlags {
     // halts the node when the result is not a valid version.
     #[serde(skip_serializing_if = "is_false")]
     validate_input_object_versions: bool,
+
+    // Disallow self identifier
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_self_identifier: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -3496,6 +3503,8 @@ impl ProtocolConfig {
                     // assigned to canceled transactions before any object is
                     // loaded, by consulting the transaction bytes only.
                     cfg.feature_flags.validate_input_object_versions = true;
+                    cfg.feature_flags.disallow_self_identifier = true;
+                    cfg.max_move_enum_variants = Some(move_core_types::VARIANT_COUNT_MAX);
                 }
                 // Use this template when making changes:
                 //
@@ -3565,6 +3574,7 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
+            disallow_self_identifier: self.feature_flags.disallow_self_identifier,
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
             additional_borrow_checks,
