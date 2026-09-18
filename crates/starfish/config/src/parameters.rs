@@ -614,13 +614,16 @@ pub struct TonicParameters {
 
     /// Hard size limit for inbound (decoded) requests. Consensus requests are
     /// small (ref lists); large payloads belong to responses, bounded by
-    /// `message_size_limit`. A smaller inbound bound shrinks the memory a
-    /// single in-flight request can pin before its handler runs.
+    /// `message_size_limit`. A smaller request bound shrinks the memory a
+    /// single in-flight request can pin.
     ///
-    /// If unspecified, this will default to 1MiB. `0` falls back to
+    /// If unspecified, this will default to 256KiB. `0` falls back to
     /// `message_size_limit`.
-    #[serde(default = "TonicParameters::default_max_inbound_message_size")]
-    pub max_inbound_message_size: usize,
+    #[serde(
+        default = "TonicParameters::default_max_request_message_size",
+        alias = "max_inbound_message_size"
+    )]
+    pub max_request_message_size: usize,
 
     /// Per-peer, per-RPC admission caps for the inbound consensus server.
     #[serde(default)]
@@ -662,8 +665,10 @@ impl TonicParameters {
         Duration::from_secs(120)
     }
 
-    fn default_max_inbound_message_size() -> usize {
-        1 << 20
+    fn default_max_request_message_size() -> usize {
+        // The largest request is a list of at most a thousand block or
+        // transaction refs, under 50KiB.
+        256 << 10
     }
 
     fn default_subscribe_request_timeout() -> Duration {
@@ -680,7 +685,7 @@ impl Default for TonicParameters {
             message_size_limit: TonicParameters::default_message_size_limit(),
             max_concurrent_streams: TonicParameters::default_max_concurrent_streams(),
             request_timeout: TonicParameters::default_request_timeout(),
-            max_inbound_message_size: TonicParameters::default_max_inbound_message_size(),
+            max_request_message_size: TonicParameters::default_max_request_message_size(),
             admission: AdmissionParameters::default(),
             subscribe_request_timeout: TonicParameters::default_subscribe_request_timeout(),
         }

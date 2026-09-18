@@ -1152,10 +1152,10 @@ impl<S: NetworkService> TonicManager<S> {
         // Inbound (decoded) requests are small; bound them tighter than the
         // (large) response encoding limit when configured. `0` falls back to
         // `message_size_limit`.
-        let max_decoding_message_size = if config.max_inbound_message_size == 0 {
+        let max_decoding_message_size = if config.max_request_message_size == 0 {
             config.message_size_limit
         } else {
-            config.max_inbound_message_size
+            config.max_request_message_size
         };
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
