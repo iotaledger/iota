@@ -31,6 +31,7 @@ pub struct Config {
     pub(crate) allow_insecure: bool,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
+    pub(crate) max_connections_per_peer: Option<usize>,
 }
 
 impl Default for Config {
@@ -53,6 +54,7 @@ impl Default for Config {
             allow_insecure: false,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
+            max_connections_per_peer: None,
         }
     }
 }
@@ -255,8 +257,30 @@ impl Config {
         }
     }
 
+    /// Sets how many established connections a single peer may hold at once.
+    /// Further connections from a peer already at the limit are closed as soon
+    /// as they are accepted.
+    ///
+    /// Only connections that authenticate with a client certificate are
+    /// counted, since a peer that presents none cannot be told apart from any
+    /// other.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connections_per_peer(self, max_connections_per_peer: Option<usize>) -> Self {
+        Self {
+            max_connections_per_peer,
+            ..self
+        }
+    }
+
     /// Rejects settings the accept loop cannot recover from.
     pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
+        if self.max_connections_per_peer == Some(0) {
+            return Err("'max_connections_per_peer' must be greater than zero, \
+                        a peer allowed no connection can never be served"
+                .into());
+        }
+
         match self.max_pending_connections {
             Some(0) => Err("'max_pending_connections' must be greater than zero, \
                             a server that accepts no connection is never useful"

@@ -4,7 +4,7 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use tokio_rustls::rustls::pki_types::CertificateDer;
@@ -93,5 +93,48 @@ impl<A> ConnectInfo<A> {
     /// Return the remote address the IO resource is connected too.
     pub fn remote_addr(&self) -> &A {
         &self.remote_addr
+    }
+}
+
+/// Number of established connections held by each authenticated peer, keyed by
+/// the peer's public key.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PeerConnectionCounts(Arc<Mutex<HashMap<Vec<u8>, usize>>>);
+
+impl PeerConnectionCounts {
+    /// Counts one more connection for `peer`, or returns `None` if the peer
+    /// already holds `max` of them.
+    pub(crate) fn register(&self, peer: Vec<u8>, max: usize) -> Option<PeerConnectionGuard> {
+        let mut counts = self.0.lock().unwrap();
+        // A zero `max` is rejected by `Config::validate`, so a count just
+        // inserted as 0 is always below it and never left behind on refusal.
+        let count = counts.entry(peer.clone()).or_insert(0);
+        if *count >= max {
+            return None;
+        }
+        *count += 1;
+
+        Some(PeerConnectionGuard {
+            counts: self.clone(),
+            peer,
+        })
+    }
+}
+
+/// Gives the peer its connection back when dropped.
+pub(crate) struct PeerConnectionGuard {
+    counts: PeerConnectionCounts,
+    peer: Vec<u8>,
+}
+
+impl Drop for PeerConnectionGuard {
+    fn drop(&mut self) {
+        let mut counts = self.counts.0.lock().unwrap();
+        if let Some(count) = counts.get_mut(&self.peer) {
+            *count -= 1;
+            if *count == 0 {
+                counts.remove(&self.peer);
+            }
+        }
     }
 }
