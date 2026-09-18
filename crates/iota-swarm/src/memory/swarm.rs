@@ -14,7 +14,7 @@ use anyhow::{Context, Result};
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
-    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange, StateSnapshotConfig},
     p2p::DiscoveryConfig,
     transaction_deny_config::TransactionDenyConfig,
 };
@@ -78,6 +78,7 @@ pub struct SwarmBuilder<R = OsRng> {
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
     fullnode_enable_grpc_api: bool,
+    fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
     deterministic_validator_port_base: Option<u16>,
@@ -117,6 +118,7 @@ impl SwarmBuilder {
             disable_fullnode_pruning: false,
             iota_names_config: None,
             fullnode_enable_grpc_api: false,
+            fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
             disable_address_verification_cooldown: false,
             deterministic_validator_port_base: None,
@@ -158,6 +160,7 @@ impl<R> SwarmBuilder<R> {
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
             fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
+            fullnode_state_snapshot_config: self.fullnode_state_snapshot_config,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
             deterministic_validator_port_base: self.deterministic_validator_port_base,
@@ -371,6 +374,13 @@ impl<R> SwarmBuilder<R> {
 
     pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
         self.fullnode_fw_config = config;
+        self
+    }
+
+    /// Makes the fullnode publish formal state snapshots to the store the
+    /// config names.
+    pub fn with_fullnode_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.fullnode_state_snapshot_config = Some(config);
         self
     }
 
@@ -628,6 +638,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
         // Add gRPC config wiring
         fullnode_config_builder =
             fullnode_config_builder.with_enable_grpc_api(self.fullnode_enable_grpc_api);
+        if let Some(config) = self.fullnode_state_snapshot_config.clone() {
+            fullnode_config_builder = fullnode_config_builder.with_state_snapshot_config(config);
+        }
         if let Some(grpc_config) = &self.fullnode_grpc_api_config {
             fullnode_config_builder =
                 fullnode_config_builder.with_grpc_api_config(grpc_config.clone());

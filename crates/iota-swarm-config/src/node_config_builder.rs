@@ -313,11 +313,18 @@ pub struct FullnodeConfigBuilder {
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
+    state_snapshot_write_config: Option<StateSnapshotConfig>,
 }
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Publishes formal state snapshots to the store the config names.
+    pub fn with_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.state_snapshot_write_config = Some(config);
+        self
     }
 
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
@@ -648,7 +655,7 @@ impl FullnodeConfigBuilder {
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
             checkpoint_archive_config: None,
-            state_snapshot_write_config: StateSnapshotConfig::default(),
+            state_snapshot_write_config: self.state_snapshot_write_config.unwrap_or_default(),
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
