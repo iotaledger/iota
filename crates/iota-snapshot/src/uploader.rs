@@ -212,7 +212,10 @@ impl StateSnapshotUploader {
             .last()
             .context("expected at least one epoch state commitment")?
         else {
-            unimplemented!("a new CheckpointCommitment variant was added and must be handled")
+            anyhow::bail!(
+                "the epoch's last state commitment is not an ECMH live object set digest; a \
+                 snapshot cannot be filed under a commitment it cannot read"
+            )
         };
         state_snapshot_writer
             .write(
