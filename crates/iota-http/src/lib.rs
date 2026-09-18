@@ -289,11 +289,10 @@ where
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
-            let allow_insecure = self.config.allow_insecure;
             let handshake_timeout = self.config.handshake_timeout;
             self.pending_connections.spawn(async move {
                 tokio::select! {
-                    result = handshake(io, remote_addr, tls_acceptor, allow_insecure) => result,
+                    result = handshake(io, remote_addr, tls_acceptor) => result,
                     // Dropping the handshake closes the connection, releasing its file descriptor.
                     _ = sleep_or_pending(handshake_timeout) => Err(std::io::Error::new(
                         std::io::ErrorKind::TimedOut,
@@ -383,39 +382,16 @@ where
     }
 }
 
-/// Runs the pre-authentication part of accepting a connection: sniffing
-/// insecure traffic when it is allowed, then the TLS handshake.
+/// Runs the pre-authentication part of accepting a connection, the TLS
+/// handshake.
 async fn handshake<Io, Addr>(
     io: Io,
     remote_addr: Addr,
     tls_acceptor: TlsAcceptor,
-    allow_insecure: bool,
 ) -> ConnectingOutput<Io, Addr>
 where
     Io: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
-    if allow_insecure {
-        // XXX: If we want to allow for supporting insecure traffic from other types of
-        // io, we'll need to implement a generic peekable IO type
-        if let Some(tcp) = <dyn std::any::Any>::downcast_ref::<tokio::net::TcpStream>(&io) {
-            // Determine whether new connection is TLS.
-            let mut buf = [0; 1];
-            // `peek` blocks until at least some data is available, so if there is no error
-            // then it must return the one byte we are requesting.
-            tcp.peek(&mut buf).await?;
-            // First byte of a TLS handshake is 0x16, so if it isn't 0x16 then its
-            // insecure
-            if buf != [0x16] {
-                tracing::trace!("accepting insecure connection");
-                return Ok((ServerIo::new_io(io), remote_addr));
-            }
-        } else {
-            tracing::warn!(
-                "'allow_insecure' is configured but io type is not 'tokio::net::TcpStream'"
-            );
-        }
-    }
-
     tracing::trace!("accepting TLS connection");
     let io = tls_acceptor.accept(io).await?;
     Ok((ServerIo::new_tls_io(io), remote_addr))
@@ -515,6 +491,107 @@ mod tests {
         assert!(
             matches!(read, Ok(0) | Err(_)),
             "the server must close the connection, got {read:?}"
+        );
+    }
+
+    /// A TLS-configured listener only speaks TLS: a peer that starts with a
+    /// plaintext HTTP/2 preface is closed before any request is dispatched.
+    #[tokio::test]
+    async fn plaintext_peer_is_refused_by_a_tls_listener() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        let (server_tls_config, _) = test_tls_configs();
+        let served = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let app = Router::new().route(
+            "/",
+            axum::routing::get({
+                let served = served.clone();
+                move || async move {
+                    served.store(true, std::sync::atomic::Ordering::SeqCst);
+                    "served"
+                }
+            }),
+        );
+        let handle = Builder::new()
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), app)
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        connection
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+        connection
+            .write_all(&[0, 0, 0, 0x4, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+
+        // The TLS acceptor answers garbage with an alert record and closes;
+        // anything else would mean the plaintext bytes were served.
+        let received = tokio::time::timeout(Duration::from_secs(5), async {
+            let mut received = Vec::new();
+            let mut buf = [0u8; 64];
+            loop {
+                match connection.read(&mut buf).await {
+                    Ok(0) | Err(_) => break received,
+                    Ok(n) => received.extend_from_slice(&buf[..n]),
+                }
+            }
+        })
+        .await
+        .expect("the server must close a plaintext connection promptly");
+        const TLS_ALERT_RECORD: u8 = 0x15;
+        assert!(
+            received
+                .first()
+                .is_none_or(|first| *first == TLS_ALERT_RECORD),
+            "the server must answer plaintext with a TLS alert at most, got {received:?}"
+        );
+        assert!(
+            !served.load(std::sync::atomic::Ordering::SeqCst),
+            "no request may reach the service over plaintext"
+        );
+    }
+
+    /// An HTTP/1 peer that never finishes sending its request headers is
+    /// closed once the header deadline passes.
+    #[tokio::test]
+    async fn http1_peer_that_never_finishes_its_headers_is_closed() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const HEADER_DEADLINE: Duration = Duration::from_millis(200);
+
+        let handle = Builder::new()
+            .config(Config::default().http1_header_read_timeout(Some(HEADER_DEADLINE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        // A request line and one header, but never the blank line that ends
+        // the header block.
+        connection
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+            .await
+            .unwrap();
+
+        let closed = tokio::time::timeout(HEADER_DEADLINE * 25, async {
+            let mut buf = [0u8; 1024];
+            loop {
+                match connection.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => continue,
+                }
+            }
+        })
+        .await;
+        assert!(
+            closed.is_ok(),
+            "the server must close a peer that stalls its request headers"
         );
     }
 
