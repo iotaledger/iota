@@ -16,7 +16,7 @@ use iota_macros::{fail_point, nondeterministic};
 use prometheus_filtered::{Histogram, HistogramTimer};
 use rocksdb::{
     DBPinnableSlice, DBWithThreadMode, Error, LiveFile, MultiThreaded, ReadOptions,
-    SnapshotWithThreadMode, WriteBatch, checkpoint::Checkpoint,
+    SnapshotWithThreadMode, WriteBatch,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::oneshot;
@@ -470,18 +470,6 @@ impl Database {
         }
     }
 
-    pub fn checkpoint(&self, path: &Path) -> Result<(), TypedStoreError> {
-        // TODO: implement for other storage types
-        if let Storage::Rocks(rocks) = &self.storage {
-            let checkpoint =
-                Checkpoint::new(&rocks.underlying).map_err(typed_store_err_from_rocks_err)?;
-            checkpoint
-                .create_checkpoint(path)
-                .map_err(|e| TypedStoreError::RocksDB(e.to_string()))?;
-        }
-        Ok(())
-    }
-
     pub fn get_sampling_interval(&self) -> SamplingInterval {
         self.metric_conf.read_sample_interval.new_from_self()
     }
@@ -728,10 +716,6 @@ impl<K, V> DBMap<K, V> {
                 .report_metrics(self.cf_name());
         }
         Ok(entries)
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> Result<(), TypedStoreError> {
-        self.db.checkpoint(path)
     }
 
     pub fn table_summary(&self) -> eyre::Result<TableSummary>
