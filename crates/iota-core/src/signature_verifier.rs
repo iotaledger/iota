@@ -520,22 +520,21 @@ pub fn batch_verify_all_certificates_and_checkpoints(
 
 /// Verifies certificates in batch mode, but returns a separate result for each
 /// cert.
+///
+/// Only the committee signatures are checked; the caller must have verified
+/// the user signatures of `certs.data()` already.
 #[instrument(level = "trace", skip_all)]
 pub fn batch_verify_certificates(
     committee: &Committee,
     certs: &[&CertifiedTransaction],
 ) -> Vec<IotaResult> {
-    // certs.data() is assumed to be verified already by the caller.
-    let verify_params = VerifyParams::default();
     match batch_verify(committee, certs, &[]) {
         Ok(_) => vec![Ok(()); certs.len()],
 
         // Verify one by one to find which certs were invalid.
         Err(_) if certs.len() > 1 => certs
             .iter()
-            // TODO: verify_signature currently checks the tx sig as well, which might be cached
-            // already.
-            .map(|c| c.verify_signatures_authenticated(committee, &verify_params))
+            .map(|c| c.verify_committee_sigs_only(committee))
             .collect(),
 
         Err(e) => vec![Err(e)],

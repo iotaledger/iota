@@ -2606,11 +2606,7 @@ impl CertifiedTransaction {
         verify_params: &VerifyParams,
     ) -> IotaResult {
         verify_sender_signed_data_message_signatures(self.data(), verify_params)?;
-        self.auth_sig().verify_secure(
-            self.data(),
-            Intent::iota_app(IntentScope::SenderSignedTransaction),
-            committee,
-        )
+        self.verify_committee_sigs_only(committee)
     }
 
     pub fn try_into_verified_for_testing(
