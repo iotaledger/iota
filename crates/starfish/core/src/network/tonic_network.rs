@@ -1168,17 +1168,20 @@ impl<S: NetworkService> TonicManager<S> {
         let connections_info = Arc::new(ConnectionsInfo::new(self.context.clone()));
         let layers = tower::ServiceBuilder::new()
             // Add a layer to extract a peer's PeerInfo from their TLS certs
-            .map_request(move |mut request: http::Request<_>| {
-                if let Some(peer_certificates) =
-                    request.extensions().get::<iota_http::PeerCertificates>()
-                {
-                    if let Some(peer_info) =
-                        peer_info_from_certs(&connections_info, peer_certificates)
+            .map_request({
+                let connections_info = connections_info.clone();
+                move |mut request: http::Request<_>| {
+                    if let Some(peer_certificates) =
+                        request.extensions().get::<iota_http::PeerCertificates>()
                     {
-                        request.extensions_mut().insert(peer_info);
+                        if let Some(peer_info) =
+                            peer_info_from_certs(&connections_info, peer_certificates)
+                        {
+                            request.extensions_mut().insert(peer_info);
+                        }
                     }
+                    request
                 }
-                request
             })
             .layer(CallbackLayer::new(MetricsCallbackMaker::new(
                 self.context.metrics.network_metrics.inbound.clone(),
@@ -1307,6 +1310,7 @@ impl<S: NetworkService> TonicManager<S> {
         };
 
         info!("Server started at: {own_address}");
+        report_connections_per_peer(self.context.clone(), connections_info, server.clone());
         self.server = Some(server);
     }
 
@@ -1332,6 +1336,45 @@ impl<S: NetworkService> Drop for TonicManager<S> {
             server.trigger_shutdown();
         }
     }
+}
+
+/// Publishes how many connections each peer holds, so that a peer pinned at
+/// the limit is visible while the connections it holds stay silent.
+fn report_connections_per_peer(
+    context: Arc<Context>,
+    connections_info: Arc<ConnectionsInfo>,
+    server: ServerHandle,
+) {
+    const REPORT_INTERVAL: Duration = Duration::from_secs(5);
+
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(REPORT_INTERVAL);
+        loop {
+            tokio::select! {
+                _ = server.wait_for_shutdown() => return,
+                _ = interval.tick() => {}
+            }
+
+            let mut connections_per_peer = vec![0i64; context.committee.size()];
+            {
+                let connections = server.connections();
+                for peer_info in connections.values().filter_map(|connection| {
+                    peer_info_from_certs(&connections_info, connection.peer_certificates()?)
+                }) {
+                    connections_per_peer[peer_info.authority_index.value()] += 1;
+                }
+            }
+
+            for (index, authority) in context.committee.authorities() {
+                context
+                    .metrics
+                    .network_metrics
+                    .inbound_connections
+                    .with_label_values(&[&authority.hostname])
+                    .set(connections_per_peer[index.value()]);
+            }
+        }
+    });
 }
 
 // TODO: improve iota-http to allow for providing a MakeService so that this can
