@@ -99,9 +99,7 @@ impl CommitSyncType {
     /// the bound `verify_commits` enforces and the same bound the streaming
     /// fetch loop applies before buffering. Fast sync extends past the
     /// requested range end to reach a certifiable commit, so it accepts up to
-    /// twice the requested range; regular sync stays within it. Deriving both
-    /// from the request keeps the bound agreed with a peer whose local batch
-    /// size differs.
+    /// twice the requested range; regular sync stays within it.
     pub(crate) fn max_commits_per_response(&self, commit_range: &CommitRange) -> usize {
         match self {
             CommitSyncType::Fast => 2 * commit_range.size(),
