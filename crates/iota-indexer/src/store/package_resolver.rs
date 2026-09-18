@@ -11,6 +11,7 @@ use iota_package_resolver::{
 };
 use iota_sdk_types::Address;
 use iota_types::object::Object;
+use tracing::error;
 
 use crate::{db::ConnectionPool, errors::IndexerError, schema::objects, store::diesel_macro::*};
 
@@ -80,16 +81,20 @@ impl PackageStore for IndexerStorePackageResolver {
         let pkg = self
             .get_package_from_db_in_blocking_task(id)
             .await
-            .map_err(|e| PackageResolverError::Store {
-                store: "PostgresDB",
-                source: Arc::new(e),
-            })?;
+            .map_err(|e| {
+                error!("failed to fetch package {id} from PostgresDB: {e:?}");
+                PackageResolverError::Store {
+                    store: "PostgresDB",
+                    source: Arc::new(e),
+                }
+            })?
+            .ok_or(PackageResolverError::PackageNotFound(id))?;
         Ok(Arc::new(pkg))
     }
 }
 
 impl IndexerStorePackageResolver {
-    fn get_package_from_db(&self, id: Address) -> Result<Package, IndexerError> {
+    fn get_package_from_db(&self, id: Address) -> Result<Option<Package>, IndexerError> {
         let Some(bcs) = read_only_blocking!(&self.cp, |conn| {
             let query = objects::dsl::objects
                 .select(objects::dsl::serialized_object)
@@ -97,20 +102,19 @@ impl IndexerStorePackageResolver {
             query.get_result::<Vec<u8>>(conn).optional()
         })?
         else {
-            return Err(IndexerError::PostgresRead(format!(
-                "Package not found in DB: {id}"
-            )));
+            return Ok(None);
         };
         let object = bcs::from_bytes::<Object>(&bcs)?;
-        Package::read_from_object(&object).map_err(|e| {
-            IndexerError::PostgresRead(format!("Failed parsing object to package: {e:?}"))
+        Package::read_from_object(&object).map(Some).map_err(|e| {
+            error!("failed parsing object {id} to package: {e:?}");
+            IndexerError::PersistentStorageDataCorruption(format!("object {id} is not a package"))
         })
     }
 
     async fn get_package_from_db_in_blocking_task(
         &self,
         id: Address,
-    ) -> Result<Package, IndexerError> {
+    ) -> Result<Option<Package>, IndexerError> {
         let this = self.clone();
         spawn_blocking_task(move || this.get_package_from_db(id)).await?
     }

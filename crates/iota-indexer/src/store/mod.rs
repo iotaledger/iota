@@ -66,7 +66,10 @@ pub mod diesel_macro {
                 .read_only()
                 .repeatable_read()
                 .run($query)
-                .map_err(|e| $crate::errors::IndexerError::PostgresRead(e.to_string()))
+                .map_err(|e| {
+                    tracing::error!("failed to read from PostgresDB: {e:?}");
+                    $crate::errors::IndexerError::PostgresRead
+                })
         }};
     }
 
@@ -92,7 +95,10 @@ pub mod diesel_macro {
                 .build_transaction()
                 .read_only()
                 .run($query)
-                .map_err(|e| $crate::errors::IndexerError::PostgresRead(e.to_string()))
+                .map_err(|e| {
+                    tracing::error!("failed to read from PostgresDB: {e:?}");
+                    $crate::errors::IndexerError::PostgresRead
+                })
         }};
     }
 
@@ -115,8 +121,8 @@ pub mod diesel_macro {
             backoff.max_elapsed_time = Some($max_elapsed);
             let result = match backoff::retry(backoff, || {
                 let mut pool_conn =
-                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
-                        err: IndexerError::PostgresWrite(e.to_string()),
+                    get_pool_connection($pool).map_err(|err| backoff::Error::Transient {
+                        err,
                         retry_after: None,
                     })?;
                 pool_conn
@@ -129,7 +135,7 @@ pub mod diesel_macro {
                     .map_err(|e| {
                         tracing::error!("error with persisting data into DB: {e:?}, retrying...");
                         backoff::Error::Transient {
-                            err: IndexerError::PostgresWrite(e.to_string()),
+                            err: IndexerError::PostgresWrite,
                             retry_after: None,
                         }
                     })
@@ -163,8 +169,8 @@ pub mod diesel_macro {
             backoff.max_elapsed_time = Some($max_elapsed);
             let result = match backoff::retry(backoff, || {
                 let mut pool_conn =
-                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
-                        err: IndexerError::PostgresWrite(e.to_string()),
+                    get_pool_connection($pool).map_err(|err| backoff::Error::Transient {
+                        err,
                         retry_after: None,
                     })?;
                 pool_conn
@@ -180,7 +186,7 @@ pub mod diesel_macro {
                             backoff::Error::Permanent(e)
                         } else {
                             backoff::Error::Transient {
-                                err: IndexerError::PostgresWrite(e.to_string()),
+                                err: IndexerError::PostgresWrite,
                                 retry_after: None,
                             }
                         }
@@ -398,7 +404,7 @@ pub mod diesel_macro {
                 );
             })
             .tap_err(|e| {
-                tracing::error!("failed to persist {} with error: {e}", stringify!($table));
+                tracing::error!("failed to persist {} with error: {e:?}", stringify!($table));
             })
         }};
     }

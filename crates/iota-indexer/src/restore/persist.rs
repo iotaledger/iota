@@ -124,9 +124,8 @@ impl Restore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "failed to persist all formal snapshot object chunks: {e:?}",
-                ))
+                tracing::error!("failed to persist all formal snapshot object chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
 
         let checkpointed_tasks = checkpointed_chunks.into_iter().map(|c| {
@@ -143,9 +142,8 @@ impl Restore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "failed to persist all formal snapshot checkpointed object chunks: {e:?}",
-                ))
+                tracing::error!("failed to persist all formal snapshot checkpointed object chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         self.persist_displays(derived_data.displays.into_values().collect())
             .await?;
