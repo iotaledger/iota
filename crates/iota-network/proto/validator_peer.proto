@@ -4,8 +4,9 @@
 syntax = "proto3";
 package iota.validator.peer;
 
-// Authenticated validator-to-validator service for read-only queries.
-// Requires the same mutual authentication as consensus gRPC services.
+// Validator-to-validator service for read-only queries.
+// Served on the public validator interface: clients authenticate the server by
+// its network public key, clients themselves are not authenticated.
 service ValidatorPeer {
   // Fetch a checkpoint by sequence number or the latest available.
   rpc GetCheckpoint(GetCheckpointRequest) returns (GetCheckpointResponse);
