@@ -789,6 +789,7 @@ mod test {
                     data,
                     next_cursor: has_next_page.then_some(index + PAGE_SIZE),
                     has_next_page,
+                    oldest_available_checkpoint: None,
                 })
             }
         }

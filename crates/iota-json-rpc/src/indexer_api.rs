@@ -252,6 +252,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 data,
                 next_cursor,
                 has_next_page,
+                oldest_available_checkpoint: None,
             })
         }
         .trace()
@@ -317,6 +318,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 data,
                 next_cursor,
                 has_next_page,
+                oldest_available_checkpoint: None,
             })
         }
         .trace()
@@ -389,6 +391,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 data,
                 next_cursor,
                 has_next_page,
+                oldest_available_checkpoint: None,
             })
         }
         .trace()
@@ -461,6 +464,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 data: data.into_iter().map(|(_, w)| w.into()).collect(),
                 next_cursor,
                 has_next_page,
+                oldest_available_checkpoint: None,
             })
         }
         .trace()
