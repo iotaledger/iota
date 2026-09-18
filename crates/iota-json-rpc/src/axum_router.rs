@@ -11,12 +11,14 @@ use axum::{
     extract::{ConnectInfo, Json, State},
     response::Response,
 };
-use hyper::{HeaderMap, header::HeaderValue};
+use hyper::HeaderMap;
 use iota_json_rpc_api::{
     CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
     TRANSACTION_NOT_FOUND_ERROR_CODE,
 };
-use iota_traffic_controller::{TrafficController, parse_ip, policies::TrafficTally};
+use iota_traffic_controller::{
+    ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
+};
 use iota_types::traffic_control::{ClientIdSource, PolicyConfig, Weight};
 use jsonrpsee::{
     BoundedSubscriptions, ConnectionId, Extensions, MethodCallback, MethodKind, MethodResponse,
@@ -157,47 +159,14 @@ async fn process_raw_request<L: Logger>(
     client_addr: SocketAddr,
     headers: HeaderMap,
 ) -> MethodResponse {
-    let client = match service.client_id_source {
-        Some(ClientIdSource::SocketAddr) => Some(client_addr.ip()),
-        Some(ClientIdSource::XForwardedFor(num_hops)) => {
-            let do_header_parse = |header: &HeaderValue| match header.to_str() {
-                Ok(header_val) => {
-                    let header_contents = header_val.split(',').map(str::trim).collect::<Vec<_>>();
-                    if num_hops == 0 {
-                        error!(
-                            "x-forwarded-for: 0 specified. x-forwarded-for contents: {header_contents:?}. Please assign nonzero value for \
-                                number of hops here, or use `socket-addr` client-id-source type if requests are not being proxied \
-                                to this node. Skipping traffic controller request handling.",
-                        );
-                        return None;
-                    }
-                    let contents_len = header_contents.len();
-                    let Some(client_ip) = header_contents.get(contents_len - num_hops) else {
-                        error!(
-                            "x-forwarded-for header value of {header_contents:?} contains {contents_len} values, but {num_hops} hops were specified. \
-                                Expected {} values. Skipping traffic controller request handling.",
-                            num_hops + 1,
-                        );
-                        return None;
-                    };
-                    parse_ip(client_ip)
-                }
-                Err(e) => {
-                    error!("invalid UTF-8 in x-forwarded-for header: {e:?}");
-                    None
-                }
-            };
-            if let Some(header) = headers.get("x-forwarded-for") {
-                do_header_parse(header)
-            } else if let Some(header) = headers.get("X-Forwarded-For") {
-                do_header_parse(header)
-            } else {
-                error!(
-                    "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
-                );
+    let client = match service.client_id_source.as_ref() {
+        Some(source) => match get_client_ip(&headers, Some(client_addr), source) {
+            ClientIpStatus::Ok(client) => Some(client),
+            status => {
+                error!("{status}");
                 None
             }
-        }
+        },
         None => None,
     };
     // check if either IP is blocked, in which case return early
