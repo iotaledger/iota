@@ -1030,6 +1030,7 @@ impl ReadApiServer for ReadApi {
                 data,
                 next_cursor,
                 has_next_page,
+                oldest_available_checkpoint: None,
             })
         }
         .trace()
