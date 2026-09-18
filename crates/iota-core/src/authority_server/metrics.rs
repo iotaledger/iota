@@ -39,6 +39,8 @@ pub struct ValidatorServiceMetrics {
     pub num_rejected_tx_soft_lock_conflict: IntCounter,
     pub soft_lock_table_size: IntGauge,
     pub num_rejected_tx_recently_resubmitted: IntCounter,
+    pub num_submitted_externally_attested_tx: IntCounter,
+    pub num_rejected_externally_attested_tx: IntCounterVec,
 }
 
 impl ValidatorServiceMetrics {
@@ -216,6 +218,19 @@ impl ValidatorServiceMetrics {
             soft_lock_table_size: register_int_gauge_with_registry!(
                 "validator_service_soft_lock_table_size",
                 "Current number of object refs held in the pre-consensus soft lock table",
+                registry,
+            )
+                .unwrap(),
+            num_submitted_externally_attested_tx: register_int_counter_with_registry!(
+                "validator_service_num_submitted_externally_attested_tx",
+                "Number of externally attested transactions submitted to consensus",
+                registry,
+            )
+                .unwrap(),
+            num_rejected_externally_attested_tx: register_int_counter_vec_with_registry!(
+                "validator_service_num_rejected_externally_attested_tx",
+                "Number of externally attested transactions rejected by the attestation check",
+                &["error_type"],
                 registry,
             )
                 .unwrap(),

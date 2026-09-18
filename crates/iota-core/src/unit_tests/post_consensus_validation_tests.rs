@@ -9,6 +9,7 @@ use std::{path::PathBuf, sync::Arc};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
+use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
 use iota_sdk_types::{
     Address, Command, Identifier, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
     Version,
@@ -17,9 +18,10 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     attestation::{Attestation, AttestationData, AttestedTransaction},
-    crypto::{AccountPrivateKey, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair, get_key_pair_from_rng},
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
+    iota_system_state::attestor_registry::{EpochStartAttestorInfoV1, attestor_pubkey_bytes},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -29,6 +31,7 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
+use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
     authority::{
@@ -89,6 +92,59 @@ fn make_user_tx_v2(
         tracking_id: Default::default(),
     };
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
+}
+
+/// Wraps a `Transaction` in a `UserTransactionV2` consensus transaction with
+/// an explicit attestation by `attestor_address`, signed with `keypair`.
+fn make_user_tx_v2_explicit(
+    tx: TransactionEnvelope,
+    attestor_address: Address,
+    keypair: &SimpleKeypair,
+    computation_units: u64,
+) -> VerifiedSequencedConsensusTransaction {
+    let payload = AttestationData::V1 {
+        computation_units,
+        object_versions: vec![],
+    };
+    let attestation = Attestation::new_explicit(tx.digest(), payload, attestor_address, keypair);
+    let consensus_tx = ConsensusTransaction {
+        kind: ConsensusTransactionKind::UserTransactionV2(Box::new(AttestedTransaction::new(
+            tx,
+            attestation,
+        ))),
+        tracking_id: Default::default(),
+    };
+    VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
+}
+
+/// Enables the flags an explicit attestation needs to pass Check #3.
+fn enable_external_attestation() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config.set_enable_external_attestation_for_testing(true);
+        config
+    })
+}
+
+/// An authority whose epoch-start attestor set holds one attestor; returns
+/// its signing key and registered address.
+async fn init_state_with_attestor(
+    objects: Vec<Object>,
+) -> (Arc<AuthorityState>, SimpleKeypair, Address) {
+    let keypair = SimpleKeypair::from(
+        get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut StdRng::from_seed([7; 32])).1,
+    );
+    let attestor_address = Address::random();
+    let authority = TestAuthorityBuilder::new()
+        .with_starting_objects(&objects)
+        .with_epoch_start_attestors(vec![EpochStartAttestorInfoV1 {
+            attestor_address,
+            attestor_pubkey: attestor_pubkey_bytes(&keypair),
+        }])
+        .build()
+        .await;
+    (authority, keypair, attestor_address)
 }
 
 /// Wraps an `EndOfPublish` message as a consensus transaction.
@@ -2007,6 +2063,145 @@ async fn test_v2_attestor_mismatch() {
         vec![digest],
         "digest must be collected before Check #3 for soft-lock release",
     );
+}
+
+/// A `UserTransactionV2` with an explicit attestation from an attestor of this
+/// epoch's set passes Check #3 like a validator attestation, and its attested
+/// units are held to the same ceiling.
+#[sim_test]
+async fn test_v2_explicit_known_attestor_passes() {
+    let _guard = enable_external_attestation();
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = Address::random();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let (authority, keypair, attestor_address) = init_state_with_attestor(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+    let mut transactions = vec![make_user_tx_v2_explicit(
+        tx,
+        attestor_address,
+        &keypair,
+        min_units,
+    )];
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+    assert_eq!(transactions.len(), 1, "explicit attestation should be kept");
+    assert!(dropped.is_empty(), "no errors expected");
+    assert_eq!(
+        locks.len(),
+        2,
+        "locks for object and gas should be acquired"
+    );
+    assert_eq!(user_tx_digests, vec![digest]);
+
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let ref_data = tx.data().transaction();
+    let max_units = ref_data.gas_budget() / ref_data.gas_price();
+    let mut transactions = vec![make_user_tx_v2_explicit(
+        tx,
+        attestor_address,
+        &keypair,
+        max_units + 1,
+    )];
+    let (dropped, _, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+    assert!(
+        transactions.is_empty(),
+        "over-budget units should be dropped"
+    );
+    assert!(
+        matches!(
+            dropped.as_slice(),
+            [(_, IotaError::AttestationUnitsAboveBudget { .. })]
+        ),
+        "expected AttestationUnitsAboveBudget, got {dropped:?}"
+    );
+}
+
+/// An explicit attestation naming an address outside this epoch's attestor
+/// set is dropped via Check #3 before the units check; its digest must still
+/// surface in `all_user_tx_digests` for soft-lock release.
+#[sim_test]
+async fn test_v2_explicit_unknown_attestor_dropped() {
+    let _guard = enable_external_attestation();
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = Address::random();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let (authority, keypair, _) = init_state_with_attestor(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+    // Below the floor as well, which pins the check order: identity first.
+    let mut transactions = vec![make_user_tx_v2_explicit(
+        tx,
+        Address::random(),
+        &keypair,
+        min_units - 1,
+    )];
+    let (dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+    assert!(
+        transactions.is_empty(),
+        "unknown attestor should be dropped"
+    );
+    assert!(
+        matches!(
+            dropped.as_slice(),
+            [(_, IotaError::ExplicitAttestationUnknownAttestor { .. })]
+        ),
+        "expected ExplicitAttestationUnknownAttestor, got {dropped:?}"
+    );
+    assert!(locks.is_empty(), "no locks for a dropped transaction");
+    assert_eq!(user_tx_digests, vec![digest]);
 }
 
 /// A `UserTransactionV2` whose attestation reports `computation_units` outside

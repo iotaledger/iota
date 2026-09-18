@@ -57,6 +57,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountPrivateKey, get_key_pair},
@@ -64,6 +65,7 @@ use iota_types::{
     error::IotaResult,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
+        attestor_registry::{attestor_pubkey_bytes, generate_attestor_proof_of_possession},
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     messages_grpc::HandleCertificateRequestV1,
@@ -71,7 +73,7 @@ use iota_types::{
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
-    transaction::{CertifiedTransaction, TransactionEnvelope},
+    transaction::{CallArg, CertifiedTransaction, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -159,6 +161,43 @@ pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
 impl TestCluster {
     pub fn rpc_client(&self) -> &HttpClient {
         &self.fullnode_handle.rpc_client
+    }
+
+    /// Registers `keypair` as the attestor signing key of `sender`, bonding
+    /// one of the sender's gas coins. The attestor becomes active at the next
+    /// epoch boundary.
+    pub async fn register_attestor(&self, sender: Address, keypair: &SimpleKeypair) {
+        let gas_objects = self
+            .wallet
+            .get_all_gas_objects_owned_by_address(sender)
+            .await
+            .unwrap();
+        let [gas, bond, ..] = gas_objects.as_slice() else {
+            panic!("the attestor account needs a gas coin and a bond coin");
+        };
+        let attestor_pubkey = attestor_pubkey_bytes(keypair);
+        let proof_of_possession = generate_attestor_proof_of_possession(keypair, sender);
+        let tx_data = self
+            .test_transaction_builder_with_gas_object(sender, *gas)
+            .await
+            .move_call(
+                IOTA_SYSTEM_PACKAGE_ID,
+                "iota_system",
+                "register_attestor",
+                vec![
+                    CallArg::IOTA_SYSTEM_MUTABLE,
+                    CallArg::ImmutableOrOwned(*bond),
+                    CallArg::pure(&attestor_pubkey),
+                    CallArg::pure(&proof_of_possession),
+                    CallArg::pure(&b"attestor".to_vec()),
+                    CallArg::pure(&b"test attestor".to_vec()),
+                    CallArg::pure(&b"https://example.com".to_vec()),
+                    CallArg::pure(&b"https://example.com/logo.png".to_vec()),
+                ],
+            )
+            .build();
+        self.execute_transaction(self.sign_transaction(&tx_data))
+            .await;
     }
 
     pub fn iota_client(&self) -> &IotaClient {

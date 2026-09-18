@@ -8,7 +8,6 @@ use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_types::{
-    attestation::Attestation,
     base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -19,6 +18,7 @@ use tap::TapFallible;
 use tracing::{info, instrument, warn};
 
 use crate::{
+    attestation_checks::verify_explicit_attestation,
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     checkpoints::CheckpointServiceNotify,
 };
@@ -149,24 +149,21 @@ impl IotaTxValidator {
                         });
                     }
 
-                    match &attested_tx.attestation {
-                        Attestation::Validator { .. } => {
-                            self.epoch_store
-                                .signature_verifier
-                                .verify_tx(attested_tx.transaction.data())
-                                .tap_err(|e| {
-                                    warn!("UserTransactionV2 signature verification failed: {}", e)
-                                })?;
-                            user_tx_count += 1;
-                        }
-                        Attestation::Explicit { .. } => {
-                            // TODO: verify explicit attestor signature against the trusted
-                            // attestor registry (Phase 2).
-                            return Err(IotaError::UnsupportedFeature {
-                                error: "Explicit attestation not yet supported".into(),
-                            });
-                        }
-                    }
+                    // A validator attestation is authenticated by the block
+                    // signature; an explicit one carries its own.
+                    verify_explicit_attestation(
+                        &self.epoch_store,
+                        attested_tx.digest(),
+                        &attested_tx.attestation,
+                    )
+                    .tap_err(|e| warn!("explicit attestation verification failed: {}", e))?;
+                    self.epoch_store
+                        .signature_verifier
+                        .verify_tx(attested_tx.transaction.data())
+                        .tap_err(|e| {
+                            warn!("UserTransactionV2 signature verification failed: {}", e)
+                        })?;
+                    user_tx_count += 1;
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)
@@ -491,9 +488,13 @@ mod tests {
                     Some(config.enable_pcool_flow() && !config.enable_validator_attestation())
                 }
 
-                // Gated behind `enable_validator_attestation`.
-                ConsensusTransactionKind::UserTransactionV2(_) => {
-                    Some(config.enable_validator_attestation())
+                // Validator attestation gated behind `enable_validator_attestation`;
+                // external attestation gated behind `enable_external_attestation`.
+                ConsensusTransactionKind::UserTransactionV2(attested_tx) => {
+                    Some(match attested_tx.attestation {
+                        Attestation::Validator { .. } => config.enable_validator_attestation(),
+                        Attestation::Explicit { .. } => config.enable_external_attestation(),
+                    })
                 }
 
                 // Gated behind `calculate_validator_scores`.
@@ -567,7 +568,7 @@ mod tests {
                 )),
             ),
             (
-                "UserTransactionV2",
+                "UserTransactionV2 (Validator attestation)",
                 ConsensusTransactionKind::UserTransactionV2(Box::new(AttestedTransaction::new(
                     signed_tx.clone(),
                     Attestation::Validator {
@@ -576,6 +577,22 @@ mod tests {
                             object_versions: vec![],
                         },
                         attestor_index: 0,
+                    },
+                ))),
+            ),
+            (
+                "UserTransactionV2 (Explicit attestation)",
+                ConsensusTransactionKind::UserTransactionV2(Box::new(AttestedTransaction::new(
+                    signed_tx.clone(),
+                    Attestation::Explicit {
+                        payload: AttestationData::V1 {
+                            computation_units: 0,
+                            object_versions: vec![],
+                        },
+                        attestor_address: iota_sdk_types::Address::random(),
+                        signature: Box::new(UserSignature::Simple(
+                            iota_types::crypto::zero_ed25519_signature(),
+                        )),
                     },
                 ))),
             ),
@@ -622,5 +639,106 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// An explicit attestation passes the block verifier only when its
+    /// attestor is in the epoch-start set and its signature was made with the
+    /// registered key; anything else rejects the whole batch.
+    #[sim_test]
+    async fn explicit_attestation_is_verified_against_the_attestor_set() {
+        use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
+        use iota_sdk_types::Address;
+        use iota_types::{
+            crypto::{
+                AccountPrivateKey, deterministic_random_account_private_key, get_key_pair_from_rng,
+            },
+            iota_system_state::attestor_registry::{
+                EpochStartAttestorInfoV1, attestor_pubkey_bytes,
+            },
+        };
+        use rand::{SeedableRng, rngs::StdRng};
+
+        use crate::test_utils::make_transfer_iota_transaction;
+
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_enable_validator_attestation_for_testing(true);
+            config.set_enable_external_attestation_for_testing(true);
+            config
+        });
+
+        let keypair_from_seed = |seed: u8| {
+            SimpleKeypair::from(
+                get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut StdRng::from_seed([seed; 32])).1,
+            )
+        };
+        let keypair = keypair_from_seed(7);
+        let attestor = EpochStartAttestorInfoV1 {
+            attestor_address: Address::random(),
+            attestor_pubkey: attestor_pubkey_bytes(&keypair),
+        };
+
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            deterministic_random_account_private_key();
+        let gas_object_id = ObjectId::random();
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(vec![Object::with_id_owner_for_testing(
+                    gas_object_id,
+                    sender,
+                )])
+                .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .with_epoch_start_attestors(vec![attestor.clone()])
+            .build()
+            .await;
+        let rgp = state.epoch_store_for_testing().reference_gas_price();
+        let gas_ref = state.get_object(&gas_object_id).unwrap().object_ref();
+        let signed_tx = make_transfer_iota_transaction(
+            gas_ref,
+            Address::random(),
+            None,
+            sender,
+            &sender_key,
+            rgp,
+        );
+        let validator = IotaTxValidator::new(
+            state.epoch_store_for_testing().clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            IotaTxValidatorMetrics::new(&Default::default()),
+        );
+
+        let payload = || AttestationData::V1 {
+            computation_units: 1_000,
+            object_versions: vec![],
+        };
+        let attested = |attestor_address: Address, keypair: &SimpleKeypair| {
+            bcs::to_bytes(&ConsensusTransaction::new_user_transaction_v2(
+                AttestedTransaction::new(
+                    signed_tx.clone(),
+                    Attestation::new_explicit(
+                        signed_tx.digest(),
+                        payload(),
+                        attestor_address,
+                        keypair,
+                    ),
+                ),
+            ))
+            .unwrap()
+        };
+
+        let valid = attested(attestor.attestor_address, &keypair);
+        validator.verify_batch(&[&valid]).unwrap();
+
+        let unknown_attestor = attested(Address::random(), &keypair);
+        assert!(
+            validator
+                .verify_batch(&[&valid, &unknown_attestor])
+                .is_err()
+        );
+
+        let other_key = attested(attestor.attestor_address, &keypair_from_seed(8));
+        assert!(validator.verify_batch(&[&other_key]).is_err());
     }
 }
