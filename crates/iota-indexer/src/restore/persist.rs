@@ -296,10 +296,7 @@ pub(crate) async fn populate_remaining_tables(
     verified_epoch_info: VerifiedEpochInfo,
     snapshot_chain_id: ChainIdentifier,
 ) -> IndexerResult<()> {
-    let snapshot_epoch_boundary = &verified_epoch_info
-        .entries()
-        .last()
-        .expect("there should be an entry for the snapshot epoch");
+    let snapshot_epoch_boundary = verified_epoch_info.snapshot_entry();
     let sync_watermark = IndexedCheckpoint::from_iota_checkpoint(
         &snapshot_epoch_boundary.last_checkpoint_summary,
         &snapshot_epoch_boundary.last_checkpoint_contents,

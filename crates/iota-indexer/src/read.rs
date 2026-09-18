@@ -15,12 +15,14 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
-    QueryDsl, QueryableByName, RunQueryDsl, SelectableHelper, TextExpressionMethods,
-    dsl::sql,
+    BoolExpressionMethods, BoxableExpression, ExpressionMethods, JoinOnDsl,
+    NullableExpressionMethods, OptionalExtension, PgConnection, QueryDsl, QueryableByName,
+    RunQueryDsl, SelectableHelper, TextExpressionMethods,
+    dsl::not,
+    pg::Pg,
     r2d2::ConnectionManager,
     sql_query,
-    sql_types::{BigInt, Bool, Bytea},
+    sql_types::{BigInt, Bool, Bytea, Nullable},
 };
 use fastcrypto::encoding::{Encoding, Hex};
 use futures::FutureExt;
@@ -131,6 +133,44 @@ pub struct DBReader<'a> {
 }
 
 pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver>>>;
+
+/// Escape the characters that `LIKE` treats specially, so that `value` is
+/// matched literally.
+///
+/// Move identifiers can contain `_`, which `LIKE` reads as "any single
+/// character".
+fn escape_like(value: &str) -> String {
+    // Backslashes first, so that the ones added below are not escaped again.
+    value
+        .replace('\\', r"\\")
+        .replace('_', r"\_")
+        .replace('%', r"\%")
+}
+
+/// A condition on the type of an object in the `objects` table.
+type ObjectTypeFilter = Box<dyn BoxableExpression<objects::table, Pg, SqlType = Nullable<Bool>>>;
+
+/// Match objects of the `struct_tag` type.
+///
+/// Type parameters are only compared when the filter has them, so
+/// `0x2::coin::Coin` matches every `Coin`, while
+/// `0x2::coin::Coin<0x2::iota::IOTA>` matches only that one.
+fn object_type_filter(struct_tag: &StructTag) -> ObjectTypeFilter {
+    let object_type = struct_tag.to_canonical_string(/* with_prefix */ true);
+
+    if struct_tag.type_params().is_empty() {
+        // The `<` opens the type parameters and is matched literally, so that `Coin`
+        // does not also match `CoinMetadata`.
+        let escaped_type = format!("{}<%", escape_like(&object_type));
+        Box::new(
+            objects::object_type
+                .eq(object_type)
+                .or(objects::object_type.like(escaped_type)),
+        )
+    } else {
+        Box::new(objects::object_type.eq(object_type))
+    }
+}
 
 // Impl for common initialization and utilities
 impl IndexerReader {
@@ -1080,47 +1120,36 @@ impl IndexerReader {
             if let Some(filter) = filter {
                 match filter {
                     IotaObjectDataFilter::StructType(struct_tag) => {
-                        let object_type =
-                            struct_tag.to_canonical_string(/* with_prefix */ true);
-                        query = query.filter(objects::object_type.like(format!("{object_type}%")));
+                        query = query.filter(object_type_filter(&struct_tag));
                     }
                     IotaObjectDataFilter::MatchAny(filters) => {
-                        let mut condition = "(".to_string();
-                        for (i, filter) in filters.iter().enumerate() {
-                            if let IotaObjectDataFilter::StructType(struct_tag) = filter {
-                                let object_type =
-                                    struct_tag.to_canonical_string(/* with_prefix */ true);
-                                if i == 0 {
-                                    condition +=
-                                        format!("objects.object_type LIKE '{object_type}%'")
-                                            .as_str();
-                                } else {
-                                    condition +=
-                                        format!(" OR objects.object_type LIKE '{object_type}%'")
-                                            .as_str();
-                                }
-                            } else {
+                        let mut condition: Option<ObjectTypeFilter> = None;
+                        for filter in filters {
+                            let IotaObjectDataFilter::StructType(struct_tag) = filter else {
                                 return Err(IndexerError::InvalidArgument(
                                     "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
                                 ));
-                            }
+                            };
+                            let struct_type = object_type_filter(&struct_tag);
+                            condition = Some(match condition {
+                                Some(condition) => Box::new(condition.or(struct_type)),
+                                None => struct_type,
+                            });
                         }
-                        condition += ")";
-                        query = query.filter(sql::<Bool>(&condition));
+                        let Some(condition) = condition else {
+                            // "Any" without filters matches nothing.
+                            return Ok(vec![]);
+                        };
+                        query = query.filter(condition);
                     }
                     IotaObjectDataFilter::MatchNone(filters) => {
                         for filter in filters {
-                            if let IotaObjectDataFilter::StructType(struct_tag) = filter {
-                                let object_type =
-                                    struct_tag.to_canonical_string(/* with_prefix */ true);
-                                query = query.filter(
-                                    objects::object_type.not_like(format!("{object_type}%")),
-                                );
-                            } else {
+                            let IotaObjectDataFilter::StructType(struct_tag) = filter else {
                                 return Err(IndexerError::InvalidArgument(
                                     "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
                                 ));
-                            }
+                            };
+                            query = query.filter(not(object_type_filter(&struct_tag)));
                         }
                     }
                     _ => {
@@ -2230,7 +2259,8 @@ impl IndexerReader {
                     format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
-                    let package_module_prefix = format!("{}::{}", package.to_short_hex(), module);
+                    let package_module_prefix =
+                        escape_like(&format!("{}::{}", package.to_short_hex(), module));
                     format!("event_type LIKE '{package_module_prefix}::%'")
                 }
                 EventFilter::Sender(_) => {
@@ -3731,7 +3761,15 @@ mod tests {
 
     use iota_json_rpc_types::Checkpoint;
 
-    use super::IndexerReader;
+    use super::{IndexerReader, escape_like};
+
+    #[test]
+    fn escape_like_escapes_wildcards() {
+        assert_eq!(escape_like("my_module"), r"my\_module");
+        assert_eq!(escape_like("100%"), r"100\%");
+        assert_eq!(escape_like(r"back\slash"), r"back\\slash");
+        assert_eq!(escape_like("plain"), "plain");
+    }
 
     fn dummy_checkpoint(sequence_number: u64) -> Checkpoint {
         Checkpoint {
