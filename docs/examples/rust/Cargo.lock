@@ -3197,6 +3197,7 @@ version = "1.33.0-alpha"
 dependencies = [
  "clap",
  "iota-protocol-config-macros",
+ "move-core-types",
  "move-vm-config",
  "schemars 0.8.22",
  "serde",
@@ -4082,7 +4083,6 @@ dependencies = [
  "move-core-types",
  "proptest",
  "proptest-derive",
- "ref-cast",
  "serde",
  "variant_count",
 ]
