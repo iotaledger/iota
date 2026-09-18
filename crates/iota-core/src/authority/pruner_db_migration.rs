@@ -56,18 +56,19 @@ impl LeftoverPrunerTables {
 }
 
 /// Deletes the object versions recorded in a leftover `pruner` database and
-/// removes that database.
+/// removes that database. Returns the number of objects whose versions were
+/// deleted.
 ///
 /// Does nothing when there is no `pruner` database under `parent_path`, which
 /// is the case for every node that never ran with the compaction filter.
 pub(crate) fn drain_leftover_object_tombstones(
     parent_path: &Path,
     perpetual_tables: &AuthorityPerpetualTables,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<usize> {
     let path = LeftoverPrunerTables::path(parent_path);
     // Checked before opening, which would create the database.
     if !path.exists() {
-        return Ok(());
+        return Ok(0);
     }
     info!(
         "draining the leftover object tombstones in {}",
@@ -76,6 +77,7 @@ pub(crate) fn drain_leftover_object_tombstones(
 
     let leftover = LeftoverPrunerTables::open(parent_path);
     let mut drained = 0;
+    let mut deleted = 0;
     let mut resume_from = None;
     loop {
         let chunk = leftover
@@ -89,11 +91,29 @@ pub(crate) fn drain_leftover_object_tombstones(
 
         let mut batch = perpetual_tables.objects.batch();
         for (object_id, gc_version) in &chunk {
-            batch.schedule_delete_range(
-                &perpetual_tables.objects,
-                &ObjectKey(*object_id, Version::MIN_VALID_INCL),
-                &ObjectKey(*object_id, *gc_version + 1),
-            )?;
+            let (from, to) = (
+                ObjectKey(*object_id, Version::MIN_VALID_INCL),
+                ObjectKey(*object_id, *gc_version + 1),
+            );
+            // An entry outlives the versions it covers: the table was only
+            // ever appended to, so most entries name versions a compaction
+            // already dropped. A range delete over them would write a
+            // tombstone that hides nothing and still has to be read past
+            // until the next compaction. Probing first keeps the writes
+            // proportional to what is actually still there, and costs little
+            // because both tables are ordered by object id, so the probes
+            // walk the objects table forwards.
+            if perpetual_tables
+                .objects
+                .safe_iter_with_bounds(Some(from), Some(to))
+                .next()
+                .transpose()?
+                .is_none()
+            {
+                continue;
+            }
+            batch.schedule_delete_range(&perpetual_tables.objects, &from, &to)?;
+            deleted += 1;
         }
         batch.write()?;
 
@@ -115,10 +135,11 @@ pub(crate) fn drain_leftover_object_tombstones(
     drop(leftover);
     std::fs::remove_dir_all(&path)?;
     info!(
-        "drained {drained} leftover object tombstones and removed {}",
+        "drained {drained} leftover object tombstones, deleted the versions of {deleted} objects \
+         and removed {}",
         path.display()
     );
-    Ok(())
+    Ok(deleted)
 }
 
 #[cfg(test)]
@@ -196,6 +217,33 @@ mod tests {
         let perpetual_tables = AuthorityPerpetualTables::open(path, None);
 
         assert_eq!(object_versions(&perpetual_tables, object_id), vec![4, 5]);
+        assert!(!LeftoverPrunerTables::path(path).exists());
+    }
+
+    #[tokio::test]
+    async fn skips_entries_whose_versions_are_already_gone() {
+        let tmp_dir = iota_common::tempdir();
+        let path = tmp_dir.path();
+        let (compacted_away, still_live) = (ObjectId::ZERO, ObjectId::ZERO.next_lexicographical());
+
+        let perpetual_tables = AuthorityPerpetualTables::open(path, None);
+        // Only versions above the watermark are left for `still_live`, and
+        // nothing at all is left for `compacted_away`, so neither entry has
+        // anything to delete.
+        insert_object_versions(&perpetual_tables, still_live, 4..=5);
+        let leftover = LeftoverPrunerTables::open(path);
+        for object_id in [compacted_away, still_live] {
+            leftover
+                .object_tombstones
+                .insert(&object_id, &Version::from_u64(3))
+                .unwrap();
+        }
+        drop(leftover);
+
+        let deleted = drain_leftover_object_tombstones(path, &perpetual_tables).unwrap();
+
+        assert_eq!(deleted, 0);
+        assert_eq!(object_versions(&perpetual_tables, still_live), vec![4, 5]);
         assert!(!LeftoverPrunerTables::path(path).exists());
     }
 
