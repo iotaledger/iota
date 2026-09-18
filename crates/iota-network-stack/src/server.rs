@@ -97,12 +97,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     }
 
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
-        let http_config = self
-            .config
-            .http_config()
-            // Temporarily continue allowing clients to connection without TLS even when the server
-            // is configured with a tls_config
-            .allow_insecure(true);
+        let http_config = self.config.http_config();
 
         let request_timeout = self.config.request_timeout;
         let metrics_provider = self.metrics_provider;
@@ -443,6 +438,54 @@ mod test {
     async fn ip6() {
         let address: Multiaddr = "/ip6/::1/tcp/0/http".parse().unwrap();
         test_multiaddr(address).await;
+    }
+
+    /// TLS is the only thing protecting this interface, so a listener
+    /// configured with it must refuse a client that skips it rather than
+    /// serve the request in the clear.
+    #[tokio::test]
+    async fn plaintext_is_refused_when_tls_is_configured() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let keypair = Ed25519KeyPair::generate(&mut rand::thread_rng());
+
+        let server = Config::new()
+            .server_builder()
+            .bind(
+                &address,
+                Some(iota_tls::create_rustls_server_config(
+                    keypair.copy().private(),
+                    "test".to_string(),
+                )),
+            )
+            .await
+            .unwrap();
+        let port = server.local_addr().port().expect("bound to a tcp port");
+
+        let mut connection = tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .unwrap();
+        connection
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+
+        // The server answers a rejected handshake with a TLS alert and closes,
+        // so anything but an HTTP response is a refusal.
+        let mut buf = [0u8; 64];
+        let read = tokio::time::timeout(Duration::from_secs(10), connection.read(&mut buf))
+            .await
+            .expect("the server must not hold a plaintext connection open");
+        let response = match read {
+            Ok(read) => String::from_utf8_lossy(&buf[..read]).into_owned(),
+            Err(_) => String::new(),
+        };
+
+        assert!(
+            !response.starts_with("HTTP/"),
+            "plaintext request was served on a TLS listener: {response}"
+        );
     }
 }
 
