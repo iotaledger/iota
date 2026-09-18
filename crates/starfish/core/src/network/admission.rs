@@ -19,7 +19,7 @@ use prometheus_filtered::IntGauge;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use crate::context::Context;
+use crate::{context::Context, network::tonic_gen::consensus_service_server::SERVICE_NAME};
 
 /// Inbound consensus RPCs grouped by cost and access pattern. Each group has an
 /// independent per-peer concurrency budget.
@@ -39,6 +39,23 @@ impl RpcGroup {
             RpcGroup::HeaderFetch => "header_fetch",
             RpcGroup::TransactionFetch => "transaction_fetch",
             RpcGroup::CommitFetch => "commit_fetch",
+        }
+    }
+
+    /// The group an inbound request path belongs to, or `None` for a path with
+    /// no budget: the deprecated `GetLatestRounds`, and anything not routed to
+    /// this service.
+    pub(crate) fn from_path(path: &str) -> Option<Self> {
+        let method = path
+            .strip_prefix('/')?
+            .strip_prefix(SERVICE_NAME)?
+            .strip_prefix('/')?;
+        match method {
+            "SubscribeBlockBundles" => Some(RpcGroup::Subscribe),
+            "FetchBlockHeaders" | "FetchLatestBlockHeaders" => Some(RpcGroup::HeaderFetch),
+            "FetchTransactions" => Some(RpcGroup::TransactionFetch),
+            "FetchCommits" | "FetchCommitsAndTransactions" => Some(RpcGroup::CommitFetch),
+            _ => None,
         }
     }
 }
@@ -284,5 +301,39 @@ mod tests {
         assert_eq!(gauge.get(), 1);
         drop(g1);
         assert_eq!(gauge.get(), 0);
+    }
+
+    #[test]
+    fn request_paths_map_to_their_group() {
+        let group = |method: &str| RpcGroup::from_path(&format!("/{SERVICE_NAME}/{method}"));
+
+        assert!(matches!(
+            group("SubscribeBlockBundles"),
+            Some(RpcGroup::Subscribe)
+        ));
+        assert!(matches!(
+            group("FetchBlockHeaders"),
+            Some(RpcGroup::HeaderFetch)
+        ));
+        assert!(matches!(
+            group("FetchLatestBlockHeaders"),
+            Some(RpcGroup::HeaderFetch)
+        ));
+        assert!(matches!(
+            group("FetchTransactions"),
+            Some(RpcGroup::TransactionFetch)
+        ));
+        assert!(matches!(group("FetchCommits"), Some(RpcGroup::CommitFetch)));
+        assert!(matches!(
+            group("FetchCommitsAndTransactions"),
+            Some(RpcGroup::CommitFetch)
+        ));
+
+        // The deprecated RPC, an unknown method and a path outside this
+        // service all carry no budget.
+        assert!(group("GetLatestRounds").is_none());
+        assert!(group("Unknown").is_none());
+        assert!(RpcGroup::from_path("/other.Service/FetchCommits").is_none());
+        assert!(RpcGroup::from_path("FetchCommits").is_none());
     }
 }
