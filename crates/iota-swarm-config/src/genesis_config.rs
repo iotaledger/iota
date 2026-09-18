@@ -32,7 +32,7 @@ use tracing::info;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SsfnGenesisConfig {
     pub p2p_address: Multiaddr,
-    #[serde(with = "base64_formatted_network_keypair::option")]
+    #[serde(default, with = "base64_formatted_network_keypair::option")]
     pub network_key_pair: Option<NetworkKeyPair>,
 }
 
