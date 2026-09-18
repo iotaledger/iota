@@ -1814,4 +1814,120 @@ mod tests {
 
         assert_eq!(status.code(), tonic::Code::DeadlineExceeded);
     }
+
+    /// A header fetch whose request message never arrives is charged to its
+    /// peer's budget from the moment its headers land, so a peer cannot stack
+    /// pending decodes across connections. The permit is returned when the
+    /// server-side request timeout cuts the stalled request.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_request_body_that_never_arrives_is_still_charged() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+        use tonic::Request;
+
+        use super::{
+            FetchBlockHeadersRequest, FetchBlockHeadersResponse, TonicClient, TonicManager,
+        };
+        use crate::network::test_network::TestService;
+
+        const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+        /// Opens a header fetch whose request message never arrives, so the
+        /// call stays open until the server answers or the caller drops it.
+        async fn stalled_header_fetch(
+            client: &TonicClient,
+            peer: AuthorityIndex,
+        ) -> Result<tonic::Response<tonic::Streaming<FetchBlockHeadersResponse>>, tonic::Status>
+        {
+            let channel = client
+                .channel_pool
+                .get_channel(client.network_keypair.clone(), peer, Duration::from_secs(5))
+                .await
+                .unwrap();
+            let mut grpc = tonic::client::Grpc::new(channel);
+            grpc.ready().await.unwrap();
+            grpc.streaming(
+                Request::new(stream::pending::<FetchBlockHeadersRequest>()),
+                http::uri::PathAndQuery::from_static(
+                    "/consensus.ConsensusService/FetchBlockHeaders",
+                ),
+                tonic_prost::ProstCodec::default(),
+            )
+            .await
+        }
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let mut server_context = context.clone().with_authority_index(server_index);
+        server_context
+            .parameters
+            .tonic
+            .admission
+            .max_header_fetches_per_peer = 1;
+        server_context.parameters.tonic.request_timeout = REQUEST_TIMEOUT;
+        let server_context = Arc::new(server_context);
+        let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_for = |authority: usize| {
+            let client_context =
+                Arc::new(context.clone().with_authority_index(
+                    context.committee.to_authority_index(authority).unwrap(),
+                ));
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[authority].0.clone())
+                .client()
+        };
+        // Two clients for one authority, so each opens its own connection.
+        let first = client_for(1);
+        let second = client_for(1);
+        let other_peer = client_for(2);
+
+        let in_use = server_context
+            .metrics
+            .network_metrics
+            .admission_in_use
+            .with_label_values(&["header_fetch"]);
+        let settles_at = async |count: i64| {
+            for _ in 0..500 {
+                if in_use.get() == count {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            panic!("admitted header fetches stayed at {}", in_use.get());
+        };
+
+        let held = tokio::spawn(async move { stalled_header_fetch(&first, server_index).await });
+        settles_at(1).await;
+
+        let Err(status) = tokio::time::timeout(
+            REQUEST_TIMEOUT / 2,
+            stalled_header_fetch(&second, server_index),
+        )
+        .await
+        .expect("the server must answer without waiting for the request body") else {
+            panic!("the peer holds its only header-fetch slot");
+        };
+        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+
+        // Another authority has its own budget.
+        let other =
+            tokio::spawn(async move { stalled_header_fetch(&other_peer, server_index).await });
+        settles_at(2).await;
+
+        // Both stalled requests give their slot back when the timeout cuts them.
+        settles_at(0).await;
+        assert_eq!(
+            held.await.unwrap().unwrap_err().code(),
+            tonic::Code::DeadlineExceeded
+        );
+        assert_eq!(
+            other.await.unwrap().unwrap_err().code(),
+            tonic::Code::DeadlineExceeded
+        );
+    }
 }
