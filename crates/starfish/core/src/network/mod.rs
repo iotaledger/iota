@@ -22,13 +22,16 @@
 //! network outside of this module, so they can be reused easily across network
 //! implementations.
 
-use std::{collections::BTreeSet, pin::Pin, time::Duration};
+use std::{collections::BTreeSet, fmt, pin::Pin, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
-use serde::{Deserialize, Serialize};
-use starfish_config::{AuthorityIndex, Committee};
+use serde::{
+    Deserialize, Deserializer, Serialize,
+    de::{self, SeqAccess, Visitor},
+};
+use starfish_config::{AuthorityIndex, Committee, MAX_HEADERS_OR_SHARDS_PER_BUNDLE};
 
 use crate::{
     Round, VerifiedBlockHeader,
@@ -317,7 +320,9 @@ pub(crate) struct BlockBundle {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct SerializedBlockBundleParts {
     pub(crate) serialized_block: Bytes,
+    #[serde(deserialize_with = "deserialize_bounded_entries")]
     pub(crate) serialized_headers: Vec<Bytes>,
+    #[serde(deserialize_with = "deserialize_bounded_entries")]
     pub(crate) serialized_shards: Vec<Bytes>,
     pub(crate) useful_headers_authors_bitmask: AuthoritySet,
     pub(crate) useful_shards_authors_bitmask: AuthoritySet,
@@ -348,6 +353,52 @@ impl SerializedBlockBundleParts {
     pub(crate) fn useful_shards_authors(&self) -> BTreeSet<AuthorityIndex> {
         self.useful_shards_authors_bitmask.to_btreeset()
     }
+}
+
+/// Deserializes a bundle's headers or shards, rejecting more than
+/// `MAX_HEADERS_OR_SHARDS_PER_BUNDLE` entries.
+///
+/// An empty entry costs one byte on the wire and a `Bytes` descriptor once
+/// decoded, so the message size limit alone leaves room for a vector far larger
+/// than the bundle caps allow. BCS declares the entry count ahead of the
+/// entries, so it is known before any entry is read.
+fn deserialize_bounded_entries<'de, D>(deserializer: D) -> Result<Vec<Bytes>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct BoundedEntries;
+
+    impl<'de> Visitor<'de> for BoundedEntries {
+        type Value = Vec<Bytes>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                formatter,
+                "at most {MAX_HEADERS_OR_SHARDS_PER_BUNDLE} byte strings"
+            )
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let declared = seq.size_hint().unwrap_or(0);
+            if declared > MAX_HEADERS_OR_SHARDS_PER_BUNDLE {
+                return Err(de::Error::invalid_length(declared, &self));
+            }
+            let mut entries = Vec::with_capacity(declared);
+            // A format that declares no length is bounded by this loop instead.
+            while let Some(entry) = seq.next_element()? {
+                if entries.len() == MAX_HEADERS_OR_SHARDS_PER_BUNDLE {
+                    return Err(de::Error::invalid_length(entries.len() + 1, &self));
+                }
+                entries.push(entry);
+            }
+            Ok(entries)
+        }
+    }
+
+    deserializer.deserialize_seq(BoundedEntries)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -470,5 +521,72 @@ mod tests {
             SerializedBlockBundleParts::try_from(serialized_bundle).unwrap();
         let converted_useful_authorities = serialized_bundle_parts.useful_headers_authors();
         assert_eq!(useful_authorities, converted_useful_authorities);
+    }
+
+    fn bundle_parts_for_test() -> SerializedBlockBundleParts {
+        let block = VerifiedBlock::new_for_test(TestBlockHeader::new(0u32, 0u8).build());
+        SerializedBlockBundleParts::try_from(block).unwrap()
+    }
+
+    #[test]
+    fn decoding_rejects_more_entries_than_the_bundle_ceiling() {
+        let entries = vec![Bytes::new(); MAX_HEADERS_OR_SHARDS_PER_BUNDLE + 1];
+
+        let mut parts = bundle_parts_for_test();
+        parts.serialized_headers = entries.clone();
+        let too_many_headers = SerializedBlockBundle::try_from(parts).unwrap();
+
+        let mut parts = bundle_parts_for_test();
+        parts.serialized_shards = entries;
+        let too_many_shards = SerializedBlockBundle::try_from(parts).unwrap();
+
+        for bundle in [too_many_headers, too_many_shards] {
+            assert!(matches!(
+                SerializedBlockBundleParts::try_from(bundle),
+                Err(ConsensusError::DeserializationFailure(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn decoding_accepts_entries_up_to_the_bundle_ceiling() {
+        let mut parts = bundle_parts_for_test();
+        parts.serialized_headers = vec![Bytes::new(); MAX_HEADERS_OR_SHARDS_PER_BUNDLE];
+        parts.serialized_shards = vec![Bytes::new(); MAX_HEADERS_OR_SHARDS_PER_BUNDLE];
+        let bundle = SerializedBlockBundle::try_from(parts.clone()).unwrap();
+
+        let decoded = SerializedBlockBundleParts::try_from(bundle).unwrap();
+
+        assert_eq!(decoded, parts);
+    }
+
+    #[test]
+    fn decoding_rejects_a_declared_count_without_reading_the_entries() {
+        fn uleb128(mut value: usize) -> Vec<u8> {
+            let mut encoded = vec![];
+            while value >= 0x80 {
+                encoded.push((value as u8) | 0x80);
+                value >>= 7;
+            }
+            encoded.push(value as u8);
+            encoded
+        }
+
+        // A header count far above the ceiling, followed by none of the entries
+        // it declares and none of the remaining fields.
+        let declared = 8 * 1024 * 1024;
+        let mut payload = bcs::to_bytes(&bundle_parts_for_test().serialized_block).unwrap();
+        payload.extend(uleb128(declared));
+
+        let error = SerializedBlockBundleParts::try_from(SerializedBlockBundle {
+            serialized_block_bundle: Bytes::from(payload),
+        })
+        .expect_err("a bundle declaring more entries than the ceiling must be rejected");
+
+        // Reading the entries first would have failed on the missing bytes.
+        assert!(
+            error.to_string().contains("invalid length"),
+            "expected rejection on the declared count, got: {error}"
+        );
     }
 }
