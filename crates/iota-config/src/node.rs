@@ -783,10 +783,6 @@ impl NodeConfig {
         self.db_path.join("live")
     }
 
-    pub fn db_checkpoint_path(&self) -> PathBuf {
-        self.db_path.join("db_checkpoints")
-    }
-
     pub fn snapshot_path(&self) -> PathBuf {
         self.db_path.join("snapshot")
     }
