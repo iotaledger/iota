@@ -1728,8 +1728,7 @@ mod tests {
         }
     }
 
-    /// Wide enough that the tests below trip the cap under test rather than
-    /// the commit count derived from it.
+    /// Wide enough for the tests below to trip the cap each one exercises.
     fn requested_range() -> CommitRange {
         (1..=10).into()
     }
@@ -1814,9 +1813,8 @@ mod tests {
         ));
     }
 
-    /// The commit cap comes from the requested range rather than a local batch
-    /// size, so a response filling the whole extension a server with a larger
-    /// batch size may add is still accepted.
+    /// The commit cap comes from the requested range, so a response filling the
+    /// whole extension a server with a larger batch size may add is accepted.
     #[tokio::test]
     async fn commits_up_to_twice_the_requested_range_are_kept() {
         let (context, _keys) = Context::new_for_test(4);

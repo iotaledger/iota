@@ -5584,7 +5584,7 @@ mod tests {
     }
 
     /// With both sides on the same batch size the scan reaches a full batch
-    /// past the requested end, as it did before the requester's bound existed.
+    /// past the requested end.
     #[test]
     fn fast_sync_scan_reaches_a_full_batch_past_a_matching_request() {
         let requested: CommitRange = (101..=500).into();
