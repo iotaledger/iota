@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, ops::Bound::Included, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ops::Bound::Included,
+    time::Duration,
+};
 
 use bytes::Bytes;
 use iota_macros::fail_point;
@@ -656,6 +660,42 @@ impl Store for RocksDBStore {
         self.fast_commit_sync_flag
             .contains_key(&())
             .map_err(ConsensusError::RocksDBFailure)
+    }
+
+    fn scan_serialized_transactions(
+        &self,
+        refs: &BTreeSet<TransactionRef>,
+        byte_budget: usize,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+        let (Some(first), Some(last)) = (refs.first(), refs.last()) else {
+            return Ok(BTreeMap::new());
+        };
+        // Refs and store keys share the (round, author, commitment) ordering, so
+        // the requested refs lie within one contiguous key range and a single
+        // scan reaches them all in order.
+        let lower = (first.round, first.author, first.transactions_commitment);
+        let upper = (last.round, last.author, last.transactions_commitment);
+
+        let mut transactions = BTreeMap::new();
+        let mut total_bytes = 0usize;
+        for entry in self.transactions_by_tx_refs.safe_range_iter(lower..=upper) {
+            let ((round, author, transactions_commitment), serialized) =
+                entry.map_err(ConsensusError::RocksDBFailure)?;
+            let transaction_ref = TransactionRef {
+                round,
+                author,
+                transactions_commitment,
+            };
+            if !refs.contains(&transaction_ref) {
+                continue;
+            }
+            if !transactions.is_empty() && total_bytes + serialized.len() > byte_budget {
+                break;
+            }
+            total_bytes += serialized.len();
+            transactions.insert(transaction_ref, serialized);
+        }
+        Ok(transactions)
     }
 }
 

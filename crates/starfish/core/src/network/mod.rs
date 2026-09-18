@@ -29,6 +29,7 @@ use bytes::Bytes;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, Committee};
+use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
     Round, VerifiedBlockHeader,
@@ -60,16 +61,17 @@ use crate::{
     commit_syncer::CommitSyncType, encoder::ShardEncoder, transaction_ref::TransactionRef,
 };
 
-/// Controls transaction fetching truncation behavior for different sync modes
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TransactionFetchMode {
-    /// No truncation - used by fast commit sync which fetches all transactions
-    /// referenced by commits in a batch
-    FastCommitSync,
-    /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
-    /// max_transactions_per_transaction_sync_fetch- used by regular commit sync
-    /// and transactions synchronizer
-    TransactionSync,
+/// Serialized response of a fast commit-sync fetch. Each entry of
+/// `transactions` is a `SerializedTransactionsV2`, which carries its
+/// `TransactionRef`, and covers a prefix of the commits when not all of their
+/// payloads fit one response.
+pub(crate) struct FetchedCommitsAndTransactions {
+    pub(crate) commits: Vec<Bytes>,
+    pub(crate) certifier_block_headers: Vec<Bytes>,
+    pub(crate) transactions: Vec<Bytes>,
+    /// Held until the response has been sent, so a second oversized commit is
+    /// not read while this one is still in memory.
+    pub(crate) oversized_commit_permit: Option<OwnedSemaphorePermit>,
 }
 
 /// A stream of serialized blocks with additional information such as headers or
@@ -218,14 +220,11 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
 
     /// Handles the request to fetch commits and transactions by index range
     /// from the peer. Used in fast commit sync.
-    /// Returns (commits, certifier_block_headers, transactions) as serialized
-    /// bytes. Each transaction is serialized as SerializedTransactionsV2
-    /// which includes the TransactionRef.
     async fn handle_fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
+    ) -> ConsensusResult<FetchedCommitsAndTransactions>;
 
     /// Handles the request to fetch the latest block headers for the provided
     /// `authorities`.
@@ -236,13 +235,11 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 
     /// Handles the request to fetch transactions by references from the peer.
-    /// The `fetch_mode` parameter controls whether results should be truncated
-    /// to respect maximum transaction limits.
+    /// Results are truncated to the per-fetch transaction count cap.
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
         transactions_refs: Vec<TransactionRef>,
-        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 

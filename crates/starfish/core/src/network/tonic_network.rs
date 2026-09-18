@@ -28,7 +28,8 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
+    BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
+    SerializedBlockBundle,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
@@ -72,7 +73,7 @@ fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) 
 
 /// Transaction-fetch budget: the per-fetch transaction count cap times the
 /// maximum serialized per-block transaction payload. The larger of the two
-/// sync caps is used, matching `TransactionFetchMode::TransactionSync`.
+/// sync caps is used, matching the truncation the server applies.
 fn max_fetch_transactions_response_bytes(context: &Context) -> usize {
     let max_transactions = context
         .parameters
@@ -936,11 +937,21 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         };
         let permit = self.admit(RpcGroup::CommitFetch, peer_index)?;
         let request = request.into_inner();
-        let (serialized_commits, serialized_headers, serialized_transactions) = self
+        let FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_headers,
+            transactions: serialized_transactions,
+            oversized_commit_permit,
+        } = self
             .service
             .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
             .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+            .map_err(|e| match e {
+                ConsensusError::OversizedCommitAlreadyServed => {
+                    tonic::Status::resource_exhausted(e.to_string())
+                }
+                e => tonic::Status::internal(format!("{e:?}")),
+            })?;
 
         // Build response as a stream of chunks to stay under gRPC message size limit.
         // Commits and transactions are chunked by size. Certifier headers are small
@@ -977,7 +988,9 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             }));
         }
 
-        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
+        let stream = PermitGuardedStream::new(iter(responses), permit)
+            .holding(oversized_commit_permit)
+            .boxed();
         Ok(Response::new(stream))
     }
 
@@ -1075,11 +1088,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(
-                peer_index,
-                committed_transactions_refs,
-                TransactionFetchMode::TransactionSync,
-            )
+            .handle_fetch_transactions(peer_index, committed_transactions_refs)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 
