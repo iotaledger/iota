@@ -1271,6 +1271,40 @@ async fn test_checkpoint() {
     }
 }
 
+/// A snapshot keeps reading the state it was taken at: rows written,
+/// overwritten or deleted afterwards are invisible to a scan through it,
+/// while a plain scan sees them.
+#[tokio::test]
+async fn a_snapshot_scan_ignores_later_writes() {
+    let tmp_dir = iota_common::tempdir();
+    let db = open_map(tmp_dir.path(), None);
+    db.insert(&1, &"one".to_string()).unwrap();
+    db.insert(&2, &"two".to_string()).unwrap();
+
+    let snapshot = db.db.snapshot();
+
+    db.insert(&2, &"two changed".to_string()).unwrap();
+    db.insert(&3, &"three".to_string()).unwrap();
+    db.remove(&1).unwrap();
+
+    let at_view: Vec<_> = db
+        .safe_iter_at_snapshot(&snapshot)
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        at_view,
+        vec![(1, "one".to_string()), (2, "two".to_string())],
+        "the scan must see the state the snapshot was taken at",
+    );
+
+    let now: Vec<_> = db.safe_iter().map(Result::unwrap).collect();
+    assert_eq!(
+        now,
+        vec![(2, "two changed".to_string()), (3, "three".to_string())],
+        "a plain scan must see the writes the snapshot is holding back",
+    );
+}
+
 #[tokio::test]
 async fn test_multi_remove() {
     // Init a DB
