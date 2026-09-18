@@ -245,14 +245,7 @@ impl CheckpointReaderActor {
         // If the requested checkpoint is beyond what's currently available in our
         // cached manifest, we need to refresh it to check for newer checkpoints.
         if self.current_checkpoint_number > historical_reader.latest_available_checkpoint().await? {
-            timeout(
-                Duration::from_secs(self.reader_options.timeout_secs),
-                historical_reader.sync_manifest_once(),
-            )
-            .await
-            .map_err(|_| {
-                IngestionError::HistoryRead("reading manifest exceeded the timeout".into())
-            })??;
+            historical_reader.sync_manifest_no_retry().await?;
 
             // Verify the requested checkpoint is now available after the manifest refresh.
             // If it's still not available, the checkpoint hasn't been published yet.
@@ -263,35 +256,27 @@ impl CheckpointReaderActor {
             }
         }
 
-        let manifest = historical_reader.get_manifest().await;
-
-        let files = historical_reader.verify_and_get_manifest_files(manifest)?;
+        let files = historical_reader.manifest_files().await;
 
         let start_index = match files.binary_search_by_key(&self.current_checkpoint_number, |s| {
             s.checkpoint_seq_range.start
         }) {
             Ok(index) => index,
-            Err(index) => index - 1,
+            Err(index) => index.saturating_sub(1),
         };
 
-        for metadata in files
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, metadata)| (index >= start_index).then_some(metadata))
-        {
-            let checkpoints = timeout(
-                Duration::from_secs(self.reader_options.timeout_secs),
-                historical_reader.iter_for_file(metadata.file_path()),
-            )
-            .await
-            .map_err(|_| {
-                IngestionError::HistoryRead(format!(
-                    "reading checkpoint {} exceeded the timeout",
-                    metadata.file_path()
-                ))
-            })??
-            .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
-            .collect::<Vec<CheckpointData>>();
+        for metadata in files.iter().skip(start_index) {
+            // Checkpoints from a file the channel has no room for would be
+            // thrown away again, so stop before spending the request.
+            if self.exceeds_capacity(self.current_checkpoint_number) {
+                return Err(IngestionError::MaxCheckpointsCapacityReached);
+            }
+
+            let checkpoints = historical_reader
+                .iter_for_file(metadata.file_path())
+                .await?
+                .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
+                .collect::<Vec<CheckpointData>>();
 
             for checkpoint in checkpoints {
                 let size = bcs::serialized_size(&checkpoint)?;
