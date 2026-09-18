@@ -27,7 +27,7 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 hex.workspace = true
 indexmap.workspace = true
-iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "76cb1febd932e52ca669276889d41300e6168470", features = ["serde"], default-features = false }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "ae8ec1cf0ae18c06e8fcddd2dbbb0c713f7f03a7", features = ["serde"], default-features = false }
 itertools.workspace = true
 lru.workspace = true
 nonempty.workspace = true
