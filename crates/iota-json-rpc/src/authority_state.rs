@@ -328,6 +328,7 @@ impl StateRead for AuthorityState {
                 data: objects,
                 next_cursor: None,
                 has_next_page: false,
+                oldest_available_checkpoint: None,
             });
         }
         objects.truncate(limit);
@@ -336,6 +337,7 @@ impl StateRead for AuthorityState {
             data: objects,
             next_cursor,
             has_next_page: true,
+            oldest_available_checkpoint: None,
         })
     }
 

@@ -95,6 +95,7 @@ impl IndexerApi {
             data,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
@@ -243,6 +244,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
@@ -275,6 +277,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
@@ -292,7 +295,7 @@ impl IndexerApiServer for IndexerApi {
             return Ok(EventPage::empty());
         }
         let descending_order = descending_order.unwrap_or(false);
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_only_checkpointed_events_in_blocking_task(
                 query,
@@ -309,6 +312,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
@@ -334,6 +338,7 @@ impl IndexerApiServer for IndexerApi {
             data: results.into_iter().map(Into::into).collect(),
             next_cursor,
             has_next_page,
+            oldest_available_checkpoint: None,
         })
     }
 
