@@ -2259,10 +2259,6 @@ impl ExecutionCacheReconfigAPI for WritebackCache {
         self.store
             .expensive_check_iota_conservation(self, old_epoch_store, epoch_supply_change)
     }
-
-    fn try_checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
-        self.store.perpetual_tables.checkpoint_db(path)
-    }
 }
 
 impl TestingAPI for WritebackCache {

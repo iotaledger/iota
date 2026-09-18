@@ -39,6 +39,7 @@ pub mod safe_client;
 mod scoring_decision;
 mod stake_aggregator;
 pub mod starfish_adapter;
+pub mod state_snapshot;
 pub mod status_aggregator;
 pub mod storage;
 pub mod streamer;
