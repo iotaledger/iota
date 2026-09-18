@@ -1122,6 +1122,12 @@ where
 /// abort an otherwise healthy subscription. Bounded RPCs are not listed.
 const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBlockBundles"];
 
+/// Connections a single committee peer may hold on the consensus listener at
+/// once. One is enough to serve a peer: the channel pool keeps a single
+/// connection per authority and multiplexes every RPC over it. The rest is
+/// headroom for a reconnect whose predecessor has not been reaped yet.
+const MAX_CONNECTIONS_PER_PEER: usize = 4;
+
 impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
         Self {
@@ -1272,7 +1278,8 @@ impl<S: NetworkService> TonicManager<S> {
             )
             .http2_keepalive_interval(Some(config.keepalive_interval))
             .http2_keepalive_timeout(Some(config.keepalive_interval))
-            .accept_http1(false);
+            .accept_http1(false)
+            .max_connections_per_peer(Some(MAX_CONNECTIONS_PER_PEER));
 
         // Create server
         //
