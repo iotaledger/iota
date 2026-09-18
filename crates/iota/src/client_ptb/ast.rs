@@ -42,6 +42,7 @@ pub const JSON: &str = "json";
 pub const TX_DIGEST: &str = "tx-digest";
 pub const DRY_RUN: &str = "dry-run";
 pub const DEV_INSPECT: &str = "dev-inspect";
+pub const LOCAL: &str = "local";
 pub const SERIALIZE_UNSIGNED: &str = "serialize-unsigned-transaction";
 pub const SERIALIZE_SIGNED: &str = "serialize-signed-transaction";
 pub const SENDER: &str = "sender";
@@ -87,6 +88,7 @@ pub const COMMANDS: &[&str] = &[
     JSON,
     DRY_RUN,
     DEV_INSPECT,
+    LOCAL,
     SERIALIZE_UNSIGNED,
     SERIALIZE_SIGNED,
     SENDER,
@@ -127,6 +129,7 @@ pub struct ProgramMetadata {
     pub tx_digest_set: bool,
     pub dry_run_set: bool,
     pub dev_inspect_set: bool,
+    pub local_set: bool,
     pub gas_budget: Option<Spanned<u64>>,
     pub gas_price: Option<Spanned<u64>>,
     pub gas_sponsor: Option<Spanned<NumericalAddress>>,
