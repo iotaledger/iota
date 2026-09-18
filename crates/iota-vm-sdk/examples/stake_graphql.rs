@@ -13,7 +13,7 @@
 //!   cargo run -p iota-vm-sdk --features graphql --example stake_graphql
 
 use anyhow::{Context, Result};
-use iota_sdk_graphql_client::Client;
+use iota_sdk_graphql_client::GraphQLClient;
 use iota_sdk_types::Address;
 use iota_vm_sdk::{ExecuteOptions, LocalVm, Transaction, graphql::GraphQLStore};
 
@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     let stake_amount_nanos: u64 = 1_000_000_000;
 
     // Build the staking transaction.
-    let client = Client::new_testnet();
+    let client = GraphQLClient::new_testnet();
     let mut builder = client.transaction_builder(sender);
     builder.stake(stake_amount_nanos, validator);
     let tx: Transaction = builder.finish().await.context("resolve staking tx")?;
