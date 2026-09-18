@@ -17,7 +17,7 @@ use iota_config::{
     Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
     NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange, StateSnapshotConfig},
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
@@ -1136,6 +1136,7 @@ pub struct TestClusterBuilder {
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     fullnode_enable_grpc_api: bool,
+    fullnode_state_snapshot_config: Option<StateSnapshotConfig>,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
@@ -1168,6 +1169,7 @@ impl TestClusterBuilder {
             fullnode_policy_config: None,
             fullnode_fw_config: None,
             fullnode_enable_grpc_api: true,
+            fullnode_state_snapshot_config: None,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -1206,6 +1208,13 @@ impl TestClusterBuilder {
     }
 
     /// Enable or disable the fullnode's gRPC API. Enabled by default.
+    /// Makes the fullnode publish a formal state snapshot at every epoch
+    /// boundary, to the store the config names.
+    pub fn with_fullnode_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
+        self.fullnode_state_snapshot_config = Some(config);
+        self
+    }
+
     pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
         self.fullnode_enable_grpc_api = enable;
         self
@@ -1516,6 +1525,9 @@ impl TestClusterBuilder {
             builder = builder.with_disable_fullnode_pruning();
         }
         builder = builder.with_fullnode_enable_grpc_api(self.fullnode_enable_grpc_api);
+        if let Some(config) = self.fullnode_state_snapshot_config.clone() {
+            builder = builder.with_fullnode_state_snapshot_config(config);
+        }
         if let Some(config) = &self.fullnode_grpc_api_config {
             builder = builder.with_fullnode_grpc_api_config(config.clone());
         }
