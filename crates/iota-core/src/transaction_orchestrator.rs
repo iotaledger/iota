@@ -443,7 +443,7 @@ where
             // or inherited by a duplicate submission from an in-flight
             // certifying submission — so just confirm local execution
             // finished.
-            let ok = Self::wait_for_finalized_tx_executed_locally_with_timeout(
+            let executed = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                 &self.validator_state,
                 &transaction,
                 &self.metrics,
@@ -451,7 +451,15 @@ where
             .await
             .is_ok();
             add_server_timing("local_execution");
-            ok
+            // Local execution does not index the transaction. Its checkpoint
+            // does. Wait for that too, so that an index-backed read that
+            // starts after the response sees the transaction.
+            executed
+                && self
+                    .validator_state
+                    .wait_for_checkpoint_inclusion(&[tx_digest], WAIT_FOR_FINALITY_TIMEOUT)
+                    .await
+                    .is_ok_and(|inclusion| inclusion.contains_key(&tx_digest))
         };
 
         let response = response.expect("response must be populated before return");
@@ -547,8 +555,9 @@ where
 
     /// Build a skip-effect-certification response entirely from the local
     /// cache. The caller must have already obtained `checkpoint_seq` via
-    /// `wait_for_checkpoint_inclusion`, which is supposed to guarantee both
-    /// the effects write and the checkpoint-mapping write have landed. A
+    /// `wait_for_checkpoint_inclusion`, which is supposed to guarantee that
+    /// the effects write, the checkpoint-mapping write and the index commit
+    /// of the checkpoint have all landed. A
     /// missing cache entry here would mean a transient races we observed in
     /// practice; mapped to `TimeoutBeforeFinality` so the client retries
     /// rather than seeing a misleading `QuorumDriverInternal`.
