@@ -402,11 +402,25 @@ async fn call_shared_object_contract() {
     // assert_value can take both mutable and immutable references
     // it is allowed to pass mutable shared object arg to move call taking immutable
     // reference
+    //
+    // Both calls pay with the same coin, so the second transaction depends on the
+    // first through its gas object. Letting the wallet pick a coin per call is not
+    // stable: `getOwnedObjects` returns coins largest-balance first, and the
+    // balances shift as gas is spent.
+    let (gas_owner, gas_coin) = test_cluster
+        .wallet
+        .get_one_gas_object()
+        .await
+        .unwrap()
+        .unwrap();
     let mut assert_value_mut_transaction = None;
     for imm in [true, false] {
         // Ensure the value of the counter is `1`.
+        let gas = test_cluster
+            .get_latest_object_ref(&gas_coin.object_id)
+            .await;
         let transaction = test_cluster
-            .test_transaction_builder()
+            .test_transaction_builder_with_gas_object(gas_owner, gas)
             .await
             .move_call(
                 package_id,
