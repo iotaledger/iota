@@ -1,0 +1,41 @@
+name: Non-exhaustive enum drift
+
+on:
+  workflow_call:
+    inputs:
+      isRustWorkspaceConfig:
+        type: boolean
+        default: false
+      isNightly:
+        type: boolean
+        default: false
+
+concurrency:
+  group: non-exhaustive-lint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  non-exhaustive-omitted-patterns:
+    name: SDK enum variants hidden behind wildcard arms
+    # An SDK enum gains variants only when the pinned rev moves, which is a
+    # workspace-config change; the nightly run covers matches written in between.
+    if: (!cancelled() && !failure() && (inputs.isRustWorkspaceConfig || inputs.isNightly))
+    runs-on: [self-hosted-x64]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # `non_exhaustive_omitted_patterns` is unstable, hence the nightly that
+      # cargo-udeps already pins. Only crates whose root carries
+      # `#![cfg_attr(nightly_lint, ...)]` take part; every other crate compiles
+      # unchanged. RUSTFLAGS replaces `.cargo/config.toml`'s `build.rustflags`;
+      # those are codegen flags and `cargo check` emits no code.
+      - name: Check for SDK enum variants hidden behind wildcard arms
+        run: cargo +nightly-2026-06-29 check --workspace --all-targets
+        env:
+          RUSTFLAGS: --cfg nightly_lint

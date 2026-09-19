@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#![cfg_attr(nightly_lint, feature(non_exhaustive_omitted_patterns_lint))]
+#![cfg_attr(nightly_lint, warn(non_exhaustive_omitted_patterns))]
 // Raise rustc's query-depth limit for monomorphizing deeply-nested generic
 // futures. The JSON-RPC handler routes requests through axum → orchestrator
 // → `submit_with_checkpoint_race` (a `tokio::select!` over the driver and

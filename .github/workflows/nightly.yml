@@ -99,6 +99,12 @@ jobs:
     with:
       isNightly: true
 
+  non-exhaustive-lint:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    uses: ./.github/workflows/_rust_non_exhaustive_lint.yml
+    with:
+      isNightly: true
+
   split-cluster:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_split_cluster.yml
