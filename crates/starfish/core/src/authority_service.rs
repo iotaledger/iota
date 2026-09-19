@@ -1405,18 +1405,21 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             });
         }
 
-        // Bound the range based on sync type.
+        // Bound the range based on sync type. `start` is peer-controlled, so the bound
+        // saturates; a range at the top of the index space then matches no commits.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
-        let inclusive_bound = commit_range
-            .end()
-            .min(commit_range.start() + batch_size as CommitIndex - 1);
+        let inclusive_bound = commit_range.end().min(
+            commit_range
+                .start()
+                .saturating_add(batch_size as CommitIndex - 1),
+        );
 
         // Find certifiable commit based on sync type
         let find_certifiable_commit = |commit_sync_type: &CommitSyncType| -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
             match commit_sync_type {
                 CommitSyncType::Regular => self.find_highest_certifiable_commit_in_range(&commit_range, inclusive_bound, commit_sync_type),
                 CommitSyncType::Fast => {
-                    let search_up_to = inclusive_bound + batch_size as CommitIndex;
+                    let search_up_to = inclusive_bound.saturating_add(batch_size as CommitIndex);
                     self.find_lowest_certifiable_commit_from(inclusive_bound, search_up_to, commit_sync_type)
                 }
             }
@@ -1947,7 +1950,7 @@ mod tests {
     };
 
     use crate::{
-        CommitConsumer, Round, Transaction, TransactionClient,
+        CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
             SubscriptionCounter, filtered_header_info,
@@ -4908,6 +4911,19 @@ mod tests {
             rounds - 2,
             result.0.len() as u32
         );
+
+        // A range at the top of the index space overflows the batch bound unless it
+        // saturates. Both sync types must answer with an empty response.
+        let top_range = CommitRange::new(CommitIndex::MAX - 1..=CommitIndex::MAX);
+        for commit_sync_type in [CommitSyncType::Regular, CommitSyncType::Fast] {
+            let label = commit_sync_type.as_str();
+            let result = authority_service
+                .handle_fetch_commits(peer, top_range.clone(), commit_sync_type)
+                .await
+                .unwrap();
+            assert!(result.0.is_empty(), "{label} returned commits");
+            assert!(result.1.is_empty(), "{label} returned headers");
+        }
     }
 
     #[tokio::test]
