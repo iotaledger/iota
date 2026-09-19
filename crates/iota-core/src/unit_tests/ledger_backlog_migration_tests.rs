@@ -76,12 +76,13 @@ struct Seeded {
 }
 
 fn open(store_dir: &Path, checkpoint_dir: &Path) -> (Arc<AuthorityStore>, Arc<CheckpointStore>) {
-    let (perpetual, historic_objects, historic_ledger) =
+    let (perpetual, historic_objects, historic_ledger, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(store_dir, None).unwrap();
     let store = AuthorityStore::open_no_genesis(
         Arc::new(perpetual),
         Arc::new(historic_objects),
         Arc::new(historic_ledger),
+        Arc::new(epoch_markers),
         false,
         &Registry::new(),
     )

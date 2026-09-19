@@ -134,8 +134,18 @@ pub(crate) fn bucket_cf_epoch(cf_prefix: &str, cf_name: &str) -> Option<EpochId>
         .and_then(|epoch| epoch.parse().ok())
 }
 
+/// A store's view of one per-epoch bucket, opened from the bucket's
+/// column-family name.
+///
+/// [`EpochBuckets`] creates and drops the column families and calls this to
+/// build the typed view of each one, so a store states how its bucket is
+/// read here and nowhere else.
+pub(crate) trait BucketReopen: Sized {
+    fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError>;
+}
+
 /// The per-epoch buckets of one store. `B` is that store's view of one
-/// bucket, built by `reopen` from the bucket's column-family name.
+/// bucket, opened by [`BucketReopen`] from the bucket's column-family name.
 ///
 /// On-disk column-family names are the ground truth for which buckets exist;
 /// the map here mirrors them for reads.
@@ -151,7 +161,6 @@ pub(crate) struct EpochBuckets<B> {
     /// Template options for the buckets' column families. All clones share
     /// one block cache through the cloned table factory.
     cf_options: rocksdb::Options,
-    reopen: fn(&Arc<Database>, &str) -> Result<B, TypedStoreError>,
     buckets: RwLock<BTreeMap<EpochId, Arc<B>>>,
     /// The earliest retained epoch recorded by the last [`Self::prune`]
     /// call, mirroring the persisted row; never moves backwards.
@@ -167,7 +176,7 @@ pub(crate) struct EpochBuckets<B> {
     earliest_bucket_epoch: AtomicU64,
 }
 
-impl<B> EpochBuckets<B> {
+impl<B: BucketReopen> EpochBuckets<B> {
     /// Assembles the store's buckets from the ones discovered on disk,
     /// dropping those below the persisted retention floor.
     ///
@@ -184,7 +193,6 @@ impl<B> EpochBuckets<B> {
         cf_options: rocksdb::Options,
         earliest_retained_table: DBMap<(), EpochId>,
         mut buckets: BTreeMap<EpochId, Arc<B>>,
-        reopen: fn(&Arc<Database>, &str) -> Result<B, TypedStoreError>,
     ) -> Result<Self, TypedStoreError> {
         let earliest_retained_epoch = earliest_retained_table.get(&())?.unwrap_or(0);
         let pruned: Vec<EpochId> = buckets
@@ -207,7 +215,6 @@ impl<B> EpochBuckets<B> {
             name,
             cf_prefix,
             cf_options,
-            reopen,
             buckets: RwLock::new(buckets),
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
@@ -286,6 +293,16 @@ impl<B> EpochBuckets<B> {
         self.earliest_retained_epoch.load(Ordering::Relaxed)
     }
 
+    /// The bucket holding `epoch`'s rows, `None` when there is none — either
+    /// because nothing has been written for that epoch yet or because it has
+    /// been pruned.
+    ///
+    /// For a reader that knows which epoch it wants and must not create a
+    /// column family to find out that the answer is nothing.
+    pub(crate) fn get(&self, epoch: EpochId) -> Option<Arc<B>> {
+        self.buckets.read().get(&epoch).cloned()
+    }
+
     /// The bucket holding `epoch`'s rows, created if absent. Pruned
     /// epochs are refused: recreating a pruned epoch's column family would
     /// resurrect it under the same name, and a reader holding the dropped
@@ -339,7 +356,7 @@ impl<B> EpochBuckets<B> {
         if self.db.cf_handle(&cf_name).is_none() {
             self.db.create_cf(&cf_name, &self.cf_options)?;
         }
-        let bucket = Arc::new((self.reopen)(&self.db, &cf_name)?);
+        let bucket = Arc::new(B::reopen(&self.db, &cf_name)?);
         buckets.insert(epoch, bucket.clone());
         self.publish_earliest_epoch(&buckets);
         Ok(Some(bucket))
@@ -492,8 +509,8 @@ mod tests {
     };
 
     use super::{
-        Arc, BTreeMap, Database, EpochBuckets, EpochId, TypedStoreError, bucket_cf_epoch,
-        bucket_cf_name, rocksdb,
+        Arc, BTreeMap, BucketReopen, Database, EpochBuckets, EpochId, TypedStoreError,
+        bucket_cf_epoch, bucket_cf_name, rocksdb,
     };
 
     /// The name mapping must round-trip and reject other stores' prefixes:
@@ -515,7 +532,7 @@ mod tests {
     /// `EpochBuckets` on its own.
     struct TestBucket;
 
-    impl TestBucket {
+    impl BucketReopen for TestBucket {
         fn reopen(_db: &Arc<Database>, _cf_name: &str) -> Result<Self, TypedStoreError> {
             Ok(Self)
         }
@@ -554,7 +571,6 @@ mod tests {
             db_options,
             earliest_retained_table,
             buckets,
-            TestBucket::reopen,
         )
         .unwrap();
         (buckets, dir)
