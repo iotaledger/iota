@@ -335,6 +335,7 @@ rstest = "0.16.0"
 rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
 schemars = { version = "0.8.21", features = ["either"] }
 scopeguard = "1.1"
+semver = "1.0"
 serde = { version = "1.0.144", features = ["derive", "rc"] }
 serde-reflection = "0.5"
 serde_json = { version = "1.0.149", features = ["preserve_order"] }
