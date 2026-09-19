@@ -30,7 +30,7 @@ use tracing::{debug, error, info, trace, warn};
 use super::{
     BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
-    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
+    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
@@ -112,7 +112,7 @@ impl TonicClient {
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
         let client = ConsensusServiceClient::new(channel)
-            .max_encoding_message_size(config.message_size_limit)
+            .max_encoding_message_size(config.request_message_size_limit())
             .max_decoding_message_size(config.message_size_limit)
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
@@ -1196,17 +1196,9 @@ impl<S: NetworkService> TonicManager<S> {
                 }
             });
 
-        // Inbound (decoded) requests are small; bound them tighter than the
-        // (large) response encoding limit when configured. `0` falls back to
-        // `message_size_limit`.
-        let max_decoding_message_size = if config.max_inbound_message_size == 0 {
-            config.message_size_limit
-        } else {
-            config.max_inbound_message_size
-        };
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(max_decoding_message_size)
+            .max_decoding_message_size(config.request_message_size_limit())
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
 
@@ -1447,67 +1439,33 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
-/// Calculate approximate size of HTTP headers.
-/// Note: This is an approximation of uncompressed size. Actual wire size will
-/// be smaller due to HTTP/2 HPACK compression.
-fn calculate_header_size(headers: &http::HeaderMap) -> usize {
-    headers
-        .iter()
-        .map(|(name, value)| {
-            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
-            name.as_str().len() + value.len() + 4
-        })
-        .sum()
+/// RPC name from the request path, `unknown` when the path has no `/`.
+fn request_route(request: &http::request::Parts) -> String {
+    request
+        .uri
+        .path()
+        .rsplit_once('/')
+        .map(|(_, route)| route)
+        .unwrap_or("unknown")
+        .to_string()
 }
 
-impl SizedRequest for http::request::Parts {
-    fn size(&self) -> usize {
-        let header_size = calculate_header_size(&self.headers);
-        let body_size = self
-            .headers
-            .get(http::header::CONTENT_LENGTH)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(0);
-        header_size + body_size
-    }
-
-    fn route(&self) -> String {
-        let path = self.uri.path();
-        path.rsplit_once('/')
-            .map(|(_, route)| route)
-            .unwrap_or("unknown")
-            .to_string()
-    }
-}
-
-impl SizedResponse for http::response::Parts {
-    fn size(&self) -> usize {
-        // Return header size only. Body size is tracked separately via
-        // ResponseHandler::on_body_chunk callback to support streaming responses.
-        calculate_header_size(&self.headers)
-    }
-
-    fn error_type(&self) -> Option<String> {
-        if self.status.is_success() {
-            None
-        } else {
-            Some(self.status.to_string())
-        }
-    }
+/// Error label for a failed HTTP status, `None` for a successful one.
+fn response_error_type(response: &http::response::Parts) -> Option<String> {
+    (!response.status.is_success()).then(|| response.status.to_string())
 }
 
 impl MakeCallbackHandler for MetricsCallbackMaker {
     type Handler = MetricsResponseCallback;
 
     fn make_handler(&self, request: &http::request::Parts) -> Self::Handler {
-        self.handle_request(request)
+        self.handle_request(request_route(request))
     }
 }
 
 impl ResponseHandler for MetricsResponseCallback {
     fn on_response(&mut self, response: &http::response::Parts) {
-        MetricsResponseCallback::on_response(self, response, &response.headers)
+        MetricsResponseCallback::on_response(self, response_error_type(response).as_deref())
     }
 
     fn on_error<E>(&mut self, err: &E) {
@@ -1518,8 +1476,12 @@ impl ResponseHandler for MetricsResponseCallback {
     where
         B: bytes::Buf,
     {
-        let chunk_size = chunk.chunk().len();
-        self.on_chunk(chunk_size);
+        // Body data is `Bytes`, so the first chunk is the whole buffer.
+        self.on_chunk(chunk.chunk());
+    }
+
+    fn on_end_of_stream(&mut self, _trailers: Option<&http::HeaderMap>) {
+        MetricsResponseCallback::on_end_of_stream(self);
     }
 }
 

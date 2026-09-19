@@ -107,13 +107,9 @@ pub(crate) struct NetworkRouteMetrics {
     pub requests: IntCounterVec,
     /// Request latency by route
     pub request_latency: HistogramVec,
-    /// Request size by route
-    pub request_size: HistogramVec,
-    /// Response size by route
+    /// Wire size of each gRPC response message by route
     pub response_size: HistogramVec,
-    /// Counter of requests exceeding the "excessive" size limit
-    pub excessive_size_requests: IntCounterVec,
-    /// Counter of responses exceeding the "excessive" size limit
+    /// Counter of response messages exceeding the "excessive" size limit
     pub excessive_size_responses: IntCounterVec,
     /// Gauge of the number of inflight requests at any given time by route
     pub inflight_requests: IntGaugeVec,
@@ -156,37 +152,19 @@ impl NetworkRouteMetrics {
         )
         .unwrap();
 
-        let request_size = register_histogram_vec_with_registry!(
-            format!("{direction}_request_size"),
-            "Size of a request by route",
-            &["route"],
-            SIZE_BYTE_BUCKETS.to_vec(),
-            registry;
-            MetricLevel::Warn,
-        )
-        .unwrap();
-
         let response_size = register_histogram_vec_with_registry!(
             format!("{direction}_response_size"),
-            "Size of a response by route",
+            "Wire size of each gRPC response message by route, prefix included",
             &["route"],
             SIZE_BYTE_BUCKETS.to_vec(),
             registry;
             MetricLevel::Warn,
-        )
-        .unwrap();
-
-        let excessive_size_requests = register_int_counter_vec_with_registry!(
-            format!("{direction}_excessive_size_requests"),
-            "The number of excessively large request messages sent",
-            &["route"],
-            registry
         )
         .unwrap();
 
         let excessive_size_responses = register_int_counter_vec_with_registry!(
             format!("{direction}_excessive_size_responses"),
-            "The number of excessively large response messages seen",
+            "The number of response messages over the excessive message size",
             &["route"],
             registry
         )
@@ -211,9 +189,7 @@ impl NetworkRouteMetrics {
         Self {
             requests,
             request_latency,
-            request_size,
             response_size,
-            excessive_size_requests,
             excessive_size_responses,
             inflight_requests,
             errors,
