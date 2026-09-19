@@ -597,6 +597,8 @@ impl From<SnapshotLiveObject> for LiveObject {
     }
 }
 
+/// Yields the latest live version of every object in range, surfacing a read
+/// error instead of ending the scan.
 pub struct LiveSetIter<'a> {
     iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
     tables: &'a AuthorityPerpetualTables,
@@ -627,32 +629,42 @@ impl LiveSetIter<'_> {
 }
 
 impl Iterator for LiveSetIter<'_> {
-    type Item = LiveObject;
+    type Item = Result<LiveObject, TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(Ok((next_key, next_value))) = self.iter.next() {
-                let prev = self.prev.take();
-                self.prev = Some((next_key, next_value));
+            match self.iter.next() {
+                Some(Ok((next_key, next_value))) => {
+                    let prev = self.prev.take();
+                    self.prev = Some((next_key, next_value));
 
-                if let Some((prev_key, prev_value)) = prev {
-                    if prev_key.0 != next_key.0 {
-                        let live_object =
-                            self.store_object_wrapper_to_live_object(prev_key, prev_value);
-                        if live_object.is_some() {
-                            return live_object;
+                    if let Some((prev_key, prev_value)) = prev {
+                        if prev_key.0 != next_key.0 {
+                            if let Some(live_object) =
+                                self.store_object_wrapper_to_live_object(prev_key, prev_value)
+                            {
+                                return Some(Ok(live_object));
+                            }
                         }
                     }
                 }
-                continue;
-            }
-            if let Some((key, value)) = self.prev.take() {
-                let live_object = self.store_object_wrapper_to_live_object(key, value);
-                if live_object.is_some() {
-                    return live_object;
+                Some(Err(err)) => {
+                    // The buffered row may not be the object's latest version, so drop
+                    // it rather than emit it as the tail of a scan that failed.
+                    self.prev = None;
+                    return Some(Err(err));
+                }
+                None => {
+                    if let Some((key, value)) = self.prev.take() {
+                        if let Some(live_object) =
+                            self.store_object_wrapper_to_live_object(key, value)
+                        {
+                            return Some(Ok(live_object));
+                        }
+                    }
+                    return None;
                 }
             }
-            return None;
         }
     }
 }
@@ -753,7 +765,10 @@ mod tests {
         .unwrap();
         wb.write().unwrap();
 
-        let yielded: Vec<_> = perpetual_db.iter_live_object_set().collect();
+        let yielded: Vec<_> = perpetual_db
+            .iter_live_object_set()
+            .collect::<Result<_, _>>()
+            .unwrap();
         assert_eq!(yielded.len(), 1, "wrapped/deleted rows must be filtered");
         assert_eq!(yielded[0].object.id(), live_id);
     }
@@ -791,12 +806,45 @@ mod tests {
         .unwrap();
         wb.write().unwrap();
 
-        let yielded: Vec<_> = perpetual_db.iter_live_object_set().collect();
+        let yielded: Vec<_> = perpetual_db
+            .iter_live_object_set()
+            .collect::<Result<_, _>>()
+            .unwrap();
         assert_eq!(yielded.len(), 1);
         assert_eq!(
             yielded[0].previous_transaction_checkpoint,
             Some(distinct_checkpoint),
             "LiveSetIter must surface the on-row checkpoint, not a default"
+        );
+    }
+
+    /// A read error part way through the scan must be yielded, not treated as
+    /// the end of the live object set.
+    #[tokio::test]
+    async fn live_set_iter_surfaces_read_errors() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        let object = Object::immutable_with_id_for_testing(ObjectId::random());
+        let object_key = ObjectKey::from(object.object_ref());
+        let rows = vec![
+            Ok((object_key, get_store_object(object, Some(1)))),
+            Err(TypedStoreError::RocksDB(
+                "injected read failure".to_string(),
+            )),
+        ];
+
+        let yielded: Vec<_> = LiveSetIter {
+            iter: Box::new(rows.into_iter()),
+            tables: &perpetual_db,
+            prev: None,
+        }
+        .collect();
+
+        assert_eq!(yielded.len(), 1);
+        assert!(
+            yielded[0].is_err(),
+            "a failed read must not be reported as a complete scan"
         );
     }
 

@@ -198,7 +198,7 @@ impl fmt::Display for DefInfo {
                     true,
                 );
                 let args_str = typed_id_list_to_ide_string(
-                    arg_names, arg_types, '(', ')', // separate_lines
+                    arg_names, arg_types, '(', ')',  // separate_lines
                     true, // verbose
                     true,
                 );
