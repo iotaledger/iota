@@ -96,27 +96,14 @@ impl iota_node_storage::GrpcIndexes for RpcIndexesStore {
     ) -> iota_types::storage::error::Result<Box<dyn Iterator<Item = OwnedObjectIteratorItem> + '_>>
     {
         self.require_grpc()?;
-        // `OwnedObjectCursor` carries every field of `OwnerIndexKey` but the
-        // owner, which the caller already supplies separately.
-        let cursor_key = cursor.map(|c| OwnerIndexKey {
-            owner,
-            object_type_identifier: c.object_type_identifier,
-            object_type_params: c.object_type_params,
-            inverted_balance: c.inverted_balance,
-            object_id: c.object_id,
-        });
+        let cursor_key = cursor.map(|cursor| OwnerIndexKey::for_cursor(owner, cursor));
         let type_filter = OwnerTypeFilter::from_struct_tag(object_type.as_ref());
         let iter = self
             .owner_iter(owner, cursor_key.as_ref(), type_filter)
             .map_err(|e| StorageError::custom(e.to_string()))?
             .map(|result| {
                 result.map(|(key, info)| {
-                    let cursor = OwnedObjectCursor {
-                        object_type_identifier: key.object_type_identifier,
-                        object_type_params: key.object_type_params,
-                        inverted_balance: key.inverted_balance,
-                        object_id: key.object_id,
-                    };
+                    let cursor = OwnedObjectCursor::from(&key);
                     let obj_info = AccountOwnedObjectInfo {
                         owner: key.owner,
                         object_id: key.object_id,

@@ -13,7 +13,7 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
+    IotaTransactionBlockBuilderMode, IotaTypeTag, OwnedObjectCursor, RPCTransactionRequestParams,
     TransactionBlockBytes,
 };
 use iota_open_rpc::Module;
@@ -51,11 +51,22 @@ impl DataReader for AuthorityStateDataReader {
         &self,
         address: Address,
         object_type: StructTag,
-        cursor: Option<ObjectId>,
+        cursor: Option<OwnedObjectCursor>,
         limit: Option<usize>,
         options: IotaObjectDataOptions,
     ) -> Result<iota_json_rpc_types::ObjectsPage, anyhow::Error> {
         let limit = cap_page_limit(limit);
+        // This reader serves the node's own transaction builder, so a cursor
+        // that cannot name a position in the node's index is a bug rather than
+        // a request to refuse.
+        let cursor = cursor
+            .map(|cursor| {
+                cursor
+                    .position()
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("cursor does not name a position in the index"))
+            })
+            .transpose()?;
         let mut rows = self.0.get_owner_objects_with_limit(
             address,
             cursor,
@@ -65,14 +76,14 @@ impl DataReader for AuthorityStateDataReader {
         let has_next_page = rows.len() > limit && limit > 0; // limit == 0 only when RPC_QUERY_MAX_RESULT_LIMIT set to 0
         rows.truncate(limit);
         let next_cursor = if has_next_page {
-            rows.last().map(|row| row.object_id)
+            rows.last().map(|(_, cursor)| *cursor)
         } else {
             None
         };
 
         let data = rows
             .into_iter()
-            .map(|info| {
+            .map(|(info, _)| {
                 let read = self.0.get_object_read(&info.object_id)?;
                 IotaObjectResponse::try_from_object_read_and_options(read, &options)
             })
