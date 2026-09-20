@@ -7,6 +7,7 @@ use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner, Transaction,
 };
@@ -19,7 +20,10 @@ use iota_types::{
     transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
-use move_binary_format::CompiledModule;
+use move_binary_format::{
+    CompiledModule,
+    file_format_common::{BinaryConstants, VERSION_6},
+};
 use move_package::source_package::manifest_parser;
 
 use crate::authority::{
@@ -434,6 +438,81 @@ async fn test_publish_extraneous_bytes_modules() {
             command: Some(0)
         }
     )
+}
+
+/// Publish a version 6 module twice: once as the serializer wrote it, once with
+/// a non-zero high byte in the version field. Returns both statuses.
+async fn publish_v6_module_with_and_without_flavor_byte() -> (ExecutionStatus, ExecutionStatus) {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = ObjectId::random();
+    let authority = init_state_with_ids(vec![(sender, gas)]).await;
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let modules = build_test_package("object_owner", /* with_unpublished_deps */ false);
+    assert_eq!(modules.len(), 1);
+
+    // Below binary format version 7 the header carries no flavor, so the high byte
+    // of the version field is the part that must be zero.
+    let v6_module = {
+        let module = CompiledModule::deserialize_with_defaults(&modules[0]).unwrap();
+        let mut buf = vec![];
+        module.serialize_with_version(VERSION_6, &mut buf).unwrap();
+        buf
+    };
+    let mut doctored = v6_module.clone();
+    doctored[BinaryConstants::MOVE_MAGIC_SIZE + 3] = 0xFF;
+
+    let publish = |modules: Vec<Vec<u8>>| {
+        let gas_object_ref = authority.get_object(&gas).unwrap().object_ref();
+        let tx = Transaction::new_module(
+            sender,
+            gas_object_ref,
+            modules,
+            BuiltInFramework::all_package_ids(),
+            rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+            rgp,
+        );
+        to_sender_signed_transaction(tx, &sender_key)
+    };
+
+    let canonical = send_and_confirm_transaction(&authority, publish(vec![v6_module]))
+        .await
+        .unwrap()
+        .1;
+    let non_canonical = send_and_confirm_transaction(&authority, publish(vec![doctored]))
+        .await
+        .unwrap()
+        .1;
+    (canonical.status().clone(), non_canonical.status().clone())
+}
+
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_publish_non_canonical_version_header() {
+    let (canonical, non_canonical) = publish_v6_module_with_and_without_flavor_byte().await;
+    assert_eq!(canonical, ExecutionStatus::Success);
+    assert_eq!(
+        non_canonical,
+        ExecutionStatus::Failure {
+            error: ExecutionError::VmVerificationOrDeserializationError,
+            command: Some(0)
+        }
+    );
+}
+
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_publish_non_canonical_version_header_before_the_check() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_check_canonical_module_version_header_for_testing(false);
+        config
+    });
+
+    // Replaying a protocol version from before the check must still accept what it
+    // accepted then.
+    let (canonical, non_canonical) = publish_v6_module_with_and_without_flavor_byte().await;
+    assert_eq!(canonical, ExecutionStatus::Success);
+    assert_eq!(non_canonical, ExecutionStatus::Success);
 }
 
 #[tokio::test]

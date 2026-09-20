@@ -29,7 +29,7 @@ mod checked {
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, IotaError, command_argument_error},
         execution::{ExecutionTiming, ResultWithTimings},
-        execution_config_utils::to_binary_config,
+        execution_config_utils::{to_binary_config, to_binary_config_for_published_modules},
         id::RESOLVED_IOTA_ID,
         iota_sdk_types_conversions::type_tag_core_to_sdk,
         metrics::LimitsMetrics,
@@ -1095,7 +1095,7 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: &[Vec<u8>],
     ) -> Result<Vec<CompiledModule>, ExecutionError> {
-        let binary_config = to_binary_config(context.protocol_config);
+        let binary_config = to_binary_config_for_published_modules(context.protocol_config);
         let modules = module_bytes
             .iter()
             .map(|b| {

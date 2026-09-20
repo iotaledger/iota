@@ -236,6 +236,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Check the package that holds a `MoveAuthenticator`'s
 //             authenticate function, and that package's dependencies, against
 //             the package deny list.
+//             Require the version field of a published module header to be the
+//             encoding the serializer produces for that version, rejecting a
+//             non-zero flavor byte below binary format version 7.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -684,6 +687,13 @@ struct FeatureFlags {
     // Disallow self identifier
     #[serde(skip_serializing_if = "is_false")]
     disallow_self_identifier: bool,
+
+    // If true, the version field of a published module header must be the encoding
+    // the serializer produces for the version it decodes to. Below binary format
+    // version 7 the flavor byte is not part of the header, and without this check
+    // a non-zero flavor byte is masked off instead of rejected.
+    #[serde(skip_serializing_if = "is_false")]
+    check_canonical_module_version_header: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2148,6 +2158,10 @@ impl ProtocolConfig {
     pub fn validate_input_object_versions(&self) -> bool {
         self.feature_flags.validate_input_object_versions
     }
+
+    pub fn check_canonical_module_version_header(&self) -> bool {
+        self.feature_flags.check_canonical_module_version_header
+    }
 }
 
 #[cfg(not(msim))]
@@ -3521,6 +3535,9 @@ impl ProtocolConfig {
                     // Apply the package deny list to the package that holds a
                     // `MoveAuthenticator`'s authenticate function.
                     cfg.feature_flags.deny_authenticator_packages = true;
+                    // Require a published module header to carry the canonical
+                    // encoding of its binary format version.
+                    cfg.feature_flags.check_canonical_module_version_header = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3667,6 +3684,10 @@ impl ProtocolConfig {
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
         self.feature_flags
             .disallow_new_modules_in_deps_only_packages = val;
+    }
+
+    pub fn set_check_canonical_module_version_header_for_testing(&mut self, val: bool) {
+        self.feature_flags.check_canonical_module_version_header = val;
     }
 
     pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
