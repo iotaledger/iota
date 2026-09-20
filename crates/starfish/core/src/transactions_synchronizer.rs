@@ -15,7 +15,6 @@ use iota_metrics::{
     monitored_mpsc::{Receiver, Sender, channel},
     monitored_scope,
 };
-use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom, thread_rng};
 use starfish_config::AuthorityIndex;
@@ -1125,16 +1124,6 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
                 .inc();
         }
-
-        info!(
-            "[{}] Synced and processed {} missing transactions from peer {peer_index} {peer_hostname}: {}",
-            sync_method.get_string(),
-            transactions.len(),
-            transactions
-                .iter()
-                .map(|b| b.transaction_ref().to_string())
-                .join(", "),
-        );
 
         let matched_requested = transactions.len();
 
