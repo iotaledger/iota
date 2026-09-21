@@ -124,13 +124,15 @@ pub struct ResourceProfile {
     /// Serialized bytes of child/dynamic-field objects fetched from the
     /// store during execution.
     pub child_object_read_bytes: u64,
-    /// Number of distinct non-system packages fetched for this transaction
-    /// (call targets, publish/upgrade dependencies, linkage contexts). Counted
-    /// per package per transaction at the store-fetch call, which runs
-    /// regardless of node-local cache state, so the count is deterministic.
-    /// Module loads driven by the VM's own loader cache are deliberately not
-    /// counted — whether they reach the store depends on node-local cache
-    /// state.
+    /// Number of distinct non-system packages the adapter fetched directly
+    /// for this transaction (call targets, publish/upgrade dependencies,
+    /// linkage contexts). These fetches are issued per transaction regardless
+    /// of node-local cache state, so the count is deterministic. Module loads
+    /// driven by the VM's loader are deliberately not counted: the loader's
+    /// module cache belongs to the per-epoch executor, so whether a load
+    /// reaches the store depends on node-local history. A package reached
+    /// only as a transitive dependency of a call is therefore not part of
+    /// this count.
     pub packages_loaded: u64,
     /// Serialized bytes of the distinct non-system packages counted above.
     pub package_bytes_loaded: u64,
