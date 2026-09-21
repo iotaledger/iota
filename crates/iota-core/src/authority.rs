@@ -5724,13 +5724,13 @@ impl AuthorityState {
                     };
 
                 if let Some(auth_account_object_digest) = auth_account_object_digest {
-                    let expected_digest = object.digest();
+                    let account_object_digest = object.digest();
                     fp_ensure!(
-                        expected_digest == auth_account_object_digest,
+                        account_object_digest == auth_account_object_digest,
                         UserInputError::InvalidAccountObjectDigest {
                             object_id: auth_account_object_id,
-                            expected_digest,
-                            actual_digest: auth_account_object_digest,
+                            expected_digest: auth_account_object_digest,
+                            actual_digest: account_object_digest,
                         }
                         .into()
                     );
