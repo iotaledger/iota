@@ -185,12 +185,9 @@ pub(crate) trait Store: Send + Sync {
     /// down. Errors if the flag cannot be read from storage.
     fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool>;
 
-    /// Reads serialized transactions for `refs` in ascending ref order,
-    /// stopping once the payloads read would pass `byte_budget`. The result
-    /// can therefore cover only a prefix of `refs`, and callers must handle a
-    /// partial result. One payload is always read when any is found, so a
-    /// payload larger than the budget is returned rather than stalling the
-    /// caller.
+    /// Reads payloads for `refs` in ref order, stopping before they pass
+    /// `byte_budget`, so the result can cover only part of `refs`. One payload
+    /// is always read, so an oversized one cannot stall the caller.
     fn scan_serialized_transactions(
         &self,
         refs: &BTreeSet<TransactionRef>,
@@ -201,9 +198,8 @@ pub(crate) trait Store: Send + Sync {
 /// Key a stored transaction payload is filed under.
 pub(crate) type TransactionKey = (Round, AuthorityIndex, TransactionsCommitment);
 
-/// Bounds of the one key range holding every ref in `refs`, or `None` when
-/// there is nothing to read. Refs and keys share the (round, author,
-/// commitment) ordering, so the range is contiguous.
+/// Bounds of the key range holding every ref, `None` when `refs` is empty.
+/// Refs and keys share their ordering, so that range is contiguous.
 pub(crate) fn transaction_scan_bounds(
     refs: &BTreeSet<TransactionRef>,
 ) -> Option<(TransactionKey, TransactionKey)> {
@@ -214,13 +210,9 @@ pub(crate) fn transaction_scan_bounds(
     ))
 }
 
-/// Keeps the payloads `refs` asks for out of `entries`, which yields the
-/// scanned range in key order, and stops before the payloads kept would pass
-/// `byte_budget`. One payload is always kept when any is found, so a payload
-/// larger than the budget does not stall the caller.
-///
-/// Both sides are in key order, so they are walked together rather than
-/// looking each scanned key up among the refs.
+/// Keeps the payloads `refs` asks for from `entries`, a key-ordered scan of
+/// the range, stopping before they pass `byte_budget`; one is always kept.
+/// Both sides are ordered alike, so they are walked together.
 pub(crate) fn collect_transactions_within_budget(
     refs: &BTreeSet<TransactionRef>,
     byte_budget: usize,
