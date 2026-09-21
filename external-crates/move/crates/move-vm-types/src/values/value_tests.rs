@@ -299,3 +299,52 @@ fn abstract_input_size_follows_refs_into_primitive_data_only() -> PartialVMResul
 
     Ok(())
 }
+
+/// The pair returned by `abstract_memory_and_input_size` must agree with the
+/// two sizes computed separately — its first component feeds the stack-size
+/// gas charge for native calls, so any divergence from
+/// `abstract_memory_size(false)` would change what is charged.
+#[test]
+fn abstract_memory_and_input_size_agrees_with_separate_sizes() -> PartialVMResult<()> {
+    fn check(value: &Value) {
+        let (memory, input) = value.abstract_memory_and_input_size();
+        assert_eq!(memory, value.abstract_memory_size(false));
+        assert_eq!(input, value.abstract_input_size());
+    }
+
+    let owned = [
+        Value::u8(1),
+        Value::u16(2),
+        Value::u32(3),
+        Value::u64(4),
+        Value::u128(5),
+        Value::u256(U256::max_value()),
+        Value::bool(true),
+        Value::address(AccountAddress::TWO),
+        Value::vector_u8(vec![0u8; 33]),
+        Value::vector_u64(vec![7u64; 5]),
+        Value::vector_address(vec![AccountAddress::ONE; 3]),
+        Value::struct_(Struct::pack([
+            Value::u64(1),
+            Value::vector_u8(vec![1, 2, 3]),
+            Value::struct_(Struct::pack([Value::bool(false)])),
+        ])),
+        Value::variant(Variant::pack(1, [Value::u64(9), Value::u8(2)])),
+        Vector::pack(
+            VectorSpecialization::Container,
+            (0..10).map(|i| Value::struct_(Struct::pack([Value::u64(i)]))),
+        )?,
+    ];
+    for value in &owned {
+        check(value);
+    }
+
+    // The same values seen through a reference, where the two sizes diverge.
+    let mut locals = Locals::new(owned.len());
+    for (i, value) in owned.iter().enumerate() {
+        locals.store_loc(i, value.copy_value()?, true)?;
+        check(&locals.borrow_loc(i)?);
+    }
+
+    Ok(())
+}

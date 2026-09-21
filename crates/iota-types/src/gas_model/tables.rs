@@ -75,9 +75,9 @@ pub struct GasStatus {
     pub profiler: Option<GasProfiler>,
     pub num_native_calls: u64,
 
-    // Counters feeding `ResourceProfile`. Reading or updating them does not
-    // change the gas charged, and they are derived from deterministic
-    // quantities (sizes and counts), so they are identical on every validator.
+    // Counters feeding `ResourceProfile`. Updating them deducts no gas, and
+    // they are derived from deterministic quantities (sizes and counts), so
+    // they are identical on every validator.
     locals_size_current: u64,
     locals_size_high_water_mark: u64,
     // Abstract bytes added to each live frame's locals through the store/call

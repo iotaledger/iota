@@ -13,15 +13,29 @@ use serde::{Deserialize, Serialize};
 /// native calls vs reads vs memory vs writes" — a question the single summed
 /// gas number cannot answer. It is accumulated alongside gas metering without
 /// changing any gas charge, and it must never be serialized into
-/// `TransactionEffects`: it is surfaced through tracing and metrics only.
+/// `TransactionEffects`: it is surfaced through tracing only.
 ///
 /// All counters are derived from deterministic quantities (abstract sizes,
 /// counts, serialized bytes), never from wall-clock time or node-local cache
 /// state, so they are identical on every validator.
+///
+/// A transaction whose execution fails still gets a profile, but a partial
+/// one: the interpreter, native, and working-memory counters reflect
+/// execution up to the failure, while the read-I/O, event, and package-load
+/// counters are zero — they are copied from the object runtime and linkage
+/// view only when a programmable transaction completes — and the write
+/// counters cover only what the failed transaction still commits (the gas
+/// coin mutation). Partial in the same way on every validator, so still
+/// deterministic; consumers comparing against successful transactions should
+/// filter on execution status.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceProfile {
     // CPU time: the sources of time spent holding a worker thread.
-    /// Total number of bytecode instructions executed.
+    /// The charged instruction count. Past the native-call threshold this
+    /// also accumulates native gas amounts, which are charged as virtual
+    /// instructions, so it can exceed the number of bytecode instructions
+    /// actually executed; `interp_instruction_count` is the clean dispatch
+    /// count.
     pub instructions_executed: u64,
     /// Number of native function calls.
     pub num_native_calls: u64,

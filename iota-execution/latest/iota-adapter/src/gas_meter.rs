@@ -156,10 +156,8 @@ impl GasMeter for IotaGasMeter<'_> {
         let (arg_sizes, input_bytes) = args.fold(
             (AbstractMemorySize::zero(), AbstractMemorySize::zero()),
             |(charge_size, input_size), elem| {
-                (
-                    charge_size + elem.abstract_memory_size(false),
-                    input_size + elem.abstract_input_size(),
-                )
+                let (memory_size, elem_input_size) = elem.abstract_memory_and_input_size();
+                (charge_size + memory_size, input_size + elem_input_size)
             },
         );
         self.0.record_native_input_bytes(input_bytes.into());

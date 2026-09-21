@@ -3233,8 +3233,8 @@ async fn resource_profile_replay_is_deterministic() {
         drop(guard);
 
         let captured = String::from_utf8(buffer.0.lock().unwrap().clone()).unwrap();
-        // Keep only the per-transaction profile events; the wall-clock event
-        // shares the target but is intentionally nondeterministic.
+        // Keep only the per-transaction profile events, so any other event a
+        // future change emits on this target cannot break the comparison.
         captured
             .lines()
             .filter(|line| line.contains("Per-transaction resource profile"))
