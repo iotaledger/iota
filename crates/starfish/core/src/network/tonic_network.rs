@@ -1571,7 +1571,7 @@ pub(crate) struct PeerInfo {
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
 /// Path prefix the consensus service is served under.
-const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
+pub(crate) const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
 
 /// Methods served by the consensus service, each recorded under its own metric
 /// label.

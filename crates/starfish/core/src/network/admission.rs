@@ -28,7 +28,7 @@ use tower::{Layer, Service};
 
 use crate::{
     context::Context,
-    network::{tonic_gen::consensus_service_server::SERVICE_NAME, tonic_network::PeerInfo},
+    network::tonic_network::{CONSENSUS_SERVICE_PATH_PREFIX, PeerInfo},
 };
 
 /// Inbound consensus RPCs grouped by cost and access pattern. Each group has an
@@ -55,11 +55,7 @@ impl RpcGroup {
     /// The group an inbound request path belongs to, or `None` for a path with
     /// no budget.
     pub(crate) fn from_path(path: &str) -> Option<Self> {
-        let method = path
-            .strip_prefix('/')?
-            .strip_prefix(SERVICE_NAME)?
-            .strip_prefix('/')?;
-        match method {
+        match path.strip_prefix(CONSENSUS_SERVICE_PATH_PREFIX)? {
             "SubscribeBlockBundles" => Some(RpcGroup::Subscribe),
             "FetchBlockHeaders" | "FetchLatestBlockHeaders" => Some(RpcGroup::HeaderFetch),
             "FetchTransactions" => Some(RpcGroup::TransactionFetch),
@@ -425,7 +421,8 @@ mod tests {
 
     #[test]
     fn request_paths_map_to_their_group() {
-        let group = |method: &str| RpcGroup::from_path(&format!("/{SERVICE_NAME}/{method}"));
+        let group =
+            |method: &str| RpcGroup::from_path(&format!("{CONSENSUS_SERVICE_PATH_PREFIX}{method}"));
 
         assert!(matches!(
             group("SubscribeBlockBundles"),
