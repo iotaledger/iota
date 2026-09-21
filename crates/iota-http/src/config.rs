@@ -250,7 +250,7 @@ impl Config {
     /// connections in the kernel backlog instead of holding file descriptors
     /// for them.
     ///
-    /// Default is 512. `None` removes the limit.
+    /// Default is 4096. `None` removes the limit.
     pub fn max_pending_connections(self, max_pending_connections: Option<usize>) -> Self {
         Self {
             max_pending_connections,

@@ -392,8 +392,7 @@ where
     }
 }
 
-/// Runs the pre-authentication part of accepting a connection, the TLS
-/// handshake.
+/// Runs the TLS handshake to completion.
 async fn handshake<Io, Addr>(
     io: Io,
     remote_addr: Addr,
@@ -588,7 +587,10 @@ mod tests {
             .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
             .await
             .unwrap();
+        let sent_at = tokio::time::Instant::now();
 
+        // Without the deadline the peer is held forever, so a wide window here
+        // only guards against a slow machine, it does not weaken the assertion.
         let closed = tokio::time::timeout(HEADER_DEADLINE * 25, async {
             let mut buf = [0u8; 1024];
             loop {
@@ -602,6 +604,10 @@ mod tests {
         assert!(
             closed.is_ok(),
             "the server must close a peer that stalls its request headers"
+        );
+        assert!(
+            sent_at.elapsed() >= HEADER_DEADLINE,
+            "the peer must be given the whole deadline before it is closed"
         );
     }
 
