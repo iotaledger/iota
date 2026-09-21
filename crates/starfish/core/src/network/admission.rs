@@ -53,8 +53,7 @@ impl RpcGroup {
     }
 
     /// The group an inbound request path belongs to, or `None` for a path with
-    /// no budget: the deprecated `GetLatestRounds`, and anything not routed to
-    /// this service.
+    /// no budget.
     pub(crate) fn from_path(path: &str) -> Option<Self> {
         let method = path
             .strip_prefix('/')?
