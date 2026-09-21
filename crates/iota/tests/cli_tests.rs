@@ -4486,7 +4486,7 @@ async fn dry_run_on_both_backends(
 > {
     let node = command(false).execute(context).await?;
     let local = command(true).execute(context).await?;
-    let (IotaClientCommandResult::DryRun(node), IotaClientCommandResult::DryRun(local)) =
+    let (IotaClientCommandResult::DryRun(node), IotaClientCommandResult::LocalDryRun(local)) =
         (node, local)
     else {
         panic!("expected DryRun results");
@@ -5068,7 +5068,7 @@ async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
     };
     let (
         IotaClientCommandResult::DryRun(node_response),
-        IotaClientCommandResult::DryRun(local_response),
+        IotaClientCommandResult::LocalDryRun(local_response),
     ) = (*node_result, *local_result)
     else {
         panic!("expected DryRun results");

@@ -15,15 +15,15 @@ use tabled::{
 
 use crate::{client_commands::estimate_gas_budget_from_gas_cost, displays::Pretty};
 
-impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Pretty(response) = self;
+/// A dry run's response and where it ran, so the summary line can say so.
+pub struct DryRunOutput<'a> {
+    pub response: &'a DryRunTransactionBlockResponse,
+    pub local: bool,
+}
 
-        writeln!(
-            f,
-            "Dry run completed, execution status: {}",
-            response.effects.status()
-        )?;
+impl Display for Pretty<'_, DryRunOutput<'_>> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let Pretty(DryRunOutput { response, local }) = self;
 
         let mut builder = TableBuilder::default();
         builder.push_record(vec![format!("{}", response.input)]);
@@ -99,7 +99,8 @@ impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
         }
         writeln!(
             f,
-            "Dry run completed, execution status: {}",
+            "Dry run completed{}, execution status: {}",
+            if *local { " locally" } else { "" },
             response.effects.status()
         )?;
         writeln!(

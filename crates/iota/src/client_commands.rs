@@ -108,7 +108,7 @@ use crate::{
     PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::{PTB, PTBCommandResult},
-    displays::Pretty,
+    displays::{DryRunOutput, Pretty},
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::{Key, lowercase_key_scheme},
     local_simulation::execute_local_dry_run,
@@ -2666,7 +2666,18 @@ impl Display for IotaClientCommandResult {
             }
             IotaClientCommandResult::NoOutput => {}
             IotaClientCommandResult::DryRun(response) => {
-                writeln!(f, "{}", Pretty(response))?;
+                let output = DryRunOutput {
+                    response,
+                    local: false,
+                };
+                writeln!(f, "{}", Pretty(&output))?;
+            }
+            IotaClientCommandResult::LocalDryRun(response) => {
+                let output = DryRunOutput {
+                    response,
+                    local: true,
+                };
+                writeln!(f, "{}", Pretty(&output))?;
             }
             IotaClientCommandResult::DevInspect(response) => {
                 writeln!(f, "{}", Pretty(response))?;
@@ -2737,6 +2748,10 @@ impl IotaClientCommandResult {
     ) -> Result<Self, anyhow::Error> {
         match &mut self {
             IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
+            | IotaClientCommandResult::LocalDryRun(DryRunTransactionBlockResponse {
+                effects,
+                ..
+            })
             | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
@@ -2935,6 +2950,7 @@ pub enum IotaClientCommandResult {
     ComputeTransactionDigest(Transaction),
     DynamicFieldQuery(DynamicFieldPage),
     DryRun(DryRunTransactionBlockResponse),
+    LocalDryRun(DryRunTransactionBlockResponse),
     DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),

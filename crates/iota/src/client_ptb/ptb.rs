@@ -307,6 +307,7 @@ impl PTB {
         let transaction_response = match transaction_response {
             IotaClientCommandResult::ComputeTransactionDigest(_)
             | IotaClientCommandResult::DryRun(_)
+            | IotaClientCommandResult::LocalDryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
                 return Ok(PTBCommandResult::CommandResult(Box::new(

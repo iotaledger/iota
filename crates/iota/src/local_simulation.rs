@@ -90,7 +90,7 @@ pub(crate) async fn execute_local_dry_run(
             .join()
             .map_err(|_| anyhow!("the local dry-run thread panicked"))?
     })?;
-    IotaClientCommandResult::DryRun(response)
+    IotaClientCommandResult::LocalDryRun(response)
         .prerender_clever_errors(context)
         .await
 }
