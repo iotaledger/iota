@@ -150,6 +150,49 @@ fn check_input_objects(
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
+fn check_package_dependencies(
+    filter_config: &dyn DenyRuleConfig,
+    tx: &Transaction,
+    package_store: &dyn BackingPackageStore,
+) -> IotaResult {
+    if !filter_config.has_denied_packages() {
+        return Ok(());
+    }
+    let mut dependencies = vec![];
+    for command in tx.kind().iter_commands() {
+        match command {
+            Command::Publish(cmd) => {
+                // It is possible that the deps list is inaccurate since it's provided
+                // by the user. But that's OK because this publish transaction will fail
+                // to execute in the end. Similar reasoning for Upgrade.
+                dependencies.extend(cmd.dependencies.iter().copied());
+            }
+            Command::Upgrade(cmd) => {
+                dependencies.extend(cmd.dependencies.iter().copied());
+                // It's crucial that we don't allow upgrading a package in the deny list,
+                // otherwise one can bypass the deny list by upgrading a package.
+                dependencies.push(cmd.package);
+            }
+            Command::MoveCall(cmd) => {
+                dependencies.extend(package_and_dependency_ids(cmd.package, package_store)?);
+            }
+            Command::TransferObjects(..)
+            | Command::SplitCoins(..)
+            | Command::MergeCoins(..)
+            | Command::MakeMoveVector(..) => {}
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+        }
+    }
+    for dep in dependencies {
+        deny_if_true!(
+            filter_config.is_package_denied(&dep),
+            format!("Access to package {dep} is temporarily disabled")
+        );
+    }
+    Ok(())
+}
+
 /// Check that no `MoveAuthenticator` authenticates through a denied package.
 ///
 /// The package holding the authenticate function is named only by the account's
@@ -212,49 +255,6 @@ fn package_and_dependency_ids(
         .map(|upgrade_info| upgrade_info.upgraded_id)
         .chain(std::iter::once(package.id()))
         .collect())
-}
-
-#[instrument(level = "trace", skip_all)]
-fn check_package_dependencies(
-    filter_config: &dyn DenyRuleConfig,
-    tx: &Transaction,
-    package_store: &dyn BackingPackageStore,
-) -> IotaResult {
-    if !filter_config.has_denied_packages() {
-        return Ok(());
-    }
-    let mut dependencies = vec![];
-    for command in tx.kind().iter_commands() {
-        match command {
-            Command::Publish(cmd) => {
-                // It is possible that the deps list is inaccurate since it's provided
-                // by the user. But that's OK because this publish transaction will fail
-                // to execute in the end. Similar reasoning for Upgrade.
-                dependencies.extend(cmd.dependencies.iter().copied());
-            }
-            Command::Upgrade(cmd) => {
-                dependencies.extend(cmd.dependencies.iter().copied());
-                // It's crucial that we don't allow upgrading a package in the deny list,
-                // otherwise one can bypass the deny list by upgrading a package.
-                dependencies.push(cmd.package);
-            }
-            Command::MoveCall(cmd) => {
-                dependencies.extend(package_and_dependency_ids(cmd.package, package_store)?);
-            }
-            Command::TransferObjects(..)
-            | Command::SplitCoins(..)
-            | Command::MergeCoins(..)
-            | Command::MakeMoveVector(..) => {}
-            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
-        }
-    }
-    for dep in dependencies {
-        deny_if_true!(
-            filter_config.is_package_denied(&dep),
-            format!("Access to package {dep} is temporarily disabled")
-        );
-    }
-    Ok(())
 }
 
 #[cfg(test)]

@@ -637,9 +637,7 @@ struct FeatureFlags {
 
     // If true, the package holding a `MoveAuthenticator`'s authenticate function,
     // together with that package's dependencies, is checked against the package
-    // deny list. The call is assembled during execution and is named by neither a
-    // transaction command nor a linkage table, so it is checked separately from
-    // the packages a transaction's commands use.
+    // deny list.
     #[serde(skip_serializing_if = "is_false")]
     deny_authenticator_packages: bool,
 
