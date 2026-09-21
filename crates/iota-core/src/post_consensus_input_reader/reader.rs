@@ -67,7 +67,7 @@ impl CommitIndexedReader {
             }
             HandlerRowLookup::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
             HandlerRowLookup::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
-            HandlerRowLookup::NotFound(no_handler_row) => no_handler_row,
+            HandlerRowLookup::NoRow(no_handler_row) => no_handler_row,
         };
 
         // Rule 2: the sync-ahead record for the id.
@@ -77,7 +77,7 @@ impl CommitIndexedReader {
             }
             SyncAheadLookup::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
             SyncAheadLookup::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
-            SyncAheadLookup::NotFound(no_sync_ahead_record) => no_sync_ahead_record,
+            SyncAheadLookup::NoRecord(no_sync_ahead_record) => no_sync_ahead_record,
         };
 
         // Rule 3: ask the store, hold the answer, read both tables again.
@@ -89,7 +89,7 @@ impl CommitIndexedReader {
             }
             HandlerRowRecheck::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
             HandlerRowRecheck::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
-            HandlerRowRecheck::NotFound(store_answered_no_handler_row) => {
+            HandlerRowRecheck::NoRow(store_answered_no_handler_row) => {
                 store_answered_no_handler_row
             }
         };
@@ -116,7 +116,7 @@ impl CommitIndexedReader {
             CreationRowLookup::Created(created) => return self.finish_created_shared(created),
             CreationRowLookup::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
             CreationRowLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
-            CreationRowLookup::NotFound(no_creation_row) => no_creation_row,
+            CreationRowLookup::NoRow(no_creation_row) => no_creation_row,
         };
 
         // Record: the sync-ahead record for the id.
@@ -128,7 +128,7 @@ impl CommitIndexedReader {
                     PreSyncObjectLookup::Drop(reason) => SharedVerdict::Drop(reason),
                 });
             }
-            SharedRecordLookup::NotFound(no_record) => no_record,
+            SharedRecordLookup::NoRecord(no_record) => no_record,
         };
 
         // Store: hold the latest object, read both tables again.
@@ -137,7 +137,7 @@ impl CommitIndexedReader {
             CreationRowRecheck::Created(created) => return self.finish_created_shared(created),
             CreationRowRecheck::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
             CreationRowRecheck::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
-            CreationRowRecheck::NotFound(object_answered_no_creation_row) => {
+            CreationRowRecheck::NoRow(object_answered_no_creation_row) => {
                 object_answered_no_creation_row
             }
         };
@@ -188,7 +188,7 @@ impl CommitIndexedReader {
         let no_row = match loaded.read_row(self)? {
             PackageRowLookup::Visible(package) => return Ok(PackageVerdict::Visible(package)),
             PackageRowLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
-            PackageRowLookup::NotFound(no_row) => no_row,
+            PackageRowLookup::NoRow(no_row) => no_row,
         };
         Ok(match no_row.read_sync_ahead_record(self)? {
             PackageRecordLookup::Visible(package) => PackageVerdict::Visible(package),

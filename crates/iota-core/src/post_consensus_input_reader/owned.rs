@@ -88,8 +88,9 @@ pub enum HandlerRowLookup {
     Missing(MissingReason),
     /// A tombstone row, or a `Live` row with another digest.
     Drop(DropReason),
-    /// No row. Next: the sync-ahead record.
-    NotFound(OwnedReader<NoHandlerRow>),
+    /// Not a verdict. No row, so the machine continues with the sync-ahead
+    /// record.
+    NoRow(OwnedReader<NoHandlerRow>),
 }
 
 impl OwnedReader<Start> {
@@ -106,7 +107,7 @@ impl OwnedReader<Start> {
     /// Overlay first, then the table through the cache.
     pub fn read_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<HandlerRowLookup> {
         Ok(match self.row_classification(ctx)? {
-            None => HandlerRowLookup::NotFound(self.into_state(NoHandlerRow)),
+            None => HandlerRowLookup::NoRow(self.into_state(NoHandlerRow)),
             Some(Classification::Keep) => HandlerRowLookup::NeedBytes(self.into_state(NeedBytes)),
             Some(Classification::Missing(reason)) => HandlerRowLookup::Missing(reason),
             Some(Classification::Drop(reason)) => HandlerRowLookup::Drop(reason),
@@ -132,15 +133,15 @@ pub enum SyncAheadLookup {
     Missing(MissingReason),
     /// `base_version` is above `V`.
     Drop(DropReason),
-    /// No record. Next: the store.
-    NotFound(OwnedReader<NoSyncAheadRecord>),
+    /// Not a verdict. No record, so the machine continues with the store.
+    NoRecord(OwnedReader<NoSyncAheadRecord>),
 }
 
 impl OwnedReader<NoHandlerRow> {
     /// Overlay first, then the table.
     pub fn read_sync_ahead_record(self, ctx: &CommitIndexedReader) -> IotaResult<SyncAheadLookup> {
         Ok(match self.record_classification(ctx)? {
-            None => SyncAheadLookup::NotFound(self.into_state(NoSyncAheadRecord)),
+            None => SyncAheadLookup::NoRecord(self.into_state(NoSyncAheadRecord)),
             Some(Classification::Keep) => SyncAheadLookup::NeedBytes(self.into_state(NeedBytes)),
             Some(Classification::Missing(reason)) => SyncAheadLookup::Missing(reason),
             Some(Classification::Drop(reason)) => SyncAheadLookup::Drop(reason),
@@ -181,17 +182,16 @@ pub enum HandlerRowRecheck {
     NeedBytes(OwnedReader<NeedBytes>),
     Missing(MissingReason),
     Drop(DropReason),
-    /// Still no row. Next: re-read the sync-ahead record.
-    NotFound(OwnedReader<StoreAnsweredNoHandlerRow>),
+    /// Not a verdict. Still no row, so the machine continues with the
+    /// re-read of the sync-ahead record.
+    NoRow(OwnedReader<StoreAnsweredNoHandlerRow>),
 }
 
 impl OwnedReader<StoreAnswered> {
     pub fn reread_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<HandlerRowRecheck> {
         let latest = self.state.latest;
         Ok(match self.row_classification(ctx)? {
-            None => {
-                HandlerRowRecheck::NotFound(self.into_state(StoreAnsweredNoHandlerRow { latest }))
-            }
+            None => HandlerRowRecheck::NoRow(self.into_state(StoreAnsweredNoHandlerRow { latest })),
             Some(Classification::Keep) => HandlerRowRecheck::NeedBytes(self.into_state(NeedBytes)),
             Some(Classification::Missing(reason)) => HandlerRowRecheck::Missing(reason),
             Some(Classification::Drop(reason)) => HandlerRowRecheck::Drop(reason),

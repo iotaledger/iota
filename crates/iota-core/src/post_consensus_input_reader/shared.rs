@@ -87,8 +87,9 @@ pub enum CreationRowLookup {
     /// A row without the flag, or a tombstone at that key: not created
     /// shared at the declared version.
     Drop(DropReason),
-    /// No row. Next: the sync-ahead record.
-    NotFound(SharedReader<NoCreationRow>),
+    /// Not a verdict. No row, so the machine continues with the sync-ahead
+    /// record.
+    NoRow(SharedReader<NoCreationRow>),
 }
 
 impl SharedReader<Start> {
@@ -111,7 +112,7 @@ impl SharedReader<Start> {
     /// Overlay first, then the table through the cache.
     pub fn read_creation_row(self, ctx: &CommitIndexedReader) -> IotaResult<CreationRowLookup> {
         Ok(match self.creation_row_classification(ctx)? {
-            None => CreationRowLookup::NotFound(self.into_state(NoCreationRow)),
+            None => CreationRowLookup::NoRow(self.into_state(NoCreationRow)),
             Some(CreationClass::Created) => {
                 CreationRowLookup::Created(self.into_state(CreatedShared))
             }
@@ -162,8 +163,8 @@ pub enum SharedRecordLookup {
     /// `base_version` is `Some`: the object existed before sync ran ahead.
     /// Next: the store object, for the owner.
     PreSyncExisted(SharedReader<PreSyncExisted>),
-    /// No record. Next: the store.
-    NotFound(SharedReader<NoRecord>),
+    /// Not a verdict. No record, so the machine continues with the store.
+    NoRecord(SharedReader<NoRecord>),
 }
 
 impl SharedReader<NoCreationRow> {
@@ -173,7 +174,7 @@ impl SharedReader<NoCreationRow> {
         ctx: &CommitIndexedReader,
     ) -> IotaResult<SharedRecordLookup> {
         Ok(match self.record_classification(ctx)? {
-            None => SharedRecordLookup::NotFound(self.into_state(NoRecord)),
+            None => SharedRecordLookup::NoRecord(self.into_state(NoRecord)),
             Some(RecordClass::PreSyncExisted) => {
                 SharedRecordLookup::PreSyncExisted(self.into_state(PreSyncExisted))
             }
@@ -247,8 +248,9 @@ pub enum CreationRowRecheck {
     Created(SharedReader<CreatedShared>),
     Missing(MissingReason),
     Drop(DropReason),
-    /// Still no row. Next: re-read the sync-ahead record.
-    NotFound(SharedReader<ObjectAnsweredNoCreationRow>),
+    /// Not a verdict. Still no row, so the machine continues with the
+    /// re-read of the sync-ahead record.
+    NoRow(SharedReader<ObjectAnsweredNoCreationRow>),
 }
 
 impl SharedReader<ObjectAnswered> {
@@ -256,9 +258,9 @@ impl SharedReader<ObjectAnswered> {
         // An `Arc` bump: `Object` wraps its contents in one.
         let object = self.state.object.clone();
         Ok(match self.creation_row_classification(ctx)? {
-            None => CreationRowRecheck::NotFound(
-                self.into_state(ObjectAnsweredNoCreationRow { object }),
-            ),
+            None => {
+                CreationRowRecheck::NoRow(self.into_state(ObjectAnsweredNoCreationRow { object }))
+            }
             Some(CreationClass::Created) => {
                 CreationRowRecheck::Created(self.into_state(CreatedShared))
             }

@@ -101,8 +101,9 @@ pub enum PackageRowLookup {
     Visible(PackageObject),
     /// Published above `C - K`. Never skipped.
     Missing(MissingReason),
-    /// No row. Next: the sync-ahead record.
-    NotFound(PackageReader<NoPackageRow>),
+    /// Not a verdict. No row, so the machine continues with the sync-ahead
+    /// record.
+    NoRow(PackageReader<NoPackageRow>),
 }
 
 impl PackageReader<PackageLoaded> {
@@ -115,7 +116,7 @@ impl PackageReader<PackageLoaded> {
             PackageRowClass::Missing(reason) => PackageRowLookup::Missing(reason),
             PackageRowClass::NoRow => {
                 let package = self.state.package;
-                PackageRowLookup::NotFound(PackageReader {
+                PackageRowLookup::NoRow(PackageReader {
                     id: self.id,
                     horizon: self.horizon,
                     state: NoPackageRow { package },
