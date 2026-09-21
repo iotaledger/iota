@@ -5337,7 +5337,7 @@ impl AuthorityState {
         // by the rules of the current epoch, including the current epoch's max
         // Move binary format version
         let config = epoch_store.protocol_config();
-        let binary_config = to_binary_config(config);
+        let binary_config = to_binary_config(config, None);
         let Some(next_epoch_system_package_bytes) = self
             .get_system_package_bytes(next_epoch_system_packages.clone(), &binary_config)
             .await
