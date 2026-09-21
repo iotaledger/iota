@@ -2741,10 +2741,14 @@ impl IotaClientCommandResult {
                 effects: Some(effects),
                 ..
             }) => {
-                let client = context.get_client().await.context(
-                    "rendering a Move abort needs the JSON-RPC endpoint; set `rpc` for the active env in client.yaml",
-                )?;
-                prerender_clever_errors(effects, client.read_api()).await
+                // Only a failed run can carry a Move abort to render, so a
+                // successful `--local` dry run needs no JSON-RPC at all.
+                if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {
+                    let client = context.get_client().await.context(
+                        "rendering a Move abort needs the JSON-RPC endpoint; set `rpc` for the active env in client.yaml",
+                    )?;
+                    prerender_clever_errors(effects, client.read_api()).await
+                }
             }
             IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: None,

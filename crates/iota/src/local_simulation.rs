@@ -18,7 +18,7 @@
 //! transaction deny-list, and the network's signing verifier limits — this
 //! runs with an empty deny-list and the default limits.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, IotaTransactionBlockData, IotaTransactionBlockEvents,
 };
@@ -30,6 +30,7 @@ use iota_types::{
     transaction::TransactionAPI,
 };
 use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, grpc::GrpcStore};
+use tokio::runtime::RuntimeFlavor;
 
 use crate::client_commands::{IotaClientCommandResult, fallback_gas_budget};
 
@@ -59,6 +60,13 @@ pub(crate) async fn execute_local_dry_run(
     // default thread has. Object fetches inside the run look up the runtime
     // by thread, so the thread enters it.
     let handle = tokio::runtime::Handle::current();
+    // Joining below parks this thread. On a current-thread runtime that is the
+    // only thread able to drive the gRPC calls the run blocks on, so bail
+    // instead of hanging.
+    ensure!(
+        matches!(handle.runtime_flavor(), RuntimeFlavor::MultiThread),
+        "local simulation needs a multi-threaded Tokio runtime"
+    );
     let response = std::thread::scope(|scope| {
         std::thread::Builder::new()
             .name("local-dry-run".into())
