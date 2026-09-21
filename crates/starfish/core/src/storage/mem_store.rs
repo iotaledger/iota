@@ -525,26 +525,34 @@ impl Store for MemStore {
         let upper = (last.round, last.author, last.transactions_commitment);
 
         let inner = self.inner.read();
-        let mut transactions = BTreeMap::new();
-        let mut total_bytes = 0usize;
-        for ((round, author, transactions_commitment), stored) in inner
+        let mut entries = inner
             .transactions_by_tx_refs
             .range((Included(lower), Included(upper)))
-        {
-            let transaction_ref = TransactionRef {
-                round: *round,
-                author: *author,
-                transactions_commitment: *transactions_commitment,
+            .peekable();
+        let mut transactions = BTreeMap::new();
+        let mut total_bytes = 0usize;
+        for transaction_ref in refs {
+            let key = (
+                transaction_ref.round,
+                transaction_ref.author,
+                transaction_ref.transactions_commitment,
+            );
+            while entries.peek().is_some_and(|(stored, _)| **stored < key) {
+                entries.next();
+            }
+            let Some((stored, transactions_of_block)) = entries.peek() else {
+                break;
             };
-            if !refs.contains(&transaction_ref) {
+            if **stored != key {
                 continue;
             }
-            let serialized = stored.serialized();
+            let serialized = transactions_of_block.serialized();
             if !transactions.is_empty() && total_bytes + serialized.len() > byte_budget {
                 break;
             }
             total_bytes += serialized.len();
-            transactions.insert(transaction_ref, serialized.clone());
+            transactions.insert(*transaction_ref, serialized.clone());
+            entries.next();
         }
         Ok(transactions)
     }

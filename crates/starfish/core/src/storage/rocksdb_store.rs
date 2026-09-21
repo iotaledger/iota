@@ -676,24 +676,43 @@ impl Store for RocksDBStore {
         let lower = (first.round, first.author, first.transactions_commitment);
         let upper = (last.round, last.author, last.transactions_commitment);
 
+        // Both sides are in that order, so they are walked together rather than
+        // looking each scanned key up among the refs.
+        let mut entries = self.transactions_by_tx_refs.safe_range_iter(lower..=upper);
+        let mut entry = entries
+            .next()
+            .transpose()
+            .map_err(ConsensusError::RocksDBFailure)?;
         let mut transactions = BTreeMap::new();
         let mut total_bytes = 0usize;
-        for entry in self.transactions_by_tx_refs.safe_range_iter(lower..=upper) {
-            let ((round, author, transactions_commitment), serialized) =
-                entry.map_err(ConsensusError::RocksDBFailure)?;
-            let transaction_ref = TransactionRef {
-                round,
-                author,
-                transactions_commitment,
+        for transaction_ref in refs {
+            let key = (
+                transaction_ref.round,
+                transaction_ref.author,
+                transaction_ref.transactions_commitment,
+            );
+            while entry.as_ref().is_some_and(|(stored, _)| *stored < key) {
+                entry = entries
+                    .next()
+                    .transpose()
+                    .map_err(ConsensusError::RocksDBFailure)?;
+            }
+            let Some((stored, serialized)) = entry.take() else {
+                break;
             };
-            if !refs.contains(&transaction_ref) {
+            if stored != key {
+                entry = Some((stored, serialized));
                 continue;
             }
             if !transactions.is_empty() && total_bytes + serialized.len() > byte_budget {
                 break;
             }
             total_bytes += serialized.len();
-            transactions.insert(transaction_ref, serialized);
+            transactions.insert(*transaction_ref, serialized);
+            entry = entries
+                .next()
+                .transpose()
+                .map_err(ConsensusError::RocksDBFailure)?;
         }
         Ok(transactions)
     }

@@ -800,6 +800,21 @@ async fn scan_serialized_transactions(
     let expected: Vec<_> = all_refs.iter().take(1).copied().collect();
     assert_eq!(scanned.keys().copied().collect::<Vec<_>>(), expected);
 
+    // A requested ref the store does not hold is passed over without
+    // disturbing the refs around it.
+    let mut with_absent = all_refs.clone();
+    with_absent.insert(TransactionRef {
+        round: 10,
+        author: written_blocks[0].verified_block_header.author(),
+        transactions_commitment: written_blocks[0]
+            .verified_block_header
+            .transactions_commitment(),
+    });
+    let scanned = store
+        .scan_serialized_transactions(&with_absent, usize::MAX)
+        .expect("scan should not fail");
+    assert_eq!(scanned.keys().copied().collect::<BTreeSet<_>>(), all_refs);
+
     // Stored refs outside the requested set are skipped rather than returned.
     let requested: BTreeSet<TransactionRef> = all_refs
         .iter()
