@@ -718,7 +718,7 @@ mod tests {
             [
                 PeerConnectionEvent::Established { held: 1 },
                 PeerConnectionEvent::Established { held: 2 },
-                PeerConnectionEvent::Refused { held: 2 },
+                PeerConnectionEvent::RefusedAtLimit { held: 2 },
             ],
             "the refusal must be reported against the peer that caused it"
         );
@@ -736,7 +736,7 @@ mod tests {
             [
                 PeerConnectionEvent::Established { held: 1 },
                 PeerConnectionEvent::Established { held: 2 },
-                PeerConnectionEvent::Refused { held: 2 },
+                PeerConnectionEvent::RefusedAtLimit { held: 2 },
                 PeerConnectionEvent::Closed { held: 1 },
                 PeerConnectionEvent::Established { held: 2 },
             ],

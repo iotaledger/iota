@@ -1301,7 +1301,7 @@ impl<S: NetworkService> TonicManager<S> {
                             .inbound_connections
                             .with_label_values(&[hostname])
                             .set(held as i64),
-                        PeerConnectionEvent::Refused { .. } => network_metrics
+                        PeerConnectionEvent::RefusedAtLimit { .. } => network_metrics
                             .inbound_connections_refused
                             .with_label_values(&[hostname])
                             .inc(),

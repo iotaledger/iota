@@ -43,8 +43,9 @@ pub enum PeerConnectionEvent {
     Established { held: usize },
     /// A counted connection closed.
     Closed { held: usize },
-    /// A further connection was closed for being over the peer's limit.
-    Refused { held: usize },
+    /// A further connection was closed because the peer already holds the
+    /// limit.
+    RefusedAtLimit { held: usize },
 }
 
 type PeerConnectionCallback = Arc<dyn Fn(&[u8], PeerConnectionEvent) + Send + Sync>;
@@ -306,10 +307,9 @@ impl Config {
     }
 
     /// Sets a callback invoked with the peer's public key each time one of its
-    /// connections is established, closed or refused for being over the
-    /// limit. Only connections counted under `max_connections_per_peer` are
-    /// reported. It runs on the accept loop or a connection's task, so it must
-    /// not block.
+    /// connections is established, closed or refused at the limit. Only
+    /// connections counted under `max_connections_per_peer` are reported. It
+    /// runs on the accept loop or a connection's task, so it must not block.
     pub fn on_peer_connection_event(
         self,
         on_peer_connection_event: impl Fn(&[u8], PeerConnectionEvent) + Send + Sync + 'static,

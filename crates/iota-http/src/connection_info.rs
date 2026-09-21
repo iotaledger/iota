@@ -131,7 +131,7 @@ impl PeerConnectionCounts {
         };
 
         let Some(held) = held else {
-            self.notify(peer, PeerConnectionEvent::Refused { held: max });
+            self.notify(peer, PeerConnectionEvent::RefusedAtLimit { held: max });
             return None;
         };
         self.notify(peer, PeerConnectionEvent::Established { held });
