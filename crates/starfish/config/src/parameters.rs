@@ -231,8 +231,8 @@ pub struct Parameters {
     /// Maximum transaction payload bytes one fast commit-sync response carries.
     /// A fetch covering more commits than this is answered with the commits
     /// whose payloads fit, and the requester asks for the rest in its next
-    /// fetch. A commit whose payloads exceed this on their own is still served
-    /// whole, one such response at a time.
+    /// fetch. When the range's first commit exceeds this on its own it is
+    /// still served whole, one such response at a time.
     #[serde(default = "Parameters::default_max_fast_commit_sync_transaction_bytes")]
     pub max_fast_commit_sync_transaction_bytes: usize,
 }
