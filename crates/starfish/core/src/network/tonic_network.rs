@@ -1714,9 +1714,7 @@ mod tests {
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
-        block_verifier::serialized_transactions_size_limit,
-        commit::CommitRange,
-        context::Context,
+        block_verifier::serialized_transactions_size_limit, commit::CommitRange, context::Context,
         error::ConsensusError,
     };
 
