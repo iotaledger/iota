@@ -10,6 +10,9 @@
 //! [`DryRunTransactionBlockResponse`] the node returns, so it renders through
 //! the same display code.
 //!
+//! The gas price defaults to the reference gas price the gRPC endpoint
+//! reports, so only rendering a Move abort still goes through JSON-RPC.
+//!
 //! Two checks a validator applies are out of reach here, so a transaction a
 //! node's dry run rejects can still succeed locally: the operator's
 //! transaction deny-list, and the network's signing verifier limits — this
@@ -30,34 +33,70 @@ use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, grpc::GrpcStore};
 
 use crate::client_commands::{IotaClientCommandResult, fallback_gas_budget};
 
-/// Build a [`LocalVm`] resolving objects on demand from the active env's gRPC
-/// endpoint.
-///
-/// Object resolution blocks the calling thread, so this needs a multi-threaded
-/// Tokio runtime.
-async fn local_vm_from_context(context: &WalletContext) -> Result<LocalVm> {
-    let client = context.get_grpc_client().await.context(
-        "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
-    )?;
-    let store = GrpcStore::new(client);
-    let chain_context = store.fetch_chain_context().await?;
-    Ok(LocalVm::new(chain_context, store)?)
-}
+/// Stack for the thread that runs the Move VM. Execution nests deeply, and a
+/// debug build's frames are large enough to overflow a default 2 MiB stack.
+const EXECUTION_STACK_SIZE: usize = 16 * 1024 * 1024;
 
 /// Run a dry-run locally and assemble the node-shaped response.
 ///
-/// Needs a multi-threaded Tokio runtime, since resolving an object the run
-/// asks for blocks the calling thread.
+/// The run happens on a dedicated thread and blocks the caller until it is
+/// done. Resolving an object the run asks for needs a multi-threaded Tokio
+/// runtime.
 pub(crate) async fn execute_local_dry_run(
     context: &mut WalletContext,
     signer: Address,
     kind: TransactionKind,
     gas_budget: Option<u64>,
-    gas_price: u64,
+    gas_price: Option<u64>,
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult> {
-    let mut vm = local_vm_from_context(context).await?;
+    let client = context.get_grpc_client().await.context(
+        "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
+    )?;
+
+    // The VM and the frames above it in a debug build need more stack than a
+    // default thread has. Object fetches inside the run look up the runtime
+    // by thread, so the thread enters it.
+    let handle = tokio::runtime::Handle::current();
+    let response = std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .name("local-dry-run".into())
+            .stack_size(EXECUTION_STACK_SIZE)
+            .spawn_scoped(scope, || {
+                let _runtime = handle.enter();
+                let store = GrpcStore::new(client);
+                let chain_context = handle.block_on(store.fetch_chain_context())?;
+                let vm = LocalVm::new(chain_context, store)?;
+                run_dry_run(
+                    vm,
+                    signer,
+                    kind,
+                    gas_budget,
+                    gas_price,
+                    gas_payment,
+                    sponsor,
+                )
+            })
+            .context("failed to spawn the local dry-run thread")?
+            .join()
+            .map_err(|_| anyhow!("the local dry-run thread panicked"))?
+    })?;
+    IotaClientCommandResult::DryRun(response)
+        .prerender_clever_errors(context)
+        .await
+}
+
+fn run_dry_run(
+    mut vm: LocalVm,
+    signer: Address,
+    kind: TransactionKind,
+    gas_budget: Option<u64>,
+    gas_price: Option<u64>,
+    gas_payment: Vec<ObjectReference>,
+    sponsor: Option<Address>,
+) -> Result<DryRunTransactionBlockResponse> {
+    let gas_price = gas_price.unwrap_or_else(|| vm.reference_gas_price());
 
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
@@ -91,10 +130,7 @@ pub(crate) async fn execute_local_dry_run(
     );
 
     let result = vm.execute(tx_data.clone(), ExecuteOptions::dry_run())?;
-    let response = dry_run_response(&vm, tx_data, result)?;
-    IotaClientCommandResult::DryRun(response)
-        .prerender_clever_errors(context)
-        .await
+    dry_run_response(&vm, tx_data, result)
 }
 
 /// Assemble a [`DryRunTransactionBlockResponse`] from a local run, resolving

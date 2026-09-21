@@ -3402,12 +3402,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !(local && dev_inspect),
         "--local is not supported with --dev-inspect"
     );
-    let gas_price = if let Some(gas_price) = gas_price {
-        gas_price
-    } else {
-        context.get_reference_gas_price().await?
-    };
-
     let signer = sender.unwrap_or(signer);
 
     ensure!(
@@ -3415,6 +3409,27 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             || (sponsor_auth_call_args.is_none() && sponsor_auth_type_args.is_none()),
         "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
     );
+
+    if dry_run && local {
+        return execute_local_dry_run(
+            context,
+            signer,
+            tx_kind,
+            gas_budget,
+            gas_price,
+            gas_payment,
+            gas_sponsor,
+        )
+        .await;
+    }
+
+    let gas_price = if let Some(gas_price) = gas_price {
+        gas_price
+    } else {
+        context.get_reference_gas_price().await?
+    };
+
+    let client = context.get_client().await?;
 
     if dev_inspect {
         return execute_dev_inspect(
@@ -3431,18 +3446,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     }
 
     if dry_run {
-        if local {
-            return execute_local_dry_run(
-                context,
-                signer,
-                tx_kind,
-                gas_budget,
-                gas_price,
-                gas_payment,
-                gas_sponsor,
-            )
-            .await;
-        }
         return execute_dry_run(
             context,
             signer,
