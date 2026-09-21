@@ -33,7 +33,9 @@ use iota_json_rpc_types::{
     MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics, TransactionFilter,
     TransactionFilterV2,
 };
-use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
+use iota_package_resolver::{
+    Package, PackageStore, PackageStoreWithLruCache, Resolver, error::Error as PackageResolverError,
+};
 use iota_sdk_types::{
     Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEvents, TypeTag,
     Version,
@@ -576,10 +578,14 @@ impl IndexerReader {
         let pkg = store
             .fetch(package_id.into())
             .await
-            .map_err(|e| {
-                IndexerError::PostgresRead(format!(
-                    "Fail to fetch package from package store with error {e:?}"
-                ))
+            .map_err(|e| match e {
+                PackageResolverError::PackageNotFound(id) => {
+                    IndexerError::InvalidArgument(format!("Package not found: {id}"))
+                }
+                e => {
+                    tracing::error!("failed to fetch package from package store: {e:?}");
+                    IndexerError::PostgresRead
+                }
             })?
             .as_ref()
             .clone();
@@ -708,9 +714,8 @@ impl IndexerReader {
                 .first::<StoredChainIdentifier>(conn)
                 .optional()
         })?
-        .ok_or(IndexerError::PostgresRead(
-            "chain identifier not found".to_string(),
-        ))?;
+        .ok_or(IndexerError::PostgresRead)
+        .inspect_err(|_| tracing::error!("chain identifier not found"))?;
 
         let checkpoint_digest = CheckpointDigest::from_bytes(
             stored_chain_identifier.checkpoint_digest,
@@ -1164,9 +1169,7 @@ impl IndexerReader {
                 query = query.filter(objects::dsl::object_id.gt(object_cursor.as_bytes().to_vec()));
             }
 
-            query
-                .load::<StoredObject>(conn)
-                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            query.load::<StoredObject>(conn).map_err(IndexerError::from)
         })
     }
 
@@ -1181,7 +1184,7 @@ impl IndexerReader {
                 .filter(objects::object_type.eq(object_type))
                 .first::<StoredObject>(conn)
                 .optional()
-                .map_err(|e| IndexerError::PostgresRead(e.to_string()))?
+                .map_err(IndexerError::from)?
             {
                 Some(object) => object,
                 None => return Ok::<Option<Object>, IndexerError>(None),
@@ -3171,7 +3174,7 @@ impl<'a> DBReader<'a> {
         self.resolve_cursor_tx_digest_to_seq_num_maybe(cursor)
             .await?
             .ok_or_else(|| {
-                IndexerError::PostgresRead(format!("transaction with digest {cursor} not found"))
+                IndexerError::InvalidArgument(format!("transaction with digest {cursor} not found"))
             })
     }
 
