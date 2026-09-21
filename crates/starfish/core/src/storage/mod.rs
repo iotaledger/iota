@@ -17,7 +17,8 @@ use starfish_config::AuthorityIndex;
 use crate::{
     CommitIndex,
     block_header::{
-        BlockRef, CommitmentVerifiedTransactions, Round, VerifiedBlock, VerifiedBlockHeader,
+        BlockRef, CommitmentVerifiedTransactions, Round, TransactionsCommitment, VerifiedBlock,
+        VerifiedBlockHeader,
     },
     commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
@@ -195,6 +196,63 @@ pub(crate) trait Store: Send + Sync {
         refs: &BTreeSet<TransactionRef>,
         byte_budget: usize,
     ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>>;
+}
+
+/// Key a stored transaction payload is filed under.
+pub(crate) type TransactionKey = (Round, AuthorityIndex, TransactionsCommitment);
+
+/// Bounds of the one key range holding every ref in `refs`, or `None` when
+/// there is nothing to read. Refs and keys share the (round, author,
+/// commitment) ordering, so the range is contiguous.
+pub(crate) fn transaction_scan_bounds(
+    refs: &BTreeSet<TransactionRef>,
+) -> Option<(TransactionKey, TransactionKey)> {
+    let (first, last) = (refs.first()?, refs.last()?);
+    Some((
+        (first.round, first.author, first.transactions_commitment),
+        (last.round, last.author, last.transactions_commitment),
+    ))
+}
+
+/// Keeps the payloads `refs` asks for out of `entries`, which yields the
+/// scanned range in key order, and stops before the payloads kept would pass
+/// `byte_budget`. One payload is always kept when any is found, so a payload
+/// larger than the budget does not stall the caller.
+///
+/// Both sides are in key order, so they are walked together rather than
+/// looking each scanned key up among the refs.
+pub(crate) fn collect_transactions_within_budget(
+    refs: &BTreeSet<TransactionRef>,
+    byte_budget: usize,
+    mut entries: impl Iterator<Item = ConsensusResult<(TransactionKey, Bytes)>>,
+) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+    let mut entry = entries.next().transpose()?;
+    let mut transactions = BTreeMap::new();
+    let mut total_bytes = 0usize;
+    for transaction_ref in refs {
+        let key = (
+            transaction_ref.round,
+            transaction_ref.author,
+            transaction_ref.transactions_commitment,
+        );
+        while entry.as_ref().is_some_and(|(stored, _)| *stored < key) {
+            entry = entries.next().transpose()?;
+        }
+        let Some((stored, serialized)) = entry.take() else {
+            break;
+        };
+        if stored != key {
+            entry = Some((stored, serialized));
+            continue;
+        }
+        if !transactions.is_empty() && total_bytes + serialized.len() > byte_budget {
+            break;
+        }
+        total_bytes += serialized.len();
+        transactions.insert(*transaction_ref, serialized);
+        entry = entries.next().transpose()?;
+    }
+    Ok(transactions)
 }
 
 /// Represents data to be written to the store together atomically.

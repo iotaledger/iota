@@ -11,7 +11,7 @@ use bytes::Bytes;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
-use super::{Store, WriteBatch};
+use super::{Store, WriteBatch, collect_transactions_within_budget, transaction_scan_bounds};
 use crate::{
     block_header::{
         BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, Round,
@@ -518,42 +518,17 @@ impl Store for MemStore {
         refs: &BTreeSet<TransactionRef>,
         byte_budget: usize,
     ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
-        let (Some(first), Some(last)) = (refs.first(), refs.last()) else {
+        let Some((lower, upper)) = transaction_scan_bounds(refs) else {
             return Ok(BTreeMap::new());
         };
-        let lower = (first.round, first.author, first.transactions_commitment);
-        let upper = (last.round, last.author, last.transactions_commitment);
-
         let inner = self.inner.read();
-        let mut entries = inner
-            .transactions_by_tx_refs
-            .range((Included(lower), Included(upper)))
-            .peekable();
-        let mut transactions = BTreeMap::new();
-        let mut total_bytes = 0usize;
-        for transaction_ref in refs {
-            let key = (
-                transaction_ref.round,
-                transaction_ref.author,
-                transaction_ref.transactions_commitment,
-            );
-            while entries.peek().is_some_and(|(stored, _)| **stored < key) {
-                entries.next();
-            }
-            let Some((stored, transactions_of_block)) = entries.peek() else {
-                break;
-            };
-            if **stored != key {
-                continue;
-            }
-            let serialized = transactions_of_block.serialized();
-            if !transactions.is_empty() && total_bytes + serialized.len() > byte_budget {
-                break;
-            }
-            total_bytes += serialized.len();
-            transactions.insert(*transaction_ref, serialized.clone());
-            entries.next();
-        }
-        Ok(transactions)
+        collect_transactions_within_budget(
+            refs,
+            byte_budget,
+            inner
+                .transactions_by_tx_refs
+                .range((Included(lower), Included(upper)))
+                .map(|(key, transactions)| Ok((*key, transactions.serialized().clone()))),
+        )
     }
 }

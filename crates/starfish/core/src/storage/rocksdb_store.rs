@@ -18,7 +18,9 @@ use typed_store::{
     rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
 };
 
-use super::{CommitInfo, Store, WriteBatch};
+use super::{
+    CommitInfo, Store, WriteBatch, collect_transactions_within_budget, transaction_scan_bounds,
+};
 use crate::{
     Transaction,
     block_header::{
@@ -667,54 +669,16 @@ impl Store for RocksDBStore {
         refs: &BTreeSet<TransactionRef>,
         byte_budget: usize,
     ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
-        let (Some(first), Some(last)) = (refs.first(), refs.last()) else {
+        let Some((lower, upper)) = transaction_scan_bounds(refs) else {
             return Ok(BTreeMap::new());
         };
-        // Refs and store keys share the (round, author, commitment) ordering, so
-        // the requested refs lie within one contiguous key range and a single
-        // scan reaches them all in order.
-        let lower = (first.round, first.author, first.transactions_commitment);
-        let upper = (last.round, last.author, last.transactions_commitment);
-
-        // Both sides are in that order, so they are walked together rather than
-        // looking each scanned key up among the refs.
-        let mut entries = self.transactions_by_tx_refs.safe_range_iter(lower..=upper);
-        let mut entry = entries
-            .next()
-            .transpose()
-            .map_err(ConsensusError::RocksDBFailure)?;
-        let mut transactions = BTreeMap::new();
-        let mut total_bytes = 0usize;
-        for transaction_ref in refs {
-            let key = (
-                transaction_ref.round,
-                transaction_ref.author,
-                transaction_ref.transactions_commitment,
-            );
-            while entry.as_ref().is_some_and(|(stored, _)| *stored < key) {
-                entry = entries
-                    .next()
-                    .transpose()
-                    .map_err(ConsensusError::RocksDBFailure)?;
-            }
-            let Some((stored, serialized)) = entry.take() else {
-                break;
-            };
-            if stored != key {
-                entry = Some((stored, serialized));
-                continue;
-            }
-            if !transactions.is_empty() && total_bytes + serialized.len() > byte_budget {
-                break;
-            }
-            total_bytes += serialized.len();
-            transactions.insert(*transaction_ref, serialized);
-            entry = entries
-                .next()
-                .transpose()
-                .map_err(ConsensusError::RocksDBFailure)?;
-        }
-        Ok(transactions)
+        collect_transactions_within_budget(
+            refs,
+            byte_budget,
+            self.transactions_by_tx_refs
+                .safe_range_iter(lower..=upper)
+                .map(|entry| entry.map_err(ConsensusError::RocksDBFailure)),
+        )
     }
 }
 
