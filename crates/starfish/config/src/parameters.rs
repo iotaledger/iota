@@ -582,7 +582,8 @@ pub struct TonicParameters {
     #[serde(default = "TonicParameters::default_connection_buffer_size")]
     pub connection_buffer_size: usize,
 
-    /// Messages over this size threshold will increment a counter.
+    /// Response messages over this wire size, prefix plus compressed payload,
+    /// increment a counter.
     ///
     /// If unspecified, this will default to 16MiB.
     #[serde(default = "TonicParameters::default_excessive_message_size")]
