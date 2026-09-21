@@ -32,6 +32,7 @@ pub mod mock_consensus;
 pub mod module_cache_metrics;
 pub mod overload_monitor;
 mod par_index_live_object_set;
+pub mod post_consensus_input_reader;
 pub(crate) mod post_consensus_tx_reorder;
 pub(crate) mod post_consensus_validation;
 pub mod quorum_driver;
