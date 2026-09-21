@@ -9,6 +9,7 @@
 //! Visibility is `pub` until the validation entry point consumes the module;
 //! `pub(crate)` would be dead code under `-D warnings` until then.
 
+use iota_sdk_types::{TransactionDigest, Version};
 use iota_types::object::Object;
 
 mod owned;
@@ -20,6 +21,19 @@ mod shared;
 #[must_use]
 pub enum OwnedVerdict {
     Keep(KeptObject),
+    Drop(DropReason),
+    Missing(MissingReason),
+}
+
+/// The reader's answer for one shared input. Content checks are skipped, so
+/// a kept shared input carries no bytes.
+#[must_use]
+pub enum SharedVerdict {
+    /// Visible. Downstream checks skip it.
+    Exists,
+    /// Deleted above the horizon, or by execution the handler has not
+    /// reached. Kept, and handed on as `DeletedSharedObject`.
+    Deleted(Version, TransactionDigest),
     Drop(DropReason),
     Missing(MissingReason),
 }
@@ -70,6 +84,15 @@ pub enum DropKind {
     StoreDigestMismatch,
     /// The store has no entry for `id`.
     StoreNotFound,
+    /// Named as shared, but the row or the store object is not shared at the
+    /// declared initial version.
+    SharedNotCreatedShared,
+    /// Shared at another initial version than declared.
+    SharedInitialVersionMismatch,
+    /// A shared object deleted at or below `C - K`.
+    SharedDeletedAtOrBelowHorizon,
+    /// No live shared object and no deletion this epoch.
+    SharedNotFound,
 }
 
 /// Which source decided a missing.
@@ -86,4 +109,9 @@ pub enum MissingKind {
     /// The store's latest reference is below `V`: the version is not produced
     /// on this validator yet.
     StoreBelowVersion,
+    /// A shared creation row produced above `C - K`.
+    SharedCreationAboveHorizon,
+    /// A sync-ahead record with `base_version` `None`: the shared object was
+    /// created ahead of the handler.
+    SharedSyncCreated,
 }
