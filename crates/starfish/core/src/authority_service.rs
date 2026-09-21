@@ -388,11 +388,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 block_round,
             )?;
 
-            // A header too far above the accepted frontier can never connect, so it
-            // is skipped before its signature is verified. The ceiling is local, so
-            // this is no fault of the peer. Only reachable when the primary block is
-            // itself above the ceiling, since every additional header is below its
-            // round.
+            // Keeping a header this far above the accepted frontier means holding
+            // it in the suspender until the frontier climbs to meet it; a node
+            // that far behind catches up through commit sync instead. So it is
+            // skipped before its signature is verified.
             if signed_block_header.round() > far_future_ceiling {
                 self.context
                     .metrics
