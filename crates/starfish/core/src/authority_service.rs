@@ -398,7 +398,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .dropped_far_future_headers_total
-                    .with_label_values(&[DataSource::BlockBundleStream.as_str()])
+                    .with_label_values(&[DataSource::BlockBundleStream.as_str(), peer_hostname])
                     .inc();
                 continue;
             }
@@ -878,11 +878,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .dropped_far_future_streamed_blocks_total
-                .with_label_values(&[peer_hostname.as_str()])
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::BlockStreaming.as_str(), peer_hostname.as_str()])
                 .inc();
             debug!(
-                "Dropped far-future streamed block {block_ref} from peer {peer}; round {} exceeds the connect ceiling {far_future_ceiling}",
+                "Dropped far-future streamed block {block_ref} from peer {peer}; round {} is above the far-future ceiling {far_future_ceiling}",
                 block_ref.round
             );
         }
@@ -2282,8 +2282,11 @@ mod tests {
             context
                 .metrics
                 .node_metrics
-                .dropped_far_future_streamed_blocks_total
-                .with_label_values(&[context.committee.authority(peer).hostname.as_str()])
+                .dropped_far_future_headers_total
+                .with_label_values(&[
+                    DataSource::BlockStreaming.as_str(),
+                    context.committee.authority(peer).hostname.as_str(),
+                ])
                 .get(),
             1,
             "the dropped far-future block is counted against the peer"

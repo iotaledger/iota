@@ -373,7 +373,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_fetch_window_violations: IntCounterVec,
     pub(crate) shard_reconstructor_dropped_shards: IntCounterVec,
     pub(crate) dropped_out_of_order_streamed_blocks_total: IntCounterVec,
-    pub(crate) dropped_far_future_streamed_blocks_total: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -1220,8 +1219,8 @@ impl NodeMetrics {
             ).unwrap(),
             dropped_far_future_headers_total: register_int_counter_vec_with_registry!(
                 "dropped_far_future_headers_total",
-                "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source",
-                &["source"],
+                "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source and sending peer",
+                &["source", "peer"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
@@ -1546,13 +1545,6 @@ impl NodeMetrics {
             dropped_out_of_order_streamed_blocks_total: register_int_counter_vec_with_registry!(
                 "dropped_out_of_order_streamed_blocks_total",
                 "Number of streamed primary blocks dropped because their round did not increase over the subscription stream, by peer",
-                &["peer"],
-                registry;
-                MetricLevel::Warn,
-            ).unwrap(),
-            dropped_far_future_streamed_blocks_total: register_int_counter_vec_with_registry!(
-                "dropped_far_future_streamed_blocks_total",
-                "Number of streamed primary blocks dropped because their round is too far above the accepted frontier to ever connect, by peer",
                 &["peer"],
                 registry;
                 MetricLevel::Warn,

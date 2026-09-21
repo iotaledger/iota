@@ -86,16 +86,21 @@ pub(crate) struct BlockManager {
     last_gc_floor_applied: Round,
 }
 
+/// Label used when the dropped items cannot be traced back to one sender.
+pub(crate) const UNKNOWN_PEER: &str = "unknown";
+
 /// Drops headers/blocks whose round is too far above the accepted frontier to
 /// ever connect, bounding the round horizon retained in the suspender. Sources
 /// not subject to the bound (`DataSource::is_subject_to_far_future_bound`) pass
 /// through unchanged. Each drop is counted in
-/// `dropped_far_future_headers_total` under the source label.
+/// `dropped_far_future_headers_total` under the source and the peer that sent
+/// the items, `UNKNOWN_PEER` when the caller has no single sender for them.
 pub(crate) fn drop_far_future<T>(
     context: &Context,
     dag_state: &RwLock<DagState>,
     items: Vec<T>,
     source: DataSource,
+    peer_hostname: &str,
     round_of: impl Fn(&T) -> Round,
 ) -> Vec<T> {
     if !source.is_subject_to_far_future_bound() {
@@ -113,7 +118,7 @@ pub(crate) fn drop_far_future<T>(
             .metrics
             .node_metrics
             .dropped_far_future_headers_total
-            .with_label_values(&[source.as_str()])
+            .with_label_values(&[source.as_str(), peer_hostname])
             .inc_by(dropped);
     }
     kept
@@ -205,9 +210,14 @@ impl BlockManager {
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_blocks");
         let gc_unsuspended = self.maybe_evict_below_gc_floor();
-        let blocks = drop_far_future(&self.context, &self.dag_state, blocks, source, |b| {
-            b.round()
-        });
+        let blocks = drop_far_future(
+            &self.context,
+            &self.dag_state,
+            blocks,
+            source,
+            UNKNOWN_PEER,
+            |b| b.round(),
+        );
         let blocks = self.drop_over_slot_cap(blocks, source, |b| b.reference());
 
         let block_headers: Vec<_> = blocks
@@ -253,10 +263,14 @@ impl BlockManager {
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers");
         let gc_unsuspended = self.maybe_evict_below_gc_floor();
-        let block_headers =
-            drop_far_future(&self.context, &self.dag_state, block_headers, source, |h| {
-                h.round()
-            });
+        let block_headers = drop_far_future(
+            &self.context,
+            &self.dag_state,
+            block_headers,
+            source,
+            UNKNOWN_PEER,
+            |h| h.round(),
+        );
         let block_headers = self.drop_over_slot_cap(block_headers, source, |h| h.reference());
 
         // Headers are added through synchronizer, commit syncer and cordial
@@ -669,7 +683,7 @@ mod tests {
             BlockHeaderAPI, BlockRef, CommitmentVerifiedTransactions, Transaction, VerifiedBlock,
             VerifiedBlockHeader,
         },
-        block_manager::{BlockManager, merge_accepted_round_ascending},
+        block_manager::{BlockManager, UNKNOWN_PEER, merge_accepted_round_ascending},
         context::Context,
         dag_state::{DagState, DataSource},
         storage::mem_store::MemStore,
@@ -1373,7 +1387,7 @@ mod tests {
                 .metrics
                 .node_metrics
                 .dropped_far_future_headers_total
-                .with_label_values(&[DataSource::BlockBundleStream.as_str()])
+                .with_label_values(&[DataSource::BlockBundleStream.as_str(), UNKNOWN_PEER])
                 .get(),
             3,
             "every dropped header is counted, not one per call"
@@ -1410,7 +1424,7 @@ mod tests {
                 .metrics
                 .node_metrics
                 .dropped_far_future_headers_total
-                .with_label_values(&[DataSource::CommitSyncer.as_str()])
+                .with_label_values(&[DataSource::CommitSyncer.as_str(), UNKNOWN_PEER])
                 .get(),
             0
         );
@@ -1500,7 +1514,7 @@ mod tests {
                 .metrics
                 .node_metrics
                 .dropped_far_future_headers_total
-                .with_label_values(&[DataSource::BlockStreaming.as_str()])
+                .with_label_values(&[DataSource::BlockStreaming.as_str(), UNKNOWN_PEER])
                 .get(),
             1
         );
