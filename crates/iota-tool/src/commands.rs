@@ -263,19 +263,12 @@ pub enum ToolCommand {
         #[arg(long)]
         disable_progress_bar: bool,
 
-        /// Skip building the gRPC index store during the restore. By default
+        /// Skip building the RPC index store during the restore. By default
         /// it is built from the same object stream that restores the state,
-        /// so a fullnode started with gRPC enabled opens it in place instead
-        /// of re-indexing the whole restored state on first start.
+        /// so a fullnode opens it in place instead of re-indexing the whole
+        /// restored state on first start.
         #[arg(long)]
-        skip_grpc_indexes: bool,
-
-        /// Skip building the JSON-RPC index store during the restore. By
-        /// default it is built from the restored live object set, so a
-        /// fullnode started with `enable-index-processing` opens it in place
-        /// instead of re-indexing the whole restored state on first start.
-        #[arg(long)]
-        skip_jsonrpc_indexes: bool,
+        skip_rpc_indexes: bool,
     },
 
     /// Backfill the full checkpoint summary history from the checkpoint
@@ -612,8 +605,7 @@ impl ToolCommand {
                 latest,
                 verbose,
                 disable_progress_bar,
-                skip_grpc_indexes,
-                skip_jsonrpc_indexes,
+                skip_rpc_indexes,
             } => {
                 if !verbose {
                     tracing_handle
@@ -730,8 +722,7 @@ impl ToolCommand {
                     snapshot_store_config,
                     num_parallel_downloads,
                     verify,
-                    skip_grpc_indexes,
-                    skip_jsonrpc_indexes,
+                    skip_rpc_indexes,
                     disable_progress_bar,
                 )
                 .await?;
