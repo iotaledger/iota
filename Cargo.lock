@@ -1836,8 +1836,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc"
 dependencies = [
  "bitcoin_hashes",
- "rand 0.8.6",
- "rand_core 0.6.4",
+ "rand 0.7.3",
+ "rand_core 0.5.1",
  "serde",
  "unicode-normalization",
 ]
@@ -3100,7 +3100,7 @@ version = "1.33.0-alpha"
 dependencies = [
  "prost 0.14.3",
  "prost-build",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tonic-build",
  "tonic-prost",
  "tonic-prost-build",
@@ -4465,7 +4465,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-stream",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tonic-build",
  "tonic-prost",
  "tonic-prost-build",
@@ -4704,9 +4704,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.17"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f877e75f39e9827ec50a572dd592684ac28c029578726c85f1b2aa6ab807449"
+checksum = "ef8e5e5a340588f4452631496976cf8636d4a7ecf600239fdc27615d2530bc16"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -5626,6 +5626,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "web-time",
 ]
 
 [[package]]
@@ -5712,7 +5713,7 @@ dependencies = [
  "prost-types 0.14.3",
  "serde",
  "thiserror 2.0.18",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tonic-prost",
  "tonic-prost-build",
  "tracing",
@@ -5895,7 +5896,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tower 0.4.13",
  "tracing",
  "twox-hash 1.6.3",
@@ -6056,7 +6057,7 @@ dependencies = [
  "tempfile",
  "test-cluster",
  "tokio",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tracing",
  "url",
 ]
@@ -6116,12 +6117,12 @@ dependencies = [
  "http 1.4.0",
  "iota-common",
  "iota-config",
- "iota-json-rpc-types",
  "iota-keys",
  "iota-metrics",
  "iota-network-stack",
  "iota-sdk",
  "iota-sdk-grpc-client",
+ "iota-sdk-transaction-builder",
  "iota-sdk-types",
  "iota-types",
  "parking_lot 0.12.3",
@@ -6134,7 +6135,7 @@ dependencies = [
  "test-cluster",
  "thiserror 1.0.64",
  "tokio",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
@@ -6412,7 +6413,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tower 0.4.13",
  "tracing",
  "typed-store-error",
@@ -7123,7 +7124,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tonic-build",
  "tonic-prost",
  "tonic-prost-build",
@@ -7156,7 +7157,7 @@ dependencies = [
  "snap",
  "tokio",
  "tokio-rustls",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tonic-health",
  "tower 0.4.13",
  "tower-http 0.5.2",
@@ -7211,7 +7212,7 @@ dependencies = [
  "telemetry-subscribers",
  "tokio",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tower 0.4.13",
  "tracing",
  "typed-store",
@@ -7356,6 +7357,7 @@ dependencies = [
  "clap",
  "insta",
  "iota-protocol-config-macros",
+ "move-core-types",
  "move-vm-config",
  "schemars",
  "serde",
@@ -7586,7 +7588,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ad9e6c594551aa4292159695b4d5afe4f7e30599#ad9e6c594551aa4292159695b4d5afe4f7e30599"
 dependencies = [
  "base64ct",
  "bech32 0.11.1",
@@ -7601,7 +7603,6 @@ dependencies = [
  "pem-rfc7468",
  "pkcs8",
  "rand_core 0.6.4",
- "roaring",
  "sha2 0.10.9",
  "signature 2.2.0",
  "slip10_ed25519",
@@ -7612,7 +7613,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ad9e6c594551aa4292159695b4d5afe4f7e30599#ad9e6c594551aa4292159695b4d5afe4f7e30599"
 dependencies = [
  "async-stream",
  "base64ct",
@@ -7645,7 +7646,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ad9e6c594551aa4292159695b4d5afe4f7e30599#ad9e6c594551aa4292159695b4d5afe4f7e30599"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7653,7 +7654,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ad9e6c594551aa4292159695b4d5afe4f7e30599#ad9e6c594551aa4292159695b4d5afe4f7e30599"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -7667,13 +7668,13 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tonic 0.14.2",
+ "tonic 0.14.6",
 ]
 
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ad9e6c594551aa4292159695b4d5afe4f7e30599#ad9e6c594551aa4292159695b4d5afe4f7e30599"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -7682,14 +7683,14 @@ dependencies = [
  "serde",
  "serde_json",
  "tap",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tonic-prost",
 ]
 
 [[package]]
 name = "iota-sdk-move-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ad9e6c594551aa4292159695b4d5afe4f7e30599#ad9e6c594551aa4292159695b4d5afe4f7e30599"
 dependencies = [
  "bcs",
  "filetime",
@@ -7702,7 +7703,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ad9e6c594551aa4292159695b4d5afe4f7e30599#ad9e6c594551aa4292159695b4d5afe4f7e30599"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7721,7 +7722,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "1.0.0-beta.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8ae07b2897331e313b4231cafe1add6327511fa1#8ae07b2897331e313b4231cafe1add6327511fa1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ad9e6c594551aa4292159695b4d5afe4f7e30599#ad9e6c594551aa4292159695b4d5afe4f7e30599"
 dependencies = [
  "base64ct",
  "bcs",
@@ -8291,7 +8292,7 @@ dependencies = [
  "tap",
  "thiserror 1.0.64",
  "tokio",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tracing",
  "typed-store-error",
  "url",
@@ -8368,7 +8369,7 @@ dependencies = [
  "serde_json",
  "thiserror 1.0.64",
  "tokio",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "wasm-bindgen",
 ]
 
@@ -9426,7 +9427,6 @@ dependencies = [
  "indexmap 2.11.0",
  "move-abstract-interpreter",
  "move-core-types",
- "ref-cast",
  "serde",
  "variant_count",
 ]
@@ -9565,6 +9565,7 @@ dependencies = [
  "dunce",
  "hex",
  "lsp-types",
+ "move-abstract-interpreter",
  "move-binary-format",
  "move-borrow-graph",
  "move-bytecode-source-map",
@@ -11655,7 +11656,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "343d3bd7056eda839b03204e68deff7d1b13aba7af2b2fd16890697274262ee7"
 dependencies = [
  "heck 0.5.0",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "petgraph 0.8.3",
@@ -11689,7 +11690,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -12553,9 +12554,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.35"
+version = "0.23.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "533f54bc6a7d4f647e46ad909549eda97bf5afc1585190ef692b4286b198bd8f"
+checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "log",
  "once_cell",
@@ -12617,9 +12618,9 @@ checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.13"
+version = "0.103.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
+checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -13557,7 +13558,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tonic-build",
  "tonic-prost",
  "tonic-rustls",
@@ -14533,9 +14534,9 @@ dependencies = [
 
 [[package]]
 name = "tonic"
-version = "0.14.2"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb7613188ce9f7df5bfe185db26c5814347d110db17920415cf2fbcad85e7203"
+checksum = "ac2a5518c70fa84342385732db33fb3f44bc4cc748936eb5833d2df34d6445ef"
 dependencies = [
  "async-trait",
  "axum 0.8.8",
@@ -14566,9 +14567,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-build"
-version = "0.14.2"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c40aaccc9f9eccf2cd82ebc111adc13030d23e887244bc9cfa5d1d636049de3"
+checksum = "c68f61875ac5293cf72e6c8cf0158086428c82c37229e98c840878f1706b0322"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -14578,33 +14579,33 @@ dependencies = [
 
 [[package]]
 name = "tonic-health"
-version = "0.14.2"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a82868bf299e0a1d2e8dce0dc33a46c02d6f045b2c1f1d6cc8dc3d0bf1812ef"
+checksum = "fcfab99db777fba2802f0dfa861d1628d1ae916fb199d29819941f139ae85082"
 dependencies = [
  "prost 0.14.3",
  "tokio",
  "tokio-stream",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tonic-prost",
 ]
 
 [[package]]
 name = "tonic-prost"
-version = "0.14.2"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66bd50ad6ce1252d87ef024b3d64fe4c3cf54a86fb9ef4c631fdd0ded7aeaa67"
+checksum = "50849f68853be452acf590cde0b146665b8d507b3b8af17261df47e02c209ea0"
 dependencies = [
  "bytes",
  "prost 0.14.3",
- "tonic 0.14.2",
+ "tonic 0.14.6",
 ]
 
 [[package]]
 name = "tonic-prost-build"
-version = "0.14.2"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4a16cba4043dc3ff43fcb3f96b4c5c154c64cbd18ca8dce2ab2c6a451d058a2"
+checksum = "654e5643eff75d7f8c99197ce1440ed19a3474eada74c12bbac488b2cafdae27"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -14636,7 +14637,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-stream",
- "tonic 0.14.2",
+ "tonic 0.14.6",
  "tower 0.5.2",
  "tower-layer",
  "tower-service",
@@ -14944,7 +14945,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.6",
+ "rand 0.7.3",
  "static_assertions",
 ]
 

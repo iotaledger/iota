@@ -93,7 +93,7 @@ async fn test_transaction_filter_scenarios() {
         let client = client.clone();
         async move {
             let mut stream = client
-                .stream_checkpoints(
+                .checkpoints_stream(
                     Some(0),
                     Some(latest_seq),
                     Some(tx_filter),
@@ -110,7 +110,7 @@ async fn test_transaction_filter_scenarios() {
             timeout(Duration::from_secs(10), async {
                 while let Some(result) = stream.body_mut().next().await {
                     let cp = result.expect("stream error");
-                    tx_count += cp.executed_transactions.len();
+                    tx_count += cp.executed_transactions().len();
                 }
             })
             .await

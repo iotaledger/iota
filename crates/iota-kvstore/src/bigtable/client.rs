@@ -14,8 +14,8 @@ use iota_bigtable::{
     },
 };
 use iota_sdk_types::{
-    Address, CheckpointDigest, TransactionDigest, TransactionEffects, TransactionEvents,
-    checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointDigest, TransactionDigest, TransactionEffects,
+    TransactionEvents,
 };
 use iota_types::{
     full_checkpoint_content::CheckpointData,

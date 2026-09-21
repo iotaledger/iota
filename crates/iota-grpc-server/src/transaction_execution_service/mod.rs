@@ -189,7 +189,7 @@ fn validate_batch_size(items_len: usize, max_batch: usize) -> Result<(), RpcErro
 /// 3. Validate the digest if provided
 fn parse_transaction_proto(
     transaction: Option<&ProtoTransaction>,
-) -> Result<iota_sdk_types::transaction::Transaction, RpcError> {
+) -> Result<iota_sdk_types::Transaction, RpcError> {
     let transaction_proto = transaction
         .ok_or_else(|| FieldViolation::new("transaction").with_reason(ErrorReason::FieldMissing))?;
 
@@ -199,8 +199,8 @@ fn parse_transaction_proto(
             .with_reason(ErrorReason::FieldMissing)
     })?;
 
-    let sdk_transaction: iota_sdk_types::transaction::Transaction =
-        bcs::from_bytes(&transaction_bcs.data).map_err(|e| {
+    let sdk_transaction: iota_sdk_types::Transaction = bcs::from_bytes(&transaction_bcs.data)
+        .map_err(|e| {
             FieldViolation::new("transaction.bcs")
                 .with_description(format!("invalid transaction BCS: {e}"))
                 .with_reason(ErrorReason::FieldInvalid)

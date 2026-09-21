@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectData, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{error::IotaError, gas_coin::GasCoin, id::UID, object::Object};
@@ -103,13 +103,10 @@ where
     type Error = IotaError;
 
     fn try_from(object: &'de Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if o.struct_tag().is_time_lock() {
-                    return TimeLock::from_bcs_bytes(o.contents());
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if o.struct_tag().is_time_lock() {
+                return TimeLock::from_bcs_bytes(o.contents());
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

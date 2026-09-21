@@ -13,7 +13,9 @@ Validator nodes are critical infrastructure in the IOTA network and should be pr
 :::warning
 
 This guide explains how to configure the TrafficController for your validator node.
-All validator nodes should have this protection enabled by default.
+A node whose configuration has no `policy-config` runs the shipped default policy.
+That default runs with `dry-run: true`, thus it only counts and logs the clients it would block.
+Set `dry-run: false` to make the node block them, for `connection-blocklist-ttl-sec` seconds each.
 
 :::
 
@@ -226,6 +228,8 @@ After enabling the `TrafficController`, monitor your node's metrics to ensure le
 - `blocks_delegated_to_firewall`
 - `traffic_control_num_dry_run_blocked_requests`
 - `firewall_delegation_overflow`
+- `connection_blocklist_ttl_sec`
+- `proxy_blocklist_ttl_sec`
 
 Start with `dry-run: true` to observe what would be blocked without actually blocking traffic, then adjust thresholds as needed before setting `dry-run: false`.
 

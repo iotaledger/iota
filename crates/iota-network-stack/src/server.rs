@@ -97,12 +97,7 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     }
 
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
-        let http_config = self
-            .config
-            .http_config()
-            // Temporarily continue allowing clients to connection without TLS even when the server
-            // is configured with a tls_config
-            .allow_insecure(true);
+        let http_config = self.config.http_config();
 
         let request_timeout = self.config.request_timeout;
         let metrics_provider = self.metrics_provider;

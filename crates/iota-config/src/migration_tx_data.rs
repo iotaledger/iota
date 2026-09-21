@@ -10,8 +10,7 @@ use std::{
 
 use anyhow::{Context, Result};
 use iota_sdk_types::{
-    TransactionDigest, TransactionEffects, TransactionEvents,
-    checkpoint::{CheckpointContents, CheckpointSummary},
+    CheckpointContents, CheckpointSummary, TransactionDigest, TransactionEffects, TransactionEvents,
 };
 use iota_types::{
     effects::TransactionEffectsAPI, message_envelope::Message,

@@ -91,7 +91,7 @@ impl AnalyticsHandler<EventEntry> for EventHandler {
 }
 
 impl EventHandler {
-    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+    pub fn new(store_path: &Path, client: iota_grpc_client::GrpcClient) -> Self {
         let package_store = LocalDBPackageStore::new(&store_path.join("event"), client);
         let state = State {
             events: vec![],

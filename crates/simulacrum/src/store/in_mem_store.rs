@@ -9,9 +9,8 @@ use std::{
 
 use iota_config::genesis;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, Owner,
-    TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ObjectId,
+    ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
 };
 use iota_types::{
     base_types::AuthorityName,

@@ -25,9 +25,9 @@ use iota_core::{
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
 use iota_sdk_types::{
-    Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
-    TransactionEffects, TransactionEvents,
-    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+    Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
+    EndOfEpochData, GasCostSummary, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents,
 };
 use iota_storage::object_store::util::SUCCESS_MARKER;
 use iota_types::{
@@ -1129,6 +1129,7 @@ fn signed_epoch_info(snapshot_epoch: EpochId) -> EpochInfo {
 fn verify_epoch_info_chain_rejects_wrong_chain_id() {
     let err = verify_epoch_info_chain(
         signed_epoch_info(1),
+        1,
         test_committee_at(0),
         test_system_state(),
         ChainIdentifier::default(),
@@ -1147,6 +1148,7 @@ fn verify_epoch_info_chain_rejects_non_contiguous_entries() {
     info.entries.remove(0); // entries now start at epoch 1, not 0
     let err = verify_epoch_info_chain(
         EpochInfo::V1(info),
+        1,
         test_committee_at(0),
         test_system_state(),
         ChainIdentifier::default(),
@@ -1157,6 +1159,54 @@ fn verify_epoch_info_chain_rejects_non_contiguous_entries() {
         err.to_string().contains("carries a summary for epoch"),
         "got: {err}"
     );
+}
+
+/// An empty `EPOCH_INFO` covers no epoch at all. It is rejected on the entry
+/// count, before any per-entry proof work, so it needs no valid proof bundle.
+#[test]
+fn verify_epoch_info_chain_rejects_empty_entries() {
+    let err = verify_epoch_info_chain(
+        EpochInfo::V1(EpochInfoV1 { entries: vec![] }),
+        0,
+        test_committee_at(0),
+        test_system_state(),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("an empty EPOCH_INFO must be rejected");
+    assert!(err.to_string().contains("carries 0 entries"), "got: {err}");
+}
+
+/// Entries that stop before the requested epoch would restore an earlier epoch:
+/// they are rejected on the entry count, before any per-entry proof work.
+#[test]
+fn verify_epoch_info_chain_rejects_truncated_entries() {
+    let err = verify_epoch_info_chain(
+        signed_epoch_info(1),
+        2,
+        test_committee_at(0),
+        test_system_state(),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("entries that stop before the requested epoch must be rejected");
+    assert!(err.to_string().contains("carries 2 entries"), "got: {err}");
+}
+
+/// Entries that run past the requested epoch would restore a later epoch: they
+/// are rejected on the entry count, before any per-entry proof work.
+#[test]
+fn verify_epoch_info_chain_rejects_entries_past_the_requested_epoch() {
+    let err = verify_epoch_info_chain(
+        signed_epoch_info(2),
+        1,
+        test_committee_at(0),
+        test_system_state(),
+        ChainIdentifier::default(),
+        ChainIdentifier::default(),
+    )
+    .expect_err("entries that run past the requested epoch must be rejected");
+    assert!(err.to_string().contains("carries 3 entries"), "got: {err}");
 }
 
 /// `epoch_info_v2_row` derives every non-stored `EpochInfoV2` field: the

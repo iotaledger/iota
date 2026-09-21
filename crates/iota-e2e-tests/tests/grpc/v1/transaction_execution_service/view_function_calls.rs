@@ -39,7 +39,7 @@ fn view_functions_package_path() -> PathBuf {
 /// behind local (`WaitForLocalExecution`) visibility.
 async fn publish_view_functions_package(
     test_cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_grpc_client::GrpcClient,
 ) -> (ObjectId, SharedObjectReference) {
     let sender = first_sender(test_cluster);
 
@@ -72,7 +72,7 @@ async fn publish_view_functions_package(
     let mut package_id = None;
     let mut counter = None;
     for object in &effects.created() {
-        let object_id = object.reference.object_id;
+        let object_id = object.reference().object_id;
         let stored = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await
@@ -81,7 +81,7 @@ async fn publish_view_functions_package(
             package_id = Some(object_id);
             continue;
         }
-        let Owner::Shared(initial_shared_version) = object.owner else {
+        let Owner::Shared(initial_shared_version) = object.owner() else {
             continue;
         };
         if stored
@@ -91,7 +91,7 @@ async fn publish_view_functions_package(
         {
             counter = Some(SharedObjectReference::new(
                 object_id,
-                initial_shared_version,
+                *initial_shared_version,
                 true,
             ));
         }
