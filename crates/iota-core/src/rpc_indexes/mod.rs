@@ -963,7 +963,7 @@ impl RpcIndexesStore {
         // at `u64::MAX`, where it still means "never prune": the resulting
         // window covers everything there is.
         self.history
-            .prune(epochs_to_retain.saturating_add(1))
+            .prune(epochs_to_retain.saturating_add(1), |_, _| Ok(()))
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 

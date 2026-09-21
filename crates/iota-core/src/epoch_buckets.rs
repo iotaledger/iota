@@ -47,6 +47,11 @@ pub(crate) fn history_cf_options(
         .options
 }
 
+/// Stands for "no bucket at all" in [`EpochBuckets::earliest_bucket_epoch`],
+/// which holds a plain `EpochId` so it can be read without a lock. No real
+/// epoch reaches it.
+const NO_BUCKET: EpochId = EpochId::MAX;
+
 /// The column-family name of `epoch`'s bucket: `"{cf_prefix}{epoch}"`.
 pub(crate) fn bucket_cf_name(cf_prefix: &str, epoch: EpochId) -> String {
     format!("{cf_prefix}{epoch}")
@@ -82,6 +87,14 @@ pub(crate) struct EpochBuckets<B> {
     /// call, mirroring the persisted row; never moves backwards.
     earliest_retained_epoch: AtomicU64,
     earliest_retained_table: DBMap<(), EpochId>,
+    /// Mirrors the oldest epoch in `buckets`, republished on every change to
+    /// the map while its write lock is held, and [`NO_BUCKET`] when the map is
+    /// empty.
+    ///
+    /// Read on the gRPC request path, which is why it is not read off the map:
+    /// [`Self::prune`] holds the write lock for as long as its whole expiry
+    /// takes, so a reader taking the read lock there would block on it.
+    earliest_bucket_epoch: AtomicU64,
 }
 
 impl<B> EpochBuckets<B> {
@@ -118,6 +131,7 @@ impl<B> EpochBuckets<B> {
                 warn!(epoch, "failed to drop a pruned bucket column family: {e}");
             }
         }
+        let earliest_bucket_epoch = Self::earliest_epoch_of(&buckets);
         Ok(Self {
             db,
             name,
@@ -127,7 +141,23 @@ impl<B> EpochBuckets<B> {
             buckets: RwLock::new(buckets),
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
+            earliest_bucket_epoch: AtomicU64::new(earliest_bucket_epoch),
         })
+    }
+
+    /// The oldest epoch in `buckets`, [`NO_BUCKET`] when there is none.
+    fn earliest_epoch_of(buckets: &BTreeMap<EpochId, Arc<B>>) -> EpochId {
+        buckets
+            .first_key_value()
+            .map_or(NO_BUCKET, |(&epoch, _)| epoch)
+    }
+
+    /// Republishes the mirror of the oldest epoch in `buckets`. The caller
+    /// holds the write lock, which is what keeps the mirror in step with the
+    /// map.
+    fn publish_earliest_epoch(&self, buckets: &BTreeMap<EpochId, Arc<B>>) {
+        self.earliest_bucket_epoch
+            .store(Self::earliest_epoch_of(buckets), Ordering::Relaxed);
     }
 
     /// The retained buckets in scan order: ascending epochs for forward
@@ -149,6 +179,19 @@ impl<B> EpochBuckets<B> {
             .read()
             .last_key_value()
             .map(|(&epoch, _)| epoch)
+    }
+
+    /// The oldest epoch holding a bucket, `None` when there is none. Unlike
+    /// [`Self::earliest_retained`] this is what the store actually holds: a
+    /// node that never wrote the epochs above the retention floor — one
+    /// restored from a formal snapshot, say — has no bucket for them.
+    ///
+    /// Takes no lock, so it is safe to call on a request path.
+    pub(crate) fn earliest_epoch(&self) -> Option<EpochId> {
+        match self.earliest_bucket_epoch.load(Ordering::Relaxed) {
+            NO_BUCKET => None,
+            epoch => Some(epoch),
+        }
     }
 
     /// The earliest epoch [`Self::prune`] retains; buckets below it are gone
@@ -192,6 +235,7 @@ impl<B> EpochBuckets<B> {
         }
         let bucket = Arc::new((self.reopen)(&self.db, &cf_name)?);
         buckets.insert(epoch, bucket.clone());
+        self.publish_earliest_epoch(&buckets);
         Ok(bucket)
     }
 
@@ -214,7 +258,21 @@ impl<B> EpochBuckets<B> {
     /// rows; a retry no longer sees the bucket. Queries block for the
     /// duration of the drops, so callers on an async runtime must use
     /// `spawn_blocking`.
-    pub(crate) fn prune(&self, epochs_to_retain: u64) -> Result<Option<EpochId>, TypedStoreError> {
+    ///
+    /// `before_drop` runs for each expiring epoch, in ascending epoch order,
+    /// while the write lock is held and before the column family is dropped.
+    /// A store whose buckets have no side effects passes a closure that does
+    /// nothing. An error from it stops the prune and leaves that epoch's
+    /// bucket in the map, visible to `iter()` again once the lock releases —
+    /// whatever `before_drop` already wrote for that epoch is not rolled
+    /// back. A callback must therefore be safe to run again verbatim on the
+    /// same epoch, and must not durably change how a bucket may be read
+    /// before it has done everything needed to make that safe.
+    pub(crate) fn prune(
+        &self,
+        epochs_to_retain: u64,
+        mut before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
+    ) -> Result<Option<EpochId>, TypedStoreError> {
         // Runs once per executed checkpoint, where there is usually nothing
         // to drop and nothing to persist; that case must not take the write
         // lock queries block on.
@@ -254,13 +312,14 @@ impl<B> EpochBuckets<B> {
             self.earliest_retained_epoch
                 .store(earliest_retained, Ordering::Relaxed);
         }
-        let expired: Vec<EpochId> = buckets
+        let expired: Vec<(EpochId, Arc<B>)> = buckets
             .range(..earliest_retained)
-            .map(|(&e, _)| e)
+            .map(|(&e, bucket)| (e, bucket.clone()))
             .collect();
         // One column-family drop per epoch: constant time, no per-row
         // deletes and no compaction churn.
-        for epoch in expired {
+        for (epoch, bucket) in expired {
+            before_drop(epoch, &bucket)?;
             info!(
                 store = self.name,
                 epoch, "dropping the bucket of an expired epoch"
@@ -273,6 +332,10 @@ impl<B> EpochBuckets<B> {
             // nor dropped again; keeping it in the map would only break every
             // query that walks it.
             buckets.remove(&epoch);
+            // Republished per epoch rather than once at the end, so that a
+            // `before_drop` error returning early still leaves the mirror
+            // matching the map.
+            self.publish_earliest_epoch(&buckets);
         }
         Ok(Some(earliest_retained))
     }
@@ -300,7 +363,16 @@ impl<B> EpochBuckets<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::{bucket_cf_epoch, bucket_cf_name};
+    use std::sync::Mutex;
+
+    use typed_store::rocks::{
+        DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts,
+    };
+
+    use super::{
+        Arc, BTreeMap, Database, EpochBuckets, EpochId, TypedStoreError, bucket_cf_epoch,
+        bucket_cf_name, rocksdb,
+    };
 
     /// The name mapping must round-trip and reject other stores' prefixes:
     /// a shared database relies on it to tell bucket column families apart.
@@ -312,5 +384,84 @@ mod tests {
         assert_eq!(bucket_cf_epoch("hist_e", "hist_e4x"), None);
         assert_eq!(bucket_cf_epoch("hist_e", "owner_index"), None);
         assert_eq!(bucket_cf_epoch("other_", "hist_e42"), None);
+    }
+
+    const TEST_CF_PREFIX: &str = "test_e";
+    const RETENTION_CF: &str = "test_retention";
+
+    /// A bucket holding none of a store's own data, for exercising
+    /// `EpochBuckets` on its own.
+    struct TestBucket;
+
+    impl TestBucket {
+        fn reopen(_db: &Arc<Database>, _cf_name: &str) -> Result<Self, TypedStoreError> {
+            Ok(Self)
+        }
+    }
+
+    /// An `EpochBuckets` with one bucket per epoch in `epochs`, backed by a
+    /// fresh temporary database. The returned guard must outlive the
+    /// buckets, or the directory is removed while they still hold it open.
+    fn test_buckets(
+        epochs: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
+        let dir = iota_common::tempdir();
+        let db_options = default_db_options().options;
+        let cf_names: Vec<String> = epochs
+            .iter()
+            .map(|&epoch| bucket_cf_name(TEST_CF_PREFIX, epoch))
+            .chain([RETENTION_CF.to_string()])
+            .collect();
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_names
+            .iter()
+            .map(|name| (name.as_str(), db_options.clone()))
+            .collect();
+        let db = open_cf_opts(dir.path(), None, MetricConf::new("test"), &opt_cfs).unwrap();
+
+        let earliest_retained_table: DBMap<(), EpochId> =
+            DBMap::reopen(&db, Some(RETENTION_CF), &ReadWriteOptions::default(), true).unwrap();
+        let buckets: BTreeMap<EpochId, Arc<TestBucket>> = epochs
+            .iter()
+            .map(|&epoch| (epoch, Arc::new(TestBucket)))
+            .collect();
+
+        let buckets = EpochBuckets::open(
+            db,
+            "test buckets",
+            TEST_CF_PREFIX,
+            db_options,
+            earliest_retained_table,
+            buckets,
+            TestBucket::reopen,
+        )
+        .unwrap();
+        (buckets, dir)
+    }
+
+    /// `before_drop` must see every expiring epoch, oldest first: a later
+    /// consumer relies on this order to carry state forward from one
+    /// dropped epoch to the next.
+    #[tokio::test]
+    async fn prune_calls_back_in_ascending_epoch_order() {
+        let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
+        let seen = Mutex::new(Vec::new());
+        let earliest = buckets
+            .prune(2, |epoch, _| {
+                seen.lock().unwrap().push(epoch);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(earliest, Some(5));
+        assert_eq!(*seen.lock().unwrap(), vec![3, 4]);
+    }
+
+    /// A callback error must abort that epoch's drop instead of leaving the
+    /// bucket dropped with the store none the wiser.
+    #[tokio::test]
+    async fn a_callback_error_keeps_the_bucket() {
+        let (buckets, _dir) = test_buckets(&[3, 4]);
+        let result = buckets.prune(1, |_, _| Err(TypedStoreError::RocksDB("no".to_string())));
+        assert!(result.is_err());
+        assert_eq!(buckets.iter(false).len(), 2);
     }
 }
