@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Real-node coverage of the RPC index store: epoch-boundary history
-//! buckets and index pruning, which unit tests cannot exercise through a
-//! node's actual lifecycle. Restarting the fullnode under the simulator is
-//! not covered: a stopped fullnode's database locks are not released (the
-//! restarted instance fails on the RocksDB `LOCK` files), which needs a
-//! harness fix first; reopen semantics are pinned by the `rpc_indexes`
-//! unit tests instead.
+//! buckets, index pruning, and the promise that a transaction reported as
+//! final, or delivered to a subscriber, is indexed. Unit tests cannot
+//! exercise these through the real lifecycle of a node. Restarting the fullnode
+//! under the simulator is not covered: a stopped fullnode's database locks are
+//! not released (the restarted instance fails on the RocksDB `LOCK` files),
+//! which needs a harness fix first; reopen semantics are pinned by the
+//! `rpc_indexes` unit tests instead.
 
-use std::{num::NonZeroUsize, time::Duration};
+use std::{collections::BTreeMap, num::NonZeroUsize, time::Duration};
 
 use futures::StreamExt;
 use iota_grpc_types::{
@@ -19,14 +20,19 @@ use iota_grpc_types::{
     },
 };
 use iota_json_rpc_api::{CoinReadApiClient, IndexerApiClient};
-use iota_json_rpc_types::{EventFilter, IotaTransactionBlockResponseQuery, TransactionFilter};
+use iota_json_rpc_types::{
+    EventFilter, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseQuery,
+    TransactionFilter,
+};
 use iota_macros::sim_test;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{Address, TransactionDigest};
 use iota_swarm::memory::Swarm;
-use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_test_transaction_builder::{
+    TestTransactionBuilder, create_nft, make_transfer_iota_transaction, publish_nfts_package,
+};
 use prost_types::FieldMask;
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 /// Transfers an object between the wallet's first two accounts and returns
 /// the sender and the transaction digest.
@@ -133,6 +139,178 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     assert!(
         txes.contains(&recent_digest) && !txes.contains(&old_digest),
         "queries must serve the retained epochs only"
+    );
+}
+
+/// A transaction that is reported under `WaitForLocalExecution` is visible
+/// to the index-backed reads. A client can query its outputs immediately. It
+/// does not need to poll.
+#[sim_test]
+async fn index_backed_reads_see_a_transaction_reported_as_executed_locally() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let client = cluster.rpc_client();
+
+    // Repeated, so that the check covers more than one checkpoint.
+    for _ in 0..5 {
+        let recipient = Address::random();
+        let txn = make_transfer_iota_transaction(&cluster.wallet, Some(recipient), Some(9)).await;
+        cluster.wallet.execute_transaction_must_succeed(txn).await;
+
+        let owned = client
+            .get_owned_objects(recipient, None, None, None)
+            .await
+            .expect("getOwnedObjects must be served");
+        assert_eq!(
+            owned.data.len(),
+            1,
+            "the transferred coin must be indexed by the time the execution is reported"
+        );
+    }
+}
+
+/// The same promise holds on the certificate-based flow, which mainnet and
+/// testnet use. There, `WaitForLocalExecution` is served by the quorum driver
+/// and waits for the checkpoint separately.
+#[sim_test]
+async fn index_backed_reads_see_a_transaction_reported_by_the_quorum_driver() {
+    let _pcool_guard = override_pcool_flow(false);
+    let cluster = TestClusterBuilder::new().build().await;
+    let client = cluster.rpc_client();
+
+    // Repeated, so that the check covers more than one checkpoint.
+    for _ in 0..5 {
+        let recipient = Address::random();
+        let txn = make_transfer_iota_transaction(&cluster.wallet, Some(recipient), Some(9)).await;
+        let response = cluster.wallet.execute_transaction_must_succeed(txn).await;
+        assert_eq!(
+            response.confirmed_local_execution,
+            Some(true),
+            "the quorum driver path must confirm local execution"
+        );
+
+        let owned = client
+            .get_owned_objects(recipient, None, None, None)
+            .await
+            .expect("getOwnedObjects must be served");
+        assert_eq!(
+            owned.data.len(),
+            1,
+            "the transferred coin must be indexed by the time the execution is reported"
+        );
+    }
+}
+
+/// A transaction subscription delivers a transaction only after its
+/// checkpoint is indexed. The subscriber can then query the index-backed
+/// reads immediately. Transactions arrive in checkpoint order.
+#[sim_test]
+async fn subscribers_are_notified_after_indexing_in_checkpoint_order() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let state = cluster.fullnode_handle.iota_node.state();
+    let client = cluster.rpc_client();
+    let sender = cluster.get_address_0();
+    let mut notifications = Box::pin(
+        state
+            .subscription_handler
+            .subscribe_transactions(TransactionFilter::FromAddress(sender)),
+    );
+
+    let mut recipients = BTreeMap::new();
+    for _ in 0..3 {
+        let recipient = Address::random();
+        let gas_price = cluster.wallet.get_reference_gas_price().await.unwrap();
+        let gas_object = cluster
+            .wallet
+            .get_one_gas_object_owned_by_address(sender)
+            .await
+            .unwrap()
+            .unwrap();
+        let txn = cluster.wallet.sign_transaction(
+            &TestTransactionBuilder::new(sender, gas_object, gas_price)
+                .transfer_iota(Some(9), recipient)
+                .build(),
+        );
+        let resp = cluster.wallet.execute_transaction_must_succeed(txn).await;
+        recipients.insert(resp.digest, recipient);
+    }
+
+    let mut last_checkpoint = 0;
+    let epoch_store = state.epoch_store_for_testing();
+    for _ in 0..recipients.len() {
+        let effects = tokio::time::timeout(Duration::from_secs(60), notifications.next())
+            .await
+            .expect("a notification must arrive")
+            .expect("the stream must stay open");
+        let digest = *effects.transaction_digest();
+        let recipient = recipients
+            .remove(&digest)
+            .unwrap_or_else(|| panic!("unexpected notification for {digest}"));
+
+        let checkpoint = state
+            .get_transaction_checkpoint_for_tests(&digest, &epoch_store)
+            .unwrap()
+            .expect("a notified transaction must be checkpointed")
+            .sequence_number;
+        assert!(
+            checkpoint >= last_checkpoint,
+            "notifications must arrive in checkpoint order"
+        );
+        last_checkpoint = checkpoint;
+
+        let owned = client
+            .get_owned_objects(recipient, None, None, None)
+            .await
+            .expect("getOwnedObjects must be served");
+        assert_eq!(
+            owned.data.len(),
+            1,
+            "the transferred coin must be indexed by the time the subscriber is notified"
+        );
+    }
+}
+
+/// An event subscription delivers an event only after its checkpoint is
+/// indexed, with the Move contents parsed through the committed package and
+/// with the checkpoint timestamp, the same as `getEvents` reports.
+#[sim_test]
+async fn event_subscribers_receive_parsed_events_after_indexing() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let state = cluster.fullnode_handle.iota_node.state();
+    let client = cluster.rpc_client();
+    let (package_id, _, _) = publish_nfts_package(&cluster.wallet).await;
+
+    let mut notifications = Box::pin(
+        state
+            .subscription_handler
+            .subscribe_events(EventFilter::Package(package_id)),
+    );
+    let (sender, nft_id, digest) = create_nft(&cluster.wallet, package_id).await;
+
+    let event = tokio::time::timeout(Duration::from_secs(60), notifications.next())
+        .await
+        .expect("a notification must arrive")
+        .expect("the stream must stay open");
+    assert_eq!(event.id.tx_digest, digest);
+    assert_eq!(event.sender, sender);
+    assert!(
+        event.parsed_json.is_object(),
+        "the event contents must be parsed through the package layout"
+    );
+
+    let epoch_store = state.epoch_store_for_testing();
+    let checkpoint = state
+        .get_transaction_checkpoint_for_tests(&digest, &epoch_store)
+        .unwrap()
+        .expect("a notified transaction must be checkpointed");
+    assert_eq!(event.timestamp_ms, Some(checkpoint.timestamp_ms));
+
+    let owned = client
+        .get_owned_objects(sender, None, None, None)
+        .await
+        .expect("getOwnedObjects must be served");
+    assert!(
+        owned.data.iter().any(|o| o.object_id().unwrap() == nft_id),
+        "the minted NFT must be indexed by the time the subscriber is notified"
     );
 }
 
