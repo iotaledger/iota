@@ -25,11 +25,11 @@
 //! - Check #1: Already executed — **retained** as a committee-agreed winner
 //!   (registers its locks, skips re-validation); not dropped. See issue #11649.
 //! - Check #2: `validity_check()` — drop with error.
-//! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
-//!   the claimed attestor matches the block author and that the attested
-//!   computation units fall within the valid range (cost floor and ceiling).
-//!   Drop with error on mismatch, out-of-range cost, or unsupported attestation
-//!   variant.
+//! - Check #3: Attestor verification (`UserTransactionV2` only) — a validator
+//!   attestation must name the block author; an explicit attestation must name
+//!   an attestor of this epoch's set (its signature was verified in the block
+//!   verifier); the attested computation units must fall within the valid range
+//!   (cost floor and ceiling). Drop with error otherwise.
 //! - Check #4: Extract owned input objects (needed for lock conflict
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
@@ -68,12 +68,14 @@ use iota_types::{
     error::{IotaError, IotaResult},
     gas::check_gas_bounds,
     transaction::{
-        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
+        InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope,
+        VerifiedTransaction,
     },
 };
 use tracing::{debug, warn};
 
 use crate::{
+    attestation_checks::{check_attested_units, explicit_attestor_entry},
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
@@ -257,48 +259,29 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #3: Attestor verification (UserTransactionV2 only).
-        // The block signature transitively authenticates the attestation;
-        // verify the claimed attestor matches the actual block author and that
-        // the payload is not malformed.
+        // Check #3: Attestor verification (UserTransactionV2 only). The block
+        // signature authenticates a validator attestation, so its claimed index
+        // must be the block author. An explicit attestation's signature was
+        // verified in the block verifier; its attestor must still be in this
+        // epoch's set. Then the attested units must be within bounds.
         if let Some(attestation) = attestation {
-            let block_author = tx.0.certificate_author_index as u8;
-            let protocol_config = epoch_store.protocol_config();
-            let min_attested_units = protocol_config
-                .base_tx_cost_fixed()
-                .min(protocol_config.gas_rounding_step());
-            let attested_units = attestation.computation_units();
-            let txn = transaction.data().transaction();
-            let max_attested_units = txn
-                .gas_budget()
-                .checked_div(txn.gas_price())
-                .unwrap_or(u64::MAX);
-            let error = match attestation {
+            let identity_error = match attestation {
                 Attestation::Validator { attestor_index, .. } => {
-                    if *attestor_index != block_author {
-                        Some(IotaError::AttestationAuthorMismatch {
+                    let block_author = tx.0.certificate_author_index as u8;
+                    (*attestor_index != block_author).then_some(
+                        IotaError::AttestationAuthorMismatch {
                             expected: *attestor_index,
                             actual: block_author,
-                        })
-                    } else if attested_units < min_attested_units {
-                        Some(IotaError::AttestationUnitsBelowMinimum {
-                            actual: attested_units,
-                            minimum: min_attested_units,
-                        })
-                    } else if attested_units > max_attested_units {
-                        Some(IotaError::AttestationUnitsAboveBudget {
-                            actual: attested_units,
-                            maximum: max_attested_units,
-                        })
-                    } else {
-                        None
-                    }
+                        },
+                    )
                 }
-                // Reject Explicit variant as not yet implemented.
-                Attestation::Explicit { .. } => Some(IotaError::UnsupportedFeature {
-                    error: "Explicit attestation not yet supported".into(),
-                }),
+                Attestation::Explicit {
+                    attestor_address, ..
+                } => explicit_attestor_entry(epoch_store, attestor_address).err(),
             };
+            let error = identity_error.or_else(|| {
+                check_attested_units(epoch_store.protocol_config(), transaction, attestation).err()
+            });
             if let Some(e) = error {
                 warn!(
                     ?digest,
@@ -309,6 +292,15 @@ pub async fn validate_and_resolve_conflicts(
                 keep[i] = false;
                 continue;
             }
+            let attestation_kind = match attestation {
+                Attestation::Validator { .. } => "validator",
+                Attestation::Explicit { .. } => "explicit",
+            };
+            authority_state
+                .metrics
+                .post_consensus_attested_tx
+                .with_label_values(&[attestation_kind])
+                .inc();
         }
 
         // Check #4: Extract owned input objects for lock conflict detection.
@@ -410,9 +402,10 @@ pub async fn validate_and_resolve_conflicts(
         //     view resolves to a failed effect charged to the issuer instead of a free
         //     drop.
         //
-        // The user signature is verified pre-consensus in the block verifier
+        // The user signature, and for an explicit attestation the attestor
+        // signature, are verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
-        // and `UserTransactionV2`, and is not re-checked here. Re-verifying would
+        // and `UserTransactionV2`, and are not re-checked here. Re-verifying would
         // not add safety — a quorum committing a bad signature is a protocol-level
         // failure, not something a post-consensus rejection can recover from, and
         // rejecting would risk diverging from other honest validators.
@@ -621,10 +614,8 @@ fn find_existing_lock(
 fn extract_owned_input_objects(
     tx: &VerifiedSequencedConsensusTransaction,
 ) -> IotaResult<Vec<ObjectReference>> {
-    let Some(transaction_data) = (match &tx.0.transaction {
-        SequencedConsensusTransactionKind::External(ext) => {
-            ext.kind.as_user_transaction().map(|t| t.data())
-        }
+    let Some(transaction) = (match &tx.0.transaction {
+        SequencedConsensusTransactionKind::External(ext) => ext.kind.as_user_transaction(),
         SequencedConsensusTransactionKind::System(_) => None,
     }) else {
         return Err(IotaError::GenericAuthority {
@@ -632,22 +623,28 @@ fn extract_owned_input_objects(
                 .to_string(),
         });
     };
+    owned_input_object_refs(transaction)
+}
 
+/// The `ImmOrOwnedMoveObject` input references of a transaction, from its
+/// bytes alone; owned and immutable inputs share one kind, so callers that
+/// lock must narrow the set with loaded objects first.
+pub(crate) fn owned_input_object_refs(
+    transaction: &TransactionEnvelope,
+) -> IotaResult<Vec<ObjectReference>> {
     // Use SenderSignedTransaction::input_objects() rather than
     // Transaction::input_objects() to also include objects coming from
     // MoveAuthenticator signatures. Those can only be immutable or shared,
     // so they widen the probe set but never the locked set.
-    let owned_objects = transaction_data
+    Ok(transaction
+        .data()
         .input_objects()?
         .into_iter()
         .filter_map(|input| match input {
             InputObjectKind::ImmOrOwnedMoveObject(obj_ref) => Some(obj_ref),
-            InputObjectKind::SharedMoveObject { .. } => None,
-            InputObjectKind::MovePackage(_) => None,
+            InputObjectKind::SharedMoveObject { .. } | InputObjectKind::MovePackage(_) => None,
         })
-        .collect();
-
-    Ok(owned_objects)
+        .collect())
 }
 
 #[cfg(test)]

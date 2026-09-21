@@ -1,10 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, ObjectReference, TransactionDigest, UserSignature};
+use fastcrypto::hash::HashFunction;
+use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
+use iota_sdk_types::{Address, ObjectReference, SimpleSignature, TransactionDigest, UserSignature};
 use serde::{Deserialize, Serialize};
 
-use crate::transaction::TransactionEnvelope;
+use crate::{crypto::DefaultHash, transaction::TransactionEnvelope};
 
 /// Index of a validator in the current epoch's consensus committee. Kept as a
 /// plain `u8` so `iota-types` does not depend on `starfish-config`, whose
@@ -71,7 +73,47 @@ pub struct AttestedTransaction {
     pub attestation: Attestation,
 }
 
+/// Digest an explicit attestor signs:
+/// `hash(tx_digest || BCS(payload) || attestor_address)`.
+pub fn explicit_attestation_digest(
+    tx_digest: &TransactionDigest,
+    payload: &AttestationData,
+    attestor_address: Address,
+) -> [u8; 32] {
+    let mut hasher = DefaultHash::default();
+    hasher.update(tx_digest.bytes());
+    hasher
+        .update(bcs::to_bytes(payload).expect("BCS serialization of AttestationData cannot fail"));
+    hasher.update(AsRef::<[u8]>::as_ref(&attestor_address));
+    hasher.finalize().digest
+}
+
 impl Attestation {
+    /// An attestation by the block-proposing validator at `attestor_index`.
+    pub fn new_validator(payload: AttestationData, attestor_index: AuthorityIndex) -> Self {
+        Self::Validator {
+            payload,
+            attestor_index,
+        }
+    }
+
+    /// An attestation by the registered attestor `attestor_address`, signed
+    /// with `keypair` for `tx_digest`.
+    pub fn new_explicit(
+        tx_digest: &TransactionDigest,
+        payload: AttestationData,
+        attestor_address: Address,
+        keypair: &SimpleKeypair,
+    ) -> Self {
+        let digest = explicit_attestation_digest(tx_digest, &payload, attestor_address);
+        let signature: SimpleSignature = keypair.sign(&digest);
+        Self::Explicit {
+            payload,
+            attestor_address,
+            signature: Box::new(UserSignature::Simple(signature)),
+        }
+    }
+
     pub fn computation_units(&self) -> u64 {
         let payload = match self {
             Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
@@ -100,9 +142,14 @@ impl AttestedTransaction {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
+    use rand::{SeedableRng, rngs::StdRng};
+
     use super::*;
     use crate::{
-        base_types::random_object_ref, crypto::zero_ed25519_signature,
+        base_types::random_object_ref,
+        crypto::{get_key_pair_from_rng, zero_ed25519_signature},
+        iota_system_state::attestor_registry::{attestor_pubkey_bytes, verify_attestor_signature},
         utils::create_fake_transaction,
     };
 
@@ -142,6 +189,30 @@ mod tests {
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
         assert_eq!(decoded, attestation);
+    }
+
+    #[test]
+    fn new_explicit_signs_the_documented_digest() {
+        let keypair = SimpleKeypair::from(
+            get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut StdRng::from_seed([3; 32])).1,
+        );
+        let attestor_address = Address::random();
+        let tx = create_fake_transaction();
+        let payload = make_attestation_data();
+        let attestation =
+            Attestation::new_explicit(tx.digest(), payload.clone(), attestor_address, &keypair);
+        let Attestation::Explicit { signature, .. } = &attestation else {
+            panic!("expected an explicit attestation");
+        };
+        let UserSignature::Simple(signature) = signature.as_ref() else {
+            panic!("expected a simple signature");
+        };
+        let registered_key = attestor_pubkey_bytes(&keypair);
+        let digest = explicit_attestation_digest(tx.digest(), &payload, attestor_address);
+        verify_attestor_signature(&registered_key, signature, &digest).unwrap();
+        // The digest binds the attestor address: another address is refuted.
+        let other = explicit_attestation_digest(tx.digest(), &payload, Address::random());
+        assert!(verify_attestor_signature(&registered_key, signature, &other).is_err());
     }
 
     #[test]

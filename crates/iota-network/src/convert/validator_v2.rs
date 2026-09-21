@@ -5,6 +5,7 @@
 
 use iota_sdk_types::TransactionDigest;
 use iota_types::{
+    attestation::AttestedTransaction,
     error::IotaError,
     messages_consensus::SignedAuthorityCapabilitiesV1,
     messages_grpc::{
@@ -129,6 +130,37 @@ impl TryFrom<Vec<TransactionEnvelope>> for api::SubmitTxRequest {
             .map(|t| bcs_serialize(t, "SubmitTxRequest.tx"))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(api::SubmitTxRequest { tx })
+    }
+}
+
+// --- SubmitExternallyAttestedTxRequest (proto ↔ domain) ---
+
+impl TryFrom<api::SubmitExternallyAttestedTxRequest> for Vec<AttestedTransaction> {
+    type Error = IotaError;
+
+    fn try_from(value: api::SubmitExternallyAttestedTxRequest) -> Result<Self, Self::Error> {
+        value
+            .attested_tx
+            .iter()
+            .map(|t| {
+                bcs_deserialize::<AttestedTransaction>(
+                    t,
+                    "SubmitExternallyAttestedTxRequest.attested_tx",
+                )
+            })
+            .collect()
+    }
+}
+
+impl TryFrom<Vec<AttestedTransaction>> for api::SubmitExternallyAttestedTxRequest {
+    type Error = IotaError;
+
+    fn try_from(value: Vec<AttestedTransaction>) -> Result<Self, Self::Error> {
+        let attested_tx = value
+            .iter()
+            .map(|t| bcs_serialize(t, "SubmitExternallyAttestedTxRequest.attested_tx"))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(api::SubmitExternallyAttestedTxRequest { attested_tx })
     }
 }
 
@@ -582,6 +614,30 @@ mod tests {
         let proto: api::SubmitTxRequest = request.try_into().unwrap();
         let back: Vec<TransactionEnvelope> = proto.try_into().unwrap();
         assert!(back.is_empty());
+    }
+
+    // --- SubmitExternallyAttestedTxRequest round-trip ---
+
+    #[test]
+    fn submit_externally_attested_tx_request_round_trip() {
+        use iota_types::{
+            attestation::{Attestation, AttestationData, AttestedTransaction},
+            utils::create_fake_transaction,
+        };
+        let attested = AttestedTransaction::new(
+            create_fake_transaction(),
+            Attestation::new_validator(
+                AttestationData::V1 {
+                    computation_units: 1_000,
+                    object_versions: vec![],
+                },
+                3,
+            ),
+        );
+        let proto: api::SubmitExternallyAttestedTxRequest =
+            vec![attested.clone()].try_into().unwrap();
+        let back: Vec<AttestedTransaction> = proto.try_into().unwrap();
+        assert_eq!(back, vec![attested]);
     }
 
     // --- NotifyCapabilitiesResponse round-trip ---

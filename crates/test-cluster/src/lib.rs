@@ -17,7 +17,7 @@ use iota_config::{
     Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
     NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, KeyPairWithPath, RunWithRange},
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
@@ -57,6 +57,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountPrivateKey, get_key_pair},
@@ -64,6 +65,7 @@ use iota_types::{
     error::IotaResult,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
+        attestor_registry::{attestor_pubkey_bytes, generate_attestor_proof_of_possession},
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     messages_grpc::HandleCertificateRequestV1,
@@ -71,7 +73,7 @@ use iota_types::{
     quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
-    transaction::{CertifiedTransaction, TransactionEnvelope},
+    transaction::{CallArg, CertifiedTransaction, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -159,6 +161,53 @@ pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
 impl TestCluster {
     pub fn rpc_client(&self) -> &HttpClient {
         &self.fullnode_handle.rpc_client
+    }
+
+    /// Registers `keypair` as the attestor signing key of `sender` through the
+    /// fullnode; see [`Self::register_attestor_tx`].
+    pub async fn register_attestor(&self, sender: Address, keypair: &SimpleKeypair) {
+        let tx = self.register_attestor_tx(sender, keypair).await;
+        self.execute_transaction(tx).await;
+    }
+
+    /// The signed transaction registering `keypair` as the attestor signing
+    /// key of `sender`, bonding one of the sender's gas coins. The attestor
+    /// becomes active at the epoch boundary after it executes.
+    pub async fn register_attestor_tx(
+        &self,
+        sender: Address,
+        keypair: &SimpleKeypair,
+    ) -> TransactionEnvelope {
+        let gas_objects = self
+            .wallet
+            .get_all_gas_objects_owned_by_address(sender)
+            .await
+            .unwrap();
+        let [gas, bond, ..] = gas_objects.as_slice() else {
+            panic!("the attestor account needs a gas coin and a bond coin");
+        };
+        let attestor_pubkey = attestor_pubkey_bytes(keypair);
+        let proof_of_possession = generate_attestor_proof_of_possession(keypair, sender);
+        let tx_data = self
+            .test_transaction_builder_with_gas_object(sender, *gas)
+            .await
+            .move_call(
+                IOTA_SYSTEM_PACKAGE_ID,
+                "iota_system",
+                "register_attestor",
+                vec![
+                    CallArg::IOTA_SYSTEM_MUTABLE,
+                    CallArg::ImmutableOrOwned(*bond),
+                    CallArg::pure(&attestor_pubkey),
+                    CallArg::pure(&proof_of_possession),
+                    CallArg::pure(&b"attestor".to_vec()),
+                    CallArg::pure(&b"test attestor".to_vec()),
+                    CallArg::pure(&b"https://example.com".to_vec()),
+                    CallArg::pure(&b"https://example.com/logo.png".to_vec()),
+                ],
+            )
+            .build();
+        self.sign_transaction(&tx_data)
     }
 
     pub fn iota_client(&self) -> &IotaClient {
@@ -1093,6 +1142,7 @@ pub struct TestClusterBuilder {
     num_validators: Option<usize>,
     fullnode_rpc_port: Option<u16>,
     fullnode_rpc_addr: Option<SocketAddr>,
+    fullnode_attestor_key_pair: Option<SimpleKeypair>,
     enable_fullnode_events: bool,
     disable_fullnode_pruning: bool,
     validator_supported_protocol_versions_config: ProtocolVersionsConfig,
@@ -1125,6 +1175,7 @@ impl TestClusterBuilder {
             additional_objects: vec![],
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
+            fullnode_attestor_key_pair: None,
             num_validators: None,
             enable_fullnode_events: false,
             disable_fullnode_pruning: false,
@@ -1164,6 +1215,13 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_fw_config(mut self, config: Option<RemoteFirewallConfig>) -> Self {
         self.fullnode_fw_config = config;
+        self
+    }
+
+    /// Give the fullnode this attestor signing key: it attests the
+    /// transactions it submits once the key is registered and active.
+    pub fn with_fullnode_attestor_key_pair(mut self, key_pair: SimpleKeypair) -> Self {
+        self.fullnode_attestor_key_pair = Some(key_pair);
         self
     }
 
@@ -1461,6 +1519,10 @@ impl TestClusterBuilder {
             builder = builder.with_fullnode_rpc_addr(fullnode_rpc_addr);
         } else if let Some(fullnode_rpc_port) = self.fullnode_rpc_port {
             builder = builder.with_fullnode_rpc_port(fullnode_rpc_port);
+        }
+
+        if let Some(key_pair) = self.fullnode_attestor_key_pair.take() {
+            builder = builder.with_fullnode_attestor_key_pair(KeyPairWithPath::new(key_pair));
         }
 
         if let Some(num_unpruned_validators) = self.num_unpruned_validators {

@@ -29,6 +29,7 @@ pub use metrics::ValidatorServiceMetrics;
 pub use test_server::{AuthorityServer, AuthorityServerHandle};
 use tokio_stream::StreamExt;
 use tracing::error;
+pub(crate) use validator_v2::DenyRuleUnion;
 
 use crate::{
     authority::AuthorityState, authority_server::soft_lock::PreConsensusSoftLocks,

@@ -27,12 +27,11 @@ use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, SignatureScheme, Transaction,
 };
 use iota_types::{
-    crypto::PublicKey,
     dynamic_field::Field,
     iota_system_state::attestor_registry::{
         AttestorMetadataKey, AttestorMetadataV1, AttestorRegistryKey, AttestorRegistryV1,
-        derive_attestor_metadata_object_id, derive_attestor_registry_object_id,
-        generate_attestor_proof_of_possession,
+        attestor_pubkey_bytes, derive_attestor_metadata_object_id,
+        derive_attestor_registry_object_id, generate_attestor_proof_of_possession,
     },
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionAPI},
@@ -183,7 +182,7 @@ impl IotaAttestorCommand {
                 // that ended up in `attestor.key`, not just the in-memory copy.
                 let keypair = read_attestor_key(&key_path)?;
 
-                let pubkey = flagged_pubkey(&keypair);
+                let pubkey = attestor_pubkey_bytes(&keypair);
                 let proof_of_possession = generate_attestor_proof_of_possession(&keypair, sender);
 
                 let result = call_0x5_with_bond(
@@ -259,7 +258,7 @@ impl IotaAttestorCommand {
                 write_attestor_key(&key_path, &keypair)?;
                 let keypair = read_attestor_key(&key_path)?;
 
-                let pubkey = flagged_pubkey(&keypair);
+                let pubkey = attestor_pubkey_bytes(&keypair);
                 let proof_of_possession = generate_attestor_proof_of_possession(&keypair, sender);
 
                 let result = call_0x5(
@@ -314,14 +313,6 @@ impl IotaAttestorCommand {
             }
         })
     }
-}
-
-/// `flag || raw pubkey`, the on-chain encoding for an attestor signing key.
-fn flagged_pubkey(keypair: &SimpleKeypair) -> Vec<u8> {
-    let pk = PublicKey::from(keypair);
-    let mut bytes = vec![pk.flag()];
-    bytes.extend_from_slice(pk.as_ref());
-    bytes
 }
 
 fn generate_attestor_keypair(scheme: SignatureScheme) -> Result<SimpleKeypair> {

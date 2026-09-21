@@ -179,6 +179,7 @@ impl From<Error> for RpcError {
                     QuorumDriverError::InvalidUserSignature { .. }
                     | QuorumDriverError::InvalidTransaction { .. }
                     | QuorumDriverError::RejectedByValidators { .. }
+                    | QuorumDriverError::RejectedByAttestor { .. }
                     | QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures
                     | QuorumDriverError::NonRecoverableTransactionError { .. } => {
                         let error_object = ErrorObject::owned(

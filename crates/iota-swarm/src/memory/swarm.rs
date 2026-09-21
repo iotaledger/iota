@@ -14,7 +14,7 @@ use anyhow::{Context, Result};
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
-    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, KeyPairWithPath, RunWithRange},
     p2p::DiscoveryConfig,
     transaction_deny_config::TransactionDenyConfig,
 };
@@ -60,6 +60,7 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_db_path: Option<PathBuf>,
     fullnode_rpc_port: Option<u16>,
     fullnode_rpc_addr: Option<SocketAddr>,
+    fullnode_attestor_key_pair: Option<KeyPairWithPath>,
     supported_protocol_versions_config: ProtocolVersionsConfig,
     // Default to supported_protocol_versions_config, but can be overridden.
     fullnode_supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
@@ -100,6 +101,7 @@ impl SwarmBuilder {
             fullnode_db_path: None,
             fullnode_rpc_port: None,
             fullnode_rpc_addr: None,
+            fullnode_attestor_key_pair: None,
             supported_protocol_versions_config: ProtocolVersionsConfig::Default,
             fullnode_supported_protocol_versions_config: None,
             num_unpruned_validators: None,
@@ -140,6 +142,7 @@ impl<R> SwarmBuilder<R> {
             fullnode_db_path: self.fullnode_db_path,
             fullnode_rpc_port: self.fullnode_rpc_port,
             fullnode_rpc_addr: self.fullnode_rpc_addr,
+            fullnode_attestor_key_pair: self.fullnode_attestor_key_pair,
             supported_protocol_versions_config: self.supported_protocol_versions_config,
             fullnode_supported_protocol_versions_config: self
                 .fullnode_supported_protocol_versions_config,
@@ -256,6 +259,12 @@ impl<R> SwarmBuilder<R> {
 
     pub fn with_fullnode_db_path(mut self, fullnode_db_path: PathBuf) -> Self {
         self.fullnode_db_path = Some(fullnode_db_path);
+        self
+    }
+
+    /// Give the first fullnode this attestor signing key.
+    pub fn with_fullnode_attestor_key_pair(mut self, key_pair: KeyPairWithPath) -> Self {
+        self.fullnode_attestor_key_pair = Some(key_pair);
         self
     }
 
@@ -636,13 +645,17 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
         for idx in 0..self.fullnode_count {
             let mut builder = fullnode_config_builder.clone();
             // Only the first fullnode is used as the rpc fullnode, and only it
-            // takes the given genesis config: an address can only be used once.
+            // takes the given genesis config and attestor key: an address or
+            // key can only be used once.
             let genesis_config = if idx == 0 {
                 if let Some(rpc_addr) = self.fullnode_rpc_addr {
                     builder = builder.with_rpc_addr(rpc_addr);
                 }
                 if let Some(rpc_port) = self.fullnode_rpc_port {
                     builder = builder.with_rpc_port(rpc_port);
+                }
+                if let Some(key_pair) = &self.fullnode_attestor_key_pair {
+                    builder = builder.with_attestor_key_pair(key_pair.clone());
                 }
                 fullnode_genesis_config.take()
             } else {

@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use iota_sdk_types::TransactionDigest;
 use iota_types::{
+    attestation::AttestedTransaction,
     error::IotaError,
     messages_grpc::{
         GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
@@ -25,6 +26,14 @@ pub trait ValidatorV2API {
     async fn submit_tx(
         &self,
         transactions: Vec<TransactionEnvelope>,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError>;
+
+    /// Submit transactions attested by a registered external attestor and
+    /// collect all streamed status updates.
+    async fn submit_externally_attested_tx(
+        &self,
+        transactions: Vec<AttestedTransaction>,
         client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError>;
 
@@ -62,6 +71,25 @@ impl ValidatorV2API for NetworkAuthorityClient {
         let response = self
             .v2_client()?
             .submit_tx(grpc_request)
+            .await
+            .map_err(IotaError::from)?;
+
+        collect_tx_status_stream(response.into_inner()).await
+    }
+
+    async fn submit_externally_attested_tx(
+        &self,
+        transactions: Vec<AttestedTransaction>,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        let proto: iota_network::api::SubmitExternallyAttestedTxRequest =
+            transactions.try_into()?;
+        let mut grpc_request = proto.into_request();
+        insert_metadata(&mut grpc_request, client_addr);
+
+        let response = self
+            .v2_client()?
+            .submit_externally_attested_tx(grpc_request)
             .await
             .map_err(IotaError::from)?;
 
