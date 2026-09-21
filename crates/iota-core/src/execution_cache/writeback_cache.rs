@@ -2508,6 +2508,10 @@ impl StateSyncAPI for WritebackCache {
 
 #[cfg(test)]
 impl WritebackCache {
+    pub(super) fn object_locks_for_testing(&self) -> &ObjectLocks {
+        &self.object_locks
+    }
+
     pub(super) fn write_object_for_testing(&self, object: Object) {
         let id = object.id();
         let version = object.version();
