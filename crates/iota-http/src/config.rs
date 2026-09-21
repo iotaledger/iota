@@ -5,12 +5,18 @@
 use std::time::Duration;
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
+/// hyper's own default for the header read deadline; hyper only enforces it
+/// when a timer is configured, which this crate always does.
+const DEFAULT_HTTP1_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Covers a round trip plus a few TCP retransmissions on a lossy link; an
 /// unloaded TLS 1.3 handshake completes in one round trip.
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
-/// Concurrent handshakes only build up when peers are slow or silent, so this
-/// leaves ample room for a legitimate reconnect burst.
-const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 512;
+/// Every connection to a TLS listener passes through the handshake phase, so
+/// together with the handshake deadline this bounds how many silent peers it
+/// takes to make honest connections wait in the kernel backlog. Concurrent
+/// handshakes only build up when peers are slow or silent, so this leaves ample
+/// room for a legitimate reconnect burst.
+const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 4096;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -26,9 +32,9 @@ pub struct Config {
     http2_max_header_list_size: Option<u32>,
     max_frame_size: Option<u32>,
     pub(crate) accept_http1: bool,
+    http1_header_read_timeout: Option<Duration>,
     enable_connect_protocol: bool,
     pub(crate) max_connection_age: Option<Duration>,
-    pub(crate) allow_insecure: bool,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
 }
@@ -48,9 +54,9 @@ impl Default for Config {
             http2_max_header_list_size: None,
             max_frame_size: None,
             accept_http1: true,
+            http1_header_read_timeout: Some(DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
             enable_connect_protocol: true,
             max_connection_age: None,
-            allow_insecure: false,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
         }
@@ -213,18 +219,15 @@ impl Config {
         }
     }
 
-    /// Allow accepting insecure connections when a tls_config is provided.
+    /// Sets how long an HTTP/1 connection may take to send a complete request
+    /// header block before it is closed. Until the headers arrive no request
+    /// exists that a request deadline could apply to, so this is the only bound
+    /// on a peer that stalls mid-headers.
     ///
-    /// This will allow clients to connect both using TLS as well as without TLS
-    /// on the same network interface.
-    ///
-    /// Default is `false`.
-    ///
-    /// NOTE: This presently will only work for `tokio::net::TcpStream` IO
-    /// connections
-    pub fn allow_insecure(self, allow_insecure: bool) -> Self {
+    /// Default is 30 seconds. `None` disables the deadline.
+    pub fn http1_header_read_timeout(self, timeout: Option<Duration>) -> Self {
         Config {
-            allow_insecure,
+            http1_header_read_timeout: timeout,
             ..self
         }
     }
@@ -247,7 +250,7 @@ impl Config {
     /// connections in the kernel backlog instead of holding file descriptors
     /// for them.
     ///
-    /// Default is 512. `None` removes the limit.
+    /// Default is 4096. `None` removes the limit.
     pub fn max_pending_connections(self, max_pending_connections: Option<usize>) -> Self {
         Self {
             max_pending_connections,
@@ -278,7 +281,12 @@ impl Config {
         let mut builder =
             hyper_util::server::conn::auto::Builder::new(hyper_util::rt::TokioExecutor::new());
 
-        if !self.accept_http1 {
+        if self.accept_http1 {
+            builder
+                .http1()
+                .timer(hyper_util::rt::TokioTimer::new())
+                .header_read_timeout(self.http1_header_read_timeout);
+        } else {
             builder = builder.http2_only();
         }
 
