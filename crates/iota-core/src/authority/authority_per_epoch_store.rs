@@ -5761,20 +5761,32 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// The executed-checkpoint watermark the consensus quarantine flushes
+    /// against. Unlike the checkpoint store's watermark it advances as soon as
+    /// a checkpoint's effects are committed.
+    pub fn highest_executed_checkpoint_for_testing(&self) -> CheckpointSequenceNumber {
+        self.consensus_quarantine
+            .read()
+            .highest_executed_checkpoint()
+    }
+
+    pub fn get_built_checkpoint_builder_summary(
+        &self,
+        sequence: CheckpointSequenceNumber,
+    ) -> IotaResult<Option<BuilderCheckpointSummary>> {
+        if let Some(summary) = self.consensus_quarantine.read().get_built_summary(sequence) {
+            return Ok(Some(summary.clone()));
+        }
+
+        Ok(self.tables()?.builder_checkpoint_summary.get(&sequence)?)
+    }
+
     pub fn get_built_checkpoint_summary(
         &self,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult<Option<CheckpointSummary>> {
-        if let Some(BuilderCheckpointSummary { summary, .. }) =
-            self.consensus_quarantine.read().get_built_summary(sequence)
-        {
-            return Ok(Some(summary.clone()));
-        }
-
         Ok(self
-            .tables()?
-            .builder_checkpoint_summary
-            .get(&sequence)?
+            .get_built_checkpoint_builder_summary(sequence)?
             .map(|s| s.summary))
     }
 
