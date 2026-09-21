@@ -450,7 +450,7 @@ impl OptimisticTransactionExecutor {
         .get_result::<AssignedSequenceNumber>(conn)
         .map_err(|e| match e {
             diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
-                tracing::error!("unique violation error: {e:?}");
+                tracing::debug!("unique violation error: {e:?}");
                 IndexerError::PostgresUniqueTxGlobalOrderViolation
             }
             _ => {
