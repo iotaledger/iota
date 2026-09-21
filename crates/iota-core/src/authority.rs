@@ -222,6 +222,7 @@ pub mod authority_per_epoch_store_pruner;
 
 pub mod authority_store_tables;
 pub mod authority_store_types;
+pub mod epoch_markers;
 pub mod epoch_start_configuration;
 pub mod historic_ledger;
 pub mod historic_objects;
@@ -3177,6 +3178,17 @@ impl AuthorityState {
             }
         }
         *execution_lock = new_epoch;
+        // Only now, with the scheduler on the new epoch and the lock reading
+        // it: a transaction of an earlier epoch is refused before it executes,
+        // so no read of that epoch's markers follows this. Doing it earlier
+        // raced `try_execute_immediately`, which reads a receiving object's
+        // marker before it takes the execution lock.
+        if let Err(err) = self
+            .get_reconfig_api()
+            .expire_epoch_markers(new_epoch, &execution_lock)
+        {
+            error!("Failed to expire the epoch marker buckets: {err:?}");
+        }
         // drop execution_lock after epoch store was updated
         // see also assert in AuthorityState::process_transaction
         // on the epoch store and execution lock epoch match

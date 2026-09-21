@@ -22,7 +22,7 @@ use typed_store::{
 };
 
 use crate::epoch_buckets::{
-    EpochBuckets, bucket_cf_epoch, bucket_cf_options, extra_column_family_options,
+    BucketReopen, EpochBuckets, bucket_cf_epoch, bucket_cf_options, extra_column_family_options,
 };
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
@@ -50,7 +50,7 @@ pub struct HistoricCheckpointsBucket {
     pub(crate) checkpoint_by_digest: TaggedDBMap<CheckpointDigest, TrustedCheckpoint>,
 }
 
-impl HistoricCheckpointsBucket {
+impl BucketReopen for HistoricCheckpointsBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
         Ok(Self {
             checkpoint_content: TaggedDBMap::reopen(
@@ -155,7 +155,6 @@ impl HistoricCheckpoints {
             cf_options,
             earliest_retained_table,
             buckets,
-            HistoricCheckpointsBucket::reopen,
         )?;
         Ok(Self { buckets })
     }
