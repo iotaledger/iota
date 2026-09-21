@@ -245,6 +245,9 @@ pub struct AuthorityMetrics {
     total_cert_attempts: IntCounter,
     total_effects: IntCounter,
     pub shared_obj_tx: IntCounter,
+    /// Attested transactions that passed post-consensus attestor
+    /// verification, by attestation kind.
+    pub post_consensus_attested_tx: IntCounterVec,
     sponsored_tx: IntCounter,
     tx_already_processed: IntCounter,
     num_input_objs: Histogram,
@@ -497,6 +500,13 @@ impl AuthorityMetrics {
                 "authority_state_signed_effects_equivocation_prevented",
                 "Number of times the validator refused to report effects that differ from previously signed effects for the same transaction, by RPC surface",
                 &["surface"],
+                registry,
+            )
+            .unwrap(),
+            post_consensus_attested_tx: register_int_counter_vec_with_registry!(
+                "authority_state_post_consensus_attested_tx",
+                "Number of attested transactions that passed post-consensus attestor verification, by attestation kind",
+                &["attestation"],
                 registry,
             )
             .unwrap(),

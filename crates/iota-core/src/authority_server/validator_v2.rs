@@ -55,9 +55,9 @@ const MAX_QUERIES_PER_GET_TX_STATUS: usize = 32;
 const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
 
 /// The union of two deny rule sources: denies whatever either source denies.
-struct DenyRuleUnion<'a> {
-    first: &'a dyn DenyRuleConfig,
-    second: &'a dyn DenyRuleConfig,
+pub(crate) struct DenyRuleUnion<'a> {
+    pub(crate) first: &'a dyn DenyRuleConfig,
+    pub(crate) second: &'a dyn DenyRuleConfig,
 }
 
 impl DenyRuleConfig for DenyRuleUnion<'_> {

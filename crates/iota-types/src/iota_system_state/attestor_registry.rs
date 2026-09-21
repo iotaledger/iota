@@ -281,6 +281,14 @@ impl AttestorSet {
         Some((idx, &self.entries[idx as usize]))
     }
 
+    /// The attestor registered with the `flag || raw` key `pubkey`.
+    pub fn by_pubkey(&self, pubkey: &[u8]) -> Option<(u32, &EpochStartAttestorInfoV1)> {
+        self.entries
+            .iter()
+            .position(|entry| entry.attestor_pubkey == pubkey)
+            .map(|idx| (idx as u32, &self.entries[idx]))
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &EpochStartAttestorInfoV1> {
         self.entries.iter()
     }

@@ -66,6 +66,11 @@ pub struct NodeConfig {
     /// uses to establish TLS connections.
     #[serde(default = "default_key_pair")]
     pub network_key_pair: KeyPairWithPath,
+    /// The registered attestor signing key. When set, this fullnode attests
+    /// the transactions it submits while the key is active on chain.
+    /// Rejected on a validator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attestor_key_pair: Option<KeyPairWithPath>,
     pub db_path: PathBuf,
 
     /// The network address for gRPC communication.
@@ -775,6 +780,12 @@ impl NodeConfig {
         self.network_key_pair.ed25519_keypair()
     }
 
+    pub fn attestor_key_pair(&self) -> Option<&SimpleKeypair> {
+        self.attestor_key_pair
+            .as_ref()
+            .map(KeyPairWithPath::keypair)
+    }
+
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
         self.authority_key_pair().public().into()
     }
@@ -859,6 +870,12 @@ impl NodeConfig {
                     "`state-snapshot-write-config.object-store-config` is set, but snapshot \
                      upload is only supported on fullnodes; remove the setting or move the \
                      upload to a fullnode"
+                );
+            }
+            if self.attestor_key_pair.is_some() {
+                anyhow::bail!(
+                    "`attestor-key-pair` is set, but only fullnodes attest the transactions they \
+                     submit; remove the key or move it to a fullnode"
                 );
             }
         }

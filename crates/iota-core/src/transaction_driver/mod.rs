@@ -22,7 +22,8 @@ use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
 use iota_sdk_types::{TransactionDigest, TransactionEvents};
 use iota_types::{
-    committee::EpochId, messages_grpc::TxStatusUpdate, transaction::TransactionEnvelope,
+    attestation::AttestedTransaction, committee::EpochId, messages_grpc::TxStatusUpdate,
+    transaction::TransactionEnvelope,
 };
 pub use metrics::*;
 use parking_lot::Mutex;
@@ -72,6 +73,23 @@ pub struct SubmitTransactionOptions {
     /// list cannot be used to submit the transaction to. When the blocked
     /// validator list is empty, no restrictions are applied.
     pub blocked_validators: Vec<String>,
+}
+
+/// What the driver submits to a validator: the user's transaction as signed,
+/// or the same transaction carrying this fullnode's explicit attestation.
+#[derive(Clone, Debug)]
+pub enum TransactionToSubmit {
+    Unattested(TransactionEnvelope),
+    Attested(AttestedTransaction),
+}
+
+impl TransactionToSubmit {
+    pub fn digest(&self) -> &TransactionDigest {
+        match self {
+            Self::Unattested(transaction) => transaction.digest(),
+            Self::Attested(attested) => attested.digest(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -148,7 +166,7 @@ where
     #[instrument(level = "error", skip_all, fields(tx_digest = ?transaction.as_ref().map(|t| *t.digest())))]
     pub async fn drive_transaction(
         &self,
-        transaction: Option<TransactionEnvelope>,
+        transaction: Option<TransactionToSubmit>,
         options: SubmitTransactionOptions,
         timeout_duration: Option<Duration>,
         skip_certification: bool,
@@ -316,7 +334,7 @@ where
     async fn drive_transaction_once(
         &self,
         amplification_factor: u64,
-        transaction: Option<TransactionEnvelope>,
+        transaction: Option<TransactionToSubmit>,
         options: &SubmitTransactionOptions,
         skip_certification: bool,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {

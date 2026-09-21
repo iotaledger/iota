@@ -39,7 +39,7 @@ use iota_types::{
         IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult, QuorumDriverError,
         QuorumDriverResponse, QuorumDriverResult,
     },
-    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope, VerifiedTransaction},
     transaction_driver_types::{
         EffectsFinalityInfo as TdEffectsFinalityInfo, FinalizedEffects as TdFinalizedEffects,
     },
@@ -47,7 +47,7 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use prometheus_filtered::{
-    Histogram, MetricLevel, Registry,
+    Histogram, IntCounterVec, MetricLevel, Registry,
     core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
@@ -67,13 +67,14 @@ use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     authority_aggregator::AuthorityAggregator,
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    fullnode_attestor::FullnodeAttestor,
     quorum_driver::{
         QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
         reconfig_observer::{OnsiteReconfigObserver, ReconfigObserver},
     },
     transaction_driver::{
         AggregatedRequestErrors, QuorumTransactionResponse, SubmitTransactionOptions,
-        TransactionDriver, TransactionDriverError, TransactionDriverMetrics,
+        TransactionDriver, TransactionDriverError, TransactionDriverMetrics, TransactionToSubmit,
         reconfig_observer::OnsiteReconfigObserver as TdOnsiteReconfigObserver,
     },
     validator_client_monitor::ValidatorClientMetrics,
@@ -122,6 +123,10 @@ pub struct TransactionOrchestrator<A: Clone> {
     in_flight_transactions: InFlightTransactions,
     notifier: Arc<NotifyRead<TransactionDigest, QuorumDriverResult>>,
     metrics: Arc<TransactionOrchestratorMetrics>,
+    /// Present when the node config carries an attestor key: transactions
+    /// driven by the TransactionDriver then carry this fullnode's explicit
+    /// attestation while the key is active.
+    attestor: Option<Arc<FullnodeAttestor>>,
 }
 
 impl TransactionOrchestrator<NetworkAuthorityClient> {
@@ -232,6 +237,9 @@ where
             client_metrics,
             pcool_flow_enabled,
         );
+        let attestor = node_config
+            .and_then(NodeConfig::attestor_key_pair)
+            .map(|keypair| Arc::new(FullnodeAttestor::new(keypair.clone())));
 
         Self {
             quorum_driver,
@@ -242,6 +250,7 @@ where
             in_flight_transactions: Default::default(),
             notifier,
             metrics,
+            attestor,
         }
     }
 }
@@ -341,6 +350,7 @@ where
         let (mut response, seq) =
             match (self.select_driver(&epoch_store)?, wait_for_local_execution) {
                 (Driver::Transaction(td), true) => {
+                    let attestor = self.attestor.clone();
                     let in_flight_transactions = self.in_flight_transactions.clone();
                     let validator_state = self.validator_state.clone();
                     let metrics = self.metrics.clone();
@@ -349,6 +359,7 @@ where
                     // the task drives the transaction to finality on its own.
                     join_submission_task(spawn_monitored_task!(Self::submit_with_checkpoint_race(
                         td,
+                        attestor,
                         in_flight_transactions,
                         validator_state,
                         metrics,
@@ -359,14 +370,18 @@ where
                     .await?
                 }
                 (Driver::Transaction(td), false) => {
+                    let attestor = self.attestor.clone();
                     let in_flight_transactions = self.in_flight_transactions.clone();
                     let validator_state = self.validator_state.clone();
+                    let metrics = self.metrics.clone();
                     // Detached for the same reason as above.
                     let result = join_submission_task(spawn_monitored_task!(
                         Self::submit_with_transaction_driver(
                             td,
+                            attestor,
                             in_flight_transactions,
                             validator_state,
+                            metrics,
                             request,
                             client_addr,
                             false,
@@ -693,8 +708,10 @@ where
 
         match self.select_driver(&epoch_store)? {
             Driver::Transaction(td) => {
+                let attestor = self.attestor.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
+                let metrics = self.metrics.clone();
                 // v1 does not do an internal wait; callers (e.g. the gRPC
                 // execution service) are responsible for their own
                 // `wait_for_checkpoint_inclusion` when they need it, and will
@@ -704,8 +721,10 @@ where
                 // that may already be in consensus.
                 join_submission_task(spawn_monitored_task!(Self::submit_with_transaction_driver(
                     td,
+                    attestor,
                     in_flight_transactions,
                     validator_state,
+                    metrics,
                     request,
                     client_addr,
                     skip_certification,
@@ -743,6 +762,7 @@ where
         fields(tx_digest = ?tx_digest))]
     async fn submit_with_checkpoint_race(
         td: Arc<TransactionDriver<A>>,
+        attestor: Option<Arc<FullnodeAttestor>>,
         in_flight_transactions: InFlightTransactions,
         validator_state: Arc<AuthorityState>,
         metrics: Arc<TransactionOrchestratorMetrics>,
@@ -762,8 +782,10 @@ where
         tokio::pin!(checkpoint_inclusion);
         let driver = Self::submit_with_transaction_driver(
             td,
+            attestor,
             in_flight_transactions,
             validator_state.clone(),
+            metrics.clone(),
             request,
             client_addr,
             true,
@@ -809,14 +831,20 @@ where
     /// See `corroborate_single_validator_error` for the per-submission
     /// fetch-failure recovery flow inside the driver.
     ///
+    /// With an attestor key configured, the transaction is submitted with this
+    /// fullnode's explicit attestation or rejected (see
+    /// `attest_if_configured`).
+    ///
     /// Run inside a detached task so a client disconnect cannot cancel a
     /// `drive_transaction` call that may already be in consensus.
     #[instrument(name = "tx_orchestrator_submit_with_td", level = "trace", skip_all,
         fields(tx_digest = ?request.transaction.digest()))]
     async fn submit_with_transaction_driver(
         td: Arc<TransactionDriver<A>>,
+        attestor: Option<Arc<FullnodeAttestor>>,
         in_flight_transactions: InFlightTransactions,
         validator_state: Arc<AuthorityState>,
+        metrics: Arc<TransactionOrchestratorMetrics>,
         request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
         skip_certification: bool,
@@ -849,13 +877,29 @@ where
             }
         };
 
+        // After the guard, so concurrent duplicates dry-run once.
+        let transaction = match Self::attest_if_configured(
+            attestor.as_deref(),
+            &validator_state,
+            &metrics,
+            &request.transaction,
+        )
+        .await
+        {
+            Ok(transaction) => transaction,
+            Err(error) => {
+                guard.publish(Err(error.clone()));
+                return Err(error);
+            }
+        };
+
         // This call runs inside a task detached from the caller, so the
         // outcome is logged here rather than left to the caller — a
         // disconnected client's continuation never runs and would
         // otherwise never observe it.
         let td_response = match td
             .drive_transaction(
-                Some(request.transaction.clone()),
+                Some(transaction),
                 SubmitTransactionOptions {
                     forwarded_client_addr: client_addr,
                     ..Default::default()
@@ -886,6 +930,50 @@ where
         let td_response = Arc::try_unwrap(td_response).unwrap_or_else(|shared| (*shared).clone());
 
         Ok(Self::response_from_driver_response(td_response, &request))
+    }
+
+    /// The transaction to drive. Without an attestor key, the transaction as
+    /// signed. With one, the transaction with this fullnode's explicit
+    /// attestation: it is never submitted unattested, so an inactive key or a
+    /// failed dry run rejects it back to the client.
+    async fn attest_if_configured(
+        attestor: Option<&FullnodeAttestor>,
+        validator_state: &Arc<AuthorityState>,
+        metrics: &TransactionOrchestratorMetrics,
+        transaction: &TransactionEnvelope,
+    ) -> Result<TransactionToSubmit, QuorumDriverError> {
+        let Some(attestor) = attestor else {
+            return Ok(TransactionToSubmit::Unattested(transaction.clone()));
+        };
+        let tx_digest = transaction.digest();
+        let epoch_store = validator_state.load_epoch_store_one_call_per_task();
+        let attestor_address = attestor.active_address(&epoch_store).map_err(|e| {
+            metrics
+                .attestation_rejections
+                .with_label_values(&["attestor_inactive"])
+                .inc();
+            QuorumDriverError::RejectedByAttestor(e)
+        })?;
+        // The caller verified the user signature.
+        let verified = VerifiedTransaction::new_from_verified(transaction.clone());
+        let attested = attestor
+            .attest(
+                validator_state.clone(),
+                Arc::clone(&epoch_store),
+                verified,
+                attestor_address,
+            )
+            .await
+            .map_err(|e| {
+                debug!(?tx_digest, "attestation dry run failed, rejecting: {e}");
+                metrics
+                    .attestation_rejections
+                    .with_label_values(&["dry_run_failed"])
+                    .inc();
+                QuorumDriverError::RejectedByAttestor(e)
+            })?;
+        metrics.attested_submissions.inc();
+        Ok(TransactionToSubmit::Attested(attested))
     }
 
     /// Build a caller-specific response from a driver response, honoring the
@@ -1621,6 +1709,12 @@ pub struct TransactionOrchestratorMetrics {
     // the local cache.
     skip_effect_cert_checkpoint_overrode_driver: GenericCounter<AtomicU64>,
 
+    /// Transactions submitted with this fullnode's explicit attestation.
+    attested_submissions: GenericCounter<AtomicU64>,
+    /// Transactions rejected because this fullnode could not attest them, by
+    /// reason.
+    attestation_rejections: IntCounterVec,
+
     request_latency_single_writer: Histogram,
     request_latency_shared_obj: Histogram,
     wait_for_finality_latency_single_writer: Histogram,
@@ -1761,6 +1855,19 @@ impl TransactionOrchestratorMetrics {
             early_cached_response: register_int_counter_with_registry!(
                 "tx_orchestrator_early_cached_response",
                 "Total number of requests returning cached results for already-executed transactions",
+                registry,
+            )
+                .unwrap(),
+            attested_submissions: register_int_counter_with_registry!(
+                "tx_orchestrator_attested_submissions",
+                "Number of transactions submitted with this fullnode's explicit attestation",
+                registry,
+            )
+                .unwrap(),
+            attestation_rejections: register_int_counter_vec_with_registry!(
+                "tx_orchestrator_attestation_rejections",
+                "Number of transactions rejected because this fullnode could not attest them, by reason",
+                &["reason"],
                 registry,
             )
                 .unwrap(),

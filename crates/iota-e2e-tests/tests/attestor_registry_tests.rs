@@ -1,8 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! End-to-end tests for the attestor registry lifecycle and the external
-//! attestation ingress (`ValidatorV2::SubmitExternallyAttestedTx`).
+//! End-to-end tests for the attestor registry lifecycle, the external
+//! attestation ingress (`ValidatorV2::SubmitExternallyAttestedTx`) and the
+//! attestor fullnode.
 //!
 //! Enables `enable_external_attestation` (+ its required
 //! `enable_validator_attestation` and `enable_pcool_flow`).
@@ -24,7 +25,7 @@ use iota_types::{
         attestor_pubkey_bytes, generate_attestor_proof_of_possession, get_attestor_metadata,
     },
     messages_grpc::TxStatusUpdate,
-    transaction::CallArg,
+    transaction::{CallArg, TransactionEnvelope},
 };
 use rand::{SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -83,6 +84,17 @@ fn keypair_from_seed(seed: u8) -> SimpleKeypair {
     )
 }
 
+/// A signed transfer of `amount` from the cluster's second account.
+async fn transfer(test_cluster: &TestCluster, amount: u64) -> TransactionEnvelope {
+    let sender = test_cluster.get_addresses()[1];
+    let tx_data = test_cluster
+        .test_transaction_builder_with_sender(sender)
+        .await
+        .transfer_iota(Some(amount), Address::random())
+        .build();
+    test_cluster.sign_transaction(&tx_data)
+}
+
 /// A signed transfer from the cluster's second account, attested by
 /// `attestor_address` with `keypair`, claiming the protocol floor in units.
 async fn attested_transfer(
@@ -91,13 +103,7 @@ async fn attested_transfer(
     attestor_address: Address,
     keypair: &SimpleKeypair,
 ) -> AttestedTransaction {
-    let sender = test_cluster.get_addresses()[1];
-    let tx_data = test_cluster
-        .test_transaction_builder_with_sender(sender)
-        .await
-        .transfer_iota(Some(amount), Address::random())
-        .build();
-    let tx = test_cluster.sign_transaction(&tx_data);
+    let tx = transfer(test_cluster, amount).await;
     let floor = test_cluster.fullnode_handle.iota_node.with(|node| {
         let protocol_config = node
             .state()
@@ -153,6 +159,71 @@ async fn wait_for_effects(
                 .expect("checkpointed transaction has effects")
         })
         .await
+}
+
+/// Explicit attestations that passed post-consensus verification, summed over
+/// the validators.
+fn explicit_attestations_sequenced(test_cluster: &TestCluster) -> u64 {
+    test_cluster
+        .all_validator_handles()
+        .iter()
+        .map(|handle| {
+            handle.with(|node| {
+                node.state()
+                    .metrics
+                    .post_consensus_attested_tx
+                    .with_label_values(&["explicit"])
+                    .get()
+            })
+        })
+        .sum()
+}
+
+/// A fullnode with an attestor key rejects submissions while the key is not
+/// active, and attests the transactions it submits once it is.
+#[sim_test]
+async fn test_attestor_fullnode_attests_submitted_transactions() {
+    telemetry_subscribers::init_for_testing();
+    let _env = enable_external_attestation_env();
+    let keypair = keypair_from_seed(9);
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_attestor_key_pair(keypair.clone())
+        .build()
+        .await;
+    let client = first_validator_client(&test_cluster);
+    let client_addr = Some(SocketAddr::new([127, 0, 0, 1].into(), 0));
+
+    // Unregistered key: rejected rather than submitted unattested. The
+    // registration itself therefore goes to a validator directly.
+    let tx = transfer(&test_cluster, 1_000).await;
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("not in the active attestor set"), "{error}");
+
+    let registration = test_cluster
+        .register_attestor_tx(test_cluster.get_address_0(), &keypair)
+        .await;
+    let digest = *registration.digest();
+    client
+        .submit_tx(vec![registration], client_addr)
+        .await
+        .unwrap();
+    let effects = wait_for_effects(&test_cluster, digest).await;
+    assert!(
+        matches!(effects.status(), ExecutionStatus::Success),
+        "registration failed: {:?}",
+        effects.status()
+    );
+    test_cluster.force_new_epoch().await;
+
+    let sequenced_before = explicit_attestations_sequenced(&test_cluster);
+    let tx = transfer(&test_cluster, 2_000).await;
+    test_cluster.execute_transaction(tx).await;
+    assert!(explicit_attestations_sequenced(&test_cluster) > sequenced_before);
 }
 
 /// A transaction attested by an active attestor goes through the ingress,

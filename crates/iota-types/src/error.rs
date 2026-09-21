@@ -764,6 +764,9 @@ pub enum IotaError {
         attestor_address: Address,
         error: String,
     },
+
+    #[error("Attestor key is not in the active attestor set of epoch {epoch}")]
+    AttestorKeyInactive { epoch: EpochId },
 }
 
 #[repr(u64)]

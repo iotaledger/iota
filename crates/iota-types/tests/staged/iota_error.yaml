@@ -101,3 +101,4 @@
 99: ExplicitAttestationUnknownAttestor
 100: ExplicitAttestationKeyMismatch
 101: ExplicitAttestationSignatureInvalid
+102: AttestorKeyInactive

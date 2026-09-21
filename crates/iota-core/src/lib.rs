@@ -25,6 +25,7 @@ pub mod execution_cache;
 mod execution_driver;
 pub mod execution_scheduler;
 mod fallback_fetch;
+pub(crate) mod fullnode_attestor;
 pub mod global_state_hasher;
 pub mod grpc_indexes;
 pub mod jsonrpc_index;

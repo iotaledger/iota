@@ -7,12 +7,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::{
+    future::Either,
+    stream::{FuturesUnordered, StreamExt},
+};
 use iota_types::{
     base_types::AuthorityName,
     error::{ErrorCategory, IotaError},
     messages_grpc::TxStatusUpdate,
-    transaction::TransactionEnvelope,
 };
 use tokio::time::timeout;
 use tracing::instrument;
@@ -22,7 +24,7 @@ use crate::{
     authority_client::AuthorityAPI,
     safe_client::SafeClient,
     transaction_driver::{
-        SubmitTransactionOptions, TransactionDriverMetrics,
+        SubmitTransactionOptions, TransactionDriverMetrics, TransactionToSubmit,
         error::{
             AggregatedEffectsDigests, TransactionDriverError, TransactionRequestError,
             aggregate_request_errors,
@@ -51,7 +53,7 @@ impl TransactionSubmitter {
         authority_aggregator: &AuthorityAggregator<A>,
         client_monitor: &ValidatorClientMonitor,
         amplification_factor: u64,
-        transaction: Option<TransactionEnvelope>,
+        transaction: Option<TransactionToSubmit>,
         options: &SubmitTransactionOptions,
     ) -> Result<(AuthorityName, TxStatusUpdate), TransactionDriverError>
     where
@@ -179,7 +181,7 @@ impl TransactionSubmitter {
     pub(crate) async fn submit_transaction_once<A>(
         &self,
         client: Arc<SafeClient<A>>,
-        transaction: &Option<TransactionEnvelope>,
+        transaction: &Option<TransactionToSubmit>,
         options: &SubmitTransactionOptions,
         client_monitor: &ValidatorClientMonitor,
         validator: AuthorityName,
@@ -192,24 +194,31 @@ impl TransactionSubmitter {
             &OperationFeedback::builder(validator, display_name, OperationType::Submit);
         let submit_start = Instant::now();
 
-        let statuses = timeout(
-            SUBMIT_TRANSACTION_TIMEOUT,
-            client.submit_tx(
-                transaction.clone().into_iter().collect(),
-                options.forwarded_client_addr,
-            ),
-        )
-        .await
-        .map_err(|_| {
-            client_monitor.record_interaction_result(feedback_builder.clone().err_now());
-            TransactionRequestError::TimedOutSubmittingTransaction
-        })?
-        .map_err(|error| {
-            if is_validator_error(error.categorize()) {
-                client_monitor.record_interaction_result(feedback_builder.clone().err_now());
+        // `None` is a ping: an empty submission that only measures latency.
+        let submit = match transaction {
+            Some(TransactionToSubmit::Attested(attested)) => {
+                Either::Left(client.submit_externally_attested_tx(
+                    vec![attested.clone()],
+                    options.forwarded_client_addr,
+                ))
             }
-            TransactionRequestError::RejectedAtValidator(error)
-        })?;
+            Some(TransactionToSubmit::Unattested(transaction)) => Either::Right(
+                client.submit_tx(vec![transaction.clone()], options.forwarded_client_addr),
+            ),
+            None => Either::Right(client.submit_tx(vec![], options.forwarded_client_addr)),
+        };
+        let statuses = timeout(SUBMIT_TRANSACTION_TIMEOUT, submit)
+            .await
+            .map_err(|_| {
+                client_monitor.record_interaction_result(feedback_builder.clone().err_now());
+                TransactionRequestError::TimedOutSubmittingTransaction
+            })?
+            .map_err(|error| {
+                if is_validator_error(error.categorize()) {
+                    client_monitor.record_interaction_result(feedback_builder.clone().err_now());
+                }
+                TransactionRequestError::RejectedAtValidator(error)
+            })?;
 
         let result = statuses
             .into_iter()

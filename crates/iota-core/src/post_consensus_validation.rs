@@ -292,6 +292,15 @@ pub async fn validate_and_resolve_conflicts(
                 keep[i] = false;
                 continue;
             }
+            let attestation_kind = match attestation {
+                Attestation::Validator { .. } => "validator",
+                Attestation::Explicit { .. } => "explicit",
+            };
+            authority_state
+                .metrics
+                .post_consensus_attested_tx
+                .with_label_values(&[attestation_kind])
+                .inc();
         }
 
         // Check #4: Extract owned input objects for lock conflict detection.

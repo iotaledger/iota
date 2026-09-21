@@ -201,6 +201,7 @@ impl ValidatorConfigBuilder {
             network_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
                 &validator.network_key_pair,
             )),
+            attestor_key_pair: None,
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
             protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
                 &validator.protocol_key_pair,
@@ -303,6 +304,7 @@ pub struct FullnodeConfigBuilder {
     p2p_external_address: Option<Multiaddr>,
     p2p_listen_address: Option<SocketAddr>,
     network_key_pair: Option<KeyPairWithPath>,
+    attestor_key_pair: Option<KeyPairWithPath>,
     run_with_range: Option<RunWithRange>,
     policy_config: Option<PolicyConfig>,
     fw_config: Option<RemoteFirewallConfig>,
@@ -410,6 +412,11 @@ impl FullnodeConfigBuilder {
                 &network_key_pair,
             )));
         }
+        self
+    }
+
+    pub fn with_attestor_key_pair(mut self, attestor_key_pair: KeyPairWithPath) -> Self {
+        self.attestor_key_pair = Some(attestor_key_pair);
         self
     }
 
@@ -613,6 +620,7 @@ impl FullnodeConfigBuilder {
             network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
                 network_to_simple_keypair(&genesis_config.network_key_pair),
             )),
+            attestor_key_pair: self.attestor_key_pair,
             db_path: self
                 .db_path
                 .unwrap_or(config_directory.join(FULL_NODE_DB_PATH).join(key_path)),
