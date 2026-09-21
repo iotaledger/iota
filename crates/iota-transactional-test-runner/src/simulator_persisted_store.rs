@@ -807,6 +807,16 @@ impl GrpcStateReader for PersistedStoreInnerReadOnlyWrapper {
         None
     }
 
+    fn get_transaction_checkpoint(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        // This store keeps no digest-to-checkpoint mapping, and nothing in
+        // the transactional-test-runner exercises the gRPC checkpoint
+        // lookup, so there is no pruning behaviour to model here.
+        Ok(None)
+    }
+
     fn get_struct_layout(
         &self,
         _: &StructTag,

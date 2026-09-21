@@ -3,10 +3,10 @@
 
 //! The RPC index store: the on-disk indexes both the JSON-RPC and gRPC APIs
 //! read from. A store is configured with the [`IndexGroup`]s its node needs;
-//! tables of a disabled group stay empty, and the digest history (see
-//! [`schema::HistoryBucket`]) is filled from checkpoint contents alone when
-//! the JSON-RPC group is off, since gRPC needs only the checkpoint a
-//! transaction landed in, not its network sequence number.
+//! tables of a disabled group stay empty, except for the digest row (see
+//! [`schema::HistoryBucket`]), which is written whatever the enabled groups
+//! are because checkpoint ingest reads it to tell a replayed checkpoint
+//! from a new one.
 //!
 //! This module is schema, open, rebuild, backfill, prune, and the
 //! per-checkpoint ingest; [`jsonrpc_api`] and [`grpc_api`] add the two read
@@ -923,17 +923,15 @@ impl RpcIndexesStore {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
-    /// The transaction's position in the network order and the checkpoint
-    /// that committed it, from the newest bucket holding it, `None` if the
-    /// digest is not indexed (or its epoch has been pruned). Shared by both
-    /// API surfaces: JSON-RPC uses the sequence number, gRPC uses the
-    /// checkpoint.
+    /// The transaction's position in the network order, from the newest
+    /// bucket holding it, `None` if the digest is not indexed (or its epoch
+    /// has been pruned).
     pub fn lookup_digest(
         &self,
         digest: &TransactionDigest,
-    ) -> IotaResult<Option<(TxSequenceNumber, CheckpointSequenceNumber)>> {
+    ) -> IotaResult<Option<TxSequenceNumber>> {
         for bucket in self.history.iter(true) {
-            if let Some(found) = bucket.digests.get(digest)? {
+            if let Some(found) = bucket.txs_seq.get(digest)? {
                 return Ok(Some(found));
             }
         }
@@ -996,7 +994,7 @@ impl RpcIndexesStore {
         // A transaction's digest row is written whatever the enabled groups
         // are, and always into the bucket of its own epoch, so this one
         // lookup decides for every table whether the transaction is new.
-        let already_indexed = bucket.digests.multi_get(&digests)?;
+        let already_indexed = bucket.txs_seq.multi_get(&digests)?;
         // The zip below pairs each transaction with its own lookup.
         debug_assert_eq!(digests.len(), already_indexed.len());
         let transactions: Vec<&CheckpointTransaction> = checkpoint
@@ -1013,19 +1011,13 @@ impl RpcIndexesStore {
             if index_jsonrpc {
                 let data =
                     transaction_index_data(&tx.transaction, &tx.effects, tx.events.as_ref())?;
-                bucket.index_tx(
-                    &mut batch,
-                    sequence,
-                    checkpoint_seq,
-                    summary.timestamp_ms,
-                    data,
-                )?;
+                bucket.index_tx(&mut batch, sequence, summary.timestamp_ms, data)?;
             } else {
                 // A gRPC-only store needs nothing beyond the digest row that
                 // `index_tx` would write alongside the JSON-RPC history.
                 batch.insert_batch_tagged(
-                    &bucket.digests,
-                    [(*tx.effects.transaction_digest(), (sequence, checkpoint_seq))],
+                    &bucket.txs_seq,
+                    [(*tx.effects.transaction_digest(), sequence)],
                 )?;
             }
         }
@@ -1394,13 +1386,7 @@ impl RpcIndexesStore {
                 let data = transaction_index_data(&transaction, &effects, events.as_ref())
                     .map_err(|e| StorageError::custom(e.to_string()))?;
                 bucket
-                    .index_tx(
-                        &mut batch,
-                        sequence,
-                        checkpoint_seq,
-                        summary.timestamp_ms,
-                        data,
-                    )
+                    .index_tx(&mut batch, sequence, summary.timestamp_ms, data)
                     .map_err(|e| StorageError::custom(e.to_string()))?;
             }
         } else {
@@ -1409,10 +1395,10 @@ impl RpcIndexesStore {
             // write the same digest rows, but only after fetching
             // transactions, effects and events it has no other use for.
             batch.insert_batch_tagged(
-                &bucket.digests,
+                &bucket.txs_seq,
                 (first_sequence_number..)
                     .zip(contents.iter())
-                    .map(|(sequence, digests)| (digests.transaction, (sequence, checkpoint_seq))),
+                    .map(|(sequence, digests)| (digests.transaction, sequence)),
             )?;
         }
 

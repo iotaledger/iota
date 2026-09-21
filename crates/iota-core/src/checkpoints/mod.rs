@@ -163,7 +163,11 @@ pub struct BuilderCheckpointSummary {
 
 #[derive(DBMapUtils)]
 pub struct CheckpointStoreTables {
-    /// Maps checkpoint contents digest to checkpoint contents
+    /// Maps checkpoint contents digest to checkpoint contents.
+    ///
+    /// Prunes with the ledger: peer sync reconstructs full checkpoint
+    /// contents from this plus the transaction and effects stores, so it is
+    /// sync-critical.
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
     /// Deprecated: the contents-digest to sequence-number mapping moved to
@@ -182,9 +186,21 @@ pub struct CheckpointStoreTables {
     #[deprecated_db_map]
     full_checkpoint_content: Option<DBMap<(), ()>>,
 
-    /// Stores certified checkpoints
+    /// Certified checkpoint summaries, keyed by sequence number.
+    ///
+    /// Intentionally not pruned, so this grows by one row per checkpoint
+    /// forever. The summary chain is the per-checkpoint verification
+    /// anchor: `epoch_info` carries one certified summary per epoch, enough
+    /// to follow committee handovers, but only these intermediate summaries
+    /// carry a certified `contents_digest` for a non-boundary checkpoint,
+    /// which is what an inclusion proof is checked against.
     pub(crate) certified_checkpoints: DBMap<CheckpointSequenceNumber, TrustedCheckpoint>,
-    /// Map from checkpoint digest to certified checkpoint
+    /// Map from checkpoint digest to certified checkpoint.
+    ///
+    /// The digest-keyed lookup used to resolve a checkpoint by digest during
+    /// peer sync, alongside `checkpoint_content`. Prunes with the ledger,
+    /// following `checkpoint_content`, even though `certified_checkpoints`
+    /// (the same data keyed by sequence number) is kept forever.
     pub(crate) checkpoint_by_digest: DBMap<CheckpointDigest, TrustedCheckpoint>,
 
     /// Store locally computed checkpoint summaries so that we can detect forks
