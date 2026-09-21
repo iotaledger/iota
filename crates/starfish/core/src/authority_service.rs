@@ -862,11 +862,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 1. Verify the header of the primary block and make some preliminary checks.
-        // Its transactions are verified in step 5, once the round is known to be
-        // within the connect ceiling: for a block above it, that work and the shard
-        // proofs are the bulk of a bundle's cost and all of it is discarded. The
-        // header is verified either way, so a peer far ahead of us still contributes
-        // its commit votes.
+        // Its round is checked before its transactions are verified in step 5, so a
+        // block too far ahead to ever be accepted costs only the header.
         let (verified_block_header, serialized_transactions) = self.verify_primary_block_header(
             peer,
             peer_hostname,
