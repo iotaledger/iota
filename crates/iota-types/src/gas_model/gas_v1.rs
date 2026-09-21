@@ -213,8 +213,8 @@ mod checked {
         /// entry per written or deleted object (0 = deleted). Unlike
         /// `per_object_storage`, which feeds fees and is skipped in unmetered
         /// mode, this list is maintained unconditionally so the resource
-        /// profile records system transactions' writes too. Profile-only;
-        /// never read by charging.
+        /// profile records system transactions' writes too. Maintaining it
+        /// deducts no gas, and fee computation does not consult it.
         profile_write_sizes: Vec<u64>,
         // storage rebate rate as defined in the ProtocolConfig
         rebate_rate: u64,
