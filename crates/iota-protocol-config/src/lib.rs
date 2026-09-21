@@ -3808,6 +3808,21 @@ impl ProtocolConfig {
         self.feature_flags.deny_rule_governance_on_chain = val;
     }
 
+    /// Keeps the config consistent with the getters that assert on this flag:
+    /// enabling fills in `scorer_version` when unset, disabling also switches
+    /// off `adjust_rewards_by_score` and
+    /// `pass_calculated_validator_scores_to_advance_epoch`.
+    pub fn set_calculate_validator_scores_for_testing(&mut self, val: bool) {
+        self.feature_flags.calculate_validator_scores = val;
+        if val {
+            self.scorer_version.get_or_insert(1);
+        } else {
+            self.feature_flags.adjust_rewards_by_score = false;
+            self.feature_flags
+                .pass_calculated_validator_scores_to_advance_epoch = false;
+        }
+    }
+
     pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
         self.feature_flags
             .package_metadata_with_dynamic_module_metadata = val;

@@ -3472,11 +3472,16 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(_transaction),
+                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
                 ..
             }) => {
-                // TODO: make sure that UserTransactionV1 blocks don't pass
-                //  validation if the protocol feature flag is not set
+                if !self.protocol_config().enable_pcool_flow() {
+                    debug!(
+                        "Ignoring UserTransactionV1 {:?}: the P-COOL flow is disabled",
+                        transaction.digest()
+                    );
+                    return None;
+                }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(data),
@@ -3558,14 +3563,6 @@ impl AuthorityPerEpochStore {
                 // verification in IotaTxValidator. We don't need to check the
                 // sender_authority as it's correct that it's different from the
                 // authority in the notification.
-                // Here we only check if tracking non-committee authority capabilities is
-                // enabled.
-                if !self
-                    .protocol_config()
-                    .track_non_committee_eligible_validators()
-                {
-                    return None;
-                }
             }
             #[allow(deprecated)]
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
@@ -3605,6 +3602,13 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
                 ..
             }) => {
+                if !self.protocol_config().enable_pcool_flow() {
+                    debug!(
+                        "Ignoring OverloadNotificationV1 from {:?}: the P-COOL flow is disabled",
+                        authority.concise()
+                    );
+                    return None;
+                }
                 if &transaction.sender_authority() != authority {
                     warn!(
                         "OverloadNotificationV1 authority {} does not match its author from consensus {}",
