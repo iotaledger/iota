@@ -800,15 +800,17 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     }
 }
 
-/// Reads the payloads for `refs`, taking those below the GC round from the
-/// store and the rest from the DAG state. The store read stops once the
-/// payloads it has read would pass `byte_budget`, so the result can cover only
-/// part of `refs`.
+/// Reads the payloads for `refs`, taking those at or above the GC round from
+/// the DAG state and leaving the rest to `read_below_gc`, which the caller
+/// picks so its store access matches the refs it asks for. A result missing
+/// some of `refs` is normal: `read_below_gc` may stop short, and a payload can
+/// be absent.
 fn read_transaction_payloads(
-    store: &dyn Store,
     dag_state: &RwLock<DagState>,
     refs: &[TransactionRef],
-    byte_budget: usize,
+    read_below_gc: impl FnOnce(
+        BTreeSet<TransactionRef>,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>>,
 ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
     let gc_round = dag_state.read().gc_round_for_last_solid_commit();
     let mut below_gc = BTreeSet::new();
@@ -821,7 +823,7 @@ fn read_transaction_payloads(
         }
     }
 
-    let mut payloads = store.scan_serialized_transactions(&below_gc, byte_budget)?;
+    let mut payloads = read_below_gc(below_gc)?;
     if !above_gc.is_empty() {
         // Payloads at or above the GC round are handed out as clones of buffers
         // the DAG state already holds, so they cost no new memory and are read
@@ -873,7 +875,9 @@ fn fetch_commit_transactions_within_budget(
     let byte_budget = context.parameters.max_fast_commit_sync_transaction_bytes;
     let all_refs: Vec<TransactionRef> =
         commits_transaction_refs.iter().flatten().copied().collect();
-    let mut payloads = read_transaction_payloads(store, dag_state, &all_refs, byte_budget)?;
+    let mut payloads = read_transaction_payloads(dag_state, &all_refs, |below_gc| {
+        store.scan_serialized_transactions(&below_gc, byte_budget)
+    })?;
 
     let mut result = Vec::new();
     let mut covered_commits = 0;
@@ -914,8 +918,9 @@ fn fetch_commit_transactions_within_budget(
         .clone()
         .try_acquire_owned()
         .map_err(|_| ConsensusError::OversizedCommitAlreadyServed)?;
-    let mut payloads =
-        read_transaction_payloads(store, dag_state, first_transaction_refs, usize::MAX)?;
+    let mut payloads = read_transaction_payloads(dag_state, first_transaction_refs, |below_gc| {
+        store.scan_serialized_transactions(&below_gc, usize::MAX)
+    })?;
     for transaction_ref in first_transaction_refs {
         if let Some(payload) = take_payload(context, &mut payloads, *transaction_ref) {
             result.push(serialize_transactions_entry(*transaction_ref, payload)?);
@@ -1819,58 +1824,29 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Optimize by reading from store for transactions below GC round
-        let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
-
-        // Partition committed_transactions_refs into those below and at-or-above GC
-        // round
-        let (below_gc, above_gc): (Vec<_>, Vec<_>) = committed_transactions_refs
-            .iter()
-            .cloned()
-            .partition(|tx_ref| tx_ref.round < gc_round);
-
-        // Fetch transactions below GC from store
-        let store_transactions = if !below_gc.is_empty() {
-            let refs: Vec<GenericTransactionRef> =
-                below_gc.iter().copied().map(Into::into).collect();
-            let transactions = self.store.read_serialized_transactions(&refs)?;
-            transactions
-                .into_iter()
-                .zip(below_gc)
-                .map(|(transaction, transaction_ref)| {
-                    let transaction = transaction.or_else(|| {
-                        self.context
-                            .empty_transactions_for_ref(transaction_ref.into())
-                            .map(|empty| empty.serialized().clone())
-                    });
-                    (transaction, transaction_ref)
-                })
-                .collect::<Vec<_>>()
-        } else {
-            vec![]
-        };
-
-        // Fetch transactions at-or-above GC from dag_state
-        let dag_transactions = if !above_gc.is_empty() {
-            let refs: Vec<GenericTransactionRef> =
-                above_gc.iter().copied().map(Into::into).collect();
-            self.dag_state
-                .read()
-                .get_serialized_transactions(&refs)
-                .into_iter()
-                .zip(above_gc)
-                .collect::<Vec<_>>()
-        } else {
-            vec![]
-        };
-
-        let mut transactions_by_ref: BTreeMap<_, _> = store_transactions
-            .into_iter()
-            .chain(dag_transactions)
-            .filter_map(|(transaction, transaction_ref)| {
-                transaction.map(|transaction| (transaction_ref, transaction))
-            })
-            .collect();
+        // Refs below the GC round are looked up one by one: they are whatever
+        // the requester asked for, so a scan over the range they span would
+        // read entries no one wants.
+        let mut transactions_by_ref =
+            read_transaction_payloads(&self.dag_state, &committed_transactions_refs, |below_gc| {
+                let refs: Vec<GenericTransactionRef> =
+                    below_gc.iter().copied().map(Into::into).collect();
+                Ok(self
+                    .store
+                    .read_serialized_transactions(&refs)?
+                    .into_iter()
+                    .zip(below_gc)
+                    .filter_map(|(payload, transaction_ref)| {
+                        payload
+                            .or_else(|| {
+                                self.context
+                                    .empty_transactions_for_ref(transaction_ref.into())
+                                    .map(|empty| empty.serialized().clone())
+                            })
+                            .map(|payload| (transaction_ref, payload))
+                    })
+                    .collect())
+            })?;
 
         let mut result = Vec::new();
         for transaction_ref in committed_transactions_refs {
