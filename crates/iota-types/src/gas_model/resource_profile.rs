@@ -38,14 +38,21 @@ pub struct ResourceProfile {
     pub interp_stack_size_flow: u64,
     pub interp_stack_height_flow: u64,
     /// Abstract size of the argument values passed to each native function,
-    /// keyed like `native_calls_by_function`. Sizes are taken through
-    /// references (a `&vector<u8>` argument counts the vector's bytes, not
-    /// the reference), so this is the input the native actually consumes —
-    /// deterministic, like all abstract sizes. Together with the call count
-    /// it prices native work directly (per call + per input byte),
-    /// independent of the gas cost parameters; for streaming natives
-    /// (hashing) it also feeds the memory-bandwidth dimension's per-function
-    /// moved-bytes weights.
+    /// keyed like `native_calls_by_function`. References are followed only
+    /// when they point at primitive data (a `&vector<u8>` argument counts
+    /// the vector's bytes, not the reference), which covers every native
+    /// whose cost scales with its input; a reference to structured data
+    /// counts at its constant reference size, so computing the size never
+    /// walks data that no gas charge covers (a flat-priced native taking
+    /// `&T`, like `object::borrow_uid`, would otherwise trigger a walk of
+    /// the whole object on every call). The one structured byte-consumer,
+    /// `bcs::to_bytes`, sizes its input itself as part of its charged work,
+    /// so its byte count is recoverable from `native_gas_by_function` and
+    /// its known per-byte rate. Deterministic, like all abstract sizes.
+    /// Together with the call count this prices native work directly
+    /// (per call + per input byte), independent of the gas cost parameters;
+    /// for streaming natives (hashing) it also feeds the memory-bandwidth
+    /// dimension's per-function moved-bytes weights.
     pub native_input_bytes_by_function: BTreeMap<String, u64>,
     /// Internal gas deducted by native functions (tiering-correct: the gas
     /// actually charged, not the pre-tiering declared amount). Together with

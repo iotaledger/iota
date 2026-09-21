@@ -145,18 +145,20 @@ impl GasMeter for IotaGasMeter<'_> {
         // Determine the number of pops that are going to be needed for this function
         // call, and charge for them.
         let pops = args.len() as u64;
-        // One pass over the arguments, two sums: the stack-size decrease the
+        // One fold over the arguments, two sums: the stack-size decrease the
         // charge below needs (references at their constant size, matching how
         // the stack was charged when they were pushed), and the input bytes
-        // the resource profile records (sizes taken through references — the
-        // bytes the native actually consumes). Recording is profile-only and
-        // charges nothing.
+        // the resource profile records. Input sizing follows references only
+        // into primitive data (the byte-priced natives all read primitive
+        // vectors); a reference to structured data counts at its constant
+        // size, so the sizing itself never does work that no gas charge
+        // covers. Recording is profile-only and charges nothing.
         let (arg_sizes, input_bytes) = args.fold(
             (AbstractMemorySize::zero(), AbstractMemorySize::zero()),
             |(charge_size, input_size), elem| {
                 (
                     charge_size + elem.abstract_memory_size(false),
-                    input_size + elem.abstract_memory_size(true),
+                    input_size + elem.abstract_input_size(),
                 )
             },
         );
