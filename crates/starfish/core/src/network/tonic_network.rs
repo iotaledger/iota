@@ -14,7 +14,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes as _};
 use futures::{Stream, StreamExt as _, TryStreamExt as _, stream};
-use iota_http::ServerHandle;
+use iota_http::{PeerConnectionEvent, ServerHandle};
 use iota_network_stack::{
     Multiaddr,
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
@@ -1284,24 +1284,28 @@ impl<S: NetworkService> TonicManager<S> {
             .http2_keepalive_timeout(Some(config.keepalive_interval))
             .accept_http1(false)
             .max_connections_per_peer(Some(MAX_CONNECTIONS_PER_PEER))
-            .on_connection_refused({
+            .on_peer_connection_event({
                 let context = self.context.clone();
                 let connections_info = connections_info.clone();
-                move |peer_public_key| {
+                move |peer_public_key, event| {
                     let Some(authority_index) =
                         authority_index_from_key(&connections_info, peer_public_key)
                     else {
                         return;
                     };
-                    context
-                        .metrics
-                        .network_metrics
-                        .inbound_connections_refused
-                        .with_label_values(&[&context
-                            .committee
-                            .authority(authority_index)
-                            .hostname])
-                        .inc();
+                    let hostname = &context.committee.authority(authority_index).hostname;
+                    let network_metrics = &context.metrics.network_metrics;
+                    match event {
+                        PeerConnectionEvent::Established { held }
+                        | PeerConnectionEvent::Closed { held } => network_metrics
+                            .inbound_connections
+                            .with_label_values(&[hostname])
+                            .set(held as i64),
+                        PeerConnectionEvent::Refused { .. } => network_metrics
+                            .inbound_connections_refused
+                            .with_label_values(&[hostname])
+                            .inc(),
+                    }
                 }
             });
 
@@ -1331,7 +1335,6 @@ impl<S: NetworkService> TonicManager<S> {
         };
 
         info!("Server started at: {own_address}");
-        report_connections_per_peer(self.context.clone(), connections_info, server.clone());
         self.server = Some(server);
     }
 
@@ -1357,45 +1360,6 @@ impl<S: NetworkService> Drop for TonicManager<S> {
             server.trigger_shutdown();
         }
     }
-}
-
-/// Publishes how many connections each peer holds, so that a peer pinned at
-/// the limit is visible while the connections it holds stay silent.
-fn report_connections_per_peer(
-    context: Arc<Context>,
-    connections_info: Arc<ConnectionsInfo>,
-    server: ServerHandle,
-) {
-    const REPORT_INTERVAL: Duration = Duration::from_secs(5);
-
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(REPORT_INTERVAL);
-        loop {
-            tokio::select! {
-                _ = server.wait_for_shutdown() => return,
-                _ = interval.tick() => {}
-            }
-
-            let mut connections_per_peer = vec![0i64; context.committee.size()];
-            {
-                let connections = server.connections();
-                for peer_info in connections.values().filter_map(|connection| {
-                    peer_info_from_certs(&connections_info, connection.peer_certificates()?)
-                }) {
-                    connections_per_peer[peer_info.authority_index.value()] += 1;
-                }
-            }
-
-            for (index, authority) in context.committee.authorities() {
-                context
-                    .metrics
-                    .network_metrics
-                    .inbound_connections
-                    .with_label_values(&[&authority.hostname])
-                    .set(connections_per_peer[index.value()]);
-            }
-        }
-    });
 }
 
 /// Resolves a peer's raw network public key to its index in the committee.

@@ -9,6 +9,8 @@ use std::{
 
 use tokio_rustls::rustls::pki_types::CertificateDer;
 
+use crate::config::{OnPeerConnectionEvent, PeerConnectionEvent};
+
 pub(crate) type ActiveConnections<A = std::net::SocketAddr> =
     Arc<RwLock<HashMap<ConnectionId, ConnectionInfo<A>>>>;
 
@@ -98,25 +100,51 @@ impl<A> ConnectInfo<A> {
 
 /// Number of established connections held by each authenticated peer, keyed by
 /// the peer's public key.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct PeerConnectionCounts(Arc<Mutex<HashMap<Vec<u8>, usize>>>);
+#[derive(Clone, Debug)]
+pub(crate) struct PeerConnectionCounts {
+    counts: Arc<Mutex<HashMap<Vec<u8>, usize>>>,
+    on_event: Option<OnPeerConnectionEvent>,
+}
 
 impl PeerConnectionCounts {
+    pub(crate) fn new(on_event: Option<OnPeerConnectionEvent>) -> Self {
+        Self {
+            counts: Arc::default(),
+            on_event,
+        }
+    }
+
     /// Counts one more connection for `peer`, or returns `None` if the peer
     /// already holds `max` of them.
     pub(crate) fn register(&self, peer: &[u8], max: usize) -> Option<PeerConnectionGuard> {
-        let mut counts = self.0.lock().unwrap();
-        // A zero `max` is rejected by `Config::validate`, so a peer with no
-        // entry yet is always below the limit.
-        if counts.get(peer).is_some_and(|count| *count >= max) {
-            return None;
-        }
-        *counts.entry(peer.to_vec()).or_insert(0) += 1;
+        let held = {
+            let mut counts = self.counts.lock().unwrap();
+            // A zero `max` is rejected by `Config::validate`, so a peer with no
+            // entry yet is always below the limit.
+            if counts.get(peer).is_some_and(|count| *count >= max) {
+                None
+            } else {
+                let count = counts.entry(peer.to_vec()).or_insert(0);
+                *count += 1;
+                Some(*count)
+            }
+        };
 
+        let Some(held) = held else {
+            self.notify(peer, PeerConnectionEvent::Refused { held: max });
+            return None;
+        };
+        self.notify(peer, PeerConnectionEvent::Established { held });
         Some(PeerConnectionGuard {
             counts: self.clone(),
             peer: peer.to_vec(),
         })
+    }
+
+    fn notify(&self, peer: &[u8], event: PeerConnectionEvent) {
+        if let Some(on_event) = &self.on_event {
+            on_event.call(peer, event);
+        }
     }
 }
 
@@ -128,12 +156,19 @@ pub(crate) struct PeerConnectionGuard {
 
 impl Drop for PeerConnectionGuard {
     fn drop(&mut self) {
-        let mut counts = self.counts.0.lock().unwrap();
-        if let Some(count) = counts.get_mut(&self.peer) {
+        let held = {
+            let mut counts = self.counts.counts.lock().unwrap();
+            let Some(count) = counts.get_mut(&self.peer) else {
+                return;
+            };
             *count -= 1;
-            if *count == 0 {
+            let held = *count;
+            if held == 0 {
                 counts.remove(&self.peer);
             }
-        }
+            held
+        };
+        self.counts
+            .notify(&self.peer, PeerConnectionEvent::Closed { held });
     }
 }

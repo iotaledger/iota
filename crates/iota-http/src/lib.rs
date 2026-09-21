@@ -27,7 +27,7 @@ mod fuse;
 mod io;
 mod listener;
 
-pub use config::Config;
+pub use config::{Config, PeerConnectionEvent};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
 pub use listener::{Listener, ListenerExt};
 
@@ -130,6 +130,8 @@ impl Builder {
         });
 
         let (watch_sender, watch_receiver) = tokio::sync::watch::channel(());
+        let peer_connection_counts =
+            PeerConnectionCounts::new(self.config.on_peer_connection_event.clone());
         let server = Server {
             config: self.config,
             tls_config,
@@ -145,7 +147,7 @@ impl Builder {
             connections: connections.clone(),
             graceful_shutdown_token: graceful_shutdown_token.clone(),
             _watch_receiver: watch_receiver,
-            peer_connection_counts: PeerConnectionCounts::default(),
+            peer_connection_counts,
         };
 
         let handle = ServerHandle(Arc::new(HandleInner {
@@ -324,9 +326,6 @@ where
             let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("peer already holds {max} connections, closing the new one");
-                if let Some(on_connection_refused) = &self.config.on_connection_refused {
-                    on_connection_refused.call(&peer);
-                }
                 return;
             };
             peer_connection_guard = Some(guard);
@@ -641,14 +640,14 @@ mod tests {
             ),
         );
 
-        let refused_peers = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
         let handle = Builder::new()
             .config(
                 Config::default()
                     .max_connections_per_peer(Some(MAX_PER_PEER))
-                    .on_connection_refused({
-                        let refused_peers = refused_peers.clone();
-                        move |peer| refused_peers.lock().unwrap().push(peer.to_vec())
+                    .on_peer_connection_event({
+                        let events = events.clone();
+                        move |peer, event| events.lock().unwrap().push((peer.to_vec(), event))
                     }),
             )
             .tls_config(server_config)
@@ -669,6 +668,17 @@ mod tests {
                 let io = tokio::net::TcpStream::connect(addr).await.unwrap();
                 connector.connect(server_name, io).await.unwrap()
             }
+        };
+
+        let events_of = |seed: u8| -> Vec<PeerConnectionEvent> {
+            let peer = client_key(seed).public().as_ref().to_vec();
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(reported, _)| *reported == peer)
+                .map(|(_, event)| *event)
+                .collect()
         };
 
         // The connection is established before the server has necessarily
@@ -704,8 +714,12 @@ mod tests {
         );
         established(MAX_PER_PEER).await;
         assert_eq!(
-            *refused_peers.lock().unwrap(),
-            vec![client_key(2).public().as_ref().to_vec()],
+            events_of(2),
+            [
+                PeerConnectionEvent::Established { held: 1 },
+                PeerConnectionEvent::Established { held: 2 },
+                PeerConnectionEvent::Refused { held: 2 },
+            ],
             "the refusal must be reported against the peer that caused it"
         );
 
@@ -717,6 +731,22 @@ mod tests {
         established(MAX_PER_PEER).await;
         let reconnected = connect(2).await;
         established(MAX_PER_PEER + 1).await;
+        assert_eq!(
+            events_of(2),
+            [
+                PeerConnectionEvent::Established { held: 1 },
+                PeerConnectionEvent::Established { held: 2 },
+                PeerConnectionEvent::Refused { held: 2 },
+                PeerConnectionEvent::Closed { held: 1 },
+                PeerConnectionEvent::Established { held: 2 },
+            ],
+            "closing and reconnecting must be reported with the count held afterwards"
+        );
+        assert_eq!(
+            events_of(3),
+            [PeerConnectionEvent::Established { held: 1 }],
+            "another peer's events must not leak into this one's"
+        );
 
         drop((peer, other_peer, reconnected));
     }

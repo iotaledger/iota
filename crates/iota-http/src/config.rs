@@ -32,25 +32,36 @@ pub struct Config {
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
-    pub(crate) on_connection_refused: Option<OnConnectionRefused>,
+    pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
 }
 
-type ConnectionRefusedCallback = Arc<dyn Fn(&[u8]) + Send + Sync>;
+/// A change to the connections an authenticated peer holds, with the number
+/// it holds afterwards.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PeerConnectionEvent {
+    /// A connection was accepted and counted.
+    Established { held: usize },
+    /// A counted connection closed.
+    Closed { held: usize },
+    /// A further connection was closed for being over the peer's limit.
+    Refused { held: usize },
+}
 
-/// Called with the peer's public key each time a connection is refused for
-/// being over the peer's limit.
+type PeerConnectionCallback = Arc<dyn Fn(&[u8], PeerConnectionEvent) + Send + Sync>;
+
+/// Called with the peer's public key on each of its connection events.
 #[derive(Clone)]
-pub(crate) struct OnConnectionRefused(ConnectionRefusedCallback);
+pub(crate) struct OnPeerConnectionEvent(PeerConnectionCallback);
 
-impl OnConnectionRefused {
-    pub(crate) fn call(&self, peer_public_key: &[u8]) {
-        (self.0)(peer_public_key)
+impl OnPeerConnectionEvent {
+    pub(crate) fn call(&self, peer_public_key: &[u8], event: PeerConnectionEvent) {
+        (self.0)(peer_public_key, event)
     }
 }
 
-impl fmt::Debug for OnConnectionRefused {
+impl fmt::Debug for OnPeerConnectionEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("OnConnectionRefused")
+        f.write_str("OnPeerConnectionEvent")
     }
 }
 
@@ -75,7 +86,7 @@ impl Default for Config {
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
             max_connections_per_peer: None,
-            on_connection_refused: None,
+            on_peer_connection_event: None,
         }
     }
 }
@@ -294,15 +305,19 @@ impl Config {
         }
     }
 
-    /// Sets a callback invoked with the peer's public key whenever a connection
-    /// is refused for being over that peer's limit. It runs on the accept loop,
-    /// so it must not block.
-    pub fn on_connection_refused(
+    /// Sets a callback invoked with the peer's public key each time one of its
+    /// connections is established, closed or refused for being over the
+    /// limit. Only connections counted under `max_connections_per_peer` are
+    /// reported. It runs on the accept loop or a connection's task, so it must
+    /// not block.
+    pub fn on_peer_connection_event(
         self,
-        on_connection_refused: impl Fn(&[u8]) + Send + Sync + 'static,
+        on_peer_connection_event: impl Fn(&[u8], PeerConnectionEvent) + Send + Sync + 'static,
     ) -> Self {
         Self {
-            on_connection_refused: Some(OnConnectionRefused(Arc::new(on_connection_refused))),
+            on_peer_connection_event: Some(OnPeerConnectionEvent(Arc::new(
+                on_peer_connection_event,
+            ))),
             ..self
         }
     }
