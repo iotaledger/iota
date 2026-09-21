@@ -126,10 +126,11 @@ pub struct Parameters {
     #[serde(default = "TonicParameters::default")]
     pub tonic: TonicParameters,
 
-    // Number of commits to fetch in a batch for fast commit syncer, also the maximum number of
-    // commits returned per fetch. If this value is set too small, fetching becomes
-    // inefficient. If this value is set too large, it can result in load imbalance and
-    // stragglers.
+    /// Number of commits requested per fast commit sync fetch. A response may
+    /// carry up to twice this many, since it extends past the requested end to
+    /// reach a certifiable commit. Set too small, fetching is inefficient and
+    /// the server has little room to reach one; set too large, it causes load
+    /// imbalance and stragglers.
     #[serde(default = "Parameters::default_fast_commit_sync_batch_size")]
     pub fast_commit_sync_batch_size: u32,
 
