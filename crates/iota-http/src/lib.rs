@@ -721,6 +721,68 @@ mod tests {
         drop((peer, other_peer, reconnected));
     }
 
+    /// The cap identifies a peer by its single certificate, so a peer sending
+    /// a longer chain is refused at the handshake and never holds a
+    /// connection.
+    #[tokio::test]
+    async fn peer_with_extra_certificates_is_refused_at_the_handshake() {
+        use fastcrypto::{
+            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
+            traits::{KeyPair, ToFromBytes},
+        };
+        use tokio::io::AsyncReadExt as _;
+
+        let key =
+            |seed: u8| Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap());
+        let server_public_key = key(1).public().to_owned();
+        let client_public_key = key(2).public().to_owned();
+        let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
+            key(1).private(),
+            SERVER_NAME.to_string(),
+            iota_tls::AllowPublicKeys::new([client_public_key].into()),
+        );
+        let handle = Builder::new()
+            .config(Config::default().max_connections_per_peer(Some(1)))
+            .tls_config(server_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // The allowed certificate followed by an unrelated one.
+        let client_certificate =
+            iota_tls::SelfSignedCertificate::new(key(2).private(), SERVER_NAME);
+        let extra_certificate = iota_tls::SelfSignedCertificate::new(key(3).private(), SERVER_NAME);
+        let client_config =
+            iota_tls::ServerCertVerifier::new(server_public_key, SERVER_NAME.to_string())
+                .rustls_client_config_with_client_auth(
+                    vec![
+                        client_certificate.rustls_certificate(),
+                        extra_certificate.rustls_certificate(),
+                    ],
+                    client_certificate.rustls_private_key(),
+                )
+                .unwrap();
+
+        // In TLS 1.3 the client may consider the handshake done before the
+        // server's rejection arrives, so the refusal can surface on the first
+        // read instead.
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_config));
+        let io = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        if let Ok(mut connection) = connector.connect(server_name, io).await {
+            let mut buf = [0u8; 1];
+            let read = tokio::time::timeout(Duration::from_secs(10), connection.read(&mut buf))
+                .await
+                .expect("the server must close a connection with more than one certificate");
+            assert!(
+                matches!(read, Ok(0) | Err(_)),
+                "the server must close the connection, got {read:?}"
+            );
+        }
+        assert_eq!(handle.number_of_connections(), 0);
+    }
+
     /// A limit the accept loop can never fall below, and a limit whose slots
     /// nothing releases, both leave the server unable to accept.
     #[tokio::test]
