@@ -9,7 +9,9 @@ tags:
 
 # About Proof of Inclusion
 
-IOTA Proof of Inclusion lets one party package ledger evidence and another party verify it independently. The proof binds a transaction and selected object or event data to a committee-certified checkpoint.
+IOTA **Proof of Inclusion** lets one party package ledger evidence and another party verify it independently. The proof binds a transaction and selected object or event data to a committee-certified checkpoint.
+
+---
 
 ## Proof of Inclusion and Notarization
 
@@ -20,6 +22,8 @@ The components can work together without depending on each other:
 - A Single Notarization application can prove the transaction that created a notarization or the exact version of its object.
 - An Audit Trails application can prove a record-related event or an object version produced by a trail transaction.
 - Any IOTA application can prove its own transactions, object versions, and events without using a Notarization Move Package.
+
+---
 
 ## Actors
 
@@ -37,9 +41,11 @@ The prover does not decide what the verifier trusts. Selecting mainnet, testnet,
 
 ### Verifier
 
-The verifier receives the untrusted `Proof`, chooses a committee-resolution mode, and runs verification. The verifier must obtain its genesis blob or initial committee independently from the party that supplies the proof when using anchored resolution.
+The verifier receives the untrusted `Proof`, chooses a committee-resolution mode, and runs verification. When using anchored resolution, the verifier must obtain its genesis blob or initial committee independently from the party that supplies the proof.
 
 Applications should read relying-party data from `VerifiedProof`, not directly from the untrusted `Proof` envelope.
+
+---
 
 ## Targets
 
@@ -57,19 +63,23 @@ Deleted and wrapped objects are not supported as object targets.
 
 ### Event Target
 
-An event target consists of the emitting transaction digest and its transaction-local sequence number. The proof carries the transaction's complete event list because the effects commit to the digest of that list.
+An event target consists of the emitting transaction digest and the event's transaction-local sequence number. The proof carries the transaction's complete event list because the effects commit to the digest of that list.
 
 Verification checks the event-list digest and then selects the requested event by sequence number.
 
+---
+
 ## What Proof of Inclusion Does Not Prove
 
-Proof of Inclusion does not prove that:
+Proof of Inclusion does not prove any of the following:
 
-- an object version remains the latest version;
-- the proof's informational `chain` label identifies the correct network;
-- a source endpoint is honest;
-- a trusted-node committee came from an independently authenticated lineage; or
-- off-chain data matches an on-chain hash unless the application performs that comparison.
+- The included transaction executed successfully.
+- An object version remains the latest version.
+- The proof's informational `chain` label identifies the correct network.
+- A source endpoint is honest.
+- A trusted-node committee came from an independently authenticated lineage.
+- Off-chain data matches an on-chain hash unless the application performs that comparison.
 
 These boundaries keep the proof claim precise. Applications can add domain-specific checks after they obtain a `VerifiedProof`.
 
+Continue with the [Proof Model](./proof-model.mdx) to understand the evidence carried by a proof, then read [Trust and Verification](./trust-and-verification.mdx).

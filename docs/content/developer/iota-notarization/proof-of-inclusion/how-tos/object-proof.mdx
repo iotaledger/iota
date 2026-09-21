@@ -21,12 +21,12 @@ The discovered transaction supports the object target but does not become an exp
 
 ## Prerequisites
 
-- Complete the [Rust](../../getting-started/rust.mdx) or [Wasm](../../getting-started/wasm.mdx) setup.
+- Complete the [Rust](../getting-started/rust.mdx) or [Wasm](../getting-started/wasm.mdx) setup.
 - Select an active IOTA CLI environment and wallet with funds or faucet access.
 - Make sure the JSON-RPC and gRPC endpoints belong to the same network.
 - For local or custom networks, set `IOTA_GENESIS_PATH` to an independently trusted genesis blob.
 
-:::important
+:::warning
 
 The example creates a new Locked Notarization transaction. On mainnet, fund the active wallet and set `IOTA_NOTARIZATION_PKG_ID` to an existing Single Notarization Move Package before running it.
 
@@ -86,7 +86,7 @@ The proof authenticates the selected version. It does not prove that the object 
 
 - The constructed proof contains one object target and no explicit transaction or event targets.
 - The builder reports the transaction and exact object version resolved during proof construction as supporting evidence.
-- Successful verification returns the authenticated object value; the TypeScript API also exposes its BCS bytes.
+- Successful verification returns the authenticated object. The Rust API exposes the decoded object value, and the TypeScript API exposes its object reference and BCS bytes.
 
 ## Run the Example
 
@@ -96,7 +96,7 @@ Run either implementation from the Notarization repository root:
 <TabItem value="rust" label="Rust">
 
 ```bash
-cargo run --release -p poi-examples --example 04_object_proof
+cargo run --release -p examples --example 04_object_proof
 ```
 
 </TabItem>
@@ -128,3 +128,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/poi_wasm/exam
 
 </TabItem>
 </Tabs>
+
+## Running Examples Locally
+
+Follow the [Rust example setup](https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/README.md#prerequisites) or [Wasm example setup](https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/poi_wasm/examples/README.md#step-1-select-the-network-and-wallet) to configure the local network, wallet, and example prerequisites.

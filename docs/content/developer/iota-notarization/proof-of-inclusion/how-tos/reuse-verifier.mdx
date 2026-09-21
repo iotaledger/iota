@@ -19,12 +19,12 @@ A genesis-anchored verifier retains committees authenticated during its lifetime
 
 ## Prerequisites
 
-- Complete the [Rust](../../getting-started/rust.mdx) or [Wasm](../../getting-started/wasm.mdx) setup.
+- Complete the [Rust](../getting-started/rust.mdx) or [Wasm](../getting-started/wasm.mdx) setup.
 - Select an active IOTA CLI environment and wallet with funds or faucet access.
 - Make sure the JSON-RPC and gRPC endpoints belong to the same network.
 - For local or custom networks, set `IOTA_GENESIS_PATH` to an independently trusted genesis blob.
 
-:::important
+:::warning
 
 The example creates two Locked Notarization transactions. On mainnet, fund the active wallet for both transactions and set `IOTA_NOTARIZATION_PKG_ID` to an existing Single Notarization Move Package before running it.
 
@@ -78,7 +78,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/poi_wasm/exam
 </Tabs>
 </div>
 
-The default cache remains in memory. Rust applications that need to preserve authenticated committees across process restarts can follow the [Persistent Committee Cache](./advanced/committee-cache.mdx) example.
+The default cache remains in memory. Rust applications that need to preserve authenticated committees across process restarts can follow the [Build a Committee Cache](./advanced/committee-cache.mdx) example.
 
 ## Expected Behavior
 
@@ -94,7 +94,7 @@ Run either implementation from the Notarization repository root:
 <TabItem value="rust" label="Rust">
 
 ```bash
-cargo run --release -p poi-examples --example 03_reuse_verifier
+cargo run --release -p examples --example 03_reuse_verifier
 ```
 
 </TabItem>
@@ -126,3 +126,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/poi_wasm/exam
 
 </TabItem>
 </Tabs>
+
+## Running Examples Locally
+
+Follow the [Rust example setup](https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/README.md#prerequisites) or [Wasm example setup](https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/poi_wasm/examples/README.md#step-1-select-the-network-and-wallet) to configure the local network, wallet, and example prerequisites.

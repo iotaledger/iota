@@ -206,19 +206,19 @@ const notarization = [
             },
             {
                 type: 'category',
-                label: 'Examples',
+                label: 'How To',
                 items: [
-                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/transaction-proof',
-                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/multi-target-proof',
-                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/reuse-verifier',
-                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/object-proof',
-                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/event-proof',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/transaction-proof',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/multi-target-proof',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/reuse-verifier',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/object-proof',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/event-proof',
                     {
                         type: 'category',
                         label: 'Advanced',
                         items: [
-                            'developer/iota-notarization/proof-of-inclusion/how-tos/examples/advanced/committee-cache',
-                            'developer/iota-notarization/proof-of-inclusion/how-tos/examples/advanced/trusted-node',
+                            'developer/iota-notarization/proof-of-inclusion/how-tos/advanced/committee-cache',
+                            'developer/iota-notarization/proof-of-inclusion/how-tos/advanced/trusted-node',
                         ],
                     },
                 ],

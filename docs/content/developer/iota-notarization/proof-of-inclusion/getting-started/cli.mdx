@@ -1,12 +1,14 @@
 ---
 title: Getting Started with the CLI
 sidebar_label: CLI
-description: Build the Proof of Inclusion CLI from source and create and verify portable JSON proofs.
+description: Build the Proof of Inclusion CLI from source to create and verify portable JSON proofs.
 tags:
+  - how-to
   - notarization
   - proof-of-inclusion
   - cli
   - setup
+  - install
   - getting-started
 ---
 
@@ -38,6 +40,8 @@ You can also install it into Cargo's binary directory from the checked-out sourc
 ```bash
 cargo install --path poi-rs --features cli --bin poi --locked
 ```
+
+For local network prerequisites, follow the [PoI example setup](https://github.com/iotaledger/notarization/tree/v0.1/examples/poi/README.md#prerequisites).
 
 ## Create a Proof
 
@@ -74,13 +78,27 @@ Repeat `--object` or `--event` to select multiple targets from the same transact
 
 ## Verify a Proof
 
-Mainnet and testnet verification download, validate, and cache the network genesis blob automatically:
+Mainnet and testnet verification downloads, validates, and caches the network genesis blob automatically:
 
 ```bash
 ./target/release/poi verify \
   --network testnet \
   proof.json
 ```
+
+On success, the CLI prints a summary like this. The values below are illustrative; `<transaction-digest>` stands for the verified transaction's digest:
+
+```text
+Proof verified successfully.
+  checkpoint epoch:  42
+  checkpoint number: 123456
+  timestamp (ms):    1700000000000
+  transaction:       <transaction-digest>
+  targets:
+    transaction: <transaction-digest>
+```
+
+Object and event targets appear in the target list when selected.
 
 Pass an explicit trusted genesis blob to override the managed blob:
 
@@ -106,9 +124,17 @@ Use `-` as the proof path to read JSON from standard input.
 
 The CLI pins the canonical mainnet and testnet genesis digests. It validates downloaded blobs before caching them and validates cached blobs on every load.
 
+Managed blobs are stored in the IOTA configuration directory:
+
+- Mainnet: `~/.iota/iota_config/poi/mainnet/genesis.blob`
+- Testnet: `~/.iota/iota_config/poi/testnet/genesis.blob`
+
+If `IOTA_CONFIG_DIR` is set, it replaces `~/.iota/iota_config`; the `poi/<network>/genesis.blob` suffix stays the same. An explicit `--genesis` path is read directly instead of using this managed cache.
+
+You can inspect or copy the cached blob. To refresh it, remove only that network's cached `genesis.blob`; the next verification using managed genesis downloads and validates it again. Copying genesis alone does not make CLI verification offline: committee resolution may still need the endpoint. Use the [Rust offline verifier](./rust.mdx#verify-offline) with an already authenticated checkpoint-epoch committee for offline verification.
+
 Devnet has no stable genesis digest. Pass `--genesis` when verifying a devnet proof. Local and custom networks also require an independently obtained trusted blob.
 
 The selected endpoint supplies untrusted proof and committee-transition evidence. The genesis blob establishes verification trust, so obtain it independently from the party that supplies the proof.
 
 Run `./target/release/poi --help` for all options.
-

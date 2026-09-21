@@ -1,4 +1,4 @@
-# IOTA Audit Trails Documentation Style Guide
+# IOTA Notarization Documentation Style Guide
 
 This file guides agents writing or editing pages under `docs/content/developer/iota-notarization/`.
 It supplements the parent `docs/CLAUDE.md` (Diataxis rules, code-embedding patterns, frontmatter requirements).
@@ -6,12 +6,9 @@ Everything in the parent file applies here; this file adds product-specific conv
 
 ## Product context
 
-The IOTA Notarization Toolkit, a set of IOTA ledger tools for verifiable on-chain data workflows and consists of the
-**Single Notarization** and **Audit Trails** components as been described in the
-[external source repository Main Readme](https://github.com/iotaledger/notarization/blob/main/README.md)
-
-The external source repository is **`https://github.com/iotaledger/notarization`**. The current tag is **`v0.1`**.
-Use this when constructing `reference` code-block URLs.
+The IOTA Notarization Toolkit contains **Single Notarization**, **Audit Trails**, and **Proof of Inclusion**.
+The external source repository is **`https://github.com/iotaledger/notarization`**.
+Use the moving **`v0.1`** tag for wiki source references and example links. The PoI Cargo dependency uses the separate **`poi-v0.1`** release tag.
 
 The external source repository also provides a `Naming Conventions` section in the
 [root `CLAUDE.md` file](https://github.com/iotaledger/notarization/blob/main/CLAUDE.md) which can be seen
@@ -45,6 +42,10 @@ It differs from IOTA Notarization: Notarization records _static facts_ (a docume
 Audit Trails records _sequences of events_ (who did what, when).
 `AuditTrail` objects are **shared** on-chain and use **Role-Based Access Control (RBAC)** with Roles, Capabilities, and Record Tags.
 
+### Proof of Inclusion Component
+
+Proof of Inclusion constructs portable evidence that existing transactions, object versions, and events are included in certified checkpoints. Verification authenticates inclusion relative to a trusted committee; it does not establish successful transaction execution.
+
 ## Directory layout
 
 Follow this structure exactly. Create missing folders as needed.
@@ -67,13 +68,19 @@ iota-notarization
 │       └── wasm/
 ├── single-notarization/
 │   ├── index.mdx               # Component landing / Single Notarization introduction page
-│   ...                         # Same directory as been used for Audit Trails
+│   ...                         # Same structure as Audit Trails
+└── proof-of-inclusion/
+    ├── index.mdx
+    ├── getting-started/        # rust.mdx, wasm.mdx, cli.mdx; links to upstream setup
+    ├── explanations/
+    ├── how-tos/                # Standard examples and advanced/ Rust cache/trust guides
+    └── references/wasm/        # Generated API reference
 ```
 
 ## Sidebar
 
-The sidebar is defined in `docs/content/sidebars/notarization.js` (the unified Notarization sidebar that covers both Single Notarization and Audit Trails).
-Every new page must be added there under the `Audit Trails` or `Single Notarization` category.
+The sidebar is defined in `docs/content/sidebars/notarization.js` (the unified Notarization sidebar that covers Single Notarization, Audit Trails, and Proof of Inclusion).
+Every new page must be added there under the matching `Single Notarization`, `Audit Trails`, or `Proof of Inclusion` category.
 Keep the sidebar order aligned with the recommended reading path: introduction first, then getting-started, explanations, how-tos, references.
 
 ## Tags
@@ -82,7 +89,7 @@ Use tags registered in `docs/content/tags.yml`. Every page must include:
 
 1. Exactly one **Diataxis type tag**: `explanation`, `how-to`, `reference`, or `tutorial`.
 2. The **product tag**: `notarization`.
-3. A **component tag**: `audit-trails` or `single-notarization`.
+3. A **component tag**: `single-notarization`, `audit-trails`, or `proof-of-inclusion`.
 4. Optional feature or technology tags (e.g., `rust`, `wasm`, `getting-started`).
 
 If you need a new tag, add it to `tags.yml` under the `# Notarization` section.
@@ -97,7 +104,7 @@ sidebar_label: '<Short label for the sidebar, if different from title>'
 tags:
   - <diataxis-type>   # one of: explanation, how-to, reference, tutorial
   - notarization      # product tag
-  - <component tag>   # `audit-trails` or `single-notarization`
+  - <component tag>   # `single-notarization`, `audit-trails`, or `proof-of-inclusion`
   - <optional-extra>
 ---
 ```
@@ -115,6 +122,7 @@ The introduction page is the product's front door. Pattern:
    - `![IOTA Notarization Toolkit](/img/banner/banner_notarization.png)`
    - `![Single Notarization](/img/banner/banner_single_notarization.png)`
    - `![Audit Trails](/img/banner/banner_audit_trails.png)`
+   - `![Proof of Inclusion](/img/banner/banner_proof_of_inclusion.png)`
 3. One-paragraph product summary.
 4. Subsections covering: what the product solves, key use cases (with `:::info` admonitions for highlights), comparison to
    related products (e.g., Audit Trails vs. Dynamic Notarization), why IOTA, key actors, and a brief mention of RBAC linking to the explanation page.
@@ -141,7 +149,9 @@ Purpose: get the developer from zero to a working setup.
 - **Wasm page**: Node.js requirements, npm install, Node.js vs. Web imports, usage example with tabs, link to API reference.
 - **Local Network Setup page**: start local chain, configure CLI, request faucet funds, publish the Move package, set needed env var.
 
-Each page should be self-contained. A developer following only that page should be able to run their first example.
+Tag installation and network setup pages as `how-to`: they guide developers through a setup task. Use `tutorial` only for a guided learning exercise.
+
+Link to shared prerequisites rather than duplicating setup instructions. PoI pages use the upstream Rust and Wasm example READMEs for local network, wallet, and package setup.
 
 ### How-to guides
 
@@ -167,7 +177,7 @@ Always provide **Rust** and **TypeScript (Node.js)** tabs using this pattern:
 <TabItem value="rust" label="Rust">
 
 \`\`\`rust reference
-https://github.com/iotaledger/notarization/tree/v0.1/examples/example_name.rs#L20-L32
+https://github.com/iotaledger/notarization/tree/v0.1/examples/notarization/example_name.rs#L20-L32
 \`\`\`
 
 </TabItem>
@@ -182,12 +192,9 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 </div>
 ```
 
-**Note**: The pattern above works for Single Notarization as it uses the `v0.1` tag in its git repository references.
-Use the `trails-v0.1` tag to reference code samples related to Audit Trails (i.e. `https://github.com/iotaledger/notarization/tree/trails-v0.1/examples/audit-trail/example_name.rs#L20-L32`).
+Use `v0.1` for all wiki code references and example links. Rust examples live under `examples/notarization/`, `examples/audit-trail/`, or `examples/poi/`; Single Notarization scenarios live under `examples/notarization/real-world/`. Wasm examples live under the corresponding `bindings/wasm/*_wasm/examples/` directory.
 
-**Note**: As an interim solution the Single Notarization examples are contained directly in the `examples` folder
-of the notarization.git repository (in a future development step the Single Notarization examples will be moved into a `single-notarization` folder).
-This also applies to the `examples/real-world` folder, containing real-world examples for Single Notarization.
+PoI's committee-cache example is Rust-only because the Wasm Package does not expose a custom cache interface. State that limitation instead of adding an empty TypeScript tab.
 
 Key rules:
 
@@ -212,12 +219,13 @@ The Rust API reference is an external link to
 
 - Single Notarization: `https://iotaledger.github.io/notarization/notarization/index.html`
 - Audit Trails: `https://iotaledger.github.io/notarization/audit_trails/index.html`
+- Proof of Inclusion: `https://iotaledger.github.io/notarization/poi_rs/index.html`
 
 Do not manually author reference pages — they are generated from the source repository.
 
 ## Writing style
 
-- **Audience**: developers integrating Audit Trails into their applications. Assume familiarity with IOTA basics and blockchain concepts.
+- **Audience**: developers integrating the Notarization components into their applications. Assume familiarity with IOTA basics and blockchain concepts.
 - **Tone**: technical, precise, direct. Avoid marketing language in explanation and how-to pages. The index page may use more persuasive language for use-case descriptions.
 - Use `:::info`, `:::tip`, and `:::warning` admonitions sparingly and only when the information genuinely warrants callout treatment.
 - **Product naming** (the [`Naming Conventions` in the notarization repo `CLAUDE.md`](https://github.com/iotaledger/notarization/blob/main/CLAUDE.md) is the source of truth):
@@ -238,10 +246,10 @@ When comparing Audit Trails to Single Notarization, link to the sibling docs wit
 
 Before considering a page complete:
 
-- [ ] Frontmatter includes `description`, at least one Diataxis type tag, `notarization` and a <component tag>.
-- [ ] Page is added to `docs/content/sidebars/notarization.js` (under the `Audit Trails` or `Single Notarization` category).
+- [ ] Frontmatter includes `description`, exactly one Diataxis type tag, `notarization` and a <component tag>.
+- [ ] Page is added to `docs/content/sidebars/notarization.js` (under the matching `Single Notarization`, `Audit Trails`, or `Proof of Inclusion` category).
 - [ ] Any new tags are registered in `docs/content/tags.yml`.
 - [ ] Code blocks use the `reference` keyword with GitHub URLs (no inline code copies).
-- [ ] Both Rust and TypeScript tabs are present in how-to guides.
+- [ ] Both Rust and TypeScript tabs are present where supported; Rust-only examples state their limitation.
 - [ ] Relative cross-links work (no broken paths).
 - [ ] The page stays pure to its Diataxis type (no how-to steps in an explanation, no explanations in a how-to).

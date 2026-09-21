@@ -9,7 +9,9 @@ tags:
 
 # Proof Model
 
-A Proof of Inclusion is a versioned, portable envelope that carries enough evidence for local verification. The current format is `ProofV1`.
+A Proof of Inclusion is a versioned, portable envelope that carries enough evidence for local verification. The current format is **`ProofV1`**.
+
+---
 
 ## Evidence Structure
 
@@ -23,13 +25,17 @@ flowchart TD
     Tx[Transaction and user signatures]
     Effects[TransactionEffects]
     Events[Optional complete event list]
+    TransactionTarget[Optional transaction digest]
     Objects[Exact object values]
+    EventTargets[Event transaction digests and sequence numbers]
 
     Proof --> Targets
     Proof --> Summary
     Proof --> Contents
     Proof --> Transaction
+    Targets --> TransactionTarget
     Targets --> Objects
+    Targets --> EventTargets
     Transaction --> Tx
     Transaction --> Effects
     Transaction --> Events
@@ -43,11 +49,15 @@ The envelope contains three main layers:
 
 Transaction evidence is required even when the transaction is not an explicit target. Object and event targets rely on the transaction and its effects to establish how the selected value entered the ledger.
 
+---
+
 ## One Transaction per Proof
 
 Every target in one proof must belong to the same transaction. The builder rejects object or event targets from a different transaction.
 
 This constraint keeps the format atomic and avoids repeating or ambiguously grouping transaction evidence. To prove values from multiple transactions, create multiple proofs and reuse the same verifier so it can reuse authenticated committee data.
+
+---
 
 ## Target Semantics
 
@@ -57,11 +67,15 @@ An object target carries the exact object value and version selected during cons
 
 An event target identifies the event by transaction digest and sequence number. The transaction proof carries the complete event list so verification can recompute the digest committed by the effects before selecting the target event.
 
+---
+
 ## Verification Output
 
 `Proof` is the untrusted transport and serialization type. Successful verification returns `VerifiedProof`, a read-only view that borrows authenticated values from the proof.
 
 Use `VerifiedProof` to access checkpoint metadata, the transaction digest, object targets, and event targets. The Rust and Wasm APIs intentionally make this distinction visible so applications do not accidentally treat unverified payload fields as trusted.
+
+---
 
 ## JSON Compatibility
 
@@ -70,3 +84,5 @@ Proof JSON is a versioned persistence and exchange format. Releases that support
 Frozen version 1 fixtures enforce transaction, object, and event compatibility. An incompatible representation requires a new `Proof` variant instead of silently changing `ProofV1`.
 
 Treat JSON parsing and proof verification as separate steps. Successful deserialization confirms only that the payload has a supported shape; it does not authenticate the payload.
+
+Read [Trust and Verification](./trust-and-verification.mdx) to choose a trust anchor and understand the verification checks.

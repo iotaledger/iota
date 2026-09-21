@@ -14,10 +14,10 @@ mkdir single-notarization
 mkdir audit-trails
 mkdir proof-of-inclusion
 
-# We are going to download the tag.gz files for single-notarization and audit-trails.
-# In each tag.gz file, different folder structures are used:
-# * Path for single-notarization: ./notarization-docs/docs/wasm/*
-# * Path for audit-trail:         ./audit-trail-docs/docs/wasm/*
+# The three tar.gz archives use different internal directory layouts:
+# * Single Notarization: ./notarization-docs/docs/wasm/*
+# * Audit Trails: ./audit-trail-docs/docs/wasm/*
+# * Proof of Inclusion: ./proof-of-inclusion-docs/docs/*
 
 # Download and copy single-notarization docs
 cd single-notarization

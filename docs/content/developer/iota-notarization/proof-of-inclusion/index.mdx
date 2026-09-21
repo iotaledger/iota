@@ -10,6 +10,8 @@ tags:
 
 # IOTA Proof of Inclusion
 
+![Proof of Inclusion](/img/banner/banner_proof_of_inclusion.png)
+
 IOTA Proof of Inclusion constructs portable cryptographic evidence that ledger activity is included in a certified IOTA checkpoint. A verifier can check the evidence locally against a committee trust anchor without trusting the node, API, file store, or application that transports the proof.
 
 Proof of Inclusion works with existing ledger activity. It does not create a separate on-chain object or Move Package. You can prove activity created by [Single Notarization](../single-notarization/index.mdx), [Audit Trails](../audit-trails/index.mdx), or any other IOTA application.
@@ -25,7 +27,9 @@ Use Proof of Inclusion when an application must send independently verifiable ev
 | Prove that a specific event and its contents were emitted by a transaction | Event |
 | Prove several related values without duplicating checkpoint evidence | Multiple targets from one transaction |
 
-Proof of Inclusion proves inclusion, not current state. An object proof created from only an object ID resolves the latest version available during proof construction, but the proof does not claim that the object remains latest when another party verifies it.
+A valid transaction proof establishes inclusion in a certified checkpoint; it does not establish that the transaction executed successfully.
+
+Proof of Inclusion proves inclusion, not current state. An object proof created from only an object ID resolves the latest version available during proof construction, but the proof does not claim that the object remains at the latest version when another party verifies it.
 
 ## How It Works
 
@@ -58,13 +62,13 @@ Proof of Inclusion supports two committee-resolution modes:
 - **Genesis or committee anchored:** Start from an independently trusted genesis blob or committee and authenticate each committee transition up to the proof's epoch. This mode does not trust the source for committee identity.
 - **Trusted node:** Accept the committee reported by a node that is already inside the verifier's trust boundary. This mode is simpler, but the node becomes part of the security assumption.
 
-Network selection only chooses where proof material comes from. It does not establish verification trust. The proof's `chain` field is informational and must not select a network, genesis blob, committee, or other trust anchor.
+Network selection only chooses where proof material comes from. It does not establish verification trust. The proof's `chain` field is informational and must not be used to select a network, genesis blob, committee, or other trust anchor.
 
 Read [Trust and Verification](./explanations/trust-and-verification.mdx) before choosing a resolution mode.
 
 ## Supported Interfaces
 
-The toolkit provides three interfaces:
+Proof of Inclusion provides three interfaces:
 
 - The **Rust Package** provides `PoiClient`, `ProofBuilder`, committee resolution, offline verification, custom ledger sources, and persistent committee-cache support.
 - The **Wasm Package** provides a Node.js and TypeScript API backed by ConnectRPC and the Rust verifier compiled to WebAssembly.
@@ -75,19 +79,22 @@ The toolkit provides three interfaces:
 - Read [About Proof of Inclusion](./explanations/about-proof-of-inclusion.mdx) for the concepts and actors.
 - Read the [Proof Model](./explanations/proof-model.mdx) to understand the evidence carried by a proof.
 - Set up the [Rust](./getting-started/rust.mdx), [Wasm](./getting-started/wasm.mdx), or [CLI](./getting-started/cli.mdx) interface.
-- Start with the [Transaction Proof](./how-tos/examples/transaction-proof.mdx) example for the complete construction, transfer, and verification workflow.
+- If you already have a transaction digest, follow [Create a Proof](./getting-started/cli.mdx#create-a-proof) and [Verify a Proof](./getting-started/cli.mdx#verify-a-proof) in the CLI guide. This workflow reads existing ledger data and requires no funded wallet or Move Package publication.
+- To create a transaction and then prove it, use the [Transaction Proof](./how-tos/transaction-proof.mdx) example for the complete construction, transfer, and verification workflow.
 
 ## Examples
 
+The examples focus on proof construction, transport, and verification. For business scenarios, use [Single Notarization](../single-notarization/index.mdx) or [Audit Trails](../audit-trails/index.mdx) to create ledger activity, then apply these proof workflows.
+
 The standard examples cover the main proof workflows:
 
-1. [Transaction Proof](./how-tos/examples/transaction-proof.mdx)
-2. [Multi-Target Proof](./how-tos/examples/multi-target-proof.mdx)
-3. [Reuse a Verifier](./how-tos/examples/reuse-verifier.mdx)
-4. [Object Proof](./how-tos/examples/object-proof.mdx)
-5. [Event Proof](./how-tos/examples/event-proof.mdx)
+1. [Transaction Proof](./how-tos/transaction-proof.mdx)
+2. [Multi-Target Proof](./how-tos/multi-target-proof.mdx)
+3. [Reuse a Verifier](./how-tos/reuse-verifier.mdx)
+4. [Object Proof](./how-tos/object-proof.mdx)
+5. [Event Proof](./how-tos/event-proof.mdx)
 
 The advanced examples cover optional trust and storage configurations:
 
-1. [Persistent Committee Cache](./how-tos/examples/advanced/committee-cache.mdx)
-2. [Trusted Node](./how-tos/examples/advanced/trusted-node.mdx)
+1. [Build a Committee Cache](./how-tos/advanced/committee-cache.mdx)
+2. [Trusted Node](./how-tos/advanced/trusted-node.mdx)

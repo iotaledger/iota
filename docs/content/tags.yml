@@ -351,10 +351,6 @@ notarization:
   label: Notarization
   description: The IOTA Notarization Toolkit providing Single Notarization, Audit Trails, and Proof of Inclusion.
 
-proof-of-inclusion:
-  label: Proof of Inclusion
-  description: Portable evidence that IOTA ledger activity is included in a certified checkpoint.
-
 single-notarization:
   label: Single Notarization
   description: Locked or Dynamic Notarizations of arbitrary data, documents, hashes, or latest-state records.
@@ -362,6 +358,10 @@ single-notarization:
 audit-trails:
   label: Audit Trails
   description: The solution for tamper-proof, chronological records on IOTA.
+
+proof-of-inclusion:
+  label: Proof of Inclusion
+  description: Portable evidence that IOTA ledger activity is included in a certified checkpoint.
 
 dynamic-notarization:
   label: Dynamic Notarization

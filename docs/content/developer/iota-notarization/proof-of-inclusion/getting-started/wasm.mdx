@@ -1,13 +1,15 @@
 ---
 title: Getting Started with Wasm
 sidebar_label: Wasm
-description: Install the Node.js Proof of Inclusion Package and construct and verify proofs from TypeScript.
+description: Install the Node.js Proof of Inclusion Package to construct and verify proofs from TypeScript.
 tags:
+  - how-to
   - notarization
   - proof-of-inclusion
   - wasm
   - typescript
   - setup
+  - install
   - getting-started
 ---
 
@@ -17,7 +19,7 @@ tags:
 
 - [Node.js](https://nodejs.org/) 24 or later
 
-## Install the Library
+## Install the Package
 
 If your project does not contain it already, install `@iota/iota-sdk` for the digest and object ID conversion helpers used in the examples.
 
@@ -31,9 +33,9 @@ Install the latest version of the Proof of Inclusion Package:
 npm install @iota/proof-of-inclusion@latest
 ```
 
-## Build the Library
+## Build the Package
 
-Alternatively, you can build the bindings to work with currently unreleased features. You can find instructions in the [`notarization` repository](https://github.com/iotaledger/notarization/tree/main/bindings/wasm/poi_wasm#build-from-source).
+Alternatively, you can build the bindings from source. You can find instructions in the [`notarization` repository](https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/poi_wasm#build-from-source).
 
 ## Usage in Node.js
 
@@ -51,26 +53,33 @@ The following example connects to an IOTA gRPC endpoint, constructs a testnet tr
 import { readFile } from "node:fs/promises";
 
 import { fromBase58 } from "@iota/iota-sdk/utils";
-import { CommitteeResolution, PoiClient } from "@iota/proof-of-inclusion";
+import { CommitteeResolution, PoiClient, Proof } from "@iota/proof-of-inclusion";
 
 const client = PoiClient.testnet();
 const transaction = fromBase58(transactionDigest);
 const proof = await client.makeProof({ transaction });
+const proofJSON = proof.toJSON();
+
+const receivedProof = Proof.fromJSON(proofJSON);
 
 const genesis = await readFile("trusted-testnet-genesis.blob");
 const resolution = CommitteeResolution.fromGenesis(genesis);
 const verifier = client.verifier(resolution);
-const verified = await verifier.verify(proof);
+const verified = await verifier.verify(receivedProof);
 
 console.log(verified.transaction);
 console.log(verified.checkpointEpoch);
 ```
 
-`makeProof()` accepts optional `transaction`, `objects`, and `events` fields. Digest and object ID inputs are byte arrays, and every 64-bit value uses JavaScript `bigint`.
+`proof.toJSON()` returns a JSON string that you can send through a file, API, or message. The recipient passes that string to `Proof.fromJSON()` and selects its own trusted genesis blob. The example models both sides in one process; parsing the received string does not authenticate it.
+
+`makeProof()` accepts `transaction`, `objects`, and `events` fields. Each field is optional, but at least one target is required. Digest and object ID inputs are byte arrays, and every 64-bit value uses JavaScript `bigint`.
 
 Treat the returned `Proof` as untrusted until verification succeeds. Read authenticated object bytes with `verified.objectBcs(index)` and event bytes with `verified.eventContents(index)`.
 
-## Usage Examples
+See [Genesis Sources](../explanations/trust-and-verification.mdx#genesis-sources) for obtaining and authenticating the blob supplied to `CommitteeResolution.fromGenesis()`.
+
+## Examples
 
 The repository includes transaction, multi-target, verifier-reuse, object, event, and trusted-node examples.
 
@@ -96,8 +105,10 @@ Run `06_trusted_node` only against an endpoint inside your trust boundary:
 npm run example:node -- 06_trusted_node
 ```
 
-See the [Wasm examples README](https://github.com/iotaledger/notarization/tree/main/bindings/wasm/poi_wasm/examples) for network, wallet, Package ID, and genesis requirements.
+See the [Wasm examples README](https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/poi_wasm/examples) for network, wallet, Package ID, and genesis requirements.
+
+For local network prerequisites, follow the [PoI example setup](https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/poi_wasm/examples/README.md#step-1-select-the-network-and-wallet).
 
 ## API Reference
 
-For complete API documentation, see the [Wasm API Reference](../references/wasm/api_ref.md).
+For complete API documentation, see the [WASM API Reference](../references/wasm/api_ref.md).
