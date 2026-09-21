@@ -15,12 +15,10 @@ use iota_metrics::{
     monitored_mpsc::{Receiver, Sender, channel},
     monitored_scope,
 };
-use itertools::Itertools as _;
 use parking_lot::{Mutex, RwLock};
 use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom, thread_rng};
 use starfish_config::AuthorityIndex;
 use tokio::{
-    runtime::Handle,
     sync::{Semaphore, mpsc::error::TrySendError, oneshot},
     task::{JoinError, JoinSet},
     time::{Instant, sleep_until, timeout},
@@ -28,6 +26,7 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
+    block_header::CommitmentVerifiedTransactions,
     block_verifier::BlockVerifier,
     commit_syncer::verify_transactions_commitments,
     context::Context,
@@ -36,6 +35,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
+    task::spawn_blocking,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -1092,83 +1092,120 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let metrics = &context.metrics.node_metrics;
         let peer_hostname = &context.committee.authority(peer_index).hostname;
 
-        // Deserialize and verify the transactions
-        // inside verify_transactions
-        let transactions = match Handle::current()
-            .spawn_blocking({
-                let mut serialized_transactions_map: BTreeMap<TransactionRef, Bytes> =
-                    BTreeMap::new();
-                for serialized_transaction_bytes in &serialized_transactions_vec {
-                    let serialized_transactions: SerializedTransactionsV2 =
-                        bcs::from_bytes(serialized_transaction_bytes)
-                            .inspect_err(|_| {
-                                misbehavior_store.record_faulty_transactions(
-                                    peer_index,
-                                    false,
-                                    [peer_index],
-                                )
-                            })
-                            .map_err(ConsensusError::MalformedTransactions)?;
-                    let committed_transaction_ref = serialized_transactions.transaction_ref;
-                    // The commitment check below only proves each payload matches
-                    // its own claimed ref; it does not tie the ref to anything we
-                    // asked for. Reject a ref outside the requested set so a peer
-                    // cannot serve correctly-committed transactions we never
-                    // requested (which need not correspond to any real header).
-                    if !requested_transactions_guard
-                        .transactions_refs
-                        .contains(&committed_transaction_ref)
-                    {
+        // Deserialization, commitment checks and the transaction batch
+        // verification run on the blocking pool.
+        let transactions = spawn_blocking({
+            let context = context.clone();
+            let block_verifier = block_verifier.clone();
+            let misbehavior_store = misbehavior_store.clone();
+            let requested_transactions_refs =
+                requested_transactions_guard.transactions_refs.clone();
+            move || {
+                Self::verify_fetched_transactions(
+                    serialized_transactions_vec,
+                    &requested_transactions_refs,
+                    peer_index,
+                    &context,
+                    block_verifier.as_ref(),
+                    &misbehavior_store,
+                )
+            }
+        })
+        .await??;
+
+        metrics
+            .transactions_synchronizer_fetched_transactions_by_peer
+            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
+            .inc_by(transactions.len() as u64);
+        for transactions in &transactions {
+            let block_hostname = &context.committee.authority(transactions.author()).hostname;
+            metrics
+                .transactions_synchronizer_fetched_transactions_by_authority
+                .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
+                .inc();
+        }
+
+        let matched_requested = transactions.len();
+
+        // Add the transactions to the core
+        core_dispatcher
+            .add_transactions(transactions, DataSource::TransactionSynchronizer)
+            .await
+            .map_err(|_| ConsensusError::Shutdown)?;
+
+        // now release all the locked blocks as they have been fetched, verified &
+        // processed
+        drop(requested_transactions_guard);
+
+        Ok(matched_requested)
+    }
+
+    /// Deserializes the fetched payloads, checks each against the commitment
+    /// in its transaction reference and runs the same validity checks as the
+    /// block-bundle route. Records metrics and misbehavior for a failure.
+    fn verify_fetched_transactions(
+        serialized_transactions_vec: Vec<Bytes>,
+        requested_transactions_refs: &BTreeSet<TransactionRef>,
+        peer_index: AuthorityIndex,
+        context: &Arc<Context>,
+        block_verifier: &dyn BlockVerifier,
+        misbehavior_store: &MisbehaviorStore,
+    ) -> ConsensusResult<Vec<CommitmentVerifiedTransactions>> {
+        let metrics = &context.metrics.node_metrics;
+        let peer_hostname = &context.committee.authority(peer_index).hostname;
+
+        let mut serialized_transactions_map: BTreeMap<TransactionRef, Bytes> = BTreeMap::new();
+        for serialized_transaction_bytes in &serialized_transactions_vec {
+            let serialized_transactions: SerializedTransactionsV2 =
+                bcs::from_bytes(serialized_transaction_bytes)
+                    .inspect_err(|_| {
                         misbehavior_store.record_faulty_transactions(
                             peer_index,
                             false,
                             [peer_index],
-                        );
-                        return Err(ConsensusError::UnrequestedTransactionFetched {
-                            peer: peer_index,
-                            transaction_ref: serialized_transactions.transaction_ref,
-                        });
-                    }
-                    serialized_transactions_map.insert(
-                        committed_transaction_ref,
-                        serialized_transactions.serialized_transactions,
-                    );
-                }
-                let context_cloned = context.clone();
-
-                move || {
-                    verify_transactions_commitments(
-                        &context_cloned,
-                        peer_index,
-                        serialized_transactions_map,
-                    )
-                }
-            })
-            .await
-            .expect("Spawn blocking should not fail")
-        {
-            Ok(transactions) => transactions,
-            Err(err) => {
-                // The serving peer relayed a payload whose bytes don't match a
-                // committed payload; count it against that peer and charge it an
-                // unprovable fault. The mismatch can't be proven against the
-                // author, whose commitment the peer may have forged.
-                metrics
-                    .invalid_transactions
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "transaction_synchronizer",
-                        err.name(),
-                    ])
-                    .inc();
+                        )
+                    })
+                    .map_err(ConsensusError::MalformedTransactions)?;
+            let committed_transaction_ref = serialized_transactions.transaction_ref;
+            // The commitment check below only proves each payload matches
+            // its own claimed ref; it does not tie the ref to anything we
+            // asked for. Reject a ref outside the requested set so a peer
+            // cannot serve correctly-committed transactions we never
+            // requested (which need not correspond to any real header).
+            if !requested_transactions_refs.contains(&committed_transaction_ref) {
                 misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
-                return Err(err);
+                return Err(ConsensusError::UnrequestedTransactionFetched {
+                    peer: peer_index,
+                    transaction_ref: serialized_transactions.transaction_ref,
+                });
             }
+            serialized_transactions_map.insert(
+                committed_transaction_ref,
+                serialized_transactions.serialized_transactions,
+            );
         }
-        .iter()
-        .map(|x| x.1)
-        .cloned()
-        .collect::<Vec<_>>();
+
+        let transactions: Vec<_> =
+            match verify_transactions_commitments(context, peer_index, serialized_transactions_map)
+            {
+                Ok(transactions) => transactions.into_values().collect(),
+                Err(err) => {
+                    // The serving peer relayed a payload whose bytes don't match a
+                    // committed payload; count it against that peer and charge it an
+                    // unprovable fault. The mismatch can't be proven against the
+                    // author, whose commitment the peer may have forged.
+                    metrics
+                        .invalid_transactions
+                        .with_label_values(&[
+                            peer_hostname.as_str(),
+                            "transaction_synchronizer",
+                            err.name(),
+                        ])
+                        .inc();
+                    misbehavior_store.record_faulty_transactions(peer_index, false, [peer_index]);
+                    return Err(err);
+                }
+            };
 
         // The commitment check above only proves the fetched bytes match what
         // the author committed to; it does not enforce the per-transaction
@@ -1196,42 +1233,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 return Err(err);
             }
         }
-
-        metrics
-            .transactions_synchronizer_fetched_transactions_by_peer
-            .with_label_values(&[peer_hostname.as_str(), &sync_method.get_string()])
-            .inc_by(transactions.len() as u64);
-        for transactions in &transactions {
-            let block_hostname = &context.committee.authority(transactions.author()).hostname;
-            metrics
-                .transactions_synchronizer_fetched_transactions_by_authority
-                .with_label_values(&[block_hostname.as_str(), &sync_method.get_string()])
-                .inc();
-        }
-
-        info!(
-            "[{}] Synced and processed {} missing transactions from peer {peer_index} {peer_hostname}: {}",
-            sync_method.get_string(),
-            transactions.len(),
-            transactions
-                .iter()
-                .map(|b| b.transaction_ref().to_string())
-                .join(", "),
-        );
-
-        let matched_requested = transactions.len();
-
-        // Add the transactions to the core
-        core_dispatcher
-            .add_transactions(transactions, DataSource::TransactionSynchronizer)
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
-
-        // now release all the locked blocks as they have been fetched, verified &
-        // processed
-        drop(requested_transactions_guard);
-
-        Ok(matched_requested)
+        Ok(transactions)
     }
 }
 
