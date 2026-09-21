@@ -76,16 +76,16 @@ pub(crate) enum Admission {
     /// A slot was available; hold the permits for the request's (or stream's)
     /// lifetime and drop them to release the slot.
     Permit(AdmissionPermits),
-    /// The peer is at its cap for this group, or the group's shared cap is
+    /// The peer is at its cap for this group, or the group's all-peers cap is
     /// reached; the request must be rejected.
     Rejected,
 }
 
-/// The slots one admitted request holds: its peer's, and the group's shared one
-/// where the group has one.
+/// The slots one admitted request holds: its peer's, and the group's
+/// all-peers one where the group has one.
 pub(crate) struct AdmissionPermits {
     _peer: OwnedSemaphorePermit,
-    _shared: Option<OwnedSemaphorePermit>,
+    _all_peers: Option<OwnedSemaphorePermit>,
 }
 
 /// Per-(peer, RPC group) admission control for the inbound consensus server.
@@ -97,8 +97,9 @@ pub(crate) struct PerPeerAdmission {
     header: Option<Box<[Arc<Semaphore>]>>,
     transaction: Option<Box<[Arc<Semaphore>]>>,
     commit: Option<Box<[Arc<Semaphore>]>>,
-    /// Shared by all peers, on top of the per-peer commit row.
-    commit_total: Option<Arc<Semaphore>>,
+    /// One budget for commit fetches from every peer together, checked on top
+    /// of the peer's own row.
+    commit_from_all_peers: Option<Arc<Semaphore>>,
 }
 
 impl PerPeerAdmission {
@@ -110,7 +111,7 @@ impl PerPeerAdmission {
             header: Self::row(size, admission.max_header_fetches_per_peer),
             transaction: Self::row(size, admission.max_transaction_fetches_per_peer),
             commit: Self::row(size, admission.max_commit_fetches_per_peer),
-            commit_total: (admission.max_commit_fetches_total > 0)
+            commit_from_all_peers: (admission.max_commit_fetches_total > 0)
                 .then(|| Arc::new(Semaphore::new(admission.max_commit_fetches_total as usize))),
         }
     }
@@ -133,10 +134,11 @@ impl PerPeerAdmission {
         }
     }
 
-    /// The budget shared by all peers in `group`, where the group has one.
-    fn shared(&self, group: RpcGroup) -> &Option<Arc<Semaphore>> {
+    /// The budget every peer draws on together in `group`, where the group has
+    /// one.
+    fn all_peers(&self, group: RpcGroup) -> &Option<Arc<Semaphore>> {
         match group {
-            RpcGroup::CommitFetch => &self.commit_total,
+            RpcGroup::CommitFetch => &self.commit_from_all_peers,
             _ => &None,
         }
     }
@@ -154,8 +156,8 @@ impl PerPeerAdmission {
         let Ok(peer_permit) = semaphore.clone().try_acquire_owned() else {
             return Admission::Rejected;
         };
-        let shared_permit = match self.shared(group) {
-            Some(shared) => match shared.clone().try_acquire_owned() {
+        let all_peers_permit = match self.all_peers(group) {
+            Some(all_peers) => match all_peers.clone().try_acquire_owned() {
                 Ok(permit) => Some(permit),
                 Err(_) => return Admission::Rejected,
             },
@@ -163,7 +165,7 @@ impl PerPeerAdmission {
         };
         Admission::Permit(AdmissionPermits {
             _peer: peer_permit,
-            _shared: shared_permit,
+            _all_peers: all_peers_permit,
         })
     }
 }
@@ -356,7 +358,7 @@ mod tests {
             header: PerPeerAdmission::row(4, 0),
             transaction: PerPeerAdmission::row(4, 0),
             commit: PerPeerAdmission::row(4, 0),
-            commit_total: None,
+            commit_from_all_peers: None,
         };
         for _ in 0..1000 {
             assert!(matches!(
@@ -373,7 +375,7 @@ mod tests {
             header: PerPeerAdmission::row(4, 2),
             transaction: None,
             commit: None,
-            commit_total: None,
+            commit_from_all_peers: None,
         };
         let p0 = expect_permit(admission.try_acquire(RpcGroup::HeaderFetch, peer(1)));
         let p1 = expect_permit(admission.try_acquire(RpcGroup::HeaderFetch, peer(1)));
@@ -395,7 +397,7 @@ mod tests {
             header: PerPeerAdmission::row(4, 1),
             transaction: None,
             commit: None,
-            commit_total: None,
+            commit_from_all_peers: None,
         };
         let held = expect_permit(admission.try_acquire(RpcGroup::HeaderFetch, peer(0)));
         // Peer 0 is saturated...
@@ -415,7 +417,7 @@ mod tests {
             header: None,
             transaction: None,
             commit: PerPeerAdmission::row(4, 2),
-            commit_total: Some(Arc::new(Semaphore::new(3))),
+            commit_from_all_peers: Some(Arc::new(Semaphore::new(3))),
         };
         let p0 = expect_permit(admission.try_acquire(RpcGroup::CommitFetch, peer(0)));
         let p1 = expect_permit(admission.try_acquire(RpcGroup::CommitFetch, peer(0)));
@@ -438,7 +440,7 @@ mod tests {
             header: None,
             transaction: None,
             commit: None,
-            commit_total: None,
+            commit_from_all_peers: None,
         };
         let gauge = IntGauge::new("test_subscribe_in_use", "test").unwrap();
         let permit = expect_permit(admission.try_acquire(RpcGroup::Subscribe, peer(2)));
@@ -469,7 +471,7 @@ mod tests {
             header: PerPeerAdmission::row(4, 2),
             transaction: None,
             commit: None,
-            commit_total: None,
+            commit_from_all_peers: None,
         };
         let gauge = IntGauge::new("test_header_in_use", "test").unwrap();
         let g0 = AdmissionGuard::new(
