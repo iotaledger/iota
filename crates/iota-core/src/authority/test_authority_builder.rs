@@ -70,6 +70,8 @@ pub struct TestAuthorityBuilder<'a> {
     disable_execute_genesis_transactions: bool,
     chain_override: Option<Chain>,
     num_epochs_to_retain: Option<u64>,
+    num_epochs_to_retain_for_checkpoints: Option<u64>,
+    num_epochs_to_retain_for_indexes: Option<u64>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -194,6 +196,29 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
+    /// The number of epochs of transaction and checkpoint history retained,
+    /// counting the epoch the node has last executed. Left unset, the
+    /// pruning config's own default applies.
+    pub fn with_num_epochs_to_retain_for_checkpoints(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain_for_checkpoints
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
+        self
+    }
+
+    /// The number of epochs of RPC index history retained, counting the
+    /// epoch the node is in. Left unset, index pruning is off.
+    pub fn with_num_epochs_to_retain_for_indexes(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain_for_indexes
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
+        self
+    }
+
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
         self.chain_override = Some(chain);
         self
@@ -245,7 +270,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Some(store) => store,
             None => {
                 // unwrap ok - for testing only.
-                let (perpetual_tables, historic_objects) =
+                let (perpetual_tables, historic_objects, historic_ledger) =
                     AuthorityPerpetualTables::open_with_historic_objects(
                         &storage_dir.join("store"),
                         None,
@@ -254,6 +279,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                 AuthorityStore::open_with_committee_for_testing(
                     Arc::new(perpetual_tables),
                     Arc::new(historic_objects),
+                    Arc::new(historic_ledger),
                     &genesis_committee,
                     genesis,
                 )
@@ -344,7 +370,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     epoch_store
                         .protocol_config()
                         .max_move_identifier_len_as_option(),
-                    None,
+                    self.num_epochs_to_retain_for_indexes,
                     &authority_store,
                     &checkpoint_store,
                     Arc::default(),
@@ -361,6 +387,9 @@ impl<'a> TestAuthorityBuilder<'a> {
         let mut pruning_config = AuthorityStorePruningConfig::default();
         if let Some(num_epochs_to_retain) = self.num_epochs_to_retain {
             pruning_config.set_num_epochs_to_retain(num_epochs_to_retain);
+        }
+        if let Some(num_epochs_to_retain) = self.num_epochs_to_retain_for_checkpoints {
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(num_epochs_to_retain));
         }
 
         config.transaction_deny_config = transaction_deny_config;
@@ -387,7 +416,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             config.clone(),
             None,
             chain_identifier,
-            None,
             policy_config,
             firewall_config,
         )

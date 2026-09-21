@@ -1693,3 +1693,51 @@ async fn concurrent_latest_object_cache_collision_test() {
     // but now we get a cache miss on object2 instead of getting the latest version
     assert!(cache.object_by_id_cache.get(&object2_id).is_none());
 }
+
+/// Pruning the ledger bucket of an expired epoch takes a transaction's
+/// execution record and its effects out of the store while its effects digest
+/// can still be positively cached. Reading the effects must then report them
+/// absent.
+///
+/// It must not record that absence under the transaction digest, whose cache
+/// entry still holds the effects digest: `MonotonicCache::insert` reports
+/// overwriting a `Some` entry with `None` as an invariant violation, which
+/// panics under test and is counted in production.
+#[tokio::test]
+async fn test_read_effects_dropped_from_store_with_digest_still_cached() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        s.with_created(&[1]);
+        let digest = s.do_tx().await;
+        s.commit(digest).await;
+
+        let (_, bucket) = s
+            .store
+            .get_historic_ledger()
+            .find_epoch(&digest)
+            .unwrap()
+            .expect("the committed transaction must be in a bucket");
+        let effects_digest = bucket.executed_effects.get(&digest).unwrap().unwrap();
+        // What dropping an expired epoch's bucket leaves behind.
+        bucket.executed_effects.remove(&digest).unwrap();
+        bucket.effects.remove(&effects_digest).unwrap();
+
+        // Put back the state this exercises, whatever this iteration evicted:
+        // the execution record positively cached, its effects not.
+        s.cache
+            .cached
+            .executed_effects_digests
+            .insert(&digest, Some(effects_digest), Ticket::Write)
+            .unwrap();
+        s.cache
+            .cached
+            .transaction_effects
+            .invalidate(&effects_digest);
+
+        assert!(
+            s.cache.multi_get_executed_effects(&[digest])[0].is_none(),
+            "effects the store no longer holds must read as absent"
+        );
+    })
+    .await;
+}
