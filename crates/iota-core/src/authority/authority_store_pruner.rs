@@ -328,7 +328,6 @@ impl AuthorityStorePruner {
     fn prune_checkpoints(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_db: &Arc<CheckpointStore>,
-        grpc_indexes_store: Option<&GrpcIndexesStore>,
         checkpoint_number: CheckpointSequenceNumber,
         checkpoints_to_prune: Vec<CheckpointDigest>,
         checkpoint_content_to_prune: Vec<CheckpointContents>,
@@ -385,9 +384,6 @@ impl AuthorityStorePruner {
             )],
         )?;
 
-        if let Some(grpc_indexes_store) = grpc_indexes_store {
-            grpc_indexes_store.prune(checkpoint_number, &checkpoint_content_to_prune)?;
-        }
         perpetual_batch.write()?;
         checkpoints_batch.write()?;
         metrics
@@ -401,7 +397,6 @@ impl AuthorityStorePruner {
     pub async fn prune_objects_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
-        grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
@@ -427,7 +422,6 @@ impl AuthorityStorePruner {
         Self::prune_for_eligible_epochs(
             perpetual_db,
             checkpoint_store,
-            grpc_indexes_store,
             pruner_db,
             PruningMode::Objects,
             config.num_epochs_to_retain,
@@ -451,7 +445,6 @@ impl AuthorityStorePruner {
     pub async fn prune_checkpoints_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
-        grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
@@ -483,7 +476,6 @@ impl AuthorityStorePruner {
         Self::prune_for_eligible_epochs(
             perpetual_db,
             checkpoint_store,
-            grpc_indexes_store,
             pruner_db,
             PruningMode::Checkpoints,
             num_epochs_to_retain,
@@ -501,7 +493,6 @@ impl AuthorityStorePruner {
     pub async fn prune_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
-        grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         mode: PruningMode,
         num_epochs_to_retain: u64,
@@ -585,7 +576,6 @@ impl AuthorityStorePruner {
                     PruningMode::Checkpoints => Self::prune_checkpoints(
                         perpetual_db,
                         checkpoint_store,
-                        grpc_indexes_store,
                         checkpoint_number,
                         checkpoints_to_prune,
                         checkpoint_content_to_prune,
@@ -639,7 +629,6 @@ impl AuthorityStorePruner {
                 PruningMode::Checkpoints => Self::prune_checkpoints(
                     perpetual_db,
                     checkpoint_store,
-                    grpc_indexes_store,
                     checkpoint_number,
                     checkpoints_to_prune,
                     checkpoint_content_to_prune,
@@ -666,6 +655,21 @@ impl AuthorityStorePruner {
             }
         }
 
+        Ok(())
+    }
+
+    /// Drops the gRPC digest history of epochs past the checkpoint
+    /// retention, mirroring how the checkpoints themselves are pruned.
+    fn prune_grpc_indexes(
+        grpc_indexes_store: Option<&GrpcIndexesStore>,
+        config: &AuthorityStorePruningConfig,
+    ) -> anyhow::Result<()> {
+        if let (Some(epochs_to_retain), Some(grpc_indexes_store)) = (
+            config.num_epochs_to_retain_for_checkpoints(),
+            grpc_indexes_store,
+        ) {
+            grpc_indexes_store.prune(epochs_to_retain)?;
+        }
         Ok(())
     }
 
@@ -871,7 +875,6 @@ impl AuthorityStorePruner {
                     if let Err(err) = Self::prune_objects_for_eligible_epochs(
                         &perpetual_db,
                         &checkpoint_store,
-                        grpc_indexes_store.as_deref(),
                         pruner_db.as_ref(),
                         config.clone(),
                         metrics.clone(),
@@ -887,7 +890,6 @@ impl AuthorityStorePruner {
                     if let Err(err) = Self::prune_checkpoints_for_eligible_epochs(
                         &perpetual_db,
                         &checkpoint_store,
-                        grpc_indexes_store.as_deref(),
                         pruner_db.as_ref(),
                         config.clone(),
                         metrics.clone(),
@@ -897,6 +899,21 @@ impl AuthorityStorePruner {
                     .await
                     {
                         error!("Failed to prune checkpoints: {:?}", err);
+                    }
+                }
+                if prune_checkpoints {
+                    // Digest retention follows checkpoint retention: the API
+                    // answers about locally available checkpoints. The drops
+                    // block queries on the bucket-map lock; keep them off
+                    // the async workers.
+                    let grpc_indexes_store = grpc_indexes_store.clone();
+                    let config = config.clone();
+                    let result = tokio::task::spawn_blocking(move || {
+                        Self::prune_grpc_indexes(grpc_indexes_store.as_deref(), &config)
+                    })
+                    .await;
+                    if let Ok(Err(err)) | Err(err) = result.map_err(anyhow::Error::from) {
+                        error!("Failed to prune the gRPC digest history: {:?}", err);
                     }
                 }
                 if prune_indexes {
@@ -1442,7 +1459,6 @@ mod tests {
         AuthorityStorePruner::prune_for_eligible_epochs(
             &perpetual_db,
             &checkpoint_store,
-            None,
             None,
             mode,
             num_epochs_to_retain,
