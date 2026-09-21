@@ -382,16 +382,14 @@ where
         where
             A: SeqAccess<'de>,
         {
-            let declared = seq.size_hint().unwrap_or(0);
+            let Some(declared) = seq.size_hint() else {
+                return Err(de::Error::custom("sequence length must be declared"));
+            };
             if declared > MAX_HEADERS_OR_SHARDS_PER_BUNDLE {
                 return Err(de::Error::invalid_length(declared, &self));
             }
             let mut entries = Vec::with_capacity(declared);
-            // A format that declares no length is bounded by this loop instead.
             while let Some(entry) = seq.next_element()? {
-                if entries.len() == MAX_HEADERS_OR_SHARDS_PER_BUNDLE {
-                    return Err(de::Error::invalid_length(entries.len() + 1, &self));
-                }
                 entries.push(entry);
             }
             Ok(entries)
