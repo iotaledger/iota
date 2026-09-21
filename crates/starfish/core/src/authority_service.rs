@@ -890,12 +890,15 @@ fn fetch_commit_transactions_within_budget(
                 covered = false;
                 break;
             };
-            if index > 0 && total_bytes + payload.len() > byte_budget {
+            // Charged by the entry rather than the payload, since the ref and
+            // the length prefixes around it are held too.
+            let entry = serialize_transactions_entry(*transaction_ref, payload)?;
+            if index > 0 && total_bytes + entry.len() > byte_budget {
                 covered = false;
                 break;
             }
-            total_bytes += payload.len();
-            result.push(serialize_transactions_entry(*transaction_ref, payload)?);
+            total_bytes += entry.len();
+            result.push(entry);
         }
         if !covered {
             result.truncate(commit_start);
@@ -5899,7 +5902,9 @@ mod tests {
 
     #[tokio::test]
     async fn fast_sync_transactions_stop_at_the_budget() {
-        use crate::authority_service::fetch_commit_transactions_within_budget;
+        use crate::authority_service::{
+            fetch_commit_transactions_within_budget, serialize_transactions_entry,
+        };
 
         let (context, _) = Context::new_for_test(4);
         let store = Arc::new(MemStore::new());
@@ -5940,15 +5945,22 @@ mod tests {
             })
             .collect();
 
-        // A budget that holds the first commit's payloads but not both
-        // commits', so the response stops on the commit boundary between them.
+        // A budget that holds the first commit's entries exactly, so the
+        // response stops on the commit boundary between the two.
         let commit_bytes: usize = written_blocks[..4]
             .iter()
-            .map(|b| b.verified_transactions.serialized().len())
+            .map(|b| {
+                serialize_transactions_entry(
+                    b.verified_block_header.transaction_ref(),
+                    b.verified_transactions.serialized().clone(),
+                )
+                .unwrap()
+                .len()
+            })
             .sum();
         let mut context = Context {
             parameters: Parameters {
-                max_fast_commit_sync_transaction_bytes: commit_bytes + 1,
+                max_fast_commit_sync_transaction_bytes: commit_bytes,
                 ..context.parameters
             },
             ..context
