@@ -12,11 +12,12 @@ use iota_sdk_types::{ObjectId, ObjectReference, Version};
 use iota_types::error::{IotaError, IotaResult};
 
 use super::{
-    KeptObject, OwnedVerdict, SharedVerdict,
+    KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
     owned::{
         HandlerRowLookup, HandlerRowRecheck, NeedBytes, OwnedReader, SyncAheadLookup,
         SyncAheadRecheck,
     },
+    package::{PackageLookup, PackageReader, PackageRecordLookup, PackageRowLookup},
     shared::{
         CreatedObjectLookup, CreatedShared, CreationRowLookup, CreationRowRecheck,
         DeletionInfoLookup, DeletionRowLookup, ObjectAbsent, PreSyncObjectLookup, SharedReader,
@@ -174,6 +175,24 @@ impl CommitIndexedReader {
         Ok(match deletion_info_found.read_deletion_row(self)? {
             DeletionRowLookup::Deleted(version, digest) => SharedVerdict::Deleted(version, digest),
             DeletionRowLookup::Drop(reason) => SharedVerdict::Drop(reason),
+        })
+    }
+
+    /// Visibility of one package input. The store is read first, because a
+    /// package input names no version. Storage errors propagate.
+    pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
+        let loaded = match PackageReader::start(id, self.horizon).read_package(self)? {
+            PackageLookup::Loaded(loaded) => loaded,
+            PackageLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
+        };
+        let no_row = match loaded.read_row(self)? {
+            PackageRowLookup::Visible(package) => return Ok(PackageVerdict::Visible(package)),
+            PackageRowLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
+            PackageRowLookup::NotFound(no_row) => no_row,
+        };
+        Ok(match no_row.read_sync_ahead_record(self)? {
+            PackageRecordLookup::Visible(package) => PackageVerdict::Visible(package),
+            PackageRecordLookup::Missing(reason) => PackageVerdict::Missing(reason),
         })
     }
 

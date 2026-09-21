@@ -10,7 +10,7 @@
 //! `pub(crate)` would be dead code under `-D warnings` until then.
 
 use iota_sdk_types::{TransactionDigest, Version};
-use iota_types::object::Object;
+use iota_types::{object::Object, storage::PackageObject};
 
 mod owned;
 mod package;
@@ -35,6 +35,16 @@ pub enum SharedVerdict {
     /// reached. Kept, and handed on as `DeletedSharedObject`.
     Deleted(Version, TransactionDigest),
     Drop(DropReason),
+    Missing(MissingReason),
+}
+
+/// The reader's answer for one package input. A denied package is the deny
+/// check's verdict, so a package never drops here.
+#[must_use]
+pub enum PackageVerdict {
+    /// Visible at this commit. The loaded package, for the input loader and
+    /// the deny check.
+    Visible(PackageObject),
     Missing(MissingReason),
 }
 
@@ -114,4 +124,11 @@ pub enum MissingKind {
     /// A sync-ahead record with `base_version` `None`: the shared object was
     /// created ahead of the handler.
     SharedSyncCreated,
+    /// The package is not in the store.
+    PackageNotFound,
+    /// The package's row was produced above `C - K`.
+    PackageAboveHorizon,
+    /// The package has a sync-ahead record: published by execution the
+    /// handler has not reached.
+    PackageSyncPublished,
 }
