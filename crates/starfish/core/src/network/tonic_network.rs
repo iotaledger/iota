@@ -1497,6 +1497,7 @@ impl ResponseHandler for MetricsResponseCallback {
         B: bytes::Buf,
     {
         // Body data is `Bytes`, so the first chunk is the whole buffer.
+        debug_assert_eq!(chunk.chunk().len(), chunk.remaining());
         self.on_chunk(chunk.chunk());
     }
 
