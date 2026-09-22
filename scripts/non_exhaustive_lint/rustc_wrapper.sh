@@ -16,11 +16,15 @@ set -u
 rustc="$1"; shift
 
 pkg="${CARGO_PKG_NAME:-}"
+# -Ztrim-diagnostic-paths=no makes every type in a diagnostic carry its defining
+# crate (iota_sdk_types::Owner, never a trimmed bare Owner), which is what lets
+# report.sh classify SDK matches exactly instead of by a list of bare names.
 if [[ -n "$pkg" && -n "${NELINT_PKGS_FILE:-}" && -f "$NELINT_PKGS_FILE" ]] \
    && grep -qxF -- "$pkg" "$NELINT_PKGS_FILE"; then
   exec "$rustc" "$@" \
     "-Zcrate-attr=feature(non_exhaustive_omitted_patterns_lint)" \
-    "-Zcrate-attr=${NELINT_LEVEL:-warn}(non_exhaustive_omitted_patterns)"
+    "-Zcrate-attr=${NELINT_LEVEL:-warn}(non_exhaustive_omitted_patterns)" \
+    "-Ztrim-diagnostic-paths=no"
 fi
 
 exec "$rustc" "$@"

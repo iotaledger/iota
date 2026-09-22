@@ -35,6 +35,24 @@ surfaces those spots.
   in-scope list. It runs for workspace members only, so dependencies, including
   third-party crates with their own `#[non_exhaustive]` enums, are never
   injected. No crate source carries the attribute.
+- The wrapper also passes `-Ztrim-diagnostic-paths=no`, so every type in a
+  diagnostic carries its defining crate (`iota_sdk_types::Owner`, never a
+  trimmed bare `Owner`). That is what makes the report's SDK classification
+  exact rather than a list of bare names.
+
+## Reading the results
+
+`report.sh` turns the raw compiler output into a markdown report: one row per
+source site (a crate's lib and test targets otherwise report the same site
+twice), SDK matches first and split into production code and tests/examples,
+and every other `#[non_exhaustive]` match (internal and third-party enums)
+collapsed into per-type counts. A match is an SDK match iff its type mentions
+`iota_sdk_types` or `iota_sdk_grpc`.
+
+`check.sh` prints the report, appends it to the job summary page
+(`GITHUB_STEP_SUMMARY`), and writes `report.md` next to the full
+`cargo-check.log` into `NELINT_OUT_DIR`; CI uploads that directory as the
+`non-exhaustive-lint-report` artifact.
 
 ## Known coverage gaps
 
@@ -63,6 +81,7 @@ affected crate's artifacts) to force a re-lint.
 scripts/non_exhaustive_lint/check.sh
 ```
 
-`NIGHTLY` overrides the toolchain (default matches CI). Findings print as
-compiler warnings; the trailing self-test line is the only thing that can make
-the script exit non-zero.
+`NIGHTLY` overrides the toolchain (default matches CI). The report prints at the
+end; set `NELINT_OUT_DIR=<dir>` to also get `report.md` and the full
+`cargo-check.log` there. The self-test and a genuine build error are the only
+things that make the script exit non-zero.

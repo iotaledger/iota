@@ -48,3 +48,14 @@ jobs:
           # replay cached artifacts from before a crate entered scope (the wrapper
           # decision is not part of cargo's fingerprint), silently under-reporting.
           CARGO_TARGET_DIR: ${{ runner.temp }}/nelint-target
+          # report.md and the full compiler output, for the artifact below. The
+          # report also lands on the run's summary page via GITHUB_STEP_SUMMARY.
+          NELINT_OUT_DIR: ${{ runner.temp }}/nelint-report
+
+      - name: Upload report and compiler output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: non-exhaustive-lint-report
+          path: ${{ runner.temp }}/nelint-report
+          if-no-files-found: ignore

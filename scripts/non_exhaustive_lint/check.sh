@@ -20,6 +20,11 @@
 # scope (keyed on CARGO_PKG_NAME). The wrapper runs for workspace members only,
 # and keying on the crate's own identity means a dependency of an in-scope crate
 # is never injected, so third-party enums in the dependency graph do not trip it.
+#
+# The raw compiler output is turned into a readable report by report.sh: printed
+# to stdout, appended to the GitHub job summary when GITHUB_STEP_SUMMARY is set,
+# and written to NELINT_OUT_DIR (report.md next to the full cargo log) when that
+# is set, for upload as a CI artifact.
 set -uo pipefail
 
 # Resolve the wrapper path from $0 before changing directory: $0 may be relative
@@ -86,4 +91,15 @@ fi
 if ! grep -q 'non_exhaustive_omitted_patterns' "$log_file"; then
   echo "ERROR: self-test failed: no non_exhaustive_omitted_patterns findings; the lint is not being applied." >&2
   exit 1
+fi
+
+report="$("$here/report.sh" "$log_file")"
+printf '%s\n' "$report"
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  printf '%s\n' "$report" >> "$GITHUB_STEP_SUMMARY"
+fi
+if [[ -n "${NELINT_OUT_DIR:-}" ]]; then
+  mkdir -p "$NELINT_OUT_DIR"
+  printf '%s\n' "$report" > "$NELINT_OUT_DIR/report.md"
+  cp "$log_file" "$NELINT_OUT_DIR/cargo-check.log"
 fi
