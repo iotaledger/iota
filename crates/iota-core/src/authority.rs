@@ -5705,31 +5705,31 @@ impl AuthorityState {
                 );
 
                 let auth_account_object_seq_number =
-                    if let Some(auth_account_object_seq_number) = auth_account_object_seq_number {
+                    if let Some(expected_version) = auth_account_object_seq_number {
                         let account_object_version = object.version();
 
                         fp_ensure!(
-                            account_object_version == auth_account_object_seq_number,
+                            account_object_version == expected_version,
                             UserInputError::AccountObjectVersionMismatch {
                                 object_id: auth_account_object_id,
-                                expected_version: auth_account_object_seq_number,
+                                expected_version,
                                 actual_version: account_object_version,
                             }
                             .into()
                         );
 
-                        auth_account_object_seq_number
+                        expected_version
                     } else {
                         object.version()
                     };
 
-                if let Some(auth_account_object_digest) = auth_account_object_digest {
+                if let Some(expected_digest) = auth_account_object_digest {
                     let account_object_digest = object.digest();
                     fp_ensure!(
-                        account_object_digest == auth_account_object_digest,
+                        account_object_digest == expected_digest,
                         UserInputError::InvalidAccountObjectDigest {
                             object_id: auth_account_object_id,
-                            expected_digest: auth_account_object_digest,
+                            expected_digest,
                             actual_digest: account_object_digest,
                         }
                         .into()
