@@ -376,7 +376,7 @@ mod move_call_ext {
 pub trait MoveCallExt: Sized + move_call_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
-    fn is_input_arg_used(&self, arg: u16) -> bool;
+    fn is_input_arg_used(&self, arg: usize) -> bool;
 }
 
 impl MoveCallExt for MoveCall {
@@ -426,10 +426,10 @@ impl MoveCallExt for MoveCall {
         Ok(())
     }
 
-    fn is_input_arg_used(&self, arg: u16) -> bool {
+    fn is_input_arg_used(&self, arg: usize) -> bool {
         self.arguments
             .iter()
-            .any(|a| matches!(a, Argument::Input(inp) if *inp == arg))
+            .any(|a| matches!(a, Argument::Input(inp) if usize::from(*inp) == arg))
     }
 }
 
@@ -442,7 +442,7 @@ pub trait CommandExt: Sized + command_ext::Sealed {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
     fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>>;
-    fn is_input_arg_used(&self, input_arg: u16) -> bool;
+    fn is_input_arg_used(&self, input_arg: usize) -> bool;
 }
 
 impl CommandExt for Command {
@@ -567,7 +567,7 @@ impl CommandExt for Command {
         }
     }
 
-    fn is_input_arg_used(&self, input_arg: u16) -> bool {
+    fn is_input_arg_used(&self, input_arg: usize) -> bool {
         match self {
             Command::MoveCall(c) => c.is_input_arg_used(input_arg),
             Command::TransferObjects(TransferObjects {
@@ -581,15 +581,14 @@ impl CommandExt for Command {
             | Command::SplitCoins(SplitCoins {
                 amounts: args,
                 coin: arg,
-            }) => args
-                .iter()
-                .chain(iter::once(arg))
-                .any(|arg| matches!(arg, Argument::Input(input) if *input == input_arg)),
-            Command::MakeMoveVector(MakeMoveVector { elements, .. }) => elements
-                .iter()
-                .any(|arg| matches!(arg, Argument::Input(input) if *input == input_arg)),
+            }) => args.iter().chain(iter::once(arg)).any(
+                |arg| matches!(arg, Argument::Input(input) if usize::from(*input) == input_arg),
+            ),
+            Command::MakeMoveVector(MakeMoveVector { elements, .. }) => elements.iter().any(
+                |arg| matches!(arg, Argument::Input(input) if usize::from(*input) == input_arg),
+            ),
             Command::Upgrade(Upgrade { ticket, .. }) => {
-                matches!(ticket, Argument::Input(input) if *input == input_arg)
+                matches!(ticket, Argument::Input(input) if usize::from(*input) == input_arg)
             }
             Command::Publish(_) => false,
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
@@ -651,16 +650,15 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
                 value: config.max_programmable_tx_commands().to_string()
             }
         );
-        let too_many_inputs = || UserInputError::SizeLimitExceeded {
-            limit: "maximum inputs in a programmable transaction".to_string(),
-            value: MAX_PROGRAMMABLE_TX_INPUTS.to_string(),
-        };
         // `max_input_objects` below does not count pure inputs, so it does not
         // bound the list. No protocol version gates this one: a transaction
         // with more inputs is above `max_tx_size_bytes` on every version.
         fp_ensure!(
             inputs.len() <= MAX_PROGRAMMABLE_TX_INPUTS,
-            too_many_inputs()
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum inputs in a programmable transaction".to_string(),
+                value: MAX_PROGRAMMABLE_TX_INPUTS.to_string(),
+            }
         );
         let total_inputs = self.input_objects()?.len() + self.receiving_objects().len();
         fp_ensure!(
@@ -697,7 +695,6 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
             matches!(obj, CallArg::Shared(SharedObjectReference { object_id, .. }) if *object_id == ObjectId::RANDOMNESS_STATE)
         }) {
             let mut used_random_object = false;
-            let random_index = u16::try_from(random_index).map_err(|_| too_many_inputs())?;
             for command in commands {
                 if !used_random_object {
                     used_random_object = command.is_input_arg_used(random_index);
