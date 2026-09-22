@@ -9,6 +9,9 @@ on:
       isNightly:
         type: boolean
         default: false
+  # Allow running the check on demand against any branch (in addition to the
+  # workspace-config and nightly triggers below).
+  workflow_dispatch:
 
 concurrency:
   group: non-exhaustive-lint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -25,14 +28,15 @@ jobs:
     name: SDK enum variants hidden behind wildcard arms
     # An SDK enum gains variants only when the pinned rev moves, which is a
     # workspace-config change; the nightly run covers matches written in between.
-    if: (!cancelled() && !failure() && (inputs.isRustWorkspaceConfig || inputs.isNightly))
+    # workflow_dispatch runs it on demand regardless of those inputs.
+    if: (!cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || inputs.isRustWorkspaceConfig || inputs.isNightly))
     runs-on: [self-hosted-x64]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Coverage is derived from `cargo metadata` (every crate with a direct
-      # iota-sdk-types dependency) and the unstable lint is injected through a
+      # Coverage is derived from `cargo tree` (every crate reaching iota-sdk-types
+      # in its dependency tree) and the unstable lint is injected through a
       # RUSTC_WORKSPACE_WRAPPER, so no crate source carries the attribute. This is
       # a report: findings are warnings and never fail the job; the script fails
       # only its self-test, i.e. if the lint has stopped being applied at all.
