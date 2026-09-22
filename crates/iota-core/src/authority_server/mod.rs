@@ -92,14 +92,14 @@ impl ValidatorService {
     }
 
     pub(crate) fn get_client_ip_addr<T>(
-        &self,
+        metrics: &ValidatorServiceMetrics,
         request: &tonic::Request<T>,
         source: &ClientIdSource,
     ) -> Option<IpAddr> {
         // Observability gauge: track the hop depth even when we're not using
         // x-forwarded-for as the source, to detect misconfigured proxies.
         if let Some(num_hops) = forwarded_hop_depth(request.metadata().as_ref()) {
-            self.metrics.x_forwarded_for_num_hops.set(num_hops as f64);
+            metrics.x_forwarded_for_num_hops.set(num_hops as f64);
         }
 
         let status = get_client_ip(request.metadata().as_ref(), request.remote_addr(), source);
@@ -115,13 +115,13 @@ impl ValidatorService {
                 } else if cfg!(test) {
                     panic!("Failed to get remote address from request");
                 } else {
-                    self.metrics.connection_ip_not_found.inc();
+                    metrics.connection_ip_not_found.inc();
                     error!("{status}");
                 }
                 None
             }
             ClientIpStatus::XForwardedForHeaderMissing => {
-                self.metrics.forwarded_header_not_included.inc();
+                metrics.forwarded_header_not_included.inc();
                 error!("{status}");
                 None
             }
@@ -130,7 +130,7 @@ impl ValidatorService {
                 // is hitting this case, we should reject such requests that
                 // hit this case.
                 // issue: https://github.com/iotaledger/iota/issues/11756
-                self.metrics.forwarded_header_invalid.inc();
+                metrics.forwarded_header_invalid.inc();
                 error!("{status}");
                 None
             }
@@ -139,12 +139,12 @@ impl ValidatorService {
                 None
             }
             ClientIpStatus::XForwardedForConfigMismatch { .. } => {
-                self.metrics.client_id_source_config_mismatch.inc();
+                metrics.client_id_source_config_mismatch.inc();
                 error!("{status}");
                 None
             }
             ClientIpStatus::XForwardedForUnparsable => {
-                self.metrics.forwarded_header_parse_error.inc();
+                metrics.forwarded_header_parse_error.inc();
                 error!("{status}");
                 None
             }
@@ -167,7 +167,7 @@ impl ValidatorService {
     fn extract_client_ip<ProtoReq>(&self, request: &tonic::Request<ProtoReq>) -> Option<IpAddr> {
         self.client_id_source
             .as_ref()
-            .and_then(|source| self.get_client_ip_addr(request, source))
+            .and_then(|source| Self::get_client_ip_addr(&self.metrics, request, source))
     }
 
     fn tally_traffic<T>(
@@ -370,8 +370,55 @@ mod client_ip_forwarding_tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use iota_traffic_controller::parse_ip;
+    use iota_types::traffic_control::ClientIdSource;
+    use tonic::codegen::http;
 
+    use super::{ValidatorService, ValidatorServiceMetrics};
     use crate::authority_client::insert_metadata;
+
+    /// A request carrying `value` as its `x-forwarded-for` header, built over
+    /// the raw bytes so that a test can send what the gRPC metadata API
+    /// refuses.
+    fn forwarded(value: &[u8]) -> tonic::Request<()> {
+        let request = http::Request::builder()
+            .header(
+                "x-forwarded-for",
+                http::HeaderValue::from_bytes(value).expect("a valid header value"),
+            )
+            .body(())
+            .expect("a valid request");
+        tonic::Request::from_http(request)
+    }
+
+    /// The node reports the depth of the proxy chain even when the part of the
+    /// header the client sent is not readable as text.
+    #[test]
+    fn a_byte_the_client_sent_does_not_zero_the_hop_gauge() {
+        let metrics = ValidatorServiceMetrics::new_for_tests();
+        let client = ValidatorService::get_client_ip_addr(
+            &metrics,
+            &forwarded(b"\x80, 10.0.0.1"),
+            &ClientIdSource::XForwardedFor(1),
+        );
+
+        assert_eq!(client, Some(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
+        assert_eq!(metrics.x_forwarded_for_num_hops.get(), 1.0);
+    }
+
+    /// A request that reached the node without the proxy that sets the header
+    /// names no client, and the node counts it under that cause.
+    #[test]
+    fn a_request_without_the_header_is_counted_under_its_cause() {
+        let metrics = ValidatorServiceMetrics::new_for_tests();
+        let client = ValidatorService::get_client_ip_addr(
+            &metrics,
+            &tonic::Request::new(()),
+            &ClientIdSource::XForwardedFor(1),
+        );
+
+        assert_eq!(client, None);
+        assert_eq!(metrics.forwarded_header_not_included.get(), 1);
+    }
 
     /// Verifies that `insert_metadata` on the client side sets the
     /// `x-forwarded-for` header such that the server-side
