@@ -2287,6 +2287,8 @@ impl AuthorityState {
             });
         }
 
+        transaction.check_serialized_size(epoch_store.protocol_config())?;
+
         // Cheap validity checks for a transaction, including input size limits.
         // This does not check if gas objects are missing since we may create a
         // mock gas object. It checks for other transaction input validity.
