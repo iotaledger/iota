@@ -15,7 +15,7 @@ fn operator_config_overrides_defaults() {
         r#"
 tonic:
   max_concurrent_streams: 128
-  max_inbound_message_size: 4194304
+  max_request_message_size: 4194304
   admission:
     max_header_fetches_per_peer: 5
     max_subscriptions_per_peer: 0
@@ -26,7 +26,7 @@ enable_block_stream_reset_on_fast_sync_exit: false
     let defaults = starfish_config::Parameters::default();
 
     assert_eq!(parameters.tonic.max_concurrent_streams, 128);
-    assert_eq!(parameters.tonic.max_inbound_message_size, 4 << 20);
+    assert_eq!(parameters.tonic.max_request_message_size, 4 << 20);
     assert_eq!(parameters.tonic.admission.max_header_fetches_per_peer, 5);
     // A cap set to `0` disables admission for that group.
     assert_eq!(parameters.tonic.admission.max_subscriptions_per_peer, 0);
@@ -69,8 +69,8 @@ tonic:
         defaults.tonic.request_timeout
     );
     assert_eq!(
-        parameters.tonic.max_inbound_message_size,
-        defaults.tonic.max_inbound_message_size
+        parameters.tonic.max_request_message_size,
+        defaults.tonic.max_request_message_size
     );
     assert_eq!(
         parameters.tonic.admission.max_subscriptions_per_peer,
