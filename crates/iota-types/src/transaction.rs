@@ -651,8 +651,7 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
             }
         );
         // `max_input_objects` below does not count pure inputs, so it does not
-        // bound the list. No protocol version gates this one: a transaction
-        // with more inputs is above `max_tx_size_bytes` on every version.
+        // bound the list.
         fp_ensure!(
             inputs.len() <= MAX_PROGRAMMABLE_TX_INPUTS,
             UserInputError::SizeLimitExceeded {
