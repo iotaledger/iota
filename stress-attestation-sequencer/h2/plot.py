@@ -265,10 +265,21 @@ def facets(points, size=len(RAMP5)):
     return [points[i : i + size] for i in range(0, len(points), size)]
 
 
+# One marker per cost point, so curves stay apart where a dozen of them share
+# a panel and the colour ramp alone is not enough.
+MARKS = ["o", "s", "^", "D", "v", "P", "X", "<", ">", "h", "p", "d"]
+
+
 def ramp(k):
+    """k colours from light to dark. Up to five they are the reference ramp's
+    own stops; beyond that the ramp is interpolated, so twelve cost points get
+    twelve distinct shades instead of five repeated ones."""
     if k == 1:
         return [RAMP5[2]]
-    return [RAMP5[round(i * (len(RAMP5) - 1) / (k - 1))] for i in range(k)]
+    if k <= len(RAMP5):
+        return [RAMP5[round(i * (len(RAMP5) - 1) / (k - 1))] for i in range(k)]
+    cmap = LinearSegmentedColormap.from_list("ramp", RAMP5, N=256)
+    return [cmap(i / (k - 1)) for i in range(k)]
 
 
 def style_axes(ax):
@@ -519,12 +530,13 @@ def plot_utilization(points, outdir):
         return
     fig, (lag_ax, canc_ax) = plt.subplots(1, 2, figsize=(12.8, 5.0), sharex=True)
     colors = ramp(len(withd))
-    for (p, d), c in zip(withd, colors):
+    for i, ((p, d), c) in enumerate(zip(withd, colors)):
+        mk = MARKS[i % len(MARKS)]
         xs = [adm / d for adm, _ in p.curve()]
         lag = [cfg["b_lag_mean_s"] for _, cfg in p.curve()]
         frac = [cfg["b_cancelled_per_s"] / cfg["target_qps"] for _, cfg in p.curve()]
-        lag_ax.plot(xs, lag, "-o", color=c, lw=2, ms=5, label=p.name)
-        canc_ax.plot(xs, frac, "-o", color=c, lw=2, ms=5)
+        lag_ax.plot(xs, lag, "-", marker=mk, color=c, lw=2, ms=5, label=p.name)
+        canc_ax.plot(xs, frac, "-", marker=mk, color=c, lw=2, ms=5)
     ticks = [0.2, 0.5, 1, 2, 5, 10, 20, 50]
     for ax in (lag_ax, canc_ax):
         ax.axvline(1.0, color=INK2, ls="--", lw=1.2)
@@ -1002,11 +1014,29 @@ def pareto_front(pts, better_y_is_low):
     return sorted(keep, key=lambda t: t[0])
 
 
-# (y key, panel title, is a low value better, y on a log scale)
+# (y key, y label, panel title, is a low value better, y on a log scale)
 PARETO_MIX_PANELS = (
-    ("lag_mean_s", "checkpoint lag mean, B / A", True, True),
-    ("cancelled_per_s", "cancelled / s, B / A", True, False),
-    ("expensive_per_s", "expensive executed / s, B / A", False, False),
+    (
+        "lag_mean_s",
+        "checkpoint lag mean, B / A (log)",
+        "past the best limit, checkpoint lag climbs and success tps falls",
+        True,
+        True,
+    ),
+    (
+        "cancelled_per_s",
+        "cancelled / s, B / A",
+        "not a trade: fewer cancellations come with more success tps",
+        True,
+        False,
+    ),
+    (
+        "expensive_per_s",
+        "expensive executed / s, B / A",
+        "a trade: more success tps, fewer expensive transactions",
+        False,
+        False,
+    ),
 )
 
 
@@ -1025,7 +1055,6 @@ def plot_pareto_mix(mix_rows, outdir):
     if not named:
         return
     colors = ramp(len(named))
-    marks = ["o", "s", "^", "D", "v", "P"]
     # The configs that beat Run A on success tps, cancellations and checkpoint
     # lag at once. None of them also executes more expensive transactions.
     wins = set()
@@ -1041,7 +1070,9 @@ def plot_pareto_mix(mix_rows, outdir):
             if ok:
                 wins.add(r["label"])
     fig, axes = plt.subplots(1, 3, figsize=(15.0, 5.2), squeeze=False)
-    for ax, (key, title, low_is_better, logy) in zip(axes[0], PARETO_MIX_PANELS):
+    for ax, (key, ylabel, title, low_is_better, logy) in zip(
+        axes[0], PARETO_MIX_PANELS
+    ):
         pts = []
         for r in others:
             a, b = r.get(f"a_{key}"), r.get(f"b_{key}")
@@ -1084,7 +1115,7 @@ def plot_pareto_mix(mix_rows, outdir):
                 xs,
                 ys,
                 "-",
-                marker=marks[mi % len(marks)],
+                marker=MARKS[mi % len(MARKS)],
                 color=c,
                 lw=1.6,
                 ms=5,
@@ -1135,15 +1166,14 @@ def plot_pareto_mix(mix_rows, outdir):
         ax.set_ylim(y0, y1)
         style_axes(ax)
         ax.set_xlabel("success tps, B / A (log)")
+        ax.set_ylabel(ylabel)
         ax.set_title(title, fontsize=9)
     axes[0][0].legend(frameon=False, fontsize=8, loc="best")
     fig.suptitle(
-        "Mixed cost, each unit limit against its own count limit: the star is"
-        " Run A at (1, 1) and the shaded quadrant is where Run B wins on both"
-        " axes.\n"
-        "Ringed \u2014 wins on success tps, cancellations and checkpoint lag at"
-        " once; none of them also executes more expensive transactions"
-        " (right).",
+        "Mixed cost: each unit limit divided by the count limit of its own mix,"
+        " so Run A is the star at (1, 1) in every panel.\n"
+        "Shaded \u2014 Run B better on both axes; ringed \u2014 better than Run A"
+        " on success tps, cancellations and checkpoint lag at once.",
         fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.9))
@@ -1152,27 +1182,23 @@ def plot_pareto_mix(mix_rows, outdir):
 
 
 def plot_pareto_fixed(points, outdir):
-    """Fixed cost, absolute values: the good corner stays empty. Success tps
-    sits at the drain rate whatever the limit, so the only choice left is how
-    the surplus fails \u2014 cancelled now or queued later."""
-    fig, (top, bot) = plt.subplots(2, 1, figsize=(7.6, 8.2), sharex=True)
+    """Fixed cost: cancellations against checkpoint lag, the one pair of
+    outcomes that trades. Success tps is not on an axis because it does not
+    trade against either \u2014 it climbs to the drain rate and stops."""
+    fig, ax = plt.subplots(figsize=(8.4, 5.6))
     colors = ramp(len(points))
-    for p, c in zip(points, colors):
-        d = p.drain()
-        xs, lags, rel = [], [], []
+    handles, names = [], []
+    for mi, (p, c) in enumerate(zip(points, colors)):
+        mk = MARKS[mi % len(MARKS)]
+        xs, lags = [], []
         for _, cfg in p.curve():
-            canc, lag, succ = (
-                cfg["b_cancelled_per_s"],
-                cfg["b_lag_mean_s"],
-                cfg["b_succ_tps"],
-            )
-            if None in (canc, lag, succ) or not cfg["target_qps"]:
+            canc, lag = cfg["b_cancelled_per_s"], cfg["b_lag_mean_s"]
+            if None in (canc, lag) or not cfg["target_qps"]:
                 continue
             xs.append(canc / cfg["target_qps"])
             lags.append(lag)
-            rel.append(succ / d if d else None)
-        # Dominated inside this cost point: another limit of the same ladder
-        # cancels less AND lags less. Those are drawn hollow.
+        # Another limit of the same ladder is no worse on either axis and better
+        # on one. Those are drawn unfilled.
         worse = [
             any(
                 (xs[j] <= xs[i] and lags[j] <= lags[i])
@@ -1182,44 +1208,46 @@ def plot_pareto_fixed(points, outdir):
             )
             for i in range(len(xs))
         ]
-        top.plot(xs, lags, "-", color=c, lw=1.4, label=p.name)
-        if d:
-            bot.plot(xs, rel, "-", color=c, lw=1.4)
+        ax.plot(xs, lags, "-", color=c, lw=1.4)
+        handles.append(plt.Line2D([], [], color=c, lw=1.4, marker=mk, ms=5.5))
+        names.append(p.name)
         for i, w in enumerate(worse):
             style = dict(mfc="none", mec=c, mew=1.2) if w else dict(color=c)
-            top.plot(xs[i], lags[i], "o", ms=4.5, **style)
-            if d:
-                bot.plot(xs[i], rel[i], "o", ms=4.5, **style)
+            ax.plot(xs[i], lags[i], mk, ms=5.5, **style)
         qps = p.configs[0]["target_qps"] or 1
         if p.a["cancelled_per_s"] is not None and p.a["lag_mean_s"] is not None:
-            star = dict(
-                marker="*", color=c, ms=13, markeredgecolor=INK, markeredgewidth=0.6
+            ax.plot(
+                p.a["cancelled_per_s"] / qps,
+                p.a["lag_mean_s"],
+                "*",
+                color=c,
+                ms=13,
+                markeredgecolor=INK,
+                markeredgewidth=0.6,
             )
-            top.plot(p.a["cancelled_per_s"] / qps, p.a["lag_mean_s"], **star)
-            if d:
-                bot.plot(p.a["cancelled_per_s"] / qps, p.a["succ_tps"] / d, **star)
-    top.set_yscale("log")
-    top.set_ylabel("checkpoint lag mean (s, log)")
-    bot.set_ylabel("success tps / drain rate")
-    bot.set_xlabel("cancelled fraction of offered")
-    bot.axhline(1, color=INK2, lw=1, ls=":")
-    top.set_title(
-        "the two failures trade against each other: only cu1k, which the client"
-        "\ncannot saturate, reaches the bottom left corner",
-        fontsize=9,
+    ax.set_yscale("log")
+    # Every configuration that queues cancels under 15 % of what is offered,
+    # so a linear axis piles them all on the left edge: below 1 % the scale is
+    # linear (zero is a real value here), above it logarithmic.
+    ax.set_xscale("symlog", linthresh=0.01, linscale=0.4)
+    ax.set_xlim(-0.002, 1.2)
+    ax.xaxis.set_major_locator(
+        matplotlib.ticker.FixedLocator([0, 0.01, 0.03, 0.1, 0.3, 1.0])
     )
-    bot.set_title("success tps stops at the drain rate however the limit is set", fontsize=9)
-    for ax in (top, bot):
-        style_axes(ax)
-    top.legend(frameon=False, fontsize=7, loc="upper right", ncol=3)
+    ax.xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%g"))
+    ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+    ax.set_xlabel("cancelled fraction of offered (linear below 0.01, log above)")
+    ax.set_ylabel("checkpoint lag mean (s, log)")
+    style_axes(ax)
+    ax.legend(handles, names, frameon=False, fontsize=7, loc="upper right", ncol=3)
     fig.suptitle(
-        "Fixed cost: every configuration of every cost point, Run B as dots,"
-        " Run A starred.\n"
-        "Hollow \u2014 beaten by another limit of the same cost point on both"
-        " axes.",
+        "Fixed cost: cancellations against checkpoint lag, every configuration"
+        " of every cost point.\n"
+        "Run B as dots, Run A starred; unfilled \u2014 matched or beaten on both"
+        " axes by another limit at the same cost point.",
         fontsize=12,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
     fig.savefig(os.path.join(outdir, f"modes_pareto_fixed{FILE_SUFFIX}.png"), dpi=150)
     plt.close(fig)
 
@@ -1232,11 +1260,21 @@ def plot_lag_over_time(fine, coarse, outdir):
     labels = sorted(l for l, by_run in fine.items() if max(map(len, by_run.values())) > 8)
     if not labels:
         return
+    ncols = 2
+    nrows = (len(labels) + ncols - 1) // ncols
     fig, axes = plt.subplots(
-        1, len(labels), figsize=(6.2 * len(labels), 4.2), squeeze=False, sharey=True
+        nrows,
+        ncols,
+        figsize=(6.2 * ncols, 3.9 * nrows),
+        squeeze=False,
+        sharey=True,
+        sharex=True,
     )
+    flat = [ax for row in axes for ax in row]
+    for ax in flat[len(labels) :]:
+        ax.set_visible(False)
     top = 0.0
-    for ax, label in zip(axes[0], labels):
+    for k, (ax, label) in enumerate(zip(flat, labels)):
         for run, color, name in (("a", A_COLOR, A_NAME), ("b", B_COLOR, B_NAME)):
             pts = sorted(fine[label].get(run, []))
             ax.plot(
@@ -1254,20 +1292,24 @@ def plot_lag_over_time(fine, coarse, outdir):
                 ys = [v for _, v in steps] + [steps[-1][1]]
                 ax.step(xs, ys, where="post", color=color, lw=2.6, label=name)
             top = max(top, max((v for _, v in pts), default=0.0))
-        ax.set_title(label, loc="left", fontsize=9)
-        ax.set_xlabel("seconds into the run")
+        # "mix10900-w10-lim109k-qps1000-dur300" -> "mix10900 at 109K"
+        m = re.match(r"(mix\d+)-w\d+-lim(\d+)([km])", label)
+        title = f"{m.group(1)} at {m.group(2)}{m.group(3).upper()}" if m else label
+        ax.set_title(title, fontsize=10)
+        if k // ncols == nrows - 1:
+            ax.set_xlabel("time since the start of the run (s)")
+        if k % ncols == 0:
+            ax.set_ylabel("checkpoint lag mean (s)")
         style_axes(ax)
-    axes[0][0].set_ylim(0, top * 1.08)
-    axes[0][0].set_ylabel("checkpoint lag mean (s)")
-    axes[0][0].legend(frameon=False, fontsize=8, loc="upper left")
+    flat[0].set_ylim(0, top * 1.08)
+    flat[0].legend(frameon=False, fontsize=8, loc="upper left")
     fig.suptitle(
-        "Checkpoint lag over the 300 s runs: thin = 10 s slices, steps = 60 s "
-        "slices (mean over the checkpoints built in the slice, all iterations)",
-        x=0.01,
-        ha="left",
+        "Checkpoint lag over the 300 s runs, Run A against Run B, one panel per"
+        " configuration.\n"
+        "Thin line \u2014 mean per 10 s slice; steps \u2014 mean per 60 s slice.",
         fontsize=12,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.tight_layout(rect=(0, 0, 1, 0.92), h_pad=3.0)
     fig.savefig(os.path.join(outdir, "modes_lag_over_time.png"), dpi=150)
     plt.close(fig)
 
@@ -1339,20 +1381,20 @@ def plot_two_machines(rows1, rows2, names, outdir):
             f"Run A on {names[1]}",
             "limits that fit one expensive transaction per commit, not two",
         ],
-        loc="upper left",
+        loc="upper center",
         frameon=False,
         fontsize=8,
         ncol=5,
-        bbox_to_anchor=(0.01, 0.94),
+        bbox_to_anchor=(0.5, 0.925),
     )
     fig.suptitle(
-        f"The same limits on two machines ({names[0]} and {names[1]}); "
-        "error bars = one standard deviation across iterations",
-        x=0.01,
-        ha="left",
+        f"The three mix ladders run on both machines, {names[0]} and {names[1]}:"
+        " success tps, cancellations, checkpoint lag\nand expensive transactions"
+        " executed per second against the unit limit. Error bars \u2014 one"
+        " standard deviation across iterations.",
         fontsize=12,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.tight_layout(rect=(0, 0, 1, 0.885))
     fig.savefig(os.path.join(outdir, f"modes_two_machines{FILE_SUFFIX}.png"), dpi=150)
     plt.close(fig)
 

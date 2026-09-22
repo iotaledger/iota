@@ -346,8 +346,8 @@ The calibration is written up in `probe-test.md`; the mode comparison in
   design question the data cannot settle.
 - **Where the ladders peak above 1,000 tx/s.** At double the submission rate
   several configurations turn out to have been limited by the client rather than
-  by the limit, and on the WS the `mix3700` ladder completes everything offered
-  at its top limit. Both mean the peak of those ladders is above what was
-  measured. Finding it needs a higher target rate, or more in-flight
+  by the limit, and on the WS the `mix3700` ladder's success tps equals the
+  offered load at its top limit. Both mean the peak of those ladders is above
+  what was measured. Finding it needs a higher target rate, or more in-flight
   transactions, on the limits that showed no cancellations.
 
