@@ -9,7 +9,7 @@ pub(crate) use indexer_api::IndexerApi;
 pub(crate) use move_utils::MoveUtilsApi;
 pub use read_api::ReadApi;
 pub(crate) use transaction_builder_api::TransactionBuilderApi;
-pub use write_api::{GraphQLDryRunResult, OptimisticWriteApi, WriteApi};
+pub use write_api::{DryRunFields, OptimisticWriteApi, RawSimulationOutput, WriteApi};
 
 mod coin_api;
 pub(crate) mod common;

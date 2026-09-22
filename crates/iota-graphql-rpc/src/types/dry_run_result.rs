@@ -5,10 +5,11 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use async_graphql::*;
-use iota_indexer::apis::GraphQLDryRunResult;
+use iota_indexer::{apis::RawSimulationOutput, types::IndexedBalanceChange};
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionResult};
 use iota_sdk_types::{
-    Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects, TypeTag,
+    Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects,
+    TransactionEvents, TypeTag,
 };
 
 use crate::{
@@ -155,21 +156,24 @@ impl TryFrom<DevInspectResults> for DryRunResult {
     }
 }
 
-impl TryFrom<GraphQLDryRunResult> for DryRunResult {
+impl TryFrom<RawSimulationOutput> for DryRunResult {
     type Error = crate::error::Error;
 
-    fn try_from(results: GraphQLDryRunResult) -> Result<Self, Self::Error> {
-        let GraphQLDryRunResult {
+    fn try_from(simulation: RawSimulationOutput) -> Result<Self, Self::Error> {
+        // Take the fields GraphQL needs from the raw simulation, ignoring the ones we
+        // are not requesting for graphql.
+        let RawSimulationOutput {
             transaction,
             effects,
-            events,
+            events: TransactionEvents(events),
             balance_changes,
             input_objects,
             output_objects,
             command_results,
             suggested_gas_price,
-            error,
-        } = results;
+            execution_error,
+            ..
+        } = simulation;
 
         // The node returns per-command results or an execution error, never both,
         // so `command_results` is `None` for a failed dry run.
@@ -190,24 +194,25 @@ impl TryFrom<GraphQLDryRunResult> for DryRunResult {
                     .collect::<BTreeMap<_, _>>(),
             )
         };
-        let input_objects = create_objects_map(input_objects);
-        let output_objects = create_objects_map(output_objects);
 
         let transaction = Some(TransactionBlock {
             inner: TransactionBlockInner::Simulated {
                 tx_data: transaction,
                 effects,
                 events,
-                balance_changes,
-                input_objects,
-                output_objects,
+                balance_changes: balance_changes
+                    .into_iter()
+                    .map(IndexedBalanceChange::from)
+                    .collect(),
+                input_objects: create_objects_map(input_objects),
+                output_objects: create_objects_map(output_objects),
             },
             // A simulated transaction uses the fullnode's state, which is typically ahead of
             // the indexed state, so it is not tied to a checkpoint.
             checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
         });
         Ok(Self {
-            error,
+            error: execution_error,
             results,
             transaction,
             suggested_gas_price: suggested_gas_price.map(BigInt::from),

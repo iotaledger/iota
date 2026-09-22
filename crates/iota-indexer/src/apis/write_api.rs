@@ -20,7 +20,7 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, Event, GasPayment, SenderSignedTransaction, Transaction, TransactionEffects,
+    Address, GasPayment, SenderSignedTransaction, Transaction, TransactionEffects,
     TransactionEvents, TransactionExpiration, TransactionKind, TransactionV1, UserSignature,
 };
 use iota_transaction_builder::TransactionBuilder;
@@ -35,7 +35,7 @@ use crate::{
     optimistic_indexing::{IngestionPath, OptimisticTransactionExecutor},
     read::IndexerReader,
     store::package_resolver::{IndexerStorePackageResolver, SimulationPackageStore},
-    types::{IndexedBalanceChange, grpc_conversion},
+    types::grpc_conversion,
 };
 
 // The fields every dry-run simulation reads back, whatever the caller. Anything
@@ -70,52 +70,36 @@ const DEV_INSPECT_TRANSACTION_READ_MASK: &[SimulateField] = &[
 /// mask and populates the matching field on [`RawSimulationOutput`]; a flag
 /// left `false` leaves that field empty.
 #[derive(Default)]
-struct DryRunFields {
+pub struct DryRunFields {
     /// The simulated transaction's signatures.
-    signatures: bool,
+    pub signatures: bool,
     /// The node's object changes
-    object_changes: bool,
+    pub object_changes: bool,
     /// The simulation's input objects
-    input_objects: bool,
+    pub input_objects: bool,
     /// The per-command results (mutated references and return values).
-    command_results: bool,
+    pub command_results: bool,
     /// The full execution error (its kind, command index and source); the
     /// source alone is a core field and always returned.
-    execution_error: bool,
+    pub execution_error: bool,
 }
 
 /// The result of a dry-run simulation, in the node's native types. The core
 /// fields are always present; the rest are populated only when the matching
 /// [`DryRunFields`] flag was set.
-struct RawSimulationOutput {
-    transaction: Transaction,
-    effects: TransactionEffects,
-    events: TransactionEvents,
-    output_objects: Vec<Object>,
-    balance_changes: Vec<BalanceChange>,
-    suggested_gas_price: Option<u64>,
-    execution_error_source: Option<String>,
-    signatures: Vec<UserSignature>,
-    object_changes: Vec<ObjectChange>,
-    input_objects: Vec<Object>,
-    command_results: Option<Vec<IotaExecutionResult>>,
-    execution_error: Option<String>,
-}
-
-/// The dry-run result GraphQL consumes, in the node's native types.
-pub struct GraphQLDryRunResult {
+pub struct RawSimulationOutput {
     pub transaction: Transaction,
     pub effects: TransactionEffects,
-    pub events: Vec<Event>,
-    pub balance_changes: Vec<IndexedBalanceChange>,
-    pub input_objects: Vec<Object>,
+    pub events: TransactionEvents,
     pub output_objects: Vec<Object>,
-    /// Per-command results (mutated references and return values). `None` when
-    /// the transaction failed, since the node returns per-command results or an
-    /// execution error, never both.
-    pub command_results: Option<Vec<IotaExecutionResult>>,
+    pub balance_changes: Vec<BalanceChange>,
     pub suggested_gas_price: Option<u64>,
-    pub error: Option<String>,
+    pub execution_error_source: Option<String>,
+    pub signatures: Vec<UserSignature>,
+    pub object_changes: Vec<ObjectChange>,
+    pub input_objects: Vec<Object>,
+    pub command_results: Option<Vec<IotaExecutionResult>>,
+    pub execution_error: Option<String>,
 }
 
 #[derive(Clone)]
@@ -146,7 +130,7 @@ impl WriteApi {
     /// whatever `fields` asks for, so callers never deal with it directly.
     /// Both dry-run endpoints go through this, so the simulation and its
     /// conversions live in one place.
-    async fn simulate_dry_run(
+    pub async fn simulate_dry_run(
         &self,
         tx: Transaction,
         skip_checks: bool,
@@ -312,44 +296,6 @@ impl WriteApi {
         })
     }
 
-    /// Dry run a full transaction and return the result in the node's native
-    /// types, together with the simulation's input and output objects, which
-    /// the indexer database does not have. Consumed by GraphQL.
-    pub async fn dry_run_transaction_block_graphql(
-        &self,
-        tx: Transaction,
-        skip_checks: bool,
-    ) -> IndexerResult<GraphQLDryRunResult> {
-        let sim = self
-            .simulate_dry_run(
-                tx,
-                skip_checks,
-                DryRunFields {
-                    input_objects: true,
-                    command_results: true,
-                    execution_error: true,
-                    ..Default::default()
-                },
-            )
-            .await?;
-
-        Ok(GraphQLDryRunResult {
-            transaction: sim.transaction,
-            effects: sim.effects,
-            events: sim.events.0,
-            balance_changes: sim
-                .balance_changes
-                .into_iter()
-                .map(IndexedBalanceChange::from)
-                .collect(),
-            input_objects: sim.input_objects,
-            output_objects: sim.output_objects,
-            command_results: sim.command_results,
-            suggested_gas_price: sim.suggested_gas_price,
-            error: sim.execution_error,
-        })
-    }
-
     async fn dev_inspect_transaction_block_impl(
         &self,
         sender_address: Address,
@@ -495,13 +441,14 @@ impl OptimisticWriteApi {
         &self.optimistic_tx_executor
     }
 
-    pub async fn dry_run_transaction_block_graphql(
+    pub async fn simulate_dry_run(
         &self,
         tx: Transaction,
         skip_checks: bool,
-    ) -> IndexerResult<GraphQLDryRunResult> {
+        fields: DryRunFields,
+    ) -> IndexerResult<RawSimulationOutput> {
         self.write_api
-            .dry_run_transaction_block_graphql(tx, skip_checks)
+            .simulate_dry_run(tx, skip_checks, fields)
             .await
     }
 }

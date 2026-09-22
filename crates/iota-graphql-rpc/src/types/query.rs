@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_indexer::apis::ReadApi;
+use iota_indexer::apis::{DryRunFields, ReadApi};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
@@ -148,12 +148,21 @@ impl Query {
             // changes and object state are returned, matching the JSON-RPC
             // `dry_run_transaction_block` endpoint.
             let tx = deserialize_tx_data::<Transaction>(&tx_bytes)?;
-            let results = write_api
-                .dry_run_transaction_block_graphql(tx, skip_checks.unwrap_or(false))
+            let simulation = write_api
+                .simulate_dry_run(
+                    tx,
+                    skip_checks.unwrap_or(false),
+                    DryRunFields {
+                        input_objects: true,
+                        command_results: true,
+                        execution_error: true,
+                        ..Default::default()
+                    },
+                )
                 .await
-                .map_err(|e| Error::Internal(format!("Dry run failed: {e}")))
+                .map_err(Error::from)
                 .extend()?;
-            return DryRunResult::try_from(results).extend();
+            return DryRunResult::try_from(simulation).extend();
         };
 
         // Dev inspect: only a `TransactionKind` is executed.

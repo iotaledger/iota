@@ -296,10 +296,11 @@ impl TransactionBlock {
     ///
     /// Available for every transaction, including simulated ones.
     #[graphql(complexity = 0)]
-    async fn bcs_unsigned(&self) -> Option<Base64> {
-        bcs::to_bytes(self.native())
-            .ok()
-            .map(|bytes| Base64::from(&bytes))
+    async fn bcs_unsigned(&self) -> Result<Option<Base64>> {
+        let bytes = bcs::to_bytes(self.native())
+            .map_err(|e| Error::Internal(format!("Failed to serialize transaction data: {e}")))
+            .extend()?;
+        Ok(Some(Base64::from(&bytes)))
     }
 
     /// Returns whether the transaction has been indexed on the fullnode.
