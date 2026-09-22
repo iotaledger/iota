@@ -59,24 +59,37 @@ fn assert_above_the_size_limit(err: VmSdkError) {
     assert_size_limit(error, "serialized transaction size exceeded maximum");
 }
 
-#[test]
-fn execute_rejects_a_transaction_above_the_size_limit() {
-    let (store, tx) = oversized_transaction(Address::ZERO);
-    let err = build_vm(store)
-        .execute(tx, ExecuteOptions::dev_inspect())
-        .expect_err("a transaction above the size limit must be rejected");
-    assert_above_the_size_limit(err);
+/// Every mode, because the cap runs before the mode is read.
+fn every_mode() -> [ExecuteOptions; 3] {
+    [
+        ExecuteOptions::dev_inspect(),
+        ExecuteOptions::dry_run(),
+        ExecuteOptions::execute(),
+    ]
 }
 
 #[test]
-fn execute_signed_rejects_a_transaction_above_the_size_limit() {
-    let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
-    let (store, tx) = oversized_transaction(sender);
-    // The signature has to be valid: on this path the size cap runs after
-    // signature verification.
-    let signed = to_sender_signed_transaction(tx, &key).into_data();
-    let err = build_vm(store)
-        .execute_signed(signed, ExecuteOptions::dev_inspect())
-        .expect_err("a transaction above the size limit must be rejected");
-    assert_above_the_size_limit(err);
+fn a_transaction_above_the_size_limit_is_rejected_in_every_mode() {
+    for opts in every_mode() {
+        let (store, tx) = oversized_transaction(Address::ZERO);
+        let err = build_vm(store)
+            .execute(tx, opts)
+            .expect_err("a transaction above the size limit must be rejected");
+        assert_above_the_size_limit(err);
+    }
+}
+
+#[test]
+fn a_signed_transaction_above_the_size_limit_is_rejected_in_every_mode() {
+    for opts in every_mode() {
+        let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
+        let (store, tx) = oversized_transaction(sender);
+        // The signature has to be valid: on this path the size cap runs after
+        // signature verification.
+        let signed = to_sender_signed_transaction(tx, &key).into_data();
+        let err = build_vm(store)
+            .execute_signed(signed, opts)
+            .expect_err("a transaction above the size limit must be rejected");
+        assert_above_the_size_limit(err);
+    }
 }
