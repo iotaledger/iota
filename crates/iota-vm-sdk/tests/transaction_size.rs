@@ -60,7 +60,7 @@ fn assert_above_the_size_limit(err: VmSdkError) {
 }
 
 #[test]
-fn dev_inspect_rejects_a_transaction_above_the_size_limit() {
+fn execute_rejects_a_transaction_above_the_size_limit() {
     let (store, tx) = oversized_transaction(Address::ZERO);
     let err = build_vm(store)
         .execute(tx, ExecuteOptions::dev_inspect())
@@ -69,7 +69,7 @@ fn dev_inspect_rejects_a_transaction_above_the_size_limit() {
 }
 
 #[test]
-fn signed_execution_rejects_a_transaction_above_the_size_limit() {
+fn execute_signed_rejects_a_transaction_above_the_size_limit() {
     let (sender, key): (Address, AccountPrivateKey) = get_key_pair();
     let (store, tx) = oversized_transaction(sender);
     // The signature has to be valid: on this path the size cap runs after
