@@ -197,12 +197,6 @@ impl LocalVm {
         opts: ExecuteOptions,
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
-        // Ahead of signature verification, which hashes the whole transaction
-        // once per signature. A validator caps the size first too.
-        signed
-            .transaction()
-            .check_serialized_size(&self.protocol_config)
-            .map_err(|e| ValidationError::new("transaction validity check", e))?;
         self.verify_standard_signatures(&signed)?;
 
         let move_authenticators: Vec<_> =
