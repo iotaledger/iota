@@ -57,19 +57,25 @@ use crate::{
 // TODO: put max RPC response size in protocol config.
 const MAX_FETCH_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
-// Upper bound on the total bytes a peer may stream in response to a fetch,
+// Upper bound on the bytes a fetch response may occupy once collected,
 // terminating the stream once exceeded. Each bound mirrors the matching
 // server-side per-fetch cap, so an honest peer's response always fits while a
 // flooding peer is cut off. Sizing tracks the cap, not the requested count.
 
-/// Header-fetch budget: the per-fetch header count cap times the maximum
-/// serialized header size for this committee. `commit_sync` selects the same
-/// cap the server applies in `ConsensusService::fetch_block_headers`.
+/// Bytes a buffer of `count` entries of at most `entry_bytes` each occupies:
+/// the payload plus the `Bytes` descriptor every entry carries.
+fn buffer_bytes(count: usize, entry_bytes: usize) -> usize {
+    count.saturating_mul(entry_bytes.saturating_add(size_of::<Bytes>()))
+}
+
+/// Header-fetch budget: the per-fetch header count cap, each entry at the
+/// maximum serialized header size for this committee. `commit_sync` selects
+/// the same cap the server applies in `ConsensusService::fetch_block_headers`.
 fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) -> usize {
-    context
-        .parameters
-        .max_headers_per_fetch(commit_sync)
-        .saturating_mul(max_signed_block_header_bytes(context.committee.size()))
+    buffer_bytes(
+        context.parameters.max_headers_per_fetch(commit_sync),
+        max_signed_block_header_bytes(context.committee.size()),
+    )
 }
 
 /// Upper bound on one fetched transaction entry: a `SerializedTransactionsV2`
@@ -87,7 +93,10 @@ fn max_fetch_transactions_response_bytes(
     context: &Context,
     requested_transactions: usize,
 ) -> usize {
-    requested_transactions.saturating_mul(max_serialized_transactions_entry_bytes(context))
+    buffer_bytes(
+        requested_transactions,
+        max_serialized_transactions_entry_bytes(context),
+    )
 }
 
 // Implements Tonic RPC client for Consensus.
@@ -414,15 +423,12 @@ where
     // before them; the transaction term uses the commit-sync fetch cap as a
     // coarse allowance. An empty entry still costs its `Bytes` descriptor,
     // so it is charged to the total as well.
-    let max_allowed_bytes = max_commits
-        .saturating_mul(max_commit_size)
-        .saturating_add(max_certifier_headers.saturating_mul(max_header_size))
-        .saturating_add(
-            context
-                .parameters
-                .max_transactions_per_commit_sync_fetch
-                .saturating_mul(max_transaction_size),
-        );
+    let max_allowed_bytes = buffer_bytes(max_commits, max_commit_size)
+        .saturating_add(buffer_bytes(max_certifier_headers, max_header_size))
+        .saturating_add(buffer_bytes(
+            context.parameters.max_transactions_per_commit_sync_fetch,
+            max_transaction_size,
+        ));
 
     let mut commits = Vec::new();
     let mut certifier_block_headers = Vec::new();
@@ -1807,7 +1813,8 @@ mod tests {
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
         FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, UNKNOWN_ROUTE,
         collect_block_headers, collect_commits_and_transactions, collect_transactions,
-        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes, route_label,
+        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
+        max_serialized_transactions_entry_bytes, route_label,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
@@ -1907,6 +1914,25 @@ mod tests {
         ));
     }
 
+    /// A response of maximum-size headers filling the cap fits the budget.
+    #[tokio::test]
+    async fn maximal_headers_at_the_count_cap_are_collected() {
+        let (mut context, _keys) = Context::new_for_test(4);
+        context.parameters.max_headers_per_commit_sync_fetch = 3;
+        let peer = AuthorityIndex::new_for_test(1);
+        let header_bytes = max_signed_block_header_bytes(context.committee.size());
+        let maximal = stream::iter([
+            Ok(header_chunk(2, header_bytes)),
+            Ok(header_chunk(1, header_bytes)),
+        ]);
+
+        let headers = collect_block_headers(&context, peer, maximal, true)
+            .await
+            .expect("a maximal honest response is kept");
+
+        assert_eq!(headers.len(), 3);
+    }
+
     /// A response filling the cap exactly is still collected in full.
     #[tokio::test]
     async fn headers_at_the_count_cap_are_collected() {
@@ -1944,6 +1970,25 @@ mod tests {
         ));
     }
 
+    /// A response of maximum-size entries, one per requested reference, fits
+    /// the budget.
+    #[tokio::test]
+    async fn maximal_transactions_at_the_requested_count_are_collected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let entry_bytes = max_serialized_transactions_entry_bytes(&context);
+        let maximal = stream::iter([
+            Ok(transaction_chunk(1, entry_bytes)),
+            Ok(transaction_chunk(1, entry_bytes)),
+        ]);
+
+        let transactions = collect_transactions(&context, peer, maximal, 2)
+            .await
+            .expect("a maximal honest response is kept");
+
+        assert_eq!(transactions.len(), 2);
+    }
+
     /// One entry per requested reference is still collected in full.
     #[tokio::test]
     async fn transactions_at_the_requested_count_are_collected() {
@@ -1964,7 +2009,7 @@ mod tests {
     async fn oversized_transaction_entries_are_rejected() {
         let (context, _keys) = Context::new_for_test(4);
         let peer = AuthorityIndex::new_for_test(1);
-        let limit = max_fetch_transactions_response_bytes(&context, 1);
+        let limit = max_serialized_transactions_entry_bytes(&context);
         let oversized = stream::iter([Ok(transaction_chunk(1, limit + 1))]);
 
         let result = collect_transactions(&context, peer, oversized, 2).await;
@@ -2148,16 +2193,17 @@ mod tests {
         let committee_size = context.committee.size();
         let context = Arc::new(context);
 
-        let header_bytes = max_signed_block_header_bytes(committee_size);
+        // Every entry is budgeted with the descriptor it occupies once collected.
+        let header_entry = max_signed_block_header_bytes(committee_size) + size_of::<Bytes>();
         // Commit sync selects the commit-sync header cap.
         assert_eq!(
             max_fetch_block_headers_response_bytes(&context, true),
-            7 * header_bytes
+            7 * header_entry
         );
         // Header sync selects the header-sync cap.
         assert_eq!(
             max_fetch_block_headers_response_bytes(&context, false),
-            11 * header_bytes
+            11 * header_entry
         );
         // The transaction budget is one maximum-size entry per requested
         // reference, independent of the transaction caps above.
@@ -2165,7 +2211,8 @@ mod tests {
             max_fetch_transactions_response_bytes(&context, 3),
             3 * (serialized_transactions_size_limit(&context)
                 + SERIALIZED_TRANSACTION_REF_BYTES
-                + MAX_BCS_LENGTH_PREFIX_BYTES)
+                + MAX_BCS_LENGTH_PREFIX_BYTES
+                + size_of::<Bytes>())
         );
     }
 
