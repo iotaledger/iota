@@ -4472,42 +4472,6 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// A one-validator cluster whose active env can serve `--local`, with the
-/// reference gas price, the first address and that address's object ids.
-///
-/// The env is pointed at the cluster's own gRPC endpoint, which `--local`
-/// needs to resolve objects. This and everything gated the same way stay off
-/// under the simulator: resolving an object blocks the calling thread, which
-/// needs a real multi-threaded runtime.
-#[cfg(not(msim))]
-async fn cluster_for_local_dry_run()
--> Result<(TestCluster, u64, Address, Vec<ObjectId>), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_num_validators(1)
-        .build()
-        .await;
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let address = test_cluster.get_address_0();
-    let grpc_url = test_cluster.grpc_url();
-
-    let context = &mut test_cluster.wallet;
-    let mut env = context.config().get_active_env()?.clone();
-    env.set_grpc(Some(grpc_url));
-    context.config_mut().set_env(env);
-
-    let object_ids = context
-        .get_client()
-        .await?
-        .read_api()
-        .get_owned_objects(address, None, None, None)
-        .await?
-        .data
-        .iter()
-        .map(|object| object.object().map(|object| object.object_id))
-        .collect::<Result<_, _>>()?;
-    Ok((test_cluster, rgp, address, object_ids))
-}
-
 #[cfg(not(msim))]
 fn dry_run(local: bool) -> TxProcessingArgs {
     TxProcessingArgs {
@@ -4527,14 +4491,14 @@ fn gas_budget(budget: u64) -> GasDataArgs {
 
 #[cfg(not(msim))]
 fn transfer(
-    to: Address,
+    to: KeyIdentity,
     object_id: ObjectId,
     gas: Vec<ObjectId>,
     gas_data: GasDataArgs,
     processing: TxProcessingArgs,
 ) -> IotaClientCommands {
     IotaClientCommands::Transfer {
-        to: KeyIdentity::Address(to),
+        to,
         object_id,
         payment: PaymentArgs { gas },
         gas_data,
@@ -4610,6 +4574,10 @@ fn published_package_id(created: &[OwnedObjectRef]) -> ObjectId {
 }
 
 /// Dry run `command` on the node and then locally, returning both responses.
+///
+/// This and everything gated the same way stay off under the simulator:
+/// resolving an object blocks the calling thread, which needs a real
+/// multi-threaded runtime.
 #[cfg(not(msim))]
 async fn dry_run_on_both_backends(
     context: &mut WalletContext,
@@ -4672,14 +4640,13 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
     /// runs out of gas instead.
     const GAS_BUDGET_TOO_LOW_TO_TRANSFER: u64 = 1_000_000;
 
-    let (mut test_cluster, rgp, _, objects) = cluster_for_local_dry_run().await?;
+    let (mut test_cluster, _, rgp, [gas_id, object_to_send, _], [recipient, _], _) =
+        test_cluster_helper().await;
     let context = &mut test_cluster.wallet;
-    let (gas_id, object_to_send) = (objects[0], objects[1]);
-    let recipient = Address::random();
 
     let (node, local) = dry_run_on_both_backends(context, |local| {
         transfer(
-            recipient,
+            recipient.clone(),
             object_to_send,
             vec![gas_id],
             gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
@@ -4696,7 +4663,7 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
     // either way.
     let (node, local) = dry_run_on_both_backends(context, |local| {
         transfer(
-            recipient,
+            recipient.clone(),
             object_to_send,
             vec![gas_id],
             gas_budget(GAS_BUDGET_TOO_LOW_TO_TRANSFER),
@@ -4720,9 +4687,8 @@ async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result<(), anyhow::Error>
 {
-    let (mut test_cluster, rgp, _, objects) = cluster_for_local_dry_run().await?;
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
     let context = &mut test_cluster.wallet;
-    let gas_id = objects[0];
 
     let package_id = published_package_id(
         &created_by(
@@ -4785,16 +4751,16 @@ async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, _, address, objects) = cluster_for_local_dry_run().await?;
+    let (mut test_cluster, _, _, [gas_id, object_to_send, _], [recipient, _], _) =
+        test_cluster_helper().await;
+    let address = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
-    let (gas_id, object_to_send) = (objects[0], objects[1]);
-    let recipient = Address::random();
 
     // Without a budget both paths fall back to the balance of the gas
     // coins they were given, so the budget they report must agree.
     let (node, local) = dry_run_on_both_backends(context, |local| {
         transfer(
-            recipient,
+            recipient.clone(),
             object_to_send,
             vec![gas_id],
             GasDataArgs::default(),
@@ -4808,7 +4774,7 @@ async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::
     // A budget of zero asks both paths to report the gas the run used.
     let (node, local) = dry_run_on_both_backends(context, |local| {
         transfer(
-            recipient,
+            recipient.clone(),
             object_to_send,
             vec![gas_id],
             gas_budget(0),
@@ -4827,7 +4793,7 @@ async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::
     // its own making, and must still report the same run.
     let (node, local) = dry_run_on_both_backends(context, |local| {
         transfer(
-            recipient,
+            recipient.clone(),
             object_to_send,
             vec![],
             GasDataArgs::default(),
@@ -4851,9 +4817,8 @@ async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
 -> Result<(), anyhow::Error> {
-    let (mut test_cluster, rgp, _, objects) = cluster_for_local_dry_run().await?;
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
     let context = &mut test_cluster.wallet;
-    let gas_id = objects[0];
 
     // A dry run leaves the package it publishes uncommitted, so its types
     // resolve only through the run's own output.
@@ -4909,7 +4874,7 @@ async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, rgp, _, _) = cluster_for_local_dry_run().await?;
+    let (mut test_cluster, _, rgp, _, _, _) = test_cluster_helper().await;
     let context = &mut test_cluster.wallet;
 
     // One recipient for every run, so the transactions only differ in how
