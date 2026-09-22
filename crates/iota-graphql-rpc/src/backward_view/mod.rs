@@ -10,7 +10,7 @@ pub(crate) mod historical;
 
 use iota_indexer::types::ObjectStatus as NativeObjectStatus;
 
-use crate::{query, raw_query::RawQuery, types::object::ObjectFilter};
+use crate::{raw_query::RawQuery, types::object::ObjectFilter};
 
 /// An `ObjectFilter` validated for use against the historical view.
 ///
@@ -65,16 +65,14 @@ pub(super) const OBJECT_COLUMNS: &str = "\
     object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, \
     object_type_name, serialized_object, coin_type, coin_balance, df_kind";
 
-/// Merges any non-empty set of sources with `UNION ALL` and picks the most
-/// recent version per `object_id` using `DISTINCT ON`.
+/// Merges any non-empty set of sources with `UNION ALL`.
 ///
-/// The result is wrapped so cursor pagination can reference
-/// `candidates.object_id`.
-pub(super) fn merge_and_deduplicate(sources: Vec<RawQuery>) -> RawQuery {
-    assert!(
-        !sources.is_empty(),
-        "merge_and_deduplicate requires at least one source"
-    );
+/// The merge does not deduplicate, so sources must be disjoint on
+/// `(object_id, object_version)` by construction. The result is wrapped so
+/// cursor pagination can reference `candidates.object_id` and
+/// `candidates.object_version`.
+pub(super) fn merge(sources: Vec<RawQuery>) -> RawQuery {
+    assert!(!sources.is_empty(), "merge requires at least one source");
 
     let mut binds: Vec<String> = Vec::new();
     let union_terms: Vec<String> = sources
@@ -86,14 +84,11 @@ pub(super) fn merge_and_deduplicate(sources: Vec<RawQuery>) -> RawQuery {
         })
         .collect();
 
-    let select = format!(
-        r#"SELECT DISTINCT ON (object_id) * FROM ({}) candidates"#,
-        union_terms.join(" UNION ALL ")
-    );
-
-    let combined = RawQuery::new(select, binds)
-        .order_by("object_id")
-        .order_by("object_version DESC");
-
-    query!("SELECT * FROM ({}) candidates", combined)
+    RawQuery::new(
+        format!(
+            "SELECT * FROM ({}) candidates",
+            union_terms.join(" UNION ALL ")
+        ),
+        binds,
+    )
 }

@@ -452,9 +452,13 @@ fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<IotaAddr
         );
     }
 
+    // `coin_type = X` already implies NOT NULL; adding a redundant
+    // `coin_type IS NOT NULL` makes planner pick worse plans. (planner incorrectly
+    // assumes that `coin_type = X AND coin_type IS NOT NULL` will match less data
+    // than just `coin_type = X`)
     query = filter!(
         query,
-        "coin_type IS NOT NULL AND coin_type = {}",
+        "coin_type = {}",
         coin_type.to_canonical_string(/* with_prefix */ true)
     );
 

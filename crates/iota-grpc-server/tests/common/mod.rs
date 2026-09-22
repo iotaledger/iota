@@ -19,9 +19,9 @@ use iota_grpc_types::v1::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, MoveStruct, ObjectId, Owner, StructTag,
-    TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    checkpoint::{CheckpointContents, CheckpointSummary},
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary,
+    MoveStruct, ObjectId, Owner, StructTag, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use iota_types::{
     crypto::AuthorityStrongQuorumSignInfo,

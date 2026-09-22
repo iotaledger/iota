@@ -31,12 +31,12 @@ use iota_json_rpc_types::{
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
-    Event, ExecutionStatus, GasPayment, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId,
-    ObjectReference, ProgrammableTransaction, RandomnessRound, Transaction,
-    TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionEvents,
-    TransactionExpiration, TransactionKind, TransactionV1, TypeTag, UserSignature, Version,
-    checkpoint::CheckpointContents, gas::GasCostSummary, move_package::MovePackage,
+    Address, Argument, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Command,
+    ConsensusCommitDigest, Event, ExecutionStatus, GasCostSummary, GasPayment, Identifier,
+    MoveAuthenticatorV1, MovePackage, ObjectData, ObjectId, ObjectReference,
+    ProgrammableTransaction, RandomnessRound, Transaction, TransactionDenyRulesUpdate,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionExpiration,
+    TransactionKind, TransactionV1, TypeTag, UserSignature, Version,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -776,7 +776,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             let mut created_ids: Vec<_> = effects
                                 .created()
                                 .iter()
-                                .map(|created| created.reference.object_id)
+                                .map(|created| created.reference().object_id)
                                 .collect();
                             created_ids.sort_by_key(|id| self.get_object_sorting_key(id));
                             for id in created_ids {
@@ -900,6 +900,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             format!("{fake_id}::{modules}")
                         }
                     }
+                    _ => unimplemented!(
+                        "a new ObjectData enum variant was added and needs to be handled"
+                    ),
                 }))
             }
             IotaSubcommand::TransferObject(TransferObjectCommand {
@@ -1959,17 +1962,17 @@ impl IotaTestAdapter {
         let mut created_ids: Vec<_> = effects
             .created()
             .iter()
-            .map(|created| created.reference.object_id)
+            .map(|created| created.reference().object_id)
             .collect();
         let mut mutated_ids: Vec<_> = effects
             .mutated()
             .iter()
-            .map(|mutated| mutated.reference.object_id)
+            .map(|mutated| mutated.reference().object_id)
             .collect();
         let mut unwrapped_ids: Vec<_> = effects
             .unwrapped()
             .iter()
-            .map(|unwrapped| unwrapped.reference.object_id)
+            .map(|unwrapped| unwrapped.reference().object_id)
             .collect();
         let mut deleted_ids: Vec<_> = effects
             .deleted()
@@ -2173,6 +2176,7 @@ impl IotaTestAdapter {
                 .map(|s| s.as_str())
                 .collect::<Vec<_>>()
                 .join(","),
+            _ => unimplemented!("a new ObjectData enum variant was added and needs to be handled"),
         }
     }
 

@@ -39,14 +39,13 @@ use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
-    ExecutionStatus, InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference,
-    Owner, RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
+    Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+    CheckpointSummary, Digest, EndOfEpochTransactionKind, ExecutionStatus, GasCostSummary,
+    InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
+    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
     TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
     TransactionKind, TypeTag, Version, WriteKind,
-    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
-    gas::GasCostSummary,
 };
 use iota_storage::{
     key_value_store::{
@@ -55,6 +54,7 @@ use iota_storage::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_traffic_controller::{TrafficController, metrics::TrafficControllerMetrics};
+use iota_transaction_checks::VerifierLimitsSource;
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
@@ -66,7 +66,7 @@ use iota_types::{
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
+    crypto::{AggregateAuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, Signer},
     deny_list_v1::check_coin_deny_list_v1,
     deny_rule_governance::DenyRuleConfig,
     digests::ChainIdentifier,
@@ -1017,6 +1017,12 @@ impl AuthorityState {
     ///   losers, for example), and validators that skip admission can put such
     ///   transactions into their blocks anyway, so no admission policy can
     ///   limit how many deterministically-dropped transactions reach consensus.
+    ///
+    /// `verifier_limits_source` says where the metered bytecode verifier takes
+    /// its limits for the packages the transaction publishes. Validator-local
+    /// admission passes this validator's own `VerifierSigningConfig`;
+    /// post-consensus validation passes the protocol config, because every
+    /// validator must reach the same verdict there.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub(crate) async fn handle_transaction_validation_checks(
         &self,
@@ -1024,6 +1030,7 @@ impl AuthorityState {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         deny_config: &dyn DenyRuleConfig,
         epoch_gated_coin_deny_list: bool,
+        verifier_limits_source: VerifierLimitsSource<'_>,
     ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
@@ -1067,6 +1074,7 @@ impl AuthorityState {
                 &tx_receiving_objects,
                 &move_authenticators,
                 per_authenticator_inputs,
+                verifier_limits_source,
             )?;
 
         // Get the input objects for the authenticators, if there are
@@ -1226,6 +1234,7 @@ impl AuthorityState {
                 // submission path, no post-consensus re-check follows - this is
                 // the only sender-side coin deny check in the certificate flow.
                 false,
+                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
             )
             .await?;
 
@@ -2344,7 +2353,7 @@ impl AuthorityState {
                 input_objects,
                 &receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
-                &self.config.verifier_signing_config,
+                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
                 authenticator_gas_budget,
             )?
         } else {
@@ -2476,7 +2485,7 @@ impl AuthorityState {
             effects
                 .all_changed_objects()
                 .into_iter()
-                .map(|(changed, _kind)| (changed.reference, changed.owner)),
+                .map(|(changed, _kind)| (*changed.reference(), *changed.owner())),
             transaction
                 .data()
                 .transaction()
@@ -2544,7 +2553,7 @@ impl AuthorityState {
         let modified_at_version = effects
             .modified_at_versions()
             .into_iter()
-            .map(|modified| (modified.object_id, modified.version))
+            .map(|modified| (*modified.object_id(), modified.version()))
             .collect::<HashMap<_, _>>();
 
         let tx_digest = effects.transaction_digest();
@@ -2569,7 +2578,7 @@ impl AuthorityState {
         let mut new_dynamic_fields = vec![];
 
         for (changed, kind) in effects.all_changed_objects() {
-            let (oref, owner) = (changed.reference, changed.owner);
+            let (oref, owner) = (*changed.reference(), *changed.owner());
             let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
@@ -4788,7 +4797,7 @@ impl AuthorityState {
         // "written_coins" but their input isn't included in the set of input
         // objects in a inner_temporary_store.
         for modified in effects.modified_at_versions() {
-            let (object_id, version) = (modified.object_id, modified.version);
+            let (object_id, version) = (*modified.object_id(), modified.version());
             if inner_temporary_store
                 .loaded_runtime_objects
                 .contains_key(&object_id)
@@ -5195,7 +5204,7 @@ impl AuthorityState {
     fn get_validators_supporting_protocol_version(
         target_protocol_version: ProtocolVersion,
         target_digest: Digest,
-        active_validators: &[AuthorityPublicKey],
+        active_validators: &[AggregateAuthorityPublicKey],
         capabilities: &[AuthorityCapabilitiesV1],
     ) -> Vec<u64> {
         let mut eligible_validators = Vec::new();
@@ -5229,7 +5238,7 @@ impl AuthorityState {
     /// to committee members to get their weights.
     fn calculate_eligible_validators_weight(
         eligible_validator_indices: &[u64],
-        active_validators: &[AuthorityPublicKey],
+        active_validators: &[AggregateAuthorityPublicKey],
         committee: &Committee,
     ) -> u64 {
         let mut total_weight = 0u64;
@@ -5823,6 +5832,7 @@ impl AuthorityState {
         tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &Vec<&MoveAuthenticator>,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+        verifier_limits_source: VerifierLimitsSource<'_>,
     ) -> IotaResult<(
         IotaGasStatus,
         CheckedInputObjects,
@@ -5891,7 +5901,7 @@ impl AuthorityState {
                 tx_input_objects,
                 tx_receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
-                &self.config.verifier_signing_config,
+                verifier_limits_source,
                 authenticator_gas_budget,
             )?;
 
@@ -6400,8 +6410,11 @@ impl NodeStateDump {
                 }
                 InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::MutateDeleted(..)
-                | InputSharedObject::Canceled(..) => (), /* TODO: consider record congested
-                                                          * objects. */
+                // TODO: consider record congested objects.
+                | InputSharedObject::Canceled(..) => (),
+                _ => unimplemented!(
+                    "a new InputSharedObject enum variant was added and needs to be handled"
+                ),
             }
         }
 
@@ -6417,8 +6430,8 @@ impl NodeStateDump {
         // Record all modified objects
         let mut modified_at_versions = Vec::new();
         for modified in effects.modified_at_versions() {
-            let (id, ver) = (modified.object_id, modified.version);
-            if let Some(w) = object_store.try_get_object_by_key(&id, ver)? {
+            let (id, ver) = (modified.object_id(), modified.version());
+            if let Some(w) = object_store.try_get_object_by_key(id, ver)? {
                 modified_at_versions.push(ObjDumpFormat::new(w))
             }
         }

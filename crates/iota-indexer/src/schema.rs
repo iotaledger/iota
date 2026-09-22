@@ -125,6 +125,7 @@ diesel::table! {
         burnt_tokens_amount -> Nullable<Int8>,
         minted_tokens_amount -> Nullable<Int8>,
         first_tx_sequence_number -> Int8,
+        first_optimistic_sequence_number -> Int8,
     }
 }
 
@@ -261,7 +262,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    objects_backward_history (superseded_at_checkpoint, object_id, object_version) {
+    objects_backward_history (object_id, object_version, superseded_at_checkpoint) {
         object_id -> Bytea,
         object_version -> Int8,
         object_status -> Int2,
@@ -290,7 +291,6 @@ diesel::table! {
 
 diesel::table! {
     optimistic_transactions (optimistic_sequence_number) {
-        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         transaction_digest -> Bytea,
         raw_transaction -> Bytea,

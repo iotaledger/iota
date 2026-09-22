@@ -7,8 +7,8 @@ use std::{collections::BTreeMap, path::PathBuf};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectData, ObjectId, PackageUpgradeError, TransactionDigest,
-    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+    Identifier, MovePackage, ObjectData, ObjectId, PackageUpgradeError, TransactionDigest,
+    TypeOrigin, UpgradeInfo,
 };
 use iota_types::{
     error::ExecutionErrorKind,

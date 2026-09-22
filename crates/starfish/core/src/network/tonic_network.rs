@@ -30,7 +30,7 @@ use tracing::{debug, error, info, trace, warn};
 use super::{
     BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
-    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
+    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
@@ -112,7 +112,7 @@ impl TonicClient {
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
         let client = ConsensusServiceClient::new(channel)
-            .max_encoding_message_size(config.message_size_limit)
+            .max_encoding_message_size(config.request_message_size_limit())
             .max_decoding_message_size(config.message_size_limit)
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
@@ -445,7 +445,7 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        collect_commits_and_transactions(&self.context, peer, stream).await
+        collect_commits_and_transactions(&self.context, peer, &commit_range, stream).await
     }
 }
 
@@ -455,6 +455,7 @@ impl NetworkClient for TonicClient {
 async fn collect_commits_and_transactions<S>(
     context: &Context,
     peer: AuthorityIndex,
+    commit_range: &CommitRange,
     mut stream: S,
 ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)>
 where
@@ -465,15 +466,15 @@ where
     // Bound the response per element and per category while streaming, since
     // `verify_commits` only runs on the fully-received buffers and so cannot
     // protect them from a malicious server. Commits and certifier headers
-    // carry the same count caps `verify_commits` applies
-    // (`2 * fast_commit_sync_batch_size` and two headers per authority).
+    // carry the same count caps `verify_commits` applies (twice the requested
+    // range and two headers per authority).
     // Transactions have no count cap on the fast path — the server returns
     // every transaction the committed range references — so only their
     // per-element size is enforced here; their count is validated against
     // the commits downstream, and the coarse total below bounds the buffer.
     let committee_size = context.committee.size();
     let gc_depth = context.protocol_config.gc_depth() as usize;
-    let max_commits = CommitSyncType::Fast.max_commits_per_response(context);
+    let max_commits = CommitSyncType::Fast.max_commits_per_response(commit_range);
     let max_certifier_headers =
         committee_size.saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     let max_commit_size = max_commit_bytes(committee_size, gc_depth);
@@ -1196,17 +1197,9 @@ impl<S: NetworkService> TonicManager<S> {
                 }
             });
 
-        // Inbound (decoded) requests are small; bound them tighter than the
-        // (large) response encoding limit when configured. `0` falls back to
-        // `message_size_limit`.
-        let max_decoding_message_size = if config.max_inbound_message_size == 0 {
-            config.message_size_limit
-        } else {
-            config.max_inbound_message_size
-        };
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(max_decoding_message_size)
+            .max_decoding_message_size(config.request_message_size_limit())
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
 
@@ -1447,67 +1440,53 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
-/// Calculate approximate size of HTTP headers.
-/// Note: This is an approximation of uncompressed size. Actual wire size will
-/// be smaller due to HTTP/2 HPACK compression.
-fn calculate_header_size(headers: &http::HeaderMap) -> usize {
-    headers
-        .iter()
-        .map(|(name, value)| {
-            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
-            name.as_str().len() + value.len() + 4
+/// Path prefix the consensus service is served under.
+const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
+
+/// Methods served by the consensus service, each recorded under its own metric
+/// label.
+const CONSENSUS_SERVICE_METHODS: &[&str] = &[
+    "SubscribeBlockBundles",
+    "FetchBlockHeaders",
+    "FetchCommits",
+    "FetchCommitsAndTransactions",
+    "FetchLatestBlockHeaders",
+    "GetLatestRounds",
+    "FetchTransactions",
+];
+
+/// Label recorded for every path that is not a served method.
+const UNKNOWN_ROUTE: &str = "unknown";
+
+/// Metric label for a request path: the name of the served method, or
+/// `unknown`. Callers choose the path, so the label never derives from it.
+fn route_label(path: &str) -> &'static str {
+    path.strip_prefix(CONSENSUS_SERVICE_PATH_PREFIX)
+        .and_then(|method| {
+            CONSENSUS_SERVICE_METHODS
+                .iter()
+                .find(|served| **served == method)
+                .copied()
         })
-        .sum()
+        .unwrap_or(UNKNOWN_ROUTE)
 }
 
-impl SizedRequest for http::request::Parts {
-    fn size(&self) -> usize {
-        let header_size = calculate_header_size(&self.headers);
-        let body_size = self
-            .headers
-            .get(http::header::CONTENT_LENGTH)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(0);
-        header_size + body_size
-    }
-
-    fn route(&self) -> String {
-        let path = self.uri.path();
-        path.rsplit_once('/')
-            .map(|(_, route)| route)
-            .unwrap_or("unknown")
-            .to_string()
-    }
-}
-
-impl SizedResponse for http::response::Parts {
-    fn size(&self) -> usize {
-        // Return header size only. Body size is tracked separately via
-        // ResponseHandler::on_body_chunk callback to support streaming responses.
-        calculate_header_size(&self.headers)
-    }
-
-    fn error_type(&self) -> Option<String> {
-        if self.status.is_success() {
-            None
-        } else {
-            Some(self.status.to_string())
-        }
-    }
+/// Error label for a failed HTTP status, `None` for a successful one.
+fn response_error_type(response: &http::response::Parts) -> Option<String> {
+    (!response.status.is_success()).then(|| response.status.to_string())
 }
 
 impl MakeCallbackHandler for MetricsCallbackMaker {
     type Handler = MetricsResponseCallback;
 
     fn make_handler(&self, request: &http::request::Parts) -> Self::Handler {
-        self.handle_request(request)
+        self.handle_request(route_label(request.uri.path()))
     }
 }
 
 impl ResponseHandler for MetricsResponseCallback {
     fn on_response(&mut self, response: &http::response::Parts) {
-        MetricsResponseCallback::on_response(self, response, &response.headers)
+        MetricsResponseCallback::on_response(self, response_error_type(response).as_deref())
     }
 
     fn on_error<E>(&mut self, err: &E) {
@@ -1518,8 +1497,13 @@ impl ResponseHandler for MetricsResponseCallback {
     where
         B: bytes::Buf,
     {
-        let chunk_size = chunk.chunk().len();
-        self.on_chunk(chunk_size);
+        // Body data is `Bytes`, so the first chunk is the whole buffer.
+        debug_assert_eq!(chunk.chunk().len(), chunk.remaining());
+        self.on_chunk(chunk.chunk());
+    }
+
+    fn on_end_of_stream(&mut self, _trailers: Option<&http::HeaderMap>) {
+        MetricsResponseCallback::on_end_of_stream(self);
     }
 }
 
@@ -1680,12 +1664,13 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use super::{
-        FetchCommitsAndTransactionsResponse, collect_commits_and_transactions,
-        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
+        CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX,
+        FetchCommitsAndTransactionsResponse, UNKNOWN_ROUTE, collect_commits_and_transactions,
+        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes, route_label,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
-        block_verifier::serialized_transactions_size_limit, context::Context,
+        block_verifier::serialized_transactions_size_limit, commit::CommitRange, context::Context,
         error::ConsensusError,
     };
 
@@ -1697,6 +1682,11 @@ mod tests {
         }
     }
 
+    /// Wide enough for the tests below to trip the cap each one exercises.
+    fn requested_range() -> CommitRange {
+        (1..=10).into()
+    }
+
     /// A stream cut before anything arrived delivers nothing to keep, so the
     /// fetch fails outright.
     #[tokio::test]
@@ -1705,7 +1695,8 @@ mod tests {
         let peer = AuthorityIndex::new_for_test(1);
         let cut = stream::iter([Err(tonic::Status::unknown("h2 protocol error"))]);
 
-        let result = collect_commits_and_transactions(&context, peer, cut).await;
+        let result =
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
 
         assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
     }
@@ -1724,7 +1715,7 @@ mod tests {
         ]);
 
         let (commits, _headers, transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, cut)
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut)
                 .await
                 .expect("a cut after commits arrived keeps them");
 
@@ -1745,7 +1736,7 @@ mod tests {
         let clean = stream::iter([Ok(chunk(2, 3))]);
 
         let (commits, _headers, transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, clean)
+            collect_commits_and_transactions(&context, peer, &requested_range(), clean)
                 .await
                 .expect("a clean stream is kept in full");
 
@@ -1766,13 +1757,51 @@ mod tests {
         ]);
 
         let (_commits, _headers, _transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, cut)
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut)
                 .await
                 .expect("a cut after commits arrived keeps them");
 
         assert!(matches!(
             stream_error,
             Some(ConsensusError::NetworkRequestTimeout(_))
+        ));
+    }
+
+    /// The commit cap comes from the requested range, so a response filling the
+    /// whole extension a server with a larger batch size may add is accepted.
+    #[tokio::test]
+    async fn commits_up_to_twice_the_requested_range_are_kept() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let requested: CommitRange = (1..=4).into();
+        let maximal = stream::iter([Ok(chunk(8, 0))]);
+
+        let (commits, _headers, _transactions, _error) =
+            collect_commits_and_transactions(&context, peer, &requested, maximal)
+                .await
+                .expect("twice the requested range is within the cap");
+
+        assert_eq!(commits.len(), 8);
+    }
+
+    /// One commit past twice the requested range is more than the extension
+    /// can reach, so the response is rejected.
+    #[tokio::test]
+    async fn commits_past_twice_the_requested_range_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let requested: CommitRange = (1..=4).into();
+        let flood = stream::iter([Ok(chunk(9, 0))]);
+
+        let result = collect_commits_and_transactions(&context, peer, &requested, flood).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitsFromPeer {
+                count: 9,
+                limit: 8,
+                ..
+            })
         ));
     }
 
@@ -1860,5 +1889,145 @@ mod tests {
         .expect_err("subscription without a request must be rejected");
 
         assert_eq!(status.code(), tonic::Code::DeadlineExceeded);
+    }
+
+    /// The stripped prefix has to match the generated service name, otherwise
+    /// every request lands on the `unknown` label.
+    #[test]
+    fn path_prefix_matches_the_generated_service_name() {
+        use crate::network::tonic_gen::consensus_service_server;
+
+        assert_eq!(
+            CONSENSUS_SERVICE_PATH_PREFIX,
+            format!("/{}/", consensus_service_server::SERVICE_NAME)
+        );
+    }
+
+    #[test]
+    fn served_methods_keep_their_own_label() {
+        for method in CONSENSUS_SERVICE_METHODS {
+            let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}{method}");
+            assert_eq!(route_label(&path), *method);
+        }
+    }
+
+    #[test]
+    fn other_paths_share_the_unknown_label() {
+        for path in [
+            "/consensus.ConsensusService/NotAMethod",
+            "/consensus.ConsensusService/fetchcommits",
+            "/consensus.ConsensusService/FetchCommits/extra",
+            "/consensus.ConsensusService/",
+            "/consensus.ConsensusService",
+            "/other.Service/FetchCommits",
+            "/FetchCommits",
+            "/",
+            "",
+        ] {
+            assert_eq!(route_label(path), UNKNOWN_ROUTE, "path: {path}");
+        }
+    }
+
+    /// Unknown method names under the service path still reach the metrics
+    /// layer, so they all have to land on one label.
+    #[tokio::test]
+    async fn unknown_methods_share_one_metric_label() {
+        use std::time::Duration;
+
+        use http::uri::PathAndQuery;
+        use parking_lot::Mutex;
+        use prometheus_filtered::core::Collector;
+        use tonic::{Request, client::Grpc};
+        use tonic_prost::ProstCodec;
+
+        use super::{Channel, FetchCommitsRequest, FetchCommitsResponse, TonicManager};
+        use crate::network::test_network::TestService;
+
+        const UNKNOWN_METHODS: usize = 128;
+
+        /// Route label values a metric retains, sorted.
+        fn routes(metric: &impl Collector) -> Vec<String> {
+            let mut routes: Vec<String> = metric
+                .collect()
+                .iter()
+                .flat_map(|family| family.get_metric())
+                .map(|metric| metric.get_label()[0].value().to_string())
+                .collect();
+            routes.sort();
+            routes
+        }
+
+        async fn call(grpc: &mut Grpc<Channel>, path: &str) -> Result<(), tonic::Status> {
+            grpc.ready().await.expect("the channel stays connected");
+            grpc.unary::<_, FetchCommitsResponse, _>(
+                Request::new(FetchCommitsRequest { start: 1, end: 2 }),
+                PathAndQuery::try_from(path).unwrap(),
+                ProstCodec::default(),
+            )
+            .await
+            .map(|_| ())
+        }
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let server_context = Arc::new(context.clone().with_authority_index(server_index));
+        let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+        let channel = client
+            .channel_pool
+            .get_channel(
+                client.network_keypair.clone(),
+                server_index,
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap();
+        let mut grpc = Grpc::new(channel);
+
+        for i in 0..UNKNOWN_METHODS {
+            let status = call(&mut grpc, &format!("/consensus.ConsensusService/Method{i}"))
+                .await
+                .expect_err("an unknown method is not implemented");
+            assert_eq!(status.code(), tonic::Code::Unimplemented);
+        }
+
+        let inbound = &server_context.metrics.network_metrics.inbound;
+        assert_eq!(routes(&inbound.requests), ["unknown"]);
+        assert_eq!(routes(&inbound.inflight_requests), ["unknown"]);
+        assert_eq!(routes(&inbound.request_latency), ["unknown"]);
+        assert_eq!(
+            inbound.requests.with_label_values(&["unknown"]).get(),
+            UNKNOWN_METHODS as u64
+        );
+
+        // A served method keeps its own label, whether it answers or rejects.
+        call(&mut grpc, "/consensus.ConsensusService/FetchCommits")
+            .await
+            .expect("the served method answers");
+        let status = call(&mut grpc, "/consensus.ConsensusService/GetLatestRounds")
+            .await
+            .expect_err("the deprecated method rejects");
+        assert_eq!(status.code(), tonic::Code::Unimplemented);
+
+        // A path outside the service matches no route, so it never reaches the
+        // layer.
+        call(&mut grpc, "/other.Service/FetchCommits")
+            .await
+            .expect_err("a path outside the service is not served");
+
+        assert_eq!(
+            routes(&inbound.requests),
+            ["FetchCommits", "GetLatestRounds", "unknown"]
+        );
     }
 }

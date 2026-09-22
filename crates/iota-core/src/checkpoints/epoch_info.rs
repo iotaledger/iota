@@ -12,7 +12,7 @@
 //! epoch whose contiguous prefix is finalized.
 
 use iota_protocol_config::Chain;
-use iota_sdk_types::checkpoint::CheckpointSummary;
+use iota_sdk_types::CheckpointSummary;
 use iota_types::{
     committee::EpochId,
     digests::ChainIdentifier,
@@ -362,8 +362,8 @@ fn open_epoch_of(checkpoint: &CheckpointSummary) -> EpochId {
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{
-        GasCostSummary, TransactionDigest, TransactionEffects, TransactionEvents,
-        checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+        CheckpointContents, CheckpointSummary, EndOfEpochData, GasCostSummary, TransactionDigest,
+        TransactionEffects, TransactionEvents,
     };
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo,

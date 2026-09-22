@@ -890,7 +890,7 @@ async fn start(
             // The server joins host and port with `format!`, so an IPv6 host
             // needs its brackets.
             host: graphql_host(graphql_address),
-            db_url: pg_address,
+            db_url: pg_address.into(),
             prom_host: graphql_host(graphql_metrics_address),
             prom_port: graphql_metrics_address.port(),
             ..Default::default()

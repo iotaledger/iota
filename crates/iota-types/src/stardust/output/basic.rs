@@ -5,7 +5,7 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk_types::{Address, Identifier, ObjectData, StructTag};
+use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -68,13 +68,10 @@ impl BasicOutput {
 impl TryFrom<&Object> for BasicOutput {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if BasicOutput::is_basic_output(o.struct_tag()) {
-                    return BasicOutput::from_bcs_bytes(o.contents());
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if BasicOutput::is_basic_output(o.struct_tag()) {
+                return BasicOutput::from_bcs_bytes(o.contents());
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

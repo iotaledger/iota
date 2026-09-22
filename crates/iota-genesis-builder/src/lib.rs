@@ -24,9 +24,8 @@ use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, TransactionDigest,
-    TransactionEffects, TransactionEvents, Version,
-    checkpoint::{CheckpointContents, CheckpointSummary},
+    Address, CheckpointContents, CheckpointSummary, Command, Event, GenesisObject, Identifier,
+    ObjectId, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{

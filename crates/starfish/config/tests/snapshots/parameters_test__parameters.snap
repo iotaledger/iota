@@ -40,7 +40,7 @@ tonic:
   request_timeout:
     secs: 120
     nanos: 0
-  max_inbound_message_size: 1048576
+  max_request_message_size: 1048576
   admission:
     max_subscriptions_per_peer: 2
     max_header_fetches_per_peer: 32

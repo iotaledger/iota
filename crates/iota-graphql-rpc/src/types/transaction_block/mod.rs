@@ -44,6 +44,7 @@ use crate::{
         iota_address::IotaAddress,
         transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
         transaction_block_kind::TransactionBlockKind,
+        uint53::UInt53,
     },
 };
 
@@ -121,22 +122,6 @@ pub(crate) enum TransactionBlockKindInput {
 
 type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
 
-/// The cursor returned for each `TransactionBlock` in a connection's page of
-/// results. The `checkpoint_viewed_at` will set the consistent upper bound for
-/// subsequent queries made on this cursor.
-#[allow(unused)]
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub(crate) struct TransactionBlockCursor {
-    /// The checkpoint sequence number this was viewed at.
-    #[serde(rename = "c")]
-    pub checkpoint_viewed_at: u64,
-    #[serde(rename = "t")]
-    pub tx_sequence_number: u64,
-    /// The checkpoint sequence number when the transaction was finalized.
-    #[serde(rename = "tc")]
-    pub tx_checkpoint_number: u64,
-}
-
 /// `DataLoader` key for fetching a `TransactionBlock` by its digest, optionally
 /// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
@@ -163,10 +148,10 @@ impl DigestKey {
 pub(crate) struct TransactionBlockByDigestCursor {
     /// The checkpoint sequence number this page was viewed at.
     #[serde(rename = "c")]
-    pub checkpoint_viewed_at: u64,
+    pub checkpoint_viewed_at: UInt53,
     /// Position in the `digests` argument.
     #[serde(rename = "i")]
-    pub index: u64,
+    pub index: usize,
 }
 
 pub(crate) type ByDigestCursor = JsonCursor<TransactionBlockByDigestCursor>;
@@ -589,10 +574,12 @@ impl TransactionBlock {
         // `has_next`/`has_prev` via `paginate_results`. The bounds are
         // inclusive so that the cursor rows themselves are fetched.
         let tx_seq_range = (
-            page.after()
-                .map_or(Bound::Unbounded, |c| Bound::Included(c.tx_sequence_number)),
-            page.before()
-                .map_or(Bound::Unbounded, |c| Bound::Included(c.tx_sequence_number)),
+            page.after().map_or(Bound::Unbounded, |c| {
+                Bound::Included(c.tx_sequence_number.into())
+            }),
+            page.before().map_or(Bound::Unbounded, |c| {
+                Bound::Included(c.tx_sequence_number.into())
+            }),
         );
         let mut results = db
             .inner
@@ -657,10 +644,10 @@ impl TransactionBlock {
         // Page cursors are inclusive, we need to convert them to exclusive
         let cursor = if page.is_from_front() {
             page.after()
-                .and_then(|c| c.tx_sequence_number.checked_sub(1))
+                .and_then(|c| u64::from(c.tx_sequence_number).checked_sub(1))
         } else {
             Some(match page.before() {
-                Some(c) => (tx_hi as u64).min(c.tx_sequence_number.saturating_add(1)),
+                Some(c) => (tx_hi as u64).min(u64::from(c.tx_sequence_number).saturating_add(1)),
                 None => tx_hi as u64,
             })
         };
@@ -684,8 +671,12 @@ impl TransactionBlock {
         results.retain(|tx| {
             let tx_seq = tx.tx_sequence_number as u64;
             tx.tx_sequence_number < tx_hi
-                && page.after().is_none_or(|c| c.tx_sequence_number <= tx_seq)
-                && page.before().is_none_or(|c| tx_seq <= c.tx_sequence_number)
+                && page
+                    .after()
+                    .is_none_or(|c| u64::from(c.tx_sequence_number) <= tx_seq)
+                && page
+                    .before()
+                    .is_none_or(|c| tx_seq <= u64::from(c.tx_sequence_number))
         });
 
         let (prev, next, results) = page.paginate_results(
@@ -738,8 +729,12 @@ impl TransactionBlock {
         results.retain(|tx| {
             let tx_seq = tx.tx_sequence_number as u64;
             tx.checkpoint_sequence_number as u64 <= checkpoint_viewed_at
-                && page.after().is_none_or(|c| c.tx_sequence_number <= tx_seq)
-                && page.before().is_none_or(|c| tx_seq <= c.tx_sequence_number)
+                && page
+                    .after()
+                    .is_none_or(|c| u64::from(c.tx_sequence_number) <= tx_seq)
+                && page
+                    .before()
+                    .is_none_or(|c| tx_seq <= u64::from(c.tx_sequence_number))
         });
         results.sort_by_key(|tx| tx.tx_sequence_number);
 
@@ -771,6 +766,12 @@ impl TransactionBlock {
     /// when the transaction was not found. The page starts right after the
     /// entry `cursor` points at, and `limit` caps the page size (defaults to
     /// `default_page_size`, capped by `max_page_size`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PageTooLarge`] if `limit` is above `max_page_size`,
+    /// and [`Error::Client`] if the index in `cursor` is not below the number
+    /// of `digests`.
     pub(crate) async fn paginate_by_digests(
         ctx: &Context<'_>,
         limit: Option<u64>,
@@ -787,11 +788,25 @@ impl TransactionBlock {
         // Use `checkpoint_viewed_at` from the cursor if specified
         let checkpoint_viewed_at = cursor
             .as_ref()
-            .map_or(checkpoint_viewed_at, |c| c.checkpoint_viewed_at);
+            .map_or(checkpoint_viewed_at, |c| c.checkpoint_viewed_at.into());
 
-        let start = cursor
-            .map_or(0, |c| c.index as usize + 1)
-            .min(digests.len());
+        let start = match cursor {
+            Some(c) => {
+                if c.index >= digests.len() {
+                    return Err(Error::Client(format!(
+                        "`cursor` (index {}) is not below the number of digests, {}.",
+                        c.index,
+                        digests.len()
+                    )));
+                }
+
+                c.index.checked_add(1).ok_or_else(|| {
+                    Error::Client(format!("`cursor` (index {}) is out of range.", c.index))
+                })?
+            }
+            None => 0,
+        };
+
         let end = (start + limit as usize).min(digests.len());
         let has_next_page = end < digests.len();
 
@@ -801,8 +816,8 @@ impl TransactionBlock {
 
         let end_cursor = (!nodes.is_empty()).then(|| {
             ByDigestCursor::new(TransactionBlockByDigestCursor {
-                checkpoint_viewed_at,
-                index: (end - 1) as u64,
+                checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
+                index: end - 1,
             })
             .encode_cursor()
         });
@@ -964,8 +979,8 @@ fn apply_forward_scan_limited_pagination(
     conn.has_previous_page = tx_bounds.scan_has_prev_page();
     conn.start_cursor = Some(
         Cursor::new(cursor::TransactionBlockCursor {
-            checkpoint_viewed_at,
-            tx_sequence_number: tx_bounds.scan_start_cursor(),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
+            tx_sequence_number: UInt53::new_unchecked(tx_bounds.scan_start_cursor()),
             is_scan_limited: true,
         })
         .encode_cursor(),
@@ -978,8 +993,8 @@ fn apply_forward_scan_limited_pagination(
         conn.has_next_page = tx_bounds.scan_has_next_page();
         conn.end_cursor = Some(
             Cursor::new(cursor::TransactionBlockCursor {
-                checkpoint_viewed_at,
-                tx_sequence_number: tx_bounds.scan_end_cursor(),
+                checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
+                tx_sequence_number: UInt53::new_unchecked(tx_bounds.scan_end_cursor()),
                 is_scan_limited: true,
             })
             .encode_cursor(),
@@ -1002,8 +1017,8 @@ fn apply_backward_scan_limited_pagination(
     conn.has_next_page = tx_bounds.scan_has_next_page();
     conn.end_cursor = Some(
         Cursor::new(cursor::TransactionBlockCursor {
-            checkpoint_viewed_at,
-            tx_sequence_number: tx_bounds.scan_end_cursor(),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
+            tx_sequence_number: UInt53::new_unchecked(tx_bounds.scan_end_cursor()),
             is_scan_limited: true,
         })
         .encode_cursor(),
@@ -1016,8 +1031,8 @@ fn apply_backward_scan_limited_pagination(
         conn.has_previous_page = tx_bounds.scan_has_prev_page();
         conn.start_cursor = Some(
             Cursor::new(cursor::TransactionBlockCursor {
-                checkpoint_viewed_at,
-                tx_sequence_number: tx_bounds.scan_start_cursor(),
+                checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
+                tx_sequence_number: UInt53::new_unchecked(tx_bounds.scan_start_cursor()),
                 is_scan_limited: true,
             })
             .encode_cursor(),

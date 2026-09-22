@@ -27,6 +27,8 @@ pub struct TrafficControllerMetrics {
     pub spam_proxied_client_threshold: IntGauge,
     pub error_proxied_client_threshold: IntGauge,
     pub dry_run_enabled: IntGauge,
+    pub connection_blocklist_ttl_sec: IntGauge,
+    pub proxy_blocklist_ttl_sec: IntGauge,
 }
 
 impl TrafficControllerMetrics {
@@ -142,6 +144,18 @@ impl TrafficControllerMetrics {
             dry_run_enabled: register_int_gauge_with_registry!(
                 "dry_run_enabled",
                 "If 1, dry run mode is enabled and traffic will not be blocked",
+                registry
+            )
+            .unwrap(),
+            connection_blocklist_ttl_sec: register_int_gauge_with_registry!(
+                "connection_blocklist_ttl_sec",
+                "Seconds a blocked direct client stays in the blocklist",
+                registry
+            )
+            .unwrap(),
+            proxy_blocklist_ttl_sec: register_int_gauge_with_registry!(
+                "proxy_blocklist_ttl_sec",
+                "Seconds a blocked proxied client stays in the blocklist",
                 registry
             )
             .unwrap(),

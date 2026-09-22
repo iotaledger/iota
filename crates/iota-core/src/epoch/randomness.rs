@@ -18,7 +18,7 @@ use fastcrypto::{
 };
 use fastcrypto_tbls::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
 use futures::{StreamExt, stream::FuturesUnordered};
-use iota_common::debug_fatal;
+use iota_common::{debug_fatal, fatal};
 use iota_macros::fail_point_if;
 use iota_network::randomness;
 use iota_sdk_types::RandomnessRound;
@@ -595,7 +595,27 @@ impl RandomnessManager {
                     consensus_output.set_dkg_output(Some(output));
                 }
                 Err(FastCryptoError::NotEnoughInputs) => (), // wait for more input
-                Err(e) => error!("random beacon: error while processing DKG Confirmations: {e:?}"),
+                // The confirmations are sequenced by consensus and the used
+                // messages are derived from sequenced messages, so every
+                // validator computes this step from the same input, and
+                // honest input cannot make it fail. A failure has one of two
+                // causes. Either the DKG state this node persisted no longer
+                // matches what consensus delivered, and only this node stops.
+                // Or a library bug or more than a third of the stake dealing
+                // bad shares makes the step fail everywhere, and every
+                // validator stops on the same commit. A restart replays the
+                // same input, so it does not clear either cause. Carrying on
+                // would let the node defer or cancel randomness-using
+                // transactions that its peers execute, and nothing would
+                // notice until its checkpoint differs from the certified one.
+                Err(e) => {
+                    fatal!(
+                        "random beacon: error while processing DKG Confirmations: {e:?}. A \
+                            restart replays the same input. Restore the epoch database or \
+                            state-sync before rejoining; if other validators stopped too, the \
+                            cause is shared and needs a fix"
+                    )
+                }
             }
         }
 
@@ -1399,5 +1419,145 @@ mod tests {
 
         let err = randomness_manager.err().expect("construction should fail");
         assert!(err.to_string().contains("reduction lower bound"));
+    }
+
+    /// A failure to compute the DKG output halts the node: every validator
+    /// computes it from the same sequenced input, so a failure is a local
+    /// fault, and a node that carried on would defer or cancel
+    /// randomness-using transactions its peers execute.
+    ///
+    /// The failure is forced on the first manager by seeding it with an empty
+    /// set of used messages: once enough confirmations arrive, completion has
+    /// no message left to aggregate and fails.
+    #[tokio::test]
+    #[should_panic(expected = "error while processing DKG Confirmations")]
+    async fn test_dkg_completion_error_is_fatal() {
+        telemetry_subscribers::init_for_testing();
+
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .with_reference_gas_price(500)
+                .build();
+
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_random_beacon_dkg_version_for_testing(1);
+
+        let mut epoch_stores = Vec::new();
+        let mut randomness_managers = Vec::new();
+        let (tx_consensus, mut rx_consensus) = mpsc::channel(100);
+
+        for validator in network_config.validator_configs.iter() {
+            let mut mock_consensus_client = MockConsensusClient::new();
+            let tx_consensus = tx_consensus.clone();
+            mock_consensus_client
+                .expect_submit()
+                .withf(move |transactions: &[ConsensusTransaction], _epoch_store| {
+                    tx_consensus.try_send(transactions.to_vec()).unwrap();
+                    true
+                })
+                .returning(|_, _| {
+                    Ok(with_block_status(BlockStatus::Sequenced(
+                        starfish_core::GenericTransactionRef::BlockRef(BlockRef::MIN),
+                    )))
+                });
+
+            let state = TestAuthorityBuilder::new()
+                .with_protocol_config(protocol_config.clone())
+                .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
+                .build()
+                .await;
+            let consensus_adapter = Arc::new(ConsensusAdapter::new(
+                Arc::new(mock_consensus_client),
+                CheckpointStore::new_for_tests(),
+                state.name,
+                Arc::new(ConnectionMonitorStatusForTests {}),
+                100_000,
+                100_000,
+                None,
+                None,
+                ConsensusAdapterMetrics::new_test(),
+                50,
+            ));
+            let epoch_store = state.epoch_store_for_testing();
+            let randomness_manager = RandomnessManager::try_new(
+                Arc::downgrade(&epoch_store),
+                Box::new(consensus_adapter.clone()),
+                iota_network::randomness::Handle::new_stub(),
+                validator.authority_key_pair(),
+            )
+            .await
+            .unwrap();
+
+            epoch_stores.push(epoch_store);
+            randomness_managers.push(randomness_manager);
+        }
+
+        // Every manager sends its DKG Message.
+        let mut dkg_messages = Vec::new();
+        for randomness_manager in randomness_managers.iter_mut() {
+            randomness_manager.start_dkg().await.unwrap();
+
+            let mut dkg_message = rx_consensus.recv().await.unwrap();
+            assert_eq!(dkg_message.len(), 1);
+            match dkg_message.remove(0).kind {
+                ConsensusTransactionKind::RandomnessDkgMessage(_, bytes) => {
+                    let msg: VersionedDkgMessage = bcs::from_bytes(&bytes)
+                        .expect("DKG message deserialization should not fail");
+                    dkg_messages.push(msg);
+                }
+                _ => panic!("wrong type of message sent"),
+            }
+        }
+
+        // The first manager gets an empty set of used messages instead of
+        // merging the received ones, so it sends no Confirmation of its own.
+        let (faulty_manager, peer_managers) = randomness_managers.split_first_mut().unwrap();
+        faulty_manager
+            .used_messages
+            .set(VersionedUsedProcessedMessages::V1(
+                dkg_v1::UsedProcessedMessages(vec![]),
+            ))
+            .unwrap();
+
+        // The other managers process the Messages and send their Confirmations.
+        for randomness_manager in peer_managers.iter_mut() {
+            let mut output = ConsensusCommitOutput::new(0);
+            for (j, dkg_message) in dkg_messages.iter().cloned().enumerate() {
+                randomness_manager
+                    .add_message(&epoch_stores[j].name, dkg_message)
+                    .unwrap();
+            }
+            randomness_manager
+                .advance_dkg(&mut output, 0)
+                .await
+                .unwrap();
+        }
+        let mut dkg_confirmations = Vec::new();
+        for _ in 0..peer_managers.len() {
+            let mut dkg_confirmation = rx_consensus.recv().await.unwrap();
+            assert_eq!(dkg_confirmation.len(), 1);
+            match dkg_confirmation.remove(0).kind {
+                ConsensusTransactionKind::RandomnessDkgConfirmation(_, bytes) => {
+                    let msg: VersionedDkgConfirmation = bcs::from_bytes(&bytes)
+                        .expect("DKG confirmation deserialization should not fail");
+                    dkg_confirmations.push(msg);
+                }
+                _ => panic!("wrong type of message sent"),
+            }
+        }
+
+        // Three of four Confirmations are enough for completion to run, and
+        // the empty set of used messages leaves it nothing to aggregate.
+        let mut output = ConsensusCommitOutput::new(0);
+        for (dkg_confirmation, epoch_store) in dkg_confirmations.into_iter().zip(&epoch_stores[1..])
+        {
+            faulty_manager
+                .add_confirmation(&mut output, &epoch_store.name, dkg_confirmation)
+                .unwrap();
+        }
+        assert_eq!(DkgStatus::Pending, faulty_manager.dkg_status());
+        let _ = faulty_manager.advance_dkg(&mut output, 0).await;
     }
 }

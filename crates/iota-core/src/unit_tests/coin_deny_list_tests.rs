@@ -10,6 +10,7 @@ use iota_sdk_types::{
     TransactionDigest, TransactionEffects, TypeTag, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_account_private_key},
@@ -52,7 +53,7 @@ async fn test_regulated_coin_v1_types() {
     for created in env.publish_effects.created() {
         let object = env
             .authority
-            .get_object(&created.reference.object_id)
+            .get_object(&created.reference().object_id)
             .unwrap();
         if object.is_package() {
             package_id = Some(object.id());
@@ -443,7 +444,7 @@ impl RegulatedCoinEnv {
         for created in env.publish_effects.created() {
             let object = env
                 .authority
-                .get_object(&created.reference.object_id)
+                .get_object(&created.reference().object_id)
                 .unwrap();
             if object.is_package() {
                 package_id = Some(object.id());
@@ -593,6 +594,9 @@ impl RegulatedCoinEnv {
                 &epoch_store,
                 &self.env.authority.config.transaction_deny_config,
                 epoch_gated_coin_deny_list,
+                VerifierLimitsSource::NodeConfig(
+                    &self.env.authority.config.verifier_signing_config,
+                ),
             )
             .await
     }

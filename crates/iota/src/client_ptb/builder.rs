@@ -7,15 +7,15 @@ use std::{collections::BTreeMap, path::Path};
 use anyhow::Result;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_client::GrpcClient;
 use iota_json::{is_receiving_argument, primitive_type};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_transaction_builder::TransactionBuilderLedgerClient;
 use iota_sdk_types::{
-    Address, Argument, Command, Identifier, Object, ObjectData, ObjectId, Owner,
-    ProgrammableTransaction, SharedObjectReference, TypeTag, move_package::MovePackage,
+    Address, Argument, Command, Identifier, MovePackage, Object, ObjectData, ObjectId, Owner,
+    ProgrammableTransaction, SharedObjectReference, TypeTag,
 };
 use iota_types::{
     base_types::{TxContext, TxContextKind, is_primitive_type_tag},

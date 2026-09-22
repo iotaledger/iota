@@ -8,9 +8,9 @@ use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Identifier, ObjectId, ObjectReference,
-    Owner, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Identifier, ObjectId,
+    ObjectReference, Owner, StructTag, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version,
 };
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{

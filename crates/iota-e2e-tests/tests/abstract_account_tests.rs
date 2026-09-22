@@ -1397,13 +1397,13 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
         summary.status.is_success(),
         "Expected the TX1 execution to succeed"
     );
-    let conflict_coin_ref = effects_cert
+    let conflict_coin_ref = *effects_cert
         .all_changed_objects()
         .iter()
-        .find(|(changed, _)| changed.reference.object_id == conflict_coin_ref.object_id)
+        .find(|(changed, _)| changed.reference().object_id == conflict_coin_ref.object_id)
         .expect("Expected to find the updated conflict coin object")
         .0
-        .reference;
+        .reference();
 
     // Step 3: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
@@ -1854,6 +1854,12 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
+    // Enable the flag so only the sponsor's MA runs pre-consensus.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(true);
+        config
+    });
+
     // Sender is an AA with ED25519 authentication; sponsor is an AA with
     // free-access authentication.
     let mut test_env = TestEnvironment::new().await;
@@ -1926,7 +1932,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
         "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
     );
     assert_eq!(
-        effects_cert.data().gas_object().reference.object_id,
+        effects_cert.data().gas_object().reference().object_id,
         sponsor_gas.object_id,
         "Expected the sponsor's gas coin to be used for the failed TX"
     );
@@ -1999,6 +2005,12 @@ async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_onl
 -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
+
+    // Enable the flag; it must not affect non-sponsored transactions.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(true);
+        config
+    });
 
     let mut test_env = TestEnvironment::new().await;
     test_env
@@ -2905,11 +2917,14 @@ fn abstract_account_from_all_changed_objects(
     all_changed_objects: &[(OwnedObjectReference, WriteKind)],
 ) -> ObjectReference {
     // Extract the only created shared object which is the abstract account
-    all_changed_objects
+    *all_changed_objects
         .iter()
         .find_map(|(changed, kind)| {
-            matches!((changed.owner, kind), (Owner::Shared(_), WriteKind::Create))
-                .then_some(changed.reference)
+            matches!(
+                (changed.owner(), kind),
+                (Owner::Shared(_), WriteKind::Create)
+            )
+            .then_some(changed.reference())
         })
         .expect("Expected a shared object in the transaction response")
 }

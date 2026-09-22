@@ -35,7 +35,7 @@ module Test::M1 {
 
 //# create-checkpoint
 
-//# run-graphql --cursors bcs(@{obj_3_0},@{highest_checkpoint})
+//# run-graphql --cursors bcs(@{obj_3_0},4,@{highest_checkpoint})
 {
   after_obj_3_0: address(address: "@{A}") {
     objects(filter: {type: "@{Test}"}, after: "@{cursor_0}") {
@@ -69,7 +69,7 @@ module Test::M1 {
 
 //# create-checkpoint
 
-//# run-graphql --cursors bcs(@{obj_3_0},1)
+//# run-graphql --cursors bcs(@{obj_3_0},4,1)
 # This query should yield the same results as the previous one.
 {
   after_obj_3_0_chkpt_1: address(address: "@{A}") {
@@ -100,7 +100,7 @@ module Test::M1 {
   }
 }
 
-//# run-graphql --cursors bcs(@{obj_3_0},2)
+//# run-graphql --cursors bcs(@{obj_3_0},4,2)
 {
   address(address: "@{A}") {
     objects(filter: {type: "@{Test}"}) {
@@ -181,7 +181,7 @@ module Test::M1 {
 
 //# create-checkpoint
 
-//# run-graphql --cursors bcs(@{obj_3_0},2)
+//# run-graphql --cursors bcs(@{obj_3_0},4,2)
 # This query should yield the same results as the previous one.
 {
     after_obj_3_0_chkpt_2: address(address: "@{A}") {
@@ -246,7 +246,7 @@ module Test::M1 {
   }
 }
 
-//# run-graphql --cursors bcs(@{obj_3_0},3)
+//# run-graphql --cursors bcs(@{obj_3_0},6,3)
 {
   address(address: "@{A}") {
     objects(filter: {type: "@{Test}"}) {

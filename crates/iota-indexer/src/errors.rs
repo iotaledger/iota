@@ -64,26 +64,26 @@ pub enum IndexerError {
     #[error("Indexer failed to find object mutations, which should never happen.")]
     ObjectMutationNotAvailable,
 
-    #[error("Indexer failed to build PG connection pool with error: `{0}`")]
-    PgConnectionPoolInit(String),
+    #[error("Indexer failed to build PG connection pool")]
+    PgConnectionPoolInit,
 
-    #[error("Indexer failed to get a pool connection from PG connection pool with error: `{0}`")]
-    PgPoolConnection(String),
+    #[error("Indexer failed to get a pool connection from PG connection pool")]
+    PgPoolConnection,
 
-    #[error("Indexer failed to read PostgresDB with error: `{0}`")]
-    PostgresRead(String),
+    #[error("Indexer failed to read PostgresDB")]
+    PostgresRead,
 
-    #[error("Indexer failed to reset PostgresDB with error: `{0}`")]
-    PostgresReset(String),
+    #[error("Indexer failed to reset PostgresDB")]
+    PostgresReset,
 
-    #[error("Indexer failed to commit changes to PostgresDB with error: `{0}`")]
-    PostgresWrite(String),
+    #[error("Indexer failed to commit changes to PostgresDB")]
+    PostgresWrite,
 
-    #[error(transparent)]
+    #[error("Indexer failed to execute a PostgresDB query")]
     Postgres(#[from] diesel::result::Error),
 
-    #[error("Indexer failed to assign TX global order with error: `{0}`")]
-    PostgresUniqueTxGlobalOrderViolation(String),
+    #[error("Indexer failed to assign TX global order")]
+    PostgresUniqueTxGlobalOrderViolation,
 
     #[error("Indexer failed to initialize fullnode Http client with error: `{0}`")]
     HttpClientInit(String),
@@ -178,7 +178,7 @@ pub enum IndexerError {
     SdkTypeConversion(#[from] SdkTypeConversionError),
 
     #[error(transparent)]
-    IdentifierParse(#[from] iota_sdk_types::move_core::TypeParseError),
+    IdentifierParse(#[from] iota_sdk_types::TypeParseError),
 
     #[error("failed to restore from formal snapshot: {0}")]
     Restore(String),
@@ -226,8 +226,8 @@ impl From<url::ParseError> for IndexerError {
     }
 }
 
-impl From<iota_grpc_client::Error> for IndexerError {
-    fn from(err: iota_grpc_client::Error) -> Self {
+impl From<iota_grpc_client::GrpcError> for IndexerError {
+    fn from(err: iota_grpc_client::GrpcError) -> Self {
         IndexerError::Grpc(err.to_string())
     }
 }
@@ -235,5 +235,32 @@ impl From<iota_grpc_client::Error> for IndexerError {
 impl From<iota_grpc_types::proto::TryFromProtoError> for IndexerError {
     fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
         IndexerError::Grpc(err.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use jsonrpsee::types::error::INTERNAL_ERROR_CODE;
+
+    use super::*;
+
+    /// A database failure reaches an RPC client as a fixed message, while the
+    /// wrapped diesel error keeps its detail for server-side logs.
+    #[test]
+    fn postgres_errors_do_not_disclose_detail_to_rpc_clients() {
+        let detail = "column objects.serialized_object does not exist";
+        let error = IndexerError::Postgres(diesel::result::Error::QueryBuilderError(detail.into()));
+        assert!(format!("{error:?}").contains(detail));
+
+        let object: ErrorObjectOwned = error.into();
+        assert_eq!(object.code(), INTERNAL_ERROR_CODE);
+        assert_eq!(
+            object.message(),
+            "Indexer failed to execute a PostgresDB query"
+        );
+
+        let object: ErrorObjectOwned = IndexerError::PostgresRead.into();
+        assert_eq!(object.code(), INTERNAL_ERROR_CODE);
+        assert_eq!(object.message(), "Indexer failed to read PostgresDB");
     }
 }

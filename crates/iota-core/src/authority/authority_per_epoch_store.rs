@@ -31,10 +31,10 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, CanceledTransaction, CheckpointTimestamp, DenyRuleSet, ObjectId, ObjectReference,
-    RandomnessRound, SenderSignedTransaction, TransactionDenyRulesUpdate, TransactionDigest,
-    TransactionEffects, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
-    checkpoint::{CheckpointContents, CheckpointSummary},
+    Address, CanceledTransaction, CheckpointContents, CheckpointSummary, CheckpointTimestamp,
+    DenyRuleSet, ObjectId, ObjectReference, RandomnessRound, SenderSignedTransaction,
+    TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionKind, UserSignature, Version,
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
@@ -169,7 +169,7 @@ pub(crate) mod scorer;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
-use iota_types::crypto::AuthorityPublicKey;
+use iota_types::crypto::AggregateAuthorityPublicKey;
 use scorer::Scoreboard;
 
 // `TxLockGuard` and `TxGuard` are functionally identical right now, but we
@@ -1600,7 +1600,7 @@ impl AuthorityPerEpochStore {
         self.epoch_start_state().protocol_version()
     }
 
-    pub fn active_validators(&self) -> Vec<AuthorityPublicKey> {
+    pub fn active_validators(&self) -> Vec<AggregateAuthorityPublicKey> {
         self.epoch_start_state().get_active_validators()
     }
 
@@ -2463,7 +2463,7 @@ impl AuthorityPerEpochStore {
             &[(transaction, effects)],
             self,
             cache_reader,
-        );
+        )?;
         let (_, assigned_versions) = assigned_versions.0.into_iter().next().unwrap();
         Ok(assigned_versions)
     }
@@ -3446,7 +3446,7 @@ impl AuthorityPerEpochStore {
     /// If this function return an error, transaction is skipped and is not
     /// passed to handle_consensus_transaction This function returns unit
     /// error and is responsible for emitting log messages for internal errors
-    fn verify_consensus_transaction(
+    pub(crate) fn verify_consensus_transaction(
         &self,
         transaction: SequencedConsensusTransaction,
         skipped_consensus_txns: &IntCounter,
@@ -3472,11 +3472,16 @@ impl AuthorityPerEpochStore {
                 ..
             }) => {}
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(_transaction),
+                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
                 ..
             }) => {
-                // TODO: make sure that UserTransactionV1 blocks don't pass
-                //  validation if the protocol feature flag is not set
+                if !self.protocol_config().enable_pcool_flow() {
+                    debug!(
+                        "Ignoring UserTransactionV1 {:?}: the P-COOL flow is disabled",
+                        transaction.digest()
+                    );
+                    return None;
+                }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(data),
@@ -3558,14 +3563,6 @@ impl AuthorityPerEpochStore {
                 // verification in IotaTxValidator. We don't need to check the
                 // sender_authority as it's correct that it's different from the
                 // authority in the notification.
-                // Here we only check if tracking non-committee authority capabilities is
-                // enabled.
-                if !self
-                    .protocol_config()
-                    .track_non_committee_eligible_validators()
-                {
-                    return None;
-                }
             }
             #[allow(deprecated)]
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
@@ -3605,6 +3602,13 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::OverloadNotificationV1(authority, _, percentage),
                 ..
             }) => {
+                if !self.protocol_config().enable_pcool_flow() {
+                    debug!(
+                        "Ignoring OverloadNotificationV1 from {:?}: the P-COOL flow is disabled",
+                        authority.concise()
+                    );
+                    return None;
+                }
                 if &transaction.sender_authority() != authority {
                     warn!(
                         "OverloadNotificationV1 authority {} does not match its author from consensus {}",
@@ -3660,7 +3664,7 @@ impl AuthorityPerEpochStore {
         C: CheckpointServiceNotify,
     >(
         self: &Arc<Self>,
-        transactions: Vec<SequencedConsensusTransaction>,
+        verified_transactions: Vec<VerifiedSequencedConsensusTransaction>,
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
@@ -3669,15 +3673,6 @@ impl AuthorityPerEpochStore {
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
         // Split transactions into different types for processing.
-        let verified_transactions: Vec<_> = transactions
-            .into_iter()
-            .filter_map(|transaction| {
-                self.verify_consensus_transaction(
-                    transaction,
-                    &authority_metrics.skipped_consensus_txns,
-                )
-            })
-            .collect();
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
             Vec::with_capacity(verified_transactions.len());
@@ -4479,8 +4474,17 @@ impl AuthorityPerEpochStore {
         skip_consensus_commit_prologue_in_test: bool,
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+        let verified_transactions = transactions
+            .into_iter()
+            .filter_map(|transaction| {
+                self.verify_consensus_transaction(
+                    transaction,
+                    &authority_metrics.skipped_consensus_txns,
+                )
+            })
+            .collect();
         self.process_consensus_transactions_and_commit_boundary(
-            transactions,
+            verified_transactions,
             &ExecutionIndicesWithStats::default(),
             checkpoint_service,
             cache_reader,
@@ -4733,6 +4737,10 @@ impl AuthorityPerEpochStore {
                 }
                 // Note: ignored external transactions must not be recorded as processed. Otherwise
                 // they may not get reverted after restart during epoch change.
+                // TODO: once the P-COOL flow is rolled out there is no pre-consensus execution
+                // left to revert, so ignored transactions can be recorded as processed too. That
+                // keeps the consensus handler's duplicate cache and this table in agreement and
+                // lets waiters on `consensus_messages_processed_notify` learn about the drop.
                 ConsensusTransactionResult::Ignored => {
                     ignored = true;
                     filter_roots = true;
@@ -5757,20 +5765,32 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// The executed-checkpoint watermark the consensus quarantine flushes
+    /// against. Unlike the checkpoint store's watermark it advances as soon as
+    /// a checkpoint's effects are committed.
+    pub fn highest_executed_checkpoint_for_testing(&self) -> CheckpointSequenceNumber {
+        self.consensus_quarantine
+            .read()
+            .highest_executed_checkpoint()
+    }
+
+    pub fn get_built_checkpoint_builder_summary(
+        &self,
+        sequence: CheckpointSequenceNumber,
+    ) -> IotaResult<Option<BuilderCheckpointSummary>> {
+        if let Some(summary) = self.consensus_quarantine.read().get_built_summary(sequence) {
+            return Ok(Some(summary.clone()));
+        }
+
+        Ok(self.tables()?.builder_checkpoint_summary.get(&sequence)?)
+    }
+
     pub fn get_built_checkpoint_summary(
         &self,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult<Option<CheckpointSummary>> {
-        if let Some(BuilderCheckpointSummary { summary, .. }) =
-            self.consensus_quarantine.read().get_built_summary(sequence)
-        {
-            return Ok(Some(summary.clone()));
-        }
-
         Ok(self
-            .tables()?
-            .builder_checkpoint_summary
-            .get(&sequence)?
+            .get_built_checkpoint_builder_summary(sequence)?
             .map(|s| s.summary))
     }
 

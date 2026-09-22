@@ -12,14 +12,13 @@ mod checked {
         fmt,
         rc::Rc,
         sync::Arc,
-        time::Instant,
     };
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Address, Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError,
-        ProgrammableTransaction, StructTag, TypeTag, move_package::MovePackage,
+        Address, Command, CommandArgumentError, Identifier, MovePackage, ObjectId,
+        PackageUpgradeError, ProgrammableTransaction, StructTag, TypeTag,
     };
     use iota_types::{
         auth_context,
@@ -70,6 +69,7 @@ mod checked {
     use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
     use serde::{Deserialize, de::DeserializeSeed};
     use tracing::instrument;
+    use web_time::Instant;
 
     use crate::{
         adapter::substitute_package_id,

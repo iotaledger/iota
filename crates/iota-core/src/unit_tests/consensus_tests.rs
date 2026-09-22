@@ -8,9 +8,8 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, SharedObjectReference, Transaction,
-    checkpoint::{CheckpointContents, CheckpointSummary},
-    gas::GasCostSummary,
+    CheckpointContents, CheckpointSummary, GasCostSummary, Identifier, ObjectId,
+    SharedObjectReference, Transaction,
 };
 use iota_types::{
     base_types::ExecutionDigests,

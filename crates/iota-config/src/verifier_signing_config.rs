@@ -19,6 +19,12 @@ pub const DEFAULT_SANITY_CHECK_WITH_REGEX_REFERENCE_SAFETY_UNITS: usize = 2_200_
 /// _only_. There are additional limits in the `MeterConfig` and
 /// `VerifierConfig` that are used during both signing and execution, however
 /// those limits cannot be set here and must be protocol versioned.
+///
+/// Post-consensus validation has to reach the same verdict on every validator,
+/// so it meters published packages with the protocol config's limits instead;
+/// see `ProtocolConfig::meter_config` and
+/// `ProtocolConfig::verifier_signing_limits`. The defaults here equal those
+/// protocol values.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct VerifierSigningConfig {
@@ -86,5 +92,42 @@ impl VerifierSigningConfig {
             max_per_mod_meter_units: Some(self.max_per_mod_meter_units() as u128),
             max_per_pkg_meter_units: Some(self.max_per_pkg_meter_units() as u128),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_protocol_config::ProtocolConfig;
+
+    use super::*;
+
+    /// A validator that leaves its `VerifierSigningConfig` at the defaults must
+    /// reach the same verdict at admission as post-consensus validation
+    /// does with the protocol config's limits, so the two sets of defaults
+    /// have to agree.
+    #[test]
+    fn defaults_match_protocol_config() {
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+        let signing_config = VerifierSigningConfig::default();
+
+        assert_eq!(
+            signing_config.limits_for_signing(),
+            protocol_config.verifier_signing_limits()
+        );
+
+        let from_node = signing_config.meter_config_for_signing();
+        let from_protocol = protocol_config.meter_config();
+        assert_eq!(
+            from_node.max_per_fun_meter_units,
+            from_protocol.max_per_fun_meter_units
+        );
+        assert_eq!(
+            from_node.max_per_mod_meter_units,
+            from_protocol.max_per_mod_meter_units
+        );
+        assert_eq!(
+            from_node.max_per_pkg_meter_units,
+            from_protocol.max_per_pkg_meter_units
+        );
     }
 }

@@ -72,7 +72,7 @@ async fn get_objects_scenarios() {
         .await
         .expect_err("Empty input should return an error");
     assert!(
-        matches!(err, iota_grpc_client::Error::EmptyRequest),
+        matches!(err, iota_grpc_client::GrpcError::EmptyRequest),
         "Expected EmptyRequest error, got: {err}"
     );
 

@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.32.0-alpha"
+    "version": "1.33.0-alpha"
   },
   "methods": [
     {
@@ -313,7 +313,7 @@
           "name": "Write API"
         }
       ],
-      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to    client. This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the    node executed the transaction locally before returning the client. The    local execution makes sure this node is aware of this transaction when    client fires subsequent queries. However if the node fails to execute the    transaction locally in a timely manner, a bool type in the response is    set to false to indicated the case. request_type is default to be `WaitForEffectsCert` unless options.show_events or options.show_effects is true",
+      "description": "Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits for TransactionEffectsCert and then return to    client. This mode is a proxy for transaction finality. 2. WaitForLocalExecution: waits for TransactionEffectsCert and make sure the    node executed the transaction locally before returning the client. The    local execution makes sure this node is aware of this transaction when    client fires subsequent queries. However if the node fails to execute the    transaction locally in a timely manner, a bool type in the response is    set to false to indicated the case. request_type defaults to `WaitForEffectsCert` when omitted.",
       "params": [
         {
           "name": "tx_bytes",
@@ -343,7 +343,7 @@
         },
         {
           "name": "request_type",
-          "description": "The request type, derived from `IotaTransactionBlockResponseOptions` if None",
+          "description": "The request type, `WaitForEffectsCert` if None",
           "schema": {
             "$ref": "#/components/schemas/ExecuteTransactionRequestType"
           }
@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 35
+              "value": 36
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "35",
-              "protocolVersion": "35",
+              "maxSupportedProtocolVersion": "36",
+              "protocolVersion": "36",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1327,6 +1327,7 @@
                 "dependency_linkage_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
+                "disallow_self_identifier": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
@@ -1346,7 +1347,8 @@
                 "pass_validator_scores_to_advance_epoch": true,
                 "passkey_auth": true,
                 "pcool_skip_immutable_object_locks": true,
-                "pre_consensus_sponsor_only_move_authentication": true,
+                "pcool_verifier_limits_from_protocol_config": true,
+                "pre_consensus_sponsor_only_move_authentication": false,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
                 "relocate_event_module": true,
@@ -1358,6 +1360,7 @@
                 "track_non_committee_eligible_validators": true,
                 "uncompressed_g1_group_elements": true,
                 "validate_identifier_inputs": true,
+                "validate_input_object_versions": true,
                 "validator_metadata_verify_v2": true,
                 "variant_nodes": true
               },
@@ -1939,15 +1942,20 @@
                   "u64": "5"
                 },
                 "max_meter_ticks_per_module": {
-                  "u64": "16000000"
+                  "u64": "2200000"
                 },
                 "max_meter_ticks_per_package": {
-                  "u64": "16000000"
+                  "u64": "2200000"
+                },
+                "max_meter_ticks_regex_reference_safety": {
+                  "u64": "2200000"
                 },
                 "max_modules_in_publish": {
                   "u32": "64"
                 },
-                "max_move_enum_variants": null,
+                "max_move_enum_variants": {
+                  "u64": "127"
+                },
                 "max_move_identifier_len": {
                   "u64": "128"
                 },
@@ -2048,7 +2056,7 @@
                   "u64": "1024"
                 },
                 "max_verifier_meter_ticks_per_function": {
-                  "u64": "16000000"
+                  "u64": "2200000"
                 },
                 "min_checkpoint_interval_ms": {
                   "u64": "200"

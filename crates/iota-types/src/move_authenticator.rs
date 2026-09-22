@@ -224,9 +224,6 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
 
         // Inputs validity check.
         //
-        // `validity_check` is not called for `object_to_authenticate` because it is
-        // already validated with a dedicated function.
-
         // `ProtocolConfig::max_function_parameters` is used to check the call arguments
         // because MoveAuthenticatorV1 is considered as a simple programmable call to a
         // Move function.
@@ -256,6 +253,11 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
                 .all(|o| used.insert(o.object_id())),
             UserInputError::DuplicateObjectRefInput
         );
+
+        // Like every other input, the account object must not name a version
+        // in or right below the range assigned to canceled transactions. Its
+        // kind is settled above, so the version bound is all this leaves.
+        self.object_to_authenticate().validity_check(config)?;
 
         self.call_args()
             .iter()

@@ -23,7 +23,6 @@ use tracing::info;
 
 use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
-    blocking_call_is_ok_or_panic,
     db::ConnectionPool,
     errors::{Context, IndexerError},
     ingestion::{
@@ -56,7 +55,7 @@ use crate::{
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection,
     pruning::pruner::PrunableTable,
-    read_only_blocking, run_query, run_query_with_retry,
+    read_only_blocking, run_query_with_retry,
     schema::{
         chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
         event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
@@ -66,7 +65,7 @@ use crate::{
         tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects, tx_kinds,
         tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
-    store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
+    store::{IndexerStore, diesel_macro},
     transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
@@ -74,12 +73,11 @@ use crate::{
     },
 };
 
-/// A cursor representing the global order position of transaction according to
-/// tx_global_order table
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TxGlobalOrderCursor {
-    pub global_sequence_number: i64,
-    pub optimistic_sequence_number: i64,
+/// Lower bounds of one epoch
+struct EpochLowerBounds {
+    first_checkpoint_id: u64,
+    first_tx_sequence_number: u64,
+    first_optimistic_sequence_number: u64,
 }
 
 #[macro_export]
@@ -150,8 +148,7 @@ impl PgIndexerStore {
             .unwrap_or_else(|_e| PG_COMMIT_OBJECTS_PARALLEL_CHUNK_SIZE.to_string())
             .parse::<usize>()
             .unwrap();
-        let partition_manager = PgPartitionManager::new(blocking_cp.clone())
-            .expect("failed to initialize partition manager");
+        let partition_manager = PgPartitionManager::new(blocking_cp.clone());
         let config = PgIndexerStoreConfig {
             parallel_chunk_size,
             parallel_objects_chunk_size,
@@ -175,8 +172,8 @@ impl PgIndexerStore {
 
     /// Get the range of the protocol versions that need to be indexed.
     pub fn get_protocol_version_index_range(&self) -> Result<(i64, i64), IndexerError> {
-        // We start indexing from the next protocol version after the latest one stored
-        // in the db.
+        // We start indexing from the next protocol version after the latest one
+        // stored in the db.
         let start = read_only_blocking!(&self.blocking_cp, |conn| {
             protocol_configs::dsl::protocol_configs
                 .select(max(protocol_configs::protocol_version))
@@ -185,7 +182,8 @@ impl PgIndexerStore {
         .context("Failed reading latest protocol version from PostgresDB")?
         .map_or(1, |v| v + 1);
 
-        // We end indexing at the protocol version of the latest epoch stored in the db.
+        // We end indexing at the protocol version of the latest epoch stored in
+        // the db.
         let end = read_only_blocking!(&self.blocking_cp, |conn| {
             epochs::dsl::epochs
                 .select(max(epochs::protocol_version))
@@ -602,8 +600,8 @@ impl PgIndexerStore {
             return Ok(());
         };
 
-        // If the first checkpoint has sequence number 0, we need to persist the digest
-        // as chain identifier.
+        // If the first checkpoint has sequence number 0, we need to persist the
+        // digest as chain identifier.
         if first_checkpoint.sequence_number == 0 {
             let checkpoint_digest = first_checkpoint.checkpoint_digest.into_bytes().to_vec();
             self.persist_protocol_configs_and_feature_flags(checkpoint_digest.clone())?;
@@ -733,8 +731,9 @@ impl PgIndexerStore {
             &self.blocking_cp,
             |conn| {
                 for tx_order_chunk in tx_order.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                    // Upsert: on conflict (row already inserted by optimistic path),
-                    // set `tx_sequence_number` so checkpoint data is available
+                    // Upsert: on conflict (row already inserted by optimistic
+                    // path), set `tx_sequence_number` so
+                    // checkpoint data is available
                     // immediately.
                     on_conflict_do_update_with_condition!(
                         tx_global_order::table,
@@ -949,9 +948,8 @@ impl PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all event indices in a chunk: {e:?}"
-                ))
+                tracing::error!("failed to persist all event indices in a chunk: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} chunked event indices", len);
@@ -1036,9 +1034,8 @@ impl PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx indices in a chunk: {e:?}"
-                ))
+                tracing::error!("failed to persist all tx indices in a chunk: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} chunked tx_indices", len);
@@ -1100,7 +1097,8 @@ impl PgIndexerStore {
                     EpochPartitionData::compose_data(epoch_to_commit, last_epoch);
                 let table_partitions = self.partition_manager.get_table_partitions()?;
                 for (table, (_, last_partition)) in table_partitions {
-                    // Only advance epoch partition for epoch partitioned tables.
+                    // Only advance epoch partition for epoch partitioned
+                    // tables.
                     if !self
                         .partition_manager
                         .get_strategy(&table)
@@ -1348,47 +1346,34 @@ impl PgIndexerStore {
         )
     }
 
-    /// Prune optimistic_transactions table by global_sequence_number range.
-    /// Prunes at most `limit` rows and returns the number of rows deleted.
-    fn prune_optimistic_tx_by_global_seq(
+    /// Prune optimistic_transactions table by `optimistic_sequence_number`
+    /// inclusive range.
+    fn prune_optimistic_tx_by_optimistic_seq(
         &self,
         start: u64,
         end: u64,
-        limit: i64,
-    ) -> Result<usize, IndexerError> {
+    ) -> Result<(), IndexerError> {
         use diesel::prelude::*;
 
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                let sql = r#"
-                    WITH ids_to_delete AS (
-                         SELECT optimistic_sequence_number
-                         FROM optimistic_transactions
-                         WHERE global_sequence_number BETWEEN $1 AND $2
-                         ORDER BY global_sequence_number, optimistic_sequence_number
-                         FOR UPDATE
-                         LIMIT $3
-                     )
-                     DELETE FROM optimistic_transactions otx
-                     USING ids_to_delete
-                     WHERE otx.optimistic_sequence_number = ids_to_delete.optimistic_sequence_number
-                "#;
-                diesel::sql_query(sql)
-                    .bind::<diesel::sql_types::BigInt, _>(start as i64)
-                    .bind::<diesel::sql_types::BigInt, _>(end as i64)
-                    .bind::<diesel::sql_types::BigInt, _>(limit)
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context(
-                        format!(
-                            "failed to prune optimistic_transactions table by global_sequence_number range [{start}..={end}] with limit {limit}"
-                        )
-                        .as_str(),
+                diesel::delete(optimistic_transactions::table.filter(
+                    optimistic_transactions::optimistic_sequence_number
+                        .between(start as i64, end as i64),
+                ))
+                .execute(conn)
+                .map_err(IndexerError::from)
+                .context(
+                    format!(
+                        "failed to prune optimistic_transactions table by optimistic_sequence_number range [{start}..={end}]"
                     )
+                    .as_str(),
+                )
             },
             PG_DB_COMMIT_SLEEP_DURATION
-        )
+        )?;
+        Ok(())
     }
 
     fn prune_backward_history_by_checkpoint_with_limit(
@@ -1555,26 +1540,36 @@ impl PgIndexerStore {
         })
     }
 
-    fn map_epochs_to_cp_tx(
+    fn map_epochs_to_low_bounds(
         &self,
         epochs: &[u64],
-    ) -> Result<HashMap<u64, (u64, u64)>, IndexerError> {
+    ) -> Result<HashMap<u64, EpochLowerBounds>, IndexerError> {
         let pool = &self.blocking_cp;
-        let results: Vec<(i64, i64, i64)> = run_query!(pool, move |conn| {
+        let results: Vec<(i64, i64, i64, i64)> = read_only_blocking!(pool, move |conn| {
             epochs::table
                 .filter(epochs::epoch.eq_any(epochs.iter().map(|&e| e as i64)))
                 .select((
                     epochs::epoch,
                     epochs::first_checkpoint_id,
                     epochs::first_tx_sequence_number,
+                    epochs::first_optimistic_sequence_number,
                 ))
-                .load::<(i64, i64, i64)>(conn)
+                .load::<(i64, i64, i64, i64)>(conn)
         })
         .context("Failed to fetch first checkpoint and tx seq num for epochs")?;
 
         Ok(results
             .into_iter()
-            .map(|(epoch, checkpoint, tx)| (epoch as u64, (checkpoint as u64, tx as u64)))
+            .map(|(epoch, checkpoint, tx, optimistic_seq)| {
+                (
+                    epoch as u64,
+                    EpochLowerBounds {
+                        first_checkpoint_id: checkpoint as u64,
+                        first_tx_sequence_number: tx as u64,
+                        first_optimistic_sequence_number: optimistic_seq as u64,
+                    },
+                )
+            })
             .collect())
     }
 
@@ -1585,20 +1580,30 @@ impl PgIndexerStore {
         use diesel::query_dsl::methods::FilterDsl;
 
         let epochs: Vec<u64> = watermarks.iter().map(|(_table, epoch)| *epoch).collect();
-        let epoch_mapping = self.map_epochs_to_cp_tx(&epochs)?;
+        let epoch_mapping = self.map_epochs_to_low_bounds(&epochs)?;
         let lookups: Result<Vec<StoredWatermark>, IndexerError> = watermarks
             .into_iter()
             .map(|(table, epoch)| {
-                let (checkpoint, tx) = epoch_mapping.get(&epoch).ok_or_else(|| {
+                let bounds = epoch_mapping.get(&epoch).ok_or_else(|| {
                     IndexerError::PersistentStorageDataCorruption(format!(
                         "epoch {epoch} not found in epoch mapping",
                     ))
                 })?;
+
+                // `optimistic_transactions` is bounded by optimistic sequence
+                // numbers, not tx sequence numbers.
+                let min_available_tx =
+                    if table.as_ref() == PrunableTable::OptimisticTransactions.as_ref() {
+                        bounds.first_optimistic_sequence_number
+                    } else {
+                        bounds.first_tx_sequence_number
+                    };
+
                 Ok(StoredWatermark::from_lower_bound_update(
                     table.as_ref(),
                     epoch,
-                    *checkpoint,
-                    *tx,
+                    bounds.first_checkpoint_id,
+                    min_available_tx,
                 ))
             })
             .collect();
@@ -1652,8 +1657,8 @@ impl PgIndexerStore {
     }
 
     fn get_watermarks(&self) -> Result<(Vec<StoredWatermark>, i64), IndexerError> {
-        // read_only transaction, otherwise this will block and get blocked by write
-        // transactions to the same table.
+        // read_only transaction, otherwise this will block and get blocked by
+        // write transactions to the same table.
         run_query_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -1717,15 +1722,10 @@ impl PgIndexerStore {
         R: Send + 'static,
     {
         let this = self.clone();
-        let current_span = tracing::Span::current();
-        tokio::task::spawn_blocking(move || {
-            mark_in_blocking_pool();
-            let _guard = current_span.enter();
-            f(this)
-        })
-        .await
-        .map_err(Into::into)
-        .and_then(std::convert::identity)
+        diesel_macro::spawn_blocking_task(move || f(this))
+            .await
+            .map_err(Into::into)
+            .and_then(std::convert::identity)
     }
 
     pub(crate) fn spawn_blocking_task<F, R>(
@@ -1737,11 +1737,8 @@ impl PgIndexerStore {
         R: Send + 'static,
     {
         let this = self.clone();
-        let current_span = tracing::Span::current();
         let guard = self.metrics.tokio_blocking_task_wait_latency.start_timer();
-        tokio::task::spawn_blocking(move || {
-            mark_in_blocking_pool();
-            let _guard = current_span.enter();
+        diesel_macro::spawn_blocking_task(move || {
             let _elapsed = guard.stop_and_record();
             f(this)
         })
@@ -1835,9 +1832,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all objects version chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all objects version chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {object_versions_count} object versions");
@@ -1876,9 +1872,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all transactions chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all transactions chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} transactions", len);
@@ -1917,7 +1912,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!("Failed to persist all events chunks: {e:?}"))
+                tracing::error!("failed to persist all events chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} events", len);
@@ -1947,9 +1943,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(
-                    format!("Failed to persist all displays chunks: {e:?}",),
-                )
+                tracing::error!("failed to persist all displays chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         Ok(())
     }
@@ -1996,9 +1991,8 @@ impl IndexerStore for PgIndexerStore {
             self.persist_packages_in_chunks(packages)
                 .await
                 .map_err(|e| {
-                    IndexerError::PostgresWrite(format!(
-                        "Failed to persist all packages chunks: {e:?}"
-                    ))
+                    tracing::error!("failed to persist all packages chunks: {e:?}");
+                    IndexerError::PostgresWrite
                 })
         };
         persist_result
@@ -2037,9 +2031,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all event_indices chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all event_indices chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} event_indices chunks", len);
@@ -2107,8 +2100,8 @@ impl IndexerStore for PgIndexerStore {
             start_version, end_version
         );
 
-        // Gather all protocol configs and feature flags for all versions between start
-        // and end.
+        // Gather all protocol configs and feature flags for all versions
+        // between start and end.
         for version in start_version..=end_version {
             let protocol_configs = ProtocolConfig::get_for_version_if_supported(
                 (version as u64).into(),
@@ -2183,9 +2176,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx_indices chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all tx_indices chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} tx_indices chunks", len);
@@ -2227,7 +2219,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!("Failed to persist all object chunks: {e:?}",))
+                tracing::error!("failed to persist all object chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
 
         let elapsed = guard.stop_and_record();
@@ -2262,9 +2255,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all objects backward history chunks: {e:?}"
-                ))
+                tracing::error!("failed to persist all objects backward history chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         info!("Persisted {} objects backward history", len);
         Ok(())
@@ -2314,9 +2306,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all checkpointed object chunks: {e:?}",
-                ))
+                tracing::error!("failed to persist all checkpointed object chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
 
         info!(
@@ -2349,9 +2340,8 @@ impl IndexerStore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all txs insertion order chunks: {e:?}",
-                ))
+                tracing::error!("failed to persist all txs insertion order chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {len} txs insertion orders");
@@ -2397,24 +2387,23 @@ impl IndexerStore for PgIndexerStore {
         .await
     }
 
-    async fn prune_table_by_global_seq_with_limit(
+    async fn prune_table_by_optimistic_seq(
         &self,
         table: &crate::pruning::pruner::PrunableTable,
         start: u64,
         end: u64,
-        limit: i64,
-    ) -> Result<usize, IndexerError> {
+    ) -> Result<(), IndexerError> {
         use crate::pruning::pruner::PrunableTable;
 
         if !matches!(table, PrunableTable::OptimisticTransactions) {
             return Err(IndexerError::InvalidArgument(format!(
-                "table {} does not support pruning by global order with limit",
+                "table {} does not support pruning by optimistic sequence number",
                 table.as_ref()
             )));
         }
 
         self.execute_in_blocking_worker(move |this| {
-            this.prune_optimistic_tx_by_global_seq(start, end, limit)
+            this.prune_optimistic_tx_by_optimistic_seq(start, end)
         })
         .await
     }
@@ -2488,7 +2477,8 @@ fn retain_latest_indexed_objects(
     for change in tx_object_changes {
         // Remove mutation / deletion with a following deletion / mutation,
         // as we expect that following deletion / mutation has a higher version.
-        // Technically, assertions below are not required, double check just in case.
+        // Technically, assertions below are not required, double check just in
+        // case.
         for mutation in change.changed_objects {
             let id = mutation.object.id();
             let version = mutation.object.version();

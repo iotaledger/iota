@@ -126,10 +126,11 @@ pub struct Parameters {
     #[serde(default = "TonicParameters::default")]
     pub tonic: TonicParameters,
 
-    // Number of commits to fetch in a batch for fast commit syncer, also the maximum number of
-    // commits returned per fetch. If this value is set too small, fetching becomes
-    // inefficient. If this value is set too large, it can result in load imbalance and
-    // stragglers.
+    /// Number of commits requested per fast commit sync fetch. A response may
+    /// carry up to twice this many, since it extends past the requested end to
+    /// reach a certifiable commit. Set too small, fetching is inefficient and
+    /// the server has little room to reach one; set too large, it causes load
+    /// imbalance and stragglers.
     #[serde(default = "Parameters::default_fast_commit_sync_batch_size")]
     pub fast_commit_sync_batch_size: u32,
 
@@ -582,7 +583,8 @@ pub struct TonicParameters {
     #[serde(default = "TonicParameters::default_connection_buffer_size")]
     pub connection_buffer_size: usize,
 
-    /// Messages over this size threshold will increment a counter.
+    /// Response messages over this wire size, prefix plus compressed payload,
+    /// increment a counter.
     ///
     /// If unspecified, this will default to 16MiB.
     #[serde(default = "TonicParameters::default_excessive_message_size")]
@@ -592,7 +594,7 @@ pub struct TonicParameters {
     /// This value is higher than strictly necessary, to allow overheads.
     /// Message size targets and soft limits are computed based on this value.
     ///
-    /// If unspecified, this will default to 1GiB.
+    /// If unspecified, this will default to 64MiB.
     #[serde(default = "TonicParameters::default_message_size_limit")]
     pub message_size_limit: usize,
 
@@ -612,15 +614,19 @@ pub struct TonicParameters {
     #[serde(default = "TonicParameters::default_request_timeout")]
     pub request_timeout: Duration,
 
-    /// Hard size limit for inbound (decoded) requests. Consensus requests are
-    /// small (ref lists); large payloads belong to responses, bounded by
-    /// `message_size_limit`. A smaller inbound bound shrinks the memory a
+    /// Hard size limit for request messages: inbound requests when decoding
+    /// and outbound requests when encoding. Consensus requests are small (ref
+    /// lists); large payloads belong to responses, bounded by
+    /// `message_size_limit`. A smaller request bound shrinks the memory a
     /// single in-flight request can pin before its handler runs.
     ///
     /// If unspecified, this will default to 1MiB. `0` falls back to
     /// `message_size_limit`.
-    #[serde(default = "TonicParameters::default_max_inbound_message_size")]
-    pub max_inbound_message_size: usize,
+    #[serde(
+        default = "TonicParameters::default_max_request_message_size",
+        alias = "max_inbound_message_size"
+    )]
+    pub max_request_message_size: usize,
 
     /// Per-peer, per-RPC admission caps for the inbound consensus server.
     #[serde(default)]
@@ -638,6 +644,16 @@ pub struct TonicParameters {
 }
 
 impl TonicParameters {
+    /// Hard size limit for request messages, `message_size_limit` when
+    /// `max_request_message_size` is `0`.
+    pub fn request_message_size_limit(&self) -> usize {
+        if self.max_request_message_size == 0 {
+            self.message_size_limit
+        } else {
+            self.max_request_message_size
+        }
+    }
+
     fn default_keepalive_interval() -> Duration {
         Duration::from_secs(5)
     }
@@ -662,7 +678,7 @@ impl TonicParameters {
         Duration::from_secs(120)
     }
 
-    fn default_max_inbound_message_size() -> usize {
+    fn default_max_request_message_size() -> usize {
         1 << 20
     }
 
@@ -680,7 +696,7 @@ impl Default for TonicParameters {
             message_size_limit: TonicParameters::default_message_size_limit(),
             max_concurrent_streams: TonicParameters::default_max_concurrent_streams(),
             request_timeout: TonicParameters::default_request_timeout(),
-            max_inbound_message_size: TonicParameters::default_max_inbound_message_size(),
+            max_request_message_size: TonicParameters::default_max_request_message_size(),
             admission: AdmissionParameters::default(),
             subscribe_request_timeout: TonicParameters::default_subscribe_request_timeout(),
         }

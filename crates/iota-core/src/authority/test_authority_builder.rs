@@ -11,6 +11,7 @@ use iota_config::{
     genesis::Genesis,
     node::{AuthorityOverloadConfig, AuthorityStorePruningConfig, ExpensiveSafetyCheckConfig},
     transaction_deny_config::TransactionDenyConfig,
+    verifier_signing_config::VerifierSigningConfig,
 };
 use iota_network::randomness;
 use iota_protocol_config::{Chain, ProtocolConfig};
@@ -54,6 +55,7 @@ pub struct TestAuthorityBuilder<'a> {
     store: Option<Arc<AuthorityStore>>,
     transaction_deny_config: Option<TransactionDenyConfig>,
     certificate_deny_config: Option<CertificateDenyConfig>,
+    verifier_signing_config: Option<VerifierSigningConfig>,
     protocol_config: Option<ProtocolConfig>,
     reference_gas_price: Option<u64>,
     node_keypair: Option<&'a AuthorityKeyPair>,
@@ -98,6 +100,11 @@ impl<'a> TestAuthorityBuilder<'a> {
 
     pub fn with_certificate_deny_config(mut self, config: CertificateDenyConfig) -> Self {
         assert!(self.certificate_deny_config.replace(config).is_none());
+        self
+    }
+
+    pub fn with_verifier_signing_config(mut self, config: VerifierSigningConfig) -> Self {
+        assert!(self.verifier_signing_config.replace(config).is_none());
         self
     }
 
@@ -355,11 +362,13 @@ impl<'a> TestAuthorityBuilder<'a> {
 
         let transaction_deny_config = self.transaction_deny_config.unwrap_or_default();
         let certificate_deny_config = self.certificate_deny_config.unwrap_or_default();
+        let verifier_signing_config = self.verifier_signing_config.unwrap_or_default();
         let authority_overload_config = self.authority_overload_config.unwrap_or_default();
         let pruning_config = AuthorityStorePruningConfig::default();
 
         config.transaction_deny_config = transaction_deny_config;
         config.certificate_deny_config = certificate_deny_config;
+        config.verifier_signing_config = verifier_signing_config;
         config.authority_overload_config = authority_overload_config;
         config.authority_store_pruning_config = pruning_config;
 

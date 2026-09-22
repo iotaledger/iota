@@ -19,7 +19,7 @@
 use iota_indexer::types::OwnerType;
 
 use crate::{
-    backward_view::{OBJECT_COLUMNS, merge_and_deduplicate},
+    backward_view::{OBJECT_COLUMNS, merge},
     filter, query,
     raw_query::RawQuery,
     types::{
@@ -39,7 +39,7 @@ use crate::{
 pub(crate) fn query(parent: IotaAddress, parent_version: u64, page: &Page<Cursor>) -> RawQuery {
     let parent_version = parent_version as i64;
     let parent_filter = parent_dynamic_field_filter(parent);
-    merge_and_deduplicate(vec![
+    merge(vec![
         dynamic_fields_from_checkpointed_objects(parent_version, page, &parent_filter),
         dynamic_fields_from_historical_objects(parent_version, page, &parent_filter),
     ])
@@ -79,12 +79,6 @@ fn parent_dynamic_field_filter(parent: IotaAddress) -> impl Fn(RawQuery) -> RawQ
 /// the row level. This is needed because a `(id, version)` pair can
 /// briefly exist in both tables during the race window between
 /// `objects_backward_history` and `checkpointed_objects` writes.
-///
-/// # Implementation notes
-///
-/// The merge step uses `DISTINCT ON` to deduplicate *within a page* only;
-/// source-level disjointness is required to keep the result correct across
-/// page boundaries.
 fn dynamic_fields_from_checkpointed_objects(
     parent_version: i64,
     page: &Page<Cursor>,
@@ -135,9 +129,9 @@ fn dynamic_fields_from_checkpointed_objects(
 /// object, which for objects with many historical versions can kill the
 /// performance.
 ///
-/// The dedupe step relies on the partial index
-/// `objects_backward_history_owner_df` on `(owner_id, object_id) WHERE
-/// owner_type = 2 AND df_kind IS NOT NULL`.
+/// The dedupe reads its candidate ids through the
+/// `objects_backward_history_owner_value` index (seeking `owner_type = 2,
+/// owner_id = parent`), heap-fetching `object_id` and `df_kind`.
 fn dynamic_fields_from_historical_objects(
     parent_version: i64,
     page: &Page<Cursor>,
@@ -145,8 +139,8 @@ fn dynamic_fields_from_historical_objects(
 ) -> RawQuery {
     // Distinct DF object_ids owned by the parent. `filter_fn` adds the
     // `owner_id = $parent AND owner_type = 2 AND df_kind IS NOT NULL`
-    // predicate, which together with the partial index lets Postgres do
-    // an Index Only Scan to find these ids.
+    // predicate; Postgres seeks the `owner_value` index and heap-fetches
+    // `object_id`/`df_kind` to find these ids.
     let df_ids = filter_fn(query!(
         "SELECT DISTINCT object_id FROM objects_backward_history"
     ));

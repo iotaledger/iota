@@ -36,7 +36,7 @@ module P0::m {
 
 //# create-checkpoint
 
-//# run-graphql --cursors bcs(@{obj_0_0},1)
+//# run-graphql --cursors bcs(@{obj_0_0},2,1)
 {
   objects(before: "@{cursor_0}", last: 50) {
     nodes {
@@ -46,7 +46,7 @@ module P0::m {
   }
 }
 
-//# run-graphql --cursors bcs(@{obj_0_0},2)
+//# run-graphql --cursors bcs(@{obj_0_0},3,2)
 {
   objects(before: "@{cursor_0}", last: 50) {
     nodes {

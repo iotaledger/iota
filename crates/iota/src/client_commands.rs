@@ -19,7 +19,7 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::{Client as GrpcClient, read_mask_fields::ObjectField};
+use iota_grpc_client::{GrpcClient, read_mask_fields::ObjectField};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -51,12 +51,11 @@ use iota_sdk::{
 };
 use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
-    Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
-    SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
-    TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
+    Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
+    ObjectId, ObjectReference, Owner, SenderSignedTransaction, SharedObjectReference,
+    SignatureScheme, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
+    UserSignature, Version,
     crypto::{Intent, IntentMessage},
-    gas::GasCostSummary,
-    move_package::MovePackage,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{

@@ -4,7 +4,7 @@
 //! gRPC-backed store (`feature = "grpc"`, native only); see [`GrpcStore`].
 
 use iota_grpc_client::{
-    Client,
+    GrpcClient,
     read_mask_fields::{EpochReadMask, ObjectReadMask, ServiceInfoReadMask},
 };
 use iota_sdk_types::{CheckpointDigest, Digest, ObjectId, Version};
@@ -34,7 +34,7 @@ pub struct GrpcStore {
 impl GrpcStore {
     /// Wrap an existing client. The store starts with the built-in framework
     /// packages already loaded so Move calls resolve.
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: GrpcClient) -> Self {
         Self {
             cache: CachingStore::new(GrpcFetcher { client }),
         }
@@ -48,7 +48,7 @@ impl GrpcStore {
     /// Returns [`VmSdkError::Store`] if the client cannot be created for `url`.
     pub fn connect(url: impl Into<String>) -> Result<Self, VmSdkError> {
         let url: String = url.into();
-        let client = Client::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
+        let client = GrpcClient::new(url).map_err(|e| StoreError::new("connect gRPC", e))?;
         Ok(Self::new(client))
     }
 
@@ -139,7 +139,7 @@ impl Store for GrpcStore {
 /// gRPC transport for [`CachingStore`].
 #[derive(Clone)]
 struct GrpcFetcher {
-    client: Client,
+    client: GrpcClient,
 }
 
 impl ObjectFetcher for GrpcFetcher {
@@ -176,7 +176,7 @@ impl ObjectFetcher for GrpcFetcher {
 /// as absent rather than fault. The batched read reports a missing object per
 /// requested ref, so the refs the node could serve survive a missing one.
 fn skip_not_found<T>(
-    results: Vec<Result<T, iota_grpc_client::Error>>,
+    results: Vec<Result<T, iota_grpc_client::GrpcError>>,
 ) -> Result<Vec<T>, StoreError> {
     let mut items = Vec::with_capacity(results.len());
     for result in results {
@@ -191,12 +191,12 @@ fn skip_not_found<T>(
 
 #[cfg(test)]
 mod tests {
-    use iota_grpc_client::{Error, RpcStatus};
+    use iota_grpc_client::{GrpcError, RpcStatus};
 
     use super::skip_not_found;
 
-    fn server_error(code: tonic::Code) -> Error {
-        Error::Server(RpcStatus {
+    fn server_error(code: tonic::Code) -> GrpcError {
+        GrpcError::Server(RpcStatus {
             code: code.into(),
             message: String::new(),
             details: Vec::new(),
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn every_ref_missing_yields_no_objects() {
-        let results: Vec<Result<u32, Error>> = vec![
+        let results: Vec<Result<u32, GrpcError>> = vec![
             Err(server_error(tonic::Code::NotFound)),
             Err(server_error(tonic::Code::NotFound)),
         ];
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn an_error_other_than_not_found_fails_the_fetch() {
-        let results: Vec<Result<u32, Error>> =
+        let results: Vec<Result<u32, GrpcError>> =
             vec![Ok(1), Err(server_error(tonic::Code::Internal))];
 
         assert!(skip_not_found(results).is_err());

@@ -11,7 +11,7 @@ use std::{
 use backoff::backoff::Backoff;
 use futures::{StreamExt, TryStreamExt};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_grpc_client::Client as GrpcClient;
+use iota_grpc_client::GrpcClient;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,

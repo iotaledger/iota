@@ -13,11 +13,11 @@ use iota_sdk_types::{
     Address, Argument, CanceledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
-    GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference,
+    GasCostSummary, GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference,
     OwnedObjectReference, Owner, ProgrammableTransaction, SenderSignedTransaction,
     SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
     TransactionEventsDigest, TransactionKind, TransferObjects, TypeTag, UserSignature, Version,
-    VersionAssignment, WriteKind, gas::GasCostSummary,
+    VersionAssignment, WriteKind,
 };
 use iota_types::{
     base_types::EpochId,
@@ -1063,8 +1063,8 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
                 .modified_at_versions()
                 .into_iter()
                 .map(|modified| IotaTransactionBlockEffectsModifiedAtVersions {
-                    object_id: modified.object_id,
-                    sequence_number: modified.version,
+                    object_id: *modified.object_id(),
+                    sequence_number: modified.version(),
                 })
                 .collect(),
             gas_used: native.gas_cost_summary().clone(),
@@ -1081,8 +1081,8 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             unwrapped_then_deleted: native.unwrapped_then_deleted().to_vec(),
             wrapped: native.wrapped().to_vec(),
             gas_object: OwnedObjectRef {
-                owner: native.gas_object().owner,
-                reference: native.gas_object().reference,
+                owner: *native.gas_object().owner(),
+                reference: *native.gas_object().reference(),
             },
             events_digest: native.events_digest().copied(),
             dependencies: native.dependencies().to_vec(),
@@ -1637,8 +1637,8 @@ fn to_owned_ref(owned_refs: Vec<OwnedObjectReference>) -> Vec<OwnedObjectRef> {
     owned_refs
         .into_iter()
         .map(|owned| OwnedObjectRef {
-            owner: owned.owner,
-            reference: owned.reference,
+            owner: *owned.owner(),
+            reference: *owned.reference(),
         })
         .collect()
 }
@@ -2261,32 +2261,32 @@ impl Display for IotaCommand {
                     write!(f, "None")?;
                 }
                 write!(f, ",[")?;
-                write_sep(f, elems, ",")?;
+                write_sep(f, elems, None, ",")?;
                 write!(f, "])")
             }
             Self::TransferObjects(objs, addr) => {
                 write!(f, "TransferObjects([")?;
-                write_sep(f, objs, ",")?;
+                write_sep(f, objs, None, ",")?;
                 write!(f, "],{addr})")
             }
             Self::SplitCoins(coin, amounts) => {
                 write!(f, "SplitCoins({coin},")?;
-                write_sep(f, amounts, ",")?;
+                write_sep(f, amounts, None, ",")?;
                 write!(f, ")")
             }
             Self::MergeCoins(target, coins) => {
                 write!(f, "MergeCoins({target},")?;
-                write_sep(f, coins, ",")?;
+                write_sep(f, coins, None, ",")?;
                 write!(f, ")")
             }
             Self::Publish(deps) => {
                 write!(f, "Publish(<modules>,")?;
-                write_sep(f, deps, ",")?;
+                write_sep(f, deps, None, ",")?;
                 write!(f, ")")
             }
             Self::Upgrade(deps, current_package_id, ticket) => {
                 write!(f, "Upgrade(<modules>, {ticket},")?;
-                write_sep(f, deps, ",")?;
+                write_sep(f, deps, None, ",")?;
                 write!(f, ", {current_package_id}")?;
                 write!(f, ")")
             }
@@ -2397,17 +2397,29 @@ pub struct IotaProgrammableMoveCall {
     pub arguments: Vec<IotaArgument>,
 }
 
-fn write_sep<T: Display>(
+/// Writes `items` to `f`, joined by `separator`.
+///
+/// When `delimiters` is given the output is wrapped in them. An empty iterator
+/// writes nothing at all, delimiters included.
+pub(crate) fn write_sep<T: Display>(
     f: &mut Formatter<'_>,
     items: impl IntoIterator<Item = T>,
-    sep: &str,
+    delimiters: Option<(&str, &str)>,
+    separator: &str,
 ) -> std::fmt::Result {
-    let mut xs = items.into_iter().peekable();
-    while let Some(x) = xs.next() {
-        write!(f, "{x}")?;
-        if xs.peek().is_some() {
-            write!(f, "{sep}")?;
-        }
+    let mut xs = items.into_iter();
+    let Some(x) = xs.next() else {
+        return Ok(());
+    };
+    if let Some((left, _)) = delimiters {
+        write!(f, "{left}")?;
+    }
+    write!(f, "{x}")?;
+    for x in xs {
+        write!(f, "{separator}{x}")?;
+    }
+    if let Some((_, right)) = delimiters {
+        write!(f, "{right}")?;
     }
     Ok(())
 }
@@ -2424,11 +2436,11 @@ impl Display for IotaProgrammableMoveCall {
         write!(f, "{package}::{module}::{function}")?;
         if !type_arguments.is_empty() {
             write!(f, "<")?;
-            write_sep(f, type_arguments, ",")?;
+            write_sep(f, type_arguments, None, ",")?;
             write!(f, ">")?;
         }
         write!(f, "(")?;
-        write_sep(f, arguments, ",")?;
+        write_sep(f, arguments, None, ",")?;
         write!(f, ")")
     }
 }

@@ -14,7 +14,7 @@ use std::{
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use iota_grpc_client::{
-    Client as GrpcClient,
+    GrpcClient,
     read_mask_fields::{ObjectField, ObjectReadMask, OwnedObjectReadMask, TransactionField},
 };
 use iota_keys::keystore::AccountKeystore;
@@ -24,14 +24,9 @@ use iota_sdk_types::{
     Address, ObjectId, ObjectReference, Owner, StructTag, Transaction, TransactionDigest,
     TransactionEffects, crypto::Intent,
 };
-#[cfg(test)]
-use iota_types::transaction::SenderSignedTransactionAPI;
 use iota_types::{
-    effects::TransactionEffectsAPI,
-    gas_coin::GasCoin,
-    object::Object,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionAPI, TransactionEnvelope},
+    effects::TransactionEffectsAPI, gas_coin::GasCoin, object::Object,
+    transaction::TransactionEnvelope,
 };
 use prometheus_filtered::Registry;
 use tap::tap::TapFallible;
@@ -381,7 +376,7 @@ impl SimpleFaucet {
         match response.into_parts().0.into_iter().next() {
             Some(Ok(proto_object)) => Ok(Some(Object::from(proto_object.object()?))),
             // Per-item error: the object does not exist (anymore).
-            Some(Err(iota_grpc_client::Error::Server(status)))
+            Some(Err(iota_grpc_client::GrpcError::Server(status)))
                 if status.code == tonic::Code::NotFound as i32 =>
             {
                 Ok(None)
@@ -744,20 +739,12 @@ impl SimpleFaucet {
         budget: u64,
     ) -> Result<Transaction, anyhow::Error> {
         let gas_payment = self.get_object_ref(coin_id).await?;
-        let gas_price = self.get_gas_price().await?;
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.pay_iota(vec![recipient; amounts.len()], amounts.to_vec())?;
-            builder.finish()
-        };
+        let mut builder = self.grpc_client.transaction_builder(signer);
+        builder
+            .pay_iota(amounts.iter().map(|amount| (recipient, *amount)))
+            .gas_refs([gas_payment]);
 
-        Ok(Transaction::new_programmable(
-            signer,
-            vec![gas_payment],
-            pt,
-            budget,
-            gas_price,
-        ))
+        Ok(builder.finish_with_budget(budget).await?)
     }
 
     async fn check_and_map_transfer_gas_result(
@@ -773,14 +760,12 @@ impl SimpleFaucet {
                 "PayIota Transaction should create exact {number_of_coins:?} new coins, but got {created:?}"
             )));
         }
-        assert!(
-            created.iter().all(
-                |owned_ref| matches!(owned_ref.owner, Owner::Address(addr) if addr == recipient)
-            )
-        );
+        assert!(created.iter().all(
+            |owned_ref| matches!(owned_ref.owner(), Owner::Address(addr) if *addr == recipient)
+        ));
         let coin_ids: Vec<ObjectId> = created
             .iter()
-            .map(|owned_ref| *owned_ref.reference.object_id())
+            .map(|owned_ref| *owned_ref.reference().object_id())
             .collect();
         Ok((digest, coin_ids))
     }
@@ -793,25 +778,15 @@ impl SimpleFaucet {
         budget: u64,
     ) -> Result<Transaction, anyhow::Error> {
         let gas_payment = self.get_object_ref(coin_id).await?;
-        let gas_price = self.get_gas_price().await?;
+        let mut builder = self.grpc_client.transaction_builder(signer);
         // TODO (Jian): change to make this more efficient by changing impl to one
         // Splitcoin, and many TransferObjects
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            for (_uuid, recipient, amounts) in batch_requests {
-                let recipients = vec![recipient; amounts.len()];
-                builder.pay_iota(recipients, amounts)?;
-            }
-            builder.finish()
-        };
+        for (_uuid, recipient, amounts) in batch_requests {
+            builder.pay_iota(amounts.into_iter().map(|amount| (recipient, amount)));
+        }
+        builder.gas_refs([gas_payment]);
 
-        Ok(Transaction::new_programmable(
-            signer,
-            vec![gas_payment],
-            pt,
-            budget,
-            gas_price,
-        ))
+        Ok(builder.finish_with_budget(budget).await?)
     }
 
     async fn check_and_map_batch_transfer_gas_result(
@@ -828,9 +803,9 @@ impl SimpleFaucet {
         created.iter().for_each(|owned_ref| {
             // Insert the coins into the map based on the destination address
             address_coins_map
-                .entry(*owned_ref.owner.address_or_object().unwrap())
+                .entry(*owned_ref.owner().address_or_object().unwrap())
                 .or_default()
-                .push(owned_ref.reference);
+                .push(*owned_ref.reference());
         });
 
         // Assert that the number of times a iota_address occurs is the number of times
@@ -1217,38 +1192,90 @@ pub async fn batch_transfer_gases(
 #[cfg(test)]
 mod tests {
     use anyhow::*;
-    use iota_json_rpc_types::{
-        IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    };
+    use iota_grpc_client::GrpcClient;
     use iota_sdk::wallet_context::WalletContext;
-    use iota_sdk_types::{SenderSignedTransaction, crypto::Intent};
-    use iota_types::transaction::TransactionAPI;
+    use iota_sdk_transaction_builder::{TransactionBuilder, WaitForTransaction, unresolved};
+    use iota_sdk_types::{ExecutionStatus, TransactionEffectsV1};
     use test_cluster::TestClusterBuilder;
 
     use super::*;
 
-    async fn execute_tx(
-        ctx: &mut WalletContext,
-        tx: Transaction,
-    ) -> Result<IotaTransactionBlockEffects, anyhow::Error> {
-        let signature =
-            ctx.config()
-                .keystore()
-                .sign_secure(&tx.sender(), &tx, Intent::iota_transaction())?;
-        let sender_signed_tx = SenderSignedTransaction::new_from_sender_signature(tx, signature);
-        let transaction = TransactionEnvelope::new(sender_signed_tx);
-        let response = ctx.execute_transaction_may_fail(transaction).await?;
-        let result_effects = response.effects;
+    /// Gas budget of the transactions that set up a test's gas coins.
+    const TEST_GAS_BUDGET: u64 = 50_000_000;
 
-        if let Some(effects) = result_effects {
-            if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {
-                bail!("error executing transaction: {:#?}", effects.status());
-            } else {
-                Ok(effects)
-            }
-        } else {
-            bail!("effects from IotaTransactionBlockResult should not be empty");
+    /// Execute the builder's transaction, signed by the wallet's active
+    /// address, and wait for it to be finalized.
+    async fn execute_tx(
+        ctx: &WalletContext,
+        builder: TransactionBuilder<&GrpcClient>,
+    ) -> Result<TransactionEffectsV1, anyhow::Error> {
+        let address = ctx.active_address()?;
+        let keystore = ctx.config().keystore();
+        let effects = builder
+            .execute(
+                keystore.get_key(&address)?.as_keypair()?,
+                WaitForTransaction::Finalized,
+            )
+            .await?
+            .into_v1();
+
+        if let ExecutionStatus::Failure { error, .. } = &effects.status {
+            bail!("error executing transaction: {error:?}");
         }
+        Ok(effects)
+    }
+
+    /// Split `coin` into `count` coins of equal balance, paying for the
+    /// transaction with the separate gas coin `gas`.
+    async fn split_coin_equal(
+        ctx: &WalletContext,
+        coin: ObjectId,
+        gas: ObjectId,
+        count: u64,
+    ) -> Result<TransactionEffectsV1, anyhow::Error> {
+        let address = ctx.active_address()?;
+        let client = ctx.get_grpc_client().await?;
+        let mut builder = client.transaction_builder(address);
+        builder.divide_coin(coin, count);
+        builder.gas([gas]).gas_budget(TEST_GAS_BUDGET);
+        execute_tx(ctx, builder).await
+    }
+
+    /// Split each of `amounts` off `coin`, paying for the transaction with the
+    /// separate gas coin `gas`.
+    async fn split_coin(
+        ctx: &WalletContext,
+        coin: ObjectId,
+        gas: ObjectId,
+        amounts: Vec<u64>,
+    ) -> Result<TransactionEffectsV1, anyhow::Error> {
+        let address = ctx.active_address()?;
+        let client = ctx.get_grpc_client().await?;
+        let mut builder = client.transaction_builder(address);
+        let amounts = builder.pure(amounts);
+        builder
+            .move_call(ObjectId::FRAMEWORK, "pay", "split_vec")
+            .type_tags([StructTag::new_gas().into()])
+            .arguments((coin, amounts));
+        builder.gas([gas]).gas_budget(TEST_GAS_BUDGET);
+        execute_tx(ctx, builder).await
+    }
+
+    /// Transfer the whole of `coin`, which also pays for the transaction, to
+    /// `recipient`.
+    async fn transfer_coin(
+        ctx: &WalletContext,
+        coin: ObjectId,
+        recipient: Address,
+    ) -> Result<TransactionEffectsV1, anyhow::Error> {
+        let address = ctx.active_address()?;
+        let client = ctx.get_grpc_client().await?;
+        let mut builder = client.transaction_builder(address);
+        builder
+            .transfer_objects(recipient, [unresolved::Argument::Gas])
+            .gas([coin])
+            .gas_budget(TEST_GAS_BUDGET);
+        execute_tx(ctx, builder).await
     }
 
     #[tokio::test]
@@ -1267,26 +1294,19 @@ mod tests {
         };
 
         let address = test_cluster.get_address_0();
-        let mut context = test_cluster.wallet;
+        let context = test_cluster.wallet;
         let gas_coins = context
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
-        let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
-
-        execute_tx(&mut context, tx_data).await.unwrap();
+        split_coin_equal(
+            &context,
+            gas_coins.first().unwrap().object_id,
+            gas_coins.last().unwrap().object_id,
+            10,
+        )
+        .await
+        .unwrap();
 
         let faucet = SimpleFaucet::new(
             context,
@@ -1422,26 +1442,19 @@ mod tests {
         let prom_registry = Registry::new();
         let tmp_dir = iota_common::tempdir();
         let address = test_cluster.get_address_0();
-        let mut context = test_cluster.wallet;
+        let context = test_cluster.wallet;
         let gas_coins = context
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
-        let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
-
-        execute_tx(&mut context, tx_data).await.unwrap();
+        split_coin_equal(
+            &context,
+            gas_coins.first().unwrap().object_id,
+            gas_coins.last().unwrap().object_id,
+            10,
+        )
+        .await
+        .unwrap();
 
         let faucet = SimpleFaucet::new(
             context,
@@ -1588,7 +1601,6 @@ mod tests {
             ..Default::default()
         };
 
-        let client = context.get_client().await.unwrap();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
@@ -1601,18 +1613,9 @@ mod tests {
         let faucet: &mut SimpleFaucet = &mut Arc::try_unwrap(faucet).unwrap();
 
         // Now we transfer one gas out
-        let gas_budget = 50_000_000;
-        let tx_data = client
-            .transaction_builder()
-            .pay_all_iota(
-                address,
-                vec![bad_gas.object_id],
-                Address::random(),
-                gas_budget,
-            )
+        transfer_coin(faucet.wallet_mut(), bad_gas.object_id, Address::random())
             .await
             .unwrap();
-        execute_tx(faucet.wallet_mut(), tx_data).await.unwrap();
 
         let number_of_coins = gas_coins.len();
         let amounts = &vec![1; number_of_coins];
@@ -1717,7 +1720,7 @@ mod tests {
             .await;
         let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
-        let mut context = test_cluster.wallet;
+        let context = test_cluster.wallet;
         let gas_coins = context
             .get_all_gas_objects_owned_by_address(address)
             .await
@@ -1731,27 +1734,16 @@ mod tests {
             ..Default::default()
         };
         let tiny_value = (config.num_coins as u64 * config.amount) + 1;
-        let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(
-                gas_coins.first().unwrap().object_id,
-                Some(vec![tiny_value]),
-                None,
-            )
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
-        let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
+        let effects = split_coin(
+            &context,
+            gas_coins.first().unwrap().object_id,
+            gas_coins.last().unwrap().object_id,
+            vec![tiny_value],
+        )
+        .await
+        .unwrap();
 
-        let effects = execute_tx(&mut context, tx_data).await.unwrap();
-
-        let tiny_coin_id = effects.created()[0].reference.object_id;
+        let tiny_coin_id = *effects.created()[0].reference().object_id();
 
         // Get the latest list of gas
         let gas_coins = context.gas_objects(address).await.unwrap();
@@ -1815,7 +1807,7 @@ mod tests {
             .await;
         let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
-        let mut context = test_cluster.wallet;
+        let context = test_cluster.wallet;
         let gas_coins = context
             .get_all_gas_objects_owned_by_address(address)
             .await
@@ -1828,40 +1820,21 @@ mod tests {
         // The coin that is split off stays because we don't try to refresh the coin
         // vector
         let reasonable_value = (config.num_coins as u64 * config.amount) * 10;
-        let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(
-                gas_coins.first().unwrap().object_id,
-                Some(vec![reasonable_value]),
-                None,
-            )
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
-        let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
-        execute_tx(&mut context, tx_data).await.unwrap();
+        split_coin(
+            &context,
+            gas_coins.first().unwrap().object_id,
+            gas_coins.last().unwrap().object_id,
+            vec![reasonable_value],
+        )
+        .await
+        .unwrap();
 
         let destination_address = Address::random();
         // Transfer all valid gases away except for 1
         for gas in gas_coins.iter().take(gas_coins.len() - 1) {
-            let tx_data = client
-                .transaction_builder()
-                .transfer_iota(
-                    address,
-                    gas.object_id,
-                    gas_budget,
-                    destination_address,
-                    None,
-                )
+            transfer_coin(&context, gas.object_id, destination_address)
                 .await
                 .unwrap();
-            execute_tx(&mut context, tx_data).await.unwrap();
         }
 
         // Assert that the coins were transferred away successfully to destination
@@ -1910,7 +1883,7 @@ mod tests {
             .await;
         let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
-        let mut context = test_cluster.wallet;
+        let context = test_cluster.wallet;
         let gas_coins = context
             .get_all_gas_objects_owned_by_address(address)
             .await
@@ -1921,44 +1894,22 @@ mod tests {
         };
 
         let tiny_value = (config.num_coins as u64 * config.amount) + 1;
-        let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(
-                gas_coins.first().unwrap().object_id,
-                Some(vec![tiny_value]),
-                None,
-            )
-            .await
-            .unwrap();
-
-        let gas_budget = 50_000_000;
-        let rgp = context.get_reference_gas_price().await.unwrap();
-
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
-
-        execute_tx(&mut context, tx_data).await.unwrap();
+        split_coin(
+            &context,
+            gas_coins.first().unwrap().object_id,
+            gas_coins.last().unwrap().object_id,
+            vec![tiny_value],
+        )
+        .await
+        .unwrap();
 
         let destination_address = Address::random();
 
         // Transfer all valid gases away
         for gas in gas_coins {
-            let tx_data = client
-                .transaction_builder()
-                .transfer_iota(
-                    address,
-                    gas.object_id,
-                    gas_budget,
-                    destination_address,
-                    None,
-                )
+            transfer_coin(&context, gas.object_id, destination_address)
                 .await
                 .unwrap();
-            execute_tx(&mut context, tx_data).await.unwrap();
         }
 
         // Assert that the coins were transferred away successfully to destination
@@ -2085,25 +2036,19 @@ mod tests {
             ..Default::default()
         };
         let address = test_cluster.get_address_0();
-        let mut context = test_cluster.wallet;
+        let context = test_cluster.wallet;
         let gas_coins = context
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let client = context.get_client().await.unwrap();
-        let tx_kind = client
-            .transaction_builder()
-            .split_coin_tx_kind(gas_coins.first().unwrap().object_id, None, Some(10))
-            .await
-            .unwrap();
-        let gas_budget = 50_000_000;
-        let rgp = context.get_reference_gas_price().await.unwrap();
-        let tx_data = client
-            .transaction_builder()
-            .tx_data(address, tx_kind, gas_budget, rgp, vec![], None)
-            .await
-            .unwrap();
-        execute_tx(&mut context, tx_data).await.unwrap();
+        split_coin_equal(
+            &context,
+            gas_coins.first().unwrap().object_id,
+            gas_coins.last().unwrap().object_id,
+            10,
+        )
+        .await
+        .unwrap();
 
         let prom_registry = Registry::new();
         let tmp_dir = iota_common::tempdir();

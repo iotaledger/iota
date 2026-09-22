@@ -9,7 +9,9 @@ use std::{
 
 use common::MockGrpcStateReader;
 use iota_config::node::GrpcApiConfig;
-use iota_grpc_client::{CheckpointStreamItem, Client, read_mask_fields::CheckpointResponseField};
+use iota_grpc_client::{
+    CheckpointStreamItem, GrpcClient, read_mask_fields::CheckpointResponseField,
+};
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::{
     read_mask_fields::CheckpointResponseReadMask,
@@ -53,7 +55,11 @@ fn objects_for_effects(
         .modified_at_versions()
         .into_iter()
         .map(|modified| {
-            Object::with_id_owner_version_for_testing(modified.object_id, modified.version, owner)
+            Object::with_id_owner_version_for_testing(
+                *modified.object_id(),
+                modified.version(),
+                owner,
+            )
         })
         .collect();
     let output_objects = effects
@@ -61,8 +67,8 @@ fn objects_for_effects(
         .into_iter()
         .map(|(changed, _)| {
             Object::with_id_owner_version_for_testing(
-                changed.reference.object_id,
-                changed.reference.version,
+                changed.reference().object_id,
+                changed.reference().version,
                 owner,
             )
         })
@@ -137,7 +143,7 @@ async fn test_server_and_client_setup_with_large_checkpoints<
     client_max_message_size_bytes: Option<u32>,
 ) -> (
     GrpcServerHandle,
-    Client,
+    GrpcClient,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
     let mut mock = MockGrpcStateReader::new_from_iter(checkpoint_range);
@@ -158,7 +164,7 @@ async fn test_server_and_client_setup_with_large_checkpoints<
     .await
 }
 
-/// Set up a test server and high-level `Client` with a set of available
+/// Set up a test server and high-level `GrpcClient` with a set of available
 /// checkpoint sequence numbers.
 async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     checkpoint_range: I,
@@ -167,7 +173,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     client_max_message_size_bytes: Option<u32>,
 ) -> (
     GrpcServerHandle,
-    Client,
+    GrpcClient,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
     let mock = mock_state_reader
@@ -178,7 +184,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
 
     let server_addr = server_handle.address();
     let mut client =
-        Client::new(format!("http://{server_addr}")).expect("Failed to connect to gRPC server");
+        GrpcClient::new(format!("http://{server_addr}")).expect("Failed to connect to gRPC server");
 
     if let Some(max_size) = client_max_message_size_bytes {
         client = client.with_max_decoding_message_size(usize::try_from(max_size).unwrap());
@@ -235,7 +241,7 @@ async fn test_start_sequence_number_only() {
                     }
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -288,7 +294,7 @@ async fn test_start_and_future_end_sequence_number() {
                     }
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -335,7 +341,7 @@ async fn test_historical_end_sequence_number_only() {
                     let sequence_number = response.sequence_number();
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -383,7 +389,7 @@ async fn test_future_end_sequence_number_only_full() {
                     let sequence_number = response.sequence_number();
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -441,7 +447,7 @@ async fn test_both_indices_omitted() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -503,7 +509,7 @@ async fn test_historical_to_live_gap_fill() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -580,7 +586,7 @@ async fn test_gap_fill_with_slow_client() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_grpc_client::GrpcError::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -856,7 +862,7 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
         .await;
     assert!(result.is_err(), "Expected error for pruned checkpoint");
     match result.unwrap_err() {
-        iota_grpc_client::Error::Grpc(status) => {
+        iota_grpc_client::GrpcError::Grpc(status) => {
             assert_eq!(status.code(), tonic::Code::NotFound);
             assert!(
                 status
@@ -945,7 +951,7 @@ async fn test_stream_checkpoints_subscriber_cap() {
         )
         .await
     {
-        Err(iota_grpc_client::Error::Grpc(status)) => {
+        Err(iota_grpc_client::GrpcError::Grpc(status)) => {
             assert_eq!(status.code(), tonic::Code::Unavailable);
         }
         Err(other) => panic!("expected Unavailable, got: {other:?}"),
@@ -969,7 +975,7 @@ async fn test_stream_checkpoints_subscriber_cap() {
             .await
         {
             Ok(s) => break s,
-            Err(iota_grpc_client::Error::Grpc(status))
+            Err(iota_grpc_client::GrpcError::Grpc(status))
                 if status.code() == tonic::Code::Unavailable =>
             {
                 if tokio::time::Instant::now() >= deadline {
@@ -1011,7 +1017,7 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
         .await;
 
     match result {
-        Err(iota_grpc_client::Error::Grpc(status)) => {
+        Err(iota_grpc_client::GrpcError::Grpc(status)) => {
             assert_eq!(status.code(), tonic::Code::NotFound);
             assert!(
                 status
@@ -1149,7 +1155,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
     .await;
     let addr = server_handle.address();
 
-    // Use the raw tonic client instead of the high-level Client so we can
+    // Use the raw tonic client instead of the high-level GrpcClient so we can
     // inspect individual streamed CheckpointData messages and verify their
     // sizes. The high-level client reassembles them into a single response.
     let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
@@ -1224,7 +1230,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     .await;
     let addr = server_handle.address();
 
-    // Use the raw tonic client instead of the high-level Client so we can
+    // Use the raw tonic client instead of the high-level GrpcClient so we can
     // inspect individual streamed CheckpointData messages and verify their
     // sizes. The high-level client reassembles them into a single response.
     let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
