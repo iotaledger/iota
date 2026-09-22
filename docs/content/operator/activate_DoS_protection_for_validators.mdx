@@ -150,7 +150,7 @@ The node reads the entry your proxy appended, so a client cannot hide itself by 
 
 The `traffic_control_unresolved_client_requests` metric counts these requests. On a validator it does not sit at zero: other nodes call the validator directly, their requests carry no header, and each one is counted. Read it as a change from its usual level rather than as an absolute number. A rise above that level means that client traffic reaches the node on another path, or that the configured hop count does not match the number of proxies. On a node that serves clients only, and where every request arrives through the proxy, the metric does sit at zero.
 
-Do not configure an `allow-list` on a validator. Other nodes call it over the same listener, so the list would have to name every one of them, and it would have to change with the committee. With `client-id-source: x-forwarded-for` such a list refuses them outright, because their requests carry no header and the node resolves no address to match. With `socket-addr` the node does resolve their addresses, so they are refused unless the list names each of them.
+An `allow-list` on a validator has to name every other node that calls it, because those calls arrive on the same listener. Two configurations are possible, and only one of them works. With `client-id-source: socket-addr` the node resolves the address of each caller, so listing the other nodes does admit them, at the cost of a list that has to change with the committee. With `x-forwarded-for` listing them does not help at all: their requests carry no header, the node resolves no address to match against the list, and it refuses them whatever the list holds. Prefer to leave an `allow-list` off a validator.
 
 ### Determining the Correct Number of Hops
 
