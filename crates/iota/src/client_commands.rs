@@ -3449,8 +3449,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         context.get_reference_gas_price().await?
     };
 
-    let client = context.get_client().await?;
-
     if dev_inspect {
         return execute_dev_inspect(
             context,
