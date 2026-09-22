@@ -446,7 +446,7 @@ impl RpcExampleProvider {
             data: page,
             next_cursor: Some((seq + pagelen).into()),
             has_next_page: true,
-            oldest_available_checkpoint: None,
+            oldest_available_checkpoint: Some(0u64.into()),
         };
 
         Examples::new(

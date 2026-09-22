@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc};
+use std::{fs::File, path::Path, str::FromStr, sync::Arc, time::Duration};
 
 use hex::FromHex;
 use iota_indexer::{
@@ -2019,6 +2019,69 @@ fn get_chain_identifier_with_pruning_enabled() {
                 .is_err()
         )
     });
+}
+
+/// Returns the `oldest_available_checkpoint` reported by `iota_getCheckpoints`.
+///
+/// Pages in descending order since an ascending query from genesis on pruned
+/// indexer fails with [`IndexerError::DataPruned`].
+async fn checkpoints_oldest_available_checkpoint(client: &HttpClient) -> Option<u64> {
+    client
+        .get_checkpoints(None, Some(1), true)
+        .await
+        .expect("get_checkpoints should succeed")
+        .oldest_available_checkpoint
+        .map(|cp| *cp)
+}
+
+/// Polls `iota_getCheckpoints` until the reported `oldest_available_checkpoint`
+/// satisfies `predicate`, and returns it.
+///
+/// The reader refreshes its watermarks from the database periodically, so the
+/// checkpoint it reports trails the pruner by up to one refresh interval.
+async fn wait_for_checkpoints_oldest_available_checkpoint(
+    client: &HttpClient,
+    predicate: impl Fn(Option<u64>) -> bool,
+) -> Option<u64> {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let oldest = checkpoints_oldest_available_checkpoint(client).await;
+            if predicate(oldest) {
+                return oldest;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for the reported oldest available checkpoint")
+}
+
+#[tokio::test]
+async fn get_checkpoints_reports_oldest_available_checkpoint() {
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_get_checkpoints_reports_oldest_available_checkpoint"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    // Nothing is pruned yet, so the response reaches the genesis checkpoint.
+    assert_eq!(
+        wait_for_checkpoints_oldest_available_checkpoint(client, |cp| cp.is_some()).await,
+        Some(0)
+    );
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_checkpoint_pruned(store, 0).await;
+
+    // Once the genesis checkpoint is pruned, the reported checkpoint is above it.
+    let oldest = wait_for_checkpoints_oldest_available_checkpoint(client, |cp| cp > Some(0)).await;
+    assert!(
+        oldest > Some(0),
+        "expected a checkpoint above the pruned genesis one, got {oldest:?}"
+    );
 }
 
 #[test]

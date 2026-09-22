@@ -844,7 +844,8 @@ impl IndexerReader {
         }
     }
 
-    /// Fetches checkpoints from the indexer storage.
+    /// Fetches checkpoints from the indexer storage, along with the oldest
+    /// checkpoint the result can contain data from.
     ///
     /// Retrieval order:
     /// 1. Postgres database
@@ -857,14 +858,29 @@ impl IndexerReader {
         cursor: Option<u64>,
         limit: NonZeroUsize,
         descending_order: bool,
-    ) -> Result<Vec<iota_json_rpc_types::Checkpoint>, IndexerError> {
-        let checkpoints = self
+    ) -> Result<
+        (
+            Vec<iota_json_rpc_types::Checkpoint>,
+            CheckpointSequenceNumber,
+        ),
+        IndexerError,
+    > {
+        let (stored_checkpoints, min_available_cp) = self
             .db()
             .get_checkpoints(cursor, limit.get(), descending_order)
-            .await?
+            .await?;
+
+        let checkpoints = stored_checkpoints
             .into_iter()
             .map(iota_json_rpc_types::Checkpoint::try_from)
             .collect::<IndexerResult<Vec<_>>>()?;
+
+        // With historical fallback configured we can serve checkpoints since genesis
+        let oldest_available_cp = if self.is_fallback_enabled() {
+            0
+        } else {
+            min_available_cp
+        };
 
         if !Self::should_fetch_checkpoints_from_fallback(
             cursor,
@@ -872,7 +888,7 @@ impl IndexerReader {
             limit,
             &checkpoints,
         ) {
-            return Ok(checkpoints);
+            return Ok((checkpoints, oldest_available_cp));
         }
 
         // resolve the expected range of checkpoint sequence numbers
@@ -898,7 +914,7 @@ impl IndexerReader {
             (None, true) => {
                 let Some(latest_checkpoint) = checkpoints.first() else {
                     // checkpoints not synced yet.
-                    return Ok(vec![]);
+                    return Ok((vec![], oldest_available_cp));
                 };
                 let start = latest_checkpoint
                     .sequence_number
@@ -914,13 +930,15 @@ impl IndexerReader {
             ));
         };
 
-        fallback
+        let checkpoints = fallback
             .checkpoints(checkpoints_keys)
             .await?
             .into_iter()
             .flatten()
             .map(iota_json_rpc_types::Checkpoint::try_from)
-            .collect()
+            .collect::<IndexerResult<Vec<_>>>()?;
+
+        Ok((checkpoints, oldest_available_cp))
     }
 
     /// Fetches a batch of checkpoints by sequence number. Each requested seq
@@ -3365,13 +3383,17 @@ impl<'a> DBReader<'a> {
         })
     }
 
+    /// Returns the checkpoints matching the query, along with the oldest
+    /// checkpoint they can come from.
+    ///
+    /// Rows below that checkpoint are filtered out because they are either
+    /// already pruned or scheduled for pruning.
     async fn get_checkpoints(
         &self,
         cursor: Option<u64>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<Vec<StoredCheckpoint>> {
-        // Get min available checkpoint to filter out pruned data
+    ) -> IndexerResult<(Vec<StoredCheckpoint>, CheckpointSequenceNumber)> {
         let min_available_cp = self
             .main_reader
             .watermark_cache
@@ -3379,7 +3401,7 @@ impl<'a> DBReader<'a> {
             .unwrap_or(0);
 
         let pool = self.main_reader.get_pool();
-        run_query_async!(&pool, |conn| {
+        let checkpoints = run_query_async!(&pool, |conn| {
             let mut boxed_query = checkpoints::table.into_boxed();
             boxed_query = boxed_query.filter(checkpoints::sequence_number.ge(min_available_cp));
 
@@ -3401,7 +3423,9 @@ impl<'a> DBReader<'a> {
             boxed_query
                 .limit(limit as i64)
                 .load::<StoredCheckpoint>(conn)
-        })
+        })?;
+
+        Ok((checkpoints, min_available_cp as CheckpointSequenceNumber))
     }
 
     async fn get_object_version(
