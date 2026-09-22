@@ -1322,6 +1322,7 @@
                 "consensus_starfish_speed": true,
                 "consensus_zstd_compression": true,
                 "convert_type_argument_error": true,
+                "deny_authenticator_packages": true,
                 "deny_rule_governance": false,
                 "deny_rule_governance_on_chain": false,
                 "dependency_linkage_error": true,

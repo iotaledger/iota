@@ -49,6 +49,7 @@ feature_flags:
   pcool_skip_immutable_object_locks: true
   pcool_verifier_limits_from_protocol_config: true
   validator_metadata_verify_v2: true
+  deny_authenticator_packages: true
   package_metadata_with_dynamic_module_metadata: true
   report_move_authentication_error: true
   consensus_enable_sliding_window_leader_schedule: true
