@@ -15,7 +15,7 @@ surfaces those spots.
   enum, so roughly half of a whole-workspace run is unrelated (grpc types, our
   own internal enums, third-party crates). Scoping it precisely would need a
   custom rustc driver reusing rustc's exhaustiveness engine, which a dylint lint
-  cannot reach (THIR is stolen before late lints run). That is out of scope here.
+  cannot reach (THIR is dropped before late lints run). That is out of scope here.
 
 ## How it works
 
