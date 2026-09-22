@@ -4696,8 +4696,7 @@ async fn test_local_is_rejected_without_dry_run() -> Result<(), anyhow::Error> {
 
 // A receive loads the received object during execution, so it reaches the
 // effects without being one of the transaction's inputs. Both dry-run paths
-// must still report the same changes for it. Needs a real multi-threaded
-// runtime, as `test_local_dry_run_matches_node_dry_run` does.
+// must still report the same changes for it.
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run_for_received_object() -> Result<(), anyhow::Error>
@@ -4893,8 +4892,7 @@ async fn test_local_dry_run_reports_the_same_gas_budget() -> Result<(), anyhow::
 
 // A mutable shared input is what makes a node price in congestion, and a
 // package published by the run itself is the one case whose types cannot be
-// resolved from the store. Needs a real multi-threaded runtime, as
-// `test_local_dry_run_matches_node_dry_run` does.
+// resolved from the store.
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
@@ -5028,8 +5026,7 @@ async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
 }
 
 // The PTB command reaches the local path through its own parser rather than
-// clap. Needs a real multi-threaded runtime, as
-// `test_local_dry_run_matches_node_dry_run` does.
+// clap.
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
