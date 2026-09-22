@@ -13,7 +13,6 @@ use iota_sdk_types::{
     Owner, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, Version,
 };
 use iota_types::{
-    base_types::CommitRound,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
@@ -36,7 +35,7 @@ use crate::{
             LockDetails,
             consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::{
-                HandlerLatestObject, HandlerLatestObjectKind, SyncAheadRecord,
+                CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind, SyncAheadRecord,
                 handler_latest_upserts,
             },
         },
@@ -1770,7 +1769,7 @@ fn activate_deny_rules(
     rules: iota_sdk_types::DenyRuleSet,
     generation: u64,
 ) {
-    let mut output = ConsensusCommitOutput::new(0);
+    let mut output = ConsensusCommitOutput::new(0, 0);
     output.record_deny_rule_proposal(
         iota_types::messages_consensus::TransactionDenyRuleProposal {
             authority: epoch_store.name,
@@ -2176,27 +2175,41 @@ impl BookkeepingSetup {
         effects
     }
 
-    /// The handler-latest row of `id`, which the handler must have written.
+    /// The handler-processed row of `id` at `version`, which the handler must
+    /// have written.
     #[track_caller]
-    fn handler_latest(&self, id: &ObjectId) -> HandlerLatestObject {
+    fn handler_processed_object(&self, id: &ObjectId, version: Version) -> HandlerProcessedObject {
         self.epoch_store
-            .handler_latest(id)
+            .handler_processed_object(&ObjectKey(*id, version))
             .unwrap()
             .unwrap_or_else(|| {
-                panic!("the handler must have written a handler-latest row for {id}")
+                panic!("the handler must have written a handler-latest row for {id} at {version}")
             })
     }
 
-    /// Registers `tx`'s digest in the digest -> commit-round map for `round`
-    /// before executing - the handler-known classification, under which the
-    /// hook writes handler-latest rows instead of sync-ahead records.
+    /// Asserts that no handler-processed row exists for `id` at `version` -
+    /// the version a sync-ahead execution produced.
+    #[track_caller]
+    fn assert_no_handler_row(&self, id: &ObjectId, version: Version) {
+        assert_eq!(
+            self.epoch_store
+                .handler_processed_object(&ObjectKey(*id, version))
+                .unwrap(),
+            None
+        );
+    }
+
+    /// Registers `tx`'s key in the transaction-key -> commit-index map for
+    /// `index` before executing - the handler-known classification, under
+    /// which the hook writes handler-latest rows instead of sync-ahead
+    /// records.
     fn execute_as_handler_known(
         &self,
         tx: VerifiedTransaction,
-        round: CommitRound,
+        index: CommitIndex,
     ) -> TransactionEffects {
         self.epoch_store
-            .assign_commit_to_transactions(round, vec![*tx.digest()]);
+            .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
         self.execute(tx)
     }
 
@@ -2209,10 +2222,10 @@ impl BookkeepingSetup {
         gas_id: &ObjectId,
         sender: Address,
         sender_key: &AccountPrivateKey,
-        round: CommitRound,
+        index: CommitIndex,
     ) -> TransactionEffects {
         let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
-        self.execute_as_handler_known(tx, round)
+        self.execute_as_handler_known(tx, index)
     }
 
     /// A verified call into `module::function` of the published test package
@@ -2427,7 +2440,7 @@ async fn executed_transaction_updates_sync_ahead_bookkeeping() {
         Some(obj_genesis_ref.version),
         first.lamport_version(),
     );
-    assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
+    s.assert_no_handler_row(&obj_id, first.lamport_version());
 
     // A second transfer extends the object's chain: the base stays the
     // version the chain originally grew from while the chain head advances.
@@ -2483,10 +2496,9 @@ async fn handler_known_transaction_writes_handler_latest_only() {
     // The gas coin is a written object like any other.
     for consumed_ref in [obj_genesis_ref, gas_genesis_ref] {
         let id = consumed_ref.object_id();
-        let row = s.handler_latest(id);
-        assert_eq!(row.version, effects.lamport_version());
+        let row = s.handler_processed_object(id, effects.lamport_version());
         assert_eq!(row.produced_at, 7);
-        assert_eq!(row.kind, HandlerLatestObjectKind::Live);
+        assert_eq!(row.kind, HandlerProcessedObjectKind::Live);
 
         assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
         s.assert_not_sheltered(consumed_ref);
@@ -2513,8 +2525,9 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
     );
     let created_ref = create_effects.created()[0].reference;
     assert_eq!(
-        s.handler_latest(created_ref.object_id()).kind,
-        HandlerLatestObjectKind::Live
+        s.handler_processed_object(created_ref.object_id(), created_ref.version)
+            .kind,
+        HandlerProcessedObjectKind::Live
     );
 
     // The deletion in a later commit replaces the live row with a tombstone
@@ -2528,11 +2541,10 @@ async fn handler_known_delete_writes_a_deleted_tombstone_row() {
         4,
     );
     assert_eq!(
-        s.handler_latest(created_ref.object_id()),
-        HandlerLatestObject {
-            version: delete_effects.lamport_version(),
+        s.handler_processed_object(created_ref.object_id(), delete_effects.lamport_version()),
+        HandlerProcessedObject {
             digest: ObjectDigest::OBJECT_DELETED,
-            kind: HandlerLatestObjectKind::Deleted,
+            kind: HandlerProcessedObjectKind::Deleted,
             produced_at: 4,
             initial_shared_version: None,
         }
@@ -2570,23 +2582,24 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
         5,
     );
     assert_eq!(
-        s.handler_latest(created_ref.object_id()),
-        HandlerLatestObject {
-            version: wrap_effects.lamport_version(),
+        s.handler_processed_object(created_ref.object_id(), wrap_effects.lamport_version()),
+        HandlerProcessedObject {
             digest: ObjectDigest::OBJECT_WRAPPED,
-            kind: HandlerLatestObjectKind::Wrapped,
+            kind: HandlerProcessedObjectKind::Wrapped,
             produced_at: 5,
             initial_shared_version: None,
         }
     );
     let wrapper_ref = wrap_effects.created()[0].reference;
     assert_eq!(
-        s.handler_latest(wrapper_ref.object_id()).kind,
-        HandlerLatestObjectKind::Live
+        s.handler_processed_object(wrapper_ref.object_id(), wrapper_ref.version)
+            .kind,
+        HandlerProcessedObjectKind::Live
     );
 
-    // Unwrapping resurfaces the id at a higher version: the tombstone gives
-    // way to a live row, and the wrapper's row becomes the tombstone.
+    // Unwrapping resurfaces the id at a higher version with a live row; the
+    // wrapped tombstone stays at its own version, and the wrapper gets a
+    // deleted tombstone.
     let unwrap_effects = s.handler_known_object_basics_call(
         "unwrap",
         vec![CallArg::ImmutableOrOwned(wrapper_ref)],
@@ -2598,21 +2611,24 @@ async fn handler_known_wrap_and_unwrap_move_the_row_through_a_wrapped_tombstone(
     let unwrapped_ref = unwrap_effects.unwrapped()[0].reference;
     assert_eq!(unwrapped_ref.object_id(), created_ref.object_id());
     assert_eq!(
-        s.handler_latest(created_ref.object_id()),
-        HandlerLatestObject {
-            version: unwrapped_ref.version,
+        s.handler_processed_object(created_ref.object_id(), unwrapped_ref.version),
+        HandlerProcessedObject {
             digest: unwrapped_ref.digest,
-            kind: HandlerLatestObjectKind::Live,
+            kind: HandlerProcessedObjectKind::Live,
             produced_at: 6,
             initial_shared_version: None,
         }
     );
     assert_eq!(
-        s.handler_latest(wrapper_ref.object_id()),
-        HandlerLatestObject {
-            version: unwrap_effects.lamport_version(),
+        s.handler_processed_object(created_ref.object_id(), wrap_effects.lamport_version())
+            .kind,
+        HandlerProcessedObjectKind::Wrapped
+    );
+    assert_eq!(
+        s.handler_processed_object(wrapper_ref.object_id(), unwrap_effects.lamport_version()),
+        HandlerProcessedObject {
             digest: ObjectDigest::OBJECT_DELETED,
-            kind: HandlerLatestObjectKind::Deleted,
+            kind: HandlerProcessedObjectKind::Deleted,
             produced_at: 6,
             initial_shared_version: None,
         }
@@ -2636,11 +2652,10 @@ async fn handler_known_share_records_the_initial_shared_version() {
     // The creation row doubles as the created-shared flag: it carries the
     // initial shared version, which the shared-input checks read.
     assert_eq!(
-        s.handler_latest(shared.reference.object_id()),
-        HandlerLatestObject {
-            version: shared.reference.version,
+        s.handler_processed_object(shared.reference.object_id(), shared.reference.version),
+        HandlerProcessedObject {
             digest: shared.reference.digest,
-            kind: HandlerLatestObjectKind::Live,
+            kind: HandlerProcessedObjectKind::Live,
             produced_at: 5,
             initial_shared_version: Some(initial_shared_version(&shared.owner)),
         }
@@ -2679,14 +2694,15 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
         Some(obj_genesis_ref.version),
         effects.lamport_version(),
     );
-    assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
+    s.assert_no_handler_row(&obj_id, effects.lamport_version());
 
     // The handler reaches that commit: it registers the digest (the hook
     // already ran, so nothing consults the entry) and, with the commit
     // fully executed, applies the upserts derived from the durable effects.
     let state = s.epoch_store.handler_object_state_for_testing();
-    s.epoch_store.assign_commit_to_transactions(4, vec![digest]);
-    assert_eq!(state.commit_round_of(&digest), Some(4));
+    let key = TransactionKey::Digest(digest);
+    s.epoch_store.assign_commit_to_transactions(4, vec![key]);
+    assert_eq!(state.commit_index_of(&key), Some(4));
     s.epoch_store
         .record_commit_fully_executed(4, &handler_latest_upserts(&effects, 4))
         .unwrap();
@@ -2695,13 +2711,12 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
     // records whose whole chain the handler passed are gone, and the
     // commit's map entries are dropped.
     for id in [&obj_id, &gas_id] {
-        let row = s.handler_latest(id);
-        assert_eq!(row.version, effects.lamport_version());
+        let row = s.handler_processed_object(id, effects.lamport_version());
         assert_eq!(row.produced_at, 4);
-        assert_eq!(row.kind, HandlerLatestObjectKind::Live);
+        assert_eq!(row.kind, HandlerProcessedObjectKind::Live);
         assert_eq!(s.epoch_store.sync_ahead_record(id).unwrap(), None);
     }
-    assert_eq!(state.commit_round_of(&digest), None);
+    assert_eq!(state.commit_index_of(&key), None);
 
     // The sheltered bytes stay: a crash before this commit's output flushes
     // replays and re-validates it, so their eviction keys off the flushed
@@ -2737,23 +2752,30 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
     // its chain head is above the handler-written version, so the handler
     // has not passed the whole chain - while the gas coin's chain, which
     // ended in that commit, is passed and its record goes.
-    s.epoch_store
-        .assign_commit_to_transactions(4, vec![*first.transaction_digest()]);
+    s.epoch_store.assign_commit_to_transactions(
+        4,
+        vec![TransactionKey::Digest(*first.transaction_digest())],
+    );
     s.epoch_store
         .record_commit_fully_executed(4, &handler_latest_upserts(&first, 4))
         .unwrap();
-    assert_eq!(s.handler_latest(&obj_id).version, first.lamport_version());
+    assert_eq!(
+        s.handler_processed_object(&obj_id, first.lamport_version())
+            .produced_at,
+        4
+    );
     s.assert_record(&obj_id, Some(obj_genesis_version), second.lamport_version());
     assert_eq!(s.epoch_store.sync_ahead_record(&gas1_id).unwrap(), None);
 
     // Passing the second commit completes the catch-up.
-    s.epoch_store
-        .assign_commit_to_transactions(5, vec![*second.transaction_digest()]);
+    s.epoch_store.assign_commit_to_transactions(
+        5,
+        vec![TransactionKey::Digest(*second.transaction_digest())],
+    );
     s.epoch_store
         .record_commit_fully_executed(5, &handler_latest_upserts(&second, 5))
         .unwrap();
-    let row = s.handler_latest(&obj_id);
-    assert_eq!(row.version, second.lamport_version());
+    let row = s.handler_processed_object(&obj_id, second.lamport_version());
     assert_eq!(row.produced_at, 5);
     assert_eq!(s.epoch_store.sync_ahead_record(&obj_id).unwrap(), None);
     assert_eq!(s.epoch_store.sync_ahead_record(&gas2_id).unwrap(), None);
@@ -2775,9 +2797,9 @@ async fn bookkeeping_disabled_writes_nothing() {
     .await;
 
     let obj_genesis_ref = s.latest_ref(&obj_id);
-    s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let effects = s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
 
-    assert_eq!(s.epoch_store.handler_latest(&obj_id).unwrap(), None);
+    s.assert_no_handler_row(&obj_id, effects.lamport_version());
     assert_eq!(s.epoch_store.sync_ahead_record(&obj_id).unwrap(), None);
     s.assert_not_sheltered(obj_genesis_ref);
 }

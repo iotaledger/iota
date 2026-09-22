@@ -26,7 +26,7 @@ use iota_common::{
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::{fail_point, fail_point_arg};
-use iota_metrics::monitored_scope;
+use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope};
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
@@ -74,7 +74,10 @@ use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus_filtered::IntCounter;
 use serde::{Deserialize, Serialize};
 use tap::TapOptional;
-use tokio::{sync::OnceCell, time::Instant};
+use tokio::{
+    sync::{OnceCell, watch},
+    time::Instant,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
@@ -173,7 +176,9 @@ pub(crate) mod scorer;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
-use handler_object_state::{HandlerLatestObject, HandlerObjectState, SyncAheadRecord};
+use handler_object_state::{
+    AssignedCommit, CommitIndex, HandlerObjectState, HandlerProcessedObject, SyncAheadRecord,
+};
 use iota_types::crypto::AuthorityPublicKey;
 use scorer::Scoreboard;
 
@@ -840,14 +845,15 @@ pub struct AuthorityEpochTables {
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
     owned_object_locked_transactions: DBMap<ObjectReference, LockDetailsWrapper>,
 
-    /// Latest object state as of the handler frontier, for P-COOL
-    /// deterministic post-consensus validation (see [`handler_object_state`]
-    /// for the three-view design). Flushed through each commit's quarantined
-    /// `ConsensusCommitOutput`, atomically with `last_consensus_stats`. Same
-    /// access profile as the lock table: one write per touched object per
-    /// commit, one point lookup per validated input.
+    /// Every object version produced by a commit the handler processed, for
+    /// P-COOL deterministic post-consensus validation (see
+    /// [`handler_object_state`] for the three-view design). Flushed through
+    /// each commit's quarantined `ConsensusCommitOutput`, atomically with
+    /// `last_consensus_stats`. Same access profile as the lock table: one
+    /// write per written object version per commit, one point lookup per
+    /// validated input.
     #[default_options_override_fn = "owned_object_locked_transactions_table_default_config"]
-    handler_latest_objects: DBMap<ObjectId, HandlerLatestObject>,
+    handler_processed_objects: DBMap<ObjectKey, HandlerProcessedObject>,
 
     /// Sync-ahead records (see [`handler_object_state`]); empty in normal
     /// operation.
@@ -1307,7 +1313,12 @@ impl AuthorityPerEpochStore {
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
-        let handler_object_state = HandlerObjectState::new(&tables);
+        let resume_point = tables
+            .get_last_consensus_index()
+            .expect("AuthorityEpochTables should hold a readable consensus resume point")
+            .unwrap_or_default()
+            .sub_dag_index;
+        let handler_object_state = HandlerObjectState::new(&tables, resume_point);
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1758,17 +1769,37 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Registers the kept transactions of commit `round` in the digest ->
-    /// commit-round map. Must be called while the handler processes the
-    /// commit, before any of its transactions can be scheduled: the execution
-    /// hook classifies each execution by this map - hit means the handler has
-    /// passed the producing commit, miss means state sync is running ahead.
-    pub fn assign_commit_to_transactions(
-        &self,
-        round: CommitRound,
-        digests: Vec<TransactionDigest>,
-    ) {
-        self.handler_object_state.assign_commit(round, digests);
+    /// Registers the roots of commit `index` in the transaction-key ->
+    /// commit-index map and hands the commit to the execution watcher. Must
+    /// be called once per commit while the handler processes it, before any
+    /// of its transactions can be scheduled: the execution hook classifies
+    /// each execution by this map - hit means the handler has passed the
+    /// producing commit, miss means state sync is running ahead.
+    pub fn assign_commit_to_transactions(&self, index: CommitIndex, roots: Vec<TransactionKey>) {
+        self.handler_object_state
+            .assign_commit_to_transactions(index, roots);
+    }
+
+    /// The execution watcher's end of the assigned-commit channel; `None`
+    /// once a watcher has taken it. See
+    /// [`HandlerObjectState::take_assigned_commits_receiver`].
+    pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
+        self.handler_object_state.take_assigned_commits_receiver()
+    }
+
+    /// Receiver of the highest fully executed commit; see
+    /// [`HandlerObjectState::subscribe_highest_fully_executed_commit`].
+    pub fn subscribe_highest_fully_executed_commit(&self) -> watch::Receiver<CommitIndex> {
+        self.handler_object_state
+            .subscribe_highest_fully_executed_commit()
+    }
+
+    /// Waits until commit `index` and everything below it is fully executed;
+    /// see [`HandlerObjectState::wait_for_fully_executed_commit`].
+    pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
+        self.handler_object_state
+            .wait_for_fully_executed_commit(index)
+            .await
     }
 
     /// Records one executed transaction's object writes for the P-COOL
@@ -1776,33 +1807,40 @@ impl AuthorityPerEpochStore {
     /// [`HandlerObjectState::record_executed_transaction`].
     pub fn record_executed_transaction(
         &self,
+        key: &TransactionKey,
         effects: &TransactionEffects,
         loaded_input_objects: &dyn ObjectStore,
     ) -> IotaResult {
         let tables = self.tables()?;
         self.handler_object_state.record_executed_transaction(
             &tables,
+            key,
             effects,
             loaded_input_objects,
         )
     }
 
-    /// Marks commit `round` fully executed; see
+    /// Marks commit `index` fully executed; see
     /// [`HandlerObjectState::record_commit_fully_executed`].
     pub fn record_commit_fully_executed(
         &self,
-        round: CommitRound,
-        upserts: &[(ObjectId, HandlerLatestObject)],
+        index: CommitIndex,
+        upserts: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult {
         let tables = self.tables()?;
         self.handler_object_state
-            .record_commit_fully_executed(&tables, round, upserts)
+            .record_commit_fully_executed(&tables, index, upserts)
     }
 
-    /// The latest state of `id` as of the handler frontier.
-    pub fn handler_latest(&self, id: &ObjectId) -> IotaResult<Option<HandlerLatestObject>> {
+    /// The handler-processed row at `key`, the exact version a transaction
+    /// names.
+    pub fn handler_processed_object(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<HandlerProcessedObject>> {
         let tables = self.tables()?;
-        self.handler_object_state.handler_latest(&tables, id)
+        self.handler_object_state
+            .handler_processed_object(&tables, key)
     }
 
     /// The sync-ahead record for `id`.
@@ -1828,16 +1866,20 @@ impl AuthorityPerEpochStore {
     #[cfg(test)]
     pub fn flush_commit_rows_for_testing(
         &self,
-        handler_rows: Vec<(ObjectId, HandlerLatestObject)>,
+        commit_index: CommitIndex,
+        handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
     ) -> IotaResult {
         let tables = self.tables()?;
-        let handler_rows = handler_object_state::highest_row_per_id(&handler_rows);
-        let mut batch = tables.handler_latest_objects.batch();
-        self.handler_object_state
-            .write_commit_rows_to_batch(&tables, &mut batch, &handler_rows)?;
+        let mut batch = tables.handler_processed_objects.batch();
+        self.handler_object_state.write_commit_rows_to_batch(
+            commit_index,
+            &tables,
+            &mut batch,
+            &handler_rows,
+        )?;
         batch.write()?;
         self.handler_object_state
-            .evict_flushed_commit_rows(&handler_rows);
+            .evict_flushed_commit_rows(commit_index, &handler_rows);
         Ok(())
     }
 
@@ -2135,6 +2177,16 @@ impl AuthorityPerEpochStore {
         let seq = checkpoint.sequence_number();
 
         let mut quarantine = self.consensus_quarantine.write();
+        // TODO: commit the handler latest rows derived from the checkpoint's
+        // transaction effects to consensus quarantine -  do we even need to
+        // copy it to the consensuscommitoutput or can we just use  the handler
+        // latest rows directly from the handler overlay? I think it should
+        //  be safe to add those directly to a batch.
+        //  Answer: derive them from effects. The overlay works on the live
+        //  path, but after a restart it is empty for transactions that were
+        //  already executed (the hook does not run again for them), so a
+        //  flush reading the overlay would write nothing for a replayed
+        //  commit.
         quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
         batch.write()?;
 
@@ -3908,7 +3960,8 @@ impl AuthorityPerEpochStore {
                 .insert_and_notify(&load_shedding_dropped);
         }
 
-        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
+        let mut output =
+            ConsensusCommitOutput::new(consensus_commit_info.round, consensus_commit_info.index);
 
         // Load transactions deferred from previous commits.
         let deferred_txs: Vec<(DeferralKey, Vec<DeferredTransaction>)> = self
@@ -4270,6 +4323,16 @@ impl AuthorityPerEpochStore {
             let should_write_random_checkpoint =
                 randomness_round.is_some() || (dkg_failed && !randomness_roots.is_empty());
 
+            // The deterministic-validation bookkeeping tracks exactly the
+            // roots written to this commit's pending checkpoints.
+            if self.protocol_config.pcool_deterministic_validation() {
+                let mut commit_roots = non_randomness_roots.clone();
+                if should_write_random_checkpoint {
+                    commit_roots.extend(randomness_roots.iter().copied());
+                }
+                self.assign_commit_to_transactions(consensus_commit_info.index, commit_roots);
+            }
+
             let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
                 roots: non_randomness_roots,
                 details: PendingCheckpointInfo {
@@ -4628,6 +4691,7 @@ impl AuthorityPerEpochStore {
             cache_reader,
             &ConsensusCommitInfo::new_for_test(
                 self.get_highest_pending_checkpoint_height() / 2 + 1,
+                self.get_highest_pending_checkpoint_height() / 2 + 1,
                 0,
                 skip_consensus_commit_prologue_in_test,
             ),
@@ -4642,7 +4706,7 @@ impl AuthorityPerEpochStore {
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
     ) -> IotaResult<AssignedTxAndVersions> {
-        let mut output = ConsensusCommitOutput::new(0);
+        let mut output = ConsensusCommitOutput::new(0, 0);
         let transactions: Vec<_> = transactions
             .iter()
             .cloned()
