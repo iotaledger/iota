@@ -59,7 +59,7 @@ use iota_types::{
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{
-        assert_size_limit, ptb_above_max_tx_size, ptb_with_pure_inputs,
+        assert_size_limit_err, ptb_above_max_tx_size, ptb_with_pure_inputs,
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
     },
 };
@@ -8599,7 +8599,7 @@ fn assert_simulation_rejects_for_size(
         let IotaError::UserInput { error } = &error else {
             panic!("unexpected error for {checks:?}: {error:?}");
         };
-        assert_size_limit(error, limit_name);
+        assert_size_limit_err(error, limit_name);
     }
 }
 

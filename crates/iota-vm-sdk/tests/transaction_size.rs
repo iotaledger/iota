@@ -12,7 +12,7 @@ use iota_types::{
     error::IotaError,
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     transaction::TransactionAPI,
-    utils::{assert_size_limit, ptb_above_max_tx_size, to_sender_signed_transaction},
+    utils::{assert_size_limit_err, ptb_above_max_tx_size, to_sender_signed_transaction},
 };
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
@@ -56,7 +56,7 @@ fn assert_above_the_size_limit(err: VmSdkError) {
     let IotaError::UserInput { error } = &v.source else {
         panic!("got {err:?}");
     };
-    assert_size_limit(error, "serialized transaction size exceeded maximum");
+    assert_size_limit_err(error, "serialized transaction size exceeded maximum");
 }
 
 /// Every mode, because the cap runs before the mode is read.

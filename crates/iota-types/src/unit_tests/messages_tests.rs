@@ -34,7 +34,7 @@ use crate::{
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
     transaction::SenderSignedTransactionAPI,
     utils::{
-        assert_size_limit, blake2b256_of_sig, make_move_authenticator_sig,
+        assert_size_limit_err, blake2b256_of_sig, make_move_authenticator_sig,
         make_move_authenticator_tx, make_passkey_authenticator_sig,
         make_sponsored_move_authenticator_tx, make_sponsored_regular_sig_tx, make_transaction,
         make_transaction_data, make_upgraded_multisig_tx, ptb_above_max_tx_size,
@@ -1691,7 +1691,7 @@ fn ptb_validity_check_rejects_more_inputs_than_it_may_declare() {
         let err = ptb_with_pure_inputs(count, 0, false)
             .validity_check(&config)
             .unwrap_err();
-        assert_size_limit(&err, "maximum inputs in a programmable transaction");
+        assert_size_limit_err(&err, "maximum inputs in a programmable transaction");
     }
 }
 
@@ -1705,7 +1705,7 @@ fn ptb_validity_check_rejects_a_randomness_input_past_the_last_input_index() {
         let err = ptb_with_pure_inputs(count, 0, true)
             .validity_check(&config)
             .unwrap_err();
-        assert_size_limit(&err, "maximum inputs in a programmable transaction");
+        assert_size_limit_err(&err, "maximum inputs in a programmable transaction");
     }
 
     // The simulation paths reach the same rejection through this.
@@ -1721,7 +1721,7 @@ fn ptb_validity_check_rejects_a_randomness_input_past_the_last_input_index() {
         },
     );
     let err = tx.validity_check_no_gas_check(&config).unwrap_err();
-    assert_size_limit(&err, "maximum inputs in a programmable transaction");
+    assert_size_limit_err(&err, "maximum inputs in a programmable transaction");
 }
 
 #[test]
@@ -1812,7 +1812,7 @@ fn check_serialized_size_accepts_the_size_limit_and_rejects_one_byte_more() {
     let IotaError::UserInput { error } = &err else {
         panic!("expected a user input error, got {err:?}");
     };
-    assert_size_limit(error, "serialized transaction size exceeded maximum");
+    assert_size_limit_err(error, "serialized transaction size exceeded maximum");
 }
 
 #[test]
@@ -1834,7 +1834,7 @@ fn check_serialized_size_rejects_a_transaction_above_the_size_limit() {
     let IotaError::UserInput { error } = &err else {
         panic!("expected a user input error, got {err:?}");
     };
-    assert_size_limit(error, "serialized transaction size exceeded maximum");
+    assert_size_limit_err(error, "serialized transaction size exceeded maximum");
 
     make_transaction_data(sender)
         .check_serialized_size(&config)

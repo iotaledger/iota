@@ -307,12 +307,10 @@ mod passkey {
 
 pub use passkey::*;
 
-/// Asserts that `err` is the size limit named by `limit_name`, so a test cannot
-/// be satisfied by one of the other limits that share this error. Accepts the
-/// name itself, or the name followed by ` of {value}` for a limit that reports
-/// its value.
+/// Asserts that `err` is a `SizeLimitExceeded` error whose limit name matches
+/// `limit_name` exactly, or matches the form `{limit_name} of {value}`.
 #[track_caller]
-pub fn assert_size_limit(err: &UserInputError, limit_name: &str) {
+pub fn assert_size_limit_err(err: &UserInputError, limit_name: &str) {
     let UserInputError::SizeLimitExceeded { limit, .. } = err else {
         panic!("expected a size limit, got {err:?}");
     };

@@ -974,7 +974,7 @@ mod tests {
         gas_coin::GasCoin,
         transaction::TransactionAPI,
         transaction_executor::VmChecks,
-        utils::{assert_size_limit, ptb_above_max_tx_size},
+        utils::{assert_size_limit_err, ptb_above_max_tx_size},
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -1283,6 +1283,6 @@ mod tests {
         let IotaError::UserInput { error } = &err else {
             panic!("got {err:?}");
         };
-        assert_size_limit(error, "serialized transaction size exceeded maximum");
+        assert_size_limit_err(error, "serialized transaction size exceeded maximum");
     }
 }
