@@ -23,6 +23,7 @@ use iota_network_stack::{
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
+use tokio::sync::Mutex;
 use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
@@ -612,13 +613,21 @@ struct ChannelPool {
     context: Arc<Context>,
     // Size is limited by known authorities in the committee.
     channels: RwLock<BTreeMap<AuthorityIndex, Channel>>,
+    /// Held while connecting to the peer at that index, so callers that miss
+    /// the pool at the same time share one connection instead of each
+    /// opening their own.
+    connecting: Vec<Mutex<()>>,
 }
 
 impl ChannelPool {
     fn new(context: Arc<Context>) -> Self {
+        let connecting = (0..context.committee.size())
+            .map(|_| Mutex::new(()))
+            .collect();
         Self {
             context,
             channels: RwLock::new(BTreeMap::new()),
+            connecting,
         }
     }
 
@@ -628,6 +637,15 @@ impl ChannelPool {
         peer: AuthorityIndex,
         timeout: Duration,
     ) -> ConsensusResult<Channel> {
+        {
+            let channels = self.channels.read();
+            if let Some(channel) = channels.get(&peer) {
+                return Ok(channel.clone());
+            }
+        }
+
+        let _connecting = self.connecting[peer.value()].lock().await;
+        // Another caller may have connected while this one waited for the lock.
         {
             let channels = self.channels.read();
             if let Some(channel) = channels.get(&peer) {
@@ -696,10 +714,8 @@ impl ChannelPool {
             )
             .service(channel);
 
-        let mut channels = self.channels.write();
-        // There should not be many concurrent attempts at connecting to the same peer.
-        let channel = channels.entry(peer).or_insert(channel);
-        Ok(channel.clone())
+        self.channels.write().insert(peer, channel.clone());
+        Ok(channel)
     }
 }
 
