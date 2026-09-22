@@ -377,7 +377,7 @@ impl ReadApiServer for ReadApi {
         .map_err(IotaRpcInputError::from)?;
         let limit = NonZeroUsize::new(limit).expect("limit should be validated as positive");
 
-        let mut checkpoints = self
+        let (mut checkpoints, oldest_available_checkpoint) = self
             .inner
             .get_checkpoints_with_fallback(cursor, limit.saturating_add(1), descending_order)
             .await?;
@@ -391,7 +391,7 @@ impl ReadApiServer for ReadApi {
             data: checkpoints,
             next_cursor,
             has_next_page,
-            oldest_available_checkpoint: None,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
