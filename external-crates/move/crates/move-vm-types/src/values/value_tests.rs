@@ -233,3 +233,118 @@ fn test_vm_value_vector_u64_casting() {
 fn assert_sizes() {
     assert_eq!(size_of::<Value>(), 16);
 }
+
+#[test]
+fn abstract_input_size_follows_refs_into_primitive_data_only() -> PartialVMResult<()> {
+    use move_core_types::gas_algebra::AbstractMemorySize;
+
+    use super::values_impl::{LEGACY_CONST_SIZE, LEGACY_REFERENCE_SIZE, LEGACY_STRUCT_SIZE};
+
+    // An owned value is sized in full, exactly like `abstract_memory_size`.
+    let owned = Value::struct_(Struct::pack([Value::u64(1), Value::u64(2)]));
+    assert_eq!(
+        owned.abstract_input_size(),
+        LEGACY_STRUCT_SIZE + LEGACY_CONST_SIZE + LEGACY_CONST_SIZE
+    );
+    assert_eq!(
+        owned.abstract_input_size(),
+        owned.abstract_memory_size(false)
+    );
+
+    let mut locals = Locals::new(4);
+
+    // A reference to a primitive vector is sized in full — the input of the
+    // byte-priced natives (hashing, signature verification) — at O(1) cost,
+    // since the payload size is read off the vector, not walked.
+    locals.store_loc(0, Value::vector_u8(vec![0u8; 100]), true)?;
+    let vec_ref = locals.borrow_loc(0)?;
+    assert_eq!(
+        vec_ref.abstract_input_size(),
+        LEGACY_REFERENCE_SIZE + LEGACY_STRUCT_SIZE + AbstractMemorySize::new(100)
+    );
+    assert_eq!(
+        vec_ref.abstract_input_size(),
+        vec_ref.abstract_memory_size(true)
+    );
+
+    // A reference to a scalar is followed too.
+    locals.store_loc(1, Value::u64(7), true)?;
+    let scalar_ref = locals.borrow_loc(1)?;
+    assert_eq!(
+        scalar_ref.abstract_input_size(),
+        LEGACY_REFERENCE_SIZE + LEGACY_CONST_SIZE
+    );
+
+    // A reference to structured data counts at its constant reference size:
+    // the target is not walked, so the size cannot grow with the value
+    // behind the reference.
+    locals.store_loc(
+        2,
+        Value::struct_(Struct::pack([Value::u64(1), Value::u64(2)])),
+        true,
+    )?;
+    let struct_ref = locals.borrow_loc(2)?;
+    assert_eq!(struct_ref.abstract_input_size(), LEGACY_REFERENCE_SIZE);
+
+    let big = Vector::pack(
+        VectorSpecialization::Container,
+        (0..1000).map(|i| Value::struct_(Struct::pack([Value::u64(i), Value::u64(i)]))),
+    )?;
+    locals.store_loc(3, big, true)?;
+    let container_vec_ref = locals.borrow_loc(3)?;
+    assert_eq!(
+        container_vec_ref.abstract_input_size(),
+        LEGACY_REFERENCE_SIZE
+    );
+
+    Ok(())
+}
+
+/// The pair returned by `abstract_memory_and_input_size` must agree with the
+/// two sizes computed separately — its first component feeds the stack-size
+/// gas charge for native calls, so any divergence from
+/// `abstract_memory_size(false)` would change what is charged.
+#[test]
+fn abstract_memory_and_input_size_agrees_with_separate_sizes() -> PartialVMResult<()> {
+    fn check(value: &Value) {
+        let (memory, input) = value.abstract_memory_and_input_size();
+        assert_eq!(memory, value.abstract_memory_size(false));
+        assert_eq!(input, value.abstract_input_size());
+    }
+
+    let owned = [
+        Value::u8(1),
+        Value::u16(2),
+        Value::u32(3),
+        Value::u64(4),
+        Value::u128(5),
+        Value::u256(U256::max_value()),
+        Value::bool(true),
+        Value::address(AccountAddress::TWO),
+        Value::vector_u8(vec![0u8; 33]),
+        Value::vector_u64(vec![7u64; 5]),
+        Value::vector_address(vec![AccountAddress::ONE; 3]),
+        Value::struct_(Struct::pack([
+            Value::u64(1),
+            Value::vector_u8(vec![1, 2, 3]),
+            Value::struct_(Struct::pack([Value::bool(false)])),
+        ])),
+        Value::variant(Variant::pack(1, [Value::u64(9), Value::u8(2)])),
+        Vector::pack(
+            VectorSpecialization::Container,
+            (0..10).map(|i| Value::struct_(Struct::pack([Value::u64(i)]))),
+        )?,
+    ];
+    for value in &owned {
+        check(value);
+    }
+
+    // The same values seen through a reference, where the two sizes diverge.
+    let mut locals = Locals::new(owned.len());
+    for (i, value) in owned.iter().enumerate() {
+        locals.store_loc(i, value.copy_value()?, true)?;
+        check(&locals.borrow_loc(i)?);
+    }
+
+    Ok(())
+}
