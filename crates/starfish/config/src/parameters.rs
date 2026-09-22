@@ -12,6 +12,13 @@ use serde::{Deserialize, Serialize};
 /// caps allow it to keep. Both caps are validated against it at startup.
 pub const MAX_HEADERS_OR_SHARDS_PER_BUNDLE: usize = 1024;
 
+/// Ceiling on the headers a header-sync fetch response may carry. The server
+/// truncates its response to its own `max_headers_per_header_sync_fetch`,
+/// validated against this at startup, so a client can reject a response past
+/// it as misbehaviour while still accepting a peer configured above its own
+/// cap.
+pub const MAX_HEADERS_PER_HEADER_SYNC_FETCH: usize = 1024;
+
 /// Operational configurations of a consensus authority.
 ///
 /// All fields should tolerate inconsistencies among authorities, without
@@ -371,6 +378,11 @@ impl Parameters {
                     "{name} must not exceed {MAX_HEADERS_OR_SHARDS_PER_BUNDLE}"
                 ));
             }
+        }
+        if self.max_headers_per_header_sync_fetch > MAX_HEADERS_PER_HEADER_SYNC_FETCH {
+            return Err(format!(
+                "max_headers_per_header_sync_fetch must not exceed {MAX_HEADERS_PER_HEADER_SYNC_FETCH}"
+            ));
         }
         Ok(())
     }

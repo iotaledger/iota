@@ -22,7 +22,9 @@ use iota_network_stack::{
 };
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
-use starfish_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
+use starfish_config::{
+    AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH, NetworkKeyPair, NetworkPublicKey,
+};
 use tokio::sync::Mutex;
 use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
@@ -68,12 +70,24 @@ fn buffer_bytes(count: usize, entry_bytes: usize) -> usize {
     count.saturating_mul(entry_bytes.saturating_add(size_of::<Bytes>()))
 }
 
-/// Header-fetch budget: the per-fetch header count cap, each entry at the
-/// maximum serialized header size for this committee. `commit_sync` selects
-/// the same cap the server applies in `ConsensusService::fetch_block_headers`.
+/// Most headers a fetch response may carry before the peer is at fault. Commit
+/// sync is bounded by the cap the server applies in
+/// `ConsensusService::fetch_block_headers`, which never exceeds the request;
+/// header sync by the ceiling every configuration respects, since the peer's
+/// gap-fill follows its own cap.
+fn max_fetched_headers(context: &Context, commit_sync: bool) -> usize {
+    if commit_sync {
+        context.parameters.max_headers_per_commit_sync_fetch
+    } else {
+        MAX_HEADERS_PER_HEADER_SYNC_FETCH
+    }
+}
+
+/// Header-fetch budget: the most headers a response may carry, each entry at
+/// the maximum serialized header size for this committee.
 fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) -> usize {
     buffer_bytes(
-        context.parameters.max_headers_per_fetch(commit_sync),
+        max_fetched_headers(context, commit_sync),
         max_signed_block_header_bytes(context.committee.size()),
     )
 }
@@ -548,8 +562,10 @@ where
 /// header buffer. A stream cut by an error after headers arrived yields the
 /// delivered chunks.
 ///
-/// The header count is bounded to the cap the server truncates its own
-/// response to.
+/// Commit sync rejects more headers than the server's cap allows, since the
+/// server returns only what was requested. Header sync accepts the peer's
+/// gap-fill up to the ceiling every configuration respects, and stops reading
+/// once our own cap is held; the caller trims to it.
 async fn collect_block_headers<S>(
     context: &Context,
     peer: AuthorityIndex,
@@ -559,8 +575,9 @@ async fn collect_block_headers<S>(
 where
     S: Stream<Item = Result<FetchBlockHeadersResponse, tonic::Status>> + Unpin,
 {
-    let max_headers = context.parameters.max_headers_per_fetch(commit_sync);
+    let max_headers = max_fetched_headers(context, commit_sync);
     let max_allowed_bytes = max_fetch_block_headers_response_bytes(context, commit_sync);
+    let wanted_headers = context.parameters.max_headers_per_fetch(commit_sync);
     let mut vec_serialized_block_header = vec![];
     let mut total_fetched_bytes = 0;
     loop {
@@ -589,6 +606,9 @@ where
                     break;
                 }
                 vec_serialized_block_header.extend(headers);
+                if !commit_sync && vec_serialized_block_header.len() >= wanted_headers {
+                    break;
+                }
             }
             Ok(None) => {
                 break;
@@ -1807,7 +1827,7 @@ mod tests {
 
     use bytes::Bytes;
     use futures::stream;
-    use starfish_config::AuthorityIndex;
+    use starfish_config::{AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH};
 
     use super::{
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
@@ -2038,24 +2058,45 @@ mod tests {
         assert_eq!(headers.len(), 1);
     }
 
-    /// Header sync selects its own, smaller cap.
+    /// A header-sync peer configured above our cap is honest: its gap-fill is
+    /// kept up to our cap and the rest of the stream is left unread.
     #[tokio::test]
-    async fn header_sync_uses_the_header_sync_count_cap() {
+    async fn header_sync_keeps_a_larger_peer_cap_up_to_our_own() {
         let (mut context, _keys) = Context::new_for_test(4);
-        context.parameters.max_headers_per_commit_sync_fetch = 10;
-        context.parameters.max_headers_per_header_sync_fetch = 1;
+        context.parameters.max_headers_per_header_sync_fetch = 3;
         let peer = AuthorityIndex::new_for_test(1);
-        let flood = stream::iter([Ok(header_chunk(2, 6))]);
+        let generous = stream::iter([
+            Ok(header_chunk(2, 6)),
+            Ok(header_chunk(2, 6)),
+            Ok(header_chunk(2, 6)),
+        ]);
+
+        let headers = collect_block_headers(&context, peer, generous, false)
+            .await
+            .expect("a peer above our cap is not at fault");
+
+        // The chunk that reaches our cap is kept whole; the one after it is
+        // never read.
+        assert_eq!(headers.len(), 4);
+    }
+
+    /// No configuration allows a header-sync response past the ceiling, so a
+    /// peer sending one is rejected.
+    #[tokio::test]
+    async fn header_sync_rejects_headers_past_the_ceiling() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let flood = stream::iter([Ok(header_chunk(MAX_HEADERS_PER_HEADER_SYNC_FETCH + 1, 1))]);
 
         let result = collect_block_headers(&context, peer, flood, false).await;
 
         assert!(matches!(
             result,
             Err(ConsensusError::TooManyFetchedHeadersReturned {
-                requested: 1,
-                received: 2,
+                requested: MAX_HEADERS_PER_HEADER_SYNC_FETCH,
+                received,
                 ..
-            })
+            }) if received == MAX_HEADERS_PER_HEADER_SYNC_FETCH + 1
         ));
     }
 
@@ -2200,10 +2241,11 @@ mod tests {
             max_fetch_block_headers_response_bytes(&context, true),
             7 * header_entry
         );
-        // Header sync selects the header-sync cap.
+        // Header sync is budgeted at the ceiling every configuration respects,
+        // since the peer's gap-fill follows its own cap.
         assert_eq!(
             max_fetch_block_headers_response_bytes(&context, false),
-            11 * header_entry
+            MAX_HEADERS_PER_HEADER_SYNC_FETCH * header_entry
         );
         // The transaction budget is one maximum-size entry per requested
         // reference, independent of the transaction caps above.
