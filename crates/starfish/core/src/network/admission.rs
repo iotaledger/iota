@@ -28,7 +28,9 @@ use tower::{Layer, Service};
 
 use crate::{
     context::Context,
-    network::tonic_network::{CONSENSUS_SERVICE_PATH_PREFIX, PeerInfo},
+    network::tonic_network::{
+        CONSENSUS_SERVICE_PATH_PREFIX, DEPRECATED_METHOD, DEPRECATED_METHOD_MESSAGE, PeerInfo,
+    },
 };
 
 /// Inbound consensus RPCs grouped by cost and access pattern. Each group has an
@@ -209,7 +211,13 @@ where
     }
 
     fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
-        let Some(group) = RpcGroup::from_path(request.uri().path()) else {
+        let path = request.uri().path();
+        // The deprecated method decodes its request before its handler answers,
+        // so answering here is what keeps its body from being read.
+        if path.strip_prefix(CONSENSUS_SERVICE_PATH_PREFIX) == Some(DEPRECATED_METHOD) {
+            return AdmissionFuture::rejected(Status::unimplemented(DEPRECATED_METHOD_MESSAGE));
+        }
+        let Some(group) = RpcGroup::from_path(path) else {
             return AdmissionFuture::admitted(self.inner.call(request), None);
         };
         let Some(peer) = request

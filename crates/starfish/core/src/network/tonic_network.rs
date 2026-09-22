@@ -1124,9 +1124,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         // This RPC is kept in the service definition for backward compatibility,
         // but is not supported by Starfish.
         error!("get_latest_rounds() is deprecated in starfish and should not be called");
-        Err(tonic::Status::unimplemented(
-            "get_latest_rounds is deprecated and not supported",
-        ))
+        Err(tonic::Status::unimplemented(DEPRECATED_METHOD_MESSAGE))
     }
 
     type FetchTransactionsStream =
@@ -1588,6 +1586,14 @@ const CONSENSUS_SERVICE_METHODS: &[&str] = &[
 /// Label recorded for every path that is not a served method.
 const UNKNOWN_ROUTE: &str = "unknown";
 
+/// Method the service declares for backward compatibility and does no work
+/// for. Admission answers it without reading its request body.
+pub(crate) const DEPRECATED_METHOD: &str = "GetLatestRounds";
+
+/// Status message returned for [`DEPRECATED_METHOD`].
+pub(crate) const DEPRECATED_METHOD_MESSAGE: &str =
+    "get_latest_rounds is deprecated and not supported";
+
 /// Metric label for a request path: the name of the served method, or
 /// `unknown`. Callers choose the path, so the label never derives from it.
 fn route_label(path: &str) -> &'static str {
@@ -1795,7 +1801,7 @@ mod tests {
 
     use super::{
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
-        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, UNKNOWN_ROUTE,
+        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, TonicClient, UNKNOWN_ROUTE,
         collect_block_headers, collect_commits_and_transactions, collect_transactions,
         max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
         max_serialized_transactions_entry_bytes, route_label,
@@ -2480,35 +2486,21 @@ mod tests {
         use std::time::Duration;
 
         use parking_lot::Mutex;
-        use tonic::Request;
 
-        use super::{
-            FetchBlockHeadersRequest, FetchBlockHeadersResponse, TonicClient, TonicManager,
-        };
+        use super::{FetchBlockHeadersRequest, FetchBlockHeadersResponse, TonicManager};
         use crate::network::test_network::TestService;
 
         const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 
-        /// Opens a header fetch whose request message never arrives, so the
-        /// call stays open until the server answers or the caller drops it.
-        async fn stalled_header_fetch(
+        async fn header_fetch(
             client: &TonicClient,
             peer: AuthorityIndex,
         ) -> Result<tonic::Response<tonic::Streaming<FetchBlockHeadersResponse>>, tonic::Status>
         {
-            let channel = client
-                .channel_pool
-                .get_channel(client.network_keypair.clone(), peer, Duration::from_secs(5))
-                .await
-                .unwrap();
-            let mut grpc = tonic::client::Grpc::new(channel);
-            grpc.ready().await.unwrap();
-            grpc.streaming(
-                Request::new(stream::pending::<FetchBlockHeadersRequest>()),
-                http::uri::PathAndQuery::from_static(
-                    "/consensus.ConsensusService/FetchBlockHeaders",
-                ),
-                tonic_prost::ProstCodec::default(),
+            stalled_call::<FetchBlockHeadersRequest, _>(
+                client,
+                peer,
+                &format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchBlockHeaders"),
             )
             .await
         }
@@ -2556,22 +2548,20 @@ mod tests {
             panic!("admitted header fetches stayed at {}", in_use.get());
         };
 
-        let held = tokio::spawn(async move { stalled_header_fetch(&first, server_index).await });
+        let held = tokio::spawn(async move { header_fetch(&first, server_index).await });
         settles_at(1).await;
 
-        let Err(status) = tokio::time::timeout(
-            REQUEST_TIMEOUT / 2,
-            stalled_header_fetch(&second, server_index),
-        )
-        .await
-        .expect("the server must answer without waiting for the request body") else {
+        let Err(status) =
+            tokio::time::timeout(REQUEST_TIMEOUT / 2, header_fetch(&second, server_index))
+                .await
+                .expect("the server must answer without waiting for the request body")
+        else {
             panic!("the peer holds its only header-fetch slot");
         };
         assert_eq!(status.code(), tonic::Code::ResourceExhausted);
 
         // Another authority has its own budget.
-        let other =
-            tokio::spawn(async move { stalled_header_fetch(&other_peer, server_index).await });
+        let other = tokio::spawn(async move { header_fetch(&other_peer, server_index).await });
         settles_at(2).await;
 
         // Both stalled requests give their slot back when the timeout cuts them.
@@ -2584,5 +2574,83 @@ mod tests {
             other.await.unwrap().unwrap_err().code(),
             tonic::Code::DeadlineExceeded
         );
+    }
+
+    /// Opens a call whose request message never arrives, so it stays open until
+    /// the server answers or the caller drops it.
+    async fn stalled_call<Req, Res>(
+        client: &TonicClient,
+        peer: AuthorityIndex,
+        path: &str,
+    ) -> Result<tonic::Response<tonic::Streaming<Res>>, tonic::Status>
+    where
+        Req: prost::Message + Default + Send + Sync + 'static,
+        Res: prost::Message + Default + Send + Sync + 'static,
+    {
+        use std::time::Duration;
+
+        use tonic::Request;
+
+        let channel = client
+            .channel_pool
+            .get_channel(client.network_keypair.clone(), peer, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let mut grpc = tonic::client::Grpc::new(channel);
+        grpc.ready().await.unwrap();
+        grpc.streaming(
+            Request::new(stream::pending::<Req>()),
+            http::uri::PathAndQuery::try_from(path).unwrap(),
+            tonic_prost::ProstCodec::default(),
+        )
+        .await
+    }
+
+    /// The deprecated method decodes its request like any served method, so
+    /// admission answers it before its body is read.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn the_deprecated_method_is_answered_without_reading_its_body() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::{
+            DEPRECATED_METHOD, DEPRECATED_METHOD_MESSAGE, GetLatestRoundsRequest,
+            GetLatestRoundsResponse, TonicManager,
+        };
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let server_context = Arc::new(context.clone().with_authority_index(server_index));
+        let mut server = TonicManager::new(server_context, keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}{DEPRECATED_METHOD}");
+        let Err(status) = tokio::time::timeout(
+            Duration::from_secs(5),
+            stalled_call::<GetLatestRoundsRequest, GetLatestRoundsResponse>(
+                &client,
+                server_index,
+                &path,
+            ),
+        )
+        .await
+        .expect("the server must answer without waiting for the request body") else {
+            panic!("the deprecated method is not served");
+        };
+        assert_eq!(status.code(), tonic::Code::Unimplemented);
+        assert_eq!(status.message(), DEPRECATED_METHOD_MESSAGE);
     }
 }
