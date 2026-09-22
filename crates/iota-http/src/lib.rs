@@ -29,6 +29,12 @@ pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertifi
 pub use listener::{Listener, ListenerExt};
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
+/// The server is running, or has not started yet.
+const SERVER_RUNNING: u8 = 0;
+/// The server has completed its shutdown.
+const SERVER_SHUTDOWN_COMPLETED: u8 = 1;
+/// The server is gone without having completed a shutdown.
+const SERVER_STOPPED: u8 = 2;
 /// h2 alpn in plain format for rustls.
 const ALPN_H2: &[u8] = b"h2";
 /// h1 alpn in plain format for rustls.
@@ -127,6 +133,7 @@ impl Builder {
         });
 
         let (watch_sender, watch_receiver) = tokio::sync::watch::channel(());
+        let exit_state = Arc::new(std::sync::atomic::AtomicU8::new(SERVER_RUNNING));
         let server = Server {
             config: self.config,
             tls_config,
@@ -142,6 +149,7 @@ impl Builder {
             connections: connections.clone(),
             graceful_shutdown_token: graceful_shutdown_token.clone(),
             _watch_receiver: watch_receiver,
+            exit_state: exit_state.clone(),
         };
 
         let handle = ServerHandle(Arc::new(HandleInner {
@@ -149,6 +157,7 @@ impl Builder {
             connections,
             graceful_shutdown_token,
             watch_sender,
+            exit_state,
         }));
 
         tokio::spawn(server.serve());
@@ -167,6 +176,8 @@ struct HandleInner<A = std::net::SocketAddr> {
     connections: ActiveConnections<A>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     watch_sender: tokio::sync::watch::Sender<()>,
+    /// How the server's run ended, see [`ServerHandle::stopped_unexpectedly`].
+    exit_state: Arc<std::sync::atomic::AtomicU8>,
 }
 
 impl<A> ServerHandle<A> {
@@ -200,6 +211,15 @@ impl<A> ServerHandle<A> {
     /// Checks if the Server has been shutdown.
     pub fn is_shutdown(&self) -> bool {
         self.0.watch_sender.is_closed()
+    }
+
+    /// Checks if the Server is gone without having completed a shutdown, which
+    /// means its task panicked or was dropped.
+    ///
+    /// False also covers a server that is still serving, so it answers "was
+    /// the server lost", not "is the server up".
+    pub fn stopped_unexpectedly(&self) -> bool {
+        self.0.exit_state.load(std::sync::atomic::Ordering::Acquire) == SERVER_STOPPED
     }
 
     pub fn connections(
@@ -236,6 +256,22 @@ struct Server<L: Listener> {
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     // Used to signal to a ServerHandle when the server has completed shutting down
     _watch_receiver: tokio::sync::watch::Receiver<()>,
+    // Distinguishes that completed shutdown from the server going away for any other
+    // reason, see `ServerHandle::stopped_unexpectedly`
+    exit_state: Arc<std::sync::atomic::AtomicU8>,
+}
+
+impl<L: Listener> Drop for Server<L> {
+    fn drop(&mut self) {
+        // Reaching this without a completed shutdown means the server's task panicked
+        // or was dropped.
+        let _ = self.exit_state.compare_exchange(
+            SERVER_RUNNING,
+            SERVER_STOPPED,
+            std::sync::atomic::Ordering::Release,
+            std::sync::atomic::Ordering::Relaxed,
+        );
+    }
 }
 
 impl<L> Server<L>
@@ -389,6 +425,11 @@ where
             );
             self.connection_handlers.shutdown().await;
         }
+
+        self.exit_state.store(
+            SERVER_SHUTDOWN_COMPLETED,
+            std::sync::atomic::Ordering::Release,
+        );
     }
 }
 
@@ -692,5 +733,93 @@ mod tests {
             .is_ok(),
             "removing both bounds stays allowed"
         );
+    }
+
+    /// A panic while serving a connection must close only that connection, and
+    /// leave the server accepting new ones.
+    #[tokio::test]
+    async fn a_panicking_handler_does_not_stop_the_server() {
+        const MESSAGE: &str = "Hello, World!";
+
+        let app = Router::new()
+            .route("/", axum::routing::get(|| async { MESSAGE }))
+            .route(
+                "/panic",
+                axum::routing::get(|| async { panic!("handler panicked") as &str }),
+            );
+
+        let handle = Builder::new().serve(("localhost", 0), app).unwrap();
+        let url = format!("http://{}", handle.local_addr());
+
+        // Plain HTTP is served as HTTP/1, where the handler runs in the connection
+        // task itself, so its panic is the one the accept loop observes.
+        assert!(
+            reqwest::get(format!("{url}/panic")).await.is_err(),
+            "the panicking request must not answer"
+        );
+
+        // Wait for the accept loop to observe the failed connection.
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !handle.connections().is_empty() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the panicking connection must be closed");
+
+        assert!(!handle.is_shutdown());
+        let response = reqwest::get(url).await.unwrap().bytes().await.unwrap();
+        assert_eq!(response, MESSAGE.as_bytes());
+    }
+
+    /// A server that is gone without having shut down must say so, so that its
+    /// owner can tell a stopped listener from a completed shutdown.
+    #[tokio::test]
+    async fn a_server_that_dies_reports_an_unexpected_stop() {
+        struct PanickingListener(tokio::net::TcpListener);
+
+        impl Listener for PanickingListener {
+            type Addr = std::net::SocketAddr;
+            type Io = tokio::net::TcpStream;
+
+            async fn accept(&mut self) -> (Self::Io, Self::Addr) {
+                panic!("accept panicked")
+            }
+
+            fn local_addr(&self) -> std::io::Result<Self::Addr> {
+                self.0.local_addr()
+            }
+        }
+
+        let listener = PanickingListener(
+            tokio::net::TcpListener::bind(("localhost", 0))
+                .await
+                .unwrap(),
+        );
+        let handle = Builder::new()
+            .serve_with_listener(listener, Router::new())
+            .unwrap();
+
+        tokio::time::timeout(Duration::from_secs(10), handle.wait_for_shutdown())
+            .await
+            .expect("the server must be gone once its accept loop panicked");
+
+        assert!(handle.is_shutdown());
+        assert!(handle.stopped_unexpectedly());
+    }
+
+    /// A completed shutdown is not an unexpected stop.
+    #[tokio::test]
+    async fn a_shutdown_server_reports_no_unexpected_stop() {
+        let handle = Builder::new()
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert!(!handle.stopped_unexpectedly());
+
+        handle.shutdown().await;
+
+        assert!(handle.is_shutdown());
+        assert!(!handle.stopped_unexpectedly());
     }
 }

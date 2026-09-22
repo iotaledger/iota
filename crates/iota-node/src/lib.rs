@@ -2418,10 +2418,12 @@ impl SpawnOnce {
                     if handle_tx.send(server.handle().clone()).is_err() {
                         return;
                     }
-                    match server.serve().await {
-                        Ok(()) => info!("Server stopped"),
-                        Err(err) => info!("Server stopped: {err}"),
+                    // Losing the listener leaves the node running without its gRPC
+                    // interface, so make it fail visibly.
+                    if let Err(err) = server.serve().await {
+                        fatal!("Validator gRPC server stopped: {err}");
                     }
+                    info!("Server stopped");
                 });
                 let handle = handle_rx
                     .await

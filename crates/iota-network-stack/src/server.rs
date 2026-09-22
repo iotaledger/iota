@@ -183,8 +183,15 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn serve(self) -> Result<(), tonic::transport::Error> {
+    /// Waits until the server has shut down.
+    ///
+    /// Returns an error if the server stopped for any other reason than a
+    /// requested shutdown, in which case the address is no longer served.
+    pub async fn serve(self) -> Result<()> {
         self.server_handle.wait_for_shutdown().await;
+        if self.server_handle.stopped_unexpectedly() {
+            return Err(eyre!("the server stopped without being shut down"));
+        }
         Ok(())
     }
 
