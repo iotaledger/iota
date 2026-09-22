@@ -3,7 +3,7 @@
 
 //! The transaction size cap against the public `iota-vm-sdk` API: a
 //! transaction above `max_tx_size_bytes` is rejected before it is scanned, as
-//! the node rejects it. Self-contained — uses only the built-in framework.
+//! the node rejects it.
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{MoveStruct, ObjectId, Owner, Transaction, TransactionDigest};

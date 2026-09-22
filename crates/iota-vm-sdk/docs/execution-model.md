@@ -52,13 +52,6 @@ room for that.
 `DryRun` and `Execute` are otherwise identical in preparation and budget; they
 differ only in the mock-gas rule and whether effects are committed.
 
-Before any of this, `execute` and `execute_signed` cap the transaction data at
-`max_tx_size_bytes` in every mode, and run the node's cheap validity checks
-(`validity_check_no_gas_check`, gas payment size). The cap is on the data
-alone, never on a signed envelope, so it rejects nothing a node accepts at
-signing. `check_signing_authentication` runs neither check, so it answers only
-the question its name asks.
-
 ## SDK entry points and the phase each mirrors
 
 | Entry point                                 | Signatures                           | Engine call                                                      | Gas budget                                | Mirrors node phase                 | `SignatureStatus`                                                             |
