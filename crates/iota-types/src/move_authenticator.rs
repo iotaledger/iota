@@ -246,6 +246,22 @@ impl MoveAuthenticatorExt for MoveAuthenticatorV1 {
             )
         );
 
+        // An authenticate function cannot derive randomness, so naming the
+        // randomness state object only schedules the transaction as
+        // randomness-using for nothing. Checked on the object id alone, so it
+        // covers the call arguments and the object to authenticate whatever
+        // their input kind.
+        if config.disallow_randomness_in_move_authenticator() {
+            fp_ensure!(
+                self.input_objects()
+                    .iter()
+                    .all(|o| o.object_id() != ObjectId::RANDOMNESS_STATE),
+                UserInputError::RandomnessStateIsInMoveAuthenticatorInput {
+                    object_id: ObjectId::RANDOMNESS_STATE,
+                }
+            );
+        }
+
         let mut used = HashSet::new();
         fp_ensure!(
             self.input_objects()
