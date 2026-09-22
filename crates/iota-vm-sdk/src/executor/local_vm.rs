@@ -198,7 +198,7 @@ impl LocalVm {
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
         // Ahead of signature verification, which hashes the whole transaction
-        // once per signature. The node caps the size first too.
+        // once per signature. A validator caps the size first too.
         signed
             .transaction()
             .check_serialized_size(&self.protocol_config)

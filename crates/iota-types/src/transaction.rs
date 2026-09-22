@@ -67,6 +67,9 @@ pub const GAS_PRICE_FOR_SYSTEM_TX: u64 = 1;
 
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = 1000;
 
+/// The most inputs a programmable transaction may declare.
+pub const MAX_PROGRAMMABLE_TX_INPUTS: usize = u16::MAX as usize;
+
 const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
 
 #[cfg(test)]
@@ -599,9 +602,6 @@ mod programmable_transaction_ext {
     impl Sealed for super::ProgrammableTransaction {}
 }
 
-/// The most inputs a programmable transaction may declare.
-pub const MAX_PROGRAMMABLE_TX_INPUTS: usize = u16::MAX as usize;
-
 pub trait ProgrammableTransactionExt: Sized + programmable_transaction_ext::Sealed {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
     fn receiving_objects(&self) -> Vec<ObjectReference>;
@@ -1096,12 +1096,7 @@ pub trait TransactionAPI {
 
     /// Checks the BCS size of the transaction data against the protocol's
     /// `max_tx_size_bytes`.
-    fn check_serialized_size(&self, config: &ProtocolConfig) -> IotaResult
-    where
-        Self: Serialize + Sized,
-    {
-        check_transaction_size(self, config).map(|_| ())
-    }
+    fn check_serialized_size(&self, config: &ProtocolConfig) -> IotaResult;
 
     /// Checks the gas payment against the protocol's cap on how many objects it
     /// may name.
@@ -1369,6 +1364,10 @@ fn check_transaction_size<T: Serialize>(
 }
 
 impl TransactionAPI for Transaction {
+    fn check_serialized_size(&self, config: &ProtocolConfig) -> IotaResult {
+        check_transaction_size(self, config).map(|_| ())
+    }
+
     fn sender(&self) -> Address {
         match self {
             Self::V1(v1) => v1.sender,

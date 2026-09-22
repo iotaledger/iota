@@ -55,7 +55,7 @@ differ only in the mock-gas rule and whether effects are committed.
 Before any of this, `execute` and `execute_signed` cap the transaction data at
 `max_tx_size_bytes` in every mode, and run the node's cheap validity checks
 (`validity_check_no_gas_check`, gas payment size). `execute_signed` caps the
-size before it verifies signatures, as the node does, so an oversized
+size before it verifies signatures, as a validator does, so an oversized
 transaction is not hashed once per signature first. The cap is on the data
 alone, never on a signed envelope, so it rejects nothing a node accepts at
 signing. `check_signing_authentication` runs neither check, so it answers only

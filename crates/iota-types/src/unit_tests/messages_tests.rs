@@ -1779,23 +1779,34 @@ fn more_inputs_than_a_transaction_may_declare_never_fit_in_max_tx_size_bytes() {
 fn check_serialized_size_accepts_the_size_limit_and_rejects_one_byte_more() {
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     let sender = Address::random();
-    let with_pure_input =
-        |size: usize| gasless_transaction(sender, vec![CallArg::Pure(vec![0; size])]);
+    let cap = config.max_tx_size_bytes() as usize;
+    let pure_size = config.max_pure_argument_size() as usize - 1;
 
-    // The pure input's length prefix has the same width for both sizes below,
-    // so the transaction grows by exactly one byte per input byte.
-    let probe = 100_000;
-    let overhead = bcs::serialized_size(&with_pure_input(probe)).unwrap() - probe;
-    let at_limit = config.max_tx_size_bytes() as usize - overhead;
+    // Every input stays under `max_pure_argument_size`, so the transaction is
+    // one the input checks accept and only the size cap can reject it.
+    let bulk = cap / pure_size - 1;
+    let build = |tail: usize| {
+        let mut inputs = vec![CallArg::Pure(vec![0; pure_size]); bulk];
+        inputs.push(CallArg::Pure(vec![0; tail]));
+        gasless_transaction(sender, inputs)
+    };
 
-    let tx = with_pure_input(at_limit);
-    assert_eq!(
-        bcs::serialized_size(&tx).unwrap() as u64,
-        config.max_tx_size_bytes()
+    // The tail input's length prefix has the same width for both sizes below,
+    // so the transaction grows by exactly one byte per tail byte.
+    let probe = 1_000;
+    let overhead = bcs::serialized_size(&build(probe)).unwrap() - probe;
+    let at_limit = cap - overhead;
+    assert!(
+        at_limit < pure_size,
+        "the tail input has to stay under `max_pure_argument_size`"
     );
+
+    let tx = build(at_limit);
+    assert_eq!(bcs::serialized_size(&tx).unwrap(), cap);
+    tx.validity_check_no_gas_check(&config).unwrap();
     tx.check_serialized_size(&config).unwrap();
 
-    let err = with_pure_input(at_limit + 1)
+    let err = build(at_limit + 1)
         .check_serialized_size(&config)
         .unwrap_err();
     let IotaError::UserInput { error } = &err else {
