@@ -38,6 +38,11 @@
 //! two eviction methods below clear overlay entries once their rows are
 //! durable.
 //!
+//! Completing a commit also raises the highest fully executed commit
+//! ([`HandlerObjectState::wait_for_fully_executed_commit`]), the one value
+//! this module publishes outward: validation of a commit waits on it, so that
+//! it reads rows no execution can still add to.
+//!
 //! Durable writes happen at exactly two trigger points; everything else the
 //! module does is in-memory plus point reads:
 //! - the quarantine flush of a commit's output (once its checkpoint is
@@ -71,6 +76,7 @@ use itertools::chain;
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+use tokio::sync::watch;
 use typed_store::{Map, rocks::DBBatch};
 
 use super::AuthorityEpochTables;
@@ -294,6 +300,10 @@ pub struct HandlerObjectState {
     /// The watcher's end of `assigned_commits`, taken once when the watcher
     /// starts.
     assigned_commits_receiver: Mutex<Option<UnboundedReceiver<AssignedCommit>>>,
+    /// Highest commit index whose commit, and every commit below it, is fully
+    /// executed. Seeded from the durable resume point: a commit at or below it
+    /// has its rows on disk, hence executed.
+    highest_fully_executed_commit: watch::Sender<CommitIndex>,
 
     handler_latest_overlay: RwLock<BTreeMap<ObjectKey, HandlerProcessedObject>>,
     sync_ahead_overlay: RwLock<BTreeMap<ObjectId, SyncAheadRecord>>,
@@ -328,7 +338,10 @@ fn new_handler_latest_cache(capacity: u64) -> MokaCache<ObjectKey, HandlerProces
 }
 
 impl HandlerObjectState {
-    pub fn new(tables: &AuthorityEpochTables) -> Self {
+    /// `resume_point` is the commit index the handler resumes from, which is
+    /// also the highest commit known to be fully executed: everything at or
+    /// below it has its rows on disk.
+    pub fn new(tables: &AuthorityEpochTables, resume_point: CommitIndex) -> Self {
         // Nonzero only when reopening mid-epoch with sync-ahead records on
         // disk; counting them keeps the cleanup short-circuit sound across a
         // restart.
@@ -344,6 +357,7 @@ impl HandlerObjectState {
             keys_by_commit: Mutex::new(BTreeMap::new()),
             assigned_commits,
             assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
+            highest_fully_executed_commit: watch::Sender::new(resume_point),
             handler_latest_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_overlay: RwLock::new(BTreeMap::new()),
             sheltered_overlay: RwLock::new(BTreeMap::new()),
@@ -381,6 +395,27 @@ impl HandlerObjectState {
     /// watcher has taken it.
     pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
         self.assigned_commits_receiver.lock().take()
+    }
+
+    /// Receiver of the highest fully executed commit; see the field's docs.
+    /// Callers that wait for a specific commit want
+    /// [`Self::wait_for_fully_executed_commit`] instead.
+    pub fn subscribe_highest_fully_executed_commit(&self) -> watch::Receiver<CommitIndex> {
+        self.highest_fully_executed_commit.subscribe()
+    }
+
+    /// Waits until commit `index` and everything below it is fully executed,
+    /// returning immediately when that already holds. The caller bounds the
+    /// wait with `within_alive_epoch`: at epoch end the last commits may never
+    /// complete.
+    pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
+        let mut highest = self.highest_fully_executed_commit.subscribe();
+        while *highest.borrow_and_update() < index {
+            highest
+                .changed()
+                .await
+                .expect("the sender is owned by this epoch's state and outlives every waiter");
+        }
     }
 
     /// The commit index that kept this transaction, if the handler has
@@ -459,6 +494,9 @@ impl HandlerObjectState {
         self.upsert_handler_processed_rows(upserts);
         self.remove_handled_sync_ahead_records(tables, index, upserts)?;
         self.drop_commit_assignments(index);
+        // Strictly after the upserts: a validation released by this value
+        // must find this commit's rows already readable.
+        self.advance_highest_fully_executed_commit(index);
         Ok(())
     }
 
@@ -632,6 +670,19 @@ impl HandlerObjectState {
             self.sync_ahead_overlay.read().len(),
             self.sheltered_overlay.read().len(),
         )
+    }
+
+    /// Raises the highest fully executed commit to `index`; a repeated or late
+    /// completion of an earlier commit never lowers it.
+    fn advance_highest_fully_executed_commit(&self, index: CommitIndex) {
+        self.highest_fully_executed_commit
+            .send_if_modified(|highest| {
+                let advanced = index > *highest;
+                if advanced {
+                    *highest = index;
+                }
+                advanced
+            });
     }
 
     /// Inserts rows into the overlay. Rows are keyed per version, so an
@@ -1012,6 +1063,7 @@ mod tests {
             keys_by_commit: Mutex::new(BTreeMap::new()),
             assigned_commits,
             assigned_commits_receiver: Mutex::new(Some(assigned_commits_receiver)),
+            highest_fully_executed_commit: watch::Sender::new(0),
             handler_latest_overlay: RwLock::new(BTreeMap::new()),
             sync_ahead_overlay: RwLock::new(BTreeMap::new()),
             sheltered_overlay: RwLock::new(BTreeMap::new()),
