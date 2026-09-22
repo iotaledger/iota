@@ -793,7 +793,7 @@ def plot_mix(configs, hist, outdir):
         ax.grid(False, axis="y")
         if j % per_row == 0:
             ax.set_ylabel("admitted per commit", fontsize=8)
-    fig.axes[0].set_xlabel("share of commits", fontsize=8)
+    fig.axes[0].set_xlabel("share of commits that scheduled on object", fontsize=8)
 
     # Bottom row: the outcome per config, A next to B. Run A's label is
     # right-aligned and Run B's left-aligned, and Run B's moves up one line
@@ -844,20 +844,21 @@ def plot_mix(configs, hist, outdir):
     fig.legend(
         handles,
         [A_NAME, "Run B — TotalComputationUnits, limit 10 × mean cost"],
-        loc="upper right",
+        loc="upper center",
         frameon=False,
         fontsize=8,
         ncol=2,
-        bbox_to_anchor=(0.99, 0.99),
+        bbox_to_anchor=(0.5, 0.945),
     )
     fig.suptitle(
-        "Mixed cost at the count limit's equivalent: a count limit pins the "
-        "number\nadmitted per commit, a unit limit lets it swing",
-        x=0.01,
-        ha="left",
+        "The twelve mixes at LIMIT_B = 10 \u00d7 mean cost: how many"
+        " transactions each commit admitted, and the success tps, cancellations"
+        " and checkpoint lag that followed.\n"
+        "Run A takes ten whatever they cost; Run B takes as many as fit under"
+        " the limit.",
         fontsize=12,
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.955), h_pad=1.6)
+    fig.tight_layout(rect=(0, 0, 1, 0.925), h_pad=1.6)
     fig.savefig(os.path.join(outdir, f"modes_mix{FILE_SUFFIX}.png"), dpi=150)
     plt.close(fig)
 
@@ -979,6 +980,248 @@ def load_lag_slices(path, window=10):
             (float(r["t_start_s"]), float(r["lag_mean_s"]))
         )
     return out
+
+
+def pareto_front(pts, better_y_is_low):
+    """The non-dominated subset of (x, y, ...) tuples, x always maximised.
+    Sorted by x for drawing."""
+    keep = []
+    for a in pts:
+        dominated = False
+        for b in pts:
+            if b is a:
+                continue
+            ge = b[0] >= a[0]
+            gy = (b[1] <= a[1]) if better_y_is_low else (b[1] >= a[1])
+            strict = b[0] > a[0] or (b[1] != a[1])
+            if ge and gy and strict:
+                dominated = True
+                break
+        if not dominated:
+            keep.append(a)
+    return sorted(keep, key=lambda t: t[0])
+
+
+# (y key, panel title, is a low value better, y on a log scale)
+PARETO_MIX_PANELS = (
+    ("lag_mean_s", "checkpoint lag mean, B / A", True, True),
+    ("cancelled_per_s", "cancelled / s, B / A", True, False),
+    ("expensive_per_s", "expensive executed / s, B / A", False, False),
+)
+
+
+def plot_pareto_mix(mix_rows, outdir):
+    """Every mixed-cost config in ratio space: Run B over its own Run A, so the
+    count limit is the point (1, 1) for every mix. The shaded quadrant is where
+    the unit limit beats the count limit on both axes at once."""
+    ladders = {}
+    for r in mix_rows:
+        ladders.setdefault(r["point"], []).append(r)
+    named = sorted(
+        (k for k, v in ladders.items() if len(v) >= 2),
+        key=lambda k: ladders[k][0]["units_per_tx"] or 0,
+    )
+    others = [r for k, v in ladders.items() if len(v) < 2 for r in v]
+    if not named:
+        return
+    colors = ramp(len(named))
+    marks = ["o", "s", "^", "D", "v", "P"]
+    # The configs that beat Run A on success tps, cancellations and checkpoint
+    # lag at once. None of them also executes more expensive transactions.
+    wins = set()
+    for name, cfgs in ladders.items():
+        for r in cfgs:
+            ok = (
+                r.get("b_succ_tps")
+                and r.get("a_succ_tps")
+                and r["b_succ_tps"] > r["a_succ_tps"]
+                and r["b_cancelled_per_s"] < r["a_cancelled_per_s"]
+                and r["b_lag_mean_s"] < r["a_lag_mean_s"]
+            )
+            if ok:
+                wins.add(r["label"])
+    fig, axes = plt.subplots(1, 3, figsize=(15.0, 5.2), squeeze=False)
+    for ax, (key, title, low_is_better, logy) in zip(axes[0], PARETO_MIX_PANELS):
+        pts = []
+        for r in others:
+            a, b = r.get(f"a_{key}"), r.get(f"b_{key}")
+            sa, sb = r.get("a_succ_tps"), r.get("b_succ_tps")
+            if None in (a, b, sa, sb) or not a or not sa:
+                continue
+            ax.plot(sb / sa, b / a, "o", color=MUTED, ms=4, alpha=0.55, zorder=2)
+            pts.append((sb / sa, b / a))
+        for mi, (name, c) in enumerate(zip(named, colors)):
+            cfgs = sorted(ladders[name], key=lambda r: r["limit_b"])
+            xs, ys = [], []
+            for r in cfgs:
+                a, b = r.get(f"a_{key}"), r.get(f"b_{key}")
+                sa, sb = r.get("a_succ_tps"), r.get("b_succ_tps")
+                if None in (a, b, sa, sb) or not a or not sa:
+                    continue
+                xs.append(sb / sa)
+                ys.append(b / a)
+                pts.append((sb / sa, b / a))
+                if r["label"] in wins:
+                    ax.plot(
+                        xs[-1],
+                        ys[-1],
+                        "o",
+                        mfc="none",
+                        mec=SECOND_COLOR,
+                        ms=13,
+                        mew=1.6,
+                        zorder=6,
+                    )
+                ax.annotate(
+                    kfmt(r["limit_b"]),
+                    (xs[-1], ys[-1]),
+                    xytext=(5, 3 if len(xs) % 2 else -9),
+                    textcoords="offset points",
+                    fontsize=6.5,
+                    color=INK,
+                )
+            ax.plot(
+                xs,
+                ys,
+                "-",
+                marker=marks[mi % len(marks)],
+                color=c,
+                lw=1.6,
+                ms=5,
+                label=name,
+                zorder=3,
+            )
+        front = pareto_front(pts, low_is_better)
+        if len(front) > 1:
+            ax.step(
+                [t[0] for t in front],
+                [t[1] for t in front],
+                where="post",
+                color=INK,
+                lw=1,
+                ls="--",
+                zorder=4,
+            )
+        # Run A, and the quadrant where Run B beats it on both axes.
+        ax.plot(1, 1, "*", color=A_COLOR, ms=16, markeredgecolor=INK, zorder=5)
+        ax.set_xscale("log")
+        ax.xaxis.set_major_locator(matplotlib.ticker.FixedLocator([0.5, 1, 2, 3, 5]))
+        ax.xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%g"))
+        ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        if logy:
+            ax.set_yscale("log")
+            ax.yaxis.set_major_locator(
+                matplotlib.ticker.FixedLocator([0.2, 0.5, 1, 2, 5, 10, 20])
+            )
+            ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%g"))
+            ax.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        x0, x1 = ax.get_xlim()
+        y0, y1 = ax.get_ylim()
+        ax.axvspan(1, max(x1, 1.01), ymin=0, ymax=1, color=GRID, alpha=0.0)
+        ax.add_patch(
+            Rectangle(
+                (1, y0 if low_is_better else 1),
+                max(x1, 1.01) - 1,
+                (1 - y0) if low_is_better else (y1 - 1),
+                color=SECOND_COLOR,
+                alpha=0.09,
+                lw=0,
+                zorder=0,
+            )
+        )
+        ax.axvline(1, color=INK2, lw=1, ls=":")
+        ax.axhline(1, color=INK2, lw=1, ls=":")
+        ax.set_xlim(x0, x1)
+        ax.set_ylim(y0, y1)
+        style_axes(ax)
+        ax.set_xlabel("success tps, B / A (log)")
+        ax.set_title(title, fontsize=9)
+    axes[0][0].legend(frameon=False, fontsize=8, loc="best")
+    fig.suptitle(
+        "Mixed cost, each unit limit against its own count limit: the star is"
+        " Run A at (1, 1) and the shaded quadrant is where Run B wins on both"
+        " axes.\n"
+        "Ringed \u2014 wins on success tps, cancellations and checkpoint lag at"
+        " once; none of them also executes more expensive transactions"
+        " (right).",
+        fontsize=12,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.savefig(os.path.join(outdir, f"modes_pareto_mix{FILE_SUFFIX}.png"), dpi=150)
+    plt.close(fig)
+
+
+def plot_pareto_fixed(points, outdir):
+    """Fixed cost, absolute values: the good corner stays empty. Success tps
+    sits at the drain rate whatever the limit, so the only choice left is how
+    the surplus fails \u2014 cancelled now or queued later."""
+    fig, (top, bot) = plt.subplots(2, 1, figsize=(7.6, 8.2), sharex=True)
+    colors = ramp(len(points))
+    for p, c in zip(points, colors):
+        d = p.drain()
+        xs, lags, rel = [], [], []
+        for _, cfg in p.curve():
+            canc, lag, succ = (
+                cfg["b_cancelled_per_s"],
+                cfg["b_lag_mean_s"],
+                cfg["b_succ_tps"],
+            )
+            if None in (canc, lag, succ) or not cfg["target_qps"]:
+                continue
+            xs.append(canc / cfg["target_qps"])
+            lags.append(lag)
+            rel.append(succ / d if d else None)
+        # Dominated inside this cost point: another limit of the same ladder
+        # cancels less AND lags less. Those are drawn hollow.
+        worse = [
+            any(
+                (xs[j] <= xs[i] and lags[j] <= lags[i])
+                and (xs[j] < xs[i] or lags[j] < lags[i])
+                for j in range(len(xs))
+                if j != i
+            )
+            for i in range(len(xs))
+        ]
+        top.plot(xs, lags, "-", color=c, lw=1.4, label=p.name)
+        if d:
+            bot.plot(xs, rel, "-", color=c, lw=1.4)
+        for i, w in enumerate(worse):
+            style = dict(mfc="none", mec=c, mew=1.2) if w else dict(color=c)
+            top.plot(xs[i], lags[i], "o", ms=4.5, **style)
+            if d:
+                bot.plot(xs[i], rel[i], "o", ms=4.5, **style)
+        qps = p.configs[0]["target_qps"] or 1
+        if p.a["cancelled_per_s"] is not None and p.a["lag_mean_s"] is not None:
+            star = dict(
+                marker="*", color=c, ms=13, markeredgecolor=INK, markeredgewidth=0.6
+            )
+            top.plot(p.a["cancelled_per_s"] / qps, p.a["lag_mean_s"], **star)
+            if d:
+                bot.plot(p.a["cancelled_per_s"] / qps, p.a["succ_tps"] / d, **star)
+    top.set_yscale("log")
+    top.set_ylabel("checkpoint lag mean (s, log)")
+    bot.set_ylabel("success tps / drain rate")
+    bot.set_xlabel("cancelled fraction of offered")
+    bot.axhline(1, color=INK2, lw=1, ls=":")
+    top.set_title(
+        "the two failures trade against each other: only cu1k, which the client"
+        "\ncannot saturate, reaches the bottom left corner",
+        fontsize=9,
+    )
+    bot.set_title("success tps stops at the drain rate however the limit is set", fontsize=9)
+    for ax in (top, bot):
+        style_axes(ax)
+    top.legend(frameon=False, fontsize=7, loc="upper right", ncol=3)
+    fig.suptitle(
+        "Fixed cost: every configuration of every cost point, Run B as dots,"
+        " Run A starred.\n"
+        "Hollow \u2014 beaten by another limit of the same cost point on both"
+        " axes.",
+        fontsize=12,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    fig.savefig(os.path.join(outdir, f"modes_pareto_fixed{FILE_SUFFIX}.png"), dpi=150)
+    plt.close(fig)
 
 
 def plot_lag_over_time(fine, coarse, outdir):
@@ -1153,6 +1396,7 @@ def main():
         plot_utilization(points, outdir)
         plot_tradeoff(points, outdir)
         plot_matched(points, outdir)
+        plot_pareto_fixed(points, outdir)
     if mix:
         # The 300 s runs are drawn over time, not on the ladders. Of the rest,
         # a mix run at several limits is a ladder; a mix at LIMIT_B = 10 x
@@ -1171,6 +1415,7 @@ def main():
             plot_mix(matched, hist, outdir)
         if ladders:
             plot_mix_ladders(ladders, outdir)
+        plot_pareto_mix(mix, outdir)
     lag_path = os.path.join(results, "lag_over_time.csv")
     plot_lag_over_time(load_lag_slices(lag_path, 10), load_lag_slices(lag_path, 60), outdir)
     if second:

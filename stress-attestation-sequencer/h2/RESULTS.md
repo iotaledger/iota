@@ -829,33 +829,40 @@ A's checkpoint lag is already 9–23 s. Execution on the object is kept saturate
 by the cheap transactions alone — 5K transactions drain at 118/s, 2K — at 179/s
 (finding 3) — so admitting more of them buys nothing.
 
-So the gain does not come from the gap between the two costs. It comes from
-whether Run A's ten transactions leave the object idle, because only then does
-Run B's limit have room to add more. On EPYC, that needs cheap transactions of
-≈1,000 CUs: at 2K or 5K, ten of them already saturate the object (finding 3).
+So the success tps gain does not come from the gap between the two costs. It
+comes from whether Run A's ten transactions leave the object idle, because only
+then does Run B's limit have room to add more. On EPYC, that needs cheap
+transactions of ≈1,000 CUs: at 2K or 5K, ten of them already saturate the
+object (finding 3).
 
-Raising the expensive share does the same from the other side, because past
-20 % the expensive transactions alone fill the object:
+Raising the share of expensive transactions removes the success tps gain too,
+and for the same reason: past 20 %, the expensive transactions alone saturate
+the object:
 
-| Mix | Expensive share | Gain | Checkpoint lag A → B |
+| Mix | Expensive share | Success tps B/A | Checkpoint lag A → B |
 | --- | --- | --- | --- |
 | `mix10900` | 10 % | 3.1× | 0.8 → 0.6 s |
 | `mix20800` | 20 % | 2.1× | 0.7 → 3.9 s |
 | `mix30700` | 30 % | 1.4× | 7.3 → 9.7 s |
 | `mix50500` | 50 % | 1.3× | 15.3 → 15.6 s |
 
-The three-cost mix (`mix13600`, 1K/10K/100K at 60/30/10 %) gains 1.17× with
-checkpoint lag 5.5 → 9.7 s: its 10K middle cost uses the capacity the cheap
-ones would have filled.
+The three-cost mix (`mix13600`, 1K/10K/100K at 60/30/10 %) behaves the same
+way: success tps B/A is 1.17 and checkpoint lag goes from 5.5 s in Run A to
+9.7 s in Run B, because its middle transactions of 10K CUs take the capacity
+the cheap ones would have filled.
 
 ![Admitted per commit, and the outcome, for the mixes at the count limit's equivalent](results/matrix/summary_plots/modes_mix.png)
 
-*The twelve mixes run at `LIMIT_B = 10 × mean`. Top: the share of commits
-admitting each number of transactions, Run A (blue) next to Run B (orange).
-Bottom: success tps, cancellations and checkpoint lag. Run B gains where Run A's
-bar is 100 % at 7–10 — where the count limit binds and execution on the object
-has spare time; where both runs have slid below 10 execution on the object is
-already saturated and the modes produce the same numbers.*
+*The twelve mixes run at `LIMIT_B = 10 × mean cost`. The top two rows are the
+admission histograms: for each bucket of transactions admitted per commit, the
+share of the commits that scheduled anything on the object, Run A (blue) next
+to Run B (orange). Run A fills the 7–10 bucket wherever ten transactions are
+waiting — 99–100 % of commits in six of the mixes, and as little as 33 % where
+the object is already saturated — while Run B spreads across buckets, because
+how many transactions can fit under its limit depends on what the commit holds.
+The bottom row gives each mix's success tps, cancellations, and checkpoint lag,
+and it follows the histograms: success tps B/A stays within 6 % of admits B/A
+in all twelve, from 1.04 at `mix9500` to 3.13 at `mix10900`.*
 
 *Stable, not just low.* The 60 s window cannot tell a queue that is high but
 stable from one that keeps growing, so four configurations ran for 300 s, ten
@@ -989,7 +996,8 @@ shape. What changes is how far each configuration was from its own ceiling at
   still at zero, so at 1,000 tx/s that configuration was measuring the client
   and not the limit.
 - `mix20800` at 150K gains 23 % and `mix10900` at 200K gains 53 %, both
-  starting to cancel heavily, which is the limit binding for the first time.
+  starting to cancel heavily, which is the first time the limit turns
+  transactions away.
 - Where the limit already admits more work than a commit can execute, the extra
   load goes into the backlog instead. `cu2k` at 100K and at 200K roughly double
   their checkpoint lag, 8.9 → 16.7 s and 8.7 → 17.3 s, for 25 % more throughput.

@@ -146,13 +146,14 @@ start at or above its own per-transaction cost, and why the tightest meaningful
 limit for `cu5m` is one transaction per commit.
 
 The rate is the second knob: it sets how many transactions are available per
-commit, and a limit only binds when more arrive than it admits. Every
+commit, and a limit only matters when more arrive than it admits. Every
 configuration runs at 1,000 tx/s except the `-qps2000` ones: at 1,000 units the
-limit binds at that rate already, and from 5,000 units up the client's in-flight
-cap lowers what it offers to what can execute on the object, so a higher target
-changes nothing there (`RESULTS.md`, finding 3). The `-qps2000` configurations
-therefore cover only the two lightest cost points and the mixes whose cheap
-cost is 1,000 units, where more arrivals can still change the result.
+limit already turns transactions away at that rate, and from 5,000 units up the
+client's in-flight cap lowers what it offers to what can execute on the object,
+so a higher target changes nothing there (`RESULTS.md`, finding 3). The
+`-qps2000` configurations therefore cover only the two lightest cost points and
+the mixes whose cheap cost is 1,000 units, where more arrivals can still change
+the result.
 
 Computation units are machine-independent, but execution time is not, so the
 same limit fills the object differently on each machine — measure where
