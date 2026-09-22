@@ -1666,12 +1666,9 @@ fn compute_auth_digests_sponsored_regular_signatures() {
     assert_eq!(sponsor_digest.unwrap(), blake2b256_of_sig(sponsor_sig));
 }
 
-/// Input counts a transaction may not declare. The first is the first count
-/// the bound rejects. The rest come from the width of the index an argument
-/// carries rather than from the bound, so they keep their meaning if the bound
-/// changes. Each truncates to a valid index if something narrows a count to a
-/// `u16`, giving 0, 1 and 65 534, and a narrowing would then look like a short
-/// list rather than an error.
+/// Input counts a transaction may not declare: the first count the bound
+/// rejects, then three that truncate to a valid `u16` index, 0, 1 and 65 534,
+/// so a narrowing would look like a short list rather than an error.
 fn counts_past_the_input_bound() -> [usize; 4] {
     let wraps_to_zero = u16::MAX as usize + 1;
     [
@@ -1698,8 +1695,6 @@ fn ptb_validity_check_rejects_more_inputs_than_it_may_declare() {
 #[test]
 fn ptb_validity_check_rejects_a_randomness_input_past_the_last_input_index() {
     // The randomness object sits at an index no `Argument::Input` can name.
-    // The input count rejects it; without that bound the conversion of the
-    // index is what would fail.
     let config = ProtocolConfig::get_for_max_version_UNSAFE();
     for count in counts_past_the_input_bound() {
         let err = ptb_with_pure_inputs(count, 0, true)

@@ -321,9 +321,8 @@ pub fn assert_size_limit_err(err: &UserInputError, limit_name: &str) {
 }
 
 /// A programmable transaction with `count` pure inputs of `size` zero bytes
-/// each, then the randomness state object when `with_randomness` is set, and
-/// one command that uses the first two inputs, which the transaction must
-/// therefore have.
+/// each, then the randomness state object when `with_randomness` is set. Its
+/// one command uses the first two inputs, so there must be at least two.
 pub fn ptb_with_pure_inputs(
     count: usize,
     size: usize,
