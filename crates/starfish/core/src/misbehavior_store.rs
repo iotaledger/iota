@@ -338,6 +338,22 @@ impl MisbehaviorStore {
             self.in_memory.record_block_fault_unprovable(idx);
         }
     }
+
+    /// Attributes a fetch response the collector rejected to the peer that
+    /// served it. Transaction entries the request did not cover, or larger
+    /// than any block's payload allows, are the serving peer's unprovable
+    /// fault; every other error goes through the block classifier, which
+    /// leaves transport failures and configuration-dependent mismatches
+    /// untracked.
+    pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
+        match error {
+            ConsensusError::TooManyFetchedTransactionsReturned(_)
+            | ConsensusError::SerializedTransactionsTooLarge { .. } => {
+                self.record_faulty_transactions(peer, false, [peer]);
+            }
+            _ => self.record_faulty_block(peer, peer, error),
+        }
+    }
 }
 
 /// Whether a block fault can be cryptographically proven.
@@ -1230,6 +1246,38 @@ mod tests {
             counts.faulty_blocks_unprovable,
             counts.invalid_bundle_parts,
         )
+    }
+
+    /// A fetch response the collector rejected is the serving peer's
+    /// unprovable fault; a transport failure is nobody's.
+    #[tokio::test]
+    async fn fetch_faults_are_charged_to_the_serving_peer() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::TooManyFetchedTransactionsReturned(peer),
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::SerializedTransactionsTooLarge { size: 2, limit: 1 },
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::TooManyFetchedHeadersReturned {
+                peer,
+                requested: 1,
+                received: 2,
+            },
+        );
+        store.record_fetch_fault(peer, &ConsensusError::NetworkRequest("cut".to_string()));
+
+        let counts = store.in_memory.snapshot(peer.value());
+        assert_eq!(counts.faulty_blocks_unprovable, 3);
+        assert_eq!(counts.faulty_blocks_provable, 0);
+        assert_eq!(counts.invalid_bundle_parts, 0);
     }
 
     #[tokio::test]

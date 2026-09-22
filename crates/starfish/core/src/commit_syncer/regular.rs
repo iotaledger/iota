@@ -588,7 +588,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             vec![],
                             timeout,
                         )
-                        .await?;
+                        .await
+                        .inspect_err(|e| {
+                            inner
+                                .misbehavior_store
+                                .record_fetch_fault(target_authority, e);
+                        })?;
                     // 5. Verify the returned headers are the requested ones.
                     verify_fetched_headers(
                         target_authority,
