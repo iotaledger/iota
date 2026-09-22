@@ -74,7 +74,10 @@ use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use prometheus_filtered::IntCounter;
 use serde::{Deserialize, Serialize};
 use tap::TapOptional;
-use tokio::{sync::OnceCell, time::Instant};
+use tokio::{
+    sync::{OnceCell, watch},
+    time::Instant,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
@@ -1310,7 +1313,12 @@ impl AuthorityPerEpochStore {
         );
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables);
-        let handler_object_state = HandlerObjectState::new(&tables);
+        let resume_point = tables
+            .get_last_consensus_index()
+            .expect("AuthorityEpochTables should hold a readable consensus resume point")
+            .unwrap_or_default()
+            .sub_dag_index;
+        let handler_object_state = HandlerObjectState::new(&tables, resume_point);
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1777,6 +1785,21 @@ impl AuthorityPerEpochStore {
     /// [`HandlerObjectState::take_assigned_commits_receiver`].
     pub fn take_assigned_commits_receiver(&self) -> Option<UnboundedReceiver<AssignedCommit>> {
         self.handler_object_state.take_assigned_commits_receiver()
+    }
+
+    /// Receiver of the highest fully executed commit; see
+    /// [`HandlerObjectState::subscribe_highest_fully_executed_commit`].
+    pub fn subscribe_highest_fully_executed_commit(&self) -> watch::Receiver<CommitIndex> {
+        self.handler_object_state
+            .subscribe_highest_fully_executed_commit()
+    }
+
+    /// Waits until commit `index` and everything below it is fully executed;
+    /// see [`HandlerObjectState::wait_for_fully_executed_commit`].
+    pub async fn wait_for_fully_executed_commit(&self, index: CommitIndex) {
+        self.handler_object_state
+            .wait_for_fully_executed_commit(index)
+            .await
     }
 
     /// Records one executed transaction's object writes for the P-COOL
