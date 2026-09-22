@@ -2182,16 +2182,6 @@ impl<'a, 'b> VersionedBinary<'a, 'b> {
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION));
         }
 
-        // Below version 7 the flavor is not part of the header, and the flavor byte
-        // is masked off rather than read. Requiring the round trip through
-        // `encode_version` keeps the header the only encoding of its version.
-        if binary_config.check_canonical_module_version_header
-            && BinaryFlavor::encode_version(version) != flavored_version
-        {
-            return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION)
-                .with_message("Non-canonical version header".to_string()));
-        }
-
         let mut versioned_cursor = VersionedCursor { version, cursor };
         // load table info
         let table_count = load_table_count(&mut versioned_cursor)?;

@@ -65,9 +65,6 @@ pub struct BinaryConfig {
     pub min_binary_format_version: u32,
     pub check_no_extraneous_bytes: bool,
     pub check_iota_metadata_bytes: bool,
-    /// Reject a version field that is not what the serializer would write for
-    /// the version it decodes to, i.e. a non-zero flavor byte below version 7.
-    pub check_canonical_module_version_header: bool,
     pub table_config: TableConfig,
     allow_unpublishable: bool,
 }
@@ -78,7 +75,6 @@ impl BinaryConfig {
         min_binary_format_version: u32,
         check_no_extraneous_bytes: bool,
         check_iota_metadata_bytes: bool,
-        check_canonical_module_version_header: bool,
         table_config: TableConfig,
     ) -> Self {
         Self {
@@ -86,7 +82,6 @@ impl BinaryConfig {
             min_binary_format_version,
             check_no_extraneous_bytes,
             check_iota_metadata_bytes,
-            check_canonical_module_version_header,
             table_config,
             allow_unpublishable: false,
         }
@@ -104,7 +99,6 @@ impl BinaryConfig {
             min_binary_format_version,
             check_no_extraneous_bytes,
             check_iota_metadata_bytes: check_no_extraneous_bytes,
-            check_canonical_module_version_header: false,
             table_config: TableConfig::legacy(),
             allow_unpublishable: false,
         }
@@ -118,7 +112,6 @@ impl BinaryConfig {
             min_binary_format_version: VERSION_1,
             check_no_extraneous_bytes,
             check_iota_metadata_bytes: check_no_extraneous_bytes,
-            check_canonical_module_version_header: false,
             table_config: TableConfig::legacy(),
             allow_unpublishable: false,
         }
@@ -132,7 +125,6 @@ impl BinaryConfig {
             min_binary_format_version: VERSION_1,
             check_no_extraneous_bytes: true,
             check_iota_metadata_bytes: true,
-            check_canonical_module_version_header: true,
             table_config: TableConfig::legacy(),
             allow_unpublishable: false,
         }
@@ -144,7 +136,6 @@ impl BinaryConfig {
             min_binary_format_version: VERSION_1,
             check_no_extraneous_bytes: true,
             check_iota_metadata_bytes: true,
-            check_canonical_module_version_header: true,
             table_config: TableConfig::legacy(),
             allow_unpublishable: true,
         }

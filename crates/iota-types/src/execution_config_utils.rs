@@ -17,9 +17,6 @@ pub fn to_binary_config(protocol_config: &ProtocolConfig) -> BinaryConfig {
             .unwrap_or(VERSION_1),
         protocol_config.no_extraneous_module_bytes(),
         protocol_config.metadata_in_module_bytes(),
-        // `check_canonical_module_version_header`: only module bytes carried by a
-        // transaction are checked, see `to_binary_config_for_published_modules`.
-        false,
         TableConfig {
             module_handles: protocol_config
                 .binary_module_handles_as_option()
@@ -77,17 +74,4 @@ pub fn to_binary_config(protocol_config: &ProtocolConfig) -> BinaryConfig {
                 .unwrap_or(u16::MAX),
         },
     )
-}
-
-/// Build a `BinaryConfig` for module bytes carried by a transaction.
-///
-/// These are held to a stricter standard than the bytes a package was stored
-/// with: the module header must be canonical. Do not use it to read modules
-/// back from storage, which would reject packages published before the check
-/// was enabled.
-pub fn to_binary_config_for_published_modules(protocol_config: &ProtocolConfig) -> BinaryConfig {
-    let mut binary_config = to_binary_config(protocol_config);
-    binary_config.check_canonical_module_version_header =
-        protocol_config.check_canonical_module_version_header();
-    binary_config
 }

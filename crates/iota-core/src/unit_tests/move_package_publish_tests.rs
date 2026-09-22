@@ -440,9 +440,9 @@ async fn test_publish_extraneous_bytes_modules() {
     )
 }
 
-/// Publish a version 6 module twice: once as the serializer wrote it, once with
-/// a non-zero high byte in the version field. Returns both statuses.
-async fn publish_v6_module_with_and_without_flavor_byte() -> (ExecutionStatus, ExecutionStatus) {
+/// Publish a version 6 module as the serializer wrote it, which must succeed,
+/// then again with the given high byte in the version field.
+async fn publish_v6_module_with_flavor_byte(flavor_byte: u8) -> ExecutionStatus {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
@@ -459,9 +459,6 @@ async fn publish_v6_module_with_and_without_flavor_byte() -> (ExecutionStatus, E
         module.serialize_with_version(VERSION_6, &mut buf).unwrap();
         buf
     };
-    let mut doctored = v6_module.clone();
-    doctored[BinaryConstants::MOVE_MAGIC_SIZE + 3] = 0xFF;
-
     let publish = |modules: Vec<Vec<u8>>| {
         let gas_object_ref = authority.get_object(&gas).unwrap().object_ref();
         let tx = Transaction::new_module(
@@ -475,29 +472,39 @@ async fn publish_v6_module_with_and_without_flavor_byte() -> (ExecutionStatus, E
         to_sender_signed_transaction(tx, &sender_key)
     };
 
-    let canonical = send_and_confirm_transaction(&authority, publish(vec![v6_module]))
+    let canonical = send_and_confirm_transaction(&authority, publish(vec![v6_module.clone()]))
         .await
         .unwrap()
         .1;
-    let non_canonical = send_and_confirm_transaction(&authority, publish(vec![doctored]))
+    assert_eq!(canonical.status(), &ExecutionStatus::Success);
+
+    let mut doctored = v6_module;
+    doctored[BinaryConstants::MOVE_MAGIC_SIZE + 3] = flavor_byte;
+    let effects = send_and_confirm_transaction(&authority, publish(vec![doctored]))
         .await
         .unwrap()
         .1;
-    (canonical.status().clone(), non_canonical.status().clone())
+
+    effects.status().clone()
 }
 
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_non_canonical_version_header() {
-    let (canonical, non_canonical) = publish_v6_module_with_and_without_flavor_byte().await;
-    assert_eq!(canonical, ExecutionStatus::Success);
-    assert_eq!(
-        non_canonical,
-        ExecutionStatus::Failure {
-            error: ExecutionError::VmVerificationOrDeserializationError,
-            command: Some(0)
-        }
-    );
+    // Any non-zero high byte masks off to the same version, so the header would
+    // otherwise be a second encoding of the canonical module. `0x05` is the flavor
+    // the serializer writes from version 7 on, and is no more acceptable here.
+    let rejected = ExecutionStatus::Failure {
+        error: ExecutionError::VmVerificationOrDeserializationError,
+        command: Some(0),
+    };
+    for flavor_byte in [0x01, 0x05, 0xFF] {
+        assert_eq!(
+            publish_v6_module_with_flavor_byte(flavor_byte).await,
+            rejected,
+            "flavor byte {flavor_byte:#04x}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -510,9 +517,10 @@ async fn test_publish_non_canonical_version_header_before_the_check() {
 
     // Replaying a protocol version from before the check must still accept what it
     // accepted then.
-    let (canonical, non_canonical) = publish_v6_module_with_and_without_flavor_byte().await;
-    assert_eq!(canonical, ExecutionStatus::Success);
-    assert_eq!(non_canonical, ExecutionStatus::Success);
+    assert_eq!(
+        publish_v6_module_with_flavor_byte(0xFF).await,
+        ExecutionStatus::Success
+    );
 }
 
 #[tokio::test]
