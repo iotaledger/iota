@@ -3541,3 +3541,50 @@ async fn test_account_owned_objects_walk_returns_each_row_once() {
         "the walk must return every row exactly once, in listing order",
     );
 }
+/// A checkpoint re-indexed after an unclean stop, with some of its digest rows
+/// already written and others not, gives every transaction the number it had
+/// the first time. A running counter would skip the rows it finds and hand the
+/// rest lower numbers, so the two runs would disagree about where a
+/// transaction sits in the network's order.
+#[tokio::test]
+async fn test_a_partial_replay_reassigns_the_same_sequence_numbers() {
+    let tmp_dir = iota_common::tempdir();
+    let index_store = open_index_store(tmp_dir.path().to_path_buf());
+
+    let mut builder = TestCheckpointDataBuilder::new(0).with_epoch(0);
+    for sender in 0..3 {
+        builder = builder.start_transaction(sender).finish_transaction();
+    }
+    let checkpoint = builder.build_checkpoint();
+    let digests: Vec<_> = checkpoint
+        .transactions
+        .iter()
+        .map(|tx| *tx.effects.transaction_digest())
+        .collect();
+
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    let first_run: Vec<_> = digests
+        .iter()
+        .map(|digest| index_store.lookup_digest(digest).unwrap())
+        .collect();
+    assert!(first_run.iter().all(Option::is_some));
+
+    // The stop left the middle transaction's digest row behind; the others
+    // are re-indexed.
+    let bucket = index_store.ensure_history_bucket(0).unwrap();
+    let mut batch = index_store.tables.meta.batch();
+    batch
+        .delete_batch_tagged(&bucket.digests, [digests[0], digests[2]])
+        .unwrap();
+    batch.write().unwrap();
+
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    let replayed: Vec<_> = digests
+        .iter()
+        .map(|digest| index_store.lookup_digest(digest).unwrap())
+        .collect();
+    assert_eq!(
+        replayed, first_run,
+        "a replay must not renumber the transactions it re-indexes",
+    );
+}

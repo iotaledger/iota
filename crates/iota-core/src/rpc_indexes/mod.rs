@@ -273,9 +273,9 @@ impl IndexStoreTables {
             let has_data = self.owner.safe_iter().next().transpose()?.is_some();
             return Ok(has_data || highest_executed_checkpoint.is_some());
         };
-        // The open anchors the transaction numbering to the watermark's
-        // checkpoint, so a checkpoint store rolled back to an older backup
-        // must rebuild rather than fail every open.
+        // The open reads the watermark's checkpoint to seed the reported
+        // transaction total, so a checkpoint store rolled back to an older
+        // backup must rebuild rather than fail every open.
         if checkpoint_store
             .get_checkpoint_by_sequence_number(watermark)?
             .is_none()
@@ -343,8 +343,8 @@ impl IndexStoreTables {
     ///
     /// With nothing executed no watermark is written: an absent watermark
     /// already means "nothing indexed", while writing 0 would claim
-    /// checkpoint 0 was indexed and shift the numbering anchor past the
-    /// genesis transaction.
+    /// checkpoint 0 was indexed and report the genesis transaction as
+    /// already counted.
     fn adopt_bulk_ingestion(
         &self,
         highest_executed: Option<CheckpointSequenceNumber>,
@@ -701,9 +701,10 @@ impl RpcIndexesStore {
                 .expect("failed to record the RPC index groups");
         }
 
-        // A store rebuilt without local history has no rows to derive the
-        // next sequence number from; anchor it to the network transaction
-        // total at the indexed watermark so numbering stays canonical.
+        // The reported transaction total is one past the last indexed
+        // transaction's sequence number, which a store rebuilt without local
+        // history has no rows to derive; seed it from the network
+        // transaction total at the indexed watermark instead.
         let anchor = opened
             .tables
             .watermark
@@ -991,17 +992,34 @@ impl RpcIndexesStore {
         let already_indexed = bucket.digests.multi_get(&digests)?;
         // The zip below pairs each transaction with its own lookup.
         debug_assert_eq!(digests.len(), already_indexed.len());
-        let transactions: Vec<&CheckpointTransaction> = checkpoint
+        // Each transaction keeps the position it has in the checkpoint, which
+        // is what its sequence number is derived from below.
+        let transactions: Vec<(usize, &CheckpointTransaction)> = checkpoint
             .transactions
             .iter()
+            .enumerate()
             .zip(already_indexed)
-            .filter_map(|(tx, indexed)| indexed.is_none().then_some(tx))
+            .filter_map(|((position, tx), indexed)| indexed.is_none().then_some((position, tx)))
             .collect();
 
         let index_jsonrpc = self.serves(IndexGroup::JsonRpc);
+        // A sequence number is the transaction's position in the network's
+        // order, which the summary states: `network_total_transactions`
+        // counts every transaction through this checkpoint, so the first of
+        // this checkpoint sits that many minus its own count from the start.
+        //
+        // Derived per checkpoint rather than counted, so that it is a pure
+        // function of the checkpoint. A replay after an unclean stop can find
+        // some of these digests already indexed and others not; a running
+        // counter would then hand the ones it re-indexes different numbers
+        // from the ones they were given, and the two runs would disagree.
+        let first_sequence = summary
+            .network_total_transactions
+            .saturating_sub(checkpoint.transactions.len() as u64);
+
         let mut batch = self.tables.watermark.batch();
-        for tx in &transactions {
-            let sequence = self.next_sequence_number.fetch_add(1, Ordering::SeqCst);
+        for (position, tx) in &transactions {
+            let sequence = first_sequence + *position as u64;
             if index_jsonrpc {
                 let data =
                     transaction_index_data(&tx.transaction, &tx.effects, tx.events.as_ref())?;
@@ -1021,10 +1039,14 @@ impl RpcIndexesStore {
                 )?;
             }
         }
+        self.next_sequence_number
+            .fetch_max(summary.network_total_transactions, Ordering::SeqCst);
+
+        let indexed: Vec<&CheckpointTransaction> = transactions.iter().map(|(_, tx)| *tx).collect();
 
         let mut coin_changes = CoinBalanceChanges::default();
         self.tables
-            .index_objects(&transactions, &self.groups, &mut batch, &mut coin_changes)?;
+            .index_objects(&indexed, &self.groups, &mut batch, &mut coin_changes)?;
         batch.insert_batch(&self.tables.watermark, [((), checkpoint_seq)])?;
 
         let mut pending_updates = self.pending_updates.lock();
