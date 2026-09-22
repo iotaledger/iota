@@ -859,12 +859,14 @@ fn take_payload(
 }
 
 /// Serializes the payloads of `commits_transaction_refs` into response entries,
-/// keeping the longest prefix of commits whose payloads fit
+/// keeping the longest prefix of commits whose entries fit
 /// `max_fast_commit_sync_transaction_bytes`. A commit only partly covered is
 /// dropped, since the requester discards it anyway.
 ///
-/// The first commit is served whole however large it is: a response that covers
-/// no commit lets the requester make no progress.
+/// The first commit is served whole however large it is, since a response
+/// covering no commit lets the requester make no progress. Going past the
+/// budget for it takes the node-wide slot, so only one response at a time
+/// holds more than the budget.
 fn fetch_commit_transactions_within_budget(
     context: &Context,
     store: &dyn Store,
@@ -880,9 +882,48 @@ fn fetch_commit_transactions_within_budget(
     })?;
 
     let mut result = Vec::new();
-    let mut covered_commits = 0;
     let mut total_bytes = 0;
-    for (index, transaction_refs) in commits_transaction_refs.iter().enumerate() {
+    let mut permit = None;
+
+    if let Some(first_transaction_refs) = commits_transaction_refs.first() {
+        for (position, transaction_ref) in first_transaction_refs.iter().enumerate() {
+            let payload = match take_payload(context, &mut payloads, *transaction_ref) {
+                Some(payload) => payload,
+                None => {
+                    // The refs come from commits read out of this node's own
+                    // store, so a payload is absent here because the budgeted
+                    // scan stopped before reaching it. Read what is left of this
+                    // commit without a budget, reusing everything already read.
+                    take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
+                    let unread: Vec<TransactionRef> = first_transaction_refs[position..]
+                        .iter()
+                        .copied()
+                        .filter(|transaction_ref| !payloads.contains_key(transaction_ref))
+                        .collect();
+                    payloads.extend(read_transaction_payloads(dag_state, &unread, |below_gc| {
+                        store.scan_serialized_transactions(&below_gc, usize::MAX)
+                    })?);
+                    match take_payload(context, &mut payloads, *transaction_ref) {
+                        Some(payload) => payload,
+                        // Storage no longer holds it, so no prefix of these
+                        // commits can be covered and the commits after it are
+                        // not worth serializing.
+                        None => return Ok((result, permit)),
+                    }
+                }
+            };
+            // Charged by the entry rather than the payload, since the ref and
+            // the length prefixes around it are held too.
+            let entry = serialize_transactions_entry(*transaction_ref, payload)?;
+            if total_bytes + entry.len() > byte_budget {
+                take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
+            }
+            total_bytes += entry.len();
+            result.push(entry);
+        }
+    }
+
+    for transaction_refs in commits_transaction_refs.iter().skip(1) {
         let commit_start = result.len();
         let mut covered = true;
         for transaction_ref in transaction_refs {
@@ -890,10 +931,8 @@ fn fetch_commit_transactions_within_budget(
                 covered = false;
                 break;
             };
-            // Charged by the entry rather than the payload, since the ref and
-            // the length prefixes around it are held too.
             let entry = serialize_transactions_entry(*transaction_ref, payload)?;
-            if index > 0 && total_bytes + entry.len() > byte_budget {
+            if total_bytes + entry.len() > byte_budget {
                 covered = false;
                 break;
             }
@@ -904,32 +943,25 @@ fn fetch_commit_transactions_within_budget(
             result.truncate(commit_start);
             break;
         }
-        covered_commits += 1;
     }
+    Ok((result, permit))
+}
 
-    if covered_commits > 0 {
-        return Ok((result, None));
+/// Reserves the node-wide slot for holding more than the budget, unless this
+/// response already holds it.
+fn take_oversized_commit_slot(
+    oversized_commit_slot: &Arc<Semaphore>,
+    permit: &mut Option<OwnedSemaphorePermit>,
+) -> ConsensusResult<()> {
+    if permit.is_none() {
+        *permit = Some(
+            oversized_commit_slot
+                .clone()
+                .try_acquire_owned()
+                .map_err(|_| ConsensusError::OversizedCommitAlreadyServed)?,
+        );
     }
-    let Some(first_transaction_refs) = commits_transaction_refs.first() else {
-        return Ok((result, None));
-    };
-
-    // The first commit did not fit the budget, so read it on its own with no
-    // budget to keep the requester moving. Only one response may do this at a
-    // time, so the memory a node can be asked to hold stays bounded.
-    let permit = oversized_commit_slot
-        .clone()
-        .try_acquire_owned()
-        .map_err(|_| ConsensusError::OversizedCommitAlreadyServed)?;
-    let mut payloads = read_transaction_payloads(dag_state, first_transaction_refs, |below_gc| {
-        store.scan_serialized_transactions(&below_gc, usize::MAX)
-    })?;
-    for transaction_ref in first_transaction_refs {
-        if let Some(payload) = take_payload(context, &mut payloads, *transaction_ref) {
-            result.push(serialize_transactions_entry(*transaction_ref, payload)?);
-        }
-    }
-    Ok((result, Some(permit)))
+    Ok(())
 }
 
 /// Wraps a payload and its ref into the entry a transaction-fetch response
@@ -6003,6 +6035,75 @@ mod tests {
             })
             .collect();
         assert_eq!(served_refs, commits_transaction_refs[0]);
+        assert!(permit.is_none());
+    }
+
+    #[tokio::test]
+    async fn an_oversized_first_commit_takes_the_slot_whatever_it_is_read_from() {
+        use crate::authority_service::fetch_commit_transactions_within_budget;
+
+        let (context, _) = Context::new_for_test(4);
+        let store = Arc::new(MemStore::new());
+
+        // Nothing moves the GC round, so every ref is served from the DAG state
+        // rather than the budgeted store scan.
+        let context = Arc::new(context);
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=2).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+        assert_eq!(
+            dag_state.read().gc_round_for_last_solid_commit(),
+            GENESIS_ROUND
+        );
+
+        let commits_transaction_refs: Vec<Vec<TransactionRef>> = (1..=2)
+            .map(|round| {
+                dag_builder
+                    .block_headers(round..=round)
+                    .iter()
+                    .map(|header| header.transaction_ref())
+                    .collect()
+            })
+            .collect();
+
+        let oversized_commit_slot = Arc::new(Semaphore::new(1));
+        let served_with_budget = |byte_budget| {
+            let context = Arc::new(Context {
+                parameters: Parameters {
+                    max_fast_commit_sync_transaction_bytes: byte_budget,
+                    ..context.parameters.clone()
+                },
+                ..Context::clone(&context)
+            });
+            fetch_commit_transactions_within_budget(
+                &context,
+                store.as_ref(),
+                &dag_state,
+                &oversized_commit_slot,
+                &commits_transaction_refs,
+            )
+        };
+
+        // The first commit's entries alone pass a budget of one entry, so it is
+        // served whole and holding more than the budget takes the slot.
+        let (served, permit) = served_with_budget(1).unwrap();
+        assert_eq!(served.len(), commits_transaction_refs[0].len());
+        assert!(permit.is_some());
+
+        // A second response cannot pass the budget while the first holds it.
+        assert!(matches!(
+            served_with_budget(1),
+            Err(ConsensusError::OversizedCommitAlreadyServed)
+        ));
+
+        // Under a budget that fits both commits, no slot is needed.
+        drop(permit);
+        let (served, permit) = served_with_budget(usize::MAX).unwrap();
+        assert_eq!(
+            served.len(),
+            commits_transaction_refs.iter().flatten().count()
+        );
         assert!(permit.is_none());
     }
 
