@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#![cfg_attr(nightly_lint, feature(non_exhaustive_omitted_patterns_lint))]
-#![cfg_attr(nightly_lint, warn(non_exhaustive_omitted_patterns))]
-
 use std::num::NonZeroUsize;
 
 use anyhow::Result;

@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-#![cfg_attr(nightly_lint, feature(non_exhaustive_omitted_patterns_lint))]
-#![cfg_attr(nightly_lint, warn(non_exhaustive_omitted_patterns))]
 #![warn(
     future_incompatible,
     nonstandard_style,

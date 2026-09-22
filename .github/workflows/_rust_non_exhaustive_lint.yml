@@ -27,15 +27,20 @@ jobs:
     # workspace-config change; the nightly run covers matches written in between.
     if: (!cancelled() && !failure() && (inputs.isRustWorkspaceConfig || inputs.isNightly))
     runs-on: [self-hosted-x64]
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # `non_exhaustive_omitted_patterns` is unstable, hence the nightly that
-      # cargo-udeps already pins. Only crates whose root carries
-      # `#![cfg_attr(nightly_lint, ...)]` take part; every other crate compiles
-      # unchanged. RUSTFLAGS replaces `.cargo/config.toml`'s `build.rustflags`;
-      # those are codegen flags and `cargo check` emits no code.
-      - name: Check for SDK enum variants hidden behind wildcard arms
-        run: cargo +nightly-2026-06-29 check --workspace --all-targets
+      # Coverage is derived from `cargo metadata` (every crate with a direct
+      # iota-sdk-types dependency) and the unstable lint is injected through a
+      # RUSTC_WORKSPACE_WRAPPER, so no crate source carries the attribute. This is
+      # a report: findings are warnings and never fail the job; the script fails
+      # only its self-test, i.e. if the lint has stopped being applied at all.
+      - name: Report SDK enum variants hidden behind wildcard arms
+        run: scripts/non_exhaustive_lint/check.sh
         env:
-          RUSTFLAGS: --cfg nightly_lint
+          # Build in a fresh per-run target dir so every in-scope crate is
+          # compiled with the lint injected. A shared/persistent target dir would
+          # replay cached artifacts from before a crate entered scope (the wrapper
+          # decision is not part of cargo's fingerprint), silently under-reporting.
+          CARGO_TARGET_DIR: ${{ runner.temp }}/nelint-target

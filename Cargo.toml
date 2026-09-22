@@ -221,7 +221,7 @@ debug = 0
 inherits = "simulator"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)', 'cfg(nightly_lint)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'] }
 
 [workspace.lints.clippy]
 redundant_clone = "warn"
