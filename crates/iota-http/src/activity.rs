@@ -18,13 +18,16 @@ use std::{
 /// exactly the peer this is here to close. It also means a connection that has
 /// not yet chosen a protocol counts as idle, because it has started no request
 /// either.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct ConnectionActivity(Arc<Inner>);
 
+#[derive(Debug)]
 struct Inner {
     /// Requests started and not yet finished, including the time a streaming
     /// response is still producing.
     in_flight: AtomicUsize,
+    /// Requests this connection has ever started.
+    started: AtomicU64,
     /// Milliseconds after `base` at which the last request finished, or 0 when
     /// none ever started.
     idle_since: AtomicU64,
@@ -35,6 +38,7 @@ impl ConnectionActivity {
     pub(crate) fn new() -> Self {
         Self(Arc::new(Inner {
             in_flight: AtomicUsize::new(0),
+            started: AtomicU64::new(0),
             idle_since: AtomicU64::new(0),
             base: Instant::now(),
         }))
@@ -43,7 +47,22 @@ impl ConnectionActivity {
     /// Marks a request as being served until the returned guard is dropped.
     pub(crate) fn request_started(&self) -> RequestGuard {
         self.0.in_flight.fetch_add(1, Ordering::Relaxed);
+        self.0.started.fetch_add(1, Ordering::Relaxed);
         RequestGuard(self.clone())
+    }
+
+    /// Whether this connection is serving a request right now.
+    pub(crate) fn is_serving(&self) -> bool {
+        self.0.in_flight.load(Ordering::Relaxed) > 0
+    }
+
+    /// Whether this connection has ever asked the server for anything.
+    ///
+    /// A connection that has not is the one worth giving up when the listener
+    /// is full: it has cost the server a slot and returned nothing, and it is
+    /// what a peer opening connections to hold them looks like.
+    pub(crate) fn has_started_a_request(&self) -> bool {
+        self.0.started.load(Ordering::Relaxed) > 0
     }
 
     /// When this connection may be closed for being idle, or `None` while it

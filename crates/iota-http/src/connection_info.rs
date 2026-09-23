@@ -9,7 +9,10 @@ use std::{
 
 use tokio_rustls::rustls::pki_types::CertificateDer;
 
-use crate::config::{OnPeerConnectionEvent, PeerConnectionEvent};
+use crate::{
+    activity::ConnectionActivity,
+    config::{OnPeerConnectionEvent, PeerConnectionEvent},
+};
 
 pub(crate) type ActiveConnections<A = std::net::SocketAddr> =
     Arc<RwLock<HashMap<ConnectionId, ConnectionInfo<A>>>>;
@@ -33,12 +36,14 @@ impl<A> ConnectionInfo<A> {
         address: A,
         peer_certificates: Option<Arc<Vec<CertificateDer<'static>>>>,
         graceful_shutdown_token: tokio_util::sync::CancellationToken,
+        activity: ConnectionActivity,
     ) -> Self {
         Self(Arc::new(Inner {
             address,
             time_established: std::time::Instant::now(),
             peer_certificates: peer_certificates.map(PeerCertificates),
             graceful_shutdown_token,
+            activity,
         }))
     }
 
@@ -65,6 +70,12 @@ impl<A> ConnectionInfo<A> {
     pub fn close(&self) {
         self.0.graceful_shutdown_token.cancel()
     }
+
+    /// Whether this connection has ever asked the server for anything, and is
+    /// not asking now. Such a connection has held a slot without using it.
+    pub(crate) fn is_unused(&self) -> bool {
+        !self.0.activity.has_started_a_request() && !self.0.activity.is_serving()
+    }
 }
 
 #[derive(Debug)]
@@ -75,6 +86,7 @@ struct Inner<A = std::net::SocketAddr> {
     time_established: std::time::Instant,
 
     peer_certificates: Option<PeerCertificates>,
+    activity: ConnectionActivity,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
 }
 

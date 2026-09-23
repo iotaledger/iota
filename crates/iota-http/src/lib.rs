@@ -326,6 +326,46 @@ where
         self.connections.read().unwrap().len()
     }
 
+    /// Gives up the longest-held connection that has never asked for anything,
+    /// so that a peer which does can take its place. Reports whether it freed
+    /// one.
+    ///
+    /// A limit on its own decides nothing beyond "first to arrive wins", which
+    /// under a flood is the flood. The connections it fills the listener with
+    /// are the ones that never send a request, so those are what this gives
+    /// up, and a peer that is using its connection is never given up for one
+    /// that has not yet proved it will.
+    ///
+    /// The *oldest* unused connection goes first, not the newest: a peer that
+    /// has only just connected has not had the chance to send anything yet,
+    /// and evicting it would be indistinguishable from refusing it.
+    fn evict_an_unused_connection(&mut self) -> bool {
+        let mut connections = self.connections.write().unwrap();
+
+        let Some(evicted) = connections
+            .values()
+            .filter(|connection| connection.is_unused())
+            .min_by_key(|connection| connection.time_established())
+            .map(|connection| connection.id())
+        else {
+            return false;
+        };
+
+        // Removed here rather than when the connection task notices, so the
+        // slot it frees is available to the caller now. Its own close will find
+        // the entry gone and report nothing.
+        let Some(connection) = connections.remove(&evicted) else {
+            return false;
+        };
+        let live = connections.len();
+        drop(connections);
+
+        trace!("giving up an unused connection to make room for a new one");
+        connection.close();
+        self.notify_connection(ConnectionEvent::Closed { live });
+        true
+    }
+
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
@@ -356,7 +396,7 @@ where
         // listener's connections can be counted whatever it is configured with.
         if let Some(max) = self.config.max_connections {
             let live = self.live_connections();
-            if live >= max {
+            if live >= max && !self.evict_an_unused_connection() {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("listener already serves {live} connections, closing the new one");
                 self.notify_connection(ConnectionEvent::Refused { live });
@@ -380,10 +420,12 @@ where
         }
 
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
+        let activity = ConnectionActivity::new();
         let connection_info = ConnectionInfo::new(
             remote_addr,
             io.peer_certs(),
             connection_shutdown_token.clone(),
+            activity.clone(),
         );
         let connection_id = connection_info.id();
         let connect_info = connection_info::ConnectInfo {
@@ -393,7 +435,6 @@ where
         let peer_certificates = connection_info.peer_certificates().cloned();
         let hyper_io = hyper_util::rt::TokioIo::new(io);
 
-        let activity = ConnectionActivity::new();
         let hyper_svc = TowerToHyperService::new(
             self.service
                 .clone()
@@ -1369,17 +1410,29 @@ mod tests {
 
         let _held = hold_connections(&handle, MAX_CONNECTIONS * 4).await;
 
-        assert_eq!(
-            handle.number_of_connections(),
-            MAX_CONNECTIONS,
-            "the listener must settle at its limit"
-        );
         assert!(
-            events
-                .snapshot()
-                .iter()
-                .any(|event| matches!(event, ConnectionEvent::Refused { .. })),
-            "connections over the limit must be reported as refused"
+            handle.number_of_connections() <= MAX_CONNECTIONS,
+            "the listener must never serve more than its limit, serving {}",
+            handle.number_of_connections()
+        );
+        // Every event carries the count at the time, so the limit can be
+        // checked against the whole run rather than against one moment of it.
+        // The count dips one below the limit while a connection is being given
+        // up for another, so it is a ceiling and not a fixed level.
+        let highest = events
+            .snapshot()
+            .iter()
+            .map(|event| match event {
+                ConnectionEvent::Established { live }
+                | ConnectionEvent::Closed { live }
+                | ConnectionEvent::Refused { live } => *live,
+                _ => 0,
+            })
+            .max()
+            .expect("the listener must have reported something");
+        assert_eq!(
+            highest, MAX_CONNECTIONS,
+            "the listener must fill to its limit and never past it"
         );
     }
 
@@ -1425,5 +1478,112 @@ mod tests {
             key("[2001:db8:0:1::1]:1"),
             "different /64"
         );
+    }
+
+    /// A limit alone decides only that whoever arrives first keeps the
+    /// listener, which under a flood is the flood. A peer that uses its
+    /// connection must be able to take the place of one that never did.
+    #[tokio::test]
+    async fn an_unused_connection_is_given_up_for_a_new_one() {
+        const MAX_CONNECTIONS: usize = 2;
+
+        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .serve(("localhost", 0), app)
+            .unwrap();
+        let url = format!("http://{}", handle.local_addr());
+
+        // Fill the listener with connections that ask for nothing.
+        let squatters = hold_connections(&handle, MAX_CONNECTIONS).await;
+        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+
+        // A peer that actually makes a request still gets served, which without
+        // giving one of them up it could not be.
+        let response = reqwest::get(&url).await.unwrap();
+        assert!(
+            response.status().is_success(),
+            "a full listener must make room for a peer that uses its connection"
+        );
+        assert!(
+            handle.number_of_connections() <= MAX_CONNECTIONS,
+            "making room must not take the listener past its limit"
+        );
+        drop(squatters);
+    }
+
+    /// Connections doing work are not given up for ones that have not yet
+    /// proved they will: when every slot is in use, the listener is genuinely
+    /// full and the newcomer is refused.
+    #[tokio::test]
+    async fn connections_that_are_in_use_are_not_given_up() {
+        const MAX_CONNECTIONS: usize = 1;
+
+        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .serve(("localhost", 0), app)
+            .unwrap();
+        let url = format!("http://{}", handle.local_addr());
+
+        // A client that has made a request and keeps its connection pooled.
+        let client = reqwest::Client::builder().build().unwrap();
+        assert!(client.get(&url).send().await.unwrap().status().is_success());
+        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+
+        // A second peer arrives. The slot is held by a connection that has been
+        // used, so it is kept and the newcomer is turned away rather than the
+        // working connection being dropped.
+        let _newcomer = hold_connections(&handle, 1).await;
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_CONNECTIONS,
+            "a used connection must not be given up"
+        );
+
+        // And the first client's connection still works.
+        assert!(client.get(&url).send().await.unwrap().status().is_success());
+    }
+
+    /// The oldest unused connection goes first: one that has only just arrived
+    /// has not had the chance to send anything yet, so giving it up would be
+    /// the same as refusing it.
+    #[tokio::test]
+    async fn the_longest_held_unused_connection_goes_first() {
+        const MAX_CONNECTIONS: usize = 2;
+
+        let events = RecordedEvents::default();
+        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections(Some(MAX_CONNECTIONS))
+                    .on_connection_event(events.record()),
+            )
+            .serve(("localhost", 0), app)
+            .unwrap();
+
+        let oldest = hold_connections(&handle, 1).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let newest = hold_connections(&handle, 1).await;
+        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+
+        let response = reqwest::get(format!("http://{}", handle.local_addr()))
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+
+        // The one that was given up is closed, and it is the older of the two.
+        let mut buf = [0u8; 1];
+        use tokio::io::AsyncReadExt as _;
+        let mut oldest = oldest;
+        let closed = tokio::time::timeout(
+            Duration::from_secs(10),
+            oldest.first_mut().unwrap().read(&mut buf),
+        )
+        .await
+        .expect("the connection given up must actually be closed");
+        assert!(matches!(closed, Ok(0) | Err(_)));
+        drop(newest);
     }
 }
