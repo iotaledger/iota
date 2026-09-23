@@ -323,7 +323,8 @@ impl LocalVm {
         // Resolve all authenticators so the auth context carries both the
         // sender's and the sponsor's function refs, matching the node, then run
         // only the pre-consensus subset.
-        let prepared_auths = prepare_authenticators(&backend, move_authenticators)?;
+        let prepared_auths =
+            prepare_authenticators(&backend, move_authenticators, &env.protocol_config)?;
         let auth_context_data =
             build_auth_context_data(&transaction, &prepared_auths, auth_digests)?;
         let to_run: Vec<_> = prepared_auths
