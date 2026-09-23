@@ -813,7 +813,7 @@ impl<K, V> DBMap<K, V> {
     /// Iterates the whole column family as of `db_snapshot` instead of the
     /// current state of the database.
     ///
-    /// Blocks it reads are not added to the block cache.
+    /// The blocks it reads are not added to the block cache.
     pub fn safe_iter_at_snapshot<'a>(
         &'a self,
         db_snapshot: &'a DbSnapshot<'a>,
