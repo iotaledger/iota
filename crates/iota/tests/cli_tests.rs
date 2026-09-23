@@ -4869,6 +4869,178 @@ async fn test_local_dry_run_matches_node_dry_run_for_shared_object_and_publish()
     Ok(())
 }
 
+// `std::hash::sha3_256(b"abc")`, from `std::hash`'s own tests.
+#[cfg(not(msim))]
+const SHA3_256_OF_ABC: [u8; 32] = [
+    0x3a, 0x98, 0x5d, 0xa7, 0x4f, 0xe2, 0x25, 0xb2, 0x04, 0x5c, 0x17, 0x2d, 0x6b, 0xd3, 0x90, 0xbd,
+    0x85, 0x5f, 0x08, 0x6e, 0x3e, 0x9d, 0x52, 0x5b, 0x46, 0xbf, 0xe2, 0x45, 0x11, 0x43, 0x15, 0x32,
+];
+
+#[cfg(not(msim))]
+fn dev_inspect(local: bool) -> TxProcessingArgs {
+    TxProcessingArgs {
+        dev_inspect: true,
+        local,
+        ..Default::default()
+    }
+}
+
+#[cfg(not(msim))]
+fn move_call(
+    package: ObjectId,
+    module: &str,
+    function: &str,
+    args: Vec<IotaJsonValue>,
+    gas: Vec<ObjectId>,
+    gas_data: GasDataArgs,
+    processing: TxProcessingArgs,
+) -> IotaClientCommands {
+    IotaClientCommands::Call {
+        package,
+        module: module.to_string(),
+        function: function.to_string(),
+        type_args: vec![],
+        args,
+        payment: PaymentArgs { gas },
+        gas_data,
+        processing,
+    }
+}
+
+/// Dev inspect `command` on the node and then locally, returning both
+/// results. Everything above it gated `#[cfg(not(msim))]` for the same reason
+/// as the dry-run helpers: the local path resolves objects on the calling
+/// thread, which needs a real multi-threaded runtime.
+#[cfg(not(msim))]
+async fn dev_inspect_on_both_backends(
+    context: &mut WalletContext,
+    command: impl Fn(bool) -> IotaClientCommands,
+) -> Result<
+    (
+        iota_json_rpc_types::DevInspectResults,
+        iota_json_rpc_types::DevInspectResults,
+    ),
+    anyhow::Error,
+> {
+    let node = command(false).execute(context).await?;
+    let local = command(true).execute(context).await?;
+    let (
+        IotaClientCommandResult::DevInspect(node),
+        IotaClientCommandResult::LocalDevInspect(local),
+    ) = (node, local)
+    else {
+        panic!("expected DevInspect results");
+    };
+    Ok((node, local))
+}
+
+/// Everything a dev inspect reports, compared field by field. The per-command
+/// results carry the Move call's return values, which are compared through
+/// JSON because their value and type tags do not derive `PartialEq`.
+#[cfg(not(msim))]
+fn assert_same_dev_inspect(
+    node: &iota_json_rpc_types::DevInspectResults,
+    local: &iota_json_rpc_types::DevInspectResults,
+) {
+    assert_eq!(*node.effects.status(), *local.effects.status());
+    assert_eq!(node.effects, local.effects);
+    assert_eq!(node.events, local.events);
+    let results = |results: &Option<_>| results.as_ref().map(serde_json::to_value).transpose();
+    assert_eq!(
+        results(&node.results).unwrap(),
+        results(&local.results).unwrap(),
+    );
+    assert_eq!(node.error, local.error);
+    assert_eq!(node.raw_txn_data, local.raw_txn_data);
+    assert_eq!(node.raw_effects, local.raw_effects);
+}
+
+// Dev inspects differ from dry runs in what they report, so this compares
+// the full results of both backends. A framework call with a return value
+// exercises the per-command results; a run that aborts exercises the error
+// string and the missing results.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, rgp, [gas_id, _, _], _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    // No gas coin of its own, so each path funds the run with a coin of its
+    // own making. The input is `abc`, whose sha3_256 is known from
+    // `std::hash`'s own tests.
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        move_call(
+            ObjectId::STD,
+            "hash",
+            "sha3_256",
+            vec![IotaJsonValue::from_str("0x616263").unwrap()],
+            vec![],
+            GasDataArgs::default(),
+            dev_inspect(local),
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dev_inspect(&node, &local);
+    // The return value must be the actual hash, which proves the per-command
+    // results survived the round trip to both backends.
+    let results = local
+        .results
+        .as_ref()
+        .expect("a successful dev inspect must report results");
+    let [(bytes, tag)] = results[0].return_values.as_slice() else {
+        panic!("expected exactly one return value");
+    };
+    assert_eq!(tag.as_ref(), "vector<u8>");
+    assert_eq!(bcs::from_bytes::<Vec<u8>>(bytes)?, SHA3_256_OF_ABC);
+
+    // A real gas coin and no budget: both backends must fill in the same
+    // budget from the coin's balance.
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        move_call(
+            ObjectId::STD,
+            "hash",
+            "sha3_256",
+            vec![IotaJsonValue::from_str("0x616263").unwrap()],
+            vec![gas_id],
+            GasDataArgs::default(),
+            dev_inspect(local),
+        )
+    })
+    .await?;
+    assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
+    assert_same_dev_inspect(&node, &local);
+
+    // A run that aborts: the error must read the same either way, and the
+    // missing results must be missing either way.
+    let package_id = published_package_id(
+        &created_by(
+            publish("clever_errors", gas_id, rgp, TxProcessingArgs::default()),
+            context,
+        )
+        .await?,
+    );
+    let (node, local) = dev_inspect_on_both_backends(context, |local| {
+        move_call(
+            package_id,
+            "clever_errors",
+            "aborter",
+            vec![],
+            vec![],
+            GasDataArgs::default(),
+            dev_inspect(local),
+        )
+    })
+    .await?;
+    assert!(matches!(
+        *node.effects.status(),
+        IotaExecutionStatus::Failure { .. }
+    ));
+    assert_same_dev_inspect(&node, &local);
+
+    Ok(())
+}
+
 // The PTB command reaches the local path through its own parser rather than
 // clap, so the guards on `--local` are checked here rather than by clap.
 #[cfg(not(msim))]
@@ -4910,14 +5082,60 @@ async fn test_ptb_local_dry_run() -> Result<(), anyhow::Error> {
     assert_eq!(*node.effects.status(), IotaExecutionStatus::Success);
     assert_same_dry_run(&node, &local);
 
-    // The parser accepts --local anywhere; the command only takes it with a
-    // dry run, and not alongside a dev inspect.
+    // The parser accepts --local anywhere; the command only takes it with
+    // exactly one simulation mode.
     for flags in ["--local", "--dry-run --dev-inspect --local"] {
         let Err(err) = ptb(flags).execute(context).await else {
             panic!("{flags:?} must be rejected");
         };
         assert!(err.to_string().contains("--local"), "{flags:?}: {err}");
     }
+
+    Ok(())
+}
+
+// The same PTB dev inspects on both backends: the Move call's return value
+// must survive both paths unchanged.
+#[cfg(not(msim))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_ptb_local_dev_inspect_matches_node_dev_inspect() -> Result<(), anyhow::Error> {
+    let (mut test_cluster, _, _, _, _, _) = test_cluster_helper().await;
+    let context = &mut test_cluster.wallet;
+
+    let ptb = |extra: &str| {
+        let args = shlex::split(&format!(
+            "--assign hello_option \"some('Hello')\" \
+             --move-call std::option::borrow <std::string::String> hello_option {extra}"
+        ))
+        .unwrap();
+        iota::client_ptb::ptb::PTB {
+            args,
+            display: HashSet::new(),
+        }
+    };
+
+    let PTBCommandResult::DevInspect(node) = ptb("--dev-inspect").execute(context).await? else {
+        panic!("expected a dev-inspect result");
+    };
+    let PTBCommandResult::CommandResult(local) =
+        ptb("--dev-inspect --local").execute(context).await?
+    else {
+        panic!("expected a local dev-inspect result");
+    };
+    let IotaClientCommandResult::LocalDevInspect(local) = *local else {
+        panic!("expected a local dev-inspect result");
+    };
+
+    assert_same_dev_inspect(&node, &local);
+    let results = local
+        .results
+        .as_ref()
+        .expect("a successful dev inspect must report results");
+    assert!(results.iter().any(|res| {
+        res.return_values.iter().any(|(bytes, tag)| {
+            tag.as_ref() == "0x1::string::String" && bytes == &[5, 72, 101, 108, 108, 111]
+        })
+    }));
 
     Ok(())
 }
