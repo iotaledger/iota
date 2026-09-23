@@ -94,14 +94,8 @@ pub(crate) fn drain_leftover_object_tombstones(
                 ObjectKey(*object_id, Version::MIN_VALID_INCL),
                 ObjectKey(*object_id, *gc_version + 1),
             );
-            // An entry outlives the versions it covers: the table was only
-            // ever appended to, so most entries name versions a compaction
-            // already dropped. A range delete over them would write a
-            // tombstone that hides nothing and still has to be read past
-            // until the next compaction. Probing first keeps the writes
-            // proportional to what is actually still there, and costs little
-            // because both tables are ordered by object id, so the probes
-            // walk the objects table forwards.
+            // Most entries name versions a compaction already dropped. Probing
+            // first avoids writing range tombstones that hide nothing.
             if perpetual_tables
                 .objects
                 .safe_iter_with_bounds(Some(from), Some(to))
