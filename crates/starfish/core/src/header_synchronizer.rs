@@ -738,7 +738,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
                             }
                         },
-                        Err(_) => {
+                        Err(err) => {
+                            misbehavior_store.record_fetch_fault(peer_index, &err);
                             context.metrics.node_metrics.synchronizer_fetch_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
                             if retries <= MAX_RETRIES {
                                 requests.push(Self::fetch_block_headers_request(context.clone(), network_client.clone(), peer_index, blocks_guard, highest_rounds, FETCH_REQUEST_TIMEOUT, true, retries).boxed())
@@ -1370,6 +1371,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                         }
                                     },
                                     Err(err) => {
+                                        misbehavior_store.record_fetch_fault(authority_index, &err);
                                         record_probe(false);
                                         warn!("Error {err} while fetching our own block header from peer {authority_index}. Will retry.");
                                         results.push(fetch_own_block_header(authority_index, FETCH_OWN_BLOCK_HEADER_RETRY_DELAY));
@@ -1508,6 +1510,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     network_client,
                     missing_blocks_refs,
                     dag_state.clone(),
+                    misbehavior_store.clone(),
                 )
                 .await;
                 context
@@ -1605,6 +1608,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         network_client: Arc<C>,
         missing_block_headers_refs: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         dag_state: Arc<RwLock<DagState>>,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> Vec<(BlocksGuard, FetchedHeaders, AuthorityIndex, Vec<Round>)> {
         // Step 1: Map authorities to missing block headers refs that they are aware of
         let mut authority_to_block_headers_refs: HashMap<AuthorityIndex, Vec<BlockRef>> =
@@ -1827,7 +1831,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                 break;
                             }
                         },
-                        Err(_) => {
+                        Err(err) => {
+                            misbehavior_store.record_fetch_fault(peer_index, &err);
                             context.metrics.node_metrics.synchronizer_fetch_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "periodic"]).inc();
                             // try again if there is any peer left
                             if let Some(next_peer) = remaining_peers.next() {
@@ -3593,6 +3598,7 @@ mod tests {
                 network_client.clone(),
                 missing_blocks,
                 dag_state.clone(),
+                Arc::new(MisbehaviorStore::new(&context)),
             )
             .await;
 
@@ -3684,6 +3690,7 @@ mod tests {
                 network_client.clone(),
                 missing_blocks,
                 dag_state.clone(),
+                Arc::new(MisbehaviorStore::new(&context)),
             )
             .await;
 
@@ -3898,6 +3905,7 @@ mod tests {
             network_client.clone(),
             missing_block_headers,
             dag_state.clone(),
+            Arc::new(MisbehaviorStore::new(&context)),
         )
         .await;
 
