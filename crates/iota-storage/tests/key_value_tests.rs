@@ -367,6 +367,27 @@ async fn test_get_tx_from_fallback() {
     );
 }
 
+#[tokio::test]
+async fn trait_calls_record_the_wrapper_metrics() {
+    let mut store = MockTxStore::new();
+    let tx = store.add_random_tx();
+    let metrics = KeyValueStoreMetrics::new_for_tests();
+    let store = TransactionKeyValueStore::new("mock_tx_store", metrics.clone(), Arc::new(store));
+    let store: &dyn TransactionKeyValueStoreTrait = &store;
+
+    let (transactions, _) = store.multi_get(&[*tx.digest()], &[]).await.unwrap();
+
+    assert_eq!(transactions, vec![Some(tx)]);
+    assert_eq!(
+        metrics
+            .key_value_store_num_fetches_success
+            .get_metric_with_label_values(&["mock_tx_store", "tx"])
+            .unwrap()
+            .get(),
+        1
+    );
+}
+
 #[cfg(msim)]
 mod simtests {
     use std::{
