@@ -288,8 +288,8 @@ impl fmt::Debug for IotaNode {
 ///
 /// Failing to remove it is not worth refusing to start over: it costs disk,
 /// not correctness.
-fn remove_legacy_db_checkpoints(db_path: &std::path::Path) {
-    let path = db_path.join("db_checkpoints");
+fn remove_legacy_db_checkpoints(config: &NodeConfig) {
+    let path = config.db_path.join("db_checkpoints");
     if !path.exists() {
         return;
     }
@@ -462,7 +462,7 @@ impl IotaNode {
             None
         };
 
-        remove_legacy_db_checkpoints(&config.db_path());
+        remove_legacy_db_checkpoints(&config);
 
         let secret = Arc::pin(config.authority_key_pair().copy());
         let genesis_committee = genesis.committee()?;
@@ -2883,23 +2883,44 @@ genesis:
         assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
     }
 
+    /// A config whose `db-path` is `db_path`, with nothing else a node would
+    /// need to start.
+    fn config_with_db_path(db_path: &std::path::Path) -> NodeConfig {
+        serde_yaml::from_str(&format!(
+            r#"
+db-path: {}
+network-address: /dns/localhost/tcp/8080/http
+metrics-address: "0.0.0.0:9184"
+json-rpc-address: "0.0.0.0:9000"
+genesis:
+  genesis-file-location: /nonexistent/genesis.blob
+"#,
+            db_path.display()
+        ))
+        .unwrap()
+    }
+
     #[test]
     fn a_leftover_database_checkpoint_directory_is_removed() {
         let dir = iota_common::tempdir();
+        let config = config_with_db_path(dir.path());
         let leftover = dir.path().join("db_checkpoints").join("epoch_0");
         std::fs::create_dir_all(&leftover).unwrap();
         std::fs::write(leftover.join("CURRENT"), b"hard link to a live SST").unwrap();
+        let live = config.db_path();
+        std::fs::create_dir_all(&live).unwrap();
 
-        remove_legacy_db_checkpoints(dir.path());
+        remove_legacy_db_checkpoints(&config);
 
         assert!(!dir.path().join("db_checkpoints").exists());
+        assert!(live.exists(), "the live database must be left alone");
     }
 
     #[test]
     fn a_database_without_one_is_left_alone() {
         let dir = iota_common::tempdir();
 
-        remove_legacy_db_checkpoints(dir.path());
+        remove_legacy_db_checkpoints(&config_with_db_path(dir.path()));
 
         assert!(
             !dir.path().join("db_checkpoints").exists(),
