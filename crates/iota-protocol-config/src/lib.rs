@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 35;
+pub const MAX_PROTOCOL_VERSION: u64 = 36;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -227,6 +227,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the redesigned leader schedule (sliding-window reputation
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on mainnet.
+// Version 36: Reject a transaction whose sender or sponsor is authenticated by
+//             a `MoveAuthenticator` with an immutable account object.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -657,6 +659,11 @@ struct FeatureFlags {
     // Allow objects created or mutated in system transactions to exceed the max object size limit.
     #[serde(skip_serializing_if = "is_false")]
     allow_unbounded_system_objects: bool,
+
+    // If true, transaction validation rejects a `MoveAuthenticator` whose
+    // account object is immutable.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_immutable_account_objects: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2115,6 +2122,15 @@ impl ProtocolConfig {
     pub fn allow_unbounded_system_objects(&self) -> bool {
         self.feature_flags.allow_unbounded_system_objects
     }
+
+    pub fn reject_immutable_account_objects(&self) -> bool {
+        let reject_immutable_account_objects = self.feature_flags.reject_immutable_account_objects;
+        assert!(
+            !reject_immutable_account_objects || self.enable_move_authentication(),
+            "reject_immutable_account_objects requires enable_move_authentication to be set"
+        );
+        reject_immutable_account_objects
+    }
 }
 
 #[cfg(not(msim))]
@@ -3478,6 +3494,11 @@ impl ProtocolConfig {
                     cfg.feature_flags
                         .pre_consensus_sponsor_only_move_authentication = false;
                 }
+                36 => {
+                    // No immutable account object can authenticate a sender or
+                    // a sponsor.
+                    cfg.feature_flags.reject_immutable_account_objects = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3761,6 +3782,10 @@ impl ProtocolConfig {
     pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config = val;
+    }
+
+    pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
+        self.feature_flags.reject_immutable_account_objects = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
