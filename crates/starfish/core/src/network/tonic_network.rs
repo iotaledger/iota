@@ -645,7 +645,14 @@ impl ChannelPool {
             }
         }
 
-        let _connecting = self.connecting[peer.value()].lock().await;
+        let deadline = tokio::time::Instant::now() + timeout;
+        let Ok(_connecting) =
+            tokio::time::timeout_at(deadline, self.connecting[peer.value()].lock()).await
+        else {
+            return Err(ConsensusError::NetworkClientConnection(format!(
+                "Timed out waiting for another connection attempt to {peer}"
+            )));
+        };
         // Another caller may have connected while this one waited for the lock.
         {
             let channels = self.channels.read();
@@ -685,19 +692,24 @@ impl ChannelPool {
             .tls_config(client_tls_config)
             .unwrap();
 
-        let deadline = tokio::time::Instant::now() + timeout;
         let channel = loop {
             trace!("Connecting to endpoint at {address}");
-            match endpoint.connect().await {
-                Ok(channel) => break channel,
-                Err(e) => {
+            match tokio::time::timeout_at(deadline, endpoint.connect()).await {
+                Ok(Ok(channel)) => break channel,
+                Ok(Err(e)) => {
                     debug!("Failed to connect to endpoint at {address}: {e:?}");
-                    if tokio::time::Instant::now() >= deadline {
+                    let now = tokio::time::Instant::now();
+                    if now >= deadline {
                         return Err(ConsensusError::NetworkClientConnection(format!(
                             "Timed out connecting to endpoint at {address}: {e:?}"
                         )));
                     }
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    tokio::time::sleep_until((now + Duration::from_secs(1)).min(deadline)).await;
+                }
+                Err(_) => {
+                    return Err(ConsensusError::NetworkClientConnection(format!(
+                        "Timed out connecting to endpoint at {address}"
+                    )));
                 }
             }
         };
@@ -2089,5 +2101,61 @@ mod tests {
             routes(&inbound.requests),
             ["FetchCommits", "GetLatestRounds", "unknown"]
         );
+    }
+
+    /// A caller queued behind another caller's connection attempt still gives
+    /// up by its own timeout.
+    #[tokio::test]
+    async fn queued_connect_keeps_its_own_timeout() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::TonicManager;
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        // Nothing listens at this peer's address, so every attempt fails.
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let long = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .channel_pool
+                    .get_channel(
+                        client.network_keypair.clone(),
+                        peer,
+                        Duration::from_secs(30),
+                    )
+                    .await
+            }
+        });
+        // Let the long caller take the connect lock first.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let short = tokio::time::timeout(
+            Duration::from_secs(5),
+            client.channel_pool.get_channel(
+                client.network_keypair.clone(),
+                peer,
+                Duration::from_millis(500),
+            ),
+        )
+        .await
+        .expect("the queued caller must give up by its own timeout");
+        assert!(matches!(
+            short,
+            Err(ConsensusError::NetworkClientConnection(_))
+        ));
+
+        long.abort();
     }
 }
