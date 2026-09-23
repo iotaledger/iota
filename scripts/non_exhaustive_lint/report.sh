@@ -1,19 +1,6 @@
 #!/usr/bin/env bash
-#
-# Turn the cargo output of check.sh into a readable markdown report.
-#
-# - One row per source site. `--all-targets` compiles a crate's lib and test
-#   targets separately, so the same match is otherwise reported twice.
-# - SDK matches first, split into production code and tests/examples, since a
-#   wildcard hiding a new SDK variant in shipped code is what this check exists
-#   to surface.
-# - Every other non_exhaustive match (our own internal enums, third-party
-#   crates) collapsed into per-type counts, informational only.
-#
-# Classification is by crate path, not by a list of names: rustc_wrapper.sh passes
-# -Ztrim-diagnostic-paths=no and -Zwrite-long-types-to-disk=no, so every type
-# from another crate carries that crate in the diagnostic, and a match is an SDK
-# match iff its type mentions iota_sdk_types or iota_sdk_grpc.
+# Turn the cargo output of check.sh into a markdown report: SDK matches per site,
+# split into production and test code, everything else as per-type counts.
 set -uo pipefail
 export LC_ALL=C
 
@@ -22,26 +9,21 @@ raw="$(mktemp "${TMPDIR:-/tmp}/nelint-raw.XXXXXX")"
 sites="$(mktemp "${TMPDIR:-/tmp}/nelint-sites.XXXXXX")"
 trap 'rm -f "$raw" "$sites"' EXIT
 
-# One line per finding (enum match or struct pattern, see findings.sh):
-# "path:line:col<TAB>matched type".
+# "path:line:col<TAB>matched type" per finding; see findings.sh for the shapes.
 awk '
 /^warning: some (variants are not matched explicitly|fields are not explicitly listed)/ {b=1; p=""; next}
 b && p=="" && /^ *--> / { p=$2 }
 b && /^ *= note: the (matched value|pattern) is of type `/ { s=$0; sub(/.*of type `/,"",s); sub(/`.*/,"",s); print p "\t" s; b=0 }
 ' "$log" > "$raw"
 
-# Collapse to one row per site, keeping the most qualified type name should a
-# future rustc ever trim one of the two targets' diagnostics again.
-awk -F'\t' '
-{ t=$2; s=0; if (t ~ /iota_sdk/) s+=1000; s+=gsub(/::/,"::",t);
-  if (!($1 in best) || s>score[$1]) { best[$1]=$2; score[$1]=s } }
-END { for (k in best) print k "\t" best[k] }
-' "$raw" | sort > "$sites"
+# A crate's lib and test targets report the same site twice.
+sort -u "$raw" > "$sites"
 
 n_raw=$(wc -l < "$raw" | tr -d ' ')
 n_sites=$(wc -l < "$sites" | tr -d ' ')
 n_crates=$(cut -f1 "$sites" | sed -E 's#(crates/[^/]+|iota-execution/[^/]+/[^/]+)/.*#\1#' | sort -u | wc -l | tr -d ' ')
 
+# Types from other crates are fully qualified (see the flags in rustc_wrapper.sh).
 SDK_RE='iota_sdk_types|iota_sdk_grpc'
 TEST_RE='/(tests|unit_tests|examples|benches)/|_tests?\.rs:'
 

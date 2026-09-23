@@ -42,8 +42,6 @@ typ = "typ"
 cpy = "cpy"
 # Identity
 AAS = "AAS"
-# rustc's typed high-level intermediate representation
-THIR = "THIR"
 # actual typos purposely used in tests
 assing = "assing"
 namee = "namee"

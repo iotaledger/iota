@@ -6,8 +6,6 @@ on:
       isNightly:
         type: boolean
         default: false
-  # Allow running the check on demand, in addition to the nightly run. It does
-  # not run on pull requests.
   workflow_dispatch:
 
 concurrency:
@@ -29,24 +27,13 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Coverage is derived from `cargo tree` (every crate reaching iota-sdk-types
-      # in its dependency tree) and the unstable lint is injected through a
-      # RUSTC_WORKSPACE_WRAPPER, so no crate source carries the attribute. The
-      # findings are reduced to line-number-free keys and compared with the
-      # committed scripts/non_exhaustive_lint/allowlist.txt: a finding that is not
-      # allowed fails the job, an allowed one does not. See the README there for
-      # how to allow a finding and for the list of red causes.
       - name: Check SDK enum variants hidden behind wildcard arms
         run: scripts/non_exhaustive_lint/check.sh
         env:
-          # Build in a fresh per-run target dir so every in-scope crate is
-          # compiled with the lint injected. A shared/persistent target dir would
-          # replay cached artifacts from before a crate entered scope (the wrapper
-          # decision is not part of cargo's fingerprint), silently under-reporting.
+          # Must be fresh per run: the wrapper's inject-or-not decision is not in
+          # cargo's fingerprint, so a reused target dir replays artifacts compiled
+          # without the lint.
           CARGO_TARGET_DIR: ${{ runner.temp }}/nelint-target
-          # report.md, findings.txt, in-scope-crates.txt and the full compiler
-          # output, for the artifact below. The report and the allowlist diff also
-          # land on the run's summary page via GITHUB_STEP_SUMMARY.
           NELINT_OUT_DIR: ${{ runner.temp }}/nelint-report
 
       - name: Upload report, findings and compiler output
