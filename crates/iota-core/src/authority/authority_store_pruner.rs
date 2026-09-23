@@ -1132,15 +1132,8 @@ mod tests {
         to_keep
     }
 
-    /// The live object scan a state snapshot makes must not be disturbed by
-    /// the pruner running underneath it. This is the property the published
-    /// snapshot depends on, stated in terms of the pruner rather than of any
-    /// one pruning mechanism, so it keeps holding whatever the pruner is
-    /// built from later.
-    ///
-    /// Range deletes carry a sequence number, so a database snapshot taken
-    /// before the prune still reads the version it pinned even once the rows
-    /// are physically compacted away.
+    /// Pruning and a compaction do not remove versions that an open database
+    /// snapshot still reads.
     #[tokio::test]
     async fn a_db_snapshot_outlives_the_pruner_and_a_compaction() {
         let tmp_dir = iota_common::tempdir();

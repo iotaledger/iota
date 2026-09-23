@@ -410,10 +410,7 @@ impl AuthorityPerpetualTables {
         self.objects.db.snapshot()
     }
 
-    /// [`Self::iter_live_object_set`] reading as of `db_snapshot`. Constructing
-    /// a
-    /// live object needs no further reads, so the snapshot over the objects
-    /// table covers the whole scan.
+    /// [`Self::iter_live_object_set`] reading as of `db_snapshot`.
     pub fn iter_live_object_set_at<'a>(
         &'a self,
         db_snapshot: &'a DbSnapshot<'a>,
@@ -693,12 +690,8 @@ mod tests {
     use super::*;
     use crate::authority::authority_store_types::StoreObjectV2;
 
-    /// A scan through a database snapshot must see the object set as it stood
-    /// when the snapshot was taken. The state snapshot writer checks its scan
-    /// against the epoch's commitment, so a snapshot that let later writes
-    /// through would publish an object set that does not match the digest it
-    /// is filed under. Deterministic: every write here lands before the scan
-    /// starts.
+    /// A scan through a database snapshot sees the object set as it stood
+    /// when the snapshot was taken, not writes made afterwards.
     #[tokio::test]
     async fn a_db_snapshot_scan_is_unchanged_by_later_writes() {
         let tmp_dir = iota_common::tempdir();

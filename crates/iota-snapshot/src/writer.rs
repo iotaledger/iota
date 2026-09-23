@@ -367,9 +367,8 @@ impl StateSnapshotWriterV1 {
         let (remote_dir_cleared, remote_dir_is_cleared) = oneshot::channel();
         // Starts the upload loop, which listens on the receiver for FileMetadata
         let upload_handle = self.start_upload(epoch, receiver, remote_dir_is_cleared)?;
-        // Clearing the remote directory is a network round trip, and the caller
-        // is blocked until the database snapshot exists, so the scan starts
-        // first and the two run together.
+        // Runs alongside the scan: the boundary is blocked until the database
+        // snapshot exists, and must not wait on a network round trip.
         let clear_handle = {
             let epoch_dir = self.epoch_dir(epoch);
             let remote = self.remote_object_store.clone();
@@ -377,22 +376,17 @@ impl StateSnapshotWriterV1 {
             tokio::spawn(async move { delete_recursively(&epoch_dir, &remote, concurrency).await })
         };
         let write_handler = tokio::task::spawn_blocking(move || {
-            // The object set comes entirely from this snapshot, so once it
-            // exists the node is free to execute the next epoch. The per-epoch
-            // `epoch_info` rows are read from the checkpoint store outside it,
-            // which is safe only because a finalized row never changes.
+            // The per-epoch `epoch_info` rows are read from the checkpoint
+            // store outside this snapshot, which is safe only because a
+            // finalized row never changes.
             let db_snapshot = perpetual_db.db_snapshot();
             if db_snapshot_taken.send(()).is_err() {
-                // The boundary is no longer waiting, so execution has already
-                // resumed and this snapshot can take in writes from the next
-                // epoch. A state snapshot built from it would not describe the
-                // epoch it is filed under, so give this one up instead. A
-                // send that succeeds proves the boundary was still held when
-                // the snapshot was taken.
+                // The boundary stopped waiting, so execution has resumed and
+                // this snapshot may include writes from the next epoch.
                 bail!("the epoch boundary stopped waiting for the snapshot of the perpetual store");
             }
-            // Off the boundary's critical path: this clears and recreates a
-            // directory that can be large after an interrupted run.
+            // After the signal, so clearing a large leftover directory does not
+            // delay the boundary.
             self.setup_local_epoch_dir(epoch)?;
             self.write_live_object_set(
                 epoch,
@@ -413,16 +407,13 @@ impl StateSnapshotWriterV1 {
                 debug!(epoch, "the state snapshot upload loop is already gone");
             }
         } else {
-            // Stop the upload loop waiting for a clear that is not coming. It
-            // drops the receiver the scan sends into, which is what brings the
-            // scan down rather than leaving it running on a dead channel.
+            // Stops the upload loop, which drops the receiver the scan sends
+            // into and so ends the scan too.
             drop(remote_dir_cleared);
         }
-        // Join the scan whatever happened above. Dropping its handle would
-        // only detach the blocking task: it would keep scanning with the
-        // snapshot pinned, holding superseded versions on disk, while the
-        // permit that admits one write at a time has already been released
-        // and the next epoch can start another.
+        // Join the scan on every path: dropping the handle would only detach
+        // the blocking task, which would keep its snapshot open after the
+        // write permit has been released.
         let written = write_handler.await;
         cleared?;
         written?.context(format!("Failed to write state snapshot for epoch: {epoch}"))?;
@@ -718,9 +709,6 @@ impl StateSnapshotWriterV1 {
     }
 
     /// Clears and recreates the local staging directory the scan writes into.
-    /// Kept separate from clearing the remote directory, which is a network
-    /// round trip the caller must not wait on before the database snapshot
-    /// is taken.
     fn setup_local_epoch_dir(&self, epoch: u64) -> Result<()> {
         let local_epoch_dir_path = self.local_staging_dir.join(format!("epoch_{epoch}"));
         if local_epoch_dir_path.exists() {

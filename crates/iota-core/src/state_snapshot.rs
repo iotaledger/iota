@@ -3,11 +3,9 @@
 
 //! The hand-over from the epoch boundary to the state snapshot writer.
 //!
-//! A formal snapshot must describe the live object set exactly as the epoch
-//! ended with it, but scanning that set takes minutes and the node has an
-//! epoch to get on with. The boundary therefore only waits for a database
-//! snapshot of the perpetual store to be taken; the scan and the upload happen
-//! while the node executes the next epoch.
+//! The boundary waits only until the writer has taken a database snapshot of
+//! the perpetual store; the scan and the upload run while the node executes
+//! the next epoch.
 
 use std::{sync::Arc, time::Duration};
 
@@ -19,20 +17,15 @@ use tracing::warn;
 /// before giving this epoch's state snapshot up.
 ///
 /// Reconfiguration holds the execution write lock across this wait, so it
-/// cannot be unbounded: a writer wedged on a blocking-pool slot would
-/// otherwise stop the node advancing. It only has to cover scheduling the
-/// write loop and the few reads it makes before the snapshot, so a wait this
-/// long means something is wrong rather than slow.
+/// must be bounded. Taking the snapshot needs only a few local reads first, so
+/// a wait this long means the writer is stuck, not slow.
 const DB_SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The epoch boundary's end of the hand-over.
 pub struct EpochSnapshotHandle {
     requests: mpsc::Sender<EpochSnapshotRequest>,
-    /// A single permit, held for as long as a snapshot is being written. The
-    /// boundary takes it before handing an epoch over, so an epoch arriving
-    /// while the previous one is still being written is dropped rather than
-    /// queued: waiting for a scan that takes minutes would hold up
-    /// reconfiguration, and the next epoch's snapshot is as good.
+    /// A single permit, held for as long as a snapshot is being written. An
+    /// epoch arriving while it is taken is skipped rather than queued.
     write_permits: Arc<Semaphore>,
 }
 
@@ -45,13 +38,11 @@ impl EpochSnapshotHandle {
     }
 
     /// Hands `epoch`'s live object set to the writer and returns once the
-    /// writer has taken its snapshot of the perpetual store, which is what
-    /// pins the state the state snapshot describes.
+    /// writer has taken its snapshot of the perpetual store.
     ///
-    /// Returns without waiting when the writer is busy or gone, and gives up
-    /// after [`DB_SNAPSHOT_TIMEOUT`] if the database snapshot never arrives:
-    /// a missing state snapshot costs one epoch of history, holding the
-    /// boundary costs the network.
+    /// Returns [`HandOver::Skipped`] without waiting when the writer is busy
+    /// or gone, and after [`DB_SNAPSHOT_TIMEOUT`] if the database snapshot is
+    /// never taken.
     pub async fn hand_over(&self, epoch: EpochId) -> HandOver {
         let Ok(write_permit) = self.write_permits.clone().try_acquire_owned() else {
             warn!(
@@ -79,13 +70,10 @@ impl EpochSnapshotHandle {
                 );
                 HandOver::Skipped
             }
-            // Dropping the receiver here is what tells the writer to give the
-            // epoch up: its send fails, and it abandons the scan rather than
-            // reading a store the next epoch is already writing to. A send
-            // landing in the instant between this timeout and the drop lets
-            // one scan run that the boundary no longer waits for; it is
-            // microseconds late, and a scan that late enough to be wrong
-            // fails its digest check rather than publishing.
+            // Dropping the receiver makes the writer's send fail, so it
+            // abandons the epoch instead of scanning a store that is moving
+            // again. A scan whose send slips in just before the drop and ends
+            // up reading later writes fails its digest check.
             Err(_) => {
                 warn!(
                     epoch,
@@ -119,19 +107,13 @@ pub enum HandOver {
 pub struct EpochSnapshotRequest {
     /// The epoch whose live object set is to be captured.
     pub epoch: EpochId,
-    /// Signalled once the database snapshot exists. The boundary waits for
-    /// this and for nothing after it: the snapshot is cheap, the scan behind
-    /// it is not.
-    ///
-    /// Dropped without a signal if the snapshot could not be started, which
-    /// leaves the epoch without a snapshot but must not hold the node up.
-    ///
-    /// A failed send means the boundary has stopped waiting and execution has
-    /// resumed, so the writer must abandon the epoch rather than scan a store
-    /// that is moving underneath it.
+    /// Signalled once the database snapshot exists; the boundary waits for
+    /// nothing else. Dropped without a signal if the snapshot could not be
+    /// taken. A failed send means the boundary stopped waiting, and the writer
+    /// must then abandon the epoch.
     pub db_snapshot_taken: oneshot::Sender<()>,
-    /// Released when the writer is done with this epoch, which is what lets
-    /// the next boundary hand one over. See [`EpochSnapshotHandle`].
+    /// Held until the writer is done with this epoch. See
+    /// [`EpochSnapshotHandle`].
     pub write_permit: OwnedSemaphorePermit,
 }
 

@@ -176,10 +176,8 @@ fn insert_end_of_epoch_zero_checkpoint(store: &CheckpointStore, digest: ECMHLive
         .expect("inserting end-of-epoch checkpoint");
 }
 
-/// The signal the epoch boundary waits on. These tests drive the writer
-/// directly, so the receiver is parked in a task: the writer gives an epoch
-/// up when nobody is waiting for its database snapshot, and every test here
-/// wants it to scan.
+/// The signal the epoch boundary waits on, with its receiver kept alive in a
+/// task: the writer abandons an epoch nobody is waiting for.
 fn db_snapshot_taken() -> oneshot::Sender<()> {
     let (sender, receiver) = oneshot::channel();
     tokio::spawn(async move {
@@ -1483,9 +1481,8 @@ async fn a_failed_remote_clear_fails_the_epoch_and_leaves_it_retryable() -> Resu
     Ok(())
 }
 
-/// A boundary that has stopped waiting has already resumed execution, so the
-/// store is moving again and a scan started now would not describe the epoch
-/// it is filed under. The writer must give the epoch up instead.
+/// The writer abandons an epoch whose boundary has stopped waiting for the
+/// database snapshot.
 #[tokio::test]
 async fn a_writer_abandons_an_epoch_no_boundary_is_waiting_for() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
@@ -1532,9 +1529,7 @@ async fn a_writer_abandons_an_epoch_no_boundary_is_waiting_for() -> Result<(), a
 }
 
 /// The uploader writes and uploads the snapshot of the epoch it is handed,
-/// reading the live object set through a snapshot of the running store rather
-/// than a copy of it, and signals the boundary as soon as that snapshot
-/// exists.
+/// and signals the boundary once its database snapshot exists.
 #[tokio::test]
 async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
@@ -1573,25 +1568,15 @@ async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyho
         }
     });
 
-    // Awaiting this while the write is still in flight shows the signal is
-    // really sent; awaiting it after the write had returned, as this test
-    // used to, could only show that the sender was never dropped. It does
-    // not show that the signal precedes the scan — `write_state_snapshot`
-    // holds that by taking the snapshot and signalling before it calls
-    // `write_live_object_set`, and `a_boundary_does_not_wait_for_a_busy_writer`
-    // pins the boundary waiting on the signal. Pinning it here would need a
-    // seam in the scan.
+    // Awaited while the write is still in flight, so it shows the signal is
+    // sent rather than only that the sender was not dropped.
     db_snapshot_is_taken
         .await
         .expect("the writer must signal once the database snapshot exists");
 
-    // The end-to-end shape of the isolation: the table is written while the
-    // writer holds its snapshot, and the result must still match the epoch's
-    // commitment, which was taken before these objects existed. This races —
-    // if the scan has already read the object set by the time these land,
-    // nothing is exercised — so it is a smoke test, not the guard.
-    // `a_db_snapshot_scan_is_unchanged_by_later_writes` in `iota-core` pins the
-    // property deterministically.
+    // Writes made while the writer holds its snapshot must not reach the
+    // scan, which has to match the commitment taken before them. This races
+    // with the scan, so it is only a smoke test.
     insert_keys_from(&perpetual_db, next_id, 10)?;
 
     writing.await??;

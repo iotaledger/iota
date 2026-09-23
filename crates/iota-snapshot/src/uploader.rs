@@ -4,27 +4,15 @@
 
 //! Publishing a formal state snapshot of the epoch the node has just left.
 //!
-//! An epoch is offered when this node executes its boundary. A node that was
-//! off while an epoch closed loses nothing: catching up executes the missed
-//! boundary like any other, and the snapshot is taken there, from exactly the
-//! object set that epoch ended with.
+//! - An epoch is offered once, when this node executes its boundary, including
+//!   a boundary executed while catching up.
+//! - A write or upload that fails is not retried: the database snapshot it read
+//!   from cannot be taken again once the node has moved on.
+//! - A boundary executed while an earlier snapshot is still being written is
+//!   skipped.
 //!
-//! What this node cannot recover is an epoch whose boundary it has already
-//! executed. The scan is only correct as of the database snapshot taken while
-//! that boundary was held, and once the node has moved on nothing can retake
-//! it, so a write or upload that fails is not retried — there is no queue to
-//! drain and no backfill. A remote store that is down while the node keeps
-//! executing costs those epochs their snapshots on this node, though a node
-//! still to execute those boundaries can publish them. Retrying only a failed
-//! upload would be possible, since the files are already staged locally, and
-//! is not done here.
-//!
-//! For the same busy-writer reason a boundary executed while an earlier scan
-//! is still running is skipped, which on a node catching up over several
-//! epochs means only some of them are published.
-//!
-//! `first_missing_state_snapshot_epoch` is the signal that an epoch was lost
-//! or skipped; it is the only one that survives the writer task dying.
+//! `first_missing_state_snapshot_epoch` shows an epoch that was lost or
+//! skipped, and keeps being updated if the writer task dies.
 
 use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
@@ -81,10 +69,8 @@ impl StateSnapshotUploaderMetrics {
             .unwrap(),
             state_snapshot_write_duration: register_histogram_with_registry!(
                 "state_snapshot_write_duration",
-                "Seconds spent scanning and uploading one epoch's state snapshot. This is \
-                 also how long the database snapshot is held, so the disk that costs is \
-                 proportional to it; approaching the epoch duration means the next epoch \
-                 will be skipped",
+                "Seconds spent writing and uploading one epoch's state snapshot, which is \
+                 also how long its database snapshot is held",
                 vec![
                     60.0, 120.0, 300.0, 600.0, 1200.0, 1800.0, 2700.0, 3600.0, 5400.0, 7200.0
                 ],
@@ -101,8 +87,7 @@ impl StateSnapshotUploaderMetrics {
 pub struct StateSnapshotUploader {
     /// Source of per-epoch `EpochInfoV2` rows and epoch state commitments.
     checkpoint_store: Arc<CheckpointStore>,
-    /// The store every state snapshot is scanned from. It outlives each
-    /// epoch, so the boundary hands over an epoch number rather than a store.
+    /// The store every state snapshot is scanned from.
     perpetual_tables: Arc<AuthorityPerpetualTables>,
     /// Directory path on local disk where state snapshots are staged for upload
     staging_path: PathBuf,
@@ -177,8 +162,8 @@ impl StateSnapshotUploader {
             requests,
             kill_sender.subscribe(),
         ));
-        // On its own task: a remote listing that hangs must not delay taking
-        // the database snapshot an epoch boundary is waiting for.
+        // On its own task, so a hanging remote listing cannot delay the
+        // database snapshot an epoch boundary is waiting for.
         tokio::task::spawn(Self::run_missing_epochs_metric_loop(
             self.clone(),
             kill_sender.subscribe(),
@@ -190,20 +175,17 @@ impl StateSnapshotUploader {
         kill_sender
     }
 
-    /// Writes and uploads the state snapshot of one epoch.
-    ///
-    /// The live-object scan reads through a snapshot of the perpetual store
-    /// taken at the epoch boundary, so it sees the state the epoch ended with
-    /// while the node carries on executing. `request.db_snapshot_taken` is
-    /// signalled as soon as that snapshot exists; until then the node is
-    /// waiting.
+    /// Writes and uploads the state snapshot of one epoch, scanning the live
+    /// object set through a database snapshot of the perpetual store.
+    /// `request.db_snapshot_taken` is signalled as soon as that snapshot
+    /// exists.
     pub(crate) async fn write_state_snapshot(&self, request: EpochSnapshotRequest) -> Result<()> {
         let _metrics_guard = self.metrics.state_snapshot_write_duration.start_timer();
         let EpochSnapshotRequest {
             epoch,
             db_snapshot_taken,
-            // Held until this function returns, which is what frees the next
-            // epoch boundary to hand its own snapshot over.
+            // Held until this function returns, so the next boundary is
+            // skipped until then.
             write_permit: _write_permit,
         } = request;
         // Chain identifier = genesis checkpoint digest; tags each manifest.
@@ -292,10 +274,8 @@ impl StateSnapshotUploader {
                     let Some(request) = request else { break };
                     let epoch = request.epoch;
                     if let Err(err) = self.write_state_snapshot(request).await {
-                        // Not retried by this node: the database snapshot the
-                        // scan needed went with the boundary, so a later scan
-                        // would describe a different object set than the one
-                        // it is filed under.
+                        // Not retried: a later scan would not see the state
+                        // this epoch ended with.
                         self.metrics.state_snapshot_upload_err.inc();
                         error!("Failed to write the state snapshot for epoch {epoch}, which will not be published: {err:?}");
                     }

@@ -521,17 +521,15 @@ impl AuthorityMetrics {
                 .unwrap(),
             state_snapshot_handover_latency: register_histogram_with_registry!(
                 "state_snapshot_handover_latency",
-                "Latency of handing an epoch's live object set to the state snapshot \
-                 writer at epoch end, which is the time the boundary waits for the \
-                 writer's database snapshot",
+                "Time the epoch boundary waits for the state snapshot writer to take \
+                 its database snapshot",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             state_snapshot_epochs_skipped: register_int_counter_with_registry!(
                 "state_snapshot_epochs_skipped",
-                "Epochs whose boundary this node executed without a state snapshot being \
-                 started, because the writer was still busy with an earlier one or never \
-                 took its database snapshot. This node will not offer such an epoch again",
+                "Epochs this node will not publish a state snapshot for, because the \
+                 writer was busy or did not take its database snapshot in time",
                 registry,
             ).unwrap(),
             transaction_manager_num_enqueued_certificates: register_int_counter_vec_with_registry!(
@@ -3667,13 +3665,7 @@ impl AuthorityState {
     }
 
     /// Hands the epoch's live object set to the state snapshot writer, when
-    /// this node publishes snapshots.
-    ///
-    /// Waits only until the writer has taken its snapshot of the perpetual
-    /// store, which is what makes the scan behind it see the state this epoch
-    /// ended with. The scan and the upload run while the node executes the
-    /// next epoch, and a writer that is busy or gone costs this epoch its
-    /// snapshot rather than holding reconfiguration up.
+    /// this node publishes snapshots. See [`EpochSnapshotHandle::hand_over`].
     #[instrument(level = "error", skip_all)]
     async fn begin_state_snapshot(&self, epoch: EpochId) {
         let Some(snapshots) = &self.state_snapshots else {
