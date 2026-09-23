@@ -7,16 +7,84 @@ use std::{collections::HashSet, time::Duration};
 use iota_grpc_server::metrics::{LATENCY_SEC_BUCKETS, SPAM_LABEL, grpc_code_to_str};
 use iota_network::{api::VALIDATOR_METHOD_PATHS, tonic::Code};
 use iota_network_stack::metrics::MetricsCallbackProvider;
+use iota_http::ConnectionEvent;
 use prometheus_filtered::{
-    HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
+    register_int_counter_with_registry, register_int_gauge_vec_with_registry,
+    register_int_gauge_with_registry,
 };
 
 pub struct IotaNodeMetrics {
     pub current_protocol_version: IntGauge,
     pub binary_max_protocol_version: IntGauge,
     pub configured_max_protocol_version: IntGauge,
+}
+
+/// Connection counters for the JSON-RPC listener.
+///
+/// It is served by `iota-http` directly rather than through
+/// `iota-network-stack`, so it has no [`MetricsCallbackProvider`] to report
+/// through and counts its connections here instead.
+#[derive(Clone)]
+pub struct JsonRpcConnectionMetrics {
+    live_connections: IntGauge,
+    pending_handshakes: IntGauge,
+    handshake_failures: IntCounter,
+    connections_refused: IntCounter,
+}
+
+impl JsonRpcConnectionMetrics {
+    pub fn new(registry: &Registry) -> Self {
+        Self {
+            live_connections: register_int_gauge_with_registry!(
+                "json_rpc_live_connections",
+                "Connections currently being served by the JSON-RPC listener",
+                registry,
+            )
+            .unwrap(),
+            pending_handshakes: register_int_gauge_with_registry!(
+                "json_rpc_pending_handshakes",
+                "Connections whose handshake to the JSON-RPC listener is in progress",
+                registry,
+            )
+            .unwrap(),
+            handshake_failures: register_int_counter_with_registry!(
+                "json_rpc_handshake_failures",
+                "Total handshakes to the JSON-RPC listener that timed out or failed",
+                registry,
+            )
+            .unwrap(),
+            connections_refused: register_int_counter_with_registry!(
+                "json_rpc_connections_refused",
+                "Total connections closed by the JSON-RPC listener for being over a limit",
+                registry,
+            )
+            .unwrap(),
+        }
+    }
+
+    /// Records one connection event. See [`GrpcMetrics::on_connection_event`]
+    /// for why the gauges are set rather than stepped.
+    pub fn record(&self, event: ConnectionEvent) {
+        match event {
+            ConnectionEvent::HandshakeStarted { pending }
+            | ConnectionEvent::HandshakeCompleted { pending } => {
+                self.pending_handshakes.set(pending as i64)
+            }
+            ConnectionEvent::HandshakeFailed { pending } => {
+                self.pending_handshakes.set(pending as i64);
+                self.handshake_failures.inc();
+            }
+            ConnectionEvent::Established { live } | ConnectionEvent::Closed { live } => {
+                self.live_connections.set(live as i64)
+            }
+            ConnectionEvent::Refused { live } => {
+                self.live_connections.set(live as i64);
+                self.connections_refused.inc();
+            }
+        }
+    }
 }
 
 impl IotaNodeMetrics {
@@ -56,6 +124,14 @@ pub struct GrpcMetrics {
     /// Known gRPC method paths. Paths not in this set are labelled as `"SPAM"`
     /// to prevent unbounded metric cardinality from arbitrary HTTP traffic.
     known_methods: HashSet<&'static str>,
+    /// Connections being served. A connection that never sends a request is
+    /// counted nowhere else, so this is the only record of one.
+    live_connections: IntGauge,
+    /// Connections whose TLS handshake is in progress. This is the number the
+    /// listener's own handshake limit is compared against.
+    pending_handshakes: IntGauge,
+    handshake_failures: IntCounter,
+    connections_refused: IntCounter,
 }
 
 impl GrpcMetrics {
@@ -91,6 +167,30 @@ impl GrpcMetrics {
             )
             .unwrap(),
             known_methods: VALIDATOR_METHOD_PATHS.iter().copied().collect(),
+            live_connections: register_int_gauge_with_registry!(
+                "authority_grpc_live_connections",
+                "Connections currently being served by the validator gRPC listener",
+                registry,
+            )
+            .unwrap(),
+            pending_handshakes: register_int_gauge_with_registry!(
+                "authority_grpc_pending_handshakes",
+                "Connections whose TLS handshake to the validator gRPC listener is in progress",
+                registry,
+            )
+            .unwrap(),
+            handshake_failures: register_int_counter_with_registry!(
+                "authority_grpc_handshake_failures",
+                "Total handshakes to the validator gRPC listener that timed out or failed",
+                registry,
+            )
+            .unwrap(),
+            connections_refused: register_int_counter_with_registry!(
+                "authority_grpc_connections_refused",
+                "Total connections closed by the validator gRPC listener for being over a limit",
+                registry,
+            )
+            .unwrap(),
         }
     }
 
@@ -106,6 +206,28 @@ impl GrpcMetrics {
 
 impl MetricsCallbackProvider for GrpcMetrics {
     fn on_request(&self, _path: String) {}
+
+    fn on_connection_event(&self, event: ConnectionEvent) {
+        // Each event carries the count the listener itself is working from, so
+        // the gauges are set rather than stepped and cannot drift from it.
+        match event {
+            ConnectionEvent::HandshakeStarted { pending }
+            | ConnectionEvent::HandshakeCompleted { pending } => {
+                self.pending_handshakes.set(pending as i64)
+            }
+            ConnectionEvent::HandshakeFailed { pending } => {
+                self.pending_handshakes.set(pending as i64);
+                self.handshake_failures.inc();
+            }
+            ConnectionEvent::Established { live } | ConnectionEvent::Closed { live } => {
+                self.live_connections.set(live as i64)
+            }
+            ConnectionEvent::Refused { live } => {
+                self.live_connections.set(live as i64);
+                self.connections_refused.inc();
+            }
+        }
+    }
 
     fn on_response(&self, path: String, latency: Duration, _status: u16, grpc_status_code: Code) {
         let method = self.sanitize_path(&path);
