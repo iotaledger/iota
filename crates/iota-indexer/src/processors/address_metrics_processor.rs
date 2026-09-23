@@ -64,9 +64,8 @@ where
                 .store
                 .get_watermark_lower_bounds(ADDRESS_METRICS_TABLES)
                 .await?;
-            last_processed_tx_seq = resume_cursor(last_processed_tx_seq,
-                lower_bounds.min_available_tx,
-            );
+            last_processed_tx_seq =
+                resume_cursor(last_processed_tx_seq, lower_bounds.min_available_tx);
 
             let mut latest_tx = self.store.get_latest_stored_transaction().await?;
             while if let Some(tx) = latest_tx {

@@ -63,12 +63,10 @@ where
                 .store
                 .get_watermark_lower_bounds(MOVE_CALL_METRICS_TABLES)
                 .await?;
-            last_processed_tx_seq = resume_cursor(last_processed_tx_seq,
-                lower_bounds.min_available_tx,
-            );
-            last_processed_epoch = resume_cursor(last_processed_epoch,
-                lower_bounds.min_available_epoch,
-            );
+            last_processed_tx_seq =
+                resume_cursor(last_processed_tx_seq, lower_bounds.min_available_tx);
+            last_processed_epoch =
+                resume_cursor(last_processed_epoch, lower_bounds.min_available_epoch);
 
             let mut latest_tx = self.store.get_latest_stored_transaction().await?;
             while if let Some(tx) = latest_tx {
@@ -86,15 +84,11 @@ where
 
             // Confirm the end of the batch is in the database before doing the work,
             // so a pruned range is caught before anything is persisted.
-            let batch_end_tx = self
-                .store
-                .get_tx(batch_end_tx_seq)
-                .await?
-                .ok_or_else(|| {
-                    IndexerError::DataPruned(format!(
-                        "transaction {batch_end_tx_seq} is not in the database"
-                    ))
-                })?;
+            let batch_end_tx = self.store.get_tx(batch_end_tx_seq).await?.ok_or_else(|| {
+                IndexerError::DataPruned(format!(
+                    "transaction {batch_end_tx_seq} is not in the database"
+                ))
+            })?;
             let batch_end_cp_seq = batch_end_tx.checkpoint_sequence_number;
             let end_epoch = self
                 .store
