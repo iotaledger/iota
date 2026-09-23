@@ -278,16 +278,9 @@ impl fmt::Debug for IotaNode {
     }
 }
 
-/// Removes the `db_checkpoints` directory earlier releases wrote.
-///
-/// The state snapshot used to be scanned from a RocksDB checkpoint taken
-/// there. That is a directory of hard links, so it costs nothing until
-/// compaction rewrites the files it shares with the live store, and from then
-/// on it holds whole SST files that nothing will ever read again. Nothing
-/// writes it any more, so an upgraded node would keep paying for it forever.
-///
-/// Failing to remove it is not worth refusing to start over: it costs disk,
-/// not correctness.
+/// Removes the `db_checkpoints` directory earlier releases wrote under the
+/// node's `db-path`. A failure is logged, not returned.
+// TODO(#12968): remove once a release containing this has shipped.
 fn remove_legacy_db_checkpoints(config: &NodeConfig) {
     let path = config.db_path.join("db_checkpoints");
     if !path.exists() {
@@ -298,6 +291,7 @@ fn remove_legacy_db_checkpoints(config: &NodeConfig) {
             "removed {}, the database checkpoint directory of an earlier release",
             path.display()
         ),
+        // The directory only costs disk, which is no reason to refuse to start.
         Err(e) => warn!(
             "failed to remove the leftover database checkpoint directory {}: {e}",
             path.display()

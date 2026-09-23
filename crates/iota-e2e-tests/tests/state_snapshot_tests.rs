@@ -1,17 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Publishing a formal state snapshot across a real epoch boundary.
-//!
-//! The unit tests drive the writer directly. Only a running node exercises the
-//! path that matters: reconfiguration hands the epoch over while execution is
-//! paused, the scan runs against the store the node keeps executing into, and
-//! what lands in the remote store has to match the commitment the epoch ended
-//! with.
+//! Publishing formal state snapshots across real epoch boundaries.
 
 use std::{path::PathBuf, time::Duration};
 
-use iota_config::{node::StateSnapshotConfig, object_storage_config::ObjectStoreConfig};
+use iota_config::{
+    node::StateSnapshotConfig,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+};
 use iota_macros::sim_test;
 use iota_storage::object_store::util::SUCCESS_MARKER;
 use test_cluster::TestClusterBuilder;
@@ -41,7 +38,7 @@ async fn a_fullnode_publishes_the_snapshot_of_an_epoch_it_leaves() {
         .with_epoch_duration_ms(20_000)
         .with_fullnode_state_snapshot_config(StateSnapshotConfig {
             object_store_config: Some(ObjectStoreConfig {
-                object_store: Some(iota_config::object_storage_config::ObjectStoreType::File),
+                object_store: Some(ObjectStoreType::File),
                 directory: Some(remote_path.clone()),
                 ..Default::default()
             }),
@@ -57,9 +54,7 @@ async fn a_fullnode_publishes_the_snapshot_of_an_epoch_it_leaves() {
 
     wait_for(remote_path.join("epoch_0").join(SUCCESS_MARKER)).await;
 
-    // A second boundary publishes its own epoch, which is what shows the
-    // writer is released and takes a fresh snapshot rather than being a
-    // one-shot.
+    // The writer takes a fresh snapshot at the next boundary too.
     test_cluster.force_new_epoch().await;
     wait_for(remote_path.join("epoch_1").join(SUCCESS_MARKER)).await;
 }
