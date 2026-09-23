@@ -75,9 +75,10 @@ use iota_types::{
         SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
         VerifiedSignedTransactionEffects,
     },
-    error::{ExecutionError, IotaError, IotaResult, UserInputError},
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
+    execution::PreExecutionResult,
     execution_config_utils::to_binary_config,
     fp_ensure,
     gas::IotaGasStatus,
@@ -2017,6 +2018,7 @@ impl AuthorityState {
                     .expensive_safety_check_config
                     .enable_deep_per_tx_iota_conservation_check(),
                 self.config.certificate_deny_config.certificate_deny_set(),
+                PreExecutionResult::Run,
                 &epoch_id,
                 epoch_start_timestamp,
                 tx_checked_input_objects,
@@ -2039,45 +2041,49 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            let per_authenticator_inputs = move_authenticators
-                .iter()
-                .zip(per_authenticator_inputs)
-                .map(
-                    |(move_authenticator, (authenticator_input_objects, account_object))| {
-                        // Check basic `object_to_authenticate` preconditions and get its
-                        // components.
-                        let (
-                            auth_account_object_id,
-                            auth_account_object_seq_number,
-                            auth_account_object_digest,
-                        ) = move_authenticator
-                            .object_to_authenticate_components()
-                            .expect("the object to authenticate is validated before consensus and cannot be invalid during execution");
+            // The first account that cannot be resolved fails the transaction before
+            // any authenticator runs. The remaining inputs are still collected, since
+            // for the failure effects, we have to charge gas for those inputs.
+            let mut pre_execution_error = None;
+            let mut per_authenticator_input_objects = Vec::with_capacity(move_authenticators.len());
+            let mut function_refs = Vec::with_capacity(move_authenticators.len());
+            for (move_authenticator, (authenticator_input_objects, account_object)) in
+                move_authenticators.iter().zip(per_authenticator_inputs)
+            {
+                // The shape of the object to authenticate is decided by the
+                // transaction bytes, and `validity_check` settles it in the
+                // consensus handler, so it cannot be wrong here.
+                let (account_object_id, account_object_version, account_object_digest) =
+                    move_authenticator
+                        .object_to_authenticate_components()
+                        .expect(
+                            "the object to authenticate is validated before consensus and cannot \
+                                be invalid during execution",
+                        );
 
-                        let signer = move_authenticator.address();
+                // Unlike the shape above, resolving the account depends on state,
+                // so post-consensus validation cannot keep this check. Here, an
+                // account that cannot be resolved produces failure effects
+                // instead of a panic, unless it is the gas payer's.
+                match self.check_move_account_for_execution(
+                    account_object_id,
+                    account_object_version,
+                    account_object_digest,
+                    account_object,
+                    &move_authenticator.address(),
+                    &gas_data.owner,
+                    protocol_config,
+                ) {
+                    Ok(function_ref) => function_refs.push(function_ref),
+                    Err(error) => {
+                        if pre_execution_error.is_none() {
+                            pre_execution_error = Some(error);
+                        }
+                    }
+                }
 
-                        let authenticator_function_ref_for_execution = self
-                            .check_move_account_for_execution(
-                                auth_account_object_id,
-                                auth_account_object_seq_number,
-                                auth_account_object_digest,
-                                account_object,
-                                &signer,
-                                protocol_config,
-                            );
-
-                        (
-                            authenticator_input_objects,
-                            authenticator_function_ref_for_execution,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
-            let per_authenticator_input_objects = per_authenticator_inputs
-                .iter()
-                .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
-                .collect::<Vec<_>>();
+                per_authenticator_input_objects.push(authenticator_input_objects);
+            }
 
             // Serialize the Transaction for the auth context.
             let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
@@ -2103,34 +2109,39 @@ impl AuthorityState {
                 reference_gas_price,
             )?;
 
-            debug_assert_eq!(
-                move_authenticators.len(),
-                per_authenticator_checked_input_objects.len(),
-                "Move authenticators amount must match the number of checked authenticator inputs"
-            );
-
-            let move_authenticators = move_authenticators
-                .into_iter()
-                .zip(per_authenticator_inputs)
-                .zip(per_authenticator_checked_input_objects)
-                .map(
-                    |(
-                        (move_authenticator, (_, authenticator_function_ref_for_execution)),
-                        authenticator_checked_input_objects,
-                    )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref_for_execution,
-                            authenticator_checked_input_objects,
-                        )
-                    },
-                )
-                .collect::<Vec<_>>();
-
             let owned_object_refs = authenticator_and_tx_checked_input_objects
                 .inner()
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
+
+            // With a pre-execution failure, no authenticator runs, so none is handed to
+            // the executor.
+            let move_authenticators = if pre_execution_error.is_some() {
+                Vec::new()
+            } else {
+                debug_assert_eq!(
+                    move_authenticators.len(),
+                    per_authenticator_checked_input_objects.len(),
+                    "Move authenticators amount must match the number of checked authenticator inputs"
+                );
+                move_authenticators
+                    .into_iter()
+                    .zip(function_refs)
+                    .zip(per_authenticator_checked_input_objects)
+                    .map(
+                        |(
+                            (move_authenticator, function_ref),
+                            authenticator_checked_input_objects,
+                        )| {
+                            (
+                                move_authenticator.to_owned(),
+                                function_ref,
+                                authenticator_checked_input_objects,
+                            )
+                        },
+                    )
+                    .collect::<Vec<_>>()
+            };
 
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
@@ -2148,6 +2159,11 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
+            let pre_execution_result = match pre_execution_error {
+                Some(error) => PreExecutionResult::Fail(error),
+                None => PreExecutionResult::Run,
+            };
+
             epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
@@ -2158,6 +2174,7 @@ impl AuthorityState {
                         .expensive_safety_check_config
                         .enable_deep_per_tx_iota_conservation_check(),
                     self.config.certificate_deny_config.certificate_deny_set(),
+                    pre_execution_result,
                     &epoch_id,
                     epoch_start_timestamp,
                     gas_data,
@@ -5634,7 +5651,18 @@ impl AuthorityState {
     /// A deleted or cancelled account object is not an error here: its version
     /// is returned so execution can proceed and surface the proper effect
     /// (e.g. `InputObjectDeleted` or a shared-object congestion cancellation).
-    /// Any other failure is a broken invariant and panics.
+    ///
+    /// # Errors
+    ///
+    /// If the account's authenticator function cannot be resolved, returns the
+    /// error the transaction fails with, unless the account is `gas_owner`'s.
+    /// See [`account_failure_as_execution_error`].
+    ///
+    /// # Panics
+    ///
+    /// On any other failure and when `gas_owner`'s own account cannot be
+    /// resolved. Both are broken invariants: a check before execution was
+    /// skipped or wrong.
     fn check_move_account_for_execution(
         &self,
         auth_account_object_id: ObjectId,
@@ -5642,9 +5670,10 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
+        gas_owner: &Address,
         protocol_config: &ProtocolConfig,
-    ) -> AuthenticatorFunctionRefForExecution {
-        self.check_move_account(
+    ) -> Result<AuthenticatorFunctionRefForExecution, ExecutionError> {
+        match self.check_move_account(
             auth_account_object_id,
             auth_account_object_seq_number,
             auth_account_object_digest,
@@ -5652,8 +5681,23 @@ impl AuthorityState {
             signer,
             true,
             protocol_config,
-        )
-        .expect("move account checks cannot fail during execution")
+        ) {
+            Ok(function_ref) => Ok(function_ref),
+            Err(error) => {
+                // Failure effects would charge the gas owner, which is only
+                // right if it was authenticated before execution. That check
+                // found the account's authenticator function, which no later
+                // transaction can remove or break, so failing here means the
+                // check was skipped or wrong.
+                if signer == gas_owner {
+                    panic!("move account checks cannot fail during execution: {error:?}");
+                }
+                let execution_error = account_failure_as_execution_error(error)
+                    .expect("move account checks cannot fail during execution");
+
+                Err(execution_error)
+            }
+        }
     }
 
     /// Resolves the account's `AuthenticatorFunctionRef` on the validation
@@ -6524,6 +6568,32 @@ impl NodeStateDump {
         let file = File::open(path)?;
         serde_json::from_reader(file).map_err(|e| anyhow::anyhow!(e))
     }
+}
+
+/// Converts a failure of [`AuthorityState::check_move_account`] at execution
+/// into [`ExecutionErrorKind::FunctionNotFound`] when the account's
+/// authenticator function field is missing or does not decode. The original
+/// error is kept as the source.
+///
+/// # Errors
+///
+/// Any other failure is returned unchanged: reaching execution with one is a
+/// broken invariant.
+fn account_failure_as_execution_error(error: IotaError) -> IotaResult<ExecutionError> {
+    if !matches!(
+        error,
+        IotaError::UserInput {
+            error: UserInputError::MoveAuthenticatorNotFound { .. }
+                | UserInputError::InvalidAuthenticatorFunctionRefField { .. }
+        }
+    ) {
+        return Err(error);
+    }
+
+    Ok(ExecutionError::new_with_source(
+        ExecutionErrorKind::FunctionNotFound,
+        error,
+    ))
 }
 
 /// Returns the [`MoveAuthenticator`]s to execute during the pre-consensus

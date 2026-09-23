@@ -17,7 +17,7 @@ use iota_types::{
     base_types::TxContext,
     committee::EpochId,
     error::ExecutionError,
-    execution::{ExecutionResult, ExecutionTiming, TypeLayoutStore},
+    execution::{ExecutionResult, ExecutionTiming, PreExecutionResult, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -37,6 +37,8 @@ pub trait Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Fails the transaction before its first command when it carries an error.
+        pre_execution_result: PreExecutionResult,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -94,6 +96,9 @@ pub trait Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
+        // Fails the transaction before any authenticator runs when it carries an
+        // error.
+        pre_execution_result: PreExecutionResult,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
