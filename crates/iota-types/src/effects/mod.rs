@@ -6,9 +6,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
     Address, EpochId, ExecutionStatus, GasCostSummary, InputSharedObject, IntentScope,
-    ObjectChange, ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion,
-    OwnedObjectReference, Owner, TransactionDigest, TransactionEffectsDigest,
-    TransactionEventsDigest, UnchangedSharedKind, UnchangedSharedObject, Version, WriteKind,
+    ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion, OwnedObjectReference,
+    Owner, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
+    UnchangedSharedKind, UnchangedSharedObject, Version, WriteKind,
     crypto::Intent,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
@@ -134,12 +134,6 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// digest.
     fn wrapped(&self) -> Vec<ObjectReference>;
 
-    /// Returns a flattened view of every object change recorded in these
-    /// effects: for each touched object, the input and output version/digest
-    /// (when present) together with the [`IdOperation`] describing whether
-    /// the ID was created, deleted, or unchanged.
-    fn object_changes(&self) -> Vec<ObjectChange>;
-
     /// Returns the post-execution reference and owner of the gas object.
     // TODO: We should consider having this function to return Option.
     // When the gas object is not available (i.e. system transaction), we currently
@@ -255,7 +249,9 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     fn all_tombstones(&self) -> Vec<(ObjectId, Version)>;
 
     /// Returns all objects that were created + wrapped in the same transaction.
-    fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, Version)>;
+    /// Such an object leaves no version behind: it is absent from the store on
+    /// both sides of the transaction.
+    fn created_then_wrapped_objects(&self) -> Vec<ObjectId>;
 
     /// Return an iterator of mutated objects, but excluding the gas object.
     fn mutated_excluding_gas(&self) -> Vec<OwnedObjectReference>;
@@ -384,10 +380,6 @@ impl TransactionEffectsAPI for TransactionEffects {
 
     fn wrapped(&self) -> Vec<ObjectReference> {
         effects_version!(self).wrapped()
-    }
-
-    fn object_changes(&self) -> Vec<ObjectChange> {
-        effects_version!(self).object_changes()
     }
 
     fn gas_object(&self) -> OwnedObjectReference {
@@ -560,23 +552,22 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect()
     }
 
-    fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, Version)> {
-        // Filter `ObjectChange` where:
-        // - `input_digest` and `output_digest` are `None`, and
-        // - `id_operation` is `Created`.
-        self.object_changes()
-            .into_iter()
-            .filter_map(|change| {
-                if change.input_digest.is_none()
-                    && change.output_digest.is_none()
-                    && change.id_operation == IdOperation::Created
-                {
-                    Some((change.object_id, change.output_version.unwrap_or_default()))
-                } else {
-                    None
-                }
+    fn created_then_wrapped_objects(&self) -> Vec<ObjectId> {
+        effects_version!(self)
+            .changed_objects
+            .iter()
+            .filter(|changed| {
+                matches!(
+                    (
+                        &changed.input_state,
+                        &changed.output_state,
+                        &changed.id_operation
+                    ),
+                    (ObjectIn::Missing, ObjectOut::Missing, IdOperation::Created)
+                )
             })
-            .collect::<Vec<_>>()
+            .map(|changed| changed.object_id)
+            .collect()
     }
 
     fn mutated_excluding_gas(&self) -> Vec<OwnedObjectReference> {

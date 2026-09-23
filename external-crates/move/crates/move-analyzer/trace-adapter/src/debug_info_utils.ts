@@ -8,7 +8,6 @@ import * as path from 'path';
 import { ModuleInfo } from './utils';
 import { JSON_FILE_EXT } from './utils';
 
-
 // Data types corresponding to debug info file JSON schema.
 
 interface JSONSrcDefinitionLocation {

@@ -131,7 +131,7 @@ impl CoinReadApiServer for CoinReadApi {
                     let obj = self.internal.get_object(&object_id).await?;
                     match obj {
                         Some(obj) => {
-                            if let Some(coin_type) = obj.coin_type_opt() {
+                            if let Some(coin_type) = obj.opt_coin_type() {
                                 Ok((coin_type.to_string(), object_id))
                             } else {
                                 Err(IotaRpcInputError::GenericInvalid(

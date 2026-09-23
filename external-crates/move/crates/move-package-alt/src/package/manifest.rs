@@ -5,20 +5,27 @@
 
 use std::{
     collections::BTreeMap,
-    fmt::{Debug, Display, Formatter},
+    fmt::{self, Debug, Display, Formatter},
+    path::Path,
 };
 
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest as ShaDigest, Sha256};
+use tracing::{debug, info};
 
 use super::*;
 use crate::{
-    dependency::ManifestDependencyInfo,
-    errors::{FileHandle, Located, ManifestError, ManifestErrorKind, PackageResult, with_file},
+    dependency::{DependencySet, UnpinnedDependencyInfo},
+    errors::{FileHandle, Located, ManifestError, ManifestErrorKind, PackageResult, TheFile},
     flavor::{MoveFlavor, Vanilla},
 };
 
+// TODO: add 2025 edition
 const ALLOWED_EDITIONS: &[&str] = &["2024", "2024.beta", "legacy"];
+
+// TODO: replace this with something more strongly typed
+type Digest = String;
 
 // Note: [Manifest] objects are immutable and should not implement
 // [serde::Serialize]; any tool writing these files should use [toml_edit] to
@@ -29,11 +36,16 @@ const ALLOWED_EDITIONS: &[&str] = &["2024", "2024.beta", "legacy"];
 #[serde(bound = "")]
 pub struct Manifest<F: MoveFlavor> {
     package: PackageMetadata<F>,
+
+    #[serde(default)]
     environments: BTreeMap<EnvironmentName, F::EnvironmentID>,
+
     #[serde(default)]
     dependencies: BTreeMap<PackageName, ManifestDependency<F>>,
+    /// Replace dependencies for the given environment.
     #[serde(default)]
-    dep_overrides: BTreeMap<EnvironmentName, BTreeMap<PackageName, ManifestDependencyOverride<F>>>,
+    dep_replacements:
+        BTreeMap<EnvironmentName, BTreeMap<PackageName, ManifestDependencyReplacement<F>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,9 +61,9 @@ struct PackageMetadata<F: MoveFlavor> {
 #[derive(Deserialize, Debug)]
 #[serde(bound = "")]
 #[serde(rename_all = "kebab-case")]
-struct ManifestDependency<F: MoveFlavor> {
+pub struct ManifestDependency<F: MoveFlavor> {
     #[serde(flatten)]
-    dependency_info: ManifestDependencyInfo<F>,
+    dependency_info: UnpinnedDependencyInfo<F>,
 
     #[serde(rename = "override", default)]
     is_override: bool,
@@ -63,7 +75,7 @@ struct ManifestDependency<F: MoveFlavor> {
 #[derive(Debug, Deserialize)]
 #[serde(bound = "")]
 #[serde(rename_all = "kebab-case")]
-struct ManifestDependencyOverride<F: MoveFlavor> {
+pub struct ManifestDependencyReplacement<F: MoveFlavor> {
     #[serde(flatten, default)]
     dependency: Option<ManifestDependency<F>>,
 
@@ -75,10 +87,12 @@ struct ManifestDependencyOverride<F: MoveFlavor> {
 }
 
 impl<F: MoveFlavor> Manifest<F> {
-    pub fn read_from(path: impl AsRef<Path>) -> PackageResult<Self> {
+    /// Read the manifest file at the given path, returning a [`Manifest`].
+    pub fn read_from_file(path: impl AsRef<Path>) -> PackageResult<Self> {
+        debug!("Reading manifest from {:?}", path.as_ref());
         let contents = std::fs::read_to_string(&path)?;
 
-        let (manifest, file_id) = with_file(&path, toml_edit::de::from_str::<Self>)?;
+        let (manifest, file_id) = TheFile::with_file(&path, toml_edit::de::from_str::<Self>)?;
 
         match manifest {
             Ok(manifest) => {
@@ -90,6 +104,7 @@ impl<F: MoveFlavor> Manifest<F> {
     }
 
     /// Validate the manifest contents, after deserialization.
+    // TODO: add more validation
     pub fn validate_manifest(&self, handle: FileHandle) -> PackageResult<()> {
         // Validate package name
         if self.package.name.get_ref().is_empty() {
@@ -119,7 +134,7 @@ impl<F: MoveFlavor> Manifest<F> {
         Ok(())
     }
 
-    fn write_template(path: impl AsRef<Path>, name: &PackageName) -> anyhow::Result<()> {
+    fn write_template(path: impl AsRef<Path>, name: &PackageName) -> PackageResult<()> {
         std::fs::write(
             path,
             r###"
@@ -128,4 +143,31 @@ impl<F: MoveFlavor> Manifest<F> {
 
         Ok(())
     }
+
+    /// Return the dependency set of this manifest, including replacements.
+    pub fn dependencies(&self) -> DependencySet<UnpinnedDependencyInfo<F>> {
+        let mut deps = DependencySet::new();
+
+        for (name, dep) in &self.dependencies {
+            deps.insert(None, name.clone(), dep.dependency_info.clone());
+        }
+
+        for (env, replacements) in &self.dep_replacements {
+            for (name, dep) in replacements {
+                if let Some(dep) = &dep.dependency {
+                    deps.insert(Some(env.clone()), name.clone(), dep.dependency_info.clone());
+                }
+            }
+        }
+        deps
+    }
+
+    pub fn environments(&self) -> &BTreeMap<EnvironmentName, F::EnvironmentID> {
+        &self.environments
+    }
+}
+
+/// Compute a digest of this input data using SHA-256.
+pub fn digest(data: &[u8]) -> Digest {
+    format!("{:X}", Sha256::digest(data))
 }

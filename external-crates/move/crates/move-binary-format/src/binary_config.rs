@@ -66,6 +66,7 @@ pub struct BinaryConfig {
     pub check_no_extraneous_bytes: bool,
     pub check_iota_metadata_bytes: bool,
     pub table_config: TableConfig,
+    allow_unpublishable: bool,
 }
 
 impl BinaryConfig {
@@ -82,6 +83,7 @@ impl BinaryConfig {
             check_no_extraneous_bytes,
             check_iota_metadata_bytes,
             table_config,
+            allow_unpublishable: false,
         }
     }
 
@@ -98,6 +100,7 @@ impl BinaryConfig {
             check_no_extraneous_bytes,
             check_iota_metadata_bytes: check_no_extraneous_bytes,
             table_config: TableConfig::legacy(),
+            allow_unpublishable: false,
         }
     }
 
@@ -110,6 +113,7 @@ impl BinaryConfig {
             check_no_extraneous_bytes,
             check_iota_metadata_bytes: check_no_extraneous_bytes,
             table_config: TableConfig::legacy(),
+            allow_unpublishable: false,
         }
     }
 
@@ -122,6 +126,22 @@ impl BinaryConfig {
             check_no_extraneous_bytes: true,
             check_iota_metadata_bytes: true,
             table_config: TableConfig::legacy(),
+            allow_unpublishable: false,
         }
+    }
+
+    pub fn new_unpublishable() -> Self {
+        Self {
+            max_binary_format_version: VERSION_MAX,
+            min_binary_format_version: VERSION_1,
+            check_no_extraneous_bytes: true,
+            check_iota_metadata_bytes: true,
+            table_config: TableConfig::legacy(),
+            allow_unpublishable: true,
+        }
+    }
+
+    pub fn allow_unpublishable(&self) -> bool {
+        self.allow_unpublishable
     }
 }

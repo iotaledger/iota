@@ -21,6 +21,7 @@ serde.workspace = true
 variant_count.workspace = true
 
 # internal dependencies
+move-abstract-interpreter.workspace = true
 move-core-types.workspace = true
 
 [dev-dependencies]

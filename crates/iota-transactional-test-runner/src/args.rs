@@ -49,6 +49,8 @@ pub struct IotaPublishArgs {
     pub view_functions: Vec<String>,
     #[arg(long)]
     pub gas_price: Option<u64>,
+    #[arg(long = "dry-run")]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, clap::Parser)]

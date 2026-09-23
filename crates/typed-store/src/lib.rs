@@ -20,7 +20,6 @@ pub use traits::{DbIterator, Map};
 pub mod memstore;
 pub mod metrics;
 pub mod rocks;
-pub mod test_db;
 mod util;
 pub use metrics::DBMetrics;
 pub use typed_store_error::TypedStoreError;

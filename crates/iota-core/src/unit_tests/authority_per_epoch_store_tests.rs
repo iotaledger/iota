@@ -4,6 +4,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -17,6 +18,7 @@ use tokio::time::timeout;
 use typed_store::{Map, rocks::DBBatch};
 
 use crate::authority::{
+    AuthorityState,
     authority_per_epoch_store::{
         AuthorityPerEpochStore, compute_deny_rule_update_chunks,
         consensus_quarantine::ConsensusCommitOutput,
@@ -444,6 +446,34 @@ fn rules_denying_address(address: Address) -> DenyRuleSet {
 /// `process_consensus_transaction` will use: buffer it in
 /// `ConsensusCommitOutput` and flush via `write_to_batch`. See
 /// `flush_overload_notification`.
+/// Reopens `store` with the deny-rules object present, as the epoch after its
+/// creation starts. The caller keeps a protocol config override alive for it.
+fn reopen_with_deny_rules_object(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+    initial_shared_version: Version,
+) -> Arc<AuthorityPerEpochStore> {
+    let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
+    epoch_start_configuration
+        .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
+    store.release_db_handles();
+    AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        epoch_start_configuration,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap()
+}
+
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
     let mut output = ConsensusCommitOutput::new(0);
     output.record_deny_rule_proposal(proposal.clone());
@@ -1093,7 +1123,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         .unwrap();
     assert_eq!(transactions.len(), 1);
     let TransactionKind::TransactionDenyRulesUpdate(update) =
-        transactions[0].data().transaction().kind()
+        transactions[0].as_tx().unwrap().data().transaction().kind()
     else {
         panic!("expected a deny-rules update transaction");
     };
@@ -1148,7 +1178,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         .unwrap();
     assert_eq!(transactions.len(), 1);
     let TransactionKind::TransactionDenyRulesUpdate(update) =
-        transactions[0].data().transaction().kind()
+        transactions[0].as_tx().unwrap().data().transaction().kind()
     else {
         panic!("expected a deny-rules update transaction");
     };
@@ -1162,6 +1192,100 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         DenyRuleSet::default()
     );
     assert_eq!(roots, [transactions[0].key()].into_iter().collect());
+}
+
+/// `process_consensus_transactions` builds the commit queue with two
+/// `push_front`s, the deny-rule update first and the consensus commit prologue
+/// after it, so the prologue stays the first transaction of every commit.
+#[tokio::test]
+async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
+    use std::num::NonZeroUsize;
+
+    use iota_network::randomness;
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::TransactionKind;
+    use iota_swarm_config::network_config_builder::ConfigBuilder;
+    use iota_types::transaction::TransactionAPI;
+
+    use crate::{
+        checkpoints::CheckpointServiceNoop,
+        epoch::randomness::RandomnessManager,
+        mock_consensus::{ConsensusMode, MockConsensusClient},
+    };
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_deny_rule_governance_for_testing(true);
+    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+    // The validator's own key is needed below: the reopened store gets its own
+    // randomness manager, and one is built from the committee member's key.
+    let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(1).unwrap())
+        .build();
+    let validator = &network_config.validator_configs[0];
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config.clone())
+        .with_genesis_and_keypair(&network_config.genesis, validator.authority_key_pair())
+        .build()
+        .await;
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+    let store = reopen_with_deny_rules_object(&authority_state, &store, Version::from_u64(3));
+    // The commit boundary insists on a randomness manager; one whose DKG never
+    // completes keeps randomness out of the commit.
+    let randomness_manager = RandomnessManager::try_new(
+        Arc::downgrade(&store),
+        Box::new(MockConsensusClient::new(
+            Arc::downgrade(&authority_state),
+            ConsensusMode::Noop,
+        )),
+        randomness::Handle::new_stub(),
+        validator.authority_key_pair(),
+    )
+    .await
+    .unwrap();
+    store
+        .set_randomness_manager(randomness_manager)
+        .await
+        .unwrap();
+    flush_deny_rule_proposal(
+        &store,
+        deny_proposal(me, 1, rules_denying_address(Address::new([1u8; 32]))),
+    );
+
+    let (scheduled, _assigned_versions) = store
+        .process_consensus_transactions_for_tests(
+            vec![],
+            &Arc::new(CheckpointServiceNoop {}),
+            authority_state.get_object_cache_reader().as_ref(),
+            &authority_state.metrics,
+            false,
+            &authority_state,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(scheduled.len(), 2);
+    let kind = |i: usize| {
+        scheduled[i]
+            .as_tx()
+            .expect("the commit queue holds transactions only")
+            .data()
+            .transaction()
+            .kind()
+            .clone()
+    };
+    assert!(matches!(
+        kind(0),
+        TransactionKind::ConsensusCommitPrologueV1(_)
+    ));
+    assert!(matches!(
+        kind(1),
+        TransactionKind::TransactionDenyRulesUpdate(_)
+    ));
 }
 
 /// A commit processed after `close_all_tx` ignores every chunk: nothing is

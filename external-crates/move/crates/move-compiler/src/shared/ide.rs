@@ -345,7 +345,7 @@ impl From<(Loc, IDEAnnotation)> for Diagnostic {
                         |AutocompleteMethod {
                              method_name,
                              target_function: (mident, _),
-                         }| format!("{mident}::{method_name}"),
+                         }| { format!("{mident}::{method_name}") },
                     )
                     .chain(fields.into_iter().map(|(n, _)| format!("{n}")))
                     .collect::<Vec<_>>();
@@ -443,7 +443,9 @@ impl fmt::Display for PatternSuggestion {
                 module,
                 enum_name,
                 variant_name,
-            } => write!(f, "{module}::{enum_name}::{variant_name}"),
+            } => {
+                write!(f, "{module}::{enum_name}::{variant_name}")
+            }
         }
     }
 }

@@ -214,7 +214,7 @@ impl TransactionBlock {
     /// If the owner of the gas object(s) is not the same as the sender, the
     /// transaction block is a sponsored transaction block.
     #[graphql(complexity = "child_complexity")]
-    async fn gas_input(&self, ctx: &Context<'_>) -> Option<GasInput> {
+    async fn gas_input(&self, ctx: &Context<'_>) -> Result<Option<GasInput>> {
         let checkpoint_viewed_at =
             if matches!(self.inner, TransactionBlockInner::Checkpointed { .. })
                 && self.is_available()
@@ -229,9 +229,8 @@ impl TransactionBlock {
                 checkpoint
             };
 
-        Some(GasInput::from(
-            self.native().gas_data(),
-            checkpoint_viewed_at,
+        Ok(Some(
+            GasInput::try_from(self.native().gas_data(), checkpoint_viewed_at).extend()?,
         ))
     }
 

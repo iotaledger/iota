@@ -9,7 +9,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
 };
 
-use move_abstract_interpreter::absint::{AbstractDomain, FunctionContext, JoinResult};
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{
@@ -21,6 +20,8 @@ use move_binary_format::{
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 use move_regex_borrow_graph::references::Ref;
+
+use crate::absint::{AbstractDomain, FunctionContext, JoinResult};
 
 type Graph = move_regex_borrow_graph::collections::Graph<(), Label>;
 type Paths = move_regex_borrow_graph::collections::Paths<(), Label>;

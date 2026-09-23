@@ -15,7 +15,11 @@ use move_symbol_pool::Symbol;
 
 use crate::{
     completions::utils::mod_defs,
-    symbols::{CursorContext, CursorDefinition, DefInfo, Symbols},
+    symbols::{
+        Symbols,
+        cursor::{CursorContext, CursorDefinition},
+        def_info::DefInfo,
+    },
 };
 
 /// Checks if the cursor is at the opening brace of a struct definition and

@@ -164,7 +164,7 @@ impl Coin {
             .await
     }
 
-    pub(crate) async fn version(&self) -> UInt53 {
+    pub(crate) async fn version(&self) -> Result<UInt53> {
         ObjectImpl(&self.super_.super_).version().await
     }
 
@@ -185,7 +185,7 @@ impl Coin {
     }
 
     /// The owner type of this object: Immutable, Shared, Parent, Address
-    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
+    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Result<Option<ObjectOwner>> {
         ObjectImpl(&self.super_.super_).owner(ctx).await
     }
 
@@ -452,9 +452,13 @@ fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<IotaAddr
         );
     }
 
+    // `coin_type = X` already implies NOT NULL; adding a redundant
+    // `coin_type IS NOT NULL` makes planner pick worse plans. (planner incorrectly
+    // assumes that `coin_type = X AND coin_type IS NOT NULL` will match less data
+    // than just `coin_type = X`)
     query = filter!(
         query,
-        "coin_type IS NOT NULL AND coin_type = {}",
+        "coin_type = {}",
         coin_type.to_canonical_string(/* with_prefix */ true)
     );
 

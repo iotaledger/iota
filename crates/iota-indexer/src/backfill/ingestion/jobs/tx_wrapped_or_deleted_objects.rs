@@ -58,8 +58,9 @@ impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
                 tx.effects
                     .all_tombstones()
                     .into_iter()
+                    .map(|(object_id, _)| object_id)
                     .chain(tx.effects.created_then_wrapped_objects())
-                    .map(|(object_id, _)| StoredTxWrappedOrDeletedObject {
+                    .map(|object_id| StoredTxWrappedOrDeletedObject {
                         tx_sequence_number: tx_sequence_number as i64,
                         object_id: object_id.as_bytes().to_vec(),
                         sender: tx.transaction.sender_address().as_bytes().to_vec(),

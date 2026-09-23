@@ -15,6 +15,7 @@ mod writer;
 
 use std::{
     collections::HashSet,
+    num::NonZeroUsize,
     path::PathBuf,
     sync::{
         Arc,
@@ -187,6 +188,13 @@ const BUCKET_PARTITION_BYTES: usize = 4;
 const COMPRESSION_TYPE_BYTES: usize = 1;
 const FILE_METADATA_BYTES: usize =
     FILE_TYPE_BYTES + BUCKET_BYTES + BUCKET_PARTITION_BYTES + COMPRESSION_TYPE_BYTES + SHA3_BYTES;
+
+pub fn default_download_concurrency() -> NonZeroUsize {
+    const MAX_PARALLEL_DOWNLOADS: usize = 8;
+    let cores = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
+    NonZeroUsize::new(cores.saturating_sub(1).clamp(1, MAX_PARALLEL_DOWNLOADS))
+        .unwrap_or(NonZeroUsize::MIN)
+}
 
 #[derive(
     Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, TryFromPrimitive, IntoPrimitive,

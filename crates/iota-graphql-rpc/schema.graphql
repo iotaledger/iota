@@ -2419,7 +2419,7 @@ type MovePackage implements IObject & IOwner {
 	Fetch another version of this package (the package that shares this
 	package's original ID, but has the specified `version`).
 	"""
-	packageAtVersion(version: Int!): MovePackage
+	packageAtVersion(version: UInt53!): MovePackage
 	"""
 	Fetch all versions of this package (packages that share this package's
 	original ID), optionally bounding the versions exclusively from
@@ -4553,6 +4553,11 @@ type TransactionBlockEffects {
 	displaying the abort code and location.
 	"""
 	errors: String
+	"""
+	The error code of the Move abort, populated if this transaction failed
+	with a Move abort.
+	"""
+	abortCode: BigInt
 	"""
 	Transactions whose outputs this transaction depends upon.
 	"""

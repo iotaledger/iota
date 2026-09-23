@@ -11,15 +11,11 @@ mod common;
 
 use std::{collections::HashMap, sync::Arc};
 
-use common::{MockGrpcStateReader, start_test_server};
+use common::{MockGrpcStateReader, connect_state_client, owner_proto, start_test_server};
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    v1::{
-        state_service::{
-            ListOwnedObjectsRequest, ListOwnedObjectsResponse,
-            state_service_client::StateServiceClient,
-        },
-        types::Address as ProtoAddress,
+    v1::state_service::{
+        ListOwnedObjectsRequest, ListOwnedObjectsResponse, state_service_client::StateServiceClient,
     },
 };
 use iota_sdk_types::{
@@ -103,31 +99,19 @@ fn make_owned_entry(
     (info, cursor)
 }
 
-fn owner_proto(addr: Address) -> ProtoAddress {
-    ProtoAddress::default().with_address(addr.into_bytes().to_vec())
-}
-
-/// Connect a state-service client to the test server.
-async fn connect_state_client(
-    handle: &iota_grpc_server::GrpcServerHandle,
-) -> StateServiceClient<Channel> {
-    let channel = Channel::from_shared(format!("http://{}", handle.address()))
-        .unwrap()
-        .connect()
-        .await
-        .unwrap();
-    StateServiceClient::new(channel)
-}
-
-/// Paginate through `ListOwnedObjects` collecting all object IDs.
+/// Paginate through `ListOwnedObjects` collecting all responses.
+///
+/// Walks at most `expected_count + 2` pages, so a regression where the
+/// cursor stops advancing fails the test instead of hanging it.
 async fn paginate_all(
     client: &mut StateServiceClient<Channel>,
     base_request: ListOwnedObjectsRequest,
+    expected_count: usize,
 ) -> Vec<ListOwnedObjectsResponse> {
     let mut responses = Vec::new();
     let mut page_token = None;
 
-    loop {
+    for _ in 0..expected_count + 2 {
         let mut request = base_request.clone();
         if let Some(token) = page_token.take() {
             request = request.with_page_token(token);
@@ -145,11 +129,14 @@ async fn paginate_all(
         responses.push(resp);
 
         if !has_next {
-            break;
+            return responses;
         }
     }
 
-    responses
+    panic!(
+        "cursor did not advance: exceeded {} pages for {expected_count} items",
+        expected_count + 2
+    );
 }
 
 /// Set up a mock with `count` gas-coin objects for a single owner.
@@ -226,7 +213,7 @@ async fn paginate_one_at_a_time() {
         .with_page_size(1)
         .with_read_mask(FieldMask::from_str("reference.object_id"));
 
-    let responses = paginate_all(&mut client, base).await;
+    let responses = paginate_all(&mut client, base, expected_count).await;
 
     // Collect all returned object IDs.
     let mut returned_ids: Vec<Vec<u8>> = Vec::new();
@@ -457,7 +444,7 @@ async fn message_size_triggers_pagination() {
         .with_max_message_size_bytes(iota_grpc_server::constants::MIN_MESSAGE_SIZE_BYTES as u32)
         .with_read_mask(FieldMask::from_str("reference,bcs"));
 
-    let responses = paginate_all(&mut client, base).await;
+    let responses = paginate_all(&mut client, base, 3).await;
 
     // Collect total objects across all pages.
     let total: usize = responses.iter().map(|r| r.objects.len()).sum();
@@ -552,7 +539,7 @@ async fn type_filter_with_pagination() {
         .with_owner(owner_proto(owner))
         .with_page_size(2) // force multiple pages
         .with_read_mask(FieldMask::from_str("reference.object_id"));
-    let all_responses = paginate_all(&mut client, all_base).await;
+    let all_responses = paginate_all(&mut client, all_base, 5).await;
     let total_all: usize = all_responses.iter().map(|r| r.objects.len()).sum();
     assert_eq!(total_all, 5, "unfiltered should return all 5 objects");
 
@@ -562,7 +549,7 @@ async fn type_filter_with_pagination() {
         .with_page_size(2)
         .with_object_type(StructTag::new_gas_coin().to_canonical_string(true))
         .with_read_mask(FieldMask::from_str("reference.object_id"));
-    let filtered_responses = paginate_all(&mut client, filtered_base).await;
+    let filtered_responses = paginate_all(&mut client, filtered_base, 5).await;
     let total_filtered: usize = filtered_responses.iter().map(|r| r.objects.len()).sum();
 
     // The mock's type filter works on MoveObjectType equality. All 5 objects
@@ -570,4 +557,85 @@ async fn type_filter_with_pagination() {
     // mock doesn't distinguish by hash — it checks the actual type.
     // This validates that type filtering + pagination work together.
     assert_eq!(total_filtered, 5);
+}
+
+/// A cursor row that vanishes between pages (e.g. the cursor coin's balance
+/// changed, which moves its index key) must not cause the next live row to
+/// be skipped: an object that did not change is always returned.
+#[tokio::test]
+async fn cursor_row_removed_between_pages_loses_no_object() {
+    let owner = Address::random();
+    let (mock, _ids) = make_coin_mock(owner, 3);
+    // `owned_objects` is sorted in index order; remember it and derive the
+    // state where the first row (the future cursor row) is gone from the
+    // index while the object store is unchanged.
+    let index_ids: Vec<ObjectId> = mock
+        .owned_objects
+        .iter()
+        .map(|(info, _)| info.object_id)
+        .collect();
+    let objects_after = mock.objects.clone();
+    let mut owned_after = mock.owned_objects.clone();
+    owned_after.remove(0);
+
+    // Page 1 against the full state returns the first row and a token
+    // pointing at it.
+    let (handle, _reader) = start_test_server(Arc::new(mock), |_| {}).await;
+    let mut client = connect_state_client(&handle).await;
+    let base = ListOwnedObjectsRequest::default()
+        .with_owner(owner_proto(owner))
+        .with_page_size(1)
+        .with_read_mask(FieldMask::from_str("reference.object_id"));
+    let page1 = client
+        .list_owned_objects(base.clone())
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        page1.objects[0]
+            .reference
+            .as_ref()
+            .unwrap()
+            .object_id
+            .as_ref()
+            .unwrap()
+            .object_id
+            .to_vec(),
+        index_ids[0].as_bytes().to_vec(),
+    );
+    let token = page1.next_page_token.clone().expect("more rows exist");
+
+    // Page 2 against the state without the cursor row.
+    let mock_after = MockGrpcStateReader {
+        objects: objects_after,
+        owned_objects: owned_after,
+        ..Default::default()
+    };
+    let (handle_after, _reader_after) = start_test_server(Arc::new(mock_after), |_| {}).await;
+    let mut client_after = connect_state_client(&handle_after).await;
+    let page2 = client_after
+        .list_owned_objects(base.with_page_token(token))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let returned: Vec<Vec<u8>> = page2
+        .objects
+        .iter()
+        .map(|o| {
+            o.reference
+                .as_ref()
+                .unwrap()
+                .object_id
+                .as_ref()
+                .unwrap()
+                .object_id
+                .to_vec()
+        })
+        .collect();
+    assert_eq!(
+        returned,
+        [index_ids[1].as_bytes().to_vec()],
+        "the unchanged second row must not be skipped when the cursor row is gone",
+    );
 }

@@ -9,6 +9,7 @@
 use iota_macros::sim_test;
 use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderLedgerClient};
 use iota_sdk_types::{StructTag, Transaction};
+use iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -34,12 +35,28 @@ async fn transaction_builder_via_node_internal_client() {
     assert!(reference_gas_price > 0);
 
     let protocol_config = client.protocol_config().await.unwrap();
-    assert!(protocol_config.attributes.contains_key("max_tx_gas"));
+    let max_tx_gas: u64 = protocol_config.attributes["max_tx_gas"]
+        .parse()
+        .expect("attribute values are stringified numbers");
+    assert!(max_tx_gas > 0);
     assert!(
         protocol_config
             .attributes
             .contains_key("max_gas_payment_objects")
     );
+
+    // A zero limit falls back to the default page size instead of clamping
+    // to one, matching the gRPC server.
+    let full_page = client
+        .objects(Some(StructTag::new_gas_coin()), sender, None, Some(0))
+        .await
+        .unwrap();
+    assert_eq!(
+        full_page.data.len(),
+        DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT,
+        "the full listing returns every genesis gas coin of the account",
+    );
+    assert!(full_page.next_cursor.is_none());
 
     // Owned-object listing with cursor pagination through the gRPC indexes.
     let first_page = client
@@ -55,13 +72,85 @@ async fn transaction_builder_via_node_internal_client() {
         .objects(
             Some(StructTag::new_gas_coin()),
             sender,
-            Some(cursor),
+            Some(cursor.clone()),
             Some(1),
         )
         .await
         .unwrap();
     assert_eq!(second_page.data.len(), 1);
     assert_ne!(first_page.data[0].id(), second_page.data[0].id());
+
+    // Walking one object per page returns every coin exactly once; the loop
+    // is bounded so a cursor that does not advance fails instead of hanging.
+    let mut walked = Vec::new();
+    let mut page_cursor = None;
+    for _ in 0..DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT + 2 {
+        let page = client
+            .objects(
+                Some(StructTag::new_gas_coin()),
+                sender,
+                page_cursor.clone(),
+                Some(1),
+            )
+            .await
+            .unwrap();
+        walked.extend(page.data.iter().map(|object| object.id()));
+        page_cursor = page.next_cursor;
+        if page_cursor.is_none() {
+            break;
+        }
+    }
+    assert!(
+        page_cursor.is_none(),
+        "the cursor did not advance to the end"
+    );
+    let expected: Vec<_> = full_page.data.iter().map(|object| object.id()).collect();
+    assert_eq!(
+        walked, expected,
+        "a page-by-page walk must equal the full listing"
+    );
+
+    // The cursor is bound to the request that produced it: replaying it
+    // with a different owner or type filter is rejected instead of silently
+    // resuming from a meaningless position.
+    let mismatched_owner = client
+        .objects(
+            Some(StructTag::new_gas_coin()),
+            recipient,
+            Some(cursor.clone()),
+            Some(1),
+        )
+        .await;
+    assert!(
+        matches!(
+            mismatched_owner,
+            Err(iota_node_transaction_builder::Error::Cursor(_))
+        ),
+        "a cursor from another owner's listing must be rejected: {mismatched_owner:?}",
+    );
+    let mismatched_filter = client.objects(None, sender, Some(cursor), Some(1)).await;
+    assert!(
+        matches!(
+            mismatched_filter,
+            Err(iota_node_transaction_builder::Error::Cursor(_))
+        ),
+        "a cursor from a differently-filtered listing must be rejected: {mismatched_filter:?}",
+    );
+    let undecodable = client
+        .objects(
+            Some(StructTag::new_gas_coin()),
+            sender,
+            Some(vec![0xff; 4]),
+            Some(1),
+        )
+        .await;
+    assert!(
+        matches!(
+            undecodable,
+            Err(iota_node_transaction_builder::Error::Cursor(_))
+        ),
+        "an undecodable cursor must be rejected: {undecodable:?}",
+    );
 
     // Object lookup by id.
     let coin = client

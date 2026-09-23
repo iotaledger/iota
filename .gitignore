@@ -26,6 +26,7 @@ Move.lock
 !crates/iota-framework/packages/iota-system/Move.lock
 !crates/iota-framework/packages/stardust/Move.lock
 !crates/iota-framework/packages/timelock/Move.lock
+!external-crates/move/crates/move-package-alt/tests/data/**/Move.lock
 .trace
 .coverage_map.mvcov
 
@@ -111,3 +112,7 @@ apps/explorer/public/*.wasm
 
 # iota-vm-sdk authenticator_gas_profile example output
 authenticator_gas_profile.speedscope.json
+authenticator_gas_profile.json.zst
+
+# iota-vm-sdk move_authenticator_publish_and_call example output
+crates/iota-vm-sdk/examples/move_authenticator_trace/

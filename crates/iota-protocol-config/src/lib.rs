@@ -12,14 +12,14 @@ use clap::*;
 use iota_protocol_config_macros::{
     ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters, ProtocolConfigOverride,
 };
-use move_vm_config::verifier::VerifierConfig;
+use move_vm_config::verifier::{MeterConfig, VerifierConfig};
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 34;
+pub const MAX_PROTOCOL_VERSION: u64 = 36;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -213,6 +213,22 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Stop locking immutable objects in post-consensus conflict
 //             resolution.
 //             Disable Move-based sponsor account authentication on mainnet.
+// Version 35: Scale the PTB value size limit by the value's type.
+//             Allow objects created or mutated by system transactions to exceed
+//             the max object size limit.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on mainnet.
+//             Meter the packages a transaction publishes with the protocol
+//             config's verifier limits in post-consensus validation, and set
+//             those limits to the node config's defaults on all chains
+//             (inert where the P-COOL flow is off).
+//             Start publishing package metadata using module metadata as a
+//             dynamic field on mainnet.
+//             Enable the redesigned leader schedule (sliding-window reputation
+//             scoring and absolute-score bad-node selection) in Starfish
+//             consensus on mainnet.
+// Version 36: Reject a transaction whose sender or sponsor is authenticated by
+//             a `MoveAuthenticator` with an immutable account object.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -588,6 +604,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     pcool_skip_immutable_object_locks: bool,
 
+    // If true, post-consensus validation meters the packages a transaction
+    // publishes with the verifier limits from this config instead of each
+    // validator's own `VerifierSigningConfig`, so every validator reaches
+    // the same verdict. Has no effect unless `enable_pcool_flow` is set.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_verifier_limits_from_protocol_config: bool,
+
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
     validator_metadata_verify_v2: bool,
@@ -628,6 +651,19 @@ struct FeatureFlags {
     // (swap-in) pool; when false, the fixed stake cut by rank is used.
     #[serde(skip_serializing_if = "is_false")]
     consensus_enable_absolute_score_leader_schedule: bool,
+
+    // If true, enables better errors and bounds for max ptb values
+    #[serde(skip_serializing_if = "is_false")]
+    max_ptb_value_size_v2: bool,
+
+    // Allow objects created or mutated in system transactions to exceed the max object size limit.
+    #[serde(skip_serializing_if = "is_false")]
+    allow_unbounded_system_objects: bool,
+
+    // If true, transaction validation rejects a `MoveAuthenticator` whose
+    // account object is immutable.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_immutable_account_objects: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -761,7 +797,9 @@ pub struct ProtocolConfig {
     max_tx_size_bytes: Option<u64>,
 
     /// Maximum number of input objects to a transaction. Enforced by the
-    /// transaction input checker
+    /// transaction input checker. Pure inputs do not count towards it; all
+    /// inputs together cannot exceed
+    /// `iota_types::transaction::MAX_PROGRAMMABLE_TX_INPUTS`.
     max_input_objects: Option<u64>,
 
     /// Max size of objects a transaction can write to disk after completion.
@@ -956,25 +994,32 @@ pub struct ProtocolConfig {
     /// at signing.
     max_move_enum_variants: Option<u64>,
 
-    /// Maximum number of back edges in Move function. Enforced by the bytecode
-    /// verifier at signing.
+    // === Metered bytecode verifier limits ===
+    // Enforced on the packages a transaction publishes when post-consensus
+    // validation checks them (via `pcool_verifier_limits_from_protocol_config`).
+    // Signing, admission and simulation are validator-local decisions and use
+    // each validator's own `VerifierSigningConfig` instead.
+
+    //
+    /// Maximum number of back edges in a Move function.
     max_back_edges_per_function: Option<u64>,
 
-    /// Maximum number of back edges in Move module. Enforced by the bytecode
-    /// verifier at signing.
+    /// Maximum number of back edges in a Move module.
     max_back_edges_per_module: Option<u64>,
 
     /// Maximum number of meter `ticks` spent verifying a Move function.
-    /// Enforced by the bytecode verifier at signing.
     max_verifier_meter_ticks_per_function: Option<u64>,
 
-    /// Maximum number of meter `ticks` spent verifying a Move function.
-    /// Enforced by the bytecode verifier at signing.
+    /// Maximum number of meter `ticks` spent verifying a Move module.
     max_meter_ticks_per_module: Option<u64>,
 
-    /// Maximum number of meter `ticks` spent verifying a Move package. Enforced
-    /// by the bytecode verifier at signing.
+    /// Maximum number of meter `ticks` spent verifying a Move package.
     max_meter_ticks_per_package: Option<u64>,
+
+    /// Maximum number of meter `ticks` the regex-based reference safety check
+    /// may spend per function, module and package. The check rejects a module
+    /// it cannot finish within the limit.
+    max_meter_ticks_regex_reference_safety: Option<u64>,
 
     // === Object runtime internal operation limits ====
     // These affect dynamic fields
@@ -1952,6 +1997,13 @@ impl ProtocolConfig {
         self.feature_flags.pcool_skip_immutable_object_locks
     }
 
+    /// Effective only with its prerequisite `enable_pcool_flow`: a config
+    /// missing the prerequisite reads as disabled.
+    pub fn pcool_verifier_limits_from_protocol_config(&self) -> bool {
+        self.feature_flags
+            .pcool_verifier_limits_from_protocol_config
+    }
+
     pub fn validator_metadata_verify_v2(&self) -> bool {
         self.feature_flags.validator_metadata_verify_v2
     }
@@ -1997,6 +2049,10 @@ impl ProtocolConfig {
     pub fn consensus_enable_absolute_score_leader_schedule(&self) -> bool {
         self.feature_flags
             .consensus_enable_absolute_score_leader_schedule
+    }
+
+    pub fn max_ptb_value_size_v2(&self) -> bool {
+        self.feature_flags.max_ptb_value_size_v2
     }
 
     pub fn deny_rule_governance(&self) -> bool {
@@ -2061,6 +2117,19 @@ impl ProtocolConfig {
             "max_concurrent_execution_workers must be positive when set"
         );
         res
+    }
+
+    pub fn allow_unbounded_system_objects(&self) -> bool {
+        self.feature_flags.allow_unbounded_system_objects
+    }
+
+    pub fn reject_immutable_account_objects(&self) -> bool {
+        let reject_immutable_account_objects = self.feature_flags.reject_immutable_account_objects;
+        assert!(
+            !reject_immutable_account_objects || self.enable_move_authentication(),
+            "reject_immutable_account_objects requires enable_move_authentication to be set"
+        );
+        reject_immutable_account_objects
     }
 }
 
@@ -2130,6 +2199,16 @@ impl ProtocolConfig {
             !ret.feature_flags.deny_rule_governance_on_chain
                 || ret.feature_flags.deny_rule_governance,
             "deny_rule_governance_on_chain requires deny_rule_governance"
+        );
+        // Post-consensus validation reads the regex check budget through the
+        // panicking accessor once the flag is set, so the constant must exist
+        // wherever the flag does, including when an override sets the flag on
+        // an earlier version.
+        assert!(
+            !ret.feature_flags.pcool_verifier_limits_from_protocol_config
+                || ret.max_meter_ticks_regex_reference_safety.is_some(),
+            "pcool_verifier_limits_from_protocol_config requires \
+                max_meter_ticks_regex_reference_safety"
         );
         // The injection cannot chunk updates or gate removals without its
         // knobs.
@@ -2323,6 +2402,7 @@ impl ProtocolConfig {
 
             max_meter_ticks_per_module: Some(16_000_000),
             max_meter_ticks_per_package: Some(16_000_000),
+            max_meter_ticks_regex_reference_safety: None,
 
             object_runtime_max_num_cached_objects: Some(1000),
             object_runtime_max_num_cached_objects_system_tx: Some(1000 * 16),
@@ -3373,6 +3453,52 @@ impl ProtocolConfig {
                             .pre_consensus_sponsor_only_move_authentication = false;
                     }
                 }
+                35 => {
+                    // Scale the PTB value size limit by the value's type.
+                    cfg.feature_flags.max_ptb_value_size_v2 = true;
+                    // Let system objects grow past the per-object size bound.
+                    cfg.feature_flags.allow_unbounded_system_objects = true;
+
+                    // Enable the optimistic commit rule (StarfishSpeed) in
+                    // Starfish consensus.
+                    cfg.feature_flags.consensus_starfish_speed = true;
+
+                    // Post-consensus validation meters published packages with
+                    // the limits below instead of each validator's own
+                    // `VerifierSigningConfig`. The values are that config's
+                    // defaults, so a validator that leaves it alone reaches
+                    // the same verdict at admission and post-consensus. Set on
+                    // all chains; inert where the P-COOL flow is off.
+                    cfg.max_verifier_meter_ticks_per_function = Some(2_200_000);
+                    cfg.max_meter_ticks_per_module = Some(2_200_000);
+                    cfg.max_meter_ticks_per_package = Some(2_200_000);
+                    cfg.max_meter_ticks_regex_reference_safety = Some(2_200_000);
+                    cfg.feature_flags.pcool_verifier_limits_from_protocol_config = true;
+                    // Publish package metadata with the module metadata stored as a
+                    // dynamic field.
+                    cfg.feature_flags
+                        .package_metadata_with_dynamic_module_metadata = true;
+                    // Enable the redesigned leader schedule: sliding-window
+                    // reputation scoring and absolute-score bad-node
+                    // selection.
+                    cfg.feature_flags
+                        .consensus_enable_sliding_window_leader_schedule = true;
+                    cfg.feature_flags
+                        .consensus_enable_absolute_score_leader_schedule = true;
+
+                    // Enable Move-based sponsor account authentication on all
+                    // networks.
+                    cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                    // Run every `MoveAuthenticator` pre-consensus again, not
+                    // just the sponsor's, on all networks.
+                    cfg.feature_flags
+                        .pre_consensus_sponsor_only_move_authentication = false;
+                }
+                36 => {
+                    // No immutable account object can authenticate a sender or
+                    // a sponsor.
+                    cfg.feature_flags.reject_immutable_account_objects = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3446,6 +3572,31 @@ impl ProtocolConfig {
             additional_borrow_checks,
             sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
                 .map(|limit| limit as u128),
+        }
+    }
+
+    /// The sign-time verifier limits as protocol parameters, in the shape
+    /// `verifier_config` takes: back edges per function, back edges per module,
+    /// and the meter limit of the regex-based reference safety check.
+    /// `VerifierSigningConfig::limits_for_signing` is the validator-local
+    /// counterpart. Defined from the protocol version that sets
+    /// `pcool_verifier_limits_from_protocol_config`.
+    pub fn verifier_signing_limits(&self) -> (usize, usize, usize) {
+        (
+            self.max_back_edges_per_function() as usize,
+            self.max_back_edges_per_module() as usize,
+            self.max_meter_ticks_regex_reference_safety() as usize,
+        )
+    }
+
+    /// The meter limits for verifying the packages a transaction publishes, as
+    /// protocol parameters. `VerifierSigningConfig::meter_config_for_signing`
+    /// is the validator-local counterpart.
+    pub fn meter_config(&self) -> MeterConfig {
+        MeterConfig {
+            max_per_fun_meter_units: Some(self.max_verifier_meter_ticks_per_function() as u128),
+            max_per_mod_meter_units: Some(self.max_meter_ticks_per_module() as u128),
+            max_per_pkg_meter_units: Some(self.max_meter_ticks_per_package() as u128),
         }
     }
 
@@ -3626,6 +3777,15 @@ impl ProtocolConfig {
 
     pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
         self.feature_flags.pcool_skip_immutable_object_locks = val;
+    }
+
+    pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .pcool_verifier_limits_from_protocol_config = val;
+    }
+
+    pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
+        self.feature_flags.reject_immutable_account_objects = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {

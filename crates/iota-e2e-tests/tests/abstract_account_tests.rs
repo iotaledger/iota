@@ -54,6 +54,8 @@ const AA_ACCOUNT_NAME: &str = "AbstractAccount";
 const AA_DELAYED_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_ACCOUNT_NAME: &str = "DelayedAbstractAccount";
 const AA_CREATE_MODULE_NAME: &str = "abstract_account_keyed";
+const AA_CREATE_FN_NAME: &str = "create";
+const AA_CREATE_IMMUTABLE_FN_NAME: &str = "create_immutable";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "abstract_account_keyed";
 const AA_DELAYED_CREATE_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_AUTHENTICATE_MODULE_NAME: &str = "delayed_abstract_account_keyed";
@@ -111,7 +113,7 @@ async fn test_abstract_account_creation_and_issue_tx(pcool: bool) -> Result<(), 
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
@@ -404,7 +406,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -427,7 +429,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -528,7 +530,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -551,7 +553,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -653,7 +655,7 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -755,7 +757,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -778,7 +780,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -1463,7 +1465,7 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
@@ -1472,6 +1474,148 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
     let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
     // The TX must succeed with both AA sender and AA sponsor.
+    test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// A TX whose sender is an abstract account held in an immutable object must be
+/// rejected.
+#[sim_test]
+async fn test_immutable_account_sender_rejected() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+
+    // Create the immutable AA that acts as the sender.
+    let immutable_aa_ref = test_env
+        .create_extra_immutable_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let immutable_addr: Address = immutable_aa_ref.object_id.into();
+
+    // Fund the immutable AA so it can pay for the transaction.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), immutable_addr)
+        .await;
+
+    let pt = test_env.craft_split_and_transfer_ptb(immutable_addr);
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, gas, immutable_addr, None)
+        .await?;
+    let sender_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_immutable_ref(immutable_aa_ref)?;
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig]);
+
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::ImmutableAccountObjectNotSupported { object_id }
+            } if *object_id == immutable_aa_ref.object_id
+        ),
+        "Expected ImmutableAccountObjectNotSupported for the sender, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// A sponsored TX whose sponsor is an abstract account held in an immutable
+/// object must be rejected, even though its sender is a shared abstract
+/// account.
+#[sim_test]
+async fn test_immutable_account_sponsor_rejected() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: Address = sender_aa_ref.object_id.into();
+
+    // Create the immutable AA that acts as the sponsor.
+    let immutable_aa_ref = test_env
+        .create_extra_immutable_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_addr: Address = immutable_aa_ref.object_id.into();
+
+    // Fund the immutable AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    let pt = test_env.craft_split_and_transfer_ptb(aa_sender);
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    let sender_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sender_aa_ref)?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_immutable_ref(immutable_aa_ref)?;
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::ImmutableAccountObjectNotSupported { object_id }
+            } if *object_id == immutable_aa_ref.object_id
+        ),
+        "Expected ImmutableAccountObjectNotSupported for the sponsor, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// An immutable abstract account still authenticates while
+/// `reject_immutable_account_objects` is off.
+#[sim_test]
+async fn test_immutable_account_sender_succeeded_without_reject_flag() -> Result<(), anyhow::Error>
+{
+    let _pcool_guard = override_pcool_flow(false);
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_reject_immutable_account_objects_for_testing(false);
+        config
+    });
+
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+
+    let immutable_aa_ref = test_env
+        .create_extra_immutable_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let immutable_addr: Address = immutable_aa_ref.object_id.into();
+
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), immutable_addr)
+        .await;
+
+    let pt = test_env.craft_split_and_transfer_ptb(immutable_addr);
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, gas, immutable_addr, None)
+        .await?;
+    let sender_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_immutable_ref(immutable_aa_ref)?;
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![sender_aa_sig]);
+
     test_env.execute_and_check_tx_correctness(tx).await
 }
 
@@ -1570,7 +1714,7 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
@@ -1817,7 +1961,7 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
@@ -1853,6 +1997,12 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
+
+    // Enable the flag so only the sponsor's MA runs pre-consensus.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(true);
+        config
+    });
 
     // Sender is an AA with ED25519 authentication; sponsor is an AA with
     // free-access authentication.
@@ -1999,6 +2149,12 @@ async fn test_non_sponsored_tx_sender_aa_rejected_pre_consensus_with_sponsor_onl
 -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
+
+    // Enable the flag; it must not affect non-sponsored transactions.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_pre_consensus_sponsor_only_move_authentication_for_testing(true);
+        config
+    });
 
     let mut test_env = TestEnvironment::new().await;
     test_env
@@ -2397,6 +2553,7 @@ impl TestEnvironment {
             .craft_create_abstract_account(
                 owner,
                 authenticate_fn_name,
+                AA_CREATE_FN_NAME,
                 aa_package_id,
                 aa_package_metadata_ref,
             )
@@ -2619,6 +2776,7 @@ impl TestEnvironment {
         &self,
         owner: Address,
         authenticate_fn_name: &str,
+        create_fn_name: &str,
         aa_package_id: ObjectId,
         aa_package_metadata_ref: ObjectReference,
     ) -> anyhow::Result<TransactionEnvelope> {
@@ -2654,7 +2812,7 @@ impl TestEnvironment {
                 builder.programmable_move_call(
                     aa_package_id,
                     Identifier::from_static(AA_CREATE_MODULE_NAME),
-                    Identifier::from_static("create"),
+                    Identifier::new(create_fn_name)?,
                     vec![],
                     arguments,
                 );
@@ -2721,6 +2879,38 @@ impl TestEnvironment {
         ))
     }
 
+    /// Creates an extra AA as an immutable object (not stored in `aa_ref`) and
+    /// returns its object ref.
+    async fn create_extra_immutable_abstract_account(
+        &self,
+        authenticate_fn_name: &str,
+    ) -> anyhow::Result<ObjectReference> {
+        let (Some(owner), Some(aa_package_id), Some(aa_package_metadata_ref)) =
+            (self.owner, self.aa_package_id, self.aa_package_metadata_ref)
+        else {
+            anyhow::bail!("Owner or package id not set");
+        };
+
+        let transaction = self
+            .craft_create_abstract_account(
+                owner,
+                authenticate_fn_name,
+                AA_CREATE_IMMUTABLE_FN_NAME,
+                aa_package_id,
+                aa_package_metadata_ref,
+            )
+            .await?;
+
+        let (effects, _) = self
+            .test_cluster
+            .execute_transaction_return_raw_effects(transaction)
+            .await?;
+
+        Ok(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ))
+    }
+
     /// Creates an extra AA with the specified parameters (not stored in
     /// `aa_ref`) and returns its object ref.
     /// This requires if it is necessary to create more AAs in a test.
@@ -2761,6 +2951,7 @@ impl TestEnvironment {
             self.craft_create_abstract_account(
                 owner,
                 authenticate_fn_name,
+                AA_CREATE_FN_NAME,
                 aa_package_id,
                 aa_package_metadata_ref,
             )
@@ -2789,6 +2980,25 @@ impl TestEnvironment {
             )
             .into(),
         ))
+    }
+
+    /// Create a free-access MoveAuthenticator for an immutable account object.
+    fn create_move_authenticator_for_free_access_for_immutable_ref(
+        &self,
+        aa_obj_ref: ObjectReference,
+    ) -> anyhow::Result<UserSignature> {
+        Ok(UserSignature::MoveAuthenticator(
+            MoveAuthenticatorV1::new_with_immutable_account_object(vec![], vec![], aa_obj_ref)
+                .into(),
+        ))
+    }
+
+    /// PTB that splits a coin off the gas and transfers it, so that the
+    /// transaction needs no object input besides the gas.
+    fn craft_split_and_transfer_ptb(&self, recipient: Address) -> ProgrammableTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(recipient, Some(100));
+        builder.finish()
     }
 
     // Create the MoveAuthenticator for the Ed25519 signature authenticator for an
@@ -2904,12 +3114,17 @@ fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 fn abstract_account_from_all_changed_objects(
     all_changed_objects: &[(OwnedObjectReference, WriteKind)],
 ) -> ObjectReference {
-    // Extract the only created shared object which is the abstract account
+    // Extract the only created shared or immutable object which is the abstract
+    // account. The other object the creation transaction writes is the
+    // authenticator function ref, which is owned by the account object.
     all_changed_objects
         .iter()
         .find_map(|(changed, kind)| {
-            matches!((changed.owner, kind), (Owner::Shared(_), WriteKind::Create))
-                .then_some(changed.reference)
+            matches!(
+                (changed.owner, kind),
+                (Owner::Shared(_) | Owner::Immutable, WriteKind::Create)
+            )
+            .then_some(changed.reference)
         })
-        .expect("Expected a shared object in the transaction response")
+        .expect("Expected a shared or immutable object in the transaction response")
 }

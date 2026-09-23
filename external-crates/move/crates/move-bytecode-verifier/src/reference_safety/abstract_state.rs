@@ -10,7 +10,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
 };
 
-use move_abstract_interpreter::absint::{AbstractDomain, FunctionContext, JoinResult};
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{
@@ -24,6 +23,8 @@ use move_borrow_graph::references::RefID;
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
+
+use crate::absint::{AbstractDomain, FunctionContext, JoinResult};
 
 type BorrowGraph = move_borrow_graph::graph::BorrowGraph<(), Label>;
 

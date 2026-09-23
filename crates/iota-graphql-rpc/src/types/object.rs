@@ -455,7 +455,7 @@ impl Object {
             .await
     }
 
-    pub(crate) async fn version(&self) -> UInt53 {
+    pub(crate) async fn version(&self) -> Result<UInt53> {
         ObjectImpl(self).version().await
     }
 
@@ -477,7 +477,7 @@ impl Object {
 
     /// The owner type of this object: Immutable, Shared, Parent, Address
     /// Immutable and Shared Objects do not have owners.
-    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
+    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Result<Option<ObjectOwner>> {
         ObjectImpl(self).owner(ctx).await
     }
 
@@ -622,8 +622,8 @@ impl Object {
 }
 
 impl ObjectImpl<'_> {
-    pub(crate) async fn version(&self) -> UInt53 {
-        self.0.version_impl().into()
+    pub(crate) async fn version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.0.version_impl()).extend()
     }
 
     pub(crate) async fn status(&self) -> ObjectStatus {
@@ -634,7 +634,7 @@ impl ObjectImpl<'_> {
         Some(self.0.native_impl().digest().to_base58())
     }
 
-    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
+    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Result<Option<ObjectOwner>> {
         use NativeOwner as O;
 
         let native = self.0.native_impl();
@@ -642,15 +642,15 @@ impl ObjectImpl<'_> {
         match native.owner {
             O::Address(address) => {
                 let address = IotaAddress::from(address);
-                Some(ObjectOwner::Address(AddressOwner {
+                Ok(Some(ObjectOwner::Address(AddressOwner {
                     owner: Some(Owner {
                         address,
                         checkpoint_viewed_at: self.0.checkpoint_viewed_at,
                         root_version: None,
                     }),
-                }))
+                })))
             }
-            O::Immutable => Some(ObjectOwner::Immutable(Immutable { dummy: None })),
+            O::Immutable => Ok(Some(ObjectOwner::Immutable(Immutable { dummy: None }))),
             O::Object(address) => {
                 let parent = Object::query(
                     ctx,
@@ -661,11 +661,12 @@ impl ObjectImpl<'_> {
                 .ok()
                 .flatten();
 
-                Some(ObjectOwner::Parent(Box::new(Parent { parent })))
+                Ok(Some(ObjectOwner::Parent(Box::new(Parent { parent }))))
             }
-            O::Shared(initial_shared_version) => Some(ObjectOwner::Shared(Shared {
-                initial_shared_version: initial_shared_version.as_u64().into(),
-            })),
+            O::Shared(initial_shared_version) => Ok(Some(ObjectOwner::Shared(Shared {
+                initial_shared_version: UInt53::try_from(initial_shared_version.as_u64())
+                    .extend()?,
+            }))),
             _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
         }
     }
@@ -1140,7 +1141,7 @@ impl ObjectFilter {
                 .filter_map(|(id, v)| {
                     Some(ObjectKey {
                         object_id: *id,
-                        version: (*v)?.into(),
+                        version: (*v)?,
                     })
                 })
                 .collect();
@@ -1159,7 +1160,7 @@ impl ObjectFilter {
     /// Extract the Object ID and Key filters into one combined map from Object
     /// IDs in this filter, to the versions they should have (or None if the
     /// filter mentions the ID but no version for it).
-    fn keys(&self) -> Option<BTreeMap<IotaAddress, Option<u64>>> {
+    fn keys(&self) -> Option<BTreeMap<IotaAddress, Option<UInt53>>> {
         if self.object_keys.is_none() && self.object_ids.is_none() {
             return None;
         }
@@ -1168,7 +1169,7 @@ impl ObjectFilter {
             self.object_keys
                 .iter()
                 .flatten()
-                .map(|key| (key.object_id, Some(key.version.into())))
+                .map(|key| (key.object_id, Some(key.version)))
                 // Chain ID filters after Key filters so if there is overlap, we overwrite the key
                 // filter with the ID filter.
                 .chain(self.object_ids.iter().flatten().map(|id| (*id, None))),
