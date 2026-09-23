@@ -2077,6 +2077,7 @@ mod handler_object_state_storage {
         let record = SyncAheadRecord {
             base_version: Some(first_chain_head),
             latest_created: next_effects.lamport_version(),
+            initial_shared_version: None,
         };
         assert_eq!(
             epoch_store.sync_ahead_record(&mutated).unwrap(),

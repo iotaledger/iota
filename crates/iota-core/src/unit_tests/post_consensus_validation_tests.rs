@@ -2283,6 +2283,29 @@ impl BookkeepingSetup {
         sender_key: &AccountPrivateKey,
     ) -> TransactionEffects {
         let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
+        self.execute_with_assigned_shared_versions(tx)
+    }
+
+    /// [`Self::shared_object_basics_call`] with the digest registered for
+    /// `index` first, so the hook classifies the execution handler-known.
+    fn handler_known_shared_object_basics_call(
+        &self,
+        function: &'static str,
+        args: Vec<CallArg>,
+        gas_id: &ObjectId,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        index: CommitIndex,
+    ) -> TransactionEffects {
+        let tx = self.build_move_call("object_basics", function, args, gas_id, sender, sender_key);
+        self.epoch_store
+            .assign_commit_to_transactions(index, vec![TransactionKey::Digest(*tx.digest())]);
+        self.execute_with_assigned_shared_versions(tx)
+    }
+
+    /// Executes `tx` with its shared input versions assigned directly rather
+    /// than through consensus.
+    fn execute_with_assigned_shared_versions(&self, tx: VerifiedTransaction) -> TransactionEffects {
         let executable = self.executable(tx);
         let assigned_versions = self
             .epoch_store
@@ -2375,6 +2398,7 @@ impl BookkeepingSetup {
             Some(SyncAheadRecord {
                 base_version,
                 latest_created,
+                initial_shared_version: None,
             }),
             "sync-ahead record mismatch for {id:?}"
         );
@@ -2667,6 +2691,45 @@ async fn handler_known_share_records_the_initial_shared_version() {
         None
     );
     s.assert_not_sheltered(shared.reference);
+}
+
+#[tokio::test]
+async fn handler_known_shared_delete_keeps_the_initial_shared_version_on_the_tombstone_row() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    let initial = initial_shared_version(&shared.owner);
+
+    // Once the object is gone, the tombstone row is the only place this
+    // validator can still read the initial shared version a transaction
+    // declares against.
+    let delete_effects = s.handler_known_shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+        6,
+    );
+    assert_eq!(
+        s.handler_processed_object(shared_id, delete_effects.lamport_version()),
+        HandlerProcessedObject {
+            digest: ObjectDigest::OBJECT_DELETED,
+            kind: HandlerProcessedObjectKind::Deleted,
+            produced_at: 6,
+            initial_shared_version: Some(initial),
+        }
+    );
+    assert_eq!(s.epoch_store.sync_ahead_record(shared_id).unwrap(), None);
 }
 
 #[tokio::test]
@@ -2970,6 +3033,7 @@ async fn sync_ahead_creations_of_every_owner_kind_get_records() {
             Some(SyncAheadRecord {
                 base_version: None,
                 latest_created: start_effects.lamport_version(),
+                initial_shared_version: None,
             }),
             "sync-ahead record mismatch for {:?} (owner {:?})",
             created.reference.object_id(),
@@ -3230,6 +3294,49 @@ async fn sync_ahead_shared_mutation_writes_nothing_and_deletion_is_recorded() {
         s.store_object(shared_ref.object_id(), delete_effects.lamport_version())
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn sync_ahead_delete_of_an_existing_shared_object_records_its_initial_shared_version() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    // The object exists before sync runs ahead: created by a commit the
+    // handler processed, so it has a creation row and no record.
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    let initial = initial_shared_version(&shared.owner);
+    assert_eq!(s.epoch_store.sync_ahead_record(shared_id).unwrap(), None);
+
+    // Sync deletes it ahead of the handler. The record restores existence at
+    // the consumed version and keeps the initial shared version, since the
+    // bytes that carried the owner are gone and shared inputs are not
+    // sheltered.
+    let shared_before_delete = s.latest_ref(shared_id);
+    let delete_effects = s.shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    assert_eq!(
+        s.epoch_store.sync_ahead_record(shared_id).unwrap(),
+        Some(SyncAheadRecord {
+            base_version: Some(shared_before_delete.version),
+            latest_created: delete_effects.lamport_version(),
+            initial_shared_version: Some(initial),
+        })
+    );
+    s.assert_no_handler_row(shared_id, delete_effects.lamport_version());
+    s.assert_not_sheltered(shared_before_delete);
 }
 
 #[tokio::test]
