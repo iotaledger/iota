@@ -9,9 +9,8 @@
 //! rows from the objects table. Without the filter nothing drops them, so the
 //! rows are deleted here with the same range deletes the pruner writes on its
 //! own, and the `pruner` database is then removed.
-//!
-//! This runs once per database and can be deleted a few releases after the
-//! compaction filter.
+
+// TODO(#12968): remove this module once a release containing it has shipped.
 
 use std::{
     path::{Path, PathBuf},
