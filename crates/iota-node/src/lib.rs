@@ -2585,6 +2585,7 @@ async fn build_grpc_server(
 ///    IndexerApi.
 /// 4. Binds the server to the specified JSON-RPC address and starts listening
 ///    for incoming connections.
+///
 /// How many connections one listener may serve, as a share of the file
 /// descriptors this process may open.
 ///
