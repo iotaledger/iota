@@ -5995,7 +5995,7 @@ name = "iota-common"
 version = "1.33.0-alpha"
 dependencies = [
  "futures",
- "getrandom 0.2.15",
+ "getrandom 0.4.3",
  "iota-macros",
  "iota-metrics",
  "once_cell",
@@ -8586,6 +8586,7 @@ dependencies = [
  "console_error_panic_hook",
  "fastcrypto",
  "getrandom 0.2.15",
+ "getrandom 0.4.3",
  "instant",
  "iota-config",
  "iota-execution",
