@@ -48,6 +48,7 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 async-trait.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 iota-grpc-client.workspace = true

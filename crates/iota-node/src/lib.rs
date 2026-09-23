@@ -109,7 +109,9 @@ use iota_sdk_types::{
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
     http_key_value_store::HttpKVStore,
-    key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
+    key_value_store::{
+        FallbackTransactionKVStore, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
+    },
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_types::{
@@ -766,27 +768,44 @@ impl IotaNode {
             None
         };
 
+        // Validators expose neither JSON-RPC nor gRPC. Both APIs share the
+        // store metrics, which register once.
+        let kv_stores = if config.is_validator() {
+            None
+        } else {
+            Some(build_kv_stores(&state, &config, &prometheus_registry)?)
+        };
+
         // Run the JSON-RPC server (and its per-request handlers) on the serving
         // runtime. `iota_http::Builder::serve` spawns the accept loop via
         // `Handle::current()`, so the builder must execute on the serving runtime.
-        let http_server = serving_rt_handle
-            .spawn({
-                let state = state.clone();
-                let transaction_orchestrator = transaction_orchestrator.clone();
-                let config = config.clone();
-                let prometheus_registry = prometheus_registry.clone();
-                async move {
-                    build_http_server(
-                        state,
-                        &transaction_orchestrator,
-                        &config,
-                        &prometheus_registry,
-                    )
+        let http_server = match kv_stores
+            .as_ref()
+            .map(|stores| stores.local_with_fallback.clone())
+        {
+            Some(kv_store) => Some(
+                serving_rt_handle
+                    .spawn({
+                        let state = state.clone();
+                        let transaction_orchestrator = transaction_orchestrator.clone();
+                        let config = config.clone();
+                        let prometheus_registry = prometheus_registry.clone();
+                        async move {
+                            build_http_server(
+                                state,
+                                &transaction_orchestrator,
+                                &config,
+                                &prometheus_registry,
+                                kv_store,
+                            )
+                            .await
+                        }
+                    })
                     .await
-                }
-            })
-            .await
-            .expect("Failed to join JSON-RPC server startup task")?;
+                    .expect("Failed to join JSON-RPC server startup task")?,
+            ),
+            None => None,
+        };
 
         let global_state_hasher = Arc::new(GlobalStateHasher::new(
             cache_traits.global_state_hash_store.clone(),
@@ -841,6 +860,7 @@ impl IotaNode {
                 let state = state.clone();
                 let state_sync_store = state_sync_store.clone();
                 let prometheus_registry = prometheus_registry.clone();
+                let transaction_fallback = kv_stores.and_then(|stores| stores.remote);
                 async move {
                     build_grpc_server(
                         &config,
@@ -849,6 +869,7 @@ impl IotaNode {
                         executor,
                         &prometheus_registry,
                         server_version,
+                        transaction_fallback,
                     )
                     .await
                 }
@@ -2455,11 +2476,19 @@ fn send_trusted_peer_change(
     })
 }
 
-fn build_kv_store(
+/// The key-value stores serving reads on a full node.
+struct KeyValueStores {
+    /// Local store, falling back to the remote one when configured.
+    local_with_fallback: Arc<TransactionKeyValueStore>,
+    /// Remote store, `None` without a base URL.
+    remote: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
+}
+
+fn build_kv_stores(
     state: &Arc<AuthorityState>,
     config: &NodeConfig,
     registry: &Registry,
-) -> Result<Arc<TransactionKeyValueStore>> {
+) -> Result<KeyValueStores> {
     let metrics = KeyValueStoreMetrics::new(registry);
     let db_store = TransactionKeyValueStore::new("rocksdb", metrics.clone(), state.clone());
 
@@ -2467,12 +2496,15 @@ fn build_kv_store(
 
     if base_url.is_empty() {
         info!("no http kv store url provided, using local db only");
-        return Ok(Arc::new(db_store));
+        return Ok(KeyValueStores {
+            local_with_fallback: Arc::new(db_store),
+            remote: None,
+        });
     }
 
     base_url.parse::<url::Url>().tap_err(|e| {
         error!(
-            "failed to parse config.transaction_kv_store_config.base_url ({:?}) as url: {}",
+            "failed to parse config.transaction_kv_store_read_config.base_url ({:?}) as url: {}",
             base_url, e
         )
     })?;
@@ -2483,12 +2515,15 @@ fn build_kv_store(
         metrics.clone(),
     )?;
     info!("using local key-value store with fallback to http key-value store");
-    Ok(Arc::new(FallbackTransactionKVStore::new_kv(
-        db_store,
-        http_store,
-        metrics,
-        "json_rpc_fallback",
-    )))
+    Ok(KeyValueStores {
+        local_with_fallback: Arc::new(FallbackTransactionKVStore::new_kv(
+            db_store,
+            http_store.clone(),
+            metrics,
+            "json_rpc_fallback",
+        )),
+        remote: Some(Arc::new(http_store)),
+    })
 }
 
 /// Builds and starts the gRPC server for the IOTA node based on the node's
@@ -2507,6 +2542,7 @@ async fn build_grpc_server(
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     prometheus_registry: &Registry,
     server_version: ServerVersion,
+    transaction_fallback: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs. This return must agree with the
     // gRPC rule in `NodeConfig::validate`, which is what makes the `expect`
@@ -2529,10 +2565,10 @@ async fn build_grpc_server(
     let shutdown_token = CancellationToken::new();
 
     // Create GrpcReader
-    let grpc_reader = Arc::new(GrpcReader::new(
-        grpc_read_store,
-        Some(server_version.to_string()),
-    ));
+    let grpc_reader = Arc::new(
+        GrpcReader::new(grpc_read_store, Some(server_version.to_string()))
+            .with_transaction_fallback(transaction_fallback),
+    );
 
     // Create gRPC server metrics
     let grpc_server_metrics = iota_grpc_server::GrpcServerMetrics::new(prometheus_registry);
@@ -2559,28 +2595,14 @@ async fn build_grpc_server(
 /// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
 /// API based on the node's configuration.
 ///
-/// This function performs the following tasks:
-/// 1. Checks if the node is a validator by inspecting the consensus
-///    configuration; if so, it returns early as validators do not expose these
-///    APIs.
-/// 2. Creates an Axum router to handle HTTP requests.
-/// 3. Initializes the JSON-RPC server and registers various RPC modules based
-///    on the node's state and configuration, including CoinApi,
-///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
-///    IndexerApi.
-/// 4. Binds the server to the specified JSON-RPC address and starts listening
-///    for incoming connections.
+/// Must not be called for a validator, which exposes no JSON-RPC API.
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
-) -> Result<Option<iota_http::ServerHandle>> {
-    // Validators do not expose these APIs
-    if config.is_validator() {
-        return Ok(None);
-    }
-
+    kv_store: Arc<TransactionKeyValueStore>,
+) -> Result<iota_http::ServerHandle> {
     let mut router = axum::Router::new();
 
     let json_rpc_router = {
@@ -2591,8 +2613,6 @@ pub async fn build_http_server(
             traffic_controller,
             config.policy_config.clone(),
         );
-
-        let kv_store = build_kv_store(&state, config, prometheus_registry)?;
 
         let metrics = Arc::new(JsonRpcMetrics::new(prometheus_registry));
         server.register_module(ReadApi::new(
@@ -2664,7 +2684,7 @@ pub async fn build_http_server(
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
 
-    Ok(Some(handle))
+    Ok(handle)
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]

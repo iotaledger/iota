@@ -60,6 +60,11 @@ pub(crate) fn validate_get_transaction_requests(
 
 /// Available Read Mask Fields
 ///
+/// Data the node has pruned is read from the configured key-value store. A
+/// failed store read gives that transaction an `UNAVAILABLE` error, except the
+/// checkpoint lookup, which counts as a miss; data that does not match the
+/// effects gives `INTERNAL`.
+///
 /// The `get_transactions` function supports the following `read_mask` fields to
 /// control which data is included in the response:
 ///
@@ -74,6 +79,8 @@ pub(crate) fn validate_get_transaction_requests(
 ///   - `effects.bcs` - the full BCS-encoded effects
 ///
 /// ## Event Fields
+/// If the transaction's events are unavailable (e.g. pruned and not in the
+/// key-value store), the transaction's result is a `FAILED_PRECONDITION` error.
 /// - `events` - includes all event fields
 ///   - `events.digest` - the events digest
 ///   - `events.events` - includes all event fields
@@ -93,9 +100,9 @@ pub(crate) fn validate_get_transaction_requests(
 ///   transaction
 ///
 /// ## Object Fields
-/// If a required object is unavailable (e.g. pruned from the object store),
-/// the transaction's result is a `FAILED_PRECONDITION` error rather than a
-/// silently incomplete list; narrow the read mask or fetch objects
+/// If a required object is unavailable (e.g. pruned and not in the key-value
+/// store), the transaction's result is a `FAILED_PRECONDITION` error rather
+/// than a silently incomplete list; narrow the read mask or fetch objects
 /// individually via `get_objects` for best-effort retrieval.
 /// - `input_objects` - includes all input object fields
 ///   - `input_objects.reference` - includes all reference fields
@@ -118,9 +125,9 @@ pub(crate) fn validate_get_transaction_requests(
 ///
 /// ## Derived Change Fields
 /// Derived from the transaction's effects and input/output objects. If a
-/// required object is unavailable (e.g. pruned from the object store), the
-/// transaction's result is a `FAILED_PRECONDITION` error rather than a
-/// silently wrong answer; retry without these fields.
+/// required object is unavailable (e.g. pruned and not in the key-value
+/// store), the transaction's result is a `FAILED_PRECONDITION` error rather
+/// than a silently wrong answer; retry without these fields.
 /// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed
 ///   transaction this contains only the gas charge.
 /// - `object_changes` - structured object changes (created, mutated, deleted,
@@ -156,7 +163,7 @@ pub(crate) fn get_transactions(
         digests.into_iter(),
         digest,
         {
-            let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask) {
+            let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask).await {
                 Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
                 Err(error) => TransactionResult::default().with_error(error.into_status_proto()),
             };
@@ -172,7 +179,7 @@ pub(crate) fn get_transactions(
 }
 
 #[tracing::instrument(skip(reader, config))]
-fn get_transaction_impl(
+async fn get_transaction_impl(
     reader: &Arc<GrpcReader>,
     config: &iota_config::node::GrpcApiConfig,
     digest: TransactionDigest,
@@ -182,7 +189,7 @@ fn get_transaction_impl(
     let fields = TransactionReadFields::from_mask(read_mask);
 
     // Get transaction data from storage, skipping unrequested fields
-    let tx_read = reader.get_transaction_read(&digest, &fields)?;
+    let tx_read = reader.get_transaction_read(&digest, &fields).await?;
 
     // Create a source for the merge
     let source = TransactionReadSource {
