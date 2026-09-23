@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc, time::Duration};
+use std::{fs::File, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
@@ -50,6 +50,7 @@ use crate::{
         indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
         indexer_wait_for_transaction, input_size_limit_exceeded_msg, publish_test_move_package,
         rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+        wait_for_oldest_available_checkpoint,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -2034,28 +2035,6 @@ async fn checkpoints_oldest_available_checkpoint(client: &HttpClient) -> Option<
         .map(|cp| *cp)
 }
 
-/// Polls `iota_getCheckpoints` until the reported `oldest_available_checkpoint`
-/// satisfies `predicate`, and returns it.
-///
-/// The reader refreshes its watermarks from the database periodically, so the
-/// checkpoint it reports trails the pruner by up to one refresh interval.
-async fn wait_for_checkpoints_oldest_available_checkpoint(
-    client: &HttpClient,
-    predicate: impl Fn(Option<u64>) -> bool,
-) -> Option<u64> {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            let oldest = checkpoints_oldest_available_checkpoint(client).await;
-            if predicate(oldest) {
-                return oldest;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-    })
-    .await
-    .expect("timeout waiting for the reported oldest available checkpoint")
-}
-
 #[tokio::test]
 async fn get_checkpoints_reports_oldest_available_checkpoint() {
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
@@ -2069,7 +2048,11 @@ async fn get_checkpoints_reports_oldest_available_checkpoint() {
 
     // Nothing is pruned yet, so the response reaches the genesis checkpoint.
     assert_eq!(
-        wait_for_checkpoints_oldest_available_checkpoint(client, |cp| cp.is_some()).await,
+        wait_for_oldest_available_checkpoint(
+            || checkpoints_oldest_available_checkpoint(client),
+            |cp| cp.is_some()
+        )
+        .await,
         Some(0)
     );
 
@@ -2077,11 +2060,11 @@ async fn get_checkpoints_reports_oldest_available_checkpoint() {
     indexer_wait_for_checkpoint_pruned(store, 0).await;
 
     // Once the genesis checkpoint is pruned, the reported checkpoint is above it.
-    let oldest = wait_for_checkpoints_oldest_available_checkpoint(client, |cp| cp > Some(0)).await;
-    assert!(
-        oldest > Some(0),
-        "expected a checkpoint above the pruned genesis one, got {oldest:?}"
-    );
+    wait_for_oldest_available_checkpoint(
+        || checkpoints_oldest_available_checkpoint(client),
+        |cp| cp > Some(0),
+    )
+    .await;
 }
 
 #[test]
