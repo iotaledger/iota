@@ -158,7 +158,12 @@ async fn get_transaction_block_with_options(options: IotaTransactionBlockRespons
 }
 
 async fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockResponseOptions) {
-    let cluster = TestClusterBuilder::new().build().await;
+    // Balance and object changes are derived from the input objects' previous
+    // versions, which pruning would delete.
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
@@ -300,7 +305,11 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
 }
 
 async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions) {
-    let cluster = TestClusterBuilder::new().build().await;
+    // Reads past object versions, which pruning would delete.
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
@@ -1701,7 +1710,12 @@ async fn try_get_object_before_version_not_exists() {
 
 #[sim_test]
 async fn display_transaction_block_with_empty_balance_changes() {
-    let cluster = TestClusterBuilder::new().build().await;
+    // Balance changes are derived from the input objects' previous versions,
+    // which pruning would delete.
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let http_client = cluster.rpc_client();
 
     let checkpoint_seq_num: u64 = 1;
