@@ -55,7 +55,10 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use dashmap::DashMap;
@@ -80,6 +83,7 @@ use tokio::sync::watch;
 use typed_store::{Map, rocks::DBBatch};
 
 use super::AuthorityEpochTables;
+use crate::epoch::epoch_metrics::EpochMetrics;
 
 /// Position of a consensus commit in the epoch's commit sequence: dense,
 /// starting at 1, identical on every validator. The node-side counterpart of
@@ -349,6 +353,8 @@ pub struct HandlerObjectState {
     /// after a handler-latest miss and are empty in normal operation, where
     /// a table miss is a cheap bloom-filter negative.
     handler_latest_cache: MokaCache<ObjectKey, HandlerProcessedObject>,
+
+    metrics: Arc<EpochMetrics>,
 }
 
 fn new_handler_latest_cache(capacity: u64) -> MokaCache<ObjectKey, HandlerProcessedObject> {
@@ -362,7 +368,11 @@ impl HandlerObjectState {
     /// `resume_point` is the commit index the handler resumes from, which is
     /// also the highest commit known to be fully executed: everything at or
     /// below it has its rows on disk.
-    pub fn new(tables: &AuthorityEpochTables, resume_point: CommitIndex) -> Self {
+    pub fn new(
+        tables: &AuthorityEpochTables,
+        resume_point: CommitIndex,
+        metrics: Arc<EpochMetrics>,
+    ) -> Self {
         // Nonzero only when reopening mid-epoch with sync-ahead records on
         // disk; counting them keeps the cleanup short-circuit sound across a
         // restart.
@@ -373,6 +383,20 @@ impl HandlerObjectState {
             .expect("AuthorityEpochTables should contain valid sync-ahead records");
         let (assigned_commits, assigned_commits_receiver) =
             unbounded_channel("handler_assigned_commits");
+        // The gauges outlive the epoch; the overlays start empty.
+        metrics
+            .handler_object_state_highest_fully_executed_commit
+            .set(resume_point as i64);
+        metrics
+            .handler_object_state_handler_processed_overlay_entries
+            .set(0);
+        metrics
+            .handler_object_state_sync_ahead_overlay_entries
+            .set(0);
+        metrics
+            .handler_object_state_sheltered_overlay_entries
+            .set(0);
+        metrics.handler_object_state_sheltered_overlay_bytes.set(0);
         Self {
             commit_index_by_key: DashMap::with_shard_amount(2048),
             keys_by_commit: Mutex::new(BTreeMap::new()),
@@ -385,6 +409,7 @@ impl HandlerObjectState {
             sync_ahead_record_deletions: Mutex::new(BTreeMap::new()),
             live_sync_ahead_records_count: AtomicU64::new(live_sync_ahead_records_count),
             handler_latest_cache: new_handler_latest_cache(100_000),
+            metrics,
         }
     }
 
@@ -670,6 +695,9 @@ impl HandlerObjectState {
             for (key, _) in handler_rows {
                 overlay.remove(key);
             }
+            self.metrics
+                .handler_object_state_handler_processed_overlay_entries
+                .set(overlay.len() as i64);
         }
         // Last, so a validation released by the signal finds the rows.
         self.advance_highest_fully_executed_commit(commit_index);
@@ -722,11 +750,21 @@ impl HandlerObjectState {
                     overlay.remove(id);
                 }
             }
+            self.metrics
+                .handler_object_state_sync_ahead_overlay_entries
+                .set(overlay.len() as i64);
         }
         let mut overlay = self.sheltered_overlay.write();
         for (key, _) in shelter_rows {
-            overlay.remove(key);
+            if let Some(object) = overlay.remove(key) {
+                self.metrics
+                    .handler_object_state_sheltered_overlay_bytes
+                    .sub(object.object_size_for_gas_metering() as i64);
+            }
         }
+        self.metrics
+            .handler_object_state_sheltered_overlay_entries
+            .set(overlay.len() as i64);
     }
 
     /// The number of entries in the (handler-latest, sync-ahead, sheltered)
@@ -743,7 +781,8 @@ impl HandlerObjectState {
     /// Raises the highest fully executed commit to `index`; a repeated or late
     /// completion of an earlier commit never lowers it.
     fn advance_highest_fully_executed_commit(&self, index: CommitIndex) {
-        self.highest_fully_executed_commit
+        let advanced = self
+            .highest_fully_executed_commit
             .send_if_modified(|highest| {
                 let advanced = index > *highest;
                 if advanced {
@@ -751,6 +790,11 @@ impl HandlerObjectState {
                 }
                 advanced
             });
+        if advanced {
+            self.metrics
+                .handler_object_state_highest_fully_executed_commit
+                .set(index as i64);
+        }
     }
 
     /// Inserts rows into the overlay. Rows are keyed per version, so an
@@ -763,9 +807,11 @@ impl HandlerObjectState {
         if rows.is_empty() {
             return;
         }
-        self.handler_latest_overlay
-            .write()
-            .extend(rows.iter().copied());
+        let mut overlay = self.handler_latest_overlay.write();
+        overlay.extend(rows.iter().copied());
+        self.metrics
+            .handler_object_state_handler_processed_overlay_entries
+            .set(overlay.len() as i64);
     }
 
     fn upsert_sync_ahead_writes(
@@ -831,6 +877,9 @@ impl HandlerObjectState {
                 );
             }
         }
+        self.metrics
+            .handler_object_state_sync_ahead_overlay_entries
+            .set(overlay.len() as i64);
         Ok(())
     }
 
@@ -861,7 +910,18 @@ impl HandlerObjectState {
         // that is fine - the checkpoint executor's persist step re-runs on the
         // same replay and evicts them again, and the bytes are identical
         // either way.
-        self.sheltered_overlay.write().extend(rows);
+        let mut overlay = self.sheltered_overlay.write();
+        for (key, object) in rows {
+            let size = object.object_size_for_gas_metering();
+            if overlay.insert(key, object).is_none() {
+                self.metrics
+                    .handler_object_state_sheltered_overlay_bytes
+                    .add(size as i64);
+            }
+        }
+        self.metrics
+            .handler_object_state_sheltered_overlay_entries
+            .set(overlay.len() as i64);
         Ok(())
     }
 
@@ -901,6 +961,9 @@ impl HandlerObjectState {
                 }
             }
         }
+        self.metrics
+            .handler_object_state_sync_ahead_overlay_entries
+            .set(overlay.len() as i64);
         Ok(())
     }
 }
@@ -910,6 +973,7 @@ mod tests {
     use iota_sdk_types::{Address, ObjectReference, RandomnessRound, SenderSignedTransaction};
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{effects::TestEffectsBuilder, transaction::TransactionAPI};
+    use prometheus_filtered::Registry;
 
     use super::*;
 
@@ -1137,6 +1201,7 @@ mod tests {
             sync_ahead_record_deletions: Mutex::new(BTreeMap::new()),
             live_sync_ahead_records_count: AtomicU64::new(0),
             handler_latest_cache: new_handler_latest_cache(100),
+            metrics: EpochMetrics::new(&Registry::new()),
         };
         let key_a = TransactionKey::Digest(TransactionDigest::random());
         let key_b = TransactionKey::Digest(TransactionDigest::random());
