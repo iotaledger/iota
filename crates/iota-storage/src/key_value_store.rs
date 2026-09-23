@@ -415,6 +415,13 @@ impl TransactionKeyValueStoreTrait for TransactionKeyValueStore {
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         Self::multi_get_events_by_tx_digests(self, digests).await
     }
+    async fn evict_objects(&self, object_keys: &[ObjectKey]) {
+        self.inner.evict_objects(object_keys).await
+    }
+
+    async fn evict_events_by_tx_digests(&self, digests: &[TransactionDigest]) {
+        self.inner.evict_events_by_tx_digests(digests).await
+    }
 }
 
 /// A TransactionKeyValueStoreTrait that falls back to a secondary store for any
@@ -621,6 +628,16 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
             .await?;
         merge_res(&mut res, secondary_res, &indices);
         Ok(res)
+    }
+
+    async fn evict_objects(&self, object_keys: &[ObjectKey]) {
+        self.primary.evict_objects(object_keys).await;
+        self.fallback.evict_objects(object_keys).await;
+    }
+
+    async fn evict_events_by_tx_digests(&self, digests: &[TransactionDigest]) {
+        self.primary.evict_events_by_tx_digests(digests).await;
+        self.fallback.evict_events_by_tx_digests(digests).await;
     }
 }
 

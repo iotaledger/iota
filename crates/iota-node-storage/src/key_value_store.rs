@@ -67,4 +67,10 @@ pub trait TransactionKeyValueStoreTrait {
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>>;
+
+    /// Drops any cached copies of the objects at `object_keys`.
+    async fn evict_objects(&self, _object_keys: &[ObjectKey]) {}
+
+    /// Drops any cached events of the transactions `digests`.
+    async fn evict_events_by_tx_digests(&self, _digests: &[TransactionDigest]) {}
 }
