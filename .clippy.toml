@@ -8,6 +8,9 @@ disallowed-methods = [
   { path = "futures::executor::block_on", reason = "use tokio::runtime::runtime::Runtime::block_on instead" },
   # bincode::deserialize_from is easy to shoot your foot with
   { path = "bincode::deserialize_from", reason = "use bincode::deserialize instead" },
+  # RocksDB ignores snapshots for a column family with a compaction filter
+  { path = "rocksdb::Options::set_compaction_filter", reason = "it can drop rows a typed_store::DbSnapshot is still reading" },
+  { path = "rocksdb::Options::set_compaction_filter_factory", reason = "it can drop rows a typed_store::DbSnapshot is still reading" },
 ]
 disallowed-macros = [
   # we use tracing with the log feature instead of the log crate.
