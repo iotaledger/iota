@@ -283,7 +283,6 @@ fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8
 fs_extra = "1.3.0"
 futures = "0.3.34"
 getrandom = { version = "0.4", features = ["wasm_js"] }
-getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
 git-version = "0.3.5"
 governor = "0.6.0"
 hdrhistogram = "7.5.4"
