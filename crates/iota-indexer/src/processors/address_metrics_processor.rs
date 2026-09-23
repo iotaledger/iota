@@ -6,10 +6,20 @@ use tap::tap::TapFallible;
 use tracing::{error, info};
 
 use crate::{
+    errors::IndexerError,
+    ingestion::common::persist::CommitterTables,
     metrics::IndexerMetrics,
+    processors::resume_cursor,
     store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
     types::IndexerResult,
 };
+
+/// The tables the address metrics are computed from.
+const ADDRESS_METRICS_TABLES: &[CommitterTables] = &[
+    CommitterTables::Transactions,
+    CommitterTables::TxSenders,
+    CommitterTables::TxRecipients,
+];
 
 const ADDRESS_PROCESSOR_BATCH_SIZE: usize = 80000;
 const PARALLELISM: usize = 10;
@@ -48,6 +58,16 @@ where
             .await?;
         let mut last_processed_tx_seq = latest_tx_seq.unwrap_or_default().seq;
         loop {
+            // The database may not hold history back to the cursor, either because
+            // it was restored from a snapshot or because the pruner moved past it.
+            let lower_bounds = self
+                .store
+                .get_watermark_lower_bounds(ADDRESS_METRICS_TABLES)
+                .await?;
+            last_processed_tx_seq = resume_cursor(last_processed_tx_seq,
+                lower_bounds.min_available_tx,
+            );
+
             let mut latest_tx = self.store.get_latest_stored_transaction().await?;
             while if let Some(tx) = latest_tx {
                 tx.tx_sequence_number
@@ -59,8 +79,23 @@ where
                 latest_tx = self.store.get_latest_stored_transaction().await?;
             }
 
-            let mut persist_tasks = vec![];
             let batch_size = self.address_processor_batch_size;
+            let batch_end_tx_seq = last_processed_tx_seq + batch_size as i64;
+
+            // Confirm the end of the batch is in the database before doing the work,
+            // so a pruned range is caught before anything is persisted.
+            let batch_end_cp_seq = self
+                .store
+                .get_tx(batch_end_tx_seq)
+                .await?
+                .ok_or_else(|| {
+                    IndexerError::DataPruned(format!(
+                        "transaction {batch_end_tx_seq} is not in the database"
+                    ))
+                })?
+                .checkpoint_sequence_number;
+
+            let mut persist_tasks = vec![];
             let step_size = batch_size / self.address_processor_parallelism;
             for chunk_start_tx_seq in (last_processed_tx_seq + 1
                 ..last_processed_tx_seq + batch_size as i64 + 1)
@@ -95,19 +130,12 @@ where
                 .latest_address_metrics_tx_seq
                 .set(last_processed_tx_seq);
 
-            let mut last_processed_tx = self.store.get_tx(last_processed_tx_seq).await?;
-            while last_processed_tx.is_none() {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                last_processed_tx = self.store.get_tx(last_processed_tx_seq).await?;
-            }
-            // unwrap is safe here b/c we just checked that it's not None
-            let last_processed_cp = last_processed_tx.unwrap().checkpoint_sequence_number;
             self.store
-                .calculate_and_persist_address_metrics(last_processed_cp)
+                .calculate_and_persist_address_metrics(batch_end_cp_seq)
                 .await?;
             info!(
                 "Persisted address metrics for checkpoint: {}",
-                last_processed_cp
+                batch_end_cp_seq
             );
         }
     }

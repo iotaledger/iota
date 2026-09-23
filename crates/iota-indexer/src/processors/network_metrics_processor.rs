@@ -7,10 +7,16 @@ use tracing::{error, info};
 
 use crate::{
     errors::IndexerError,
+    ingestion::common::persist::CommitterTables,
     metrics::IndexerMetrics,
+    processors::resume_cursor,
     store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
     types::IndexerResult,
 };
+
+/// The tables the transaction count metrics are computed from.
+const NETWORK_METRICS_TABLES: &[CommitterTables] =
+    &[CommitterTables::Checkpoints, CommitterTables::Transactions];
 
 const MIN_NETWORK_METRICS_PROCESSOR_BATCH_SIZE: usize = 10;
 const MAX_NETWORK_METRICS_PROCESSOR_BATCH_SIZE: usize = 80000;
@@ -77,6 +83,19 @@ where
         let mut last_processed_peak_tps_epoch = latest_epoch_peak_tps.unwrap_or_default().epoch;
 
         loop {
+            // The database may not hold history back to the cursor, either because
+            // it was restored from a snapshot or because the pruner moved past it.
+            let lower_bounds = self
+                .store
+                .get_watermark_lower_bounds(NETWORK_METRICS_TABLES)
+                .await?;
+            last_processed_cp_seq =
+                resume_cursor(last_processed_cp_seq, lower_bounds.min_available_cp);
+            last_processed_peak_tps_epoch = resume_cursor(
+                last_processed_peak_tps_epoch,
+                lower_bounds.min_available_epoch,
+            );
+
             let latest_stored_checkpoint = loop {
                 if let Some(latest_stored_checkpoint) =
                     self.store.get_latest_stored_checkpoint().await?
@@ -101,6 +120,20 @@ where
                 last_processed_cp_seq + 1,
                 last_processed_cp_seq + batch_size
             );
+
+            // Confirm the end of the batch is in the database before doing the work,
+            // so a pruned range is caught before anything is persisted.
+            let batch_end_cp_seq = last_processed_cp_seq + batch_size;
+            let end_cp = self
+                .store
+                .get_checkpoints_in_range(batch_end_cp_seq, batch_end_cp_seq + 1)
+                .await?
+                .first()
+                .ok_or(IndexerError::PostgresRead)
+                .inspect_err(|_| {
+                    tracing::error!("cannot read checkpoint from PG for epoch peak TPS")
+                })?
+                .clone();
 
             let step_size =
                 (batch_size as usize / self.network_metrics_processor_parallelism).max(1);
@@ -133,16 +166,6 @@ where
                 .latest_network_metrics_cp_seq
                 .set(last_processed_cp_seq);
 
-            let end_cp = self
-                .store
-                .get_checkpoints_in_range(last_processed_cp_seq, last_processed_cp_seq + 1)
-                .await?
-                .first()
-                .ok_or(IndexerError::PostgresRead)
-                .inspect_err(|_| {
-                    tracing::error!("cannot read checkpoint from PG for epoch peak TPS")
-                })?
-                .clone();
             for epoch in last_processed_peak_tps_epoch + 1..end_cp.epoch {
                 self.store.persist_epoch_peak_tps(epoch).await?;
                 last_processed_peak_tps_epoch = epoch;
