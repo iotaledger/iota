@@ -327,9 +327,14 @@ prost-build = "0.14"
 prost-types = "0.14"
 quote = "1.0.23"
 rand = "0.10.2"
-# fastcrypto's `AllowedRng` is implemented only for `rand` 0.8's `StdRng` and
-# `ThreadRng`, so its key generation APIs have to be fed an RNG from that
-# version rather than the workspace `rand` above.
+# `rand` 0.8 is kept next to the workspace `rand` above for two reasons:
+# - fastcrypto's `AllowedRng` is implemented only for 0.8's `StdRng` and
+#   `ThreadRng`, so any RNG handed to fastcrypto must come from this version.
+# - Seeded draws whose results every validator must reproduce stay on it:
+#   the Starfish leader schedule (`starfish/core/src/leader_schedule.rs`)
+#   and the submission order in `iota-types/src/committee.rs`. Newer `rand`
+#   versions return different values for the same seed, so old and new
+#   binaries would disagree; changing them needs a protocol feature flag.
 rand08 = { package = "rand", version = "0.8.5" }
 regex = "1.7.1"
 reqwest = { version = "0.13", default-features = false, features = ["http2", "json", "rustls"] }
