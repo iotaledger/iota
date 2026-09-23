@@ -923,10 +923,11 @@ fn fetch_commit_transactions_within_budget(
                     break;
                 }
             };
-            // Charged by the entry rather than the payload, since the ref and
-            // the length prefixes around it are held too.
+            // Charged by the entry rather than the payload, since the ref, the
+            // length prefixes around it and its `Bytes` descriptor are held too.
             let entry = serialize_transactions_entry(*transaction_ref, payload)?;
-            if total_bytes + entry.len() > byte_budget {
+            let charge = entry.len() + size_of::<Bytes>();
+            if total_bytes + charge > byte_budget {
                 if index == 0 {
                     take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
                 } else {
@@ -934,7 +935,7 @@ fn fetch_commit_transactions_within_budget(
                     break;
                 }
             }
-            total_bytes += entry.len();
+            total_bytes += charge;
             result.push(entry);
         }
         if !covered {
@@ -5986,6 +5987,7 @@ mod tests {
                 )
                 .unwrap()
                 .len()
+                    + size_of::<Bytes>()
             })
             .sum();
         let mut context = Context {

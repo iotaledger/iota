@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use bytes::Bytes;
 use rstest::rstest;
 use starfish_config::AuthorityIndex;
 use tempfile::TempDir;
@@ -755,7 +756,8 @@ async fn scan_serialized_transactions(
             VerifiedBlock::new(header, transactions)
         })
         .collect();
-    let payload_bytes = written_blocks[0].verified_transactions.serialized().len();
+    let payload_bytes =
+        written_blocks[0].verified_transactions.serialized().len() + size_of::<Bytes>();
 
     store
         .write(

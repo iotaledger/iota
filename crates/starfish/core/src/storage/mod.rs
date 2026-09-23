@@ -237,10 +237,12 @@ pub(crate) fn collect_transactions_within_budget(
             entry = Some((stored, serialized));
             continue;
         }
-        if !transactions.is_empty() && total_bytes + serialized.len() > byte_budget {
+        // The `Bytes` descriptor is held alongside the payload.
+        let charge = serialized.len() + size_of::<Bytes>();
+        if !transactions.is_empty() && total_bytes + charge > byte_budget {
             break;
         }
-        total_bytes += serialized.len();
+        total_bytes += charge;
         transactions.insert(*transaction_ref, serialized);
         entry = entries.next().transpose()?;
     }
