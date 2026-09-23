@@ -42,7 +42,7 @@ use super::authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTab
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     checkpoint_progress_tracker::CheckpointProgressTracker,
-    checkpoints::{CheckpointStore, CheckpointWatermark},
+    checkpoints::{CheckpointStore, CheckpointWatermark, EMPTY_CHECKPOINT_CONTENTS_DIGEST},
     grpc_indexes::GrpcIndexesStore,
     jsonrpc_index::IndexStore,
 };
@@ -364,8 +364,12 @@ impl AuthorityStorePruner {
 
         let mut checkpoints_batch = checkpoint_db.tables.certified_checkpoints.batch();
 
-        let checkpoint_contents_digests =
-            checkpoint_content_to_prune.iter().map(|ckpt| ckpt.digest());
+        // Empty checkpoints that are not pruned yet still use the shared
+        // empty contents row.
+        let checkpoint_contents_digests = checkpoint_content_to_prune
+            .iter()
+            .map(|ckpt| ckpt.digest())
+            .filter(|digest| *digest != *EMPTY_CHECKPOINT_CONTENTS_DIGEST);
         checkpoints_batch.delete_batch(
             &checkpoint_db.tables.checkpoint_content,
             checkpoint_contents_digests,
@@ -1406,9 +1410,7 @@ mod tests {
     }
 
     /// Like [`run_checkpoint_pruning`], but with the pruning mode and metrics
-    /// under the caller's control. Note that all fixture checkpoints share one
-    /// empty-contents digest, which the checkpoints pass deletes with its
-    /// first batch — multi-batch runs therefore only work in objects mode.
+    /// under the caller's control.
     async fn run_pruning_with_metrics(
         timestamps_ms: &[CheckpointTimestamp],
         max_eligible_checkpoint: CheckpointSequenceNumber,
@@ -1548,6 +1550,77 @@ mod tests {
             5000
         );
         assert_eq!(metrics.last_pruned_checkpoint_timestamp_ms.get(), 0);
+    }
+
+    // All empty checkpoints share one contents row, so pruning an empty
+    // checkpoint must keep that row for the empty checkpoints that remain.
+    #[tokio::test]
+    async fn test_checkpoint_pruning_keeps_empty_contents() {
+        let perpetual_dir = iota_common::tempdir();
+        let perpetual_db = Arc::new(AuthorityPerpetualTables::open(perpetual_dir.path(), None));
+        let checkpoint_store = CheckpointStore::new_for_tests();
+
+        let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+        let timestamps: Vec<_> = (1..=9).map(|i| i * 1000).collect();
+        let checkpoints = committee.make_checkpoints_with_timestamps(&timestamps, None);
+        let empty_digest = checkpoints[0].contents_digest;
+
+        checkpoint_store
+            .insert_checkpoint_contents(empty_contents().into_inner().into_checkpoint_contents())
+            .unwrap();
+        for checkpoint in &checkpoints {
+            checkpoint_store
+                .insert_certified_checkpoint(checkpoint)
+                .unwrap();
+        }
+        checkpoint_store
+            .update_highest_executed_checkpoint(checkpoints.last().unwrap())
+            .unwrap();
+
+        let prune = |starting_checkpoint_number, cutoff_timestamp_ms| {
+            AuthorityStorePruner::prune_for_eligible_epochs(
+                &perpetual_db,
+                &checkpoint_store,
+                None,
+                None,
+                PruningMode::Checkpoints,
+                0,
+                starting_checkpoint_number,
+                u64::MAX,
+                cutoff_timestamp_ms,
+                AuthorityStorePruningMetrics::new_for_test(),
+                None,
+            )
+        };
+
+        prune(0, 5000).await.unwrap();
+        assert_eq!(
+            checkpoint_store
+                .get_highest_pruned_checkpoint_seq_number()
+                .unwrap(),
+            Some(5)
+        );
+        assert!(
+            checkpoint_store
+                .get_checkpoint_contents(&empty_digest)
+                .unwrap()
+                .is_some()
+        );
+
+        // The next pass reads the contents of the remaining empty checkpoints.
+        prune(5, 8000).await.unwrap();
+        assert_eq!(
+            checkpoint_store
+                .get_highest_pruned_checkpoint_seq_number()
+                .unwrap(),
+            Some(8)
+        );
+        assert!(
+            checkpoint_store
+                .get_checkpoint_contents(&empty_digest)
+                .unwrap()
+                .is_some()
+        );
     }
 
     // A nudge wakes the pruner task's subscription.
