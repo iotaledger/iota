@@ -16,15 +16,19 @@ set -u
 rustc="$1"; shift
 
 pkg="${CARGO_PKG_NAME:-}"
-# -Ztrim-diagnostic-paths=no makes every type in a diagnostic carry its defining
-# crate (iota_sdk_types::Owner, never a trimmed bare Owner), which is what lets
-# report.sh classify SDK matches exactly instead of by a list of bare names.
+# The two diagnostics flags make every type from another crate carry that crate
+# in a warning (iota_sdk_types::Owner, never a bare Owner). rustc shortens type names in two
+# independent ways: -Ztrim-diagnostic-paths=no disables the shortest-unambiguous-
+# name trimming, and -Zwrite-long-types-to-disk=no disables the abbreviation of
+# long types (which otherwise drops crate paths above ~2/3 of the diagnostic
+# width). report.sh classifies and findings.sh keys on those full paths.
 if [[ -n "$pkg" && -n "${NELINT_PKGS_FILE:-}" && -f "$NELINT_PKGS_FILE" ]] \
    && grep -qxF -- "$pkg" "$NELINT_PKGS_FILE"; then
   exec "$rustc" "$@" \
     "-Zcrate-attr=feature(non_exhaustive_omitted_patterns_lint)" \
     "-Zcrate-attr=${NELINT_LEVEL:-warn}(non_exhaustive_omitted_patterns)" \
-    "-Ztrim-diagnostic-paths=no"
+    "-Ztrim-diagnostic-paths=no" \
+    "-Zwrite-long-types-to-disk=no"
 fi
 
 exec "$rustc" "$@"

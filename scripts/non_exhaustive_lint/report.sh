@@ -10,22 +10,24 @@
 # - Every other non_exhaustive match (our own internal enums, third-party
 #   crates) collapsed into per-type counts, informational only.
 #
-# Classification is exact, not heuristic: rustc_wrapper.sh passes
-# -Ztrim-diagnostic-paths=no, so every type in a diagnostic carries its defining
-# crate, and a match is an SDK match iff its type mentions iota_sdk_types or
-# iota_sdk_grpc.
+# Classification is by crate path, not by a list of names: rustc_wrapper.sh passes
+# -Ztrim-diagnostic-paths=no and -Zwrite-long-types-to-disk=no, so every type
+# from another crate carries that crate in the diagnostic, and a match is an SDK
+# match iff its type mentions iota_sdk_types or iota_sdk_grpc.
 set -uo pipefail
+export LC_ALL=C
 
 log="$1"
 raw="$(mktemp "${TMPDIR:-/tmp}/nelint-raw.XXXXXX")"
 sites="$(mktemp "${TMPDIR:-/tmp}/nelint-sites.XXXXXX")"
 trap 'rm -f "$raw" "$sites"' EXIT
 
-# One line per finding: "path:line:col<TAB>matched type".
+# One line per finding (enum match or struct pattern, see findings.sh):
+# "path:line:col<TAB>matched type".
 awk '
-/^warning: some variants are not matched/ {b=1; p=""; next}
-b && /-->/ && p=="" { p=$2 }
-b && /the matched value is of type/ { s=$0; sub(/.*of type `/,"",s); sub(/`.*/,"",s); print p "\t" s; b=0 }
+/^warning: some (variants are not matched explicitly|fields are not explicitly listed)/ {b=1; p=""; next}
+b && p=="" && /^ *--> / { p=$2 }
+b && /^ *= note: the (matched value|pattern) is of type `/ { s=$0; sub(/.*of type `/,"",s); sub(/`.*/,"",s); print p "\t" s; b=0 }
 ' "$log" > "$raw"
 
 # Collapse to one row per site, keeping the most qualified type name should a
@@ -38,7 +40,7 @@ END { for (k in best) print k "\t" best[k] }
 
 n_raw=$(wc -l < "$raw" | tr -d ' ')
 n_sites=$(wc -l < "$sites" | tr -d ' ')
-n_crates=$(cut -f1 "$sites" | sed -E 's#(crates/[^/]+|iota-execution/[^ ]*/[^/]+)/.*#\1#' | sort -u | wc -l | tr -d ' ')
+n_crates=$(cut -f1 "$sites" | sed -E 's#(crates/[^/]+|iota-execution/[^/]+/[^/]+)/.*#\1#' | sort -u | wc -l | tr -d ' ')
 
 SDK_RE='iota_sdk_types|iota_sdk_grpc'
 TEST_RE='/(tests|unit_tests|examples|benches)/|_tests?\.rs:'
@@ -49,9 +51,9 @@ table_hdr() { echo "| location | matched type |"; echo "|---|---|"; }
 sdk_prod=$(grep -E "$SDK_RE" "$sites" | grep -vE "$TEST_RE" || true)
 sdk_test=$(grep -E "$SDK_RE" "$sites" | grep -E "$TEST_RE" || true)
 
-echo "## Non-exhaustive SDK enum drift report"
+echo "## Non-exhaustive SDK enum matches"
 echo
-echo "**$n_sites** source sites match a \`#[non_exhaustive]\` enum with a wildcard arm, across **$n_crates** crates ($n_raw raw findings before collapsing lib/test duplicates). Nightly, warn-level: findings never fail the build; this is an inventory to triage."
+echo "**$n_sites** source sites match a \`#[non_exhaustive]\` enum with a wildcard arm, across **$n_crates** crates ($n_raw raw findings before collapsing lib/test duplicates). Warn-level: a finding by itself never fails the job; a finding missing from the committed allowlist.txt does (see the Allowlist section below)."
 echo
 echo "### SDK matches in production code, review these first"
 echo
@@ -65,5 +67,5 @@ echo "### Other non_exhaustive matches (internal and third-party enums, informat
 echo
 echo "| matched type | sites |"
 echo "|---|---|"
-grep -vE "$SDK_RE" "$sites" | cut -f2 | sort | uniq -c | sort -rn \
+{ grep -vE "$SDK_RE" "$sites" || true; } | cut -f2 | sort | uniq -c | sort -rn \
   | awk '{c=$1; $1=""; sub(/^ /,""); printf "| `%s` | %d |\n", $0, c}'

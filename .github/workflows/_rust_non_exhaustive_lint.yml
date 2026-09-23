@@ -1,16 +1,13 @@
-name: Non-exhaustive enum drift
+name: Non-exhaustive SDK enum matches
 
 on:
   workflow_call:
     inputs:
-      isRustWorkspaceConfig:
-        type: boolean
-        default: false
       isNightly:
         type: boolean
         default: false
-  # Allow running the check on demand against any branch (in addition to the
-  # workspace-config and nightly triggers below).
+  # Allow running the check on demand, in addition to the nightly run. It does
+  # not run on pull requests.
   workflow_dispatch:
 
 concurrency:
@@ -26,10 +23,7 @@ env:
 jobs:
   non-exhaustive-omitted-patterns:
     name: SDK enum variants hidden behind wildcard arms
-    # An SDK enum gains variants only when the pinned rev moves, which is a
-    # workspace-config change; the nightly run covers matches written in between.
-    # workflow_dispatch runs it on demand regardless of those inputs.
-    if: (!cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || inputs.isRustWorkspaceConfig || inputs.isNightly))
+    if: (!cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || inputs.isNightly))
     runs-on: [self-hosted-x64]
     timeout-minutes: 60
     steps:
@@ -37,10 +31,12 @@ jobs:
 
       # Coverage is derived from `cargo tree` (every crate reaching iota-sdk-types
       # in its dependency tree) and the unstable lint is injected through a
-      # RUSTC_WORKSPACE_WRAPPER, so no crate source carries the attribute. This is
-      # a report: findings are warnings and never fail the job; the script fails
-      # only its self-test, i.e. if the lint has stopped being applied at all.
-      - name: Report SDK enum variants hidden behind wildcard arms
+      # RUSTC_WORKSPACE_WRAPPER, so no crate source carries the attribute. The
+      # findings are reduced to line-number-free keys and compared with the
+      # committed scripts/non_exhaustive_lint/allowlist.txt: a finding that is not
+      # allowed fails the job, an allowed one does not. See the README there for
+      # how to allow a finding and for the list of red causes.
+      - name: Check SDK enum variants hidden behind wildcard arms
         run: scripts/non_exhaustive_lint/check.sh
         env:
           # Build in a fresh per-run target dir so every in-scope crate is
@@ -48,11 +44,12 @@ jobs:
           # replay cached artifacts from before a crate entered scope (the wrapper
           # decision is not part of cargo's fingerprint), silently under-reporting.
           CARGO_TARGET_DIR: ${{ runner.temp }}/nelint-target
-          # report.md and the full compiler output, for the artifact below. The
-          # report also lands on the run's summary page via GITHUB_STEP_SUMMARY.
+          # report.md, findings.txt, in-scope-crates.txt and the full compiler
+          # output, for the artifact below. The report and the allowlist diff also
+          # land on the run's summary page via GITHUB_STEP_SUMMARY.
           NELINT_OUT_DIR: ${{ runner.temp }}/nelint-report
 
-      - name: Upload report and compiler output
+      - name: Upload report, findings and compiler output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
