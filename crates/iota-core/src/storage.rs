@@ -212,12 +212,12 @@ impl ReadStore for RocksDbStore {
                         >::Ok(None);
                     }
                 }
-                Ok(Some(
-                    FullCheckpointContents::from_contents_and_execution_data(
-                        contents,
-                        transactions.into_iter(),
-                    ),
-                ))
+                FullCheckpointContents::from_contents_and_execution_data(
+                    contents,
+                    transactions.into_iter(),
+                )
+                .map(Some)
+                .map_err(iota_types::storage::error::Error::custom)
             })
             .transpose()
             .map(|contents| contents.flatten())
