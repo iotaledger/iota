@@ -1419,7 +1419,6 @@ mod tests {
                 &perpetual_db,
                 &checkpoint_store,
                 None,
-                None,
                 PruningMode::Checkpoints,
                 0,
                 starting_checkpoint_number,
