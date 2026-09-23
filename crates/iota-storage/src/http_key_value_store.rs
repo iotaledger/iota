@@ -555,8 +555,11 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .zip(checkpoint_summaries.iter())
             .map(map_fetch)
             .map(|maybe_bytes| {
-                maybe_bytes
-                    .and_then(|(bytes, seq)| deser::<_, CertifiedCheckpointSummary>(seq, bytes))
+                maybe_bytes.and_then(|(bytes, seq)| {
+                    deser_check_digest(seq, bytes, |s: &CertifiedCheckpointSummary| {
+                        s.data().sequence_number
+                    })
+                })
             })
             .collect::<Vec<_>>();
 
