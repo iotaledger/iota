@@ -204,7 +204,7 @@ impl StateSnapshotUploader {
             db_snapshot_taken,
             // Held until this function returns, which is what frees the next
             // epoch boundary to hand its own snapshot over.
-            writer_idle: _writer_idle,
+            write_permit: _write_permit,
         } = request;
         // Chain identifier = genesis checkpoint digest; tags each manifest.
         let chain_id = ChainIdentifier::from(
