@@ -1207,7 +1207,6 @@ impl TestClusterBuilder {
         self
     }
 
-    /// Enable or disable the fullnode's gRPC API. Enabled by default.
     /// Makes the fullnode publish a formal state snapshot at every epoch
     /// boundary, to the store the config names.
     pub fn with_fullnode_state_snapshot_config(mut self, config: StateSnapshotConfig) -> Self {
@@ -1215,6 +1214,7 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Enable or disable the fullnode's gRPC API. Enabled by default.
     pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
         self.fullnode_enable_grpc_api = enable;
         self
