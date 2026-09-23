@@ -82,8 +82,8 @@ fn max_fetched_headers(context: &Context, commit_sync: bool) -> usize {
     }
 }
 
-/// Header-fetch budget: the most headers a response may carry, each entry at
-/// the maximum serialized header size for this committee.
+/// Header-fetch budget: the upper bound on headers a response may carry,
+/// each at the maximum serialized header size for this committee.
 fn max_fetch_block_headers_response_bytes(context: &Context, commit_sync: bool) -> usize {
     buffer_bytes(
         max_fetched_headers(context, commit_sync),
