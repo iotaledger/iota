@@ -129,7 +129,7 @@ use crate::{
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{ObjectCacheRead, cache_types::CacheResult},
+    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
@@ -177,7 +177,8 @@ use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
 use handler_object_state::{
-    AssignedCommit, CommitIndex, HandlerObjectState, HandlerProcessedObject, SyncAheadRecord,
+    AssignedCommit, CommitIndex, FlushedCommitRows, HandlerObjectState, HandlerProcessedObject,
+    SyncAheadRecord, handler_rows_for_commit,
 };
 use iota_types::crypto::AuthorityPublicKey;
 use scorer::Scoreboard;
@@ -769,6 +770,11 @@ pub struct AuthorityPerEpochStore {
     /// created on each epoch change — so the wiring happens after construction
     /// in `start_epoch_specific_validator_components`. Left empty in tests.
     soft_locks: OnceCell<Arc<PreConsensusSoftLocks>>,
+
+    /// Effects of executed transactions, read by the quarantine flush to
+    /// derive a commit's handler-processed rows. Wired by `AuthorityState`
+    /// once the execution cache exists; the next epoch's store inherits it.
+    effects_store: OnceCell<Arc<dyn TransactionCacheRead>>,
 
     /// Used to notify all epoch specific tasks that user certs are closed.
     user_certs_closed_notify: NotifyOnce,
@@ -1396,6 +1402,7 @@ impl AuthorityPerEpochStore {
             active_transaction_deny_rules,
             mirrored_transaction_deny_rules,
             soft_locks: OnceCell::new(),
+            effects_store: OnceCell::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1518,7 +1525,7 @@ impl AuthorityPerEpochStore {
         assert_eq!(self.epoch() + 1, new_committee.epoch);
         self.record_reconfig_halt_duration_metric();
         self.record_epoch_total_duration_metric();
-        Self::new(
+        let next_epoch_store = Self::new(
             name,
             Arc::new(new_committee),
             &self.parent_path,
@@ -1531,7 +1538,13 @@ impl AuthorityPerEpochStore {
             expensive_safety_check_config,
             self.chain,
             previous_epoch_last_checkpoint,
-        )
+        )?;
+        // The execution cache outlives the epoch, so the next store reads
+        // effects through the same handle.
+        if let Some(effects_store) = self.effects_store.get() {
+            next_epoch_store.set_effects_store(effects_store.clone());
+        }
+        Ok(next_epoch_store)
     }
 
     pub fn new_at_next_epoch_for_testing(
@@ -1822,14 +1835,89 @@ impl AuthorityPerEpochStore {
 
     /// Marks commit `index` fully executed; see
     /// [`HandlerObjectState::record_commit_fully_executed`].
+    ///
+    /// A no-op once the quarantine flush has completed the commit; see
+    /// [`HandlerObjectState::record_commit_fully_executed`].
     pub fn record_commit_fully_executed(
         &self,
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult {
         let tables = self.tables()?;
+        // Held so a flush cannot complete this commit between the guard inside
+        // and the upserts: the flush runs under the write lock throughout.
+        let _quarantine = self.consensus_quarantine.read();
         self.handler_object_state
             .record_commit_fully_executed(&tables, index, upserts)
+    }
+
+    /// Derives the rows of a commit flushing out of the quarantine from the
+    /// effects of the transactions it checkpointed, and stages them into
+    /// `batch` together with the commit's queued sync-record deletions.
+    /// Returns them for the caller to evict once `batch` is durable, or `None`
+    /// when the bookkeeping is off.
+    ///
+    /// The rows come from the effects rather than from the overlay because the
+    /// overlay holds nothing for a commit replayed after a restart: its
+    /// transactions executed before the crash, so the execution hook does not
+    /// run for them again.
+    fn stage_flushed_commit_rows(
+        &self,
+        index: CommitIndex,
+        pending_checkpoints: &[PendingCheckpoint],
+        batch: &mut DBBatch,
+    ) -> IotaResult<Option<FlushedCommitRows>> {
+        if !self.protocol_config.pcool_deterministic_validation() {
+            return Ok(None);
+        }
+        let tables = self.tables()?;
+        let mut digests = Vec::new();
+        for key in pending_checkpoints
+            .iter()
+            .flat_map(|checkpoint| checkpoint.roots())
+        {
+            match key {
+                TransactionKey::Digest(digest) => digests.push(*digest),
+                // Every root of a flushing commit is in a checkpoint that has
+                // been built and executed, so it has a digest and effects.
+                key => match tables.transaction_key_to_digest.get(key)? {
+                    Some(digest) => digests.push(digest),
+                    None => debug_fatal!("no digest for root {key:?} of flushing commit {index}"),
+                },
+            }
+        }
+
+        let effects: Vec<_> = self
+            .effects_store()
+            .multi_get_executed_effects(&digests)
+            .into_iter()
+            .zip(&digests)
+            .filter_map(|(effects, digest)| {
+                if effects.is_none() {
+                    debug_fatal!("no effects for {digest} of flushing commit {index}");
+                }
+                effects
+            })
+            .collect();
+        let rows = handler_rows_for_commit(&effects, index);
+
+        // Before staging: completing the commit queues its sync-record
+        // deletions, which the staging then drains into the same batch.
+        self.handler_object_state
+            .complete_commit_at_flush(&tables, index, &rows)?;
+        self.handler_object_state
+            .write_commit_rows_to_batch(index, &tables, batch, &rows)?;
+        Ok(Some(FlushedCommitRows { index, rows }))
+    }
+
+    /// Evicts the overlay entries of commits whose rows are now durable, and
+    /// raises the highest fully executed commit. Call only after the flush
+    /// batch has been written.
+    fn evict_flushed_commit_rows(&self, flushed: &[FlushedCommitRows]) {
+        for commit in flushed {
+            self.handler_object_state
+                .evict_flushed_commit_rows(commit.index, &commit.rows);
+        }
     }
 
     /// The handler-processed row at `key`, the exact version a transaction
@@ -2138,6 +2226,22 @@ impl AuthorityPerEpochStore {
             .expect("soft_locks should only be set once");
     }
 
+    pub fn set_effects_store(&self, effects_store: Arc<dyn TransactionCacheRead>) {
+        assert!(
+            self.effects_store.set(effects_store).is_ok(),
+            "effects_store should only be set once"
+        );
+    }
+
+    /// The effects reader of the quarantine flush and the execution watcher,
+    /// both of which run only with the P-COOL deterministic-validation flag
+    /// on, by which point `AuthorityState` has wired it.
+    pub(crate) fn effects_store(&self) -> &Arc<dyn TransactionCacheRead> {
+        self.effects_store
+            .get()
+            .expect("effects_store should be wired before the first consensus commit flushes")
+    }
+
     pub async fn notify_read_running_root(
         &self,
         checkpoint: CheckpointSequenceNumber,
@@ -2177,18 +2281,10 @@ impl AuthorityPerEpochStore {
         let seq = checkpoint.sequence_number();
 
         let mut quarantine = self.consensus_quarantine.write();
-        // TODO: commit the handler latest rows derived from the checkpoint's
-        // transaction effects to consensus quarantine -  do we even need to
-        // copy it to the consensuscommitoutput or can we just use  the handler
-        // latest rows directly from the handler overlay? I think it should
-        //  be safe to add those directly to a batch.
-        //  Answer: derive them from effects. The overlay works on the live
-        //  path, but after a restart it is empty for transactions that were
-        //  already executed (the hook does not run again for them), so a
-        //  flush reading the overlay would write nothing for a replayed
-        //  commit.
-        quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
+        let flushed = quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
         batch.write()?;
+        // Evict only after the corresponding entries are flushed to disk.
+        self.evict_flushed_commit_rows(&flushed);
 
         for digest in digests {
             self.signed_effects_digests_cache.remove(digest);

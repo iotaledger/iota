@@ -1922,18 +1922,21 @@ mod handler_object_state_storage {
         let read_processed_object =
             |version: u64| epoch_store.handler_processed_object(&key(version)).unwrap();
 
+        let complete_commit = |index, rows: &[(ObjectKey, HandlerProcessedObject)]| {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        };
+
         let v5 = generate_live_entry(1);
-        epoch_store
-            .record_commit_fully_executed(1, &[(key(5), v5)])
-            .unwrap();
+        complete_commit(1, &[(key(5), v5)]);
         assert_eq!(read_processed_object(5), Some(v5));
         assert_eq!(read_processed_object(4), None);
 
         // An earlier commit's row arriving later sits beside the newer one.
         let v3 = generate_live_entry(0);
-        epoch_store
-            .record_commit_fully_executed(0, &[(key(3), v3)])
-            .unwrap();
+        complete_commit(0, &[(key(3), v3)]);
         assert_eq!(state.overlay_sizes_for_testing(), (2, 0, 0));
         assert_eq!(read_processed_object(3), Some(v3));
         assert_eq!(read_processed_object(5), Some(v5));
@@ -1969,9 +1972,7 @@ mod handler_object_state_storage {
         // A later commit's row is readable through the overlay while the
         // durable ones stay readable too.
         let v7 = generate_live_entry(2);
-        epoch_store
-            .record_commit_fully_executed(2, &[(key(7), v7)])
-            .unwrap();
+        complete_commit(2, &[(key(7), v7)]);
         assert_eq!(read_processed_object(7), Some(v7));
         assert_eq!(read_processed_object(5), Some(v5));
     }
@@ -1991,9 +1992,11 @@ mod handler_object_state_storage {
         let key = |version: u64| ObjectKey(id, Version::from_u64(version));
         let v3 = generate_live_entry(1);
         let v5 = generate_live_entry(2);
+        epoch_store.assign_commit_to_transactions(1, vec![]);
         epoch_store
             .record_commit_fully_executed(1, &[(key(3), v3)])
             .unwrap();
+        epoch_store.assign_commit_to_transactions(2, vec![]);
         epoch_store
             .record_commit_fully_executed(2, &[(key(5), v5)])
             .unwrap();
@@ -2047,6 +2050,7 @@ mod handler_object_state_storage {
         // The handler catches up past the chain: the durable row lingers
         // (shadowed by the handler-latest row) until its queued deletion
         // drains.
+        epoch_store.assign_commit_to_transactions(8, vec![]);
         epoch_store
             .record_commit_fully_executed(
                 8,

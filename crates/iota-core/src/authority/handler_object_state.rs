@@ -149,6 +149,19 @@ pub struct SyncAheadWrite {
     pub created: Version,
 }
 
+/// The rows a commit's executed transactions produce. Both writers of durable
+/// rows - the execution watcher and the quarantine flush - derive them here,
+/// so the two cannot drift apart.
+pub fn handler_rows_for_commit<'a>(
+    effects: impl IntoIterator<Item = &'a TransactionEffects>,
+    index: CommitIndex,
+) -> Vec<(ObjectKey, HandlerProcessedObject)> {
+    effects
+        .into_iter()
+        .flat_map(|effects| handler_latest_upserts(effects, index))
+        .collect()
+}
+
 /// Derives the handler-latest upserts for one executed transaction of the
 /// commit at `produced_at`: created / mutated / unwrapped objects become
 /// `Live` rows, deletions and wraps become tombstone rows.
@@ -273,6 +286,14 @@ pub struct AssignedCommit {
     /// The commit's roots: the same keys written to its pending checkpoints,
     /// cancelled transactions included.
     pub roots: Vec<TransactionKey>,
+}
+
+/// A commit whose rows a quarantine flush staged into its batch. The flush
+/// cannot evict the matching overlay entries itself - its caller writes the
+/// batch - so it hands them back to be evicted once the write is durable.
+pub(super) struct FlushedCommitRows {
+    pub index: CommitIndex,
+    pub rows: Vec<(ObjectKey, HandlerProcessedObject)>,
 }
 
 /// In-memory side of the bookkeeping plus every operation composing it with
@@ -478,16 +499,24 @@ impl HandlerObjectState {
     /// now caught up past, and drops the transaction key -> commit index map
     /// entries.
     ///
+    /// Does nothing once the quarantine flush has completed the commit: its
+    /// rows are durable already, and an overlay upsert now would leave entries
+    /// no flush is left to evict. The caller holds the quarantine lock, so the
+    /// flush cannot complete the commit between the check and the upserts.
+    ///
     /// Sheltered bytes are deliberately not evicted here: their eviction keys
-    /// off the *flushed* frontier, because a crash before this commit's
-    /// output flushes replays and re-validates it, and those reads may still
-    /// need the bytes for versions the store has already pruned.
+    /// off the *flushed* commits, because a crash before this commit's output
+    /// flushes replays and re-validates it, and those reads may still need the
+    /// bytes for versions the store has already pruned.
     pub fn record_commit_fully_executed(
         &self,
         tables: &AuthorityEpochTables,
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult {
+        if !self.is_commit_assigned(index) {
+            return Ok(());
+        }
         // The upserts must be visible to readers before the sync records are
         // removed: a validation read that finds neither concludes the object
         // is untouched this epoch and consults epoch-start state.
@@ -498,6 +527,36 @@ impl HandlerObjectState {
         // must find this commit's rows already readable.
         self.advance_highest_fully_executed_commit(index);
         Ok(())
+    }
+
+    /// Completes commit `index` from the quarantine flush, when the flush
+    /// reaches it before the watcher does - a replay after a restart, or state
+    /// sync running ahead of the checkpoint builder. Does nothing once the
+    /// watcher has completed it.
+    ///
+    /// `rows` go to the flush batch rather than the overlay, so unlike the
+    /// watcher path this only queues the sync-record deletions and drops the
+    /// map entries; the completion signal moves once the batch is durable, in
+    /// [`Self::evict_flushed_commit_rows`].
+    pub fn complete_commit_at_flush(
+        &self,
+        tables: &AuthorityEpochTables,
+        index: CommitIndex,
+        rows: &[(ObjectKey, HandlerProcessedObject)],
+    ) -> IotaResult {
+        if !self.is_commit_assigned(index) {
+            return Ok(());
+        }
+        self.remove_handled_sync_ahead_records(tables, index, rows)?;
+        self.drop_commit_assignments(index);
+        Ok(())
+    }
+
+    /// Whether commit `index` is still waiting to be completed. False once
+    /// either completion path has run for it, which is what makes the second
+    /// one a no-op.
+    fn is_commit_assigned(&self, index: CommitIndex) -> bool {
+        self.keys_by_commit.lock().contains_key(&index)
     }
 
     /// The handler-processed row at `key`, from the overlay or the durable
@@ -590,9 +649,14 @@ impl HandlerObjectState {
     /// durable; the caller's write-then-evict order is what keeps a concurrent
     /// reader from finding a row in neither the overlay nor the table.
     ///
-    /// The commit's queued sync-record deletions are dropped here too, now
-    /// that they are durable. A deletion lost to a batch that never became
-    /// durable is re-queued when the commit replays.
+    /// Every deletion queued for this commit or an earlier one is dropped here
+    /// too, now that this commit's batch is durable: a record whose replacing
+    /// rows flushed earlier may be deleted by any later flush. A deletion lost
+    /// to a batch that never became durable is re-queued when the commit
+    /// replays.
+    ///
+    /// A flushed commit's checkpoint has executed, so this also raises the
+    /// highest fully executed commit.
     pub fn evict_flushed_commit_rows(
         &self,
         commit_index: CommitIndex,
@@ -600,11 +664,15 @@ impl HandlerObjectState {
     ) {
         self.sync_ahead_record_deletions
             .lock()
-            .remove(&commit_index);
-        let mut overlay = self.handler_latest_overlay.write();
-        for (key, _) in handler_rows {
-            overlay.remove(key);
+            .retain(|&index, _| index > commit_index);
+        {
+            let mut overlay = self.handler_latest_overlay.write();
+            for (key, _) in handler_rows {
+                overlay.remove(key);
+            }
         }
+        // Last, so a validation released by the signal finds the rows.
+        self.advance_highest_fully_executed_commit(commit_index);
     }
 
     /// Stages a sync-executed checkpoint's records and sheltered bytes into
@@ -688,10 +756,9 @@ impl HandlerObjectState {
     /// Inserts rows into the overlay. Rows are keyed per version, so an
     /// insert never shadows a newer row of the same object, whatever order
     /// the hook and the watcher arrive in. A watcher completing a commit that
-    /// already flushed must not reach here: its rows would sit in the overlay
-    /// with no flush left to evict them.
-    // TODO: rule that out in `record_commit_fully_executed` by checking, under
-    // the quarantine write lock, that the commit's output is still queued.
+    /// already flushed must not reach here - its rows would sit in the overlay
+    /// with no flush left to evict them - which is what the caller's check of
+    /// the commit against the quarantine rules out.
     fn upsert_handler_processed_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
         if rows.is_empty() {
             return;

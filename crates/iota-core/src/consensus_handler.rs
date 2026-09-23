@@ -37,7 +37,7 @@ use crate::{
         authority_per_epoch_store::{
             AuthorityPerEpochStore, ConsensusStats, ConsensusStatsAPI, ExecutionIndices,
             ExecutionIndicesWithStats,
-            handler_object_state::{AssignedCommit, CommitIndex, handler_latest_upserts},
+            handler_object_state::{AssignedCommit, CommitIndex, handler_rows_for_commit},
         },
         backpressure::{BackpressureManager, BackpressureSubscriber},
         shared_object_version_manager::{AssignedTxAndVersions, Schedulable},
@@ -48,7 +48,7 @@ use crate::{
         consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
     },
     epoch_start_consensus_committee::get_consensus_committee,
-    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_cache::ObjectCacheRead,
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
 };
@@ -141,7 +141,7 @@ pub struct ConsensusHandler<C> {
     /// Marks commits fully executed for the P-COOL deterministic-validation
     /// bookkeeping; `None` unless the feature is enabled. Held only so the
     /// task is aborted with the handler.
-    execution_watcher: Option<ExecutionWatcher>,
+    _execution_watcher: Option<ExecutionWatcher>,
 
     backpressure_subscriber: BackpressureSubscriber,
 }
@@ -173,12 +173,7 @@ impl<C> ConsensusHandler<C> {
         let execution_watcher = epoch_store
             .protocol_config()
             .pcool_deterministic_validation()
-            .then(|| {
-                ExecutionWatcher::start(
-                    epoch_store.clone(),
-                    state.get_transaction_cache_reader().clone(),
-                )
-            })
+            .then(|| ExecutionWatcher::start(epoch_store.clone()))
             .flatten();
 
         // Seed the gauges so series exist from epoch start, not only after the
@@ -198,7 +193,7 @@ impl<C> ConsensusHandler<C> {
                 NonZeroUsize::new(randomize_cache_capacity_in_tests(PROCESSED_CACHE_CAP)).unwrap(),
             ),
             transaction_scheduler,
-            execution_watcher,
+            _execution_watcher: execution_watcher,
             backpressure_subscriber,
         }
     }
@@ -555,14 +550,11 @@ pub(crate) struct ExecutionWatcher {
 impl ExecutionWatcher {
     /// Starts the watcher for `epoch_store`'s epoch. Returns `None` if a
     /// watcher already took the epoch store's assigned-commit receiver.
-    pub(crate) fn start(
-        epoch_store: Arc<AuthorityPerEpochStore>,
-        effects_store: Arc<dyn TransactionCacheRead>,
-    ) -> Option<Self> {
+    pub(crate) fn start(epoch_store: Arc<AuthorityPerEpochStore>) -> Option<Self> {
         let receiver = epoch_store.take_assigned_commits_receiver()?;
         let handle = spawn_monitored_task!(async move {
             match epoch_store
-                .within_alive_epoch(Self::run(receiver, &epoch_store, effects_store))
+                .within_alive_epoch(Self::run(receiver, &epoch_store))
                 .await
             {
                 Ok(Ok(())) => debug!("ExecutionWatcher finished: assigned-commit channel closed"),
@@ -579,25 +571,18 @@ impl ExecutionWatcher {
     async fn run(
         mut receiver: UnboundedReceiver<AssignedCommit>,
         epoch_store: &AuthorityPerEpochStore,
-        effects_store: Arc<dyn TransactionCacheRead>,
     ) -> IotaResult {
         while let Some(AssignedCommit { index, roots }) = receiver.recv().await {
             let digests = epoch_store.notify_read_tx_key_to_digest(&roots).await?;
-            let effects = effects_store
+            let effects = epoch_store
+                .effects_store()
                 .try_notify_read_executed_effects(EXECUTION_WATCHER_NOTIFY_READ_TASK_NAME, &digests)
                 .await?;
-            // TODO: check if the quarantine queue still contains commit at `index` and skip
-            // this if it's been processed and flushed already by an executed and finalized
-            // checkpoint before this watcher was notified.
-            let upserts: Vec<_> = effects
-                .iter()
-                .flat_map(|effects| handler_latest_upserts(effects, index))
-                .collect();
+            let upserts = handler_rows_for_commit(&effects, index);
+            // A no-op once the commit's output has flushed: the flush derives
+            // the durable rows from the same effects and completes the commit
+            // itself.
             epoch_store.record_commit_fully_executed(index, &upserts)?;
-            // TODO: should we also copy the handler_latest rows into the
-            // consensuscommitoutput here as well? or should this only be done
-            // when the corresponding checkpoint is finalized? I don't think so
-            // - this is done as it is.
         }
         Ok(())
     }

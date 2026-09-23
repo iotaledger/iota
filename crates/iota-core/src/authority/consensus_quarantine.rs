@@ -112,8 +112,6 @@ pub(crate) struct ConsensusCommitOutput {
     // injected any. Written to `deny_rule_mirror` atomically with
     // `last_consensus_stats`.
     deny_rule_mirror: Option<DenyRuleSet>,
-
-    handler_latest_rows: Option<BTreeMap<ObjectId, HandlerProcessedObject>>,
 }
 
 impl ConsensusCommitOutput {
@@ -285,14 +283,6 @@ impl ConsensusCommitOutput {
     /// Records the mirror state reached by this commit's injected updates.
     pub fn record_deny_rule_mirror(&mut self, rules: DenyRuleSet) {
         self.deny_rule_mirror = Some(rules);
-    }
-
-    /// Records the mirror state reached by this commit's injected updates.
-    pub fn set_handler_latest_rows(
-        &mut self,
-        handler_latest_rows: BTreeMap<ObjectId, HandlerProcessedObject>,
-    ) {
-        self.handler_latest_rows = Some(handler_latest_rows);
     }
 
     pub fn write_to_batch(
@@ -671,20 +661,24 @@ impl ConsensusOutputQuarantine {
     // Commit methods.
     /// Update the highest executed checkpoint and commit any data which is now
     /// below the watermark.
+    ///
+    /// The returned rows must be evicted from the overlay once the caller's
+    /// `batch` is durably written.
     pub(super) fn update_highest_executed_checkpoint(
         &mut self,
         checkpoint: CheckpointSequenceNumber,
         epoch_store: &AuthorityPerEpochStore,
         batch: &mut DBBatch,
-    ) -> IotaResult {
+    ) -> IotaResult<Vec<FlushedCommitRows>> {
         self.highest_executed_checkpoint = checkpoint;
         self.commit_with_batch(epoch_store, batch)
     }
 
     pub(super) fn commit(&mut self, epoch_store: &AuthorityPerEpochStore) -> IotaResult {
         let mut batch = epoch_store.db_batch()?;
-        self.commit_with_batch(epoch_store, &mut batch)?;
+        let flushed = self.commit_with_batch(epoch_store, &mut batch)?;
         batch.write()?;
+        epoch_store.evict_flushed_commit_rows(&flushed);
         Ok(())
     }
 
@@ -693,7 +687,7 @@ impl ConsensusOutputQuarantine {
         &mut self,
         epoch_store: &AuthorityPerEpochStore,
         batch: &mut DBBatch,
-    ) -> IotaResult {
+    ) -> IotaResult<Vec<FlushedCommitRows>> {
         // The commit algorithm is simple:
         // 1. First commit all checkpoint builder state which is below the watermark.
         // 2. Determine the consensus commit height that corresponds to the highest
@@ -746,9 +740,10 @@ impl ConsensusOutputQuarantine {
         }
 
         let Some(highest_committed_height) = highest_committed_height else {
-            return Ok(());
+            return Ok(Vec::new());
         };
 
+        let mut flushed = Vec::new();
         while !self.output_queue.is_empty() {
             // A consensus commit can have more than one pending checkpoint (a regular one
             // and a randomnes one). We can only write the consensus commit if
@@ -785,6 +780,11 @@ impl ConsensusOutputQuarantine {
                     .extend(&output.overload_notifications);
                 self.cached_deny_rule_proposals
                     .extend(output.deny_rule_proposals.clone());
+                flushed.extend(epoch_store.stage_flushed_commit_rows(
+                    output.commit_index,
+                    &output.pending_checkpoints,
+                    batch,
+                )?);
                 output.write_to_batch(epoch_store, batch)?;
             } else {
                 break;
@@ -795,7 +795,7 @@ impl ConsensusOutputQuarantine {
             .consensus_quarantine_queue_size
             .set(self.output_queue.len() as i64);
 
-        Ok(())
+        Ok(flushed)
     }
 
     fn insert_shared_object_next_versions(&mut self, output: &ConsensusCommitOutput) {
