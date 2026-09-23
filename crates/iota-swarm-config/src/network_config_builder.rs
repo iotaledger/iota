@@ -679,6 +679,7 @@ mod test {
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::{
         epoch_data::EpochData,
+        execution::PreExecutionResult,
         gas::IotaGasStatus,
         in_memory_storage::InMemoryStorage,
         iota_system_state::IotaSystemStateTrait,
@@ -734,6 +735,7 @@ mod test {
                 metrics,
                 expensive_checks,
                 &certificate_deny_set,
+                PreExecutionResult::Run,
                 &epoch.epoch_id(),
                 epoch.epoch_start_timestamp(),
                 input_objects,
