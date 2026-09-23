@@ -38,39 +38,30 @@ use crate::{
     types::grpc_conversion,
 };
 
-// The fields every dry-run simulation reads back, whatever the caller. Anything
-// beyond this is requested through `DryRunFields`; `simulate_dry_run` builds
+// The fields every simulation reads back, whatever the caller. Anything beyond
+// this is requested through `SimulationFields`; `simulate_transaction` builds
 // the full read mask from both.
-const DRY_RUN_CORE_READ_MASK: &[SimulateField] = &[
-    // The transaction the simulation ran, rather than the one that was sent: the node fills
-    // in gas the caller left unset, and that is what the response reports back.
-    SimulateField::EXECUTED_TRANSACTION_TRANSACTION_BCS,
+const SIMULATE_CORE_READ_MASK: &[SimulateField] = &[
     SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
     SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
     // Needed to resolve types against a package the simulated transaction published.
     SimulateField::EXECUTED_TRANSACTION_OUTPUT_OBJECTS_BCS,
-    SimulateField::EXECUTED_TRANSACTION_BALANCE_CHANGES,
-    SimulateField::SUGGESTED_GAS_PRICE,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
-];
-const DEV_INSPECT_TRANSACTION_READ_MASK: &[SimulateField] = &[
-    SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
-    // Needed to resolve types against a package the simulated transaction published.
-    SimulateField::EXECUTED_TRANSACTION_OUTPUT_OBJECTS_BCS,
-    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
-    SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_BCS_KIND,
-    SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
-    SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_COMMAND_INDEX,
-    SimulateField::EXECUTION_RESULT_COMMAND_RESULTS_MUTATED_BY_REF,
-    SimulateField::EXECUTION_RESULT_COMMAND_RESULTS_RETURN_VALUES,
 ];
 
 /// The fields to read back from a dry-run simulation beyond the core ones
 /// (which are always returned). Each flag adds the fields it needs to the read
-/// mask and populates the matching field on [`RawSimulationOutput`]; a flag
+/// mask and populates the matching field on [`SimulationOutput`]; a flag
 /// left `false` leaves that field empty.
 #[derive(Default)]
-pub struct DryRunFields {
+pub struct SimulationFields {
+    /// The transaction the simulation ran, with any gas the caller left unset
+    /// filled in by the node.
+    pub transaction: bool,
+    /// The balance changes the transaction caused.
+    pub balance_changes: bool,
+    /// The gas price the node suggests for the transaction.
+    pub suggested_gas_price: bool,
     /// The simulated transaction's signatures.
     pub signatures: bool,
     /// The node's object changes
@@ -86,9 +77,9 @@ pub struct DryRunFields {
 
 /// The result of a dry-run simulation, in the node's native types. The core
 /// fields are always present; the rest are populated only when the matching
-/// [`DryRunFields`] flag was set.
-pub struct RawSimulationOutput {
-    pub transaction: Transaction,
+/// [`SimulationFields`] flag was set.
+pub struct SimulationOutput {
+    pub transaction: Option<Transaction>,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
     pub output_objects: Vec<Object>,
@@ -130,13 +121,22 @@ impl WriteApi {
     /// whatever `fields` asks for, so callers never deal with it directly.
     /// Both dry-run endpoints go through this, so the simulation and its
     /// conversions live in one place.
-    pub async fn simulate_dry_run(
+    pub async fn simulate_transaction(
         &self,
         tx: Transaction,
         skip_checks: bool,
-        fields: DryRunFields,
-    ) -> IndexerResult<RawSimulationOutput> {
-        let mut read_mask = DRY_RUN_CORE_READ_MASK.to_vec();
+        fields: SimulationFields,
+    ) -> IndexerResult<SimulationOutput> {
+        let mut read_mask = SIMULATE_CORE_READ_MASK.to_vec();
+        if fields.transaction {
+            read_mask.push(SimulateField::EXECUTED_TRANSACTION_TRANSACTION_BCS);
+        }
+        if fields.balance_changes {
+            read_mask.push(SimulateField::EXECUTED_TRANSACTION_BALANCE_CHANGES);
+        }
+        if fields.suggested_gas_price {
+            read_mask.push(SimulateField::SUGGESTED_GAS_PRICE);
+        }
         if fields.signatures {
             read_mask.push(SimulateField::EXECUTED_TRANSACTION_SIGNATURES_BCS);
         }
@@ -211,18 +211,32 @@ impl WriteApi {
             None
         };
 
-        Ok(RawSimulationOutput {
+        let transaction = if fields.transaction {
             // Report the transaction the simulation ran, not the one that was sent: the
-            // node fills in the gas the caller left unset and reports the values it used,
-            // which is how a caller reads back an estimate.
-            transaction: executed_transaction.transaction()?.transaction()?,
+            // node fills in the gas the caller left unset and reports the values it
+            // used, which is how a caller reads back an estimate.
+            Some(executed_transaction.transaction()?.transaction()?)
+        } else {
+            None
+        };
+        let balance_changes = if fields.balance_changes {
+            grpc_conversion::balance_changes(executed_transaction.balance_changes()?)?
+        } else {
+            vec![]
+        };
+        let suggested_gas_price = if fields.suggested_gas_price {
+            response.suggested_gas_price
+        } else {
+            None
+        };
+
+        Ok(SimulationOutput {
+            transaction,
             effects: executed_transaction.effects()?.effects()?,
             events: executed_transaction.events()?.events()?,
             output_objects: grpc_conversion::objects(executed_transaction.output_objects()?)?,
-            balance_changes: grpc_conversion::balance_changes(
-                executed_transaction.balance_changes()?,
-            )?,
-            suggested_gas_price: response.suggested_gas_price,
+            balance_changes,
+            suggested_gas_price,
             execution_error_source: response.execution_error().and_then(|e| e.source.clone()),
             signatures,
             object_changes,
@@ -239,10 +253,13 @@ impl WriteApi {
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
         let tx = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
         let sim = self
-            .simulate_dry_run(
+            .simulate_transaction(
                 tx,
                 false,
-                DryRunFields {
+                SimulationFields {
+                    transaction: true,
+                    balance_changes: true,
+                    suggested_gas_price: true,
                     signatures: true,
                     object_changes: true,
                     ..Default::default()
@@ -255,7 +272,10 @@ impl WriteApi {
         // the simulation filled gas in — a mock gas coin changes the transaction it is
         // taken over.
         let tx_digest = *sim.effects.transaction_digest();
-        let sender_signed_tx = SenderSignedTransaction::new(sim.transaction, sim.signatures);
+        let transaction = sim
+            .transaction
+            .expect("dry run always requests the transaction");
+        let sender_signed_tx = SenderSignedTransaction::new(transaction, sim.signatures);
 
         // Resolve types against the packages the simulation published before falling
         // back to the database, so that a transaction publishing a package can decode
@@ -333,84 +353,52 @@ impl WriteApi {
             expiration: TransactionExpiration::None,
         });
 
-        // The transaction is only read back when it is going to be reported, since it
-        // costs bytes on the wire.
-        let mut read_mask = DEV_INSPECT_TRANSACTION_READ_MASK.to_vec();
-        if show_raw_txn_data_and_effects {
-            read_mask.push(SimulateField::EXECUTED_TRANSACTION_TRANSACTION_BCS);
-        }
+        let simulation = self
+            .simulate_transaction(
+                tx,
+                skip_checks,
+                SimulationFields {
+                    transaction: show_raw_txn_data_and_effects,
+                    command_results: true,
+                    execution_error: true,
+                    ..Default::default()
+                },
+            )
+            .await?;
 
-        let simulate_tx_response = self
-            .fullnode_grpc_client
-            .simulate_transaction(tx, skip_checks, read_mask)
-            .await?
-            .into_inner();
-
-        let executed_transaction = simulate_tx_response.executed_transaction()?;
-
-        let tx_effects: TransactionEffects = executed_transaction.effects()?.effects()?;
+        let tx_digest = *simulation.effects.transaction_digest();
 
         // Report the transaction the simulation ran, not the one that was sent: the
-        // node fills in the gas the caller left unset and reports what it charged in
-        // its place, which is how a caller reads back an estimate.
-        let raw_txn_data = show_raw_txn_data_and_effects
-            .then(|| -> IndexerResult<_> {
-                Ok(bcs::to_bytes(
-                    &executed_transaction.transaction()?.transaction()?,
-                )?)
-            })
+        // node fills in the gas the caller left unset.
+        let raw_txn_data = simulation
+            .transaction
+            .as_ref()
+            .map(bcs::to_bytes)
             .transpose()?
             .unwrap_or_default();
-
         let raw_effects = show_raw_txn_data_and_effects
-            .then(|| bcs::to_bytes(&tx_effects))
+            .then(|| bcs::to_bytes(&simulation.effects))
             .transpose()?
             .unwrap_or_default();
-
-        let tx_events = executed_transaction.events()?.events()?;
 
         // Resolve types against the packages the simulation published before falling
         // back to the database, so that a transaction publishing a package can decode
         // the types it introduces — an event from its `init`, for one.
-        let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
         let package_resolver = Arc::new(Resolver::new(SimulationPackageStore::new(
-            &output_objects,
+            &simulation.output_objects,
             package_resolver.clone(),
         )));
-
-        let tx_digest = *tx_effects.transaction_digest();
         // timestamp is None because it represent a checkpoint one, on a dev inspect
         // operation we don't have this information.
         let events =
-            tx_events_to_iota_tx_events(tx_events, &package_resolver, tx_digest, None).await?;
-
-        let execution_error = simulate_tx_response
-            .execution_error()
-            .map(|execution_error| -> IndexerResult<_> {
-                let exec_err = execution_error.error_kind()?;
-                let source = execution_error
-                    .source
-                    .clone()
-                    .map(|s| -> Box<dyn std::error::Error + Send + Sync> { s.into() });
-
-                let mut error = ExecutionError::new(exec_err, source);
-                if let Some(command_index) = execution_error.command_index {
-                    error = error.with_command_index(command_index);
-                }
-                Ok(error.to_string())
-            })
-            .transpose()?;
-
-        let results = simulate_tx_response
-            .command_results()
-            .map(|command_results| grpc_conversion::command_results(command_results.clone()))
-            .transpose()?;
+            tx_events_to_iota_tx_events(simulation.events, &package_resolver, tx_digest, None)
+                .await?;
 
         Ok(DevInspectResults {
-            effects: tx_effects.try_into()?,
+            effects: simulation.effects.try_into()?,
             events,
-            results,
-            error: execution_error,
+            results: simulation.command_results,
+            error: simulation.execution_error,
             raw_txn_data,
             raw_effects,
         })
@@ -441,14 +429,14 @@ impl OptimisticWriteApi {
         &self.optimistic_tx_executor
     }
 
-    pub async fn simulate_dry_run(
+    pub async fn simulate_transaction(
         &self,
         tx: Transaction,
         skip_checks: bool,
-        fields: DryRunFields,
-    ) -> IndexerResult<RawSimulationOutput> {
+        fields: SimulationFields,
+    ) -> IndexerResult<SimulationOutput> {
         self.write_api
-            .simulate_dry_run(tx, skip_checks, fields)
+            .simulate_transaction(tx, skip_checks, fields)
             .await
     }
 }
