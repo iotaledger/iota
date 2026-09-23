@@ -352,12 +352,24 @@ where
     }
 
     fn handle_connection(&mut self, io: ServerIo<L::Io>, remote_addr: L::Addr) {
-        let mut peer_connection_guard = None;
-        if let (Some(max), Some(peer)) =
-            (self.config.max_connections_per_peer, peer_public_key(&io))
-        {
-            let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
+        // Both the TLS and the plaintext path arrive here, so this is where the
+        // listener's connections can be counted whatever it is configured with.
+        if let Some(max) = self.config.max_connections {
+            let live = self.live_connections();
+            if live >= max {
                 // Dropping the connection closes it, releasing its file descriptor.
+                trace!("listener already serves {live} connections, closing the new one");
+                self.notify_connection(ConnectionEvent::Refused { live });
+                return;
+            }
+        }
+
+        let mut peer_connection_guard = None;
+        if let (Some(max), Some(peer)) = (
+            self.config.max_connections_per_peer,
+            connection_key::<L>(&io, &remote_addr),
+        ) {
+            let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
                 trace!("peer already holds {max} connections, closing the new one");
                 self.notify_connection(ConnectionEvent::Refused {
                     live: self.live_connections(),
@@ -488,6 +500,17 @@ where
 
 /// Identifies the peer by the public key of the single certificate it
 /// authenticated with, or `None` if it presented no certificate.
+/// The key this connection's per-peer count is kept under.
+///
+/// A certificate identifies its holder, so it is preferred wherever one is
+/// presented. Without one there is nothing to go on but the address, which
+/// identifies a peer far more loosely — hence the prefix rather than the
+/// address, and hence a limit set on an unauthenticated listener bounding a
+/// network rather than a peer.
+fn connection_key<L: Listener>(io: &ServerIo<L::Io>, remote_addr: &L::Addr) -> Option<Vec<u8>> {
+    peer_public_key(io).or_else(|| L::connection_key(remote_addr))
+}
+
 fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
     let certs = io.peer_certs()?;
     let [certificate] = certs.as_slice() else {
@@ -1309,6 +1332,98 @@ mod tests {
                 .await
                 .is_ok(),
             "a connection must go idle once its last request finishes"
+        );
+    }
+
+    /// Opens connections until the server stops serving them, and reports how
+    /// many it was serving at the end.
+    async fn hold_connections(handle: &ServerHandle, attempts: usize) -> Vec<tokio::net::TcpStream> {
+        let mut held = Vec::new();
+        for _ in 0..attempts {
+            let Ok(connection) = tokio::net::TcpStream::connect(handle.local_addr()).await else {
+                continue;
+            };
+            held.push(connection);
+        }
+        // The accept loop registers connections on its own task.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        held
+    }
+
+    /// The listener's own limit is what bounds its file descriptors. A per-peer
+    /// limit cannot: it permits one peer's worth of connections per peer, and
+    /// here the peers are whoever connects.
+    #[tokio::test]
+    async fn connections_are_capped_for_the_whole_listener() {
+        const MAX_CONNECTIONS: usize = 4;
+
+        let events = RecordedEvents::default();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections(Some(MAX_CONNECTIONS))
+                    .on_connection_event(events.record()),
+            )
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let _held = hold_connections(&handle, MAX_CONNECTIONS * 4).await;
+
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_CONNECTIONS,
+            "the listener must settle at its limit"
+        );
+        assert!(
+            events
+                .snapshot()
+                .iter()
+                .any(|event| matches!(event, ConnectionEvent::Refused { .. })),
+            "connections over the limit must be reported as refused"
+        );
+    }
+
+    /// A listener with no certificates to identify peers by still has to stop
+    /// one source taking its whole budget, so it counts by address prefix.
+    #[tokio::test]
+    async fn an_unauthenticated_peer_is_counted_by_address_prefix() {
+        const MAX_PER_PEER: usize = 3;
+
+        let handle = Builder::new()
+            .config(Config::default().max_connections_per_peer(Some(MAX_PER_PEER)))
+            .serve(("127.0.0.1", 0), Router::new())
+            .unwrap();
+
+        // Every connection here comes from loopback, so they share a prefix.
+        let _held = hold_connections(&handle, MAX_PER_PEER * 4).await;
+
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_PER_PEER,
+            "connections from one prefix must be capped without a certificate"
+        );
+    }
+
+    /// Addresses are grouped, not compared: a /24 and a /64 are one peer each.
+    #[test]
+    fn addresses_are_grouped_by_prefix() {
+        use crate::listener::Listener as _;
+
+        let key = |addr: &str| {
+            <tokio::net::TcpListener as Listener>::connection_key(&addr.parse().unwrap())
+        };
+
+        assert_eq!(key("192.0.2.1:1"), key("192.0.2.99:2"), "same /24");
+        assert_ne!(key("192.0.2.1:1"), key("192.0.3.1:1"), "different /24");
+        assert_eq!(
+            key("[2001:db8::1]:1"),
+            key("[2001:db8::ffff:ffff]:2"),
+            "same /64"
+        );
+        assert_ne!(
+            key("[2001:db8::1]:1"),
+            key("[2001:db8:0:1::1]:1"),
+            "different /64"
         );
     }
 }

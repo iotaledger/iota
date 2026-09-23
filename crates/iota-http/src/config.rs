@@ -39,6 +39,7 @@ pub struct Config {
     pub(crate) max_connection_idle: Option<Duration>,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
+    pub(crate) max_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
     pub(crate) on_connection_event: Option<OnConnectionEvent>,
@@ -144,6 +145,7 @@ impl Default for Config {
             max_connection_idle: None,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
+            max_connections: None,
             max_connections_per_peer: None,
             on_peer_connection_event: None,
             on_connection_event: None,
@@ -375,9 +377,32 @@ impl Config {
     /// Further connections from a peer already at the limit are closed as soon
     /// as they are accepted.
     ///
-    /// Only connections that authenticate with a client certificate are
-    /// counted, since a peer that presents none cannot be told apart from any
-    /// other.
+    /// Sets how many connections this listener may serve at once. Further
+    /// connections are closed immediately after their handshake, before being
+    /// served.
+    ///
+    /// This is the bound on file descriptors, and the only one: a per-peer
+    /// limit permits one connection per peer per limit, and on a listener
+    /// whose peers are not a known set that product is unbounded. The two are
+    /// meant to be set together, this one to bound the listener and the other
+    /// to stop one peer consuming all of it.
+    ///
+    /// The limit is enforced after the handshake rather than by refusing to
+    /// accept, so that a full listener still answers new peers instead of
+    /// leaving them in the kernel backlog with no way to tell a busy server
+    /// from an unreachable one.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connections(self, max_connections: Option<usize>) -> Self {
+        Self {
+            max_connections,
+            ..self
+        }
+    }
+
+    /// Connections are counted under the peer's certificate public key, or,
+    /// for a peer that presents no certificate, under the prefix its address
+    /// belongs to.
     ///
     /// Default is no limit (`None`).
     pub fn max_connections_per_peer(self, max_connections_per_peer: Option<usize>) -> Self {
@@ -425,6 +450,12 @@ impl Config {
         if self.max_connections_per_peer == Some(0) {
             return Err("'max_connections_per_peer' must be greater than zero, \
                         a peer allowed no connection can never be served"
+                .into());
+        }
+
+        if self.max_connections == Some(0) {
+            return Err("'max_connections' must be greater than zero, \
+                        a server that serves no connection is never useful"
                 .into());
         }
 

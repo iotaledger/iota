@@ -21,6 +21,32 @@ pub trait Listener: Send + 'static {
 
     /// Returns the local address that this listener is bound to.
     fn local_addr(&self) -> std::io::Result<Self::Addr>;
+
+    /// The key connections from this address are counted under when the peer
+    /// presents no certificate identifying it, or `None` when this listener's
+    /// addresses cannot be grouped.
+    ///
+    /// Returning the address itself would be close to meaningless over IPv6,
+    /// where one host routinely holds a whole /64, so addresses are grouped by
+    /// prefix: a peer has to hold allocations, not merely addresses, to raise
+    /// its own limit.
+    fn connection_key(_addr: &Self::Addr) -> Option<Vec<u8>> {
+        None
+    }
+}
+
+/// Groups an address with the other addresses its holder is likely to control.
+fn address_prefix(addr: &std::net::SocketAddr) -> Vec<u8> {
+    /// A single site is commonly allocated a whole /64.
+    const IPV6_PREFIX_LEN: usize = 8;
+    /// Smaller than a typical IPv4 allocation, so it groups a little more than
+    /// one holder rather than less.
+    const IPV4_PREFIX_LEN: usize = 3;
+
+    match addr.ip() {
+        std::net::IpAddr::V4(ip) => ip.octets()[..IPV4_PREFIX_LEN].to_vec(),
+        std::net::IpAddr::V6(ip) => ip.octets()[..IPV6_PREFIX_LEN].to_vec(),
+    }
 }
 
 /// Extensions to [`Listener`].
@@ -73,6 +99,10 @@ impl Listener for tokio::net::TcpListener {
     #[inline]
     fn local_addr(&self) -> std::io::Result<Self::Addr> {
         Self::local_addr(self)
+    }
+
+    fn connection_key(addr: &Self::Addr) -> Option<Vec<u8>> {
+        Some(address_prefix(addr))
     }
 }
 
@@ -142,6 +172,10 @@ impl Listener for TcpListenerWithOptions {
     fn local_addr(&self) -> std::io::Result<Self::Addr> {
         Listener::local_addr(&self.inner)
     }
+
+    fn connection_key(addr: &Self::Addr) -> Option<Vec<u8>> {
+        Some(address_prefix(addr))
+    }
 }
 
 // Uncomment once we update tokio to >=1.41.0
@@ -200,6 +234,10 @@ where
 
     fn local_addr(&self) -> std::io::Result<Self::Addr> {
         self.listener.local_addr()
+    }
+
+    fn connection_key(addr: &Self::Addr) -> Option<Vec<u8>> {
+        L::connection_key(addr)
     }
 }
 
