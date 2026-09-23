@@ -39,6 +39,7 @@ pub struct Config {
     pub(crate) max_pending_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
+    pub(crate) on_connection_event: Option<OnConnectionEvent>,
 }
 
 /// A change to the connections an authenticated peer holds, with the number
@@ -52,6 +53,54 @@ pub enum PeerConnectionEvent {
     /// A further connection was closed because the peer already holds the
     /// limit.
     RefusedAtLimit { held: usize },
+}
+
+/// A change to the connections a listener holds, with the count it holds
+/// afterwards.
+///
+/// Each variant carries the number the server itself is working from, rather
+/// than a delta, so a consumer that stores it cannot drift away from the
+/// server's own view.
+///
+/// `pending` counts connections whose TLS handshake is in progress — the same
+/// number `max_pending_connections` is compared against. `live` counts
+/// established connections being served. A connection that completes its
+/// handshake leaves the first and joins the second, so it reports both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionEvent {
+    /// A connection was accepted and its handshake started. Only listeners
+    /// configured with TLS have this phase.
+    HandshakeStarted { pending: usize },
+    /// A handshake completed; `Established` follows for the same connection.
+    HandshakeCompleted { pending: usize },
+    /// A handshake ended without a connection: it timed out, failed, or its
+    /// task panicked.
+    HandshakeFailed { pending: usize },
+    /// A connection is now being served.
+    Established { live: usize },
+    /// A served connection closed.
+    Closed { live: usize },
+    /// A connection was closed before being served because it was over a
+    /// limit.
+    Refused { live: usize },
+}
+
+type ConnectionCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
+
+/// Called on each change to the connections the listener holds.
+#[derive(Clone)]
+pub(crate) struct OnConnectionEvent(ConnectionCallback);
+
+impl OnConnectionEvent {
+    pub(crate) fn call(&self, event: ConnectionEvent) {
+        (self.0)(event)
+    }
+}
+
+impl fmt::Debug for OnConnectionEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("OnConnectionEvent")
+    }
 }
 
 type PeerConnectionCallback = Arc<dyn Fn(&[u8], PeerConnectionEvent) + Send + Sync>;
@@ -94,6 +143,7 @@ impl Default for Config {
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
             max_connections_per_peer: None,
             on_peer_connection_event: None,
+            on_connection_event: None,
         }
     }
 }
@@ -313,6 +363,23 @@ impl Config {
     /// connections is established, closed or refused at the limit. Only
     /// connections counted under `max_connections_per_peer` are reported. It
     /// runs on the accept loop or a connection's task, so it must not block.
+    /// Sets a callback invoked on each change to the connections this listener
+    /// holds. It runs on the accept loop or a connection's task, so it must not
+    /// block.
+    ///
+    /// A connection that is opened and then left silent is attributed nowhere
+    /// else: it sends no request, so no request-level metric records it. This
+    /// is the only place it is counted.
+    pub fn on_connection_event(
+        self,
+        on_connection_event: impl Fn(ConnectionEvent) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            on_connection_event: Some(OnConnectionEvent(Arc::new(on_connection_event))),
+            ..self
+        }
+    }
+
     pub fn on_peer_connection_event(
         self,
         on_peer_connection_event: impl Fn(&[u8], PeerConnectionEvent) + Send + Sync + 'static,

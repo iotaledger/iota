@@ -27,7 +27,7 @@ mod fuse;
 mod io;
 mod listener;
 
-pub use config::{Config, PeerConnectionEvent};
+pub use config::{Config, ConnectionEvent, PeerConnectionEvent};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
 pub use listener::{Listener, ListenerExt};
 
@@ -264,16 +264,20 @@ where
                 // A failed task affects only its own connection, so the loop keeps serving
                 // the others.
                 Some(maybe_connection) = self.pending_connections.join_next() => {
+                    let pending = self.pending_connections.len();
                     let (io, remote_addr) = match maybe_connection {
                         Ok(Ok((io, remote_addr))) => {
+                            self.notify_connection(ConnectionEvent::HandshakeCompleted { pending });
                             (io, remote_addr)
                         }
                         Ok(Err(e)) => {
                             tracing::debug!(error = %e, "error accepting connection");
+                            self.notify_connection(ConnectionEvent::HandshakeFailed { pending });
                             continue;
                         }
                         Err(e) => {
                             tracing::error!(error = %e, "connection handshake task failed");
+                            self.notify_connection(ConnectionEvent::HandshakeFailed { pending });
                             continue;
                         }
                     };
@@ -303,6 +307,19 @@ where
             .is_none_or(|max| self.pending_connections.len() < max)
     }
 
+    /// Reports a change in the connections this listener holds, if a callback
+    /// is configured.
+    fn notify_connection(&self, event: ConnectionEvent) {
+        if let Some(on_connection_event) = &self.config.on_connection_event {
+            on_connection_event.call(event);
+        }
+    }
+
+    /// The number of connections currently being served.
+    fn live_connections(&self) -> usize {
+        self.connections.read().unwrap().len()
+    }
+
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
@@ -318,7 +335,12 @@ where
                     .into()),
                 }
             });
+            self.notify_connection(ConnectionEvent::HandshakeStarted {
+                pending: self.pending_connections.len(),
+            });
         } else {
+            // A listener without TLS has no handshake phase, so the connection
+            // goes straight to being served.
             self.handle_connection(ServerIo::new_io(io), remote_addr);
         }
     }
@@ -331,6 +353,9 @@ where
             let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("peer already holds {max} connections, closing the new one");
+                self.notify_connection(ConnectionEvent::Refused {
+                    live: self.live_connections(),
+                });
                 return;
             };
             peer_connection_guard = Some(guard);
@@ -365,10 +390,14 @@ where
             .write()
             .unwrap()
             .insert(connection_id, connection_info);
+        self.notify_connection(ConnectionEvent::Established {
+            live: self.live_connections(),
+        });
         let on_connection_close = OnConnectionClose::new(
             connection_id,
             self.connections.clone(),
             peer_connection_guard,
+            self.config.on_connection_event.clone(),
         );
 
         self.connection_handlers
@@ -449,6 +478,8 @@ fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use axum::Router;
 
     use super::*;
@@ -935,5 +966,108 @@ mod tests {
             .is_ok(),
             "removing both bounds stays allowed"
         );
+    }
+
+    /// Records every connection event a listener reports.
+    #[derive(Clone, Default)]
+    struct RecordedEvents(Arc<Mutex<Vec<ConnectionEvent>>>);
+
+    impl RecordedEvents {
+        fn record(&self) -> impl Fn(ConnectionEvent) + Send + Sync + 'static {
+            let events = self.0.clone();
+            move |event| events.lock().unwrap().push(event)
+        }
+
+        fn snapshot(&self) -> Vec<ConnectionEvent> {
+            self.0.lock().unwrap().clone()
+        }
+
+        /// Events are reported from the accept loop and from connection tasks,
+        /// so a test observing them from outside has to wait for the server to
+        /// get there.
+        async fn wait_for(&self, event: ConnectionEvent) {
+            let seen = async {
+                while !self.snapshot().contains(&event) {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            };
+            tokio::time::timeout(Duration::from_secs(10), seen)
+                .await
+                .unwrap_or_else(|_| panic!("never saw {event:?}, recorded {:?}", self.snapshot()));
+        }
+    }
+
+    /// A connection that is opened and then left silent sends no request, so no
+    /// request-level metric records it. These events are the only account of
+    /// it, and each carries the count the server itself is working from.
+    #[tokio::test]
+    async fn connection_events_report_the_listener_population() {
+        let events = RecordedEvents::default();
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(Config::default().on_connection_event(events.record()))
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let io = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        let connection = connector.connect(server_name, io).await.unwrap();
+
+        // The connection is established and never sends a request.
+        events
+            .wait_for(ConnectionEvent::Established { live: 1 })
+            .await;
+        assert_eq!(handle.number_of_connections(), 1);
+
+        let recorded = events.snapshot();
+        assert!(
+            recorded.contains(&ConnectionEvent::HandshakeStarted { pending: 1 }),
+            "the handshake phase must be reported, got {recorded:?}"
+        );
+        assert!(
+            recorded.contains(&ConnectionEvent::HandshakeCompleted { pending: 0 }),
+            "a completed handshake must leave the pending count, got {recorded:?}"
+        );
+
+        // Closing it returns the connection to the listener's budget.
+        drop(connection);
+        events.wait_for(ConnectionEvent::Closed { live: 0 }).await;
+        assert_eq!(handle.number_of_connections(), 0);
+    }
+
+    /// A handshake that never completes is reported as failed, so the pending
+    /// count a flood builds up is visible rather than inferred.
+    #[tokio::test]
+    async fn a_timed_out_handshake_is_reported() {
+        const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(200);
+
+        let events = RecordedEvents::default();
+        let (server_tls_config, _) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .handshake_timeout(Some(HANDSHAKE_TIMEOUT))
+                    .on_connection_event(events.record()),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Connect, then never send a ClientHello.
+        let _silent = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+
+        events
+            .wait_for(ConnectionEvent::HandshakeStarted { pending: 1 })
+            .await;
+        events
+            .wait_for(ConnectionEvent::HandshakeFailed { pending: 0 })
+            .await;
+        assert_eq!(handle.number_of_connections(), 0);
     }
 }

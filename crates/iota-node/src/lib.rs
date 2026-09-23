@@ -2659,7 +2659,12 @@ pub async fn build_http_server(
 
     router = router.layer(layers);
 
+    let connection_metrics = crate::metrics::JsonRpcConnectionMetrics::new(prometheus_registry);
     let handle = iota_http::Builder::new()
+        .config(
+            iota_http::Config::default()
+                .on_connection_event(move |event| connection_metrics.record(event)),
+        )
         .serve(&config.json_rpc_address, router)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());

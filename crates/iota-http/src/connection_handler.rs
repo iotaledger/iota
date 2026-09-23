@@ -8,7 +8,10 @@ use http::{Request, Response};
 use tracing::{debug, trace};
 
 use crate::{
-    ActiveConnections, BoxError, ConnectionId, connection_info::PeerConnectionGuard, fuse::Fuse,
+    ActiveConnections, BoxError, ConnectionEvent, ConnectionId,
+    config::OnConnectionEvent,
+    connection_info::PeerConnectionGuard,
+    fuse::Fuse,
 };
 
 // This is moved to its own function as a way to get around
@@ -69,6 +72,7 @@ pub(crate) struct OnConnectionClose<A> {
     id: ConnectionId,
     active_connections: ActiveConnections<A>,
     _peer_connection_guard: Option<PeerConnectionGuard>,
+    on_connection_event: Option<OnConnectionEvent>,
 }
 
 impl<A> OnConnectionClose<A> {
@@ -76,17 +80,26 @@ impl<A> OnConnectionClose<A> {
         id: ConnectionId,
         active_connections: ActiveConnections<A>,
         peer_connection_guard: Option<PeerConnectionGuard>,
+        on_connection_event: Option<OnConnectionEvent>,
     ) -> Self {
         Self {
             id,
             active_connections,
             _peer_connection_guard: peer_connection_guard,
+            on_connection_event,
         }
     }
 }
 
 impl<A> Drop for OnConnectionClose<A> {
     fn drop(&mut self) {
-        self.active_connections.write().unwrap().remove(&self.id);
+        let live = {
+            let mut active_connections = self.active_connections.write().unwrap();
+            active_connections.remove(&self.id);
+            active_connections.len()
+        };
+        if let Some(on_connection_event) = &self.on_connection_event {
+            on_connection_event.call(ConnectionEvent::Closed { live });
+        }
     }
 }
