@@ -109,7 +109,7 @@ authority-store-pruning-config:
 This setup manages secondary indexing in addition to the latest state, but aggressively prunes historic data. A full node with this configuration:
 
 - Answers RPC queries that require indexing, like `iotax_getBalance()`.
-- Answers RPC queries that require historic transactions via a fallback to retrieve the data from a remote key-value store: `iota_getTransactionBlock()`.
+- Answers RPC queries that require historic transactions via a fallback to retrieve the data from a remote key-value store: `iota_getTransactionBlock()` on JSON-RPC and `GetTransactions` on gRPC.
 - Cannot answer RPC queries that require historic object versions: `iota_tryGetPastObject()`.
   - The `showBalanceChanges` filter of `iota_getTransactionBlock()` relies on historic object versions, so it cannot work with this configuration.
 
