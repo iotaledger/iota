@@ -563,6 +563,34 @@ impl TestCluster {
         }
     }
 
+    /// Replace one validator's transaction deny config, by restarting it.
+    ///
+    /// A deny list usually names objects or packages that only exist once the
+    /// cluster is running, which is too late for
+    /// [`TestClusterBuilder::with_transaction_deny_config`]. The config is read
+    /// once, when the node builds its `AuthorityState`, so a restart is the
+    /// only way to install a new one — the same procedure an operator follows.
+    ///
+    /// Restarting leaves the authority clients cached by the fullnode, and so
+    /// the ones [`Self::authority_aggregator`] hands out, connected to a node
+    /// that is gone. Reach the restarted validator through its node handle
+    /// instead, or drive an epoch change first.
+    pub async fn update_transaction_deny_config_on(
+        &self,
+        authority: &AuthorityName,
+        transaction_deny_config: TransactionDenyConfig,
+    ) {
+        self.stop_node(authority);
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+        self.swarm
+            .node(authority)
+            .unwrap()
+            .config()
+            .transaction_deny_config = transaction_deny_config;
+        self.start_node(authority).await;
+        info!("Restarted validator {}", authority);
+    }
+
     /// Wait for all nodes in the network to upgrade to `protocol_version`.
     pub async fn wait_for_all_nodes_upgrade_to(&self, protocol_version: u64) {
         for h in self.all_node_handles() {

@@ -149,21 +149,26 @@ pub(crate) trait LocalRead {
 
 /// Sets up an inotify watcher on the given path and returns the watcher. The
 /// Receiver yields a unit value `()` whenever a filesystem event occurs
-/// in the watched directory
+/// in the watched directory.
+///
+/// The watcher callback runs on a thread owned by `notify`, which can outlive
+/// the receiver during shutdown. A failed send therefore means the reader is
+/// gone and is not treated as fatal.
 #[cfg(not(target_os = "macos"))]
 pub(crate) fn init_watcher(
     inotify_sender: tokio::sync::mpsc::Sender<()>,
     path: &Path,
 ) -> RecommendedWatcher {
     use notify::Watcher;
+    use tracing::warn;
 
     let mut watcher = notify::recommended_watcher(move |res| {
         if let Err(err) = res {
-            eprintln!("watch error: {err:?}");
+            warn!("watch error: {err:?}");
         }
-        inotify_sender
-            .blocking_send(())
-            .expect("failed to send inotify update");
+        if inotify_sender.blocking_send(()).is_err() {
+            debug!("inotify receiver dropped, reader is shutting down");
+        }
     })
     .expect("failed to init inotify");
     watcher

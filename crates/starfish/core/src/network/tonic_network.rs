@@ -12,8 +12,9 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes as _};
 use futures::{Stream, StreamExt as _, TryStreamExt as _, stream};
-use iota_http::ServerHandle;
+use iota_http::{PeerConnectionEvent, ServerHandle};
 use iota_network_stack::{
     Multiaddr,
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
@@ -22,6 +23,7 @@ use iota_network_stack::{
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
+use tokio::sync::Mutex;
 use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
@@ -612,13 +614,21 @@ struct ChannelPool {
     context: Arc<Context>,
     // Size is limited by known authorities in the committee.
     channels: RwLock<BTreeMap<AuthorityIndex, Channel>>,
+    /// Held while connecting to the peer at that index, so callers that miss
+    /// the pool at the same time share one connection instead of each
+    /// opening their own.
+    connecting: Vec<Mutex<()>>,
 }
 
 impl ChannelPool {
     fn new(context: Arc<Context>) -> Self {
+        let connecting = (0..context.committee.size())
+            .map(|_| Mutex::new(()))
+            .collect();
         Self {
             context,
             channels: RwLock::new(BTreeMap::new()),
+            connecting,
         }
     }
 
@@ -628,6 +638,15 @@ impl ChannelPool {
         peer: AuthorityIndex,
         timeout: Duration,
     ) -> ConsensusResult<Channel> {
+        {
+            let channels = self.channels.read();
+            if let Some(channel) = channels.get(&peer) {
+                return Ok(channel.clone());
+            }
+        }
+
+        let _connecting = self.connecting[peer.value()].lock().await;
+        // Another caller may have connected while this one waited for the lock.
         {
             let channels = self.channels.read();
             if let Some(channel) = channels.get(&peer) {
@@ -696,10 +715,8 @@ impl ChannelPool {
             )
             .service(channel);
 
-        let mut channels = self.channels.write();
-        // There should not be many concurrent attempts at connecting to the same peer.
-        let channel = channels.entry(peer).or_insert(channel);
-        Ok(channel.clone())
+        self.channels.write().insert(peer, channel.clone());
+        Ok(channel)
     }
 }
 
@@ -1123,6 +1140,12 @@ where
 /// abort an otherwise healthy subscription. Bounded RPCs are not listed.
 const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBlockBundles"];
 
+/// Connections a single committee peer may hold on the consensus listener at
+/// once. One is enough to serve a peer: the channel pool keeps a single
+/// connection per authority and multiplexes every RPC over it. The rest is
+/// headroom for a reconnect whose predecessor has not been reaped yet.
+const MAX_CONNECTIONS_PER_PEER: usize = 4;
+
 impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
         Self {
@@ -1163,17 +1186,20 @@ impl<S: NetworkService> TonicManager<S> {
         let connections_info = Arc::new(ConnectionsInfo::new(self.context.clone()));
         let layers = tower::ServiceBuilder::new()
             // Add a layer to extract a peer's PeerInfo from their TLS certs
-            .map_request(move |mut request: http::Request<_>| {
-                if let Some(peer_certificates) =
-                    request.extensions().get::<iota_http::PeerCertificates>()
-                {
-                    if let Some(peer_info) =
-                        peer_info_from_certs(&connections_info, peer_certificates)
+            .map_request({
+                let connections_info = connections_info.clone();
+                move |mut request: http::Request<_>| {
+                    if let Some(peer_certificates) =
+                        request.extensions().get::<iota_http::PeerCertificates>()
                     {
-                        request.extensions_mut().insert(peer_info);
+                        if let Some(peer_info) =
+                            peer_info_from_certs(&connections_info, peer_certificates)
+                        {
+                            request.extensions_mut().insert(peer_info);
+                        }
                     }
+                    request
                 }
-                request
             })
             .layer(CallbackLayer::new(MetricsCallbackMaker::new(
                 self.context.metrics.network_metrics.inbound.clone(),
@@ -1265,7 +1291,32 @@ impl<S: NetworkService> TonicManager<S> {
             )
             .http2_keepalive_interval(Some(config.keepalive_interval))
             .http2_keepalive_timeout(Some(config.keepalive_interval))
-            .accept_http1(false);
+            .accept_http1(false)
+            .max_connections_per_peer(Some(MAX_CONNECTIONS_PER_PEER))
+            .on_peer_connection_event({
+                let context = self.context.clone();
+                let connections_info = connections_info.clone();
+                move |peer_public_key, event| {
+                    let Some(authority_index) =
+                        authority_index_from_key(&connections_info, peer_public_key)
+                    else {
+                        return;
+                    };
+                    let hostname = &context.committee.authority(authority_index).hostname;
+                    let network_metrics = &context.metrics.network_metrics;
+                    match event {
+                        PeerConnectionEvent::Established { held }
+                        | PeerConnectionEvent::Closed { held } => network_metrics
+                            .inbound_connections
+                            .with_label_values(&[hostname])
+                            .set(held as i64),
+                        PeerConnectionEvent::RefusedAtLimit { .. } => network_metrics
+                            .inbound_connections_refused
+                            .with_label_values(&[hostname])
+                            .inc(),
+                    }
+                }
+            });
 
         // Create server
         //
@@ -1318,6 +1369,15 @@ impl<S: NetworkService> Drop for TonicManager<S> {
             server.trigger_shutdown();
         }
     }
+}
+
+/// Resolves a peer's raw network public key to its index in the committee.
+fn authority_index_from_key(
+    connections_info: &ConnectionsInfo,
+    public_key: &[u8],
+) -> Option<AuthorityIndex> {
+    let public_key = Ed25519PublicKey::from_bytes(public_key).ok()?;
+    connections_info.authority_index(&NetworkPublicKey::new(public_key))
 }
 
 // TODO: improve iota-http to allow for providing a MakeService so that this can
