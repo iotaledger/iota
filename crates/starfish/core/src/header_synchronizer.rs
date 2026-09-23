@@ -952,11 +952,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             );
         }
 
+        let peer_hostname = &context.committee.authority(peer_index).hostname;
         let requested_headers = drop_far_future(
             &context,
             &dag_state,
             requested_headers,
             DataSource::HeaderSynchronizerRequested,
+            peer_hostname,
             |header| header.round(),
         );
         let additional_headers = drop_far_future(
@@ -964,6 +966,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             &dag_state,
             additional_headers,
             DataSource::HeaderSynchronizerAdditional,
+            peer_hostname,
             |header| header.round(),
         );
 
@@ -4187,7 +4190,10 @@ mod tests {
                 .metrics
                 .node_metrics
                 .dropped_far_future_headers_total
-                .with_label_values(&[DataSource::HeaderSynchronizerRequested.as_str()])
+                .with_label_values(&[
+                    DataSource::HeaderSynchronizerRequested.as_str(),
+                    context.committee.authority(peer_index).hostname.as_str(),
+                ])
                 .get(),
             1
         );

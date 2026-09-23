@@ -181,13 +181,14 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             cordial_knowledge,
         }
     }
-    fn create_verified_block_and_shard(
+    /// Verifies the header of a bundle's primary block and returns it with the
+    /// transactions it carries, still unverified.
+    fn verify_primary_block_header(
         &self,
         peer: AuthorityIndex,
         peer_hostname: &str,
         serialized_block: Bytes,
-        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
-    ) -> ConsensusResult<(VerifiedBlock, Option<ShardWithProof>)> {
+    ) -> ConsensusResult<(VerifiedBlockHeader, Bytes)> {
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
@@ -231,6 +232,22 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             return Err(e);
         }
 
+        Ok((
+            VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header),
+            serialized_transactions,
+        ))
+    }
+
+    /// Verifies the transactions of a bundle's primary block against the
+    /// commitment in its header and returns the block with our shard of it.
+    fn verify_block_payload_and_shard(
+        &self,
+        peer: AuthorityIndex,
+        peer_hostname: &str,
+        verified_block_header: &VerifiedBlockHeader,
+        serialized_transactions: Bytes,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    ) -> ConsensusResult<(VerifiedBlock, Option<ShardWithProof>)> {
         let transactions = self
             .block_verifier
             .check_and_parse_transactions(&serialized_transactions)
@@ -241,18 +258,15 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 &self.context,
                 encoder,
             )?;
-        if signed_block_header.transactions_commitment() != transaction_commitment {
+        if verified_block_header.transactions_commitment() != transaction_commitment {
             let e = ConsensusError::TransactionCommitmentFailure {
-                round: signed_block_header.round(),
-                author: signed_block_header.author(),
+                round: verified_block_header.round(),
+                author: verified_block_header.author(),
                 peer,
             };
             self.record_invalid_transactions(peer, peer_hostname, &e);
             return Err(e);
         }
-
-        let verified_block_header =
-            VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
 
         let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
@@ -265,8 +279,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .inspect_err(|e| self.record_invalid_transactions(peer, peer_hostname, e))?;
 
         let has_transactions = verified_transactions.has_transactions();
-        let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
-        let block_ref = verified_block.reference();
+        let block_ref = verified_block_header.reference();
+        let verified_block =
+            VerifiedBlock::new(verified_block_header.clone(), verified_transactions);
         debug!("Received block {} via stream block bundle.", block_ref);
         let shard_for_core = if has_transactions {
             Some(ShardWithProof::new(
@@ -328,13 +343,14 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     /// Deserializes and verifies the additional headers of a bundle. Returns
     /// the fresh headers to accept into the DAG, plus the info of the already
     /// received ones — still deliveries for the responsiveness sampling, but
-    /// not to be re-accepted.
+    /// not to be re-accepted. Headers above `far_future_ceiling` are left out.
     fn extract_additional_block_headers_from_bundle(
         &self,
         peer: AuthorityIndex,
         peer_hostname: &str,
         mut serialized_headers: Vec<Bytes>,
         block_ref: BlockRef,
+        far_future_ceiling: Round,
     ) -> ConsensusResult<(Vec<VerifiedBlockHeader>, Vec<FilteredHeaderInfo>)> {
         let block_round = block_ref.round;
         if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
@@ -371,6 +387,20 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 signed_block_header.round(),
                 block_round,
             )?;
+
+            // Keeping a header this far above the accepted frontier means holding
+            // it in the suspender until the frontier climbs to meet it; a node
+            // that far behind catches up through commit sync instead. So it is
+            // skipped before its signature is verified.
+            if signed_block_header.round() > far_future_ceiling {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .dropped_far_future_headers_total
+                    .with_label_values(&[DataSource::BlockBundleStream.as_str(), peer_hostname])
+                    .inc();
+                continue;
+            }
 
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
                 self.context
@@ -830,16 +860,31 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Err(e);
         }
 
-        // 1. Create a verified block and make some preliminary checks
-        let (verified_block, shard_for_core) = self.create_verified_block_and_shard(
+        // 1. Verify the header of the primary block and make some preliminary checks.
+        // Its round is checked before its transactions are verified in step 5, so a
+        // block too far ahead to ever be accepted costs only the header.
+        let (verified_block_header, serialized_transactions) = self.verify_primary_block_header(
             peer,
             peer_hostname,
             serialized_block_bundle_parts.serialized_block.clone(),
-            encoder,
         )?;
-        let block_ref = verified_block.reference();
-        let transaction_ref = verified_block.transaction_ref();
+        let block_ref = verified_block_header.reference();
+        let transaction_ref = verified_block_header.transaction_ref();
         let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
+        let far_future_ceiling = self.dag_state.read().far_future_round_ceiling();
+        let primary_block_far_future = block_ref.round > far_future_ceiling;
+        if primary_block_far_future {
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::BlockStreaming.as_str(), peer_hostname.as_str()])
+                .inc();
+            debug!(
+                "Dropped far-future streamed block {block_ref} from peer {peer}; round {} is above the far-future ceiling {far_future_ceiling}",
+                block_ref.round
+            );
+        }
         // 1b. The stream carries the peer's own blocks in proposal order, so the
         // round must strictly increase over one connection, starting above the
         // round the subscription asked for. A same-round block with another
@@ -901,7 +946,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
-        let block_timestamp_ms = verified_block.timestamp_ms();
+        let block_timestamp_ms = verified_block_header.timestamp_ms();
         let forward_time_drift = Duration::from_millis(block_timestamp_ms.saturating_sub(now));
         self.context
             .metrics
@@ -936,43 +981,34 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 peer_hostname,
                 serialized_headers,
                 block_ref,
+                far_future_ceiling,
             )?;
 
         // 4. Observe headers and the block for the commit votes. When local commit is
-        // lagging too much, commit sync loop will trigger fetching. Done before the
-        // far-future check below so quorum-commit tracking keeps progressing even
-        // for bundles we drop.
+        // lagging too much, commit sync loop will trigger fetching. Done for a
+        // far-future primary block too, so quorum-commit tracking keeps progressing
+        // even for bundles we drop.
         for block_header in additional_block_headers.iter() {
             self.commit_vote_monitor.observe_block(block_header);
         }
-        self.commit_vote_monitor.observe_block(&verified_block);
+        self.commit_vote_monitor
+            .observe_block(&verified_block_header);
 
-        // 5. Bound the far-future parts of the bundle, reusing the block-manager
-        // helper as the synchronizer does. Additional headers above the connect
-        // ceiling are dropped; a far-future primary block is dropped here too, so
-        // it is neither processed for shards (the reconstructor bypasses the
-        // block manager) nor forwarded to the core.
-        additional_block_headers = crate::block_manager::drop_far_future(
-            &self.context,
-            &self.dag_state,
-            additional_block_headers,
-            DataSource::BlockBundleStream,
-            |header| header.round(),
-        );
-        let verified_blocks = crate::block_manager::drop_far_future(
-            &self.context,
-            &self.dag_state,
-            vec![verified_block],
-            DataSource::BlockStreaming,
-            |block| block.round(),
-        );
-        let primary_block_far_future = verified_blocks.is_empty();
-        if primary_block_far_future {
-            debug!(
-                "Dropped far-future streamed block {block_ref} from peer {peer}; round {} exceeds the connect ceiling",
-                block_ref.round
-            );
-        }
+        // 5. Verify the transactions of the primary block, unless it was dropped
+        // above: a far-future block is neither processed for shards (the
+        // reconstructor bypasses the block manager) nor forwarded to the core.
+        let (verified_block, shard_for_core) = if primary_block_far_future {
+            (None, None)
+        } else {
+            let (verified_block, shard_for_core) = self.verify_block_payload_and_shard(
+                peer,
+                peer_hostname,
+                &verified_block_header,
+                serialized_transactions,
+                encoder,
+            )?;
+            (Some(verified_block), shard_for_core)
+        };
 
         // 6. Collect shards from a bundle and check their proofs. Skipped for a
         // dropped primary block so its shards never reach the reconstructor. The
@@ -1040,9 +1076,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
         // Skipped for a dropped primary block (no shards were collected).
-        if !primary_block_far_future {
+        if let Some(verified_block) = &verified_block {
             let transaction_messages = TransactionMessage::create_transaction_messages(
-                &verified_blocks[0],
+                verified_block,
                 &verified_shards,
                 peer.value(),
             );
@@ -1075,10 +1111,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 11. Add the block to dag, add its missing ancestors to the set. A
         // block dropped above is not forwarded to the core.
-        if !primary_block_far_future {
+        if let Some(verified_block) = verified_block {
             let (missing_block_ancestors, missing_block_committed_transactions) = self
                 .core_dispatcher
-                .add_blocks(verified_blocks, DataSource::BlockStreaming)
+                .add_blocks(vec![verified_block], DataSource::BlockStreaming)
                 .await
                 .map_err(|_| ConsensusError::Shutdown)?;
             self.context
@@ -1102,7 +1138,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 12. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions and the block was not dropped.
-        if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_far_future) {
+        if let Some(shard_for_core) = shard_for_core {
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();
@@ -2183,13 +2219,16 @@ mod tests {
 
     /// A signed far-future bundle is dropped at ingress: the block is counted,
     /// not forwarded to the core, and not sent to the shard reconstructor, so
-    /// it cannot grow shard/transaction state.
+    /// it cannot grow shard/transaction state. Its commit votes are still
+    /// observed, which is what lets commit sync start while we are this far
+    /// behind.
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_drops_far_future() {
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let observed_commit_votes = commit_vote_monitor.clone();
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, mut tx_message_receiver) = mpsc::channel(100);
@@ -2234,14 +2273,17 @@ mod tests {
 
         // One round past the acceptance ceiling (frontier is genesis round 0).
         let far_round = context.parameters.far_future_round_ceiling(0) + 1;
+        let peer = context.committee.to_authority_index(0).unwrap();
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new_with_commitment(far_round, 0, &context, &mut encoder).build(),
+            TestBlockHeader::new_with_commitment(far_round, 0, &context, &mut encoder)
+                .set_commit_votes(vec![CommitRef::new(7, CommitDigest::MIN)])
+                .build(),
         );
         let bundle = SerializedBlockBundle::try_from(input_block).unwrap();
 
         authority_service
             .handle_subscribed_block_bundle(
-                context.committee.to_authority_index(0).unwrap(),
+                peer,
                 bundle,
                 &mut encoder,
                 &mut StreamPosition::default(),
@@ -2264,10 +2306,71 @@ mod tests {
                 .metrics
                 .node_metrics
                 .dropped_far_future_headers_total
-                .with_label_values(&[DataSource::BlockStreaming.as_str()])
+                .with_label_values(&[
+                    DataSource::BlockStreaming.as_str(),
+                    context.committee.authority(peer).hostname.as_str(),
+                ])
                 .get(),
             1,
-            "the dropped far-future block is counted"
+            "the dropped far-future block is counted against the peer"
+        );
+        assert!(
+            observed_commit_votes.has_voted_for_commit(peer, 7),
+            "commit votes of a dropped far-future block are still observed"
+        );
+    }
+
+    /// The transactions of a far-future primary block are never verified: the
+    /// block is dropped for its round alone, so a bundle whose transactions do
+    /// not match the commitment in its header is accepted without complaint
+    /// above the ceiling and rejected below it.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_skips_far_future_payload() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let mut fixture = stream_fixture(context.clone());
+        let mut encoder = create_encoder(&context);
+        let peer = context.committee.to_authority_index(0).unwrap();
+
+        // `TestBlockHeader::new` leaves the default commitment in the header, so
+        // recomputing it over these transactions fails.
+        let mismatched_block = |round| {
+            VerifiedBlock::new_with_transaction_for_test(TestBlockHeader::new(round, 0).build(), 1)
+        };
+        let far_round = context.parameters.far_future_round_ceiling(0) + 1;
+
+        fixture
+            .authority_service
+            .handle_subscribed_block_bundle(
+                peer,
+                SerializedBlockBundle::try_from(mismatched_block(far_round)).unwrap(),
+                &mut encoder,
+                &mut StreamPosition::default(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            fixture.core_dispatcher.get_blocks().is_empty(),
+            "a far-future block must not be forwarded to the core"
+        );
+        assert!(
+            fixture.tx_message_receiver.try_recv().is_err(),
+            "a far-future bundle must not feed the shard reconstructor"
+        );
+
+        let error = fixture
+            .authority_service
+            .handle_subscribed_block_bundle(
+                peer,
+                SerializedBlockBundle::try_from(mismatched_block(1)).unwrap(),
+                &mut encoder,
+                &mut StreamPosition::default(),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(error, ConsensusError::TransactionCommitmentFailure { .. }),
+            "below the ceiling the transactions are verified: {error}"
         );
     }
 
