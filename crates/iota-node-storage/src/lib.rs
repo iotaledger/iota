@@ -8,10 +8,15 @@
 //! `iota-types` with queries that are only available on full nodes (e.g. epoch
 //! info, transaction-to-checkpoint mapping, type layout resolution).
 //!
+//! It also defines [`TransactionKeyValueStoreTrait`], the key-value store that
+//! serves transaction data a node has pruned.
+//!
 //! These traits live in a dedicated lightweight crate so that:
 //! - `iota-core` can implement them without depending on `iota-grpc-server`
 //! - `iota-grpc-server` can consume them without depending on `iota-core`
 //! - `simulacrum` and other test harnesses can implement them freely
+
+mod key_value_store;
 
 use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
 use iota_types::{
@@ -23,6 +28,10 @@ use iota_types::{
         OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
         error::Result,
     },
+};
+
+pub use crate::key_value_store::{
+    KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
 };
 
 /// Trait extending [`ReadStore`] with full-node-specific queries that may
