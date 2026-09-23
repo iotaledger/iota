@@ -1293,6 +1293,11 @@ impl<S: NetworkService> TonicManager<S> {
             .http2_keepalive_timeout(Some(config.keepalive_interval))
             .accept_http1(false)
             .max_connections_per_peer(Some(MAX_CONNECTIONS_PER_PEER))
+            // Per-peer counts are enough here, because every peer authenticates
+            // and the key space is the committee. `Config::on_connection_event`
+            // additionally reports the listener's own totals (live connections,
+            // handshakes in progress, refusals) and can be set here too if the
+            // aggregate ever becomes worth a panel of its own.
             .on_peer_connection_event({
                 let context = self.context.clone();
                 let connections_info = connections_info.clone();

@@ -6,7 +6,8 @@ use std::{fmt, sync::Arc, time::Duration};
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 /// hyper's own default for the header read deadline; hyper only enforces it
-/// when a timer is configured, which this crate always does.
+/// when a timer is configured, which this crate does whenever it accepts
+/// HTTP/1 at all.
 const DEFAULT_HTTP1_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Covers a round trip plus a few TCP retransmissions on a lossy link; an
 /// unloaded TLS 1.3 handshake completes in one round trip.
@@ -35,6 +36,7 @@ pub struct Config {
     http1_header_read_timeout: Option<Duration>,
     enable_connect_protocol: bool,
     pub(crate) max_connection_age: Option<Duration>,
+    pub(crate) max_connection_idle: Option<Duration>,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
@@ -139,6 +141,7 @@ impl Default for Config {
             http1_header_read_timeout: Some(DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
             enable_connect_protocol: true,
             max_connection_age: None,
+            max_connection_idle: None,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
             max_connections_per_peer: None,
@@ -173,14 +176,39 @@ impl Config {
     }
 
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
-    /// connections.
+    /// connections. This bounds the requests one connection may have in flight,
+    /// so without it a single peer can occupy a whole service's admission
+    /// slots.
     ///
-    /// Default is no limit (`None`).
+    /// `None` leaves the transport's own default in place, currently 200.
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#n-stream-concurrency
     pub fn max_concurrent_streams(self, max: impl Into<Option<u32>>) -> Self {
         Self {
             max_concurrent_streams: max.into(),
+            ..self
+        }
+    }
+
+    /// Sets how long a connection may serve no request before it is closed.
+    ///
+    /// Idle means serving no request, not receiving no bytes: the server's own
+    /// keepalive pings and the answers to them are bytes, so a peer that
+    /// answers them and does nothing else stays idle by this measure. A
+    /// connection that has not yet chosen a protocol is idle too, since it has
+    /// started no request either.
+    ///
+    /// Keepalive closes a connection whose peer has *gone*; this closes one
+    /// whose peer is present and doing nothing. Both are needed, and neither
+    /// substitutes for the other.
+    ///
+    /// The deadline must exceed the longest gap between requests a legitimate
+    /// peer leaves, or it will disconnect working clients.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connection_idle(self, max_connection_idle: Option<Duration>) -> Self {
+        Self {
+            max_connection_idle,
             ..self
         }
     }
@@ -438,12 +466,19 @@ impl Config {
             .http2_keepalive_timeout
             .unwrap_or_else(|| Duration::new(DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS, 0));
 
+        // hyper assigns whatever it is given, so passing `None` would replace
+        // its own protective default with no limit at all. `None` here means
+        // "no opinion", which is hyper's default, not "unlimited" — the
+        // adjacent `max_pending_accept_reset_streams` is guarded the same way.
+        if let Some(max_concurrent_streams) = self.max_concurrent_streams {
+            builder.http2().max_concurrent_streams(max_concurrent_streams);
+        }
+
         builder
             .http2()
             .timer(hyper_util::rt::TokioTimer::new())
             .initial_connection_window_size(self.init_connection_window_size)
             .initial_stream_window_size(self.init_stream_window_size)
-            .max_concurrent_streams(self.max_concurrent_streams)
             .keep_alive_interval(self.http2_keepalive_interval)
             .keep_alive_timeout(http2_keepalive_timeout)
             .adaptive_window(self.http2_adaptive_window.unwrap_or_default())

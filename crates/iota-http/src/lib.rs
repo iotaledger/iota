@@ -15,10 +15,12 @@ use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::trace;
 
 use self::{
+    activity::ConnectionActivity,
     body::BoxBody,
     connection_info::{ActiveConnections, PeerConnectionCounts},
 };
 
+mod activity;
 pub mod body;
 mod config;
 mod connection_handler;
@@ -122,6 +124,10 @@ impl Builder {
         let connections = ActiveConnections::default();
 
         let tls_config = self.tls_config.map(|mut tls| {
+            // This crate decides which protocols it serves, so it owns the
+            // list: appending to whatever the caller set would advertise a
+            // protocol twice, or one this server does not accept.
+            tls.alpn_protocols.clear();
             tls.alpn_protocols.push(ALPN_H2.into());
             if self.config.accept_http1 {
                 tls.alpn_protocols.push(ALPN_H1.into());
@@ -375,16 +381,36 @@ where
         let peer_certificates = connection_info.peer_certificates().cloned();
         let hyper_io = hyper_util::rt::TokioIo::new(io);
 
-        let hyper_svc = TowerToHyperService::new(self.service.clone().map_request(
-            move |mut request: Request<hyper::body::Incoming>| {
-                request.extensions_mut().insert(connect_info.clone());
-                if let Some(peer_certificates) = peer_certificates.clone() {
-                    request.extensions_mut().insert(peer_certificates);
-                }
+        let activity = ConnectionActivity::new();
+        let hyper_svc = TowerToHyperService::new(
+            self.service
+                .clone()
+                .map_request(move |mut request: Request<hyper::body::Incoming>| {
+                    request.extensions_mut().insert(connect_info.clone());
+                    if let Some(peer_certificates) = peer_certificates.clone() {
+                        request.extensions_mut().insert(peer_certificates);
+                    }
 
-                request.map(body::boxed)
-            },
-        ));
+                    request.map(body::boxed)
+                })
+                .map_future({
+                    let activity = activity.clone();
+                    move |future| {
+                        // Held by the response body rather than dropped here,
+                        // so a streaming response counts as work until its
+                        // last frame.
+                        let guard = activity.request_started();
+                        async move {
+                            let response: Result<Response<BoxBody>, BoxError> = future.await;
+                            response.map(|response| {
+                                response.map(|inner| {
+                                    body::boxed(body::GuardedBody::new(inner, guard))
+                                })
+                            })
+                        }
+                    }
+                }),
+        );
 
         self.connections
             .write()
@@ -407,6 +433,8 @@ where
                 self.config.connection_builder(),
                 connection_shutdown_token,
                 self.config.max_connection_age,
+                self.config.max_connection_idle,
+                activity,
                 on_connection_close,
             ));
     }
@@ -1069,5 +1097,218 @@ mod tests {
             .wait_for(ConnectionEvent::HandshakeFailed { pending: 0 })
             .await;
         assert_eq!(handle.number_of_connections(), 0);
+    }
+
+    /// Reads the `SETTINGS_MAX_CONCURRENT_STREAMS` value a server advertises,
+    /// or `None` when it advertises no limit.
+    async fn advertised_max_concurrent_streams(addr: &std::net::SocketAddr) -> Option<u32> {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        /// Frame header: 3-byte length, 1-byte type, 1-byte flags, 4-byte
+        /// stream id.
+        const FRAME_HEADER_LEN: usize = 9;
+        const SETTINGS_FRAME_TYPE: u8 = 0x4;
+        const SETTINGS_MAX_CONCURRENT_STREAMS: u16 = 0x3;
+        /// Each setting is a 2-byte identifier and a 4-byte value.
+        const SETTING_LEN: usize = 6;
+
+        let mut connection = tokio::net::TcpStream::connect(addr).await.unwrap();
+        // The preface plus an empty SETTINGS frame of our own.
+        connection.write_all(PREFACE).await.unwrap();
+        connection
+            .write_all(&[0, 0, 0, SETTINGS_FRAME_TYPE, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+
+        // The server's own SETTINGS frame is the first thing it sends.
+        let mut header = [0u8; FRAME_HEADER_LEN];
+        connection.read_exact(&mut header).await.unwrap();
+        let length = u32::from_be_bytes([0, header[0], header[1], header[2]]) as usize;
+        assert_eq!(
+            header[3], SETTINGS_FRAME_TYPE,
+            "expected the server to open with SETTINGS"
+        );
+
+        let mut payload = vec![0u8; length];
+        connection.read_exact(&mut payload).await.unwrap();
+        payload.chunks_exact(SETTING_LEN).find_map(|setting| {
+            (u16::from_be_bytes([setting[0], setting[1]]) == SETTINGS_MAX_CONCURRENT_STREAMS)
+                .then(|| u32::from_be_bytes([setting[2], setting[3], setting[4], setting[5]]))
+        })
+    }
+
+    /// An unset `max_concurrent_streams` must leave the transport's own limit
+    /// in place. Forwarding `None` to hyper would replace its default with no
+    /// limit at all, letting one connection open as many streams as it likes.
+    #[tokio::test]
+    async fn an_unset_stream_cap_keeps_the_transport_default() {
+        let handle = Builder::new()
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert_eq!(
+            advertised_max_concurrent_streams(handle.local_addr()).await,
+            Some(200),
+            "a server with no opinion must still advertise a stream limit"
+        );
+    }
+
+    /// A configured limit is advertised as given.
+    #[tokio::test]
+    async fn a_configured_stream_cap_is_advertised() {
+        let handle = Builder::new()
+            .config(Config::default().max_concurrent_streams(17))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert_eq!(
+            advertised_max_concurrent_streams(handle.local_addr()).await,
+            Some(17)
+        );
+    }
+
+    /// A peer that completes the HTTP/2 preface and then falls silent is
+    /// closed once it fails to answer the keepalive ping.
+    #[tokio::test]
+    async fn silent_http2_peer_is_closed_by_keepalive() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const KEEPALIVE: Duration = Duration::from_millis(100);
+
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .http2_keepalive_interval(Some(KEEPALIVE))
+                    .http2_keepalive_timeout(Some(KEEPALIVE)),
+            )
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        // Connection preface and an empty SETTINGS frame, then nothing more.
+        connection
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+        connection
+            .write_all(&[0, 0, 0, 0x4, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+
+        let closed = tokio::time::timeout(KEEPALIVE * 50, async {
+            let mut buf = [0u8; 1024];
+            loop {
+                match connection.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => continue,
+                }
+            }
+        })
+        .await;
+        assert!(
+            closed.is_ok(),
+            "the server must close a peer that ignores keepalive pings"
+        );
+    }
+
+
+    /// A peer that completes the handshake and then never picks a protocol
+    /// starts no request, so the idle deadline is what closes it. Nothing else
+    /// does: the handshake budget was released when the handshake finished,
+    /// the HTTP/1 header deadline is not armed until the protocol is known,
+    /// and HTTP/2 keepalive cannot start before the preface.
+    #[tokio::test]
+    async fn a_peer_that_never_picks_a_protocol_is_closed_when_idle() {
+        use tokio::io::AsyncReadExt as _;
+
+        const IDLE: Duration = Duration::from_millis(200);
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_idle(Some(IDLE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+
+        let mut buf = [0u8; 1];
+        let read = tokio::time::timeout(IDLE * 50, connection.read(&mut buf))
+            .await
+            .expect("an idle connection must be closed by its deadline");
+        assert!(
+            matches!(read, Ok(0) | Err(_)),
+            "the server must close the connection, got {read:?}"
+        );
+    }
+
+    /// Protocol traffic is not work. A peer that keeps the bytes flowing
+    /// without ever sending a request must still be closed, which is why
+    /// idleness is measured in requests rather than in bytes.
+    #[tokio::test]
+    async fn protocol_traffic_alone_does_not_keep_a_connection_alive() {
+        use tokio::io::AsyncWriteExt as _;
+
+        const IDLE: Duration = Duration::from_millis(200);
+        const EMPTY_SETTINGS: [u8; 9] = [0, 0, 0, 0x4, 0, 0, 0, 0, 0];
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_idle(Some(IDLE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        connection
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+
+        // Keep sending frames the server must read and answer, but never a
+        // request, until the write fails because it closed the connection.
+        let chattering = async {
+            loop {
+                if connection.write_all(&EMPTY_SETTINGS).await.is_err() {
+                    return;
+                }
+                tokio::time::sleep(IDLE / 10).await;
+            }
+        };
+        tokio::time::timeout(IDLE * 50, chattering)
+            .await
+            .expect("traffic without requests must not hold a connection open");
+    }
+
+    /// A streaming response resolves its future long before its last frame, so
+    /// the guard rides the body. While one is alive the connection is busy.
+    #[tokio::test]
+    async fn a_request_in_flight_keeps_a_connection_from_going_idle() {
+        use crate::activity::{ConnectionActivity, idle_elapsed};
+
+        const IDLE: Duration = Duration::from_millis(100);
+
+        let activity = ConnectionActivity::new();
+        let guard = activity.request_started();
+
+        // Well past the deadline, but the request has not finished.
+        assert!(
+            tokio::time::timeout(IDLE * 10, idle_elapsed(&activity, Some(IDLE)))
+                .await
+                .is_err(),
+            "a connection serving a request must not be considered idle"
+        );
+
+        // Once it does, the deadline runs from that point.
+        drop(guard);
+        assert!(
+            tokio::time::timeout(IDLE * 10, idle_elapsed(&activity, Some(IDLE)))
+                .await
+                .is_ok(),
+            "a connection must go idle once its last request finishes"
+        );
     }
 }
