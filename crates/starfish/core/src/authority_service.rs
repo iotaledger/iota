@@ -885,17 +885,19 @@ fn fetch_commit_transactions_within_budget(
     let mut total_bytes = 0;
     let mut permit = None;
 
-    if let Some(first_transaction_refs) = commits_transaction_refs.first() {
-        for (position, transaction_ref) in first_transaction_refs.iter().enumerate() {
+    for (index, transaction_refs) in commits_transaction_refs.iter().enumerate() {
+        let commit_start = result.len();
+        let mut covered = true;
+        for (position, transaction_ref) in transaction_refs.iter().enumerate() {
+            // The refs come from commits read out of this node's own store, so
+            // an absent payload means the budgeted scan stopped before it.
             let payload = match take_payload(context, &mut payloads, *transaction_ref) {
                 Some(payload) => payload,
-                None => {
-                    // The refs come from commits read out of this node's own
-                    // store, so a payload is absent here because the budgeted
-                    // scan stopped before reaching it. Read what is left of this
-                    // commit without a budget, reusing everything already read.
+                None if index == 0 => {
+                    // Read what is left of the first commit without a budget,
+                    // reusing everything already read.
                     take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
-                    let unread: Vec<TransactionRef> = first_transaction_refs[position..]
+                    let unread: Vec<TransactionRef> = transaction_refs[position..]
                         .iter()
                         .copied()
                         .filter(|transaction_ref| !payloads.contains_key(transaction_ref))
@@ -911,32 +913,21 @@ fn fetch_commit_transactions_within_budget(
                         None => return Ok((result, permit)),
                     }
                 }
+                None => {
+                    covered = false;
+                    break;
+                }
             };
             // Charged by the entry rather than the payload, since the ref and
             // the length prefixes around it are held too.
             let entry = serialize_transactions_entry(*transaction_ref, payload)?;
             if total_bytes + entry.len() > byte_budget {
-                take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
-            }
-            total_bytes += entry.len();
-            result.push(entry);
-        }
-    }
-
-    for transaction_refs in commits_transaction_refs.iter().skip(1) {
-        let commit_start = result.len();
-        let mut covered = true;
-        for transaction_ref in transaction_refs {
-            // An absent payload means the budgeted scan stopped before it, so this
-            // commit and the ones after it are dropped.
-            let Some(payload) = take_payload(context, &mut payloads, *transaction_ref) else {
-                covered = false;
-                break;
-            };
-            let entry = serialize_transactions_entry(*transaction_ref, payload)?;
-            if total_bytes + entry.len() > byte_budget {
-                covered = false;
-                break;
+                if index == 0 {
+                    take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
+                } else {
+                    covered = false;
+                    break;
+                }
             }
             total_bytes += entry.len();
             result.push(entry);
