@@ -987,6 +987,28 @@ mod tests {
         );
     }
 
+    // Every authority must elect the same leader for a round, so a change in the
+    // values drawn from the seeded RNG (for example from a `rand` upgrade) must
+    // not go unnoticed: validators on the old and new code would disagree.
+    #[tokio::test]
+    async fn test_elect_leader_uniform_exact_values() {
+        let context = Arc::new(Context::new_for_test(10).0);
+        let leader_schedule = LeaderSchedule::new(context, LeaderSwapTable::default());
+
+        for (round, expected) in [
+            (0, [1, 8, 4, 9, 7, 6, 3, 0, 5, 2]),
+            (1, [6, 2, 4, 1, 7, 5, 9, 0, 8, 3]),
+            (7, [3, 9, 8, 7, 0, 2, 1, 5, 6, 4]),
+            (1000, [6, 5, 1, 0, 9, 8, 4, 7, 3, 2]),
+        ] {
+            let leaders = (0..10)
+                .map(|offset| leader_schedule.elect_leader_uniform(round, offset))
+                .collect::<Vec<_>>();
+            let expected = expected.map(AuthorityIndex::new_for_test).to_vec();
+            assert_eq!(leaders, expected, "round {round}");
+        }
+    }
+
     #[tokio::test]
     async fn test_leader_schedule_from_store() {
         telemetry_subscribers::init_for_testing();
@@ -1498,6 +1520,63 @@ mod tests {
         let leader_offset = 0;
         let swapped_leader = leader_swap_table.swap(leader, leader_round, leader_offset);
         assert_eq!(swapped_leader, None);
+    }
+
+    // Authorities with equal scores are ordered by a shuffle seeded with the
+    // commit index. Every authority must get the same order, so the exact result
+    // is checked.
+    #[tokio::test]
+    async fn test_leader_swap_table_tied_scores_exact_order() {
+        let context = Arc::new(Context::new_for_test(10).0);
+
+        for (commit_index, expected) in [
+            (0, [6, 8, 3, 0, 1, 9, 2, 5, 7, 4]),
+            (1, [3, 7, 4, 0, 9, 5, 2, 8, 6, 1]),
+            (1000, [0, 2, 7, 9, 5, 8, 6, 1, 3, 4]),
+        ] {
+            let reputation_scores = ReputationScores::new((0..=10).into(), vec![5; 10]);
+            let leader_swap_table =
+                LeaderSwapTable::new_inner(context.clone(), 33, commit_index, reputation_scores);
+            let order = leader_swap_table
+                .reputation_scores_desc
+                .iter()
+                .map(|(index, _)| *index)
+                .collect::<Vec<_>>();
+            let expected = expected.map(AuthorityIndex::new_for_test).to_vec();
+            assert_eq!(order, expected, "commit index {commit_index}");
+        }
+    }
+
+    // The good node that replaces a bad leader is drawn from an RNG seeded with
+    // the round. Every authority must draw the same one, so the exact result is
+    // checked, with more than one good node so that the draw matters.
+    #[tokio::test]
+    async fn test_leader_swap_table_swap_exact_values() {
+        let context = Arc::new(Context::new_for_test(10).0);
+        let reputation_scores = ReputationScores::new((0..=10).into(), (0..10).collect());
+        let leader_swap_table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+
+        let good_nodes = leader_swap_table
+            .good_nodes
+            .iter()
+            .map(|(index, _, _)| *index)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            good_nodes,
+            [9, 8].map(AuthorityIndex::new_for_test).to_vec()
+        );
+
+        let bad_leader = AuthorityIndex::new_for_test(0);
+        assert!(leader_swap_table.bad_nodes.contains_key(&bad_leader));
+        let swapped = (1..=10)
+            .map(|round| leader_swap_table.swap(bad_leader, round, 0).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            swapped,
+            [8, 9, 8, 8, 8, 8, 8, 8, 9, 8]
+                .map(AuthorityIndex::new_for_test)
+                .to_vec()
+        );
     }
 
     #[tokio::test]
