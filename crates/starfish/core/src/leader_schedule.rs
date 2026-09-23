@@ -990,6 +990,8 @@ mod tests {
     // Every authority must elect the same leader for a round, so a change in the
     // values drawn from the seeded RNG (for example from a `rand` upgrade) must
     // not go unnoticed: validators on the old and new code would disagree.
+    // If this fails, don't update the values: gate the change behind a
+    // protocol feature flag.
     #[tokio::test]
     async fn test_elect_leader_uniform_exact_values() {
         let context = Arc::new(Context::new_for_test(10).0);
@@ -1525,6 +1527,8 @@ mod tests {
     // Authorities with equal scores are ordered by a shuffle seeded with the
     // commit index. Every authority must get the same order, so the exact result
     // is checked.
+    // If this fails, don't update the values: gate the change behind a
+    // protocol feature flag.
     #[tokio::test]
     async fn test_leader_swap_table_tied_scores_exact_order() {
         let context = Arc::new(Context::new_for_test(10).0);
@@ -1550,6 +1554,8 @@ mod tests {
     // The good node that replaces a bad leader is drawn from an RNG seeded with
     // the round. Every authority must draw the same one, so the exact result is
     // checked, with more than one good node so that the draw matters.
+    // If this fails, don't update the values: gate the change behind a
+    // protocol feature flag.
     #[tokio::test]
     async fn test_leader_swap_table_swap_exact_values() {
         let context = Arc::new(Context::new_for_test(10).0);
