@@ -9,6 +9,7 @@ use std::{
 };
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
+use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_crypto::{
     Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
@@ -33,10 +34,11 @@ use crate::{
     effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPIForTesting},
     transaction::SenderSignedTransactionAPI,
     utils::{
-        blake2b256_of_sig, make_move_authenticator_sig, make_move_authenticator_tx,
-        make_passkey_authenticator_sig, make_sponsored_move_authenticator_tx,
-        make_sponsored_regular_sig_tx, make_transaction, make_transaction_data,
-        make_upgraded_multisig_tx,
+        assert_size_limit_err, blake2b256_of_sig, make_move_authenticator_sig,
+        make_move_authenticator_tx, make_passkey_authenticator_sig,
+        make_sponsored_move_authenticator_tx, make_sponsored_regular_sig_tx, make_transaction,
+        make_transaction_data, make_upgraded_multisig_tx, ptb_above_max_tx_size,
+        ptb_with_pure_inputs,
     },
 };
 
@@ -1662,4 +1664,174 @@ fn compute_auth_digests_sponsored_regular_signatures() {
     let (sender_digest, sponsor_digest) = tx.data().compute_auth_digests().unwrap();
     assert_eq!(sender_digest, blake2b256_of_sig(sender_sig));
     assert_eq!(sponsor_digest.unwrap(), blake2b256_of_sig(sponsor_sig));
+}
+
+/// Input counts a transaction may not declare: the first count the bound
+/// rejects, then three that truncate to a valid `u16` index, 0, 1 and 65 534,
+/// so a narrowing would look like a short list rather than an error.
+fn counts_past_the_input_bound() -> [usize; 4] {
+    let wraps_to_zero = u16::MAX as usize + 1;
+    [
+        MAX_PROGRAMMABLE_TX_INPUTS + 1,
+        wraps_to_zero,
+        wraps_to_zero + 1,
+        2 * u16::MAX as usize,
+    ]
+}
+
+#[test]
+fn ptb_validity_check_rejects_more_inputs_than_it_may_declare() {
+    // Pure inputs are not counted by `max_input_objects`, so they are what can
+    // push an input past the last index `Argument::Input` names.
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    for count in counts_past_the_input_bound() {
+        let err = ptb_with_pure_inputs(count, 0, false)
+            .validity_check(&config)
+            .unwrap_err();
+        assert_size_limit_err(&err, "maximum inputs in a programmable transaction");
+    }
+}
+
+#[test]
+fn ptb_validity_check_rejects_a_randomness_input_past_the_last_input_index() {
+    // The randomness object sits at an index no `Argument::Input` can name.
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    for count in counts_past_the_input_bound() {
+        let err = ptb_with_pure_inputs(count, 0, true)
+            .validity_check(&config)
+            .unwrap_err();
+        assert_size_limit_err(&err, "maximum inputs in a programmable transaction");
+    }
+
+    // The simulation paths reach the same rejection through this.
+    let pt = ptb_with_pure_inputs(MAX_PROGRAMMABLE_TX_INPUTS + 1, 0, true);
+    let tx = Transaction::new_with_gas_data(
+        TransactionKind::new_programmable(pt),
+        Address::random(),
+        GasPayment {
+            objects: vec![],
+            owner: Address::random(),
+            price: 0,
+            budget: 0,
+        },
+    );
+    let err = tx.validity_check_no_gas_check(&config).unwrap_err();
+    assert_size_limit_err(&err, "maximum inputs in a programmable transaction");
+}
+
+#[test]
+fn ptb_validity_check_accepts_a_randomness_input_at_the_last_input_index() {
+    let pt = ptb_with_pure_inputs(MAX_PROGRAMMABLE_TX_INPUTS - 1, 0, true);
+    pt.validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
+        .unwrap();
+}
+
+/// A transaction with the given inputs, no commands and no gas objects.
+fn gasless_transaction(sender: Address, inputs: Vec<CallArg>) -> Transaction {
+    let pt = ProgrammableTransaction {
+        inputs,
+        commands: vec![],
+    };
+    Transaction::new_with_gas_data(
+        TransactionKind::new_programmable(pt),
+        sender,
+        GasPayment {
+            objects: vec![],
+            owner: sender,
+            price: 0,
+            budget: 0,
+        },
+    )
+}
+
+#[test]
+fn more_inputs_than_a_transaction_may_declare_never_fit_in_max_tx_size_bytes() {
+    // The input bound runs on the signing and execution paths without a
+    // protocol feature flag. That is only safe while no transaction that fits
+    // `max_tx_size_bytes` can reach it, on every chain and protocol version.
+    let smallest = gasless_transaction(
+        Address::random(),
+        vec![CallArg::Pure(vec![]); MAX_PROGRAMMABLE_TX_INPUTS + 1],
+    );
+    let tx_size = bcs::serialized_size(&smallest).unwrap() as u64;
+    // A new `Chain` variant stops this compiling; add it to `chains` below.
+    match Chain::default() {
+        Chain::Mainnet | Chain::Testnet | Chain::Unknown => {}
+    }
+    let chains = [Chain::Mainnet, Chain::Testnet, Chain::Unknown];
+    for chain in chains {
+        for version in ProtocolVersion::MIN.as_u64()..=ProtocolVersion::MAX.as_u64() {
+            let config = ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain);
+            assert!(
+                tx_size > config.max_tx_size_bytes(),
+                "protocol version {version} on {chain:?} lets a transaction with too many inputs through the size cap"
+            );
+        }
+    }
+}
+
+#[test]
+fn check_serialized_size_accepts_the_size_limit_and_rejects_one_byte_more() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let sender = Address::random();
+    let cap = config.max_tx_size_bytes() as usize;
+    let pure_size = config.max_pure_argument_size() as usize - 1;
+
+    // Every input stays under `max_pure_argument_size`, so the transaction is
+    // one the input checks accept and only the size cap can reject it.
+    let bulk = cap / pure_size - 1;
+    let build = |tail: usize| {
+        let mut inputs = vec![CallArg::Pure(vec![0; pure_size]); bulk];
+        inputs.push(CallArg::Pure(vec![0; tail]));
+        gasless_transaction(sender, inputs)
+    };
+
+    // The tail input's length prefix has the same width for both sizes below,
+    // so the transaction grows by exactly one byte per tail byte.
+    let probe = 1_000;
+    let overhead = bcs::serialized_size(&build(probe)).unwrap() - probe;
+    let at_limit = cap - overhead;
+    assert!(
+        at_limit < pure_size,
+        "the tail input has to stay under `max_pure_argument_size`"
+    );
+
+    let tx = build(at_limit);
+    assert_eq!(bcs::serialized_size(&tx).unwrap(), cap);
+    tx.validity_check_no_gas_check(&config).unwrap();
+    tx.check_serialized_size(&config).unwrap();
+
+    let err = build(at_limit + 1)
+        .check_serialized_size(&config)
+        .unwrap_err();
+    let IotaError::UserInput { error } = &err else {
+        panic!("expected a user input error, got {err:?}");
+    };
+    assert_size_limit_err(error, "serialized transaction size exceeded maximum");
+}
+
+#[test]
+fn check_serialized_size_rejects_a_transaction_above_the_size_limit() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let sender = Address::random();
+    let gas_data = GasPayment {
+        objects: vec![],
+        owner: sender,
+        price: 1,
+        budget: 1,
+    };
+
+    let kind = TransactionKind::new_programmable(ptb_above_max_tx_size(&config));
+    let tx = Transaction::new_with_gas_data(kind, sender, gas_data);
+    // Nothing but the size cap rejects this transaction.
+    tx.validity_check_no_gas_check(&config).unwrap();
+    let err = tx.check_serialized_size(&config).unwrap_err();
+    let IotaError::UserInput { error } = &err else {
+        panic!("expected a user input error, got {err:?}");
+    };
+    assert_size_limit_err(error, "serialized transaction size exceeded maximum");
+
+    make_transaction_data(sender)
+        .check_serialized_size(&config)
+        .unwrap();
 }

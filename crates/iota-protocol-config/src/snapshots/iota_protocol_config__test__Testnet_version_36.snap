@@ -49,6 +49,7 @@ feature_flags:
   pcool_skip_immutable_object_locks: true
   pcool_verifier_limits_from_protocol_config: true
   validator_metadata_verify_v2: true
+  deny_authenticator_packages: true
   package_metadata_with_dynamic_module_metadata: true
   report_move_authentication_error: true
   consensus_enable_sliding_window_leader_schedule: true
@@ -57,6 +58,7 @@ feature_flags:
   allow_unbounded_system_objects: true
   validate_input_object_versions: true
   disallow_self_identifier: true
+  check_canonical_module_version_header: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

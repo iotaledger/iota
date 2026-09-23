@@ -12,8 +12,9 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes as _};
 use futures::{Stream, StreamExt as _, TryStreamExt as _, stream};
-use iota_http::ServerHandle;
+use iota_http::{PeerConnectionEvent, ServerHandle};
 use iota_network_stack::{
     Multiaddr,
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
@@ -22,6 +23,7 @@ use iota_network_stack::{
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
+use tokio::sync::Mutex;
 use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
@@ -30,7 +32,7 @@ use tracing::{debug, error, info, trace, warn};
 use super::{
     BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
     admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
-    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
+    metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
@@ -112,7 +114,7 @@ impl TonicClient {
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
         let client = ConsensusServiceClient::new(channel)
-            .max_encoding_message_size(config.message_size_limit)
+            .max_encoding_message_size(config.request_message_size_limit())
             .max_decoding_message_size(config.message_size_limit)
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
@@ -445,7 +447,7 @@ impl NetworkClient for TonicClient {
             })?
             .into_inner();
 
-        collect_commits_and_transactions(&self.context, peer, stream).await
+        collect_commits_and_transactions(&self.context, peer, &commit_range, stream).await
     }
 }
 
@@ -455,6 +457,7 @@ impl NetworkClient for TonicClient {
 async fn collect_commits_and_transactions<S>(
     context: &Context,
     peer: AuthorityIndex,
+    commit_range: &CommitRange,
     mut stream: S,
 ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)>
 where
@@ -465,15 +468,15 @@ where
     // Bound the response per element and per category while streaming, since
     // `verify_commits` only runs on the fully-received buffers and so cannot
     // protect them from a malicious server. Commits and certifier headers
-    // carry the same count caps `verify_commits` applies
-    // (`2 * fast_commit_sync_batch_size` and two headers per authority).
+    // carry the same count caps `verify_commits` applies (twice the requested
+    // range and two headers per authority).
     // Transactions have no count cap on the fast path — the server returns
     // every transaction the committed range references — so only their
     // per-element size is enforced here; their count is validated against
     // the commits downstream, and the coarse total below bounds the buffer.
     let committee_size = context.committee.size();
     let gc_depth = context.protocol_config.gc_depth() as usize;
-    let max_commits = CommitSyncType::Fast.max_commits_per_response(context);
+    let max_commits = CommitSyncType::Fast.max_commits_per_response(commit_range);
     let max_certifier_headers =
         committee_size.saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
     let max_commit_size = max_commit_bytes(committee_size, gc_depth);
@@ -611,13 +614,21 @@ struct ChannelPool {
     context: Arc<Context>,
     // Size is limited by known authorities in the committee.
     channels: RwLock<BTreeMap<AuthorityIndex, Channel>>,
+    /// Held while connecting to the peer at that index, so callers that miss
+    /// the pool at the same time share one connection instead of each
+    /// opening their own.
+    connecting: Vec<Mutex<()>>,
 }
 
 impl ChannelPool {
     fn new(context: Arc<Context>) -> Self {
+        let connecting = (0..context.committee.size())
+            .map(|_| Mutex::new(()))
+            .collect();
         Self {
             context,
             channels: RwLock::new(BTreeMap::new()),
+            connecting,
         }
     }
 
@@ -627,6 +638,15 @@ impl ChannelPool {
         peer: AuthorityIndex,
         timeout: Duration,
     ) -> ConsensusResult<Channel> {
+        {
+            let channels = self.channels.read();
+            if let Some(channel) = channels.get(&peer) {
+                return Ok(channel.clone());
+            }
+        }
+
+        let _connecting = self.connecting[peer.value()].lock().await;
+        // Another caller may have connected while this one waited for the lock.
         {
             let channels = self.channels.read();
             if let Some(channel) = channels.get(&peer) {
@@ -695,10 +715,8 @@ impl ChannelPool {
             )
             .service(channel);
 
-        let mut channels = self.channels.write();
-        // There should not be many concurrent attempts at connecting to the same peer.
-        let channel = channels.entry(peer).or_insert(channel);
-        Ok(channel.clone())
+        self.channels.write().insert(peer, channel.clone());
+        Ok(channel)
     }
 }
 
@@ -1122,6 +1140,12 @@ where
 /// abort an otherwise healthy subscription. Bounded RPCs are not listed.
 const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBlockBundles"];
 
+/// Connections a single committee peer may hold on the consensus listener at
+/// once. One is enough to serve a peer: the channel pool keeps a single
+/// connection per authority and multiplexes every RPC over it. The rest is
+/// headroom for a reconnect whose predecessor has not been reaped yet.
+const MAX_CONNECTIONS_PER_PEER: usize = 4;
+
 impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
         Self {
@@ -1162,17 +1186,20 @@ impl<S: NetworkService> TonicManager<S> {
         let connections_info = Arc::new(ConnectionsInfo::new(self.context.clone()));
         let layers = tower::ServiceBuilder::new()
             // Add a layer to extract a peer's PeerInfo from their TLS certs
-            .map_request(move |mut request: http::Request<_>| {
-                if let Some(peer_certificates) =
-                    request.extensions().get::<iota_http::PeerCertificates>()
-                {
-                    if let Some(peer_info) =
-                        peer_info_from_certs(&connections_info, peer_certificates)
+            .map_request({
+                let connections_info = connections_info.clone();
+                move |mut request: http::Request<_>| {
+                    if let Some(peer_certificates) =
+                        request.extensions().get::<iota_http::PeerCertificates>()
                     {
-                        request.extensions_mut().insert(peer_info);
+                        if let Some(peer_info) =
+                            peer_info_from_certs(&connections_info, peer_certificates)
+                        {
+                            request.extensions_mut().insert(peer_info);
+                        }
                     }
+                    request
                 }
-                request
             })
             .layer(CallbackLayer::new(MetricsCallbackMaker::new(
                 self.context.metrics.network_metrics.inbound.clone(),
@@ -1196,17 +1223,9 @@ impl<S: NetworkService> TonicManager<S> {
                 }
             });
 
-        // Inbound (decoded) requests are small; bound them tighter than the
-        // (large) response encoding limit when configured. `0` falls back to
-        // `message_size_limit`.
-        let max_decoding_message_size = if config.max_inbound_message_size == 0 {
-            config.message_size_limit
-        } else {
-            config.max_inbound_message_size
-        };
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
-            .max_decoding_message_size(max_decoding_message_size)
+            .max_decoding_message_size(config.request_message_size_limit())
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
 
@@ -1272,7 +1291,32 @@ impl<S: NetworkService> TonicManager<S> {
             )
             .http2_keepalive_interval(Some(config.keepalive_interval))
             .http2_keepalive_timeout(Some(config.keepalive_interval))
-            .accept_http1(false);
+            .accept_http1(false)
+            .max_connections_per_peer(Some(MAX_CONNECTIONS_PER_PEER))
+            .on_peer_connection_event({
+                let context = self.context.clone();
+                let connections_info = connections_info.clone();
+                move |peer_public_key, event| {
+                    let Some(authority_index) =
+                        authority_index_from_key(&connections_info, peer_public_key)
+                    else {
+                        return;
+                    };
+                    let hostname = &context.committee.authority(authority_index).hostname;
+                    let network_metrics = &context.metrics.network_metrics;
+                    match event {
+                        PeerConnectionEvent::Established { held }
+                        | PeerConnectionEvent::Closed { held } => network_metrics
+                            .inbound_connections
+                            .with_label_values(&[hostname])
+                            .set(held as i64),
+                        PeerConnectionEvent::RefusedAtLimit { .. } => network_metrics
+                            .inbound_connections_refused
+                            .with_label_values(&[hostname])
+                            .inc(),
+                    }
+                }
+            });
 
         // Create server
         //
@@ -1325,6 +1369,15 @@ impl<S: NetworkService> Drop for TonicManager<S> {
             server.trigger_shutdown();
         }
     }
+}
+
+/// Resolves a peer's raw network public key to its index in the committee.
+fn authority_index_from_key(
+    connections_info: &ConnectionsInfo,
+    public_key: &[u8],
+) -> Option<AuthorityIndex> {
+    let public_key = Ed25519PublicKey::from_bytes(public_key).ok()?;
+    connections_info.authority_index(&NetworkPublicKey::new(public_key))
 }
 
 // TODO: improve iota-http to allow for providing a MakeService so that this can
@@ -1447,19 +1500,6 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
-/// Calculate approximate size of HTTP headers.
-/// Note: This is an approximation of uncompressed size. Actual wire size will
-/// be smaller due to HTTP/2 HPACK compression.
-fn calculate_header_size(headers: &http::HeaderMap) -> usize {
-    headers
-        .iter()
-        .map(|(name, value)| {
-            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
-            name.as_str().len() + value.len() + 4
-        })
-        .sum()
-}
-
 /// Path prefix the consensus service is served under.
 const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
 
@@ -1491,50 +1531,22 @@ fn route_label(path: &str) -> &'static str {
         .unwrap_or(UNKNOWN_ROUTE)
 }
 
-impl SizedRequest for http::request::Parts {
-    fn size(&self) -> usize {
-        let header_size = calculate_header_size(&self.headers);
-        let body_size = self
-            .headers
-            .get(http::header::CONTENT_LENGTH)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(0);
-        header_size + body_size
-    }
-
-    fn route(&self) -> &'static str {
-        route_label(self.uri.path())
-    }
-}
-
-impl SizedResponse for http::response::Parts {
-    fn size(&self) -> usize {
-        // Return header size only. Body size is tracked separately via
-        // ResponseHandler::on_body_chunk callback to support streaming responses.
-        calculate_header_size(&self.headers)
-    }
-
-    fn error_type(&self) -> Option<String> {
-        if self.status.is_success() {
-            None
-        } else {
-            Some(self.status.to_string())
-        }
-    }
+/// Error label for a failed HTTP status, `None` for a successful one.
+fn response_error_type(response: &http::response::Parts) -> Option<String> {
+    (!response.status.is_success()).then(|| response.status.to_string())
 }
 
 impl MakeCallbackHandler for MetricsCallbackMaker {
     type Handler = MetricsResponseCallback;
 
     fn make_handler(&self, request: &http::request::Parts) -> Self::Handler {
-        self.handle_request(request)
+        self.handle_request(route_label(request.uri.path()))
     }
 }
 
 impl ResponseHandler for MetricsResponseCallback {
     fn on_response(&mut self, response: &http::response::Parts) {
-        MetricsResponseCallback::on_response(self, response, &response.headers)
+        MetricsResponseCallback::on_response(self, response_error_type(response).as_deref())
     }
 
     fn on_error<E>(&mut self, err: &E) {
@@ -1545,8 +1557,13 @@ impl ResponseHandler for MetricsResponseCallback {
     where
         B: bytes::Buf,
     {
-        let chunk_size = chunk.chunk().len();
-        self.on_chunk(chunk_size);
+        // Body data is `Bytes`, so the first chunk is the whole buffer.
+        debug_assert_eq!(chunk.chunk().len(), chunk.remaining());
+        self.on_chunk(chunk.chunk());
+    }
+
+    fn on_end_of_stream(&mut self, _trailers: Option<&http::HeaderMap>) {
+        MetricsResponseCallback::on_end_of_stream(self);
     }
 }
 
@@ -1713,7 +1730,7 @@ mod tests {
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
-        block_verifier::serialized_transactions_size_limit, context::Context,
+        block_verifier::serialized_transactions_size_limit, commit::CommitRange, context::Context,
         error::ConsensusError,
     };
 
@@ -1725,6 +1742,11 @@ mod tests {
         }
     }
 
+    /// Wide enough for the tests below to trip the cap each one exercises.
+    fn requested_range() -> CommitRange {
+        (1..=10).into()
+    }
+
     /// A stream cut before anything arrived delivers nothing to keep, so the
     /// fetch fails outright.
     #[tokio::test]
@@ -1733,7 +1755,8 @@ mod tests {
         let peer = AuthorityIndex::new_for_test(1);
         let cut = stream::iter([Err(tonic::Status::unknown("h2 protocol error"))]);
 
-        let result = collect_commits_and_transactions(&context, peer, cut).await;
+        let result =
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut).await;
 
         assert!(matches!(result, Err(ConsensusError::NetworkRequest(_))));
     }
@@ -1752,7 +1775,7 @@ mod tests {
         ]);
 
         let (commits, _headers, transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, cut)
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut)
                 .await
                 .expect("a cut after commits arrived keeps them");
 
@@ -1773,7 +1796,7 @@ mod tests {
         let clean = stream::iter([Ok(chunk(2, 3))]);
 
         let (commits, _headers, transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, clean)
+            collect_commits_and_transactions(&context, peer, &requested_range(), clean)
                 .await
                 .expect("a clean stream is kept in full");
 
@@ -1794,13 +1817,51 @@ mod tests {
         ]);
 
         let (_commits, _headers, _transactions, stream_error) =
-            collect_commits_and_transactions(&context, peer, cut)
+            collect_commits_and_transactions(&context, peer, &requested_range(), cut)
                 .await
                 .expect("a cut after commits arrived keeps them");
 
         assert!(matches!(
             stream_error,
             Some(ConsensusError::NetworkRequestTimeout(_))
+        ));
+    }
+
+    /// The commit cap comes from the requested range, so a response filling the
+    /// whole extension a server with a larger batch size may add is accepted.
+    #[tokio::test]
+    async fn commits_up_to_twice_the_requested_range_are_kept() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let requested: CommitRange = (1..=4).into();
+        let maximal = stream::iter([Ok(chunk(8, 0))]);
+
+        let (commits, _headers, _transactions, _error) =
+            collect_commits_and_transactions(&context, peer, &requested, maximal)
+                .await
+                .expect("twice the requested range is within the cap");
+
+        assert_eq!(commits.len(), 8);
+    }
+
+    /// One commit past twice the requested range is more than the extension
+    /// can reach, so the response is rejected.
+    #[tokio::test]
+    async fn commits_past_twice_the_requested_range_are_rejected() {
+        let (context, _keys) = Context::new_for_test(4);
+        let peer = AuthorityIndex::new_for_test(1);
+        let requested: CommitRange = (1..=4).into();
+        let flood = stream::iter([Ok(chunk(9, 0))]);
+
+        let result = collect_commits_and_transactions(&context, peer, &requested, flood).await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitsFromPeer {
+                count: 9,
+                limit: 8,
+                ..
+            })
         ));
     }
 
