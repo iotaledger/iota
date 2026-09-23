@@ -33,14 +33,14 @@ pub struct EpochSnapshotHandle {
     /// while the previous one is still being written is dropped rather than
     /// queued: waiting for a scan that takes minutes would hold up
     /// reconfiguration, and the next epoch's snapshot is as good.
-    writer_idle: Arc<Semaphore>,
+    write_permits: Arc<Semaphore>,
 }
 
 impl EpochSnapshotHandle {
     pub fn new(requests: mpsc::Sender<EpochSnapshotRequest>) -> Self {
         Self {
             requests,
-            writer_idle: Arc::new(Semaphore::new(1)),
+            write_permits: Arc::new(Semaphore::new(1)),
         }
     }
 
@@ -53,7 +53,7 @@ impl EpochSnapshotHandle {
     /// a missing state snapshot costs one epoch of history, holding the
     /// boundary costs the network.
     pub async fn hand_over(&self, epoch: EpochId) -> HandOver {
-        let Ok(writer_idle) = self.writer_idle.clone().try_acquire_owned() else {
+        let Ok(write_permit) = self.write_permits.clone().try_acquire_owned() else {
             warn!(
                 epoch,
                 "still writing an earlier epoch's state snapshot; skipping this one"
@@ -64,7 +64,7 @@ impl EpochSnapshotHandle {
         let request = EpochSnapshotRequest {
             epoch,
             db_snapshot_taken,
-            writer_idle,
+            write_permit,
         };
         if let Err(err) = self.requests.try_send(request) {
             warn!(epoch, "not writing a state snapshot for this epoch: {err}");
@@ -132,7 +132,7 @@ pub struct EpochSnapshotRequest {
     pub db_snapshot_taken: oneshot::Sender<()>,
     /// Released when the writer is done with this epoch, which is what lets
     /// the next boundary hand one over. See [`EpochSnapshotHandle`].
-    pub writer_idle: OwnedSemaphorePermit,
+    pub write_permit: OwnedSemaphorePermit,
 }
 
 #[cfg(test)]
@@ -209,7 +209,7 @@ mod tests {
 
         // Once the writer is done with that epoch, the next one is handed
         // over again, and its boundary waits for its own snapshot.
-        drop(request.writer_idle);
+        drop(request.write_permit);
         let third = handle.hand_over(2);
         tokio::pin!(third);
         assert!(

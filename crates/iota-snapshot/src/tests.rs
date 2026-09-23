@@ -1460,7 +1460,7 @@ async fn a_failed_remote_clear_fails_the_epoch_and_leaves_it_retryable() -> Resu
     let request = || EpochSnapshotRequest {
         epoch: 0,
         db_snapshot_taken: db_snapshot_taken(),
-        writer_idle: Arc::new(Semaphore::new(1))
+        write_permit: Arc::new(Semaphore::new(1))
             .try_acquire_owned()
             .expect("a fresh permit"),
     };
@@ -1516,7 +1516,7 @@ async fn a_writer_abandons_an_epoch_no_boundary_is_waiting_for() -> Result<(), a
         .write_state_snapshot(EpochSnapshotRequest {
             epoch: 0,
             db_snapshot_taken,
-            writer_idle: Arc::new(Semaphore::new(1))
+            write_permit: Arc::new(Semaphore::new(1))
                 .try_acquire_owned()
                 .expect("a fresh permit"),
         })
@@ -1565,7 +1565,7 @@ async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyho
                 .write_state_snapshot(EpochSnapshotRequest {
                     epoch: 0,
                     db_snapshot_taken,
-                    writer_idle: Arc::new(Semaphore::new(1))
+                    write_permit: Arc::new(Semaphore::new(1))
                         .try_acquire_owned()
                         .expect("a fresh permit"),
                 })
