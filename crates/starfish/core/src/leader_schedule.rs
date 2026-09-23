@@ -964,6 +964,32 @@ mod tests {
         );
     }
 
+    // Every authority must elect the same leader for a round, so the exact
+    // result of the stake-weighted draw is checked, with uneven stakes so that
+    // the weights matter.
+    // If this fails, don't update the values: gate the change behind a
+    // protocol feature flag.
+    #[tokio::test]
+    async fn test_elect_leader_stake_based_uneven_stake_exact_values() {
+        let (committee, _) =
+            starfish_config::local_committee_and_keys(0, vec![1, 2, 3, 5, 10, 25, 54]);
+        let context = Arc::new(Context::new_for_test(7).0.with_committee(committee));
+        let leader_schedule = LeaderSchedule::new(context, LeaderSwapTable::default());
+
+        for (round, expected) in [
+            (0, [4, 5, 6, 1, 3, 2, 0]),
+            (1, [5, 6, 1, 4, 2, 3, 0]),
+            (7, [5, 6, 2, 4, 3, 0, 1]),
+            (1000, [6, 5, 4, 0, 2, 3, 1]),
+        ] {
+            let leaders = (0..7)
+                .map(|offset| leader_schedule.elect_leader_stake_based(round, offset))
+                .collect::<Vec<_>>();
+            let expected = expected.map(AuthorityIndex::new_for_test).to_vec();
+            assert_eq!(leaders, expected, "round {round}");
+        }
+    }
+
     #[tokio::test]
     async fn test_elect_leader_uniform() {
         let context = Arc::new(Context::new_for_test(4).0);
