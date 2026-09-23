@@ -114,8 +114,9 @@ pub struct HandlerProcessedObject {
     /// Index of the commit whose execution produced this row; reads at commit
     /// C treat rows above the horizon (C − K) as missing
     pub produced_at: CommitIndex,
-    /// `Some` iff the object was created as shared this epoch; doubles as the
-    /// created-shared flag for the shared-input checks.
+    /// The initial shared version on a shared object's creation row and on
+    /// its `Deleted` row. `None` on every other row. The shared-input checks
+    /// read it as the created-shared flag and to verify a declared version.
     pub initial_shared_version: Option<Version>,
 }
 
@@ -140,17 +141,23 @@ pub struct SyncAheadRecord {
     /// The highest version the chain has created so far; extended as the
     /// chain grows.
     pub latest_created: Version,
+    /// `Some` when the base version's owner was `Shared`, carrying its initial
+    /// shared version. Lets the shared reader check a declared initial version
+    /// once sync has deleted the object here.
+    pub initial_shared_version: Option<Version>,
 }
 
 /// One object write of a sync-ahead execution, as input to the sync-record
 /// upsert: `consumed` is the input version this write superseded (`None` when
 /// the execution created the object), `created` the version it produced
-/// (tombstone version for deletions and wraps).
+/// (tombstone version for deletions and wraps), `initial_shared_version` the
+/// consumed input's initial shared version when its owner was `Shared`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SyncAheadWrite {
     pub id: ObjectId,
     pub consumed: Option<Version>,
     pub created: Version,
+    pub initial_shared_version: Option<Version>,
 }
 
 /// The rows a commit's executed transactions produce. Both writers of durable
@@ -168,12 +175,20 @@ pub fn handler_rows_for_commit<'a>(
 
 /// Derives the handler-latest upserts for one executed transaction of the
 /// commit at `produced_at`: created / mutated / unwrapped objects become
-/// `Live` rows, deletions and wraps become tombstone rows.
+/// `Live` rows, deletions and wraps become tombstone rows. A deleted shared
+/// object's row keeps its initial shared version, taken from the consumed
+/// input's owner.
 pub fn handler_latest_upserts(
     effects: &TransactionEffects,
     produced_at: CommitIndex,
 ) -> Vec<(ObjectKey, HandlerProcessedObject)> {
     let changed = effects.all_changed_objects();
+    let old_owners: BTreeMap<ObjectId, Owner> = effects
+        .old_object_metadata()
+        .into_iter()
+        .map(|owned_ref| (owned_ref.reference.object_id, owned_ref.owner))
+        .collect();
+
     let mut rows = Vec::with_capacity(changed.len());
     for (owned_ref, write_kind) in changed {
         let initial_shared_version = match (write_kind, owned_ref.owner) {
@@ -203,13 +218,17 @@ pub fn handler_latest_upserts(
         .into_iter()
         .map(|reference| (reference, HandlerProcessedObjectKind::Wrapped));
     for (reference, kind) in deleted.chain(wrapped) {
+        let initial_shared_version = match old_owners.get(&reference.object_id) {
+            Some(Owner::Shared(initial)) => Some(*initial),
+            _ => None,
+        };
         rows.push((
             ObjectKey(reference.object_id, reference.version),
             HandlerProcessedObject {
                 digest: reference.digest,
                 kind,
                 produced_at,
-                initial_shared_version: None,
+                initial_shared_version,
             },
         ));
     }
@@ -224,32 +243,49 @@ pub fn handler_latest_upserts(
 /// mirroring the handler-latest churn rule; shared creations and deletions
 /// are included (a sync-ahead shared deletion must stay invisible to
 /// validation, which the record's restored pre-sync existence provides).
+/// A consumed input's owner is the last place its initial shared version
+/// exists once the deletion has executed, so the write carries it.
 pub fn sync_ahead_writes(
     effects: &TransactionEffects,
     old_metadata: &[OwnedObjectReference],
 ) -> Vec<SyncAheadWrite> {
-    let old_versions: BTreeMap<ObjectId, Version> = old_metadata
+    let old_inputs: BTreeMap<ObjectId, (Version, Owner)> = old_metadata
         .iter()
-        .map(|owned_ref| (owned_ref.reference.object_id, owned_ref.reference.version))
+        .map(|owned_ref| {
+            (
+                owned_ref.reference.object_id,
+                (owned_ref.reference.version, owned_ref.owner),
+            )
+        })
         .collect();
+    // The consumed version and, when the consumed owner was shared, its
+    // initial shared version.
+    let consumed_input = |id: &ObjectId| -> (Option<Version>, Option<Version>) {
+        match old_inputs.get(id) {
+            Some((version, Owner::Shared(initial))) => (Some(*version), Some(*initial)),
+            Some((version, _)) => (Some(*version), None),
+            None => (None, None),
+        }
+    };
     let changed = effects.all_changed_objects();
     let mut writes = Vec::with_capacity(changed.len());
     for (owned_ref, write_kind) in changed {
         let id = owned_ref.reference.object_id;
-        let consumed = match (write_kind, owned_ref.owner) {
+        let (consumed, initial_shared_version) = match (write_kind, owned_ref.owner) {
             // Creations restore nothing. Unwraps restore nothing either: the
             // object had no live version before this chain ran, no matter
             // when the wrap happened - and if this same chain wrapped it, a
             // record carrying the pre-wrap version already exists and the
             // upsert keeps it.
-            (WriteKind::Create | WriteKind::Unwrap, _) => None,
+            (WriteKind::Create | WriteKind::Unwrap, _) => (None, None),
             (WriteKind::Mutate, Owner::Shared(_)) => continue,
-            (WriteKind::Mutate, _) => old_versions.get(&id).copied(),
+            (WriteKind::Mutate, _) => consumed_input(&id),
         };
         writes.push(SyncAheadWrite {
             id,
             consumed,
             created: owned_ref.reference.version,
+            initial_shared_version,
         });
     }
     for reference in effects.unwrapped_then_deleted() {
@@ -257,14 +293,17 @@ pub fn sync_ahead_writes(
             id: reference.object_id,
             consumed: None,
             created: reference.version,
+            initial_shared_version: None,
         });
     }
     for reference in chain(effects.deleted(), effects.wrapped()) {
         let id = reference.object_id;
+        let (consumed, initial_shared_version) = consumed_input(&id);
         writes.push(SyncAheadWrite {
             id,
-            consumed: old_versions.get(&id).copied(),
+            consumed,
             created: reference.version,
+            initial_shared_version,
         });
     }
     writes
@@ -854,11 +893,11 @@ impl HandlerObjectState {
                     self.live_sync_ahead_records_count
                         .fetch_add(1, Ordering::Relaxed);
                 }
-                let base_version = match current {
+                let (base_version, initial_shared_version) = match current {
                     // First write of the chain: what it consumed is what was
                     // latest before the chain started (`None` when it created
                     // the object).
-                    None => write.consumed,
+                    None => (write.consumed, write.initial_shared_version),
                     // The chain already has a record: keep its
                     // `base_version` and ignore `write.consumed` - later
                     // writes consume the chain's own outputs, which exist
@@ -866,13 +905,14 @@ impl HandlerObjectState {
                     // chain that created the object and then mutates it must
                     // keep `None`, or validation here would answer keep for a
                     // version every other validator answers missing.
-                    Some(record) => record.base_version,
+                    Some(record) => (record.base_version, record.initial_shared_version),
                 };
                 overlay.insert(
                     write.id,
                     SyncAheadRecord {
                         base_version,
                         latest_created: write.created,
+                        initial_shared_version,
                     },
                 );
             }
@@ -998,12 +1038,15 @@ mod tests {
         created_shared: ObjectId,
         mutated_owned: ObjectId,
         deleted: ObjectId,
+        deleted_shared: ObjectId,
         wrapped: ObjectId,
         unwrapped: ObjectId,
         gas: ObjectId,
     }
 
     const CREATED_SHARED_INITIAL_VERSION: u64 = 42;
+    const DELETED_SHARED_INITIAL_VERSION: u64 = 4;
+    const DELETED_SHARED_CONSUMED_VERSION: u64 = 6;
 
     fn effects_fixture() -> EffectsFixture {
         let transaction = owned_inputs_tx(1);
@@ -1012,6 +1055,7 @@ mod tests {
         let created_shared = ObjectId::random();
         let mutated_owned = ObjectId::random();
         let deleted = ObjectId::random();
+        let deleted_shared = ObjectId::random();
         let wrapped = ObjectId::random();
         let unwrapped = ObjectId::random();
         let effects = TestEffectsBuilder::new(&transaction)
@@ -1028,6 +1072,11 @@ mod tests {
                 Owner::Address(Address::ZERO),
             )])
             .with_deleted_objects([(deleted, Version::from_u64(3))])
+            .with_deleted_objects_owned_by([(
+                deleted_shared,
+                Version::from_u64(DELETED_SHARED_CONSUMED_VERSION),
+                Owner::Shared(Version::from_u64(DELETED_SHARED_INITIAL_VERSION)),
+            )])
             .with_wrapped_objects([(wrapped, Version::from_u64(2))])
             .with_unwrapped_objects([(unwrapped, Owner::Address(Address::ZERO))])
             .build();
@@ -1037,6 +1086,7 @@ mod tests {
             created_shared,
             mutated_owned,
             deleted,
+            deleted_shared,
             wrapped,
             unwrapped,
             gas,
@@ -1082,18 +1132,28 @@ mod tests {
             HandlerProcessedObjectKind::Live
         );
 
-        assert_eq!(
-            rows[&fixture.deleted].kind,
-            HandlerProcessedObjectKind::Deleted
-        );
+        let deleted = &rows[&fixture.deleted];
+        assert_eq!(deleted.kind, HandlerProcessedObjectKind::Deleted);
         assert_eq!(version(&fixture.deleted), lamport);
-        assert_eq!(
-            rows[&fixture.wrapped].kind,
-            HandlerProcessedObjectKind::Wrapped
-        );
-        assert_eq!(version(&fixture.wrapped), lamport);
+        assert_eq!(deleted.initial_shared_version, None);
 
-        assert_eq!(rows.len(), 7);
+        // A deleted shared object's tombstone row keeps the initial shared
+        // version, the only place a validator that executed the deletion can
+        // still read it.
+        let deleted_shared = &rows[&fixture.deleted_shared];
+        assert_eq!(deleted_shared.kind, HandlerProcessedObjectKind::Deleted);
+        assert_eq!(version(&fixture.deleted_shared), lamport);
+        assert_eq!(
+            deleted_shared.initial_shared_version,
+            Some(Version::from_u64(DELETED_SHARED_INITIAL_VERSION))
+        );
+
+        let wrapped = &rows[&fixture.wrapped];
+        assert_eq!(wrapped.kind, HandlerProcessedObjectKind::Wrapped);
+        assert_eq!(version(&fixture.wrapped), lamport);
+        assert_eq!(wrapped.initial_shared_version, None);
+
+        assert_eq!(rows.len(), 8);
     }
 
     #[test]
@@ -1126,7 +1186,23 @@ mod tests {
         for write in writes.values() {
             assert_eq!(write.created, lamport);
         }
-        assert_eq!(writes.len(), 7);
+
+        // Only a consumed shared input carries its initial shared version.
+        let deleted_shared = &writes[&fixture.deleted_shared];
+        assert_eq!(
+            deleted_shared.consumed,
+            Some(Version::from_u64(DELETED_SHARED_CONSUMED_VERSION))
+        );
+        assert_eq!(
+            deleted_shared.initial_shared_version,
+            Some(Version::from_u64(DELETED_SHARED_INITIAL_VERSION))
+        );
+        for (id, write) in &writes {
+            if *id != fixture.deleted_shared {
+                assert_eq!(write.initial_shared_version, None, "{id:?}");
+            }
+        }
+        assert_eq!(writes.len(), 8);
     }
 
     #[test]
