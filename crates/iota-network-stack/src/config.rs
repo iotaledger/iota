@@ -72,6 +72,35 @@ pub struct Config {
     /// Default is 20 seconds.
     pub http2_keepalive_timeout: Option<Duration>,
 
+    /// Only affects servers. How long a connection may serve no request before
+    /// it is closed. Keepalive closes a connection whose peer has gone; this
+    /// closes one whose peer is present and doing nothing.
+    ///
+    /// Must exceed the longest gap between requests a legitimate peer leaves.
+    ///
+    /// Default is no limit (`None`).
+    pub max_connection_idle: Option<Duration>,
+
+    /// Only affects servers. How long a connection may exist at all, however
+    /// busy.
+    ///
+    /// Default is no limit (`None`).
+    pub max_connection_age: Option<Duration>,
+
+    /// Only affects servers. How many connections this listener may serve at
+    /// once; the bound on its file descriptors.
+    ///
+    /// Default is no limit (`None`).
+    pub max_connections: Option<usize>,
+
+    /// Only affects servers. How many connections one peer may hold, counted
+    /// by client certificate where there is one and by address prefix
+    /// otherwise. This stops one peer taking the whole of `max_connections`;
+    /// it is not itself a bound, since the number of peers is not.
+    ///
+    /// Default is no limit (`None`).
+    pub max_connections_per_peer: Option<usize>,
+
     // Only affects servers
     pub load_shed: Option<bool>,
 
@@ -115,5 +144,9 @@ impl Config {
             .http2_keepalive_interval(self.http2_keepalive_interval)
             .tcp_keepalive(self.tcp_keepalive)
             .tcp_nodelay(self.tcp_nodelay.unwrap_or_default())
+            .max_connection_idle(self.max_connection_idle)
+            .max_connections(self.max_connections)
+            .max_connections_per_peer(self.max_connections_per_peer)
+            .max_connection_age(self.max_connection_age)
     }
 }

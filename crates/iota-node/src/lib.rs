@@ -1558,6 +1558,20 @@ impl IotaNode {
         // long without inbound frames and drops the connection when the ping
         // goes unanswered for as long again.
         const VALIDATOR_GRPC_KEEPALIVE: Duration = Duration::from_secs(60);
+        // Closes a connection whose peer is still there but has stopped asking
+        // for anything. Keepalive cannot: a peer that answers pings looks alive
+        // however long it stays silent otherwise.
+        //
+        // A fullnode's health checks run every 10s, but only where the P-COOL
+        // flow is enabled, so on a network without it a quiet fullnode can
+        // legitimately leave a connection unused for minutes. This is sized for
+        // that case; the cost of being wrong is one round trip to reconnect,
+        // since TLS resumption skips the server's signature.
+        const VALIDATOR_GRPC_IDLE: Duration = Duration::from_secs(300);
+        // Stops one peer holding the whole listener. It is not itself a bound:
+        // clients are not a known set, so this many connections are allowed per
+        // address prefix, and the number of prefixes is not ours to limit.
+        const VALIDATOR_GRPC_CONNECTIONS_PER_PEER: usize = 16;
         // Bounds the streams one connection may hold open, so a single peer
         // cannot fill a service's admission slots on its own. A fullnode sends
         // every request to this validator over one connection, so the cap must
@@ -1568,6 +1582,13 @@ impl IotaNode {
         server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
         server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
         server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
+        server_conf.max_connection_idle = Some(VALIDATOR_GRPC_IDLE);
+        server_conf.max_connections = Some(
+            config
+                .grpc_max_connections
+                .unwrap_or_else(listener_connection_budget),
+        );
+        server_conf.max_connections_per_peer = Some(VALIDATOR_GRPC_CONNECTIONS_PER_PEER);
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
                 .add_service_with_concurrency_limit(
@@ -2584,6 +2605,24 @@ async fn build_grpc_server(
 ///    IndexerApi.
 /// 4. Binds the server to the specified JSON-RPC address and starts listening
 ///    for incoming connections.
+/// How many connections one listener may serve, as a share of the file
+/// descriptors this process may open.
+///
+/// A fixed number cannot be right: the ceiling is the deployment's, not this
+/// repository's, and nothing here sets it. The node already raises its own
+/// limit to that ceiling at startup and gives RocksDB the same share, so a
+/// listener takes its share of the same budget and the rest is left for
+/// consensus, state sync and the other listener.
+fn listener_connection_budget() -> usize {
+    /// Used where the platform reports no limit, which is Windows only.
+    const UNKNOWN_FD_LIMIT_BUDGET: usize = 2048;
+
+    typed_store::rocks::raise_fd_limit()
+        .map(|limit| (limit / typed_store::rocks::FD_LIMIT_SHARE) as usize)
+        .unwrap_or(UNKNOWN_FD_LIMIT_BUDGET)
+        .max(1)
+}
+
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
@@ -2673,10 +2712,28 @@ pub async fn build_http_server(
 
     router = router.layer(layers);
 
+    // This listener has no TLS, so it has no handshake phase and never enters
+    // the pending-connection gate: these are the only bounds it has.
+    //
+    // The idle deadline is generous because a JSON-RPC client pools its
+    // connections and may legitimately hold one unused between calls. HTTP/1
+    // connections are closed sooner anyway, by hyper's header read deadline,
+    // which also bounds the wait for the next request on a kept-alive
+    // connection; this covers the HTTP/2 ones it does not reach.
+    const JSON_RPC_IDLE: Duration = Duration::from_secs(300);
+    const JSON_RPC_CONNECTIONS_PER_PEER: usize = 64;
+
     let connection_metrics = crate::metrics::JsonRpcConnectionMetrics::new(prometheus_registry);
     let handle = iota_http::Builder::new()
         .config(
             iota_http::Config::default()
+                .max_connection_idle(Some(JSON_RPC_IDLE))
+                .max_connections(Some(
+                    config
+                        .json_rpc_max_connections
+                        .unwrap_or_else(listener_connection_budget),
+                ))
+                .max_connections_per_peer(Some(JSON_RPC_CONNECTIONS_PER_PEER))
                 .on_connection_event(move |event| connection_metrics.record(event)),
         )
         .serve(&config.json_rpc_address, router)

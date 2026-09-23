@@ -215,12 +215,14 @@ impl Config {
         }
     }
 
-    /// Sets the maximum time option in milliseconds that a connection may exist
+    /// Sets how long a connection may exist at all, however busy. This is a
+    /// blunter bound than [`Config::max_connection_idle`], which it
+    /// complements rather than replaces: age closes a working connection too.
     ///
     /// Default is no limit (`None`).
-    pub fn max_connection_age(self, max_connection_age: Duration) -> Self {
+    pub fn max_connection_age(self, max_connection_age: Option<Duration>) -> Self {
         Self {
-            max_connection_age: Some(max_connection_age),
+            max_connection_age,
             ..self
         }
     }

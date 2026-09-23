@@ -385,6 +385,23 @@ impl DBOptions {
     }
 }
 
+/// The share of the process file-descriptor budget one subsystem may hold.
+///
+/// Small enough that several of them, plus everything else the process opens,
+/// stay within the limit.
+pub const FD_LIMIT_SHARE: u64 = 8;
+
+/// Raises this process's file-descriptor limit to its hard maximum and returns
+/// the result, or `None` where the platform does not support it (Windows).
+///
+/// Calling it more than once is harmless: it only ever raises the soft limit to
+/// the same ceiling. Anything that budgets file descriptors should size itself
+/// from this rather than from a fixed number, since the ceiling is set by the
+/// deployment and not by this repository.
+pub fn raise_fd_limit() -> Option<u64> {
+    fdlimit::raise_fd_limit()
+}
+
 /// Creates a default RocksDB option, to be used when RocksDB option is
 /// unspecified.
 pub fn default_db_options() -> DBOptions {
@@ -393,9 +410,9 @@ pub fn default_db_options() -> DBOptions {
     // One common issue when running tests on Mac is that the default ulimit is too
     // low, leading to I/O errors such as "Too many open files". Raising fdlimit
     // to bypass it.
-    if let Some(limit) = fdlimit::raise_fd_limit() {
+    if let Some(limit) = raise_fd_limit() {
         // on windows raise_fd_limit return None
-        opt.set_max_open_files((limit / 8) as i32);
+        opt.set_max_open_files((limit / FD_LIMIT_SHARE) as i32);
     }
 
     // The table cache is locked for updates and this determines the number
