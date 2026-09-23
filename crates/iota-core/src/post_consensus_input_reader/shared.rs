@@ -5,6 +5,11 @@
 //! creation row at the initial shared version, the store's deletion info and
 //! the store object, with no content read. One state per read, the store
 //! answer held until both tables are re-read, as in the owned machine.
+//!
+//! The re-read reads the creation row before the record, which is safe for
+//! the reason the owned machine's module doc gives: the first pass read the
+//! record before the store, so a record missed there means the completion
+//! had already inserted its row.
 
 use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
 use iota_types::{error::IotaResult, object::Object, storage::ObjectKey};

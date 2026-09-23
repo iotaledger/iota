@@ -6,6 +6,15 @@
 //! bookkeeping tables and epoch start state, and holds the verdict types the
 //! three input machines share.
 //!
+//! Every read that feeds a verdict runs in the reverse order of the writer
+//! that could change it, because an ordering on a writer's two writes
+//! protects a reader only if the reader reads in the opposite order. The hook
+//! writes a row or record before the object, so a store answer is followed by
+//! a read of both tables. The watcher's completion inserts the row before it
+//! removes the record, so the record is read before the row wherever no
+//! earlier record read anchors that order. Each machine's module doc says
+//! which of the two it relies on.
+//!
 //! Visibility is `pub` until the validation entry point consumes the module;
 //! `pub(crate)` would be dead code under `-D warnings` until then.
 

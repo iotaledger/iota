@@ -17,7 +17,7 @@ use super::{
         HandlerRowLookup, HandlerRowRecheck, NeedBytes, OwnedReader, SyncAheadLookup,
         SyncAheadRecheck,
     },
-    package::{PackageLookup, PackageReader, PackageRecordLookup, PackageRowLookup},
+    package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
         CreatedObjectLookup, CreatedShared, CreationRowLookup, CreationRowRecheck,
         DeletionInfoLookup, DeletionRowLookup, ObjectAbsent, PreSyncObjectLookup, SharedReader,
@@ -179,20 +179,17 @@ impl CommitIndexedReader {
     }
 
     /// Visibility of one package input. The store is read first, because a
-    /// package input names no version. Storage errors propagate.
+    /// package input names no version, then the record, then the row. The
+    /// package module doc explains the order. Storage errors propagate.
     pub fn read_package(&self, id: ObjectId) -> IotaResult<PackageVerdict> {
         let loaded = match PackageReader::start(id, self.horizon).read_package(self)? {
             PackageLookup::Loaded(loaded) => loaded,
             PackageLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
         };
-        let no_row = match loaded.read_row(self)? {
-            PackageRowLookup::Visible(package) => return Ok(PackageVerdict::Visible(package)),
-            PackageRowLookup::Missing(reason) => return Ok(PackageVerdict::Missing(reason)),
-            PackageRowLookup::NoRow(no_row) => no_row,
-        };
-        Ok(match no_row.read_sync_ahead_record(self)? {
-            PackageRecordLookup::Visible(package) => PackageVerdict::Visible(package),
-            PackageRecordLookup::Missing(reason) => PackageVerdict::Missing(reason),
+        let record_read = loaded.read_sync_ahead_record(self)?;
+        Ok(match record_read.read_row(self)? {
+            PackageRowLookup::Visible(package) => PackageVerdict::Visible(package),
+            PackageRowLookup::Missing(reason) => PackageVerdict::Missing(reason),
         })
     }
 

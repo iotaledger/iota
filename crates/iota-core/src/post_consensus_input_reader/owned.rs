@@ -5,6 +5,13 @@
 //! `(id, version)` and one transition per read, so a read cannot be skipped,
 //! repeated or taken out of order. The comparisons on what a read returned
 //! are pure functions shared by the first pass and the re-check.
+//!
+//! The re-read after the store answer reads the row before the record. That
+//! is safe only because the first pass read the record before the store: the
+//! completion inserts the row and then removes the record, so a record
+//! missed on the first pass means the row was in place before the store read,
+//! and the re-read finds it. Reordering the first pass would reopen the race
+//! the package machine documents.
 
 use std::cmp::Ordering;
 
