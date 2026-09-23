@@ -127,6 +127,27 @@ impl StateSnapshotUploader {
         checkpoint_store: Arc<CheckpointStore>,
         perpetual_tables: Arc<AuthorityPerpetualTables>,
     ) -> Result<Arc<Self>> {
+        Self::with_snapshot_store(
+            staging_path,
+            snapshot_store_config.make()?,
+            concurrency,
+            interval_s,
+            registry,
+            checkpoint_store,
+            perpetual_tables,
+        )
+    }
+
+    /// [`Self::new`] with the remote store already built.
+    pub(crate) fn with_snapshot_store(
+        staging_path: &std::path::Path,
+        snapshot_store: Arc<DynObjectStore>,
+        concurrency: usize,
+        interval_s: u64,
+        registry: &Registry,
+        checkpoint_store: Arc<CheckpointStore>,
+        perpetual_tables: Arc<AuthorityPerpetualTables>,
+    ) -> Result<Arc<Self>> {
         let staging_store_config = ObjectStoreConfig {
             object_store: Some(ObjectStoreType::File),
             directory: Some(staging_path.to_path_buf()),
@@ -137,7 +158,7 @@ impl StateSnapshotUploader {
             perpetual_tables,
             staging_path: staging_path.to_path_buf(),
             staging_store: staging_store_config.make()?,
-            snapshot_store: snapshot_store_config.make()?,
+            snapshot_store,
             interval: Duration::from_secs(interval_s),
             concurrency: NonZeroUsize::new(concurrency)
                 .unwrap_or(NonZeroUsize::new(DEFAULT_UPLOAD_CONCURRENCY).unwrap()),

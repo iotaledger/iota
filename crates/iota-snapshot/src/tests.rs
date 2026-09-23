@@ -7,7 +7,10 @@ use std::{
     fs,
     io::Write,
     num::NonZeroUsize,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use byteorder::{BigEndian, ByteOrder};
@@ -15,7 +18,7 @@ use fastcrypto::{
     hash::{HashFunction, MultisetHash, Sha3_256},
     traits::KeyPair,
 };
-use futures::future::AbortHandle;
+use futures::{StreamExt, future::AbortHandle, stream::BoxStream};
 use indicatif::MultiProgress;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
@@ -44,6 +47,10 @@ use iota_types::{
     },
     object::Object,
     storage::EpochInfoV2,
+};
+use object_store::{
+    CopyOptions, DynObjectStore, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta,
+    ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, path::Path as ObjectPath,
 };
 use prometheus_filtered::Registry;
 use tokio::sync::{Semaphore, mpsc, oneshot};
@@ -189,13 +196,24 @@ fn test_uploader(
     checkpoint_store: Arc<CheckpointStore>,
     perpetual_tables: Arc<AuthorityPerpetualTables>,
 ) -> Arc<StateSnapshotUploader> {
-    StateSnapshotUploader::new(
+    test_uploader_with_remote(
         staging_dir,
-        ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::File),
-            directory: Some(remote_dir.to_path_buf()),
-            ..Default::default()
-        },
+        file_store(remote_dir),
+        checkpoint_store,
+        perpetual_tables,
+    )
+}
+
+/// An uploader over a file-backed local store and the given remote store.
+fn test_uploader_with_remote(
+    staging_dir: &std::path::Path,
+    remote: Arc<DynObjectStore>,
+    checkpoint_store: Arc<CheckpointStore>,
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
+) -> Arc<StateSnapshotUploader> {
+    StateSnapshotUploader::with_snapshot_store(
+        staging_dir,
+        remote,
         1,
         60,
         &Registry::default(),
@@ -203,6 +221,107 @@ fn test_uploader(
         perpetual_tables,
     )
     .expect("constructing test uploader")
+}
+
+fn file_store(dir: &std::path::Path) -> Arc<DynObjectStore> {
+    ObjectStoreConfig {
+        object_store: Some(ObjectStoreType::File),
+        directory: Some(dir.to_path_buf()),
+        ..Default::default()
+    }
+    .make()
+    .expect("constructing a file-backed object store")
+}
+
+/// A remote store that passes every call through to `inner`, except that
+/// listing fails while `fail_listing` is set.
+#[derive(Debug)]
+struct ListingFailsStore {
+    inner: Arc<DynObjectStore>,
+    fail_listing: AtomicBool,
+}
+
+impl ListingFailsStore {
+    fn listing_error() -> object_store::Error {
+        object_store::Error::Generic {
+            store: "ListingFailsStore",
+            source: "listing refused by the test".into(),
+        }
+    }
+
+    fn fails_listing(&self) -> bool {
+        self.fail_listing.load(Ordering::Relaxed)
+    }
+}
+
+impl std::fmt::Display for ListingFailsStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ListingFailsStore({})", self.inner)
+    }
+}
+
+#[async_trait::async_trait]
+impl ObjectStore for ListingFailsStore {
+    async fn put_opts(
+        &self,
+        location: &ObjectPath,
+        payload: PutPayload,
+        opts: PutOptions,
+    ) -> object_store::Result<PutResult> {
+        self.inner.put_opts(location, payload, opts).await
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        location: &ObjectPath,
+        opts: PutMultipartOptions,
+    ) -> object_store::Result<Box<dyn MultipartUpload>> {
+        self.inner.put_multipart_opts(location, opts).await
+    }
+
+    async fn get_opts(
+        &self,
+        location: &ObjectPath,
+        options: GetOptions,
+    ) -> object_store::Result<GetResult> {
+        self.inner.get_opts(location, options).await
+    }
+
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, object_store::Result<ObjectPath>>,
+    ) -> BoxStream<'static, object_store::Result<ObjectPath>> {
+        self.inner.delete_stream(locations)
+    }
+
+    fn list(
+        &self,
+        prefix: Option<&ObjectPath>,
+    ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
+        if self.fails_listing() {
+            return futures::stream::once(async { Err(Self::listing_error()) }).boxed();
+        }
+        self.inner.list(prefix)
+    }
+
+    async fn list_with_delimiter(
+        &self,
+        prefix: Option<&ObjectPath>,
+    ) -> object_store::Result<ListResult> {
+        if self.fails_listing() {
+            return Err(Self::listing_error());
+        }
+        self.inner.list_with_delimiter(prefix).await
+    }
+
+    async fn copy_opts(
+        &self,
+        from: &ObjectPath,
+        to: &ObjectPath,
+        options: CopyOptions,
+    ) -> object_store::Result<()> {
+        self.inner.copy_opts(from, to, options).await
+    }
 }
 
 /// Placeholder closing-checkpoint contents for the row/entry fixtures. These
@@ -1311,19 +1430,9 @@ fn open_row_has_no_end_fields() {
 
 /// A remote epoch directory that cannot be cleared fails the epoch, and the
 /// same epoch writes cleanly on the next attempt.
-///
-/// It does not pin the reason `write_internal` joins the scan on this path:
-/// dropping a `spawn_blocking` handle detaches the task rather than
-/// cancelling it, so the scan would carry on holding its snapshot while the
-/// permit admitting one snapshot at a time had already been released. A scan
-/// over ten objects is finished long before that could be observed, and
-/// nothing here exposes whether the task is still running, so that part is
-/// argued in the code rather than tested.
 #[tokio::test]
 async fn a_failed_remote_clear_fails_the_epoch_and_leaves_it_retryable() -> Result<(), anyhow::Error>
 {
-    use std::{fs, os::unix::fs::PermissionsExt};
-
     let dir = iota_common::tempdir();
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
         &dir.path().join("store"),
@@ -1336,17 +1445,15 @@ async fn a_failed_remote_clear_fails_the_epoch_and_leaves_it_retryable() -> Resu
     let checkpoint_store = checkpoint_store_with_epochs(0);
     insert_end_of_epoch_zero_checkpoint(&checkpoint_store, ecmh_digest);
 
-    // A leftover epoch directory the clear cannot even read. Listing it fails
-    // outright, where a delete that fails is retried with backoff for minutes.
     let remote_dir = dir.path().join("remote");
-    let epoch_dir = remote_dir.join("epoch_0");
-    fs::create_dir_all(&epoch_dir)?;
-    fs::write(epoch_dir.join("leftover"), b"from an earlier attempt")?;
-    fs::set_permissions(&epoch_dir, fs::Permissions::from_mode(0o000))?;
-
-    let uploader = test_uploader(
+    fs::create_dir_all(&remote_dir)?;
+    let remote = Arc::new(ListingFailsStore {
+        inner: file_store(&remote_dir),
+        fail_listing: AtomicBool::new(true),
+    });
+    let uploader = test_uploader_with_remote(
         &dir.path().join("staging"),
-        &remote_dir,
+        remote.clone(),
         checkpoint_store,
         perpetual_db.clone(),
     );
@@ -1367,9 +1474,7 @@ async fn a_failed_remote_clear_fails_the_epoch_and_leaves_it_retryable() -> Resu
         "{err:#}"
     );
 
-    // The same epoch writes cleanly once the directory is writable again,
-    // which it could not do if the first attempt had left a scan behind.
-    fs::set_permissions(&epoch_dir, fs::Permissions::from_mode(0o755))?;
+    remote.fail_listing.store(false, Ordering::Relaxed);
     uploader.write_state_snapshot(request()).await?;
     assert!(
         remote_dir.join("epoch_0").join(SUCCESS_MARKER).exists(),
