@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use anyhow::{Error, anyhow, bail, ensure};
 use clap::{Args, ValueHint, arg, builder::StyledStr};
-use iota_grpc_client::GrpcClient;
+use iota_grpc_client::{GrpcClient, read_mask_fields::ServiceInfoReadMask};
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
@@ -223,6 +223,17 @@ impl PTB {
         }
 
         let grpc_client = context.get_grpc_client().await?;
+        let env = context.active_env()?;
+        grpc_client
+            .service_info(ServiceInfoReadMask::default())
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "cannot reach the gRPC endpoint for env [{}] at {}: {e}",
+                    env.alias(),
+                    grpc_client.uri()
+                )
+            })?;
 
         let (res, warnings) = Self::build_ptb(program, context, grpc_client).await;
 
