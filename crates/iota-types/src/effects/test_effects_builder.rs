@@ -28,8 +28,8 @@ pub struct TestEffectsBuilder {
     created_objects: Vec<(ObjectId, Owner)>,
     /// Objects that are mutated: (ID, old version, new owner).
     mutated_objects: Vec<(ObjectId, Version, Owner)>,
-    /// Objects that are deleted: (ID, old version).
-    deleted_objects: Vec<(ObjectId, Version)>,
+    /// Objects that are deleted: (ID, old version, old owner).
+    deleted_objects: Vec<(ObjectId, Version, Owner)>,
     /// Objects that are wrapped: (ID, old version).
     wrapped_objects: Vec<(ObjectId, Version)>,
     /// Objects that are unwrapped: (ID, new owner).
@@ -103,9 +103,24 @@ impl TestEffectsBuilder {
         self
     }
 
+    /// Deleted objects owned by the sender: (ID, old version).
     pub fn with_deleted_objects(
         mut self,
         objects: impl IntoIterator<Item = (ObjectId, Version)>,
+    ) -> Self {
+        let sender = self.transaction.transaction().sender();
+        self.deleted_objects.extend(
+            objects
+                .into_iter()
+                .map(|(id, version)| (id, version, Owner::Address(sender))),
+        );
+        self
+    }
+
+    /// Deleted objects with the owner they had: (ID, old version, old owner).
+    pub fn with_deleted_objects_owned_by(
+        mut self,
+        objects: impl IntoIterator<Item = (ObjectId, Version, Owner)>,
     ) -> Self {
         self.deleted_objects.extend(objects);
         self
@@ -223,21 +238,25 @@ impl TestEffectsBuilder {
                         )
                     }),
             )
-            .chain(self.deleted_objects.into_iter().map(|(id, version)| {
-                (
-                    id,
-                    ChangedObject {
-                        object_id: id,
-                        input_state: ObjectIn::Data {
-                            version,
-                            digest: ObjectDigest::random(),
-                            owner: Owner::Address(sender),
-                        },
-                        output_state: ObjectOut::Missing,
-                        id_operation: IdOperation::Deleted,
-                    },
-                )
-            }))
+            .chain(
+                self.deleted_objects
+                    .into_iter()
+                    .map(|(id, version, owner)| {
+                        (
+                            id,
+                            ChangedObject {
+                                object_id: id,
+                                input_state: ObjectIn::Data {
+                                    version,
+                                    digest: ObjectDigest::random(),
+                                    owner,
+                                },
+                                output_state: ObjectOut::Missing,
+                                id_operation: IdOperation::Deleted,
+                            },
+                        )
+                    }),
+            )
             .chain(self.wrapped_objects.into_iter().map(|(id, version)| {
                 (
                     id,
@@ -307,7 +326,7 @@ impl TestEffectsBuilder {
                 )
                 .chain(self.shared_input_versions.values().copied())
                 .chain(self.mutated_objects.iter().map(|(_, v, _)| *v))
-                .chain(self.deleted_objects.iter().map(|(_, v)| *v))
+                .chain(self.deleted_objects.iter().map(|(_, v, _)| *v))
                 .chain(self.wrapped_objects.iter().map(|(_, v)| *v)),
         )
         .unwrap()
