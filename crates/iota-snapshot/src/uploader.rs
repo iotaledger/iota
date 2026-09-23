@@ -21,7 +21,7 @@ use bytes::Bytes;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
-    state_snapshot::EpochSnapshotRequest,
+    epoch_end_db_snapshot::EpochEndDbSnapshotRequest,
 };
 use iota_sdk_types::CheckpointCommitment;
 use iota_storage::{
@@ -154,7 +154,7 @@ impl StateSnapshotUploader {
     /// Starts the state snapshot uploader loop and manifest update loop.
     pub fn start(
         self: Arc<Self>,
-        requests: mpsc::Receiver<EpochSnapshotRequest>,
+        requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
     ) -> tokio::sync::broadcast::Sender<()> {
         let (kill_sender, _kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
         tokio::task::spawn(Self::run_write_loop(
@@ -179,14 +179,17 @@ impl StateSnapshotUploader {
     /// object set through a database snapshot of the perpetual store.
     /// `request.db_snapshot_taken` is signalled as soon as that snapshot
     /// exists.
-    pub(crate) async fn write_state_snapshot(&self, request: EpochSnapshotRequest) -> Result<()> {
+    pub(crate) async fn write_state_snapshot(
+        &self,
+        request: EpochEndDbSnapshotRequest,
+    ) -> Result<()> {
         let _metrics_guard = self.metrics.state_snapshot_write_duration.start_timer();
-        let EpochSnapshotRequest {
+        let EpochEndDbSnapshotRequest {
             epoch,
             db_snapshot_taken,
             // Held until this function returns, so the next boundary is
             // skipped until then.
-            write_permit: _write_permit,
+            permit: _permit,
         } = request;
         // Chain identifier = genesis checkpoint digest; tags each manifest.
         let chain_id = ChainIdentifier::from(
@@ -264,7 +267,7 @@ impl StateSnapshotUploader {
     /// Writes the state snapshot of each epoch as the node hands it over.
     async fn run_write_loop(
         self: Arc<Self>,
-        mut requests: mpsc::Receiver<EpochSnapshotRequest>,
+        mut requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
         mut recv: tokio::sync::broadcast::Receiver<()>,
     ) -> Result<()> {
         info!("State snapshot writer loop started");

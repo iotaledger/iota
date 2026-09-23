@@ -156,6 +156,7 @@ use crate::{
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
+    epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, HandOver},
     execution_cache::{
         CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
         ExecutionCacheTraitPointers, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI,
@@ -173,7 +174,6 @@ use crate::{
         overload_monitor_accept_tx,
     },
     stake_aggregator::StakeAggregator,
-    state_snapshot::{EpochSnapshotHandle, HandOver},
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
@@ -261,8 +261,8 @@ pub struct AuthorityMetrics {
     execution_load_input_objects_latency: Histogram,
     prepare_certificate_latency: Histogram,
     commit_certificate_latency: Histogram,
-    state_snapshot_handover_latency: Histogram,
-    state_snapshot_epochs_skipped: IntCounter,
+    epoch_end_db_snapshot_handover_latency: Histogram,
+    epoch_end_db_snapshots_skipped: IntCounter,
 
     pub(crate) transaction_manager_num_enqueued_certificates: IntCounterVec,
     pub(crate) transaction_manager_num_missing_objects: IntGauge,
@@ -519,17 +519,17 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
-            state_snapshot_handover_latency: register_histogram_with_registry!(
-                "state_snapshot_handover_latency",
-                "Time the epoch boundary waits for the state snapshot writer to take \
-                 its database snapshot",
+            epoch_end_db_snapshot_handover_latency: register_histogram_with_registry!(
+                "epoch_end_db_snapshot_handover_latency",
+                "Time the epoch boundary waits for the consumer to take its database \
+                 snapshot of the perpetual store",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            state_snapshot_epochs_skipped: register_int_counter_with_registry!(
-                "state_snapshot_epochs_skipped",
-                "Epochs this node will not publish a state snapshot for, because the \
-                 writer was busy or did not take its database snapshot in time",
+            epoch_end_db_snapshots_skipped: register_int_counter_with_registry!(
+                "epoch_end_db_snapshots_skipped",
+                "Epoch boundaries whose database snapshot was not taken, because the \
+                 consumer was busy or did not take it in time",
                 registry,
             ).unwrap(),
             transaction_manager_num_enqueued_certificates: register_int_counter_vec_with_registry!(
@@ -948,10 +948,9 @@ pub struct AuthorityState {
 
     /// Traffic controller for IOTA core servers (json-rpc, validator service)
     pub traffic_controller: Option<Arc<TrafficController>>,
-    /// Set on a node that publishes state snapshots: the epoch boundary hands
-    /// each epoch's live object set to the writer through it. See
-    /// [`Self::begin_state_snapshot`].
-    state_snapshots: Option<EpochSnapshotHandle>,
+    /// Set when a consumer wants a database snapshot of the perpetual store at
+    /// each epoch boundary. See [`Self::hand_over_epoch_end_db_snapshot`].
+    epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -3083,7 +3082,7 @@ impl AuthorityState {
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
-        state_snapshots: Option<EpochSnapshotHandle>,
+        epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3155,7 +3154,7 @@ impl AuthorityState {
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
-            state_snapshots,
+            epoch_end_db_snapshots,
         });
 
         // Start a task to execute ready transactions.
@@ -3516,7 +3515,8 @@ impl AuthorityState {
 
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
-        self.begin_state_snapshot(cur_epoch_store.epoch()).await;
+        self.hand_over_epoch_end_db_snapshot(cur_epoch_store.epoch())
+            .await;
 
         let new_epoch = new_committee.epoch;
         let new_epoch_store = self
@@ -3664,16 +3664,20 @@ impl AuthorityState {
         self.epoch_store_for_testing().epoch()
     }
 
-    /// Hands the epoch's live object set to the state snapshot writer, when
-    /// this node publishes snapshots. See [`EpochSnapshotHandle::hand_over`].
+    /// Lets the consumer take its database snapshot of the perpetual store as
+    /// the epoch ends, when there is one. See
+    /// [`EpochEndDbSnapshotHandle::hand_over`].
     #[instrument(level = "error", skip_all)]
-    async fn begin_state_snapshot(&self, epoch: EpochId) {
-        let Some(snapshots) = &self.state_snapshots else {
+    async fn hand_over_epoch_end_db_snapshot(&self, epoch: EpochId) {
+        let Some(handle) = &self.epoch_end_db_snapshots else {
             return;
         };
-        let _metrics_guard = self.metrics.state_snapshot_handover_latency.start_timer();
-        if snapshots.hand_over(epoch).await == HandOver::Skipped {
-            self.metrics.state_snapshot_epochs_skipped.inc();
+        let _metrics_guard = self
+            .metrics
+            .epoch_end_db_snapshot_handover_latency
+            .start_timer();
+        if handle.hand_over(epoch).await == HandOver::Skipped {
+            self.metrics.epoch_end_db_snapshots_skipped.inc();
         }
     }
 

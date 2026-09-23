@@ -413,7 +413,7 @@ impl StateSnapshotWriterV1 {
         }
         // Join the scan on every path: dropping the handle would only detach
         // the blocking task, which would keep its snapshot open after the
-        // write permit has been released.
+        // epoch end database snapshot permit has been released.
         let written = write_handler.await;
         cleared?;
         written?.context(format!("Failed to write state snapshot for epoch: {epoch}"))?;

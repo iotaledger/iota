@@ -24,9 +24,9 @@ use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     checkpoints::CheckpointStore,
+    epoch_end_db_snapshot::EpochEndDbSnapshotRequest,
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
-    state_snapshot::EpochSnapshotRequest,
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary,
@@ -1455,10 +1455,10 @@ async fn a_failed_remote_clear_fails_the_epoch_and_leaves_it_retryable() -> Resu
         checkpoint_store,
         perpetual_db.clone(),
     );
-    let request = || EpochSnapshotRequest {
+    let request = || EpochEndDbSnapshotRequest {
         epoch: 0,
         db_snapshot_taken: db_snapshot_taken(),
-        write_permit: Arc::new(Semaphore::new(1))
+        permit: Arc::new(Semaphore::new(1))
             .try_acquire_owned()
             .expect("a fresh permit"),
     };
@@ -1510,10 +1510,10 @@ async fn a_writer_abandons_an_epoch_no_boundary_is_waiting_for() -> Result<(), a
     drop(db_snapshot_is_taken);
 
     let err = uploader
-        .write_state_snapshot(EpochSnapshotRequest {
+        .write_state_snapshot(EpochEndDbSnapshotRequest {
             epoch: 0,
             db_snapshot_taken,
-            write_permit: Arc::new(Semaphore::new(1))
+            permit: Arc::new(Semaphore::new(1))
                 .try_acquire_owned()
                 .expect("a fresh permit"),
         })
@@ -1557,10 +1557,10 @@ async fn uploader_writes_the_snapshot_of_a_requested_epoch() -> Result<(), anyho
         let uploader = uploader.clone();
         async move {
             uploader
-                .write_state_snapshot(EpochSnapshotRequest {
+                .write_state_snapshot(EpochEndDbSnapshotRequest {
                     epoch: 0,
                     db_snapshot_taken,
-                    write_permit: Arc::new(Semaphore::new(1))
+                    permit: Arc::new(Semaphore::new(1))
                         .try_acquire_owned()
                         .expect("a fresh permit"),
                 })
