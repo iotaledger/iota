@@ -57,6 +57,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use pin_project_lite::pin_project;
 use rand::seq::IndexedRandom;
@@ -101,6 +102,16 @@ use crate::{
 };
 
 pub type CheckpointHeight = u64;
+
+/// Digest of checkpoint contents with no transactions. Every empty checkpoint
+/// has this contents digest, so they all share one `checkpoint_content` row,
+/// which must never be deleted.
+pub(crate) static EMPTY_CHECKPOINT_CONTENTS_DIGEST: Lazy<CheckpointContentsDigest> =
+    Lazy::new(|| empty_checkpoint_contents().digest());
+
+fn empty_checkpoint_contents() -> CheckpointContents {
+    CheckpointContents::new_with_digests_and_signatures([], Vec::new())
+}
 
 pub struct EpochStats {
     pub checkpoint_count: u64,
@@ -256,6 +267,16 @@ impl CheckpointStore {
         contents_cache: FullCheckpointContentsCache,
     ) -> Arc<Self> {
         let tables = CheckpointStoreTables::new(path, "checkpoint");
+        // Written on every open so that the shared empty contents row also
+        // exists on a database where it was deleted while empty checkpoints
+        // still used it.
+        tables
+            .checkpoint_content
+            .insert(
+                &EMPTY_CHECKPOINT_CONTENTS_DIGEST,
+                &empty_checkpoint_contents(),
+            )
+            .expect("inserting the empty checkpoint contents should succeed");
         Arc::new(Self {
             tables,
             full_checkpoint_contents_cache: contents_cache,
@@ -3176,6 +3197,36 @@ mod tests {
                 .get_checkpoint_contents(&contents_digest)
                 .unwrap()
                 .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn open_restores_empty_checkpoint_contents() {
+        let tempdir = iota_common::tempdir();
+        let path = tempdir.path();
+
+        {
+            let store = CheckpointStore::new(path);
+            assert_eq!(
+                store
+                    .get_checkpoint_contents(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+                    .unwrap()
+                    .map(|c| c.digest()),
+                Some(*EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+            );
+            store
+                .tables
+                .checkpoint_content
+                .remove(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+                .unwrap();
+        }
+
+        let store = CheckpointStore::new(path);
+        assert!(
+            store
+                .get_checkpoint_contents(&EMPTY_CHECKPOINT_CONTENTS_DIGEST)
+                .unwrap()
+                .is_some_and(|c| c.is_empty())
         );
     }
 
