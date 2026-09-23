@@ -340,19 +340,11 @@ impl MisbehaviorStore {
     }
 
     /// Attributes a fetch response the collector rejected to the peer that
-    /// served it. Transaction entries the request did not cover, or larger
-    /// than any block's payload allows, are the serving peer's unprovable
-    /// fault; every other error goes through the block classifier, which
-    /// leaves transport failures and configuration-dependent mismatches
-    /// untracked.
+    /// served it: the peer is both the sender and the only party the error
+    /// can name. The block classifier decides the fault type, leaving
+    /// transport failures untracked.
     pub(crate) fn record_fetch_fault(&self, peer: AuthorityIndex, error: &ConsensusError) {
-        match error {
-            ConsensusError::TooManyFetchedTransactionsReturned(_)
-            | ConsensusError::SerializedTransactionsTooLarge { .. } => {
-                self.record_faulty_transactions(peer, false, [peer]);
-            }
-            _ => self.record_faulty_block(peer, peer, error),
-        }
+        self.record_faulty_block(peer, peer, error);
     }
 }
 
@@ -384,6 +376,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // be trusted, so charge the sender, not the claimed author. A streamed
         // block that repeats or lowers the peer's own round is charged the
         // same way: the signed header proves authorship, not the send order.
+        // So is a fetch response with more entries than the request allows.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -398,6 +391,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TransactionCommitmentFailure { .. }
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
         | ConsensusError::TooManyFetchedHeadersReturned { .. }
+        | ConsensusError::TooManyFetchedTransactionsReturned(_)
         | ConsensusError::StreamedBlockRoundNotIncreasing { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
@@ -448,10 +442,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::NotEnoughHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
-        // Transaction fetch faults, recorded against the serving peer at the
-        // fetch sites via `record_faulty_transactions` — deliberately not
+        // Transaction faults recorded against the serving peer where they are
+        // detected, via `record_faulty_transactions` — deliberately not
         // tracked again here.
-        | ConsensusError::TooManyFetchedTransactionsReturned(_)
         | ConsensusError::UnrequestedTransactionFetched { .. }
         | ConsensusError::UnexpectedTransactionForCommit { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
