@@ -180,8 +180,10 @@ impl SharedReader<NoCreationRow> {
     ) -> IotaResult<SharedRecordLookup> {
         Ok(match self.record_classification(ctx)? {
             None => SharedRecordLookup::NoRecord(self.into_state(NoRecord)),
-            Some(RecordClass::PreSyncExisted) => {
-                SharedRecordLookup::PreSyncExisted(self.into_state(PreSyncExisted))
+            Some(RecordClass::PreSyncExisted(recorded_initial_shared_version)) => {
+                SharedRecordLookup::PreSyncExisted(self.into_state(PreSyncExisted {
+                    recorded_initial_shared_version,
+                }))
             }
             Some(RecordClass::Missing(reason)) => SharedRecordLookup::Missing(reason),
         })
@@ -190,16 +192,19 @@ impl SharedReader<NoCreationRow> {
 
 /// A sync-ahead record with a base version: the object existed before sync
 /// ran ahead. Owner not checked yet.
-pub struct PreSyncExisted;
+pub struct PreSyncExisted {
+    /// The record's `initial_shared_version`, the base version's owner.
+    recorded_initial_shared_version: Option<Version>,
+}
 impl SharedState for PreSyncExisted {}
 
 /// Outcome of the store object read when a record restores pre-sync
 /// existence.
 #[must_use]
 pub enum PreSyncObjectLookup {
-    /// Owner `Shared` at the declared initial version, or no live object
-    /// because sync deleted it. Shared inputs are never sheltered, so the
-    /// record alone answers in that case.
+    /// Owner `Shared` at the declared initial version. With no live object,
+    /// sync deleted it here and the record's initial shared version stands in
+    /// for the owner.
     Exists,
     /// Owner not shared, or shared at another initial version.
     Drop(DropReason),
@@ -207,13 +212,20 @@ pub enum PreSyncObjectLookup {
 
 impl SharedReader<PreSyncExisted> {
     /// The latest object by id, for the owner check. No live object means
-    /// sync deleted it, and the record already answered existence.
+    /// sync deleted it, so the record's field is checked instead.
     pub fn read_object(self, ctx: &CommitIndexedReader) -> IotaResult<PreSyncObjectLookup> {
         let object = ctx.cache.try_get_object(&self.id)?;
         Ok(
             match classify_object(object.as_ref(), self.initial_shared_version) {
-                ObjectClass::Exists | ObjectClass::Absent => PreSyncObjectLookup::Exists,
+                ObjectClass::Exists => PreSyncObjectLookup::Exists,
                 ObjectClass::Drop(reason) => PreSyncObjectLookup::Drop(reason),
+                ObjectClass::Absent => match classify_recorded_initial_version(
+                    self.state.recorded_initial_shared_version,
+                    self.initial_shared_version,
+                ) {
+                    RecordedOwnerClass::Matches => PreSyncObjectLookup::Exists,
+                    RecordedOwnerClass::Drop(reason) => PreSyncObjectLookup::Drop(reason),
+                },
             },
         )
     }
@@ -285,7 +297,8 @@ impl SharedState for ObjectAnsweredNoCreationRow {}
 /// Outcome of re-reading the sync-ahead record after the store answered. A
 /// record with no base answers missing. Otherwise the held object decides:
 /// owner `Shared` at the declared version exists, another owner drops, and
-/// no object with no record moves on to the deletion info.
+/// no object with no record moves on to the deletion info. No object with a
+/// record means sync deleted it, and the record's field is checked instead.
 #[must_use]
 pub enum SharedRecordRecheck {
     Exists,
@@ -306,11 +319,19 @@ impl SharedReader<ObjectAnsweredNoCreationRow> {
             (Some(RecordClass::Missing(reason)), _) => SharedRecordRecheck::Missing(reason),
             // The record restores pre-sync existence. A held object still has
             // to be shared at the declared version.
-            (Some(RecordClass::PreSyncExisted), ObjectClass::Exists | ObjectClass::Absent) => {
+            (Some(RecordClass::PreSyncExisted(_)), ObjectClass::Exists) => {
                 SharedRecordRecheck::Exists
             }
-            (Some(RecordClass::PreSyncExisted), ObjectClass::Drop(reason)) => {
+            (Some(RecordClass::PreSyncExisted(_)), ObjectClass::Drop(reason)) => {
                 SharedRecordRecheck::Drop(reason)
+            }
+            // Sync deleted the object here. The record kept the owner's initial
+            // shared version.
+            (Some(RecordClass::PreSyncExisted(recorded)), ObjectClass::Absent) => {
+                match classify_recorded_initial_version(recorded, self.initial_shared_version) {
+                    RecordedOwnerClass::Matches => SharedRecordRecheck::Exists,
+                    RecordedOwnerClass::Drop(reason) => SharedRecordRecheck::Drop(reason),
+                }
             }
             // Nothing appeared in either table, so the held object predates
             // every this-epoch write for `id` and stands.
@@ -374,22 +395,25 @@ pub enum DeletionRowLookup {
     /// Deleted above the horizon, or by execution the handler has not
     /// reached. Kept: the transaction executes against the deletion.
     Deleted(Version, TransactionDigest),
-    /// Deleted at or below the horizon.
+    /// Deleted at or below the horizon, or the deleted object was not shared
+    /// at the declared initial version.
     Drop(DropReason),
 }
 
 impl SharedReader<DeletionInfoFound> {
     /// The handler-processed row at the deleted version, which carries the
-    /// deleting commit.
+    /// deleting commit and the deleted object's initial shared version.
     pub fn read_deletion_row(self, ctx: &CommitIndexedReader) -> IotaResult<DeletionRowLookup> {
         let DeletionInfoFound { version, digest } = self.state;
         let row = ctx
             .epoch_store
             .handler_processed_object(&ObjectKey(self.id, version))?;
-        Ok(match classify_deletion_row(row.as_ref(), self.horizon) {
-            DeletionClass::Deleted => DeletionRowLookup::Deleted(version, digest),
-            DeletionClass::Drop(reason) => DeletionRowLookup::Drop(reason),
-        })
+        Ok(
+            match classify_deletion_row(row.as_ref(), self.initial_shared_version, self.horizon) {
+                DeletionClass::Deleted => DeletionRowLookup::Deleted(version, digest),
+                DeletionClass::Drop(reason) => DeletionRowLookup::Drop(reason),
+            },
+        )
     }
 }
 
@@ -410,8 +434,9 @@ enum CreationClass {
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
 enum RecordClass {
-    /// The object existed before sync ran ahead.
-    PreSyncExisted,
+    /// The object existed before sync ran ahead. Carries the record's
+    /// `initial_shared_version`, the base version's owner.
+    PreSyncExisted(Option<Version>),
     /// The chain created the id. Every version answers missing.
     Missing(MissingReason),
 }
@@ -420,8 +445,32 @@ enum RecordClass {
 /// means the id was created ahead of the handler.
 fn classify_record(record: &SyncAheadRecord) -> RecordClass {
     match record.base_version {
-        Some(_) => RecordClass::PreSyncExisted,
+        Some(_) => RecordClass::PreSyncExisted(record.initial_shared_version),
         None => RecordClass::Missing(MissingReason(MissingKind::SharedSyncCreated)),
+    }
+}
+
+/// What a bookkeeping entry's `initial_shared_version` decided, once the
+/// object bytes that carried the owner are gone.
+#[must_use]
+#[derive(Debug, PartialEq, Eq)]
+enum RecordedOwnerClass {
+    /// Shared at the declared initial version.
+    Matches,
+    /// Shared at another initial version, or not shared at all.
+    Drop(DropReason),
+}
+
+/// The recorded initial shared version against the declared one. `None` means
+/// the deleted object was not shared.
+fn classify_recorded_initial_version(
+    recorded: Option<Version>,
+    declared: Version,
+) -> RecordedOwnerClass {
+    match recorded {
+        Some(initial) if initial == declared => RecordedOwnerClass::Matches,
+        Some(_) => RecordedOwnerClass::Drop(DropReason(DropKind::SharedInitialVersionMismatch)),
+        None => RecordedOwnerClass::Drop(DropReason(DropKind::SharedNotCreatedShared)),
     }
 }
 
@@ -457,22 +506,29 @@ enum DeletionClass {
     /// Deleted above the horizon, or by execution the handler has not
     /// reached. The deletion is not visible at this commit.
     Deleted,
-    /// Deleted at or below the horizon.
+    /// Deleted at or below the horizon, or not shared at the declared
+    /// initial version.
     Drop(DropReason),
 }
 
-/// The row at `(id, deleted version)`. A row at or below the horizon means
-/// the handler passed the deletion. No row means sync ran ahead, and row
-/// before object rules out any other reading.
+/// The row at `(id, deleted version)`. The row's initial shared version is
+/// checked first: a wrong declared version drops at every horizon. Then a row
+/// at or below the horizon means the handler passed the deletion. No row
+/// means sync ran ahead, and row before object rules out any other reading.
 fn classify_deletion_row(
     row: Option<&HandlerProcessedObject>,
+    declared: Version,
     horizon: CommitIndex,
 ) -> DeletionClass {
-    match row {
-        Some(row) if row.produced_at <= horizon => {
+    let Some(row) = row else {
+        return DeletionClass::Deleted;
+    };
+    match classify_recorded_initial_version(row.initial_shared_version, declared) {
+        RecordedOwnerClass::Drop(reason) => DeletionClass::Drop(reason),
+        RecordedOwnerClass::Matches if row.produced_at <= horizon => {
             DeletionClass::Drop(DropReason(DropKind::SharedDeletedAtOrBelowHorizon))
         }
-        Some(_) | None => DeletionClass::Deleted,
+        RecordedOwnerClass::Matches => DeletionClass::Deleted,
     }
 }
 
@@ -527,12 +583,15 @@ mod tests {
         }
     }
 
-    fn deletion_row(produced_at: CommitIndex) -> HandlerProcessedObject {
+    fn deletion_row(
+        initial_shared_version: Option<u64>,
+        produced_at: CommitIndex,
+    ) -> HandlerProcessedObject {
         HandlerProcessedObject {
             digest: ObjectDigest::OBJECT_DELETED,
             kind: HandlerProcessedObjectKind::Deleted,
             produced_at,
-            initial_shared_version: None,
+            initial_shared_version: initial_shared_version.map(Version::from_u64),
         }
     }
 
@@ -611,11 +670,34 @@ mod tests {
     fn record_with_a_base_restores_existence_and_none_answers_missing() {
         assert_eq!(
             classify_record(&record(Some(3))),
-            RecordClass::PreSyncExisted
+            RecordClass::PreSyncExisted(None)
+        );
+        assert_eq!(
+            classify_record(&SyncAheadRecord {
+                initial_shared_version: Some(declared()),
+                ..record(Some(3))
+            }),
+            RecordClass::PreSyncExisted(Some(declared()))
         );
         assert_eq!(
             classify_record(&record(None)),
             RecordClass::Missing(MissingReason(MissingKind::SharedSyncCreated))
+        );
+    }
+
+    #[test]
+    fn recorded_initial_version_against_the_declared_one() {
+        assert_eq!(
+            classify_recorded_initial_version(Some(declared()), declared()),
+            RecordedOwnerClass::Matches
+        );
+        assert_eq!(
+            classify_recorded_initial_version(Some(Version::from_u64(DECLARED + 1)), declared()),
+            RecordedOwnerClass::Drop(drop(DropKind::SharedInitialVersionMismatch))
+        );
+        assert_eq!(
+            classify_recorded_initial_version(None, declared()),
+            RecordedOwnerClass::Drop(drop(DropKind::SharedNotCreatedShared))
         );
     }
 
@@ -648,13 +730,44 @@ mod tests {
     #[test]
     fn deletion_row_at_the_horizon_drops_and_above_it_keeps_the_deletion_invisible() {
         assert_eq!(
-            classify_deletion_row(Some(&deletion_row(HORIZON)), HORIZON),
+            classify_deletion_row(
+                Some(&deletion_row(Some(DECLARED), HORIZON)),
+                declared(),
+                HORIZON
+            ),
             DeletionClass::Drop(drop(DropKind::SharedDeletedAtOrBelowHorizon))
         );
         assert_eq!(
-            classify_deletion_row(Some(&deletion_row(HORIZON + 1)), HORIZON),
+            classify_deletion_row(
+                Some(&deletion_row(Some(DECLARED), HORIZON + 1)),
+                declared(),
+                HORIZON
+            ),
             DeletionClass::Deleted
         );
-        assert_eq!(classify_deletion_row(None, HORIZON), DeletionClass::Deleted);
+        assert_eq!(
+            classify_deletion_row(None, declared(), HORIZON),
+            DeletionClass::Deleted
+        );
+    }
+
+    #[test]
+    fn deletion_row_checks_the_initial_shared_version_before_the_horizon() {
+        for produced_at in [HORIZON, HORIZON + 1] {
+            assert_eq!(
+                classify_deletion_row(
+                    Some(&deletion_row(Some(DECLARED + 1), produced_at)),
+                    declared(),
+                    HORIZON
+                ),
+                DeletionClass::Drop(drop(DropKind::SharedInitialVersionMismatch)),
+                "produced_at {produced_at}"
+            );
+            assert_eq!(
+                classify_deletion_row(Some(&deletion_row(None, produced_at)), declared(), HORIZON),
+                DeletionClass::Drop(drop(DropKind::SharedNotCreatedShared)),
+                "produced_at {produced_at}"
+            );
+        }
     }
 }

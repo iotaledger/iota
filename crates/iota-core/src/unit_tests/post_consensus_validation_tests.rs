@@ -45,6 +45,7 @@ use crate::{
     },
     checkpoints::CheckpointServiceNoop,
     consensus_handler::{SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction},
+    post_consensus_input_reader::{DropKind, SharedVerdict, reader::CommitIndexedReader},
     post_consensus_validation,
     test_utils::make_transfer_object_transaction,
 };
@@ -2325,6 +2326,23 @@ impl BookkeepingSetup {
         effects
     }
 
+    /// The commit-indexed reader's verdict for shared input `id` declared at
+    /// `initial_shared_version`, as of `commit_index`.
+    fn read_shared(
+        &self,
+        commit_index: CommitIndex,
+        id: &ObjectId,
+        initial_shared_version: Version,
+    ) -> SharedVerdict {
+        CommitIndexedReader::new(
+            self.authority.get_object_cache_reader().clone(),
+            self.epoch_store.clone(),
+            commit_index,
+        )
+        .read_shared(*id, initial_shared_version)
+        .unwrap()
+    }
+
     /// The argument naming the shared object `id` as a mutable input.
     fn shared_arg(&self, id: &ObjectId) -> CallArg {
         let initial_shared_version =
@@ -3584,6 +3602,126 @@ async fn immutable_input_read_does_not_extend_record_or_shelter() {
         mutated_ref.object_id(),
         None,
         update_effects.lamport_version(),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation reader: shared inputs whose object is gone
+// ---------------------------------------------------------------------------
+
+#[track_caller]
+fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
+    match verdict {
+        SharedVerdict::Drop(reason) => assert_eq!(reason.kind(), kind),
+        SharedVerdict::Exists => panic!("expected a drop, got exists"),
+        SharedVerdict::Deleted(version, digest) => {
+            panic!("expected a drop, got deleted at {version} by {digest}")
+        }
+        SharedVerdict::Missing(reason) => panic!("expected a drop, got missing {reason:?}"),
+    }
+}
+
+#[track_caller]
+fn assert_deleted_by(verdict: SharedVerdict, delete_effects: &TransactionEffects) {
+    match verdict {
+        SharedVerdict::Deleted(version, digest) => {
+            assert_eq!(version, delete_effects.lamport_version());
+            assert_eq!(digest, *delete_effects.transaction_digest());
+        }
+        SharedVerdict::Exists => panic!("expected deleted, got exists"),
+        SharedVerdict::Drop(reason) => panic!("expected deleted, got drop {reason:?}"),
+        SharedVerdict::Missing(reason) => panic!("expected deleted, got missing {reason:?}"),
+    }
+}
+
+/// State sync deleted the shared object ahead of the handler. The bytes that
+/// carried the owner are gone, so the record's initial shared version is what
+/// a declared version is checked against. A wrong declaration must drop here
+/// as it does on a validator that still holds the object.
+#[tokio::test]
+async fn reader_checks_the_declared_version_against_the_record_after_a_sync_ahead_delete() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    let initial = initial_shared_version(&shared.owner);
+    let delete_effects = s.shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    // A version the object never had, so no row exists at that key.
+    let wrong = Version::from_u64(1);
+    assert!(wrong < initial);
+
+    // Wrong declared version: no creation row at that key, the record
+    // restores existence, the object is gone, the record's field decides.
+    assert_drops_with(
+        s.read_shared(12, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    // Right declared version: the creation row proves it, the deletion has
+    // no row because sync executed it, so it is kept as a deletion.
+    assert_deleted_by(s.read_shared(12, shared_id, initial), &delete_effects);
+}
+
+/// The handler executed the deletion in the window above the horizon. The
+/// tombstone row is the only place left that knows the initial shared
+/// version, and a wrong declaration must drop at every horizon.
+#[tokio::test]
+async fn reader_checks_the_declared_version_against_the_deletion_row() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    let initial = initial_shared_version(&shared.owner);
+    let delete_effects = s.handler_known_shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+        15,
+    );
+    // A version the object never had, so no row exists at that key. The
+    // tombstone sits at `initial + 1`, and a row above the horizon answers
+    // missing whatever its kind.
+    let wrong = Version::from_u64(1);
+    assert!(wrong < initial);
+
+    // Commit 16, horizon 14: the deletion at 15 is not yet visible.
+    assert_drops_with(
+        s.read_shared(16, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    assert_deleted_by(s.read_shared(16, shared_id, initial), &delete_effects);
+
+    // Commit 18, horizon 16: every validator has executed the deletion.
+    assert_drops_with(
+        s.read_shared(18, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    assert_drops_with(
+        s.read_shared(18, shared_id, initial),
+        DropKind::SharedDeletedAtOrBelowHorizon,
     );
 }
 
