@@ -1333,8 +1333,8 @@ mod tests {
     /// accepted frontier are all dropped, and each one is counted, so a
     /// Byzantine peer streaming far-future rounds cannot grow the suspender
     /// without bound.
-    #[test]
-    fn drops_far_future_headers() {
+    #[tokio::test]
+    async fn drops_far_future_headers() {
         use gc_eviction_helpers::*;
 
         let (context, _) = Context::new_for_test(4);
@@ -1379,8 +1379,8 @@ mod tests {
     /// The future-round bound exempts certified/local sources: a far-ahead
     /// header from the commit syncer (which catches a node up past the bound)
     /// passes through untouched.
-    #[test]
-    fn far_future_bound_exempts_commit_sync() {
+    #[tokio::test]
+    async fn far_future_bound_exempts_commit_sync() {
         use gc_eviction_helpers::*;
 
         let (context, _) = Context::new_for_test(4);
@@ -1420,8 +1420,8 @@ mod tests {
 
     /// A header exactly at the ceiling is retained, one round past it is
     /// dropped, and the bound applies to every far-future-bounded source.
-    #[test]
-    fn far_future_bound_ceiling_and_sources() {
+    #[tokio::test]
+    async fn far_future_bound_ceiling_and_sources() {
         use gc_eviction_helpers::*;
 
         let (context, _) = Context::new_for_test(4);
@@ -1472,8 +1472,8 @@ mod tests {
 
     /// The future-round bound also covers the full-block path, where a dropped
     /// block takes its transactions with it.
-    #[test]
-    fn drops_far_future_blocks() {
+    #[tokio::test]
+    async fn drops_far_future_blocks() {
         use gc_eviction_helpers::*;
 
         let (context, _) = Context::new_for_test(4);
