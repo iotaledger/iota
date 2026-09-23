@@ -71,7 +71,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
             let contents = FullCheckpointContents::from_contents_and_execution_data(
                 checkpoint.checkpoint_contents.clone(),
                 checkpoint.transactions.iter().map(|t| t.execution_data()),
-            )
+            )?
             .verify(summary.contents_digest)?;
             Ok(VerifiedArchiveCheckpoint {
                 summary,

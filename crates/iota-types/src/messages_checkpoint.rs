@@ -556,24 +556,34 @@ impl FullCheckpointContents {
         }
     }
 
+    /// Pairs the signatures pinned in `contents` with `execution_data`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `execution_data` does not hold exactly one
+    /// transaction per entry of `contents`, so a caller assembling the two
+    /// from separately received parts gets a rejection rather than a panic.
     pub fn from_contents_and_execution_data(
         contents: CheckpointContents,
         execution_data: impl Iterator<Item = ExecutionData>,
-    ) -> Self {
+    ) -> Result<Self> {
         let transactions: Vec<_> = execution_data.collect();
         let user_signatures: Vec<Vec<UserSignature>> = contents
             .into_iter_with_signatures()
             .map(|(_, signatures)| signatures)
             .collect();
-        assert_eq!(
-            transactions.len(),
-            user_signatures.len(),
-            "checkpoint contents pin a signature set for every transaction"
+        fp_ensure!(
+            transactions.len() == user_signatures.len(),
+            anyhow::anyhow!(
+                "checkpoint contents pin {} signature sets for {} transactions",
+                user_signatures.len(),
+                transactions.len()
+            )
         );
-        Self {
+        Ok(Self {
             transactions,
             user_signatures,
-        }
+        })
     }
 
     pub fn try_from_checkpoint_contents<S>(
@@ -1201,7 +1211,8 @@ mod tests {
         let contents = FullCheckpointContents::from_contents_and_execution_data(
             checkpoint_contents,
             std::iter::once(execution_data),
-        );
+        )
+        .expect("one transaction per pinned signature set");
 
         contents
             .verify_digests(digest)
@@ -1227,7 +1238,8 @@ mod tests {
         let contents = FullCheckpointContents::from_contents_and_execution_data(
             checkpoint_contents,
             std::iter::once(execution_data),
-        );
+        )
+        .expect("one transaction per pinned signature set");
 
         contents
             .verify_digests(digest)
@@ -1246,16 +1258,18 @@ mod tests {
             .expect_err("a signature count that does not match must not deserialize");
     }
 
+    /// The two lists arrive in separate fields of the checkpoint data a node
+    /// receives, so a mismatch is an input error, never a panic.
     #[test]
-    #[should_panic(expected = "assertion")]
-    fn from_contents_and_execution_data_panics_on_mismatched_lengths() {
+    fn from_contents_and_execution_data_rejects_mismatched_lengths() {
         let contents = FullCheckpointContents::random_for_testing();
         let checkpoint_contents = contents.checkpoint_contents();
 
         FullCheckpointContents::from_contents_and_execution_data(
             checkpoint_contents,
             std::iter::empty(),
-        );
+        )
+        .expect_err("a signature count that does not match the transactions must be rejected");
     }
 
     /// Only genesis and end-of-epoch transactions are pinned without
@@ -1288,7 +1302,8 @@ mod tests {
         let contents = FullCheckpointContents::from_contents_and_execution_data(
             checkpoint_contents,
             std::iter::once(execution_data),
-        );
+        )
+        .expect("one transaction per pinned signature set");
 
         contents.verify_digests(digest).expect_err(
             "a consensus system transaction pinned without signatures must be rejected",
