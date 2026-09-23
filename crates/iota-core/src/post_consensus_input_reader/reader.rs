@@ -19,9 +19,9 @@ use super::{
     },
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
-        CreatedObjectLookup, CreatedShared, CreationRowLookup, CreationRowRecheck,
-        DeletionInfoLookup, DeletionRowLookup, ObjectAbsent, PreSyncObjectLookup, SharedReader,
-        SharedRecordLookup, SharedRecordRecheck,
+        CreatedObjectLookup, CreationRowLookup, CreationRowRecheck, DeletionInfoLookup,
+        DeletionRowLookup, ObjectAbsent, PreSyncObjectLookup, SharedReader, SharedRecordLookup,
+        SharedRecordRecheck,
     },
 };
 use crate::{
@@ -109,11 +109,20 @@ impl CommitIndexedReader {
         id: ObjectId,
         initial_shared_version: Version,
     ) -> IotaResult<SharedVerdict> {
-        // Creation: the row at the declared initial version.
+        // Creation: the row at the declared initial version. A row at or below
+        // the horizon proved the flag, so only the object's presence is left.
         let no_creation_row = match SharedReader::start(id, initial_shared_version, self.horizon)
             .read_creation_row(self)?
         {
-            CreationRowLookup::Created(created) => return self.finish_created_shared(created),
+            CreationRowLookup::Created(created) => {
+                // creation row returned Created, check the store for existence
+                return match created.read_object(self)? {
+                    CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
+                    CreatedObjectLookup::Absent(object_absent) => {
+                        self.check_deletion(object_absent)
+                    }
+                };
+            }
             CreationRowLookup::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
             CreationRowLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
             CreationRowLookup::NoRow(no_creation_row) => no_creation_row,
@@ -134,7 +143,14 @@ impl CommitIndexedReader {
         // Store: hold the latest object, read both tables again.
         let object_answered = no_record.read_object(self)?;
         let object_answered_no_creation_row = match object_answered.reread_creation_row(self)? {
-            CreationRowRecheck::Created(created) => return self.finish_created_shared(created),
+            CreationRowRecheck::Created(created) => {
+                return match created.read_object(self)? {
+                    CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
+                    CreatedObjectLookup::Absent(object_absent) => {
+                        self.check_deletion(object_absent)
+                    }
+                };
+            }
             CreationRowRecheck::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
             CreationRowRecheck::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
             CreationRowRecheck::NoRow(object_answered_no_creation_row) => {
@@ -150,20 +166,9 @@ impl CommitIndexedReader {
         self.check_deletion(object_absent)
     }
 
-    /// A creation row at or below the horizon proved the flag. Only deletion
-    /// is left. Reached from both passes.
-    fn finish_created_shared(
-        &self,
-        created: SharedReader<CreatedShared>,
-    ) -> IotaResult<SharedVerdict> {
-        match created.read_object(self)? {
-            CreatedObjectLookup::Exists => Ok(SharedVerdict::Exists),
-            CreatedObjectLookup::Absent(object_absent) => self.check_deletion(object_absent),
-        }
-    }
-
     /// Deletion: this epoch's marker, then the row at the deleted version.
-    /// Reached with and without a creation row.
+    /// Reached from a created object that is gone, in either pass, and from a
+    /// store answer no table claimed.
     fn check_deletion(
         &self,
         object_absent: SharedReader<ObjectAbsent>,
