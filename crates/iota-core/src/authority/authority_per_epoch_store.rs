@@ -1324,7 +1324,7 @@ impl AuthorityPerEpochStore {
             .expect("AuthorityEpochTables should hold a readable consensus resume point")
             .unwrap_or_default()
             .sub_dag_index;
-        let handler_object_state = HandlerObjectState::new(&tables, resume_point);
+        let handler_object_state = HandlerObjectState::new(&tables, resume_point, metrics.clone());
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
