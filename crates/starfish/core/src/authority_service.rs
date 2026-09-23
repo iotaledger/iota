@@ -927,6 +927,8 @@ fn fetch_commit_transactions_within_budget(
         let commit_start = result.len();
         let mut covered = true;
         for transaction_ref in transaction_refs {
+            // An absent payload means the budgeted scan stopped before it, so this
+            // commit and the ones after it are dropped.
             let Some(payload) = take_payload(context, &mut payloads, *transaction_ref) else {
                 covered = false;
                 break;
