@@ -50,6 +50,7 @@ use crate::{
         indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
         indexer_wait_for_transaction, input_size_limit_exceeded_msg, publish_test_move_package,
         rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+        wait_for_oldest_available_checkpoint,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -2019,6 +2020,51 @@ fn get_chain_identifier_with_pruning_enabled() {
                 .is_err()
         )
     });
+}
+
+/// Returns the `oldest_available_checkpoint` reported by `iota_getCheckpoints`.
+///
+/// Pages in descending order since an ascending query from genesis on pruned
+/// indexer fails with [`IndexerError::DataPruned`].
+async fn checkpoints_oldest_available_checkpoint(client: &HttpClient) -> Option<u64> {
+    client
+        .get_checkpoints(None, Some(1), true)
+        .await
+        .expect("get_checkpoints should succeed")
+        .oldest_available_checkpoint
+        .map(|cp| *cp)
+}
+
+#[tokio::test]
+async fn get_checkpoints_reports_oldest_available_checkpoint() {
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_get_checkpoints_reports_oldest_available_checkpoint"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    // Nothing is pruned yet, so the response reaches the genesis checkpoint.
+    assert_eq!(
+        wait_for_oldest_available_checkpoint(
+            || checkpoints_oldest_available_checkpoint(client),
+            |cp| cp.is_some()
+        )
+        .await,
+        Some(0)
+    );
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_checkpoint_pruned(store, 0).await;
+
+    // Once the genesis checkpoint is pruned, the reported checkpoint is above it.
+    wait_for_oldest_available_checkpoint(
+        || checkpoints_oldest_available_checkpoint(client),
+        |cp| cp > Some(0),
+    )
+    .await;
 }
 
 #[test]

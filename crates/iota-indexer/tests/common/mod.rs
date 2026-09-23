@@ -5,6 +5,7 @@ pub mod backward_history;
 pub mod object_versions;
 
 use std::{
+    future::Future,
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -361,6 +362,33 @@ pub async fn indexer_wait_for_checkpoint_pruned(
     })
     .await
     .expect("timeout waiting for indexer to prune checkpoint");
+}
+
+/// Polls `fetch` until the `oldest_available_checkpoint` it returns satisfies
+/// `predicate`, and returns it.
+///
+/// The reader refreshes its watermarks from the database periodically, so after
+/// pruning it can still report the old checkpoint for up to one refresh
+/// interval.
+pub async fn wait_for_oldest_available_checkpoint<F, Fut>(
+    fetch: F,
+    predicate: impl Fn(Option<u64>) -> bool,
+) -> Option<u64>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Option<u64>>,
+{
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let oldest = fetch().await;
+            if predicate(oldest) {
+                return oldest;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for the reported oldest available checkpoint")
 }
 
 pub async fn indexer_wait_for_transaction(
