@@ -15,8 +15,9 @@ chrono.workspace = true
 clap.workspace = true
 humantime.workspace = true
 once_cell.workspace = true
-prometheus-http-query = { version = "0.9", default-features = false, features = ["rustls-tls"] }
+prometheus-http-query = { version = "0.9", default-features = false }
 reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 strum.workspace = true

@@ -337,7 +337,7 @@ rand = "0.10.2"
 #   binaries would disagree; changing them needs a protocol feature flag.
 rand08 = { package = "rand", version = "0.8.5" }
 regex = "1.7.1"
-reqwest = { version = "0.13", default-features = false, features = ["http2", "json", "rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["http2", "json", "rustls-no-provider"] }
 roaring = "0.11.2"
 rs_merkle = "1.5.0"
 rstest = "0.16.0"
@@ -456,7 +456,7 @@ iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d9a49ee49731bda3d8265358b7f8147fa252b2b1", default-features = false }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d9a49ee49731bda3d8265358b7f8147fa252b2b1", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d9a49ee49731bda3d8265358b7f8147fa252b2b1", default-features = false, features = ["tls-ring"] }
 iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d9a49ee49731bda3d8265358b7f8147fa252b2b1", default-features = false }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d9a49ee49731bda3d8265358b7f8147fa252b2b1", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }

@@ -48,6 +48,9 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 async-trait.workspace = true
+rcgen = "0.13"
+serde_json.workspace = true
+tempfile.workspace = true
 
 # internal dependencies
 iota-grpc-client.workspace = true

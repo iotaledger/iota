@@ -1760,6 +1760,7 @@ async fn try_get_past_object_valid_params() {
         "params": [ObjectId::ZERO.to_string(), 7, null],
     });
 
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let response: serde_json::Value = reqwest::Client::new()
         .post(cluster.rpc_url())
         .json(&request)

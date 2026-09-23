@@ -321,6 +321,7 @@ impl HttpKVStore {
     ) -> IotaResult<Self> {
         info!("creating HttpKVStore with base_url: {}", base_url);
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = Client::builder().http2_prior_knowledge().build().unwrap();
 
         let base_url = if base_url.ends_with('/') {

@@ -19,6 +19,7 @@ lru.workspace = true
 parking_lot.workspace = true
 rand.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
 tokio-util.workspace = true

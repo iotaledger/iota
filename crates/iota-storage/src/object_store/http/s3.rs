@@ -25,6 +25,7 @@ pub(crate) struct S3Client {
 
 impl S3Client {
     pub fn new(endpoint: &str) -> Result<Self> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let mut builder = ClientBuilder::new();
         builder = builder
             .user_agent(DEFAULT_USER_AGENT)

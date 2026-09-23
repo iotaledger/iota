@@ -155,6 +155,7 @@ mod tests {
         });
 
         // build a client
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .tls_certs_only([server_priv_cert.reqwest_certificate()])
             .identity(client_priv_cert.reqwest_identity())
@@ -269,6 +270,7 @@ mod tests {
         });
 
         // build a client
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .tls_certs_only([server_priv_cert.reqwest_certificate()])
             .identity(client_priv_cert.reqwest_identity())

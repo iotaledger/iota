@@ -304,6 +304,7 @@ mod tests {
         let server_keypair = Ed25519KeyPair::generate(&mut rng);
         let server_certificate = SelfSignedCertificate::new(server_keypair.private(), "localhost");
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
             .tls_certs_only([server_certificate.reqwest_certificate()])
             .identity(client_certificate.reqwest_identity())

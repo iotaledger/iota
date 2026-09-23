@@ -65,6 +65,7 @@ telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
 [dev-dependencies]
+rustls.workspace = true
 serde_yaml.workspace = true
 
 [build-dependencies]
