@@ -456,9 +456,8 @@ where
                         async move {
                             let response: Result<Response<BoxBody>, BoxError> = future.await;
                             response.map(|response| {
-                                response.map(|inner| {
-                                    body::boxed(body::GuardedBody::new(inner, guard))
-                                })
+                                response
+                                    .map(|inner| body::boxed(body::GuardedBody::new(inner, guard)))
                             })
                         }
                     }
@@ -1196,7 +1195,7 @@ mod tests {
 
         let mut payload = vec![0u8; length];
         connection.read_exact(&mut payload).await.unwrap();
-        payload.chunks_exact(SETTING_LEN).find_map(|setting| {
+        payload.as_chunks::<SETTING_LEN>().0.iter().find_map(|setting| {
             (u16::from_be_bytes([setting[0], setting[1]]) == SETTINGS_MAX_CONCURRENT_STREAMS)
                 .then(|| u32::from_be_bytes([setting[2], setting[3], setting[4], setting[5]]))
         })
@@ -1277,7 +1276,6 @@ mod tests {
             "the server must close a peer that ignores keepalive pings"
         );
     }
-
 
     /// A peer that completes the handshake and then never picks a protocol
     /// starts no request, so the idle deadline is what closes it. Nothing else
@@ -1378,7 +1376,10 @@ mod tests {
 
     /// Opens connections until the server stops serving them, and reports how
     /// many it was serving at the end.
-    async fn hold_connections(handle: &ServerHandle, attempts: usize) -> Vec<tokio::net::TcpStream> {
+    async fn hold_connections(
+        handle: &ServerHandle,
+        attempts: usize,
+    ) -> Vec<tokio::net::TcpStream> {
         let mut held = Vec::new();
         for _ in 0..attempts {
             let Ok(connection) = tokio::net::TcpStream::connect(handle.local_addr()).await else {
@@ -1460,8 +1461,6 @@ mod tests {
     /// Addresses are grouped, not compared: a /24 and a /64 are one peer each.
     #[test]
     fn addresses_are_grouped_by_prefix() {
-        use crate::listener::Listener as _;
-
         let key = |addr: &str| {
             <tokio::net::TcpListener as Listener>::connection_key(&addr.parse().unwrap())
         };

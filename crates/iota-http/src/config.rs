@@ -504,7 +504,9 @@ impl Config {
         // "no opinion", which is hyper's default, not "unlimited" — the
         // adjacent `max_pending_accept_reset_streams` is guarded the same way.
         if let Some(max_concurrent_streams) = self.max_concurrent_streams {
-            builder.http2().max_concurrent_streams(max_concurrent_streams);
+            builder
+                .http2()
+                .max_concurrent_streams(max_concurrent_streams);
         }
 
         builder

@@ -5,9 +5,9 @@
 use std::{collections::HashSet, time::Duration};
 
 use iota_grpc_server::metrics::{LATENCY_SEC_BUCKETS, SPAM_LABEL, grpc_code_to_str};
+use iota_http::ConnectionEvent;
 use iota_network::{api::VALIDATOR_METHOD_PATHS, tonic::Code};
 use iota_network_stack::metrics::MetricsCallbackProvider;
-use iota_http::ConnectionEvent;
 use prometheus_filtered::{
     HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
