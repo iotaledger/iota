@@ -9,6 +9,10 @@ use std::{
 };
 
 use parking_lot::{Mutex, RwLock};
+// Every authority must derive the same leaders from the same round and
+// commit index, so the seeded draws in this file stay on `rand` 0.8:
+// newer versions return different values for the same seed. Changing
+// them needs a protocol feature flag.
 use rand08::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use starfish_config::{AuthorityIndex, Stake};
 
