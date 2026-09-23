@@ -70,11 +70,10 @@ fn buffer_bytes(count: usize, entry_bytes: usize) -> usize {
     count.saturating_mul(entry_bytes.saturating_add(size_of::<Bytes>()))
 }
 
-/// Most headers a fetch response may carry before the peer is at fault. Commit
-/// sync is bounded by the cap the server applies in
-/// `ConsensusService::fetch_block_headers`, which never exceeds the request;
-/// header sync by the ceiling every configuration respects, since the peer's
-/// gap-fill follows its own cap.
+/// Upper bound on the headers a fetch response may carry; a response with
+/// more is the peer's fault. Commit sync: our own cap, since the server
+/// returns only the requested headers. Header sync: the ceiling every
+/// configuration respects, since the peer fills gaps up to its own cap.
 fn max_fetched_headers(context: &Context, commit_sync: bool) -> usize {
     if commit_sync {
         context.parameters.max_headers_per_commit_sync_fetch
