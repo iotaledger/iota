@@ -452,6 +452,9 @@ pub(crate) enum ConsensusError {
 
     #[error("Another fetch is already serving a commit that does not fit the response budget")]
     OversizedCommitAlreadyServed,
+
+    #[error("Transaction {transaction_ref} of a requested commit is not available on this node")]
+    TransactionsNotAvailable { transaction_ref: TransactionRef },
 }
 
 impl ConsensusError {

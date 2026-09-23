@@ -870,7 +870,7 @@ fn take_payload(
 /// The first commit is served whole however large it is, since a response
 /// covering no commit lets the requester make no progress. Going past the
 /// budget for it takes the node-wide slot, so only one response at a time
-/// holds more than the budget.
+/// holds more than the budget. Fails when this node lacks one of its payloads.
 fn fetch_commit_transactions_within_budget(
     context: &Context,
     store: &dyn Store,
@@ -893,8 +893,9 @@ fn fetch_commit_transactions_within_budget(
         let commit_start = result.len();
         let mut covered = true;
         for (position, transaction_ref) in transaction_refs.iter().enumerate() {
-            // The refs come from commits read out of this node's own store, so
-            // an absent payload means the budgeted scan stopped before it.
+            // An absent payload was either not reached by the budgeted scan or
+            // has not arrived at this node yet, when the commit is past the last
+            // solid one.
             let payload = match take_payload(context, &mut payloads, *transaction_ref) {
                 Some(payload) => payload,
                 None if index == 0 => {
@@ -909,13 +910,13 @@ fn fetch_commit_transactions_within_budget(
                     payloads.extend(read_transaction_payloads(dag_state, &unread, |below_gc| {
                         store.scan_serialized_transactions(&below_gc, usize::MAX)
                     })?);
-                    match take_payload(context, &mut payloads, *transaction_ref) {
-                        Some(payload) => payload,
-                        // Storage no longer holds it, so no prefix of these
-                        // commits can be covered and the commits after it are
-                        // not worth serializing.
-                        None => return Ok((result, permit)),
-                    }
+                    // Without the first commit the response lets the requester
+                    // make no progress, so nothing is served.
+                    take_payload(context, &mut payloads, *transaction_ref).ok_or(
+                        ConsensusError::TransactionsNotAvailable {
+                            transaction_ref: *transaction_ref,
+                        },
+                    )?
                 }
                 None => {
                     covered = false;
@@ -6094,8 +6095,11 @@ mod tests {
             Err(ConsensusError::OversizedCommitAlreadyServed)
         ));
 
-        // Under a budget that fits both commits, no slot is needed.
+        // The slot frees up once the response holding it has been sent.
         drop(permit);
+        assert!(served_with_budget(1).unwrap().1.is_some());
+
+        // Under a budget that fits both commits, no slot is needed.
         let (served, permit) = served_with_budget(usize::MAX).unwrap();
         assert_eq!(
             served.len(),
@@ -6105,7 +6109,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn one_fetch_at_a_time_reads_a_commit_without_a_budget() {
+    async fn a_first_commit_missing_a_payload_is_not_served() {
         use crate::authority_service::fetch_commit_transactions_within_budget;
 
         let (context, _) = Context::new_for_test(4);
@@ -6114,18 +6118,27 @@ mod tests {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=1).build();
+        dag_builder.layers(1..=2).build();
         dag_builder.persist_all_blocks(dag_state.clone());
-        let served_ref = dag_builder.block_headers(1..=1)[0].transaction_ref();
         let unknown_ref = TransactionRef {
             round: 1,
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
         };
 
-        // The first commit cannot be covered within the budget, so serving it
-        // takes the slot for reading a commit without one.
-        let commits_transaction_refs = vec![vec![served_ref, unknown_ref]];
+        // The first commit holds a payload this node does not have, while the
+        // commit after it is fully available.
+        let commits_transaction_refs = vec![
+            vec![
+                dag_builder.block_headers(1..=1)[0].transaction_ref(),
+                unknown_ref,
+            ],
+            dag_builder
+                .block_headers(2..=2)
+                .iter()
+                .map(|header| header.transaction_ref())
+                .collect(),
+        ];
         let oversized_commit_slot = Arc::new(Semaphore::new(1));
         let fetch = || {
             fetch_commit_transactions_within_budget(
@@ -6137,17 +6150,16 @@ mod tests {
             )
         };
 
-        let (served, permit) = fetch().unwrap();
-        assert_eq!(served.len(), 1);
-        assert!(permit.is_some());
-
         assert!(matches!(
             fetch(),
-            Err(ConsensusError::OversizedCommitAlreadyServed)
+            Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
+                if transaction_ref == unknown_ref
         ));
-
-        // The slot frees up once the response holding it has been sent.
-        drop(permit);
-        assert!(fetch().unwrap().1.is_some());
+        // The slot taken for the unbudgeted read is released with the error.
+        assert_eq!(oversized_commit_slot.available_permits(), 1);
+        assert!(matches!(
+            fetch(),
+            Err(ConsensusError::TransactionsNotAvailable { .. })
+        ));
     }
 }

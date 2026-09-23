@@ -1037,6 +1037,9 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 ConsensusError::OversizedCommitAlreadyServed => {
                     tonic::Status::resource_exhausted(e.to_string())
                 }
+                ConsensusError::TransactionsNotAvailable { .. } => {
+                    tonic::Status::unavailable(e.to_string())
+                }
                 e => tonic::Status::internal(format!("{e:?}")),
             })?;
 
