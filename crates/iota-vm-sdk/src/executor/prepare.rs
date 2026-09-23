@@ -79,6 +79,10 @@ pub(super) fn prepare_transaction(
         .into());
     }
     transaction
+        .check_serialized_size(&env.protocol_config)
+        .map_err(|e| ValidationError::new("transaction validity check", e))?;
+
+    transaction
         .validity_check_no_gas_check(&env.protocol_config)
         .map_err(|e| ValidationError::new("transaction validity check", e))?;
 

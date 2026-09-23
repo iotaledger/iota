@@ -970,7 +970,12 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionAPI,
+        effects::TransactionEffectsAPI,
+        error::IotaError,
+        gas_coin::GasCoin,
+        transaction::TransactionAPI,
+        transaction_executor::VmChecks,
+        utils::{assert_size_limit_err, ptb_above_max_tx_size},
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -1261,5 +1266,24 @@ mod tests {
 
         assert_eq!(&checkpoint.epoch_rolling_gas_cost_summary, gas_summary);
         assert_eq!(checkpoint.network_total_transactions, 2); // genesis + 1 txn
+    }
+
+    #[test]
+    fn simulate_rejects_a_transaction_above_the_size_limit() {
+        let sim = Simulacrum::new();
+        let pt = {
+            let inner = sim.inner.read().unwrap();
+            ptb_above_max_tx_size(inner.epoch_state.protocol_config())
+        };
+        let transaction =
+            Transaction::new_programmable(Address::random(), vec![], pt, 10_000_000, 1000);
+
+        let Err(err) = sim.simulate_transaction(transaction, VmChecks::Enabled) else {
+            panic!("a transaction above the size limit must be rejected");
+        };
+        let IotaError::UserInput { error } = &err else {
+            panic!("got {err:?}");
+        };
+        assert_size_limit_err(error, "serialized transaction size exceeded maximum");
     }
 }
