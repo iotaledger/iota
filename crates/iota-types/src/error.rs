@@ -747,6 +747,22 @@ pub enum VMMemoryLimitExceededSubStatusCode {
     TOTAL_EVENT_SIZE_LIMIT_EXCEEDED = 7,
 }
 
+/// Formats `error` followed by each error in its `source()` chain, separated
+/// by `": "`.
+///
+/// Use this instead of `Display` for errors such as `signature::Error`, whose
+/// `Display` output omits the underlying cause.
+pub fn error_chain(error: &dyn std::error::Error) -> String {
+    let mut out = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        out.push_str(": ");
+        out.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    out
+}
+
 pub type IotaResult<T = ()> = Result<T, IotaError>;
 pub type UserInputResult<T = ()> = Result<T, UserInputError>;
 
