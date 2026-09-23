@@ -1368,6 +1368,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                         }
                                     },
                                     Err(err) => {
+                                        misbehavior_store.record_fetch_fault(authority_index, &err);
                                         record_probe(false);
                                         warn!("Error {err} while fetching our own block header from peer {authority_index}. Will retry.");
                                         results.push(fetch_own_block_header(authority_index, FETCH_OWN_BLOCK_HEADER_RETRY_DELAY));

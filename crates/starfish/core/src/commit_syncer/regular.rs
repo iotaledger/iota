@@ -520,7 +520,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         let (serialized_commits, serialized_voting_block_headers) = inner
             .network_client
             .fetch_commits(target_authority, commit_range.clone(), timeout)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                inner
+                    .misbehavior_store
+                    .record_fetch_fault(target_authority, e);
+            })?;
 
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit,
