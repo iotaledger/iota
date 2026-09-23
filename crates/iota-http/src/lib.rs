@@ -14,7 +14,10 @@ use tokio_rustls::{TlsAcceptor, rustls};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::trace;
 
-use self::{body::BoxBody, connection_info::ActiveConnections};
+use self::{
+    body::BoxBody,
+    connection_info::{ActiveConnections, PeerConnectionCounts},
+};
 
 pub mod body;
 mod config;
@@ -24,7 +27,7 @@ mod fuse;
 mod io;
 mod listener;
 
-pub use config::Config;
+pub use config::{Config, PeerConnectionEvent};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
 pub use listener::{Listener, ListenerExt};
 
@@ -127,6 +130,8 @@ impl Builder {
         });
 
         let (watch_sender, watch_receiver) = tokio::sync::watch::channel(());
+        let peer_connection_counts =
+            PeerConnectionCounts::new(self.config.on_peer_connection_event.clone());
         let server = Server {
             config: self.config,
             tls_config,
@@ -142,6 +147,7 @@ impl Builder {
             connections: connections.clone(),
             graceful_shutdown_token: graceful_shutdown_token.clone(),
             _watch_receiver: watch_receiver,
+            peer_connection_counts,
         };
 
         let handle = ServerHandle(Arc::new(HandleInner {
@@ -236,6 +242,7 @@ struct Server<L: Listener> {
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     // Used to signal to a ServerHandle when the server has completed shutting down
     _watch_receiver: tokio::sync::watch::Receiver<()>,
+    peer_connection_counts: PeerConnectionCounts,
 }
 
 impl<L> Server<L>
@@ -317,6 +324,18 @@ where
     }
 
     fn handle_connection(&mut self, io: ServerIo<L::Io>, remote_addr: L::Addr) {
+        let mut peer_connection_guard = None;
+        if let (Some(max), Some(peer)) =
+            (self.config.max_connections_per_peer, peer_public_key(&io))
+        {
+            let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
+                // Dropping the connection closes it, releasing its file descriptor.
+                trace!("peer already holds {max} connections, closing the new one");
+                return;
+            };
+            peer_connection_guard = Some(guard);
+        }
+
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
         let connection_info = ConnectionInfo::new(
             remote_addr,
@@ -346,7 +365,11 @@ where
             .write()
             .unwrap()
             .insert(connection_id, connection_info);
-        let on_connection_close = OnConnectionClose::new(connection_id, self.connections.clone());
+        let on_connection_close = OnConnectionClose::new(
+            connection_id,
+            self.connections.clone(),
+            peer_connection_guard,
+        );
 
         self.connection_handlers
             .spawn(connection_handler::serve_connection(
@@ -404,6 +427,24 @@ where
     tracing::trace!("accepting TLS connection");
     let io = tls_acceptor.accept(io).await?;
     Ok((ServerIo::new_tls_io(io), remote_addr))
+}
+
+/// Identifies the peer by the public key of the single certificate it
+/// authenticated with, or `None` if it presented no certificate.
+fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
+    let certs = io.peer_certs()?;
+    let [certificate] = certs.as_slice() else {
+        trace!("unexpected number of peer certificates: {}", certs.len());
+        return None;
+    };
+
+    match iota_tls::public_key_from_certificate(certificate) {
+        Ok(public_key) => Some(AsRef::<[u8]>::as_ref(&public_key).to_vec()),
+        Err(e) => {
+            trace!("failed to extract the public key from the peer certificate: {e:?}");
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -657,6 +698,208 @@ mod tests {
             .await
             .expect("the server must resume accepting once a slot frees")
             .expect("the handshake must succeed");
+    }
+
+    /// A peer at its connection limit gets no further connections, while every
+    /// other peer is served as usual and the peer itself recovers a slot as
+    /// soon as one of its connections closes.
+    #[tokio::test]
+    async fn connections_per_peer_are_capped() {
+        use fastcrypto::{
+            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
+            traits::{KeyPair, ToFromBytes},
+        };
+        use tokio::io::AsyncReadExt as _;
+
+        const MAX_PER_PEER: usize = 2;
+
+        let client_key =
+            |seed: u8| Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap());
+        let server_keypair = client_key(1);
+        let server_public_key = server_keypair.public().to_owned();
+        let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
+            server_keypair.private(),
+            SERVER_NAME.to_string(),
+            iota_tls::AllowPublicKeys::new(
+                [
+                    client_key(2).public().to_owned(),
+                    client_key(3).public().to_owned(),
+                ]
+                .into(),
+            ),
+        );
+
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections_per_peer(Some(MAX_PER_PEER))
+                    .on_peer_connection_event({
+                        let events = events.clone();
+                        move |peer, event| events.lock().unwrap().push((peer.to_vec(), event))
+                    }),
+            )
+            .tls_config(server_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connect = |seed: u8| {
+            let connector =
+                tokio_rustls::TlsConnector::from(Arc::new(iota_tls::create_rustls_client_config(
+                    server_public_key.clone(),
+                    SERVER_NAME.to_string(),
+                    Some(client_key(seed).private()),
+                )));
+            let server_name = server_name.clone();
+            async move {
+                let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+                connector.connect(server_name, io).await.unwrap()
+            }
+        };
+
+        let events_of = |seed: u8| -> Vec<PeerConnectionEvent> {
+            let peer = client_key(seed).public().as_ref().to_vec();
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(reported, _)| *reported == peer)
+                .map(|(_, event)| *event)
+                .collect()
+        };
+
+        // The connection is established before the server has necessarily
+        // registered or dropped it, so settle on the count rather than assert
+        // on it immediately.
+        let established = async |expected: usize| {
+            for _ in 0..100 {
+                if handle.number_of_connections() == expected {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            panic!(
+                "expected {expected} connections, the server holds {}",
+                handle.number_of_connections()
+            );
+        };
+
+        let mut peer = Vec::new();
+        for _ in 0..MAX_PER_PEER {
+            peer.push(connect(2).await);
+        }
+        established(MAX_PER_PEER).await;
+
+        let mut refused = connect(2).await;
+        let mut buf = [0u8; 1];
+        let read = tokio::time::timeout(Duration::from_secs(10), refused.read(&mut buf))
+            .await
+            .expect("the server must close a connection past the limit");
+        assert!(
+            matches!(read, Ok(0) | Err(_)),
+            "the server must close the connection, got {read:?}"
+        );
+        established(MAX_PER_PEER).await;
+        assert_eq!(
+            events_of(2),
+            [
+                PeerConnectionEvent::Established { held: 1 },
+                PeerConnectionEvent::Established { held: 2 },
+                PeerConnectionEvent::RefusedAtLimit { held: 2 },
+            ],
+            "the refusal must be reported against the peer that caused it"
+        );
+
+        // A peer sitting at its limit must not consume anyone else's budget.
+        let other_peer = connect(3).await;
+        established(MAX_PER_PEER + 1).await;
+
+        peer.pop();
+        established(MAX_PER_PEER).await;
+        let reconnected = connect(2).await;
+        established(MAX_PER_PEER + 1).await;
+        assert_eq!(
+            events_of(2),
+            [
+                PeerConnectionEvent::Established { held: 1 },
+                PeerConnectionEvent::Established { held: 2 },
+                PeerConnectionEvent::RefusedAtLimit { held: 2 },
+                PeerConnectionEvent::Closed { held: 1 },
+                PeerConnectionEvent::Established { held: 2 },
+            ],
+            "closing and reconnecting must be reported with the count held afterwards"
+        );
+        assert_eq!(
+            events_of(3),
+            [PeerConnectionEvent::Established { held: 1 }],
+            "another peer's events must not leak into this one's"
+        );
+
+        drop((peer, other_peer, reconnected));
+    }
+
+    /// The cap identifies a peer by its single certificate, so a peer sending
+    /// a longer chain is refused at the handshake and never holds a
+    /// connection.
+    #[tokio::test]
+    async fn peer_with_extra_certificates_is_refused_at_the_handshake() {
+        use fastcrypto::{
+            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
+            traits::{KeyPair, ToFromBytes},
+        };
+        use tokio::io::AsyncReadExt as _;
+
+        let key =
+            |seed: u8| Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap());
+        let server_public_key = key(1).public().to_owned();
+        let client_public_key = key(2).public().to_owned();
+        let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
+            key(1).private(),
+            SERVER_NAME.to_string(),
+            iota_tls::AllowPublicKeys::new([client_public_key].into()),
+        );
+        let handle = Builder::new()
+            .config(Config::default().max_connections_per_peer(Some(1)))
+            .tls_config(server_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // The allowed certificate followed by an unrelated one.
+        let client_certificate =
+            iota_tls::SelfSignedCertificate::new(key(2).private(), SERVER_NAME);
+        let extra_certificate = iota_tls::SelfSignedCertificate::new(key(3).private(), SERVER_NAME);
+        let client_config =
+            iota_tls::ServerCertVerifier::new(server_public_key, SERVER_NAME.to_string())
+                .rustls_client_config_with_client_auth(
+                    vec![
+                        client_certificate.rustls_certificate(),
+                        extra_certificate.rustls_certificate(),
+                    ],
+                    client_certificate.rustls_private_key(),
+                )
+                .unwrap();
+
+        // In TLS 1.3 the client may consider the handshake done before the
+        // server's rejection arrives, so the refusal can surface on the first
+        // read instead.
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_config));
+        let io = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        if let Ok(mut connection) = connector.connect(server_name, io).await {
+            let mut buf = [0u8; 1];
+            let read = tokio::time::timeout(Duration::from_secs(10), connection.read(&mut buf))
+                .await
+                .expect("the server must close a connection with more than one certificate");
+            assert!(
+                matches!(read, Ok(0) | Err(_)),
+                "the server must close the connection, got {read:?}"
+            );
+        }
+        assert_eq!(handle.number_of_connections(), 0);
     }
 
     /// A limit the accept loop can never fall below, and a limit whose slots

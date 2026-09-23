@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::{fmt, sync::Arc, time::Duration};
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 /// hyper's own default for the header read deadline; hyper only enforces it
@@ -37,6 +37,39 @@ pub struct Config {
     pub(crate) max_connection_age: Option<Duration>,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
+    pub(crate) max_connections_per_peer: Option<usize>,
+    pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
+}
+
+/// A change to the connections an authenticated peer holds, with the number
+/// it holds afterwards.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PeerConnectionEvent {
+    /// A connection was accepted and counted.
+    Established { held: usize },
+    /// A counted connection closed.
+    Closed { held: usize },
+    /// A further connection was closed because the peer already holds the
+    /// limit.
+    RefusedAtLimit { held: usize },
+}
+
+type PeerConnectionCallback = Arc<dyn Fn(&[u8], PeerConnectionEvent) + Send + Sync>;
+
+/// Called with the peer's public key on each of its connection events.
+#[derive(Clone)]
+pub(crate) struct OnPeerConnectionEvent(PeerConnectionCallback);
+
+impl OnPeerConnectionEvent {
+    pub(crate) fn call(&self, peer_public_key: &[u8], event: PeerConnectionEvent) {
+        (self.0)(peer_public_key, event)
+    }
+}
+
+impl fmt::Debug for OnPeerConnectionEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("OnPeerConnectionEvent")
+    }
 }
 
 impl Default for Config {
@@ -59,6 +92,8 @@ impl Default for Config {
             max_connection_age: None,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
+            max_connections_per_peer: None,
+            on_peer_connection_event: None,
         }
     }
 }
@@ -258,8 +293,46 @@ impl Config {
         }
     }
 
+    /// Sets how many established connections a single peer may hold at once.
+    /// Further connections from a peer already at the limit are closed as soon
+    /// as they are accepted.
+    ///
+    /// Only connections that authenticate with a client certificate are
+    /// counted, since a peer that presents none cannot be told apart from any
+    /// other.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connections_per_peer(self, max_connections_per_peer: Option<usize>) -> Self {
+        Self {
+            max_connections_per_peer,
+            ..self
+        }
+    }
+
+    /// Sets a callback invoked with the peer's public key each time one of its
+    /// connections is established, closed or refused at the limit. Only
+    /// connections counted under `max_connections_per_peer` are reported. It
+    /// runs on the accept loop or a connection's task, so it must not block.
+    pub fn on_peer_connection_event(
+        self,
+        on_peer_connection_event: impl Fn(&[u8], PeerConnectionEvent) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            on_peer_connection_event: Some(OnPeerConnectionEvent(Arc::new(
+                on_peer_connection_event,
+            ))),
+            ..self
+        }
+    }
+
     /// Rejects settings the accept loop cannot recover from.
     pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
+        if self.max_connections_per_peer == Some(0) {
+            return Err("'max_connections_per_peer' must be greater than zero, \
+                        a peer allowed no connection can never be served"
+                .into());
+        }
+
         match self.max_pending_connections {
             Some(0) => Err("'max_pending_connections' must be greater than zero, \
                             a server that accepts no connection is never useful"

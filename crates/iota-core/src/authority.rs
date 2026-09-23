@@ -1093,6 +1093,22 @@ impl AuthorityState {
             "Move authenticator input objects must not contain owned objects"
         );
 
+        // The package holding each authenticate function is known only now that the
+        // `AuthenticatorFunctionRef`s are loaded, so the deny-list check for it
+        // stands apart from the one above. It must stay ahead of two things: the
+        // filtering below, which drops authenticators that do not run
+        // pre-consensus, so that every authenticator is covered; and the
+        // authenticator execution itself, so that a denied package is never run.
+        if protocol_config.deny_authenticator_packages() {
+            iota_transaction_checks::deny::check_authenticator_packages(
+                deny_config,
+                per_authenticator_checked_inputs
+                    .iter()
+                    .map(|(_, authenticator_function_ref)| authenticator_function_ref),
+                self.get_backing_package_store().as_ref(),
+            )?;
+        }
+
         // Check if any of the sender, the transaction input objects, the receiving
         // objects and the authenticator input objects are in the coin deny
         // list, which would prevent the transaction from being signed.
@@ -2285,6 +2301,8 @@ impl AuthorityState {
                 error: "simulate does not support system transactions".to_string(),
             });
         }
+
+        transaction.check_serialized_size(epoch_store.protocol_config())?;
 
         // Cheap validity checks for a transaction, including input size limits.
         // This does not check if gas objects are missing since we may create a
@@ -5705,32 +5723,32 @@ impl AuthorityState {
                 );
 
                 let auth_account_object_seq_number =
-                    if let Some(auth_account_object_seq_number) = auth_account_object_seq_number {
+                    if let Some(expected_version) = auth_account_object_seq_number {
                         let account_object_version = object.version();
 
                         fp_ensure!(
-                            account_object_version == auth_account_object_seq_number,
+                            account_object_version == expected_version,
                             UserInputError::AccountObjectVersionMismatch {
                                 object_id: auth_account_object_id,
-                                expected_version: auth_account_object_seq_number,
+                                expected_version,
                                 actual_version: account_object_version,
                             }
                             .into()
                         );
 
-                        auth_account_object_seq_number
+                        expected_version
                     } else {
                         object.version()
                     };
 
-                if let Some(auth_account_object_digest) = auth_account_object_digest {
-                    let expected_digest = object.digest();
+                if let Some(expected_digest) = auth_account_object_digest {
+                    let account_object_digest = object.digest();
                     fp_ensure!(
-                        expected_digest == auth_account_object_digest,
+                        account_object_digest == expected_digest,
                         UserInputError::InvalidAccountObjectDigest {
                             object_id: auth_account_object_id,
                             expected_digest,
-                            actual_digest: auth_account_object_digest,
+                            actual_digest: account_object_digest,
                         }
                         .into()
                     );

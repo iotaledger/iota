@@ -1405,19 +1405,23 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             });
         }
 
-        // Bound the range based on sync type.
+        // Bound the range based on sync type. `start` is peer-controlled, so the bound
+        // saturates; a range at the top of the index space then matches no commits.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
-        let inclusive_bound = commit_range
-            .end()
-            .min(commit_range.start() + batch_size as CommitIndex - 1);
+        let inclusive_bound = commit_range.end().min(
+            commit_range
+                .start()
+                .saturating_add(batch_size as CommitIndex - 1),
+        );
+
+        let fast_search_up_to = fast_sync_search_bound(&commit_range, inclusive_bound, batch_size);
 
         // Find certifiable commit based on sync type
         let find_certifiable_commit = |commit_sync_type: &CommitSyncType| -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
             match commit_sync_type {
                 CommitSyncType::Regular => self.find_highest_certifiable_commit_in_range(&commit_range, inclusive_bound, commit_sync_type),
                 CommitSyncType::Fast => {
-                    let search_up_to = inclusive_bound + batch_size as CommitIndex;
-                    self.find_lowest_certifiable_commit_from(inclusive_bound, search_up_to, commit_sync_type)
+                    self.find_lowest_certifiable_commit_from(inclusive_bound, fast_search_up_to, commit_sync_type)
                 }
             }
         };
@@ -1443,15 +1447,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 }
             }
             CommitSyncType::Fast => {
-                if commit_range_length > 2 * batch_size as CommitIndex {
+                let limit = fast_search_up_to - commit_range.start() + 1;
+                if commit_range_length > limit {
                     error!(
                         "Commit range exceeded limit after scanning during fast sync: {} > {}",
-                        commit_range_length,
-                        2 * batch_size
+                        commit_range_length, limit
                     );
                     return Err(ConsensusError::CommitRangeExceededAfterScanning {
                         count: commit_range_length,
-                        limit: 2 * batch_size as CommitIndex,
+                        limit,
                         sync_type: "fast",
                     });
                 }
@@ -1925,6 +1929,26 @@ async fn make_recv_future<T: Clone>(
     (result, rx)
 }
 
+/// Highest commit index a fast sync response may reach. The scan runs past
+/// `inclusive_bound` to find a certifiable commit, bounded both by the local
+/// batch size and by twice the requested range, which is what the requester
+/// accepts. Taking the second bound from the request keeps the two sides
+/// agreed when their batch sizes differ.
+fn fast_sync_search_bound(
+    commit_range: &CommitRange,
+    inclusive_bound: CommitIndex,
+    batch_size: u32,
+) -> CommitIndex {
+    let requester_bound = commit_range.start().saturating_add(
+        (commit_range.size() as CommitIndex)
+            .saturating_mul(2)
+            .saturating_sub(1),
+    );
+    inclusive_bound
+        .saturating_add(batch_size as CommitIndex)
+        .min(requester_bound)
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -1947,10 +1971,10 @@ mod tests {
     };
 
     use crate::{
-        CommitConsumer, Round, Transaction, TransactionClient,
+        CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
-            SubscriptionCounter, filtered_header_info,
+            SubscriptionCounter, fast_sync_search_bound, filtered_header_info,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -4908,6 +4932,19 @@ mod tests {
             rounds - 2,
             result.0.len() as u32
         );
+
+        // A range at the top of the index space overflows the batch bound unless it
+        // saturates. Both sync types must answer with an empty response.
+        let top_range = CommitRange::new(CommitIndex::MAX - 1..=CommitIndex::MAX);
+        for commit_sync_type in [CommitSyncType::Regular, CommitSyncType::Fast] {
+            let label = commit_sync_type.as_str();
+            let result = authority_service
+                .handle_fetch_commits(peer, top_range.clone(), commit_sync_type)
+                .await
+                .unwrap();
+            assert!(result.0.is_empty(), "{label} returned commits");
+            assert!(result.1.is_empty(), "{label} returned headers");
+        }
     }
 
     #[tokio::test]
@@ -5544,6 +5581,48 @@ mod tests {
         assert!(
             matches!(result, Err(ConsensusError::IncorrectShardProof { .. })),
             "a maximum-length shard must pass the size gate, got {result:?}"
+        );
+    }
+
+    /// A server whose batch size exceeds the requester's still stops at twice
+    /// the requested range, which is all the requester accepts.
+    #[test]
+    fn fast_sync_scan_stops_at_twice_the_requested_range() {
+        let requested: CommitRange = (101..=200).into();
+        // The requested end, reached because the server serves the whole range.
+        let inclusive_bound = 200;
+
+        assert_eq!(
+            fast_sync_search_bound(&requested, inclusive_bound, 400),
+            300,
+            "the scan must not pass twice the 100 commits asked for"
+        );
+    }
+
+    /// With both sides on the same batch size the scan reaches a full batch
+    /// past the requested end.
+    #[test]
+    fn fast_sync_scan_reaches_a_full_batch_past_a_matching_request() {
+        let requested: CommitRange = (101..=500).into();
+        let inclusive_bound = 500;
+
+        assert_eq!(
+            fast_sync_search_bound(&requested, inclusive_bound, 400),
+            900
+        );
+    }
+
+    /// A server whose batch size is below the requester's keeps its own limit:
+    /// the requester accepts more, but serving it is the server's own call.
+    #[test]
+    fn fast_sync_scan_keeps_the_local_batch_when_it_is_the_lower_bound() {
+        let requested: CommitRange = (101..=500).into();
+        // A server with a batch size of 100 serves only the first 100 commits.
+        let inclusive_bound = 200;
+
+        assert_eq!(
+            fast_sync_search_bound(&requested, inclusive_bound, 100),
+            300
         );
     }
 }

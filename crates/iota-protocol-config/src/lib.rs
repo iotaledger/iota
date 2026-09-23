@@ -233,6 +233,12 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Reject `<SELF>` as an identifier in published modules.
 //             Make the enum variant count limit explicit in the protocol
 //             config.
+//             Check the package that holds a `MoveAuthenticator`'s
+//             authenticate function, and that package's dependencies, against
+//             the package deny list.
+//             Require the version field of a published module header to be the
+//             encoding the serializer produces for that version, rejecting a
+//             non-zero flavor byte below binary format version 7.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -632,6 +638,12 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     deny_rule_governance_on_chain: bool,
 
+    // If true, the package holding a `MoveAuthenticator`'s authenticate function,
+    // together with that package's dependencies, is checked against the package
+    // deny list.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_authenticator_packages: bool,
+
     // If true, package metadata can be published with ModuleMetadata as a dynamic
     // field.
     #[serde(skip_serializing_if = "is_false")]
@@ -675,6 +687,13 @@ struct FeatureFlags {
     // Disallow self identifier
     #[serde(skip_serializing_if = "is_false")]
     disallow_self_identifier: bool,
+
+    // If true, the version field of a published module header must be the encoding
+    // the serializer produces for the version it decodes to. Below binary format
+    // version 7 the flavor byte is not part of the header, and without this check
+    // a non-zero flavor byte is masked off instead of rejected.
+    #[serde(skip_serializing_if = "is_false")]
+    check_canonical_module_version_header: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -808,7 +827,9 @@ pub struct ProtocolConfig {
     max_tx_size_bytes: Option<u64>,
 
     /// Maximum number of input objects to a transaction. Enforced by the
-    /// transaction input checker
+    /// transaction input checker. Pure inputs do not count towards it; all
+    /// inputs together cannot exceed
+    /// `iota_types::transaction::MAX_PROGRAMMABLE_TX_INPUTS`.
     max_input_objects: Option<u64>,
 
     /// Max size of objects a transaction can write to disk after completion.
@@ -2072,6 +2093,10 @@ impl ProtocolConfig {
         self.feature_flags.deny_rule_governance_on_chain
     }
 
+    pub fn deny_authenticator_packages(&self) -> bool {
+        self.feature_flags.deny_authenticator_packages
+    }
+
     pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
         let res = self
             .feature_flags
@@ -2134,6 +2159,10 @@ impl ProtocolConfig {
 
     pub fn validate_input_object_versions(&self) -> bool {
         self.feature_flags.validate_input_object_versions
+    }
+
+    pub fn check_canonical_module_version_header(&self) -> bool {
+        self.feature_flags.check_canonical_module_version_header
     }
 }
 
@@ -3505,6 +3534,12 @@ impl ProtocolConfig {
                     cfg.feature_flags.validate_input_object_versions = true;
                     cfg.feature_flags.disallow_self_identifier = true;
                     cfg.max_move_enum_variants = Some(move_core_types::VARIANT_COUNT_MAX);
+                    // Apply the package deny list to the package that holds a
+                    // `MoveAuthenticator`'s authenticate function.
+                    cfg.feature_flags.deny_authenticator_packages = true;
+                    // Require a published module header to carry the canonical
+                    // encoding of its binary format version.
+                    cfg.feature_flags.check_canonical_module_version_header = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3651,6 +3686,10 @@ impl ProtocolConfig {
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
         self.feature_flags
             .disallow_new_modules_in_deps_only_packages = val;
+    }
+
+    pub fn set_check_canonical_module_version_header_for_testing(&mut self, val: bool) {
+        self.feature_flags.check_canonical_module_version_header = val;
     }
 
     pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
@@ -3802,6 +3841,10 @@ impl ProtocolConfig {
 
     pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
         self.feature_flags.deny_rule_governance = val;
+    }
+
+    pub fn set_deny_authenticator_packages_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_authenticator_packages = val;
     }
 
     pub fn set_deny_rule_governance_on_chain_for_testing(&mut self, val: bool) {

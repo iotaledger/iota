@@ -1497,7 +1497,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.5, sum by(host) (irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_outbound_request_size_sum[2m]) + irate(consensus_inbound_response_size_sum[2m]) + irate(consensus_inbound_request_size_sum[2m])))",
+          "expr": "quantile(0.5, sum by(host) (irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_inbound_response_size_sum[2m])))",
           "legendFormat": "p50",
           "range": true,
           "refId": "A"
@@ -1508,7 +1508,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "quantile(0.95, sum by(host) (irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_outbound_request_size_sum[2m]) + irate(consensus_inbound_response_size_sum[2m]) + irate(consensus_inbound_request_size_sum[2m])))",
+          "expr": "quantile(0.95, sum by(host) (irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_inbound_response_size_sum[2m])))",
           "legendFormat": "p95",
           "range": true,
           "refId": "B"
@@ -4106,7 +4106,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Total bandwidth (inbound + outbound) per validator",
+          "description": "Response bytes per second, served and received, per validator",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -4184,7 +4184,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum by(host) (irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_outbound_request_size_sum[2m]) + irate(consensus_inbound_response_size_sum[2m]) + irate(consensus_inbound_request_size_sum[2m]))",
+              "expr": "sum by(host) (irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_inbound_response_size_sum[2m]))",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
@@ -19838,7 +19838,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Summing up bandwidth used by all requests and responses - inbound and outbound. ",
+          "description": "Response bytes per second served to peers and received from peers, per validator. Request bodies are not measured.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -19914,7 +19914,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "sum by(host) (irate(consensus_outbound_response_size_sum[2m])+ irate(consensus_outbound_request_size_sum[2m])+irate(consensus_inbound_response_size_sum[2m])+ irate(consensus_inbound_request_size_sum[2m]))",
+              "expr": "sum by(host) (irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_inbound_response_size_sum[2m]))",
               "legendFormat": "{{host}} {{route}}",
               "range": true,
               "refId": "A"
@@ -20231,15 +20231,15 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "irate(consensus_inbound_response_size_sum[2m]) + irate(consensus_inbound_request_size_sum[2m])",
+              "expr": "irate(consensus_inbound_response_size_sum[2m])",
               "legendFormat": "{{host}} {{route}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Total Inbound Request+Response Size",
+          "title": "Total Inbound Response Size",
           "type": "timeseries",
-          "description": "Total size of inbound requests and responses"
+          "description": "Bytes per second of responses served to incoming requests"
         },
         {
           "datasource": {
@@ -20550,15 +20550,15 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_outbound_request_size_sum[2m])",
+              "expr": "irate(consensus_outbound_response_size_sum[2m])",
               "legendFormat": "{{host}} {{route}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Total Outbound Request+Response Size",
+          "title": "Total Outbound Response Size",
           "type": "timeseries",
-          "description": "Total size of outbound requests and responses"
+          "description": "Bytes per second of responses received from other nodes"
         },
         {
           "datasource": {
@@ -20566,7 +20566,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Percentile sizes of responses served to incoming requests. ",
+          "description": "Percentile wire sizes of gRPC response messages served to incoming requests.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -20676,7 +20676,7 @@
               "refId": "C"
             }
           ],
-          "title": "Inbound Response Size Per Request",
+          "title": "Inbound Response Message Size",
           "type": "timeseries"
         },
         {
@@ -20685,7 +20685,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Percentile sizes of received responses from other nodes. ",
+          "description": "Percentile wire sizes of gRPC response messages received from other nodes.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -20795,7 +20795,7 @@
               "refId": "C"
             }
           ],
-          "title": "Outbound Response Size Per Request",
+          "title": "Outbound Response Message Size",
           "type": "timeseries"
         },
         {
@@ -20985,6 +20985,194 @@
           "title": "Consensus Admission Rejections Rate",
           "type": "timeseries",
           "description": "Rate of inbound consensus requests rejected by per-peer admission control (ResourceExhausted), by RPC group. Should be ~0 under honest load."
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 825
+          },
+          "id": 410,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "sum by(authority, host) (consensus_inbound_connections)",
+              "legendFormat": "{{authority}} @ {{host}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Consensus Connections Per Peer",
+          "type": "timeseries",
+          "description": "Connections each peer currently holds on the inbound consensus listener. One per peer is the steady state; a peer resting at the configured limit is either reconnecting repeatedly or holding connections open."
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 825
+          },
+          "id": 411,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "rate(consensus_inbound_connections_refused[2m])",
+              "legendFormat": "{{authority}} @ {{host}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Consensus Connection Refusals Rate",
+          "type": "timeseries",
+          "description": "Rate of connections refused for being over a peer's connection limit. Should be 0 under honest load; a sustained rate means one peer is opening far more connections than it can use."
         }
       ],
       "title": "Inbound / Outbound Network Metrics",
