@@ -639,7 +639,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         let serialized_transactions = inner
                             .network_client
                             .fetch_transactions(target_authority, request_tx_refs.to_vec(), timeout)
-                            .await?;
+                            .await
+                            .inspect_err(|e| {
+                                inner
+                                    .misbehavior_store
+                                    .record_fetch_fault(target_authority, e);
+                            })?;
 
                         // 10. Verify that the number of returned transactions is not greater than
                         //     the number of requested transactions. It's OK if not all requested
