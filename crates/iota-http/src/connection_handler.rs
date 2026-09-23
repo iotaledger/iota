@@ -58,7 +58,11 @@ pub async fn serve_connection<IO, S, B, C>(
     loop {
         tokio::select! {
             _ = &mut sig => {
+                // A peer asked to leave need not oblige, and one that is being
+                // given up for another certainly will not, so the wait for it
+                // is bounded the same way the idle deadline's is.
                 conn.as_mut().graceful_shutdown();
+                force_close.set(sleep_or_pending(Some(IDLE_SHUTDOWN_GRACE_PERIOD)));
             }
             _ = idle_elapsed(&activity, max_connection_idle), if !closed_for_idleness => {
                 debug!("closing a connection that has been idle past its deadline");
@@ -119,11 +123,16 @@ impl<A> OnConnectionClose<A> {
 
 impl<A> Drop for OnConnectionClose<A> {
     fn drop(&mut self) {
-        let live = {
+        let (was_registered, live) = {
             let mut active_connections = self.active_connections.write().unwrap();
-            active_connections.remove(&self.id);
-            active_connections.len()
+            let was_registered = active_connections.remove(&self.id).is_some();
+            (was_registered, active_connections.len())
         };
+        // An evicted connection was removed when its slot was handed on, and
+        // reported closed then; reporting it again here would count it twice.
+        if !was_registered {
+            return;
+        }
         if let Some(on_connection_event) = &self.on_connection_event {
             on_connection_event.call(ConnectionEvent::Closed { live });
         }
