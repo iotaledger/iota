@@ -48,7 +48,7 @@ prometheus-filtered.workspace = true
 [dev-dependencies]
 # external dependencies
 async-trait.workspace = true
-rcgen = "0.13"
+rcgen.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 

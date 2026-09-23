@@ -521,3 +521,4 @@ typed-store-error = { path = "crates/typed-store-error" }
 # so the workspace shares a single fastcrypto instead of two conflicting copies.
 [patch."https://github.com/MystenLabs/fastcrypto"]
 fastcrypto = "=0.1.11"
+rcgen = "0.13"
