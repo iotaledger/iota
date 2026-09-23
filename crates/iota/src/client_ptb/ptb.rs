@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use anyhow::{Error, anyhow, bail, ensure};
 use clap::{Args, ValueHint, arg, builder::StyledStr};
 use iota_grpc_client::GrpcClient;
-use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
@@ -28,7 +28,7 @@ use crate::{
         error::{PTBError, build_error_reports},
         token::{Lexeme, Token},
     },
-    displays::Pretty,
+    displays::{DevInspectOutput, Pretty},
     sp,
 };
 
@@ -60,7 +60,7 @@ pub enum PTBCommandResult {
     Preview(PTBPreview),
     Summary(Summary),
     CommandResult(Box<IotaClientCommandResult>),
-    DevInspect(Box<DevInspectResults>),
+    DevInspect(Box<DevInspectOutput>),
     Json(serde_json::Value),
     Help { long: bool },
 }
@@ -77,7 +77,7 @@ impl std::fmt::Display for PTBCommandResult {
             Self::Preview(ptb_preview) => ptb_preview.fmt(f),
             Self::CommandResult(res) => res.fmt(f),
             Self::Summary(summary) => Pretty(summary).fmt(f),
-            Self::DevInspect(dev_inspect_results) => Pretty(dev_inspect_results.as_ref()).fmt(f),
+            Self::DevInspect(output) => Pretty(output.as_ref()).fmt(f),
             Self::Json(value) => serde_json::to_string_pretty(&value)
                 .map_err(|_| std::fmt::Error)?
                 .fmt(f),
@@ -322,8 +322,8 @@ impl PTB {
                 )));
             }
             IotaClientCommandResult::TransactionBlock(response) => response,
-            IotaClientCommandResult::DevInspect(response) => {
-                return Ok(PTBCommandResult::DevInspect(Box::new(response)));
+            IotaClientCommandResult::DevInspect(output) => {
+                return Ok(PTBCommandResult::DevInspect(Box::new(output)));
             }
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
@@ -456,7 +456,7 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"local"
             "Run the simulation locally through the Move VM instead of on the node. Supported \
-            with --dry-run. Skips the node's transaction \
+            with --dry-run and --dev-inspect. A local dry run skips the node's transaction \
             deny-list and uses the default signing verifier limits, so a transaction the node \
             rejects can still succeed locally."
         ))
