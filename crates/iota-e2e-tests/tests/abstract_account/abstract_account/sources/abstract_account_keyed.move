@@ -41,6 +41,19 @@ public fun create(
         .build();
 }
 
+/// Creates a new `AbstractAccount` as an immutable object with the given authenticator.
+///
+/// Apart from the object being frozen instead of shared, this behaves like `create`.
+public fun create_immutable(
+    public_key: vector<u8>,
+    authenticator: AuthenticatorFunctionRefV1<AbstractAccount>,
+    ctx: &mut TxContext,
+) {
+    abstract_account::builder(authenticator, ctx)
+        .add_dynamic_field(basic_keyed_aa::owner_public_key(), public_key)
+        .build_immutable();
+}
+
 /// Rotates the account owner public key to a new one as well as the authenticator.
 /// Once this function is called, the previous public key and authenticator are no longer valid.
 /// Only the account itself can call this function.

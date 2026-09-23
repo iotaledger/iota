@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 36;
+pub const MAX_PROTOCOL_VERSION: u64 = 37;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -227,7 +227,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the redesigned leader schedule (sliding-window reputation
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on mainnet.
-// Version 36: Reject a transaction that names an object version in the range
+// Version 36: Reject a transaction whose sender or sponsor is authenticated by
+//             a `MoveAuthenticator` with an immutable account object.
+// Version 37: Reject a transaction that names an object version in the range
 //             assigned to canceled transactions, or one below it, from the
 //             transaction bytes, before any object is loaded.
 //             Reject `<SELF>` as an identifier in published modules.
@@ -675,6 +677,11 @@ struct FeatureFlags {
     // Allow objects created or mutated in system transactions to exceed the max object size limit.
     #[serde(skip_serializing_if = "is_false")]
     allow_unbounded_system_objects: bool,
+
+    // If true, transaction validation rejects a `MoveAuthenticator` whose
+    // account object is immutable.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_immutable_account_objects: bool,
 
     // If true, `validity_check` rejects a transaction that names an object
     // version at or above `Version::MAX_VALID_EXCL`, the range assigned to the
@@ -2157,6 +2164,15 @@ impl ProtocolConfig {
         self.feature_flags.allow_unbounded_system_objects
     }
 
+    pub fn reject_immutable_account_objects(&self) -> bool {
+        let reject_immutable_account_objects = self.feature_flags.reject_immutable_account_objects;
+        assert!(
+            !reject_immutable_account_objects || self.enable_move_authentication(),
+            "reject_immutable_account_objects requires enable_move_authentication to be set"
+        );
+        reject_immutable_account_objects
+    }
+
     pub fn validate_input_object_versions(&self) -> bool {
         self.feature_flags.validate_input_object_versions
     }
@@ -3528,6 +3544,11 @@ impl ProtocolConfig {
                         .pre_consensus_sponsor_only_move_authentication = false;
                 }
                 36 => {
+                    // No immutable account object can authenticate a sender or
+                    // a sponsor.
+                    cfg.feature_flags.reject_immutable_account_objects = true;
+                }
+                37 => {
                     // Refuse object versions in, or right below, the range
                     // assigned to canceled transactions before any object is
                     // loaded, by consulting the transaction bytes only.
@@ -3829,6 +3850,10 @@ impl ProtocolConfig {
     pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pcool_verifier_limits_from_protocol_config = val;
+    }
+
+    pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
+        self.feature_flags.reject_immutable_account_objects = val;
     }
 
     pub fn set_validate_input_object_versions_for_testing(&mut self, val: bool) {

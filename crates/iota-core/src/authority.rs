@@ -2067,6 +2067,7 @@ impl AuthorityState {
                                 auth_account_object_digest,
                                 account_object,
                                 &signer,
+                                protocol_config,
                             );
 
                         (
@@ -5652,6 +5653,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
+        protocol_config: &ProtocolConfig,
     ) -> AuthenticatorFunctionRefForExecution {
         self.check_move_account(
             auth_account_object_id,
@@ -5660,6 +5662,7 @@ impl AuthorityState {
             account_object,
             signer,
             true,
+            protocol_config,
         )
         .expect("move account checks cannot fail during execution")
     }
@@ -5674,6 +5677,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
+        protocol_config: &ProtocolConfig,
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         self.check_move_account(
             auth_account_object_id,
@@ -5682,11 +5686,15 @@ impl AuthorityState {
             account_object,
             signer,
             false,
+            protocol_config,
         )
     }
 
     /// Checks whether `authenticator` unlocks a valid Move account and returns
-    /// the account-related `AuthenticatorFunctionRef`. When `is_execution` is
+    /// the account-related `AuthenticatorFunctionRef`. Where the protocol
+    /// config requires it, the account object must be shared, so that a
+    /// transaction carrying a `MoveAuthenticator` always has a shared input
+    /// and is ordered by consensus. When `is_execution` is
     /// set, a deleted or cancelled account object yields its version instead of
     /// an error, so execution can proceed to the proper effect. Prefer the
     /// `check_move_account_for_execution` / `check_move_account_for_validation`
@@ -5699,6 +5707,7 @@ impl AuthorityState {
         account_object: ObjectReadResult,
         signer: &Address,
         is_execution: bool,
+        protocol_config: &ProtocolConfig,
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         let auth_account_object_seq_number = match (&account_object.object, is_execution) {
             // In any case, if the account object is loaded, we can check its version and digest.
@@ -5713,6 +5722,16 @@ impl AuthorityState {
                     }
                     .into()
                 );
+
+                if protocol_config.reject_immutable_account_objects() {
+                    fp_ensure!(
+                        !object.is_immutable(),
+                        UserInputError::ImmutableAccountObjectNotSupported {
+                            object_id: auth_account_object_id
+                        }
+                        .into()
+                    );
+                }
 
                 fp_ensure!(
                     object.is_shared() || object.is_immutable(),
@@ -5894,6 +5913,7 @@ impl AuthorityState {
                         auth_account_object_digest,
                         account_object,
                         &signer,
+                        protocol_config,
                     )?;
 
                     // Check the MoveAuthenticator input objects.
