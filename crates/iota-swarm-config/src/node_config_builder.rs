@@ -225,6 +225,8 @@ impl ValidatorConfigBuilder {
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
+            grpc_max_connections: None,
+            json_rpc_max_connections: None,
             // Effectively unlimited: tests and benchmarks must not be
             // throttled.
             grpc_concurrency_limit_per_core: NonZeroUsize::new(500_000_000).unwrap(),
@@ -631,6 +633,8 @@ impl FullnodeConfigBuilder {
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
+            grpc_max_connections: None,
+            json_rpc_max_connections: None,
             // Effectively unlimited: tests and benchmarks must not be
             // throttled.
             grpc_concurrency_limit_per_core: NonZeroUsize::new(500_000_000).unwrap(),

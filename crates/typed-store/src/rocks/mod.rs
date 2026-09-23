@@ -28,7 +28,8 @@ pub use crate::{
     database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
     rocks::options::{
         BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
-        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
+        FD_LIMIT_SHARE, bulk_ingestion_options, bulk_ingestion_write_options, default_db_options,
+        list_tables, raise_fd_limit,
         read_size_from_env,
     },
 };
