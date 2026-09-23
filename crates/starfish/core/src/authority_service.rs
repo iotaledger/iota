@@ -812,35 +812,39 @@ fn read_transaction_payloads(
         BTreeSet<TransactionRef>,
     ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>>,
 ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
-    let gc_round = dag_state.read().gc_round_for_last_solid_commit();
     let mut below_gc = BTreeSet::new();
-    let mut above_gc = Vec::new();
-    for transaction_ref in refs {
-        if transaction_ref.round < gc_round {
-            below_gc.insert(*transaction_ref);
-        } else {
-            above_gc.push(*transaction_ref);
+    let mut payloads = BTreeMap::new();
+    {
+        // Payloads at or above the GC round are handed out as clones of buffers
+        // the DAG state already holds, so they cost no new memory. They are
+        // taken under the same lock as the GC round, before eviction can drop
+        // them and send the read to the store with no budget.
+        let dag_state = dag_state.read();
+        let gc_round = dag_state.gc_round_for_last_solid_commit();
+        let mut above_gc = Vec::new();
+        for transaction_ref in refs {
+            if transaction_ref.round < gc_round {
+                below_gc.insert(*transaction_ref);
+            } else {
+                above_gc.push(*transaction_ref);
+            }
+        }
+        if !above_gc.is_empty() {
+            let generic_refs: Vec<GenericTransactionRef> =
+                above_gc.iter().copied().map(Into::into).collect();
+            payloads.extend(
+                dag_state
+                    .get_serialized_transactions(&generic_refs)
+                    .into_iter()
+                    .zip(above_gc)
+                    .filter_map(|(payload, transaction_ref)| {
+                        payload.map(|payload| (transaction_ref, payload))
+                    }),
+            );
         }
     }
 
-    let mut payloads = read_below_gc(below_gc)?;
-    if !above_gc.is_empty() {
-        // Payloads at or above the GC round are handed out as clones of buffers
-        // the DAG state already holds, so they cost no new memory and are read
-        // in one go.
-        let generic_refs: Vec<GenericTransactionRef> =
-            above_gc.iter().copied().map(Into::into).collect();
-        payloads.extend(
-            dag_state
-                .read()
-                .get_serialized_transactions(&generic_refs)
-                .into_iter()
-                .zip(above_gc)
-                .filter_map(|(payload, transaction_ref)| {
-                    payload.map(|payload| (transaction_ref, payload))
-                }),
-        );
-    }
+    payloads.extend(read_below_gc(below_gc)?);
     Ok(payloads)
 }
 
