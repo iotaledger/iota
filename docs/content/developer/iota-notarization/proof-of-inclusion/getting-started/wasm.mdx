@@ -47,7 +47,7 @@ import { ... } from "@iota/proof-of-inclusion";
 
 ## Construct and Verify a Proof
 
-The following example connects to an IOTA gRPC endpoint, constructs a testnet transaction proof, and verifies it with a trusted testnet genesis blob:
+The following example connects to an IOTA gRPC endpoint, constructs a testnet transaction proof, and verifies it with a trusted testnet genesis blob. Replace `<transaction-digest>` with the base58 digest of an existing testnet transaction:
 
 ```ts
 import { readFile } from "node:fs/promises";
@@ -56,6 +56,7 @@ import { fromBase58 } from "@iota/iota-sdk/utils";
 import { CommitteeResolution, PoiClient, Proof } from "@iota/proof-of-inclusion";
 
 const client = PoiClient.testnet();
+const transactionDigest = "<transaction-digest>";
 const transaction = fromBase58(transactionDigest);
 const proof = await client.makeProof({ transaction });
 const proofJSON = proof.toJSON();

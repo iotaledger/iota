@@ -8,7 +8,7 @@ Everything in the parent file applies here; this file adds product-specific conv
 
 The IOTA Notarization Toolkit contains **Single Notarization**, **Audit Trails**, and **Proof of Inclusion**.
 The external source repository is **`https://github.com/iotaledger/notarization`**.
-Use the moving **`v0.1`** tag for wiki source references and example links. The PoI Cargo dependency uses the separate **`poi-v0.1`** release tag.
+Use the moving **`v0.1`** tag for Single Notarization and Proof of Inclusion wiki source references and example links. Audit Trails pages currently use **`trails-v0.1`**. The PoI Cargo dependency uses the separate **`poi-v0.1`** release tag.
 
 The external source repository also provides a `Naming Conventions` section in the
 [root `CLAUDE.md` file](https://github.com/iotaledger/notarization/blob/main/CLAUDE.md) which can be seen
@@ -192,7 +192,7 @@ https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_
 </div>
 ```
 
-Use `v0.1` for all wiki code references and example links. Rust examples live under `examples/notarization/`, `examples/audit-trail/`, or `examples/poi/`; Single Notarization scenarios live under `examples/notarization/real-world/`. Wasm examples live under the corresponding `bindings/wasm/*_wasm/examples/` directory.
+Use `v0.1` for Single Notarization and Proof of Inclusion code references and example links. Audit Trails references retain `trails-v0.1`; check their line ranges against that tag. Rust examples live under `examples/notarization/`, `examples/audit-trail/`, or `examples/poi/`; Single Notarization scenarios live under `examples/notarization/real-world/`. Wasm examples live under the corresponding `bindings/wasm/*_wasm/examples/` directory.
 
 PoI's committee-cache example is Rust-only because the Wasm Package does not expose a custom cache interface. State that limitation instead of adding an empty TypeScript tab.
 

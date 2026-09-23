@@ -17,7 +17,7 @@ mkdir proof-of-inclusion
 # The three tar.gz archives use different internal directory layouts:
 # * Single Notarization: ./notarization-docs/docs/wasm/*
 # * Audit Trails: ./audit-trail-docs/docs/wasm/*
-# * Proof of Inclusion: ./proof-of-inclusion-docs/docs/*
+# * Proof of Inclusion: ./proof-of-inclusion-docs/docs/wasm/*
 
 # Download and copy single-notarization docs
 cd single-notarization

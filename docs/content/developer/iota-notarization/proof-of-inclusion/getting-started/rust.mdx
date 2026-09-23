@@ -87,7 +87,7 @@ Use `CommitteeResolution::TrustedNode` only when the connected node is already i
 
 When you already have a trusted committee for the proof's checkpoint epoch, use `poi_rs::ProofVerifier` directly. This path requires no `PoiClient`, gRPC endpoint, or async runtime.
 
-Before transferring verification to an offline machine, authenticate the checkpoint epoch's committee through the anchored resolution process described in [Trust and Verification](../explanations/trust-and-verification.mdx). Transfer that committee through a trusted channel separately from the untrusted proof. A genesis committee alone cannot verify checkpoints certified by a later epoch's committee.
+On a connected machine, call `verifier.resolve(epoch).await?` on a genesis-anchored resolver to obtain the committee for the proof's checkpoint epoch. Transfer it to the offline machine through a trusted channel. A genesis committee alone cannot verify proofs from later epochs.
 
 Deserialize the received proof with `poi_rs::Proof::from_json_slice(&proof_bytes)`. With that `proof` and the previously authenticated `committee`, call `poi_rs::ProofVerifier::new(&committee).verify(&proof)`. The call returns `Result<VerifiedProof<'_>, VerifyError>` synchronously. Handle an error as failed verification and read authenticated data only from the successful result.
 
