@@ -978,9 +978,8 @@ mod tests {
         );
     }
 
-    // A dry run of a full `TransactionData` returns balance changes, object
-    // changes with resolvable object state, and the unsigned transaction bytes -
-    // none of which the dev-inspect path (transaction kind + metadata) provides.
+    // A dry run returns balance changes, object changes with resolvable object
+    // state, and the unsigned transaction bytes.
     #[tokio::test]
     #[serial]
     async fn test_transaction_dry_run_returns_balance_and_object_changes() {

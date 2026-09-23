@@ -74,14 +74,11 @@ pub(crate) enum TransactionBlockEffectsKind {
         native: NativeTransactionEffects,
     },
 
-    /// A simulated transaction block - the result of `dryRunTransactionBlock`,
-    /// run either as a dry run or a dev inspect. Like Executed, it has no
-    /// checkpoint or timestamp.
+    /// A simulated transaction block - the result of `dryRunTransactionBlock`.
+    /// Like Executed, it has no checkpoint or timestamp.
     ///
-    /// `balance_changes`, `input_objects` and `output_objects` are populated
-    /// only for a full-`TransactionData` dry run, the dev-inspect path
-    /// leaves them empty. The object maps contain the simulation's
-    /// input/output objects, which may not be in the DB.
+    /// The object maps hold the simulation's input and output objects, which
+    /// may not be in the DB.
     Simulated {
         tx_data: NativeTransactionData,
         native: NativeTransactionEffects,

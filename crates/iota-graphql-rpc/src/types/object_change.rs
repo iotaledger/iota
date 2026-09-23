@@ -54,7 +54,7 @@ impl ObjectChange {
 
         // Resolve from the simulation's input objects: it ran against the
         // fullnode's state, which may be ahead of the index. Fall back to the
-        // database when the simulation did not return them (e.g. dev inspect).
+        // database when the simulation did not return that object.
         if let ObjectChangeSource::Simulated = self.source {
             if let Some(object) = self.simulation_object(&self.input_objects) {
                 return Ok(Some(object));
@@ -80,7 +80,7 @@ impl ObjectChange {
 
         // Objects a simulation writes are never indexed, so resolve their state
         // from the simulation's output objects. Fall back to the database when
-        // the simulation did not return them (e.g. dev inspect).
+        // the simulation did not return that object.
         if let ObjectChangeSource::Simulated = self.source {
             if let Some(object) = self.simulation_object(&self.output_objects) {
                 return Ok(Some(object));

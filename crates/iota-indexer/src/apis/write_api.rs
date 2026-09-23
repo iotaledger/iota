@@ -49,10 +49,10 @@ const SIMULATE_CORE_READ_MASK: &[SimulateField] = &[
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
 ];
 
-/// The fields to read back from a dry-run simulation beyond the core ones
-/// (which are always returned). Each flag adds the fields it needs to the read
-/// mask and populates the matching field on [`SimulationOutput`]; a flag
-/// left `false` leaves that field empty.
+/// The fields to read back from a simulation beyond the core ones (which are
+/// always returned). Each flag adds the fields it needs to the read mask and
+/// populates the matching field on [`SimulationOutput`]; a flag left `false`
+/// leaves that field empty.
 #[derive(Default)]
 pub struct SimulationFields {
     /// The transaction the simulation ran, with any gas the caller left unset
@@ -75,8 +75,8 @@ pub struct SimulationFields {
     pub execution_error: bool,
 }
 
-/// The result of a dry-run simulation, in the node's native types. The core
-/// fields are always present; the rest are populated only when the matching
+/// The result of a simulation, in the node's native types. The core fields are
+/// always present; the rest are populated only when the matching
 /// [`SimulationFields`] flag was set.
 pub struct SimulationOutput {
     pub transaction: Option<Transaction>,
@@ -116,11 +116,11 @@ impl WriteApi {
         }
     }
 
-    /// Run a dry-run simulation and return its result in the node's native
-    /// types. The read mask is built here from the core fields plus
-    /// whatever `fields` asks for, so callers never deal with it directly.
-    /// Both dry-run endpoints go through this, so the simulation and its
-    /// conversions live in one place.
+    /// Run a simulation and return its result in the node's native types. The
+    /// read mask is built here from the core fields plus whatever `fields` asks
+    /// for, so callers never deal with it directly. Every dry run and dev
+    /// inspect goes through this, so the simulation and its conversions live in
+    /// one place.
     pub async fn simulate_transaction(
         &self,
         tx: Transaction,

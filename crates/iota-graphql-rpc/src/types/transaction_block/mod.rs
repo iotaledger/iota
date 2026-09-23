@@ -86,13 +86,11 @@ pub(crate) enum TransactionBlockInner {
         native: NativeSenderSignedTransaction,
     },
 
-    /// A simulated transaction block - the result of `dryRunTransactionBlock`,
-    /// run either as a dry run or a dev inspect on the node. It has no
-    /// signatures or digest.
+    /// A simulated transaction block - the result of `dryRunTransactionBlock`.
+    /// It has no signatures or digest.
     ///
-    /// `balance_changes`, `input_objects` and `output_objects` are populated
-    /// only for a full-`TransactionData` dry run; for dev-inspect they stay
-    /// empty.
+    /// The object maps hold the simulation's input and output objects, which
+    /// may not be in the DB.
     Simulated {
         tx_data: NativeTransactionData,
         effects: NativeTransactionEffects,
@@ -274,8 +272,8 @@ impl TransactionBlock {
     /// This transaction's `SenderSignedTransaction`, BCS serialized and Base64
     /// encoded.
     ///
-    /// `null` for simulated transactions (dry run and dev inspect), which have
-    /// no signatures. use `bcsUnsigned` for them instead.
+    /// `null` for simulated transactions, which have no signatures. use
+    /// `bcsUnsigned` for them instead.
     #[graphql(complexity = 0)]
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
