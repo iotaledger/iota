@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Writing, uploading and restoring state snapshots, also called formal
+//! snapshots: the live object set as an epoch ended, published as files to an
+//! object store.
+
 #![allow(dead_code)]
 
 #[cfg(test)]
