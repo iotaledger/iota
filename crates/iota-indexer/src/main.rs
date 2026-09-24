@@ -122,7 +122,8 @@ async fn main() -> Result<(), IndexerError> {
         }
         Command::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(connection_pool);
-            return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
+            return Indexer::start_analytical_worker(store, indexer_metrics.clone(), cancel.clone())
+                .await;
         }
         Command::RunBackfill {
             start,
