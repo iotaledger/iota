@@ -48,16 +48,13 @@ feature_flags:
   pcool_skip_immutable_object_locks: true
   pcool_verifier_limits_from_protocol_config: true
   validator_metadata_verify_v2: true
-  deny_authenticator_packages: true
   package_metadata_with_dynamic_module_metadata: true
   report_move_authentication_error: true
   consensus_enable_sliding_window_leader_schedule: true
   consensus_enable_absolute_score_leader_schedule: true
   max_ptb_value_size_v2: true
   allow_unbounded_system_objects: true
-  validate_input_object_versions: true
-  disallow_self_identifier: true
-  check_canonical_module_version_header: true
+  reject_immutable_account_objects: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -119,7 +116,6 @@ max_event_emit_size_total: 65536000
 max_move_vector_len: 262144
 max_move_identifier_len: 128
 max_move_value_depth: 128
-max_move_enum_variants: 127
 max_back_edges_per_function: 10000
 max_back_edges_per_module: 10000
 max_verifier_meter_ticks_per_function: 2200000

@@ -2,7 +2,7 @@
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
-version: 36
+version: 37
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
   per_object_congestion_control_mode: TotalTxCount
@@ -39,7 +39,6 @@ feature_flags:
   enable_move_authentication: true
   enable_move_authentication_for_sponsor: true
   pass_validator_scores_to_advance_epoch: true
-  calculate_validator_scores: true
   consensus_fast_commit_sync: true
   consensus_block_restrictions: true
   move_native_tx_context: true
@@ -49,6 +48,7 @@ feature_flags:
   pcool_skip_immutable_object_locks: true
   pcool_verifier_limits_from_protocol_config: true
   validator_metadata_verify_v2: true
+  deny_authenticator_packages: true
   package_metadata_with_dynamic_module_metadata: true
   report_move_authentication_error: true
   consensus_enable_sliding_window_leader_schedule: true
@@ -56,6 +56,9 @@ feature_flags:
   max_ptb_value_size_v2: true
   allow_unbounded_system_objects: true
   reject_immutable_account_objects: true
+  validate_input_object_versions: true
+  disallow_self_identifier: true
+  check_canonical_module_version_header: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -117,6 +120,7 @@ max_event_emit_size_total: 65536000
 max_move_vector_len: 262144
 max_move_identifier_len: 128
 max_move_value_depth: 128
+max_move_enum_variants: 127
 max_back_edges_per_function: 10000
 max_back_edges_per_module: 10000
 max_verifier_meter_ticks_per_function: 2200000
@@ -337,7 +341,6 @@ max_accumulated_txn_cost_per_object_in_mysticeti_commit: 10
 max_committee_members_count: 100
 consensus_gc_depth: 60
 max_congestion_limit_overshoot_per_commit: 100
-scorer_version: 1
 auth_context_digest_cost_base: 30
 auth_context_tx_data_bytes_cost_base: 30
 auth_context_tx_data_bytes_cost_per_byte: 2

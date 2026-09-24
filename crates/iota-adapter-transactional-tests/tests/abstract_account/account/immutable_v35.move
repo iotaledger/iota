@@ -1,9 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// an immutable abstract account cannot authenticate a transaction
+// an immutable abstract account can still authenticate before protocol version 36
 
-//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
+//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A --protocol-version 35
 
 //# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
 
@@ -22,3 +22,5 @@ public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ct
 //# abstract --account object(4,2) --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
+
+//# view-object 6,0
