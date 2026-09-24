@@ -64,13 +64,6 @@ NELINT_PKGS_FILE="$pkgs_file" \
   cargo +"$NIGHTLY" check --workspace --all-targets --all-features 2>&1 | tee "$log_file"
 cargo_rc=${PIPESTATUS[0]}
 
-# Copied before the exits below so a failed run still uploads them.
-if [[ -n "${NELINT_OUT_DIR:-}" ]]; then
-  mkdir -p "$NELINT_OUT_DIR"
-  cp "$log_file" "$NELINT_OUT_DIR/cargo-check.log"
-  cp "$pkgs_file" "$NELINT_OUT_DIR/in-scope-crates.txt"
-fi
-
 if [[ "$cargo_rc" -ne 0 ]]; then
   echo "ERROR: cargo check failed (exit $cargo_rc); this is a build error, not a lint finding." >&2
   exit "$cargo_rc"
@@ -101,11 +94,6 @@ n_findings=$(wc -l < "$findings")
 if [[ "$n_findings" -eq 0 ]]; then
   echo "ERROR: the log has findings but findings.sh produced none." >&2
   exit 1
-fi
-
-if [[ -n "${NELINT_OUT_DIR:-}" ]]; then
-  printf '%s\n' "$report" > "$NELINT_OUT_DIR/report.md"
-  cp "$findings" "$NELINT_OUT_DIR/findings.txt"
 fi
 
 if [[ "$mode" == "--allow-all" ]]; then

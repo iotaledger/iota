@@ -34,12 +34,3 @@ jobs:
           # cargo's fingerprint, so a reused target dir replays artifacts compiled
           # without the lint.
           CARGO_TARGET_DIR: ${{ runner.temp }}/nelint-target
-          NELINT_OUT_DIR: ${{ runner.temp }}/nelint-report
-
-      - name: Upload report, findings and compiler output
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: non-exhaustive-lint-report
-          path: ${{ runner.temp }}/nelint-report
-          if-no-files-found: ignore
