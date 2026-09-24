@@ -27,7 +27,8 @@
 #                 USE_FULLNODE_FOR_EXECUTION, WORKLOAD, NUM_SHARED_COUNTERS,
 #                 SLOW_N, SLOW_SIZE, SLOW_MIX, SLOW_SHARED, AUTHENTICATOR,
 #                 AUTH_OBJ_TYPE,
-#                 AUTH_SHOULD_FAIL, AUTH_SPLIT_AMOUNT, AUTH_CYCLES.
+#                 AUTH_SHOULD_FAIL, AUTH_SPLIT_AMOUNT, AUTH_CYCLES,
+#                 GROTH16_CURVE, GROTH16_FUNCTION, GROTH16_CALLS.
 
 set -euo pipefail
 
@@ -57,7 +58,8 @@ NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 # Seconds to wait between warmup/setup and spamming (stress --pre-spam-delay-secs).
 PRE_SPAM_DELAY_SECS="${PRE_SPAM_DELAY_SECS:-0}"
 # Workload: owned (transfer) | shared (shared-counter) | slow (slow::slow) |
-# moveauth (account abstraction, every tx signed with a `MoveAuthenticator`).
+# moveauth (account abstraction, every tx signed with a `MoveAuthenticator`) |
+# groth16 (owned-object txs calling a 0x2::groth16 native function).
 # NOTE: shared/slow/moveauth publish a Move package at runtime (compiled from
 # sources that depend on the iota-framework). The network-benchmark stress image
 # bakes those in (move_packages + workloads/data + the framework checkout), so
@@ -74,6 +76,9 @@ AUTH_OBJ_TYPE="${AUTH_OBJ_TYPE:-owned-object}" # WORKLOAD=moveauth: owned-object
 AUTH_SHOULD_FAIL="${AUTH_SHOULD_FAIL:-false}"  # WORKLOAD=moveauth: true => corrupt the signature so authentication aborts
 AUTH_SPLIT_AMOUNT="${AUTH_SPLIT_AMOUNT:-}"     # WORKLOAD=moveauth: coin split amount per tx (empty => benchmark default)
 AUTH_CYCLES="${AUTH_CYCLES:-}"                 # WORKLOAD=moveauth: ed25519 verifications per tx, for kinds taking a cycle count (empty => benchmark default)
+GROTH16_CURVE="${GROTH16_CURVE:-}"             # WORKLOAD=groth16: bn254 | bls12381 (empty => benchmark default, bn254)
+GROTH16_FUNCTION="${GROTH16_FUNCTION:-}"       # WORKLOAD=groth16: verify | prepare (empty => benchmark default, verify)
+GROTH16_CALLS="${GROTH16_CALLS:-}"             # WORKLOAD=groth16: calls to that function per tx (empty => benchmark default, 1)
 # `moveauth` uses a DIFFERENT subcommand, not a weight on `bench`; both spell the
 # generic flags (--target-qps / --in-flight-ratio / --num-workers) identically,
 # so only the verb varies.
@@ -96,6 +101,12 @@ slow)
   [[ -n "$SLOW_SIZE" ]] && WORKLOAD_ARGS+=(--slow-size "$SLOW_SIZE")
   [[ -n "$SLOW_SHARED" ]] && WORKLOAD_ARGS+=(--slow-shared "$SLOW_SHARED")
   ;;
+groth16)
+  WORKLOAD_ARGS=(--transfer-object 0 --groth16 100)
+  [[ -n "$GROTH16_CURVE" ]] && WORKLOAD_ARGS+=(--groth16-curve "$GROTH16_CURVE")
+  [[ -n "$GROTH16_FUNCTION" ]] && WORKLOAD_ARGS+=(--groth16-function "$GROTH16_FUNCTION")
+  [[ -n "$GROTH16_CALLS" ]] && WORKLOAD_ARGS+=(--groth16-calls "$GROTH16_CALLS")
+  ;;
 moveauth)
   BENCH_SUBCMD=abstract-account-bench
   WORKLOAD_ARGS=(
@@ -109,7 +120,7 @@ moveauth)
   [[ -n "$AUTH_CYCLES" ]] && WORKLOAD_ARGS+=(--auth-cycles "$AUTH_CYCLES")
   ;;
 *)
-  echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow | moveauth)" >&2
+  echo "ERROR: unknown WORKLOAD='$WORKLOAD' (owned | shared | slow | moveauth | groth16)" >&2
   exit 1
   ;;
 esac

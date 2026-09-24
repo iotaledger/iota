@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """probe_scrape.py — read one probe window from Prometheus and report the
 per-transaction computation units and internal execution time for a single
-`slow::slow(n, size)` point.
+`slow::slow(n, size)` or groth16 point.
 
 The H2 calibration pre-step needs, per workload, the attested computation units
 per transaction (the value `TotalComputationUnits` schedules on) so the two
@@ -25,8 +25,9 @@ query/reset-trim approach of ../dump_timeseries.py.
 
 Usage:  probe_scrape.py <start_epoch> <end_epoch> <step_s> <csv_out>
 Env:    PROM (Prometheus base URL, default http://localhost:9090)
-        CFG_* recorded as metadata columns in the CSV row (slow_n, slow_size,
-        product, shared, qps, duration).
+        CFG_* recorded as metadata columns in the CSV row: slow_n, slow_size,
+        product, shared for a slow point, or curve, function, calls for a
+        groth16 point (CFG_calls set); then qps, duration.
 Exit:   non-zero if no execution samples were seen in the window.
 """
 
@@ -237,11 +238,17 @@ def fmt(x, unit=""):
     return "n/a" if x is None else f"{x:.1f}{unit}"
 
 
-print(
-    f"slow(n={cfg.get('slow_n', '?')}, size={cfg.get('slow_size', '?')})  "
-    f"product={cfg.get('product', '?')}  shared={cfg.get('shared', '?')}  "
-    f"qps={cfg.get('qps', '?')}  N={n}"
-)
+if "calls" in cfg:
+    point = (
+        f"groth16({cfg.get('curve', '?')} {cfg.get('function', '?')}, "
+        f"calls={cfg['calls']})"
+    )
+else:
+    point = (
+        f"slow(n={cfg.get('slow_n', '?')}, size={cfg.get('slow_size', '?')})  "
+        f"product={cfg.get('product', '?')}  shared={cfg.get('shared', '?')}"
+    )
+print(f"{point}  qps={cfg.get('qps', '?')}  N={n}")
 print(
     f"  computation units : attested={fmt(attested)}  actual={fmt(actual)} (gas units)"
 )
@@ -264,13 +271,17 @@ if ckpt is not None:
 else:
     print("  checkpoint lag    : n/a (no checkpoints created in the window)")
 
+# The point's own columns. probe.sh writes groth16 points to a file of their
+# own, so each file keeps one set of columns.
+if "calls" in cfg:
+    point_cols = ("curve", "function", "calls")
+else:
+    point_cols = ("slow_n", "slow_size", "product", "shared")
+
 row = {
     # `start` may be a float epoch (the spam-start marker) or an int; store as int seconds.
     "start_epoch": int(float(start)),
-    "slow_n": cfg.get("slow_n", ""),
-    "slow_size": cfg.get("slow_size", ""),
-    "product": cfg.get("product", ""),
-    "shared": cfg.get("shared", ""),
+    **{col: cfg.get(col, "") for col in point_cols},
     "qps": cfg.get("qps", ""),
     "duration": cfg.get("duration", ""),
     "n_samples": n,

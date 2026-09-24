@@ -12,6 +12,12 @@
 # comparison get picked. The probe runs the owned slow variant (W4 in
 # ../stress-plan.md); the mode comparison runs the shared variant (W5).
 #
+# WORKLOAD=groth16 probes W8 instead: owned-object transactions that call a
+# 0x2::groth16 native function GROTH16_CALLS times, to see whether computation
+# units follow execution time for native calls as they do for `slow`. Its rows
+# go to results/probe/groth16-<machine>.csv, which the slow tables and figures
+# (they read calibration-*.csv) leave alone.
+#
 # Unlike ../h1/run.sh this does NOT do an A/B two-run flow and does NOT wipe or
 # re-bootstrap between invocations: it reuses a running network so a sweep is
 # fast. It brings the network up (attestation ON, TotalComputationUnits) only if
@@ -20,13 +26,18 @@
 # Run as a NORMAL user (cargo must not run as root); sudo is used internally only
 # if it has to bootstrap/start the network.
 #
-# Required env: SLOW_N, SLOW_SIZE.
-# Tunables (env): QPS (default 5), DURATION (default 20s), DIRECT (default
+# Required env: SLOW_N, SLOW_SIZE for WORKLOAD=slow (the default);
+#               GROTH16_CALLS for WORKLOAD=groth16, with GROTH16_CURVE
+#               (bn254 | bls12381, default bn254) and GROTH16_FUNCTION
+#               (verify | prepare, default verify).
+# Tunables (env): QPS (default 5; 1 for groth16), DURATION (default 20s; 100s
+#                 for groth16), DIRECT (default
 #                 true = in-docker client submitting directly to validators,
 #                 like ../h1; false = host binary via the fullnode),
 #                 N (validators, default 4), NUM_CLIENT_THREADS,
 #                 NUM_TRANSFER_ACCOUNTS,
-#                 IN_FLIGHT_RATIO, NUM_WORKERS, PROM, TS_STEP, DRAIN_POLL_S,
+#                 IN_FLIGHT_RATIO (default 2; 4 for groth16),
+#                 NUM_WORKERS, PROM, TS_STEP, DRAIN_POLL_S,
 #                 DRAIN_TIMEOUT_S, MAX_ACCUMULATED_TXN_COST (per-object
 #                 per-commit budget, applied on a COLD start only; default
 #                 50000000, above every probe point), WIPE (yes|no; default:
@@ -35,6 +46,7 @@
 # Example:
 #   SLOW_N=100 SLOW_SIZE=100 ./probe.sh
 #   SLOW_N=400 SLOW_SIZE=100 QPS=2 ./probe.sh
+#   WORKLOAD=groth16 GROTH16_CALLS=700 ./probe.sh
 
 set -euo pipefail
 
@@ -72,12 +84,38 @@ GENESIS_DIR="$REPO_ROOT/dev-tools/iota-private-network/configs/genesis"
 
 rel() { case "$1" in "$REPO_ROOT"/*) printf './%s' "${1#"$REPO_ROOT"/}" ;; *) printf '%s' "$1" ;; esac }
 
-: "${SLOW_N:?set SLOW_N (slow::slow n — number of vectors)}"
-: "${SLOW_SIZE:?set SLOW_SIZE (slow::slow size — bytes per vector)}"
-[[ "$SLOW_N" =~ ^[0-9]+$ && "$SLOW_SIZE" =~ ^[0-9]+$ ]] || {
-  echo "${RED}ERROR: SLOW_N/SLOW_SIZE must be non-negative integers.${RESET}" >&2
+WORKLOAD="${WORKLOAD:-slow}"
+case "$WORKLOAD" in
+slow)
+  : "${SLOW_N:?set SLOW_N (slow::slow n — number of vectors)}"
+  : "${SLOW_SIZE:?set SLOW_SIZE (slow::slow size — bytes per vector)}"
+  [[ "$SLOW_N" =~ ^[0-9]+$ && "$SLOW_SIZE" =~ ^[0-9]+$ ]] || {
+    echo "${RED}ERROR: SLOW_N/SLOW_SIZE must be non-negative integers.${RESET}" >&2
+    exit 1
+  }
+  ;;
+groth16)
+  : "${GROTH16_CALLS:?set GROTH16_CALLS (calls to the groth16 function per transaction)}"
+  GROTH16_CURVE="${GROTH16_CURVE:-bn254}"
+  GROTH16_FUNCTION="${GROTH16_FUNCTION:-verify}"
+  [[ "$GROTH16_CALLS" =~ ^[0-9]+$ ]] || {
+    echo "${RED}ERROR: GROTH16_CALLS must be a non-negative integer.${RESET}" >&2
+    exit 1
+  }
+  [[ "$GROTH16_CURVE" == bn254 || "$GROTH16_CURVE" == bls12381 ]] || {
+    echo "${RED}ERROR: GROTH16_CURVE must be bn254 or bls12381.${RESET}" >&2
+    exit 1
+  }
+  [[ "$GROTH16_FUNCTION" == verify || "$GROTH16_FUNCTION" == prepare ]] || {
+    echo "${RED}ERROR: GROTH16_FUNCTION must be verify or prepare.${RESET}" >&2
+    exit 1
+  }
+  ;;
+*)
+  echo "${RED}ERROR: WORKLOAD must be slow or groth16 (got '$WORKLOAD').${RESET}" >&2
   exit 1
-}
+  ;;
+esac
 
 # Per-object per-commit budget the network starts with. Owned-object-only
 # transactions are scheduled at time 0 while execution-worker congestion
@@ -88,8 +126,17 @@ rel() { case "$1" in "$REPO_ROOT"/*) printf './%s' "${1#"$REPO_ROOT"/}" ;; *) pr
 # measurement. 50m is ten times the per-transaction metering ceiling, so no
 # point can reach it whatever the scheduler starts charging for.
 MAX_ACCUMULATED_TXN_COST="${MAX_ACCUMULATED_TXN_COST:-50000000}"
-QPS="${QPS:-5}"
-DURATION="${DURATION:-20s}"
+# Both defaults give 100 transactions per point, the 400 samples (4 validators)
+# probe_scrape.py requires. groth16 runs at 1 per second, the client's minimum:
+# near 700 calls a transaction executes for over a second on every validator,
+# and 5 per second would put more work on the machine than it has cores.
+if [[ "$WORKLOAD" == groth16 ]]; then
+  QPS="${QPS:-1}"
+  DURATION="${DURATION:-100s}"
+else
+  QPS="${QPS:-5}"
+  DURATION="${DURATION:-20s}"
+fi
 # Default vehicle: the stress client runs IN-DOCKER on the private network
 # (run-stress-docker.sh, same as ../h1) and submits straight to the validators'
 # submit_tx — the attested P-COOL path — with no fullnode hop in the response
@@ -100,11 +147,19 @@ NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-12}"
 NUM_TRANSFER_ACCOUNTS="${NUM_TRANSFER_ACCOUNTS:-4}"
 # Payload slots per worker = its qps share x this ratio. This is ALSO the
 # client's only back-pressure: a worker stops submitting once every slot waits
-# on a response. Keep it at 2 — raising it to 5 removed the self-throttling
-# and let retries stack ~25 concurrent ceiling-cost txs onto an already-slow
-# network, which snowballed (delivered 55 -> 30 -> 0 across attempts on the
-# WS). Under-delivered points are cheaper to retry than to prevent.
-IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"
+# on a response. Keep it at 2 for slow — raising it to 5 removed the
+# self-throttling and let retries stack ~25 concurrent ceiling-cost txs onto an
+# already-slow network, which snowballed (delivered 55 -> 30 -> 0 across
+# attempts on the WS). Under-delivered points are cheaper to retry than to
+# prevent. groth16 uses 4: at 1 per second, 2 slots could not keep up with its
+# ~2.3 s transactions at 700 calls (66 of 100 delivered). The rate still caps
+# submissions at 1 per second, so about as many stay open either way; the
+# extra slots only stop the shortfall.
+if [[ "$WORKLOAD" == groth16 ]]; then
+  IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-4}"
+else
+  IN_FLIGHT_RATIO="${IN_FLIGHT_RATIO:-2}"
+fi
 NUM_WORKERS="${NUM_WORKERS:-24}"
 NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-}"
 # Seconds the client waits between warmup/setup and spamming (stress
@@ -133,7 +188,6 @@ CKPT_DRAIN="${CKPT_DRAIN:-yes}" # set to no to skip
 CKPT_DRAIN_POLL_S="${CKPT_DRAIN_POLL_S:-3}"
 CKPT_DRAIN_TIMEOUT_S="${CKPT_DRAIN_TIMEOUT_S:-180}"
 CKPT_DRAIN_THRESHOLD_S="${CKPT_DRAIN_THRESHOLD_S:-0.5}" # recent mean lag ⇒ caught up
-PRODUCT=$((SLOW_N * SLOW_SIZE))
 PRIMARY_GAS_OWNER="0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681"
 BENCH_REPO="${BENCH_REPO:-$REPO_ROOT/../network-benchmark}"
 STRESS_BIN="${STRESS_BIN_PATH:-$BENCH_REPO/target/release/stress}"
@@ -155,13 +209,36 @@ MACHINE="${MACHINE:-unknown}"
 # mode comparison's per-label directories in results/matrix/.
 PROBE_DIR="$SCRIPT_DIR/results/probe"
 mkdir -p "$PROBE_DIR"
-CSV_OUT="$PROBE_DIR/calibration-$MACHINE.csv"
 
-# slow::slow(n, size) workload weights (same mapping as ../h1/run.sh).
-# --slow-shared false is explicit: the client defaults it to TRUE, and an
-# owned-only transaction is the whole point — it never reaches per-object
-# congestion control, so a deferral can never distort the measurement.
-WORKLOAD_ARGS=(--transfer-object 0 --slow 100 --slow-n "$SLOW_N" --slow-size "$SLOW_SIZE" --slow-shared false)
+# Per workload: where the row goes, the client flags (host-binary path), the
+# run-stress-docker.sh env (in-docker path), the metadata columns
+# probe_scrape.py records, and how the banner names the point.
+case "$WORKLOAD" in
+slow)
+  PRODUCT=$((SLOW_N * SLOW_SIZE))
+  CSV_OUT="$PROBE_DIR/calibration-$MACHINE.csv"
+  # slow::slow(n, size) workload weights (same mapping as ../h1/run.sh).
+  # --slow-shared false is explicit: the client defaults it to TRUE, and an
+  # owned-only transaction is the whole point — it never reaches per-object
+  # congestion control, so a deferral can never distort the measurement.
+  WORKLOAD_ARGS=(--transfer-object 0 --slow 100 --slow-n "$SLOW_N" --slow-size "$SLOW_SIZE" --slow-shared false)
+  RUNNER_ENV=(WORKLOAD=slow SLOW_N="$SLOW_N" SLOW_SIZE="$SLOW_SIZE" SLOW_SHARED=false)
+  SCRAPE_CFG=(CFG_slow_n="$SLOW_N" CFG_slow_size="$SLOW_SIZE" CFG_product="$PRODUCT" CFG_shared=false)
+  POINT="slow(n=$SLOW_N, size=$SLOW_SIZE) product=$PRODUCT"
+  ;;
+groth16)
+  # A separate file: the slow tables and figures glob calibration-*.csv and
+  # expect the slow columns. groth16 transactions use only their gas coin, so
+  # they are owned-only by construction.
+  CSV_OUT="$PROBE_DIR/groth16-$MACHINE.csv"
+  WORKLOAD_ARGS=(--transfer-object 0 --groth16 100 --groth16-curve "$GROTH16_CURVE"
+    --groth16-function "$GROTH16_FUNCTION" --groth16-calls "$GROTH16_CALLS")
+  RUNNER_ENV=(WORKLOAD=groth16 GROTH16_CURVE="$GROTH16_CURVE"
+    GROTH16_FUNCTION="$GROTH16_FUNCTION" GROTH16_CALLS="$GROTH16_CALLS")
+  SCRAPE_CFG=(CFG_curve="$GROTH16_CURVE" CFG_function="$GROTH16_FUNCTION" CFG_calls="$GROTH16_CALLS")
+  POINT="groth16($GROTH16_CURVE $GROTH16_FUNCTION, calls=$GROTH16_CALLS)"
+  ;;
+esac
 
 if [[ "$DIRECT" == true ]]; then
   echo "${YELLOW}NOTE: DIRECT=true runs the stress image in-network; it must be built from the" >&2
@@ -366,7 +443,7 @@ fi
 
 ensure_network
 
-banner ">>> probe: slow(n=$SLOW_N, size=$SLOW_SIZE) product=$PRODUCT owned qps=$QPS dur=$DURATION path=$([[ "$DIRECT" == true ]] && echo direct-docker || echo fullnode-host)"
+banner ">>> probe: $POINT owned qps=$QPS dur=$DURATION path=$([[ "$DIRECT" == true ]] && echo direct-docker || echo fullnode-host)"
 wait_for_fullnode
 wait_for_first_scrape
 STRESS_LOG="$PROBE_DIR/probe-last-stress.log"
@@ -379,8 +456,7 @@ if [[ "$DIRECT" == true ]]; then
     IN_FLIGHT_RATIO="$IN_FLIGHT_RATIO" PRIMARY_GAS_OWNER="$PRIMARY_GAS_OWNER" \
     USE_FULLNODE_FOR_EXECUTION=false NUM_TARGET_VALIDATORS="$NUM_TARGET_VALIDATORS" \
     PRE_SPAM_DELAY_SECS="$PRE_SPAM_DELAY_SECS" \
-    WORKLOAD=slow SLOW_N="$SLOW_N" SLOW_SIZE="$SLOW_SIZE" SLOW_SHARED=false \
-    "$TOOLS_DIR/run-stress-docker.sh" 2>"$STRESS_LOG"
+    env "${RUNNER_ENV[@]}" "$TOOLS_DIR/run-stress-docker.sh" 2>"$STRESS_LOG"
 else
   echo "${BLUE}Running stress via ${STRESS_BIN} executable...${RESET}"
   (cd "$REPO_ROOT" && "$STRESS_BIN" \
@@ -440,8 +516,7 @@ fi
 
 banner "== measure =="
 PROM="$PROM" \
-  CFG_slow_n="$SLOW_N" CFG_slow_size="$SLOW_SIZE" CFG_product="$PRODUCT" \
-  CFG_shared=false CFG_qps="$QPS" CFG_duration="$DURATION" \
+  env "${SCRAPE_CFG[@]}" CFG_qps="$QPS" CFG_duration="$DURATION" \
   python3 "$SCRIPT_DIR/probe_scrape.py" "$window_start" "$end" "$TS_STEP" "$CSV_OUT"
 
 # End-of-run wipe: default NO so the next probe reuses the network. WIPE=yes

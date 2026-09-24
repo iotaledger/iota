@@ -187,11 +187,21 @@ dashboards reduce over the running validators only.
     per-object congestion control and are not relevant here.
 - Workloads added or to be added in the `iota-benchmark` stress:
   - Configurable slow mode (added): `--slow-n` / `--slow-size` select the fixed
-    `slow::slow(n, size)` cost, and `--slow-shared` toggles a shared vs
-    owned-object input - giving W5 (shared-object, cost sweep) and W4
-    (owned-object, pure computation, used for H1). Previously `--slow` ran only
-    the clock-driven `slow::bimodal` with a shared input (two hardcoded cost
+    `slow::slow(n, size)` cost, and `--slow-shared` toggles a shared vs owned-object
+    input - giving W5 (shared-object, cost sweep) and W4 (owned-object, pure
+    computation, used for H1). `--slow-mix` instead draws `n` for each transaction
+    from a weighted list (e.g., `1:9,350:1`), so one commit carries transactions
+    of different cost, which H2's mixed-cost runs use. Previously `--slow` ran
+    only the clock-driven `slow::bimodal` with a shared input (two hardcoded cost
     levels, not settable). See the `--slow` entry above.
+  - groth16 workload (added): `--groth16` sends owned-object transactions that
+    call a native function of the framework's `0x2::groth16` module
+    `--groth16-calls` times: `verify_groth16_proof` or `prepare_verifying_key`
+    (`--groth16-function verify|prepare`), on `bn254` or `bls12381`
+    (`--groth16-curve`). The keys and proofs are the framework's own test
+    vectors, so nothing is published. Native functions are charged a fixed
+    amount per call, not per instruction like Move code, which gives W8:
+    whether computation units follow execution time outside Move code.
   - W2 (inflated budget): a gas-budget knob, so a shared-object workload can set
     its gas budget well above its real computation cost (one run per 1x / 10x /
     100x ratio). No such knob exists today (`options.rs` has none) and
@@ -535,6 +545,39 @@ They are needed for the testing only, not to be merged to upstream branches.
   and cancellation, not sustained starvation).
 - Tests: H4 (safety): the over-report stresses deferral and starvation; H4 is
   also watched on every run.
+
+### W8 - groth16 owned-object transactions (computation cost vs execution time)
+
+- Network parameters: attestation on, P-COOL flow on; `TotalComputationUnits`
+  mode. The transactions use no shared object: they pass through the sequencer,
+  but with execution-worker congestion control off
+  (`max_concurrent_execution_workers` unset, as in every protocol version so far)
+  it schedules them at once, whatever the per-object cost limit is.
+- Stress parameters: `--groth16`, added for this plan. Each transaction calls a
+  native function of the framework's `0x2::groth16` module `--groth16-calls`
+  times: `--groth16-function verify` (the default) calls
+  `verify_groth16_proof` with a verifying key prepared in advance, `prepare`
+  calls `prepare_verifying_key`; `--groth16-curve` picks `bn254` (the default)
+  or `bls12381`. The keys and proofs are the framework's own test vectors, so
+  no package is published, and the only object a transaction uses is its gas
+  coin. Sweep `--groth16-calls` at a low rate.
+- Note: native functions are charged a fixed amount per call, set in the
+  protocol config, not by the work they do. A BN254 `verify_groth16_proof` call
+  with one public input is charged about 125 computation units, so one
+  transaction with 700 calls, the most at that price, costs about 88,000. From
+  the 701st native call in a transaction, gas model v2 charges each call's
+  amount as instructions, so later calls cost about a hundred times more.
+  `verify_groth16_proof` returns `false` instead of aborting when its bytes do
+  not parse, and still charges the full amount, so the test vectors must be
+  used unchanged.
+- Measure: attested and actual computation units per transaction, and the
+  execution time, against W4 transactions of the same computation units.
+- Tests: whether computation units follow execution time for native calls as
+  they do for Move code. H2's rule for the unit limit rests on that (see
+  [h2/RESULTS.md](h2/RESULTS.md#the-answer-to-the-h2-question)): if a groth16
+  transaction takes much longer than a W4 transaction of the same computation
+  units, a limit set in computation units admits more work per commit than it
+  is meant to.
 
 ---
 

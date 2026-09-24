@@ -13,19 +13,29 @@
 # equal product (40000) at different n/size splits, to confirm CU depends only on
 # the product (validating it as the single W5 axis).
 #
+# The groth16 grid (W8) is separate: it steps the number of calls to one
+# 0x2::groth16 native function per transaction, and probe.sh writes its rows to
+# results/probe/groth16-<machine>.csv with its groth16 defaults (1 per second
+# for 100 s).
+#
 # Usage:
 #   ./probe_sweep.sh              # everything: ladder + split + cost points
 #   ./probe_sweep.sh ladder       # ladder only
 #   ./probe_sweep.sh split        # split-invariance check only
 #   ./probe_sweep.sh cu           # the mode comparison's cost points
+#   ./probe_sweep.sh groth16      # the groth16 grid, not part of "all"
 #
-# Tunables inherited by probe.sh: QPS, DURATION, DIRECT, N, PROM.
+# Tunables inherited by probe.sh: QPS, DURATION, DIRECT, N, PROM; for groth16
+# also GROTH16_CURVE (bn254 | bls12381, default bn254) and GROTH16_FUNCTION
+# (verify | prepare, default verify).
 
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WHICH="${1:-all}"
 LOGDIR="$SCRIPT_DIR/logs"
 RETRIES="${RETRIES:-3}" # extra attempts per failed point
+GROTH16_CURVE="${GROTH16_CURVE:-bn254}"
+GROTH16_FUNCTION="${GROTH16_FUNCTION:-verify}"
 mkdir -p "$LOGDIR"
 
 # "n size" pairs. Ladder: product in {100,200,500,...,2M} at size=100. The top
@@ -83,6 +93,14 @@ cu=(
   "3511 100" # cu2m   2,000,000
   "8000 100" # cu5m   5,000,000 (the metering ceiling)
 )
+# groth16 (W8): calls to the native function per transaction. For BN254 verify,
+# at about 125 CUs a call, 1 and 7 both round up to 1,000 CUs, 8 is the first
+# step to 2,000, and 700 (88,000 CUs) is the most at the flat price: from the
+# 701st native call in a transaction, gas model v2 charges each call's amount
+# as instructions, so 701, 710 and 750 show that jump. Past about 810 calls a
+# transaction reaches the 5,000,000 metering ceiling. The other three
+# workloads charge less per call, so their rounding steps fall elsewhere.
+groth16=(1 7 8 50 100 200 400 700 701 710 750)
 
 points=()
 case "$WHICH" in
@@ -99,11 +117,24 @@ all)
 ladder) points=("${ladder[@]}") ;;
 split) points=("${split[@]}") ;;
 cu) points=("${cu[@]}") ;;
+groth16) points=("${groth16[@]}") ;;
 *)
-  echo "usage: $0 [all|ladder|split|cu]" >&2
+  echo "usage: $0 [all|ladder|split|cu|groth16]" >&2
   exit 1
   ;;
 esac
+
+# Run probe.sh for one point of the chosen grid.
+probe_point() {
+  if [[ "$WHICH" == groth16 ]]; then
+    WORKLOAD=groth16 GROTH16_CALLS="$1" GROTH16_CURVE="$GROTH16_CURVE" \
+      GROTH16_FUNCTION="$GROTH16_FUNCTION" WIPE=no "$SCRIPT_DIR/probe.sh"
+  else
+    local n size
+    read -r n size <<<"$1"
+    SLOW_N="$n" SLOW_SIZE="$size" WIPE=no "$SCRIPT_DIR/probe.sh"
+  fi
+}
 
 # Cache sudo up front (the first probe may bootstrap/start the network) and keep
 # it alive for the whole sweep.
@@ -130,9 +161,13 @@ sudo "$TOOLS_DIR/cleanup.sh" >"$LOGDIR/sweep-cleanup.log" 2>&1 || true
 total=${#points[@]}
 i=0
 for p in "${points[@]}"; do
-  read -r n size <<<"$p"
   i=$((i + 1))
-  label="slow-n${n}-s${size}"
+  if [[ "$WHICH" == groth16 ]]; then
+    label="groth16-$GROTH16_CURVE-$GROTH16_FUNCTION-k$p"
+  else
+    read -r n size <<<"$p"
+    label="slow-n${n}-s${size}"
+  fi
   echo "[$(date +%H:%M:%S)] ($i/$total) probe $label -> logs/$label.log"
   # Transient submit-path stalls fail the odd point (the scrape guard keeps
   # bad rows out of the CSV); immediate retries usually land it. All attempts
@@ -141,9 +176,9 @@ for p in "${points[@]}"; do
   for attempt in $(seq 1 $((1 + RETRIES))); do
     if ((attempt > 1)); then
       echo "    ✗ failed — retry $((attempt - 1))/$RETRIES"
-      SLOW_N="$n" SLOW_SIZE="$size" WIPE=no "$SCRIPT_DIR/probe.sh" >>"$LOGDIR/$label.log" 2>&1 && ok=1
+      probe_point "$p" >>"$LOGDIR/$label.log" 2>&1 && ok=1
     else
-      SLOW_N="$n" SLOW_SIZE="$size" WIPE=no "$SCRIPT_DIR/probe.sh" >"$LOGDIR/$label.log" 2>&1 && ok=1
+      probe_point "$p" >"$LOGDIR/$label.log" 2>&1 && ok=1
     fi
     [[ -n "$ok" ]] && break
   done
@@ -165,7 +200,12 @@ fi
 
 echo
 # The CSV name carries probe.sh's CPU slug; report the file it actually wrote.
-csv="$(ls -t "$SCRIPT_DIR/results/probe"/calibration-*.csv 2>/dev/null | head -1)"
+if [[ "$WHICH" == groth16 ]]; then
+  csv_prefix=groth16
+else
+  csv_prefix=calibration
+fi
+csv="$(ls -t "$SCRIPT_DIR/results/probe"/"$csv_prefix"-*.csv 2>/dev/null | head -1)"
 if [[ -n "$csv" ]]; then
   echo "sweep complete -> ${csv#"$SCRIPT_DIR"/}"
 else
@@ -180,6 +220,11 @@ fi
 if [[ "${REGEN:-yes}" == no || "${REGEN:-yes}" == n ]]; then
   echo
   echo "REGEN=no — skipping table/figure regen (CSV written, shared artifacts untouched)"
+elif [[ "$WHICH" == groth16 ]]; then
+  # The tables and figures below are built from calibration-*.csv only, which a
+  # groth16 sweep does not change.
+  echo
+  echo "groth16 sweep — slow tables and figures unchanged, nothing to regenerate"
 else
   echo
   echo "regenerating tables + figures..."
