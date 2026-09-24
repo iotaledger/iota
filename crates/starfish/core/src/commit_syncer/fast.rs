@@ -621,7 +621,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         ) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                inner
+                    .misbehavior_store
+                    .record_fetch_fault(target_authority, e);
+            })?;
 
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
@@ -937,6 +942,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         }
                     }
                     Ok(Err(e)) => {
+                        inner.misbehavior_store.record_fetch_fault(authority, &e);
                         record_headers_for_reinitialization_failure(&inner, authority);
                         warn!(
                             "[{}] Failed to fetch headers from {}: {}",
