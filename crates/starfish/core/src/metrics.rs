@@ -1009,7 +1009,10 @@ impl NodeMetrics {
             decision_candidates_per_call: register_histogram_with_registry!(
                 "decision_candidates_per_call",
                 "Leader slots checked by each UniversalCommitter::try_decide call",
-                vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 8.0, 16.0, 32.0],
+                vec![
+                    0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 7.5, 10.5, 15.5, 20.5, 30.5, 50.5, 100.5,
+                    200.5, 500.5, 1000.5,
+                ],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
