@@ -1826,15 +1826,17 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
-    use futures::stream;
+    use futures::{StreamExt as _, stream};
     use starfish_config::{AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH};
+    use tokio::sync::Semaphore;
 
     use super::{
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
-        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, TonicClient, UNKNOWN_ROUTE,
-        collect_block_headers, collect_commits_and_transactions, collect_transactions,
-        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
-        max_serialized_transactions_entry_bytes, route_label,
+        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, PermitHoldingStream,
+        TonicClient, UNKNOWN_ROUTE, collect_block_headers, collect_commits_and_transactions,
+        collect_transactions, max_fetch_block_headers_response_bytes,
+        max_fetch_transactions_response_bytes, max_serialized_transactions_entry_bytes,
+        route_label,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
@@ -2682,5 +2684,24 @@ mod tests {
         };
         assert_eq!(status.code(), tonic::Code::Unimplemented);
         assert_eq!(status.message(), DEPRECATED_METHOD_MESSAGE);
+    }
+
+    /// The permit stays held while the response is streamed, including after
+    /// its last message, and is released once the stream is dropped.
+    #[tokio::test]
+    async fn permit_holding_stream_releases_the_permit_when_dropped() {
+        let slot = Arc::new(Semaphore::new(1));
+        let mut responses = PermitHoldingStream {
+            inner: stream::iter([1, 2]),
+            _permit: Some(slot.clone().try_acquire_owned().unwrap()),
+        };
+        assert_eq!(responses.next().await, Some(1));
+        assert_eq!(slot.available_permits(), 0);
+        assert_eq!(responses.next().await, Some(2));
+        assert_eq!(responses.next().await, None);
+        assert_eq!(slot.available_permits(), 0);
+
+        drop(responses);
+        assert_eq!(slot.available_permits(), 1);
     }
 }
