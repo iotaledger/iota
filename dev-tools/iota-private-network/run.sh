@@ -66,7 +66,9 @@ function start_services() {
   for ((i=1; i<=NUM_VALIDATORS; i++)); do
     validators="$validators validator-$i"
   done
-  docker compose up -d $validators $services
+  # Never pull: a missing local image would otherwise be replaced by the public
+  # `latest` from Docker Hub, which is the mainnet release, not this branch.
+  docker compose up -d --pull never $validators $services
 }
 
 modes=(
