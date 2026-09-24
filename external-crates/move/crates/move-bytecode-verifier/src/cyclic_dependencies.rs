@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2026 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains verification of usage of dependencies for modules
@@ -31,6 +31,9 @@ where
 /// - If `module.self_id()` is encountered (again), a dependency cycle is
 ///   detected and an error is returned.
 /// - Otherwise terminates without an error.
+///
+/// Without `config.check_cyclic_dependencies` the traversal stops at the
+/// immediate dependencies and no cycle is reported.
 fn verify_module_impl<D>(
     config: &VerifierConfig,
     module: &CompiledModule,
@@ -53,10 +56,8 @@ where
             return Ok(true);
         }
 
-        // The inverted condition below descends only into a module that has already
-        // been visited, so the traversal never goes past the immediate dependencies
-        // and no cycle is ever reported. It is kept for protocol versions before
-        // `check_cyclic_dependencies`, which replay against that behaviour.
+        // Kept for protocol versions before `check_cyclic_dependencies`, which
+        // replay against a traversal that never descends.
         let is_new = if config.check_cyclic_dependencies {
             visited.insert(cursor.clone())
         } else {
