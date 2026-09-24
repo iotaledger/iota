@@ -1152,13 +1152,6 @@ pub struct AuthorityStorePruningConfig {
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    /// Enables the compaction filter for pruning the objects table.
-    /// If disabled, a range deletion approach is used instead.
-    /// While it is generally safe to switch between the two modes,
-    /// switching from the compaction filter approach back to range deletion
-    /// may result in some old versions that will never be pruned.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub enable_compaction_filter: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_indexes: Option<u64>,
 }
@@ -1182,7 +1175,6 @@ impl Default for AuthorityStorePruningConfig {
             num_epochs_to_retain: 0,
             periodic_compaction_threshold_days: default_periodic_compaction_threshold_days(),
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
         }
     }

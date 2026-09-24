@@ -1024,17 +1024,17 @@ mod tests {
         // for an unknown field.
         let mut config = test_config();
         config
-            .authority_store_pruning_config
-            .enable_compaction_filter = true;
+            .authority_overload_config
+            .check_system_overload_at_execution = true;
         let config_override: NodeConfigOverride =
-            "authority-store-pruning-config.enable-compaction-filter=false"
+            "authority-overload-config.check-system-overload-at-execution=false"
                 .parse()
                 .unwrap();
         config_override.apply_to(&mut config).unwrap();
         assert!(
             !config
-                .authority_store_pruning_config
-                .enable_compaction_filter
+                .authority_overload_config
+                .check_system_overload_at_execution
         );
 
         let config_override: NodeConfigOverride = "p2p-config.seed-peers=[]".parse().unwrap();
@@ -1051,14 +1051,15 @@ mod tests {
             .periodic_compaction_threshold_days = None;
 
         let config_override: NodeConfigOverride =
-            "authority-store-pruning-config={enable-compaction-filter: true}"
+            "authority-store-pruning-config={num-epochs-to-retain-for-checkpoints: 7}"
                 .parse()
                 .unwrap();
         config_override.apply_to(&mut config).unwrap();
-        assert!(
+        assert_eq!(
             config
                 .authority_store_pruning_config
-                .enable_compaction_filter
+                .num_epochs_to_retain_for_checkpoints,
+            Some(7)
         );
         // Unmentioned fields keep their values instead of resetting to their
         // serde defaults.

@@ -227,6 +227,14 @@ pub struct Parameters {
     /// regardless of how far commits run ahead of solidification.
     #[serde(default = "Parameters::default_shard_budget_per_authority")]
     pub shard_budget_per_authority: u32,
+
+    /// Maximum transaction payload bytes one fast commit-sync response carries.
+    /// A fetch covering more commits than this is answered with the commits
+    /// whose payloads fit, and the requester asks for the rest in its next
+    /// fetch. When the range's first commit exceeds this on its own it is
+    /// still served whole, one such response at a time.
+    #[serde(default = "Parameters::default_max_fast_commit_sync_transaction_bytes")]
+    pub max_fast_commit_sync_transaction_bytes: usize,
 }
 
 impl Parameters {
@@ -341,6 +349,10 @@ impl Parameters {
             (
                 "fast_commit_sync_batch_size",
                 self.fast_commit_sync_batch_size as u128,
+            ),
+            (
+                "max_fast_commit_sync_transaction_bytes",
+                self.max_fast_commit_sync_transaction_bytes as u128,
             ),
             (
                 "tonic.connection_buffer_size",
@@ -542,6 +554,10 @@ impl Parameters {
         500
     }
 
+    pub(crate) fn default_max_fast_commit_sync_transaction_bytes() -> usize {
+        64 * 1024 * 1024
+    }
+
     pub(crate) fn default_shard_budget_per_authority() -> u32 {
         // Honest need per authority is one shard per slot times a few rounds
         // until decode, well under the budget at any realistic committee size.
@@ -594,6 +610,8 @@ impl Default for Parameters {
             dag_visualizer_port: None,
             solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
             shard_budget_per_authority: Parameters::default_shard_budget_per_authority(),
+            max_fast_commit_sync_transaction_bytes:
+                Parameters::default_max_fast_commit_sync_transaction_bytes(),
         }
     }
 }
@@ -741,8 +759,8 @@ impl Default for TonicParameters {
 /// so they can be rolled out and tuned per node.
 ///
 /// The defaults are sized for ~100-validator committees and the local
-/// synchronizer fan-out toward one server. `0` disables admission for that
-/// group.
+/// synchronizer fan-out toward one server. `0` turns a cap off; each cap is
+/// checked on its own.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdmissionParameters {
     /// Max concurrent block-subscription streams per peer.
@@ -770,6 +788,14 @@ pub struct AdmissionParameters {
     /// If unspecified, this will default to 8.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
+
+    /// Max concurrent commit fetches across all peers. A fast commit-sync
+    /// response is held in memory until it has been sent, so this caps what
+    /// serving them can cost the node at once.
+    ///
+    /// If unspecified, this will default to 16.
+    #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
+    pub max_commit_fetches_total: u32,
 }
 
 impl AdmissionParameters {
@@ -788,6 +814,10 @@ impl AdmissionParameters {
     fn default_max_commit_fetches_per_peer() -> u32 {
         Parameters::default_commit_sync_parallel_fetches() as u32
     }
+
+    fn default_max_commit_fetches_total() -> u32 {
+        2 * AdmissionParameters::default_max_commit_fetches_per_peer()
+    }
 }
 
 impl Default for AdmissionParameters {
@@ -798,6 +828,7 @@ impl Default for AdmissionParameters {
             max_transaction_fetches_per_peer:
                 AdmissionParameters::default_max_transaction_fetches_per_peer(),
             max_commit_fetches_per_peer: AdmissionParameters::default_max_commit_fetches_per_peer(),
+            max_commit_fetches_total: AdmissionParameters::default_max_commit_fetches_total(),
         }
     }
 }

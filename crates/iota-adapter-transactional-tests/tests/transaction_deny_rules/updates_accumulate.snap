@@ -23,8 +23,8 @@ task 3, lines 18-21:
 //# update-deny-rules --added-addresses 0xCC --removed-addresses 0xAA --removed-objects 0x1A --removed-packages 0x2B
 events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), struct_tag: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMwBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKwAAAAAAAAIAAAAAAAAAAAAAAAAAAAABAAAAAAAAAA==" }
 created: object(3,0)
-mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0), object(2,0), object(2,3)
-deleted: object(2,1), object(2,2), object(2,4)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0), object(2,1), object(2,3)
+deleted: object(2,0), object(2,2), object(2,4)
 gas summary:
 ├── Computation Cost: 0
 ├── Computation Cost Burned: 0
@@ -110,27 +110,7 @@ Contents: iota::dynamic_field::Field<u64, iota::transaction_deny_rules::Transact
 
 task 5, lines 27-29:
 //# view-object 2,0
-Owner: Object(_)
-Version: 4
-Contents: iota::dynamic_field::Field<address, iota::linked_table::Node<address, bool>> {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(2,0),
-        },
-    },
-    name: _,
-    value: iota::linked_table::Node<address, bool> {
-        prev: std::option::Option<address> {
-            vec: vector[],
-        },
-        next: std::option::Option<address> {
-            vec: vector[
-                _,
-            ],
-        },
-        value: true,
-    },
-}
+No object at id 2,0
 
 task 6, line 31:
 //# view-object 3,0

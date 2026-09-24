@@ -7,6 +7,7 @@ use std::{
     net::{SocketAddr, SocketAddrV4, SocketAddrV6},
     pin::Pin,
     sync::Arc,
+    task::{Context as TaskContext, Poll},
     time::{Duration, Instant},
 };
 
@@ -25,14 +26,15 @@ use parking_lot::RwLock;
 use starfish_config::{
     AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH, NetworkKeyPair, NetworkPublicKey,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedSemaphorePermit};
 use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
+    BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
+    SerializedBlockBundle,
     admission::AdmissionLayer,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
@@ -1022,11 +1024,24 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
         let request = request.into_inner();
-        let (serialized_commits, serialized_headers, serialized_transactions) = self
+        let FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_headers,
+            transactions: serialized_transactions,
+            oversized_commit_permit,
+        } = self
             .service
             .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
             .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+            .map_err(|e| match e {
+                ConsensusError::OversizedCommitAlreadyServed => {
+                    tonic::Status::resource_exhausted(e.to_string())
+                }
+                ConsensusError::TransactionsNotAvailable { .. } => {
+                    tonic::Status::unavailable(e.to_string())
+                }
+                e => tonic::Status::internal(format!("{e:?}")),
+            })?;
 
         // Build response as a stream of chunks to stay under gRPC message size limit.
         // Commits and transactions are chunked by size. Certifier headers are small
@@ -1063,7 +1078,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             }));
         }
 
-        let stream = iter(responses).boxed();
+        let stream = PermitHoldingStream {
+            inner: iter(responses),
+            _permit: oversized_commit_permit,
+        }
+        .boxed();
         Ok(Response::new(stream))
     }
 
@@ -1157,11 +1176,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(
-                peer_index,
-                committed_transactions_refs,
-                TransactionFetchMode::TransactionSync,
-            )
+            .handle_fetch_transactions(peer_index, committed_transactions_refs)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 
@@ -1768,6 +1783,21 @@ pub(crate) struct FetchTransactionsResponse {
     vec_serialized_transactions: Vec<Bytes>,
 }
 
+/// A response stream that keeps `_permit` held until the stream is dropped,
+/// which is once the response has been sent or the peer has gone away.
+struct PermitHoldingStream<St> {
+    inner: St,
+    _permit: Option<OwnedSemaphorePermit>,
+}
+
+impl<St: Stream + Unpin> Stream for PermitHoldingStream<St> {
+    type Item = St::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.get_mut().inner).poll_next(cx)
+    }
+}
+
 // Splits a list of byte sequences into chunks where each chunk's total size
 // does not exceed the specified `chunk_limit`.
 // Returns a vector of chunks, each being a vector of `Bytes`.
@@ -1796,15 +1826,17 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
-    use futures::stream;
+    use futures::{StreamExt as _, stream};
     use starfish_config::{AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH};
+    use tokio::sync::Semaphore;
 
     use super::{
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
-        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, TonicClient, UNKNOWN_ROUTE,
-        collect_block_headers, collect_commits_and_transactions, collect_transactions,
-        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
-        max_serialized_transactions_entry_bytes, route_label,
+        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, PermitHoldingStream,
+        TonicClient, UNKNOWN_ROUTE, collect_block_headers, collect_commits_and_transactions,
+        collect_transactions, max_fetch_block_headers_response_bytes,
+        max_fetch_transactions_response_bytes, max_serialized_transactions_entry_bytes,
+        route_label,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
@@ -2652,5 +2684,24 @@ mod tests {
         };
         assert_eq!(status.code(), tonic::Code::Unimplemented);
         assert_eq!(status.message(), DEPRECATED_METHOD_MESSAGE);
+    }
+
+    /// The permit stays held while the response is streamed, including after
+    /// its last message, and is released once the stream is dropped.
+    #[tokio::test]
+    async fn permit_holding_stream_releases_the_permit_when_dropped() {
+        let slot = Arc::new(Semaphore::new(1));
+        let mut responses = PermitHoldingStream {
+            inner: stream::iter([1, 2]),
+            _permit: Some(slot.clone().try_acquire_owned().unwrap()),
+        };
+        assert_eq!(responses.next().await, Some(1));
+        assert_eq!(slot.available_permits(), 0);
+        assert_eq!(responses.next().await, Some(2));
+        assert_eq!(responses.next().await, None);
+        assert_eq!(slot.available_permits(), 0);
+
+        drop(responses);
+        assert_eq!(slot.available_permits(), 1);
     }
 }
