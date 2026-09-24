@@ -18,7 +18,7 @@
 //! transaction deny-list, and the network's signing verifier limits — this
 //! runs with an empty deny-list and the default limits.
 
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow};
 use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, IotaTransactionBlockData, IotaTransactionBlockEvents,
 };
@@ -30,19 +30,13 @@ use iota_types::{
     transaction::TransactionAPI,
 };
 use iota_vm_sdk::{ExecuteOptions, ExecutionResult, LocalVm, grpc::GrpcStore};
-use tokio::runtime::RuntimeFlavor;
 
 use crate::client_commands::{IotaClientCommandResult, fallback_gas_budget};
 
-/// Stack for the thread that runs the Move VM. Execution nests deeply, and a
-/// debug build's frames are large enough to overflow a default 2 MiB stack.
-const EXECUTION_STACK_SIZE: usize = 16 * 1024 * 1024;
-
 /// Run a dry-run locally and assemble the node-shaped response.
 ///
-/// The run happens on a dedicated thread and blocks the caller until it is
-/// done. Resolving an object the run asks for needs a multi-threaded Tokio
-/// runtime.
+/// The run blocks the calling thread until it is done. Resolving an object
+/// the run asks for needs a multi-threaded Tokio runtime.
 pub(crate) async fn execute_local_dry_run(
     context: &mut WalletContext,
     signer: Address,
@@ -56,40 +50,18 @@ pub(crate) async fn execute_local_dry_run(
         "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
     )?;
 
-    // The VM and the frames above it in a debug build need more stack than a
-    // default thread has. Object fetches inside the run look up the runtime
-    // by thread, so the thread enters it.
-    let handle = tokio::runtime::Handle::current();
-    // Joining below parks this thread. On a current-thread runtime that is the
-    // only thread able to drive the gRPC calls the run blocks on, so bail
-    // instead of hanging.
-    ensure!(
-        matches!(handle.runtime_flavor(), RuntimeFlavor::MultiThread),
-        "local simulation needs a multi-threaded Tokio runtime"
-    );
-    let response = std::thread::scope(|scope| {
-        std::thread::Builder::new()
-            .name("local-dry-run".into())
-            .stack_size(EXECUTION_STACK_SIZE)
-            .spawn_scoped(scope, || {
-                let _runtime = handle.enter();
-                let store = GrpcStore::new(client);
-                let chain_context = handle.block_on(store.fetch_chain_context())?;
-                let vm = LocalVm::new(chain_context, store)?;
-                run_dry_run(
-                    vm,
-                    signer,
-                    kind,
-                    gas_budget,
-                    gas_price,
-                    gas_payment,
-                    sponsor,
-                )
-            })
-            .context("failed to spawn the local dry-run thread")?
-            .join()
-            .map_err(|_| anyhow!("the local dry-run thread panicked"))?
-    })?;
+    let store = GrpcStore::new(client);
+    let chain_context = store.fetch_chain_context().await?;
+    let vm = LocalVm::new(chain_context, store)?;
+    let response = run_dry_run(
+        vm,
+        signer,
+        kind,
+        gas_budget,
+        gas_price,
+        gas_payment,
+        sponsor,
+    )?;
     IotaClientCommandResult::LocalDryRun(response)
         .prerender_clever_errors(context)
         .await
