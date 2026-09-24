@@ -281,6 +281,19 @@ pub(crate) struct NodeMetrics {
     pub(crate) subscribed_block_bundles: IntCounterVec,
     pub(crate) verified_blocks: IntCounterVec,
     pub(crate) decided_leaders_total: IntCounterVec,
+    pub(crate) decision_candidates_per_call: Histogram,
+    pub(crate) decision_elapsed_seconds: SumCount,
+    pub(crate) decision_leader_election_seconds: SumCount,
+    pub(crate) decision_direct_seconds: SumCount,
+    pub(crate) decision_indirect_seconds: SumCount,
+    pub(crate) decision_direct_pending_total: IntCounter,
+    pub(crate) decision_direct_undecided_total: IntCounter,
+    pub(crate) decision_indirect_attempts_total: IntCounter,
+    pub(crate) decision_indirect_resolved_total: IntCounter,
+    pub(crate) decision_anchor_traversals_total: IntCounter,
+    pub(crate) decision_direct_quorum_passed_total: IntCounter,
+    pub(crate) decision_direct_certificates_classified_total: IntCounter,
+    pub(crate) decision_indirect_certificates_classified_total: IntCounter,
     pub(crate) last_committed_authority_round: IntGaugeVec,
     pub(crate) last_committed_leader_round: IntGauge,
     pub(crate) last_commit_index: IntGauge,
@@ -990,6 +1003,85 @@ impl NodeMetrics {
                 "decided_leaders_total",
                 "Total number of (direct or indirect, skip or commit) decided leaders per authority",
                 &["authority", "commit_type"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_candidates_per_call: register_histogram_with_registry!(
+                "decision_candidates_per_call",
+                "Leader slots checked by each UniversalCommitter::try_decide call",
+                vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 8.0, 16.0, 32.0],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_elapsed_seconds: SumCount::register(
+                "decision_elapsed_seconds",
+                "Elapsed seconds per UniversalCommitter::try_decide call",
+                registry,
+                MetricLevel::Warn,
+            ),
+            decision_leader_election_seconds: SumCount::register(
+                "decision_leader_election_seconds",
+                "Elapsed seconds in leader election per UniversalCommitter::try_decide call",
+                registry,
+                MetricLevel::Warn,
+            ),
+            decision_direct_seconds: SumCount::register(
+                "decision_direct_seconds",
+                "Elapsed seconds in direct decision checks per UniversalCommitter::try_decide call",
+                registry,
+                MetricLevel::Warn,
+            ),
+            decision_indirect_seconds: SumCount::register(
+                "decision_indirect_seconds",
+                "Elapsed seconds in indirect decision checks per UniversalCommitter::try_decide call",
+                registry,
+                MetricLevel::Warn,
+            ),
+            decision_direct_pending_total: register_int_counter_with_registry!(
+                "decision_direct_pending_total",
+                "Direct decision checks that returned Commit(Pending), including repeated checks of the same leader",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_direct_undecided_total: register_int_counter_with_registry!(
+                "decision_direct_undecided_total",
+                "Direct decision checks that returned Undecided, including repeated checks of the same leader",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_indirect_attempts_total: register_int_counter_with_registry!(
+                "decision_indirect_attempts_total",
+                "Indirect decision checks attempted after an unresolved direct result",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_indirect_resolved_total: register_int_counter_with_registry!(
+                "decision_indirect_resolved_total",
+                "Indirect decision checks that resolved a leader",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_anchor_traversals_total: register_int_counter_with_registry!(
+                "decision_anchor_traversals_total",
+                "Indirect decision checks that found a committed anchor and traversed its DAG path",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_direct_quorum_passed_total: register_int_counter_with_registry!(
+                "decision_direct_quorum_passed_total",
+                "Direct checks with quorum stake in the certifying round that reached certificate classification",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_direct_certificates_classified_total: register_int_counter_with_registry!(
+                "decision_direct_certificates_classified_total",
+                "Certifying headers classified by the StarfishSpeed direct decision rule",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_indirect_certificates_classified_total: register_int_counter_with_registry!(
+                "decision_indirect_certificates_classified_total",
+                "Reachable certifying headers classified by the StarfishSpeed indirect decision rule",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

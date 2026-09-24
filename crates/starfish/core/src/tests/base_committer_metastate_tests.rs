@@ -723,14 +723,42 @@ async fn pending_leader_resolves_to_optimistic() {
 
     // No wave-2 anchor yet — direct says Pending and can't upgrade.
     assert_direct_commit_metastate(&base, round_3_slot, Some(CommitMetastate::Pending));
+    let metrics = &context.metrics.node_metrics;
+    let last_finalized = Slot::new(GENESIS_ROUND, 0u8);
+    let _ = universal.try_decide(last_finalized);
+    let pending_after_first_call = metrics.decision_direct_pending_total.get();
+    let candidates_after_first_call = metrics.decision_candidates_per_call.get_sample_sum();
+    assert!(pending_after_first_call > 0);
+    assert!(metrics.decision_indirect_attempts_total.get() > 0);
+
+    // The same undecided DAG is checked again on the next commit attempt.
+    let _ = universal.try_decide(last_finalized);
+    assert_eq!(
+        metrics.decision_direct_pending_total.get(),
+        pending_after_first_call * 2
+    );
+    assert_eq!(metrics.decision_candidates_per_call.get_sample_count(), 2);
+    assert_eq!(
+        metrics.decision_candidates_per_call.get_sample_sum(),
+        candidates_after_first_call * 2.0,
+    );
+    let traversals_before_anchor = metrics.decision_anchor_traversals_total.get();
 
     // Wave 2 pulls the StrongQC (c0) into the round-6 anchor's r+2 path.
     build_v2_layers(&context, &dag_state, Some(round_5_refs.to_vec()), 8);
 
-    let decided = universal.try_decide(Slot::new(GENESIS_ROUND, 0u8));
+    let decided = universal.try_decide(last_finalized);
     assert_eq!(
         round_3_metastate(&universal, &decided),
         Some(CommitMetastate::Optimistic),
+    );
+    assert!(metrics.decision_anchor_traversals_total.get() > traversals_before_anchor);
+    assert!(metrics.decision_indirect_resolved_total.get() > 0);
+    assert!(
+        metrics
+            .decision_indirect_certificates_classified_total
+            .get()
+            > 0
     );
 }
 

@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    collections::VecDeque,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
@@ -44,6 +48,15 @@ impl UniversalCommitter {
     /// an ordered list of decided leaders.
     #[tracing::instrument(skip_all, fields(last_finalized = %last_finalized))]
     pub(crate) fn try_decide(&self, last_finalized: Slot) -> Vec<DecidedLeader> {
+        let decision_start = Instant::now();
+        let mut leader_election_time = Duration::ZERO;
+        let mut direct_time = Duration::ZERO;
+        let mut indirect_time = Duration::ZERO;
+        let mut candidates = 0u64;
+        let mut direct_pending = 0u64;
+        let mut direct_undecided = 0u64;
+        let mut indirect_attempts = 0u64;
+        let mut indirect_resolved = 0u64;
         let highest_accepted_round = self.dag_state.read().highest_accepted_round();
 
         // Try to decide as many leaders as possible, starting with the highest round.
@@ -58,7 +71,10 @@ impl UniversalCommitter {
         'outer: for round in (last_round..=highest_accepted_round.saturating_sub(2)).rev() {
             for committer in self.committers.iter().rev() {
                 // Skip committers that don't have a leader for this round.
-                let Some(slot) = committer.elect_leader(round) else {
+                let election_start = Instant::now();
+                let elected_slot = committer.elect_leader(round);
+                leader_election_time += election_start.elapsed();
+                let Some(slot) = elected_slot else {
                     tracing::debug!("No leader for round {round}, skipping");
                     continue;
                 };
@@ -71,7 +87,19 @@ impl UniversalCommitter {
 
                 tracing::trace!("Trying to decide {slot} with {committer}",);
 
+                candidates += 1;
+                let direct_start = Instant::now();
                 let mut status = committer.try_direct_decide(slot);
+                direct_time += direct_start.elapsed();
+                match &status {
+                    LeaderStatus::Commit(_, Some(CommitMetastate::Pending), _) => {
+                        direct_pending += 1;
+                    }
+                    LeaderStatus::Undecided(_) => {
+                        direct_undecided += 1;
+                    }
+                    _ => {}
+                }
                 let mut decision = Decision::Direct;
                 tracing::debug!("Outcome of direct rule: {status} with {committer}");
 
@@ -80,8 +108,14 @@ impl UniversalCommitter {
                 // committed anchor's path can upgrade the metastate; for
                 // Undecided, indirect may resolve the slot entirely.
                 if !status.is_resolved() {
+                    indirect_attempts += 1;
+                    let indirect_start = Instant::now();
                     let indirect = committer
                         .try_indirect_decide(status.clone(), leaders.iter().map(|(x, _)| x));
+                    indirect_time += indirect_start.elapsed();
+                    if indirect.is_resolved() {
+                        indirect_resolved += 1;
+                    }
                     if indirect != status {
                         tracing::debug!("Outcome of indirect rule: {indirect} with {committer}");
                         decision = match (&status, &indirect) {
@@ -115,6 +149,40 @@ impl UniversalCommitter {
                 .expect("is_resolved implies a DecidedLeader");
             Self::update_metrics(&self.context, &decided_leader, decision);
             decided_leaders.push(decided_leader);
+        }
+        let metrics = &self.context.metrics.node_metrics;
+        metrics
+            .decision_elapsed_seconds
+            .observe(decision_start.elapsed().as_secs_f64());
+        metrics
+            .decision_leader_election_seconds
+            .observe(leader_election_time.as_secs_f64());
+        metrics
+            .decision_direct_seconds
+            .observe(direct_time.as_secs_f64());
+        metrics
+            .decision_indirect_seconds
+            .observe(indirect_time.as_secs_f64());
+        metrics
+            .decision_candidates_per_call
+            .observe(candidates as f64);
+        if direct_pending > 0 {
+            metrics.decision_direct_pending_total.inc_by(direct_pending);
+        }
+        if direct_undecided > 0 {
+            metrics
+                .decision_direct_undecided_total
+                .inc_by(direct_undecided);
+        }
+        if indirect_attempts > 0 {
+            metrics
+                .decision_indirect_attempts_total
+                .inc_by(indirect_attempts);
+        }
+        if indirect_resolved > 0 {
+            metrics
+                .decision_indirect_resolved_total
+                .inc_by(indirect_resolved);
         }
         if !decided_leaders.is_empty() {
             tracing::debug!("Decided {decided_leaders:?}");
