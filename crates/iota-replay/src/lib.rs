@@ -168,6 +168,8 @@ pub enum ReplayToolCommand {
         terminate_early: bool,
         #[arg(long, short, default_value = "16")]
         max_tasks: u64,
+        #[arg(long)]
+        profile_output: Option<PathBuf>,
     },
 
     /// Replay all transactions in an epoch
@@ -459,9 +461,21 @@ pub async fn execute_replay_command(
             end,
             terminate_early,
             max_tasks,
+            profile_output,
         } => {
             assert!(start <= end, "Start checkpoint must be <= end checkpoint");
             assert!(max_tasks > 0, "Max tasks must be > 0");
+            let profile_output = profile_output.map(|path| {
+                use std::io::Write;
+                let mut file = std::fs::File::create(&path)
+                    .unwrap_or_else(|e| panic!("failed to create {}: {e}", path.display()));
+                let meta = serde_json::json!({ "meta": {
+                    "args": std::env::args().skip(1).collect::<Vec<_>>(),
+                    "version": env!("CARGO_PKG_VERSION"),
+                }});
+                writeln!(file, "{meta}").expect("failed to write --profile-output");
+                std::sync::Arc::new(std::sync::Mutex::new(file))
+            });
             let checkpoints_per_task = ((end - start + max_tasks) / max_tasks) as usize;
             let mut handles = vec![];
             info!(
@@ -474,6 +488,7 @@ pub async fn execute_replay_command(
                 let checkpoints = checkpoints.to_vec();
                 let rpc_url = rpc_url.clone();
                 let safety = safety.clone();
+                let profile_output = profile_output.clone();
                 handles.push(tokio::spawn(async move {
                     info!("Spawning task {task_count} for checkpoints {checkpoints:?}");
                     let time = std::time::Instant::now();
@@ -483,6 +498,7 @@ pub async fn execute_replay_command(
                         .init_for_execution()
                         .await
                         .unwrap()
+                        .with_profile_output(profile_output)
                         .execute_all_in_checkpoints(&checkpoints, &safety, terminate_early, use_authority)
                         .await
                         .unwrap();
@@ -546,6 +562,7 @@ pub async fn execute_replay_command(
                     end,
                     terminate_early,
                     max_tasks,
+                    profile_output: None,
                 },
             )
             .await;
