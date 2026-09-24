@@ -241,7 +241,7 @@ impl SingleValidator {
         assigned_versions: &AssignedVersions,
     ) -> TransactionEffects {
         // Same measured window as `AuthorityState::execute_transaction`:
-        // opens before input-object loading, since input reads are lane work.
+        // opens before input-object loading.
         let execution_wall_clock_start = std::time::Instant::now();
         let input_objects = transaction.transaction().input_objects().unwrap();
         let objects = store

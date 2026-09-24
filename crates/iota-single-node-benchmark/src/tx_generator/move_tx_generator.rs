@@ -28,9 +28,7 @@ use crate::{
 
 /// A valid (signature, public key, message) triple for the configured
 /// scheme, generated once and passed to the Move verify loop as pure
-/// arguments. The Move side asserts the verification result, so an invalid
-/// fixture aborts the transaction instead of silently measuring the
-/// cheaper failure path.
+/// arguments.
 struct SigFixture {
     signature: Vec<u8>,
     public_key: Vec<u8>,
@@ -105,8 +103,7 @@ impl SigFixture {
 }
 
 /// A valid ECVRF (output hash, alpha string, public key, proof) tuple,
-/// generated once; the public key and proof are BCS-encoded the way the
-/// native deserializes them. The Move loop asserts the verification result.
+/// generated once.
 struct EcvrfFixture {
     hash: Vec<u8>,
     alpha: Vec<u8>,
@@ -132,8 +129,7 @@ impl EcvrfFixture {
 
 /// A known-good Groth16 (prepared verifying key, public inputs, proof)
 /// fixture per curve, copied verbatim from the framework's groth16 unit
-/// tests. Proof generation needs a circuit, so unlike the signature
-/// fixtures these cannot be generated at setup.
+/// tests.
 struct Groth16Fixture {
     curve_id: u8,
     vk: Vec<u8>,

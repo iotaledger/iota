@@ -189,9 +189,6 @@ pub enum Component {
     CheckpointExecutor,
 }
 
-// `PTB`'s parameter struct is much larger than the other variants, but this
-// enum is parsed once per process from the command line, and boxing the
-// payload is not supported by the clap derive.
 #[allow(clippy::large_enum_variant)]
 #[derive(Subcommand, Clone)]
 pub enum WorkloadKind {
