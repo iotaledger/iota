@@ -406,10 +406,8 @@ pub struct CongestionTrackerConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hotness_cutoff: Option<f64>,
 
-    /// Controls how quickly congestion tracker updates object hotness.
-    /// Values should be > 0.0. Higher values mean faster adjustments.
-    ///
-    /// If not set, defaults to 1.0.
+    /// Unused: superseded by `ogd_eta` (the step is now `2 * ogd_eta`).
+    /// Accepted so that existing node configs keep loading.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hotness_adjustment_factor: Option<f64>,
 
@@ -419,6 +417,22 @@ pub struct CongestionTrackerConfig {
     /// If not set, defaults to 2.0.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_decay_factor: Option<f64>,
+
+    /// Learning rate of the per-object hotness update, in `(0, 0.5]`.
+    /// Each touched object moves by `2 * ogd_eta * residual` per checkpoint.
+    /// Overridden by the `IOTA_OGD_ETA` environment variable.
+    ///
+    /// If not set, defaults to 0.4.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ogd_eta: Option<f64>,
+
+    /// Asymmetry of the loss, `>= 1.0`: multiplies the residual when the
+    /// hotness under-estimates the required price; `1.0` is symmetric.
+    /// Overridden by the `IOTA_OGD_ALPHA` environment variable.
+    ///
+    /// If not set, defaults to 1.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ogd_alpha: Option<f64>,
 }
 
 impl CongestionTrackerConfig {
@@ -430,15 +444,18 @@ impl CongestionTrackerConfig {
         self.hotness_cutoff.unwrap_or(1.0)
     }
 
-    pub fn hotness_adjustment_factor(&self) -> f64 {
-        self.hotness_adjustment_factor.unwrap_or(1.0)
-    }
-
     pub fn max_decay_factor(&self) -> f64 {
         self.max_decay_factor.unwrap_or(2.0)
     }
-}
 
+    pub fn ogd_eta(&self) -> f64 {
+        self.ogd_eta.unwrap_or(0.4)
+    }
+
+    pub fn ogd_alpha(&self) -> f64 {
+        self.ogd_alpha.unwrap_or(1.0)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]

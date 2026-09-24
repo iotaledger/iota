@@ -31,5 +31,6 @@ authority-store-pruning-config:
 # congestion-tracker-config:
 #   cache-capacity: 10000
 #   hotness-cutoff: 1.0
-#   hotness-adjustment-factor: 1.0
 #   max-decay-factor: 2.0
+#   ogd-eta: 0.4      # learning rate, in (0, 0.5]; env override IOTA_OGD_ETA
+#   ogd-alpha: 1.0    # loss asymmetry, >= 1.0; env override IOTA_OGD_ALPHA
