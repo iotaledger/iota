@@ -96,8 +96,12 @@ fn get_available_port() -> Result<u16> {
     let addr = listener
         .local_addr()
         .context("failed to get local address")?;
-    _ = std::net::TcpStream::connect(addr).context("failed to connect to ephemeral port")?;
-    _ = listener.accept().context("failed to accept connection")?;
+    // Keep both sockets alive until the function returns. They are dropped in
+    // reverse declaration order, so the accepted socket closes first and the
+    // listening port is the one left in TIME_WAIT.
+    let _sender =
+        std::net::TcpStream::connect(addr).context("failed to connect to ephemeral port")?;
+    let _incoming = listener.accept().context("failed to accept connection")?;
     Ok(addr.port())
 }
 
