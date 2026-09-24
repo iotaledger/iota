@@ -1,12 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2025 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Result, bail};
 use move_binary_format::errors::PartialVMError;
 use move_bytecode_utils::Modules;
 use move_core_types::vm_status::StatusCode;
+use move_vm_config::verifier::VerifierConfig;
 
 use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
 
@@ -33,13 +34,16 @@ pub fn doctor(state: &OnDiskStateView) -> Result<()> {
             )
         }
 
-        let cyclic_check_result =
-            move_bytecode_verifier::cyclic_dependencies::verify_module(module, |module_id| {
+        let cyclic_check_result = move_bytecode_verifier::cyclic_dependencies::verify_module(
+            &VerifierConfig::default(),
+            module,
+            |module_id| {
                 code_cache
                     .get_module(module_id)
                     .map_err(|_| PartialVMError::new(StatusCode::MISSING_DEPENDENCY))
                     .map(|m| m.immediate_dependencies())
-            });
+            },
+        );
         if let Err(cyclic_check_error) = cyclic_check_result {
             assert_eq!(
                 cyclic_check_error.major_status(),
