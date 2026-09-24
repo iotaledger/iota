@@ -9,17 +9,29 @@
 //! parameters; a cap of `0` disables the group, leaving the mechanism inert.
 
 use std::{
+    future::Future,
     pin::Pin,
     sync::Arc,
-    task::{Context as TaskContext, Poll},
+    task::{Context as TaskContext, Poll, ready},
 };
 
-use futures::Stream;
+use bytes::Bytes;
+use http::{Request, Response};
+use http_body::Body as HttpBody;
+use iota_network_stack::concurrency::PermitGuardedBody;
+use pin_project_lite::pin_project;
 use prometheus_filtered::IntGauge;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tonic::{Status, body::Body};
+use tower::{Layer, Service};
 
-use crate::context::Context;
+use crate::{
+    context::Context,
+    network::tonic_network::{
+        CONSENSUS_SERVICE_PATH_PREFIX, DEPRECATED_METHOD, DEPRECATED_METHOD_MESSAGE, PeerInfo,
+    },
+};
 
 /// Inbound consensus RPCs grouped by cost and access pattern. Each group has an
 /// independent per-peer concurrency budget.
@@ -39,6 +51,18 @@ impl RpcGroup {
             RpcGroup::HeaderFetch => "header_fetch",
             RpcGroup::TransactionFetch => "transaction_fetch",
             RpcGroup::CommitFetch => "commit_fetch",
+        }
+    }
+
+    /// The group an inbound request path belongs to, or `None` for a path with
+    /// no budget.
+    pub(crate) fn from_path(path: &str) -> Option<Self> {
+        match path.strip_prefix(CONSENSUS_SERVICE_PATH_PREFIX)? {
+            "SubscribeBlockBundles" => Some(RpcGroup::Subscribe),
+            "FetchBlockHeaders" | "FetchLatestBlockHeaders" => Some(RpcGroup::HeaderFetch),
+            "FetchTransactions" => Some(RpcGroup::TransactionFetch),
+            "FetchCommits" | "FetchCommitsAndTransactions" => Some(RpcGroup::CommitFetch),
+            _ => None,
         }
     }
 }
@@ -136,28 +160,145 @@ impl Drop for AdmissionGuard {
     }
 }
 
-/// Wraps a response stream so it owns an admission guard for the stream's
-/// entire lifetime; the guard is released when the stream is dropped (client
-/// disconnect, server shutdown, or stream end).
-pub(crate) struct PermitGuardedStream<St> {
-    inner: St,
-    _guard: Option<AdmissionGuard>,
+/// Tower layer charging an inbound request to its peer's budget before tonic
+/// reads the request body, and holding the permit until the response ends.
+#[derive(Clone)]
+pub(crate) struct AdmissionLayer {
+    context: Arc<Context>,
+    admission: Arc<PerPeerAdmission>,
 }
 
-impl<St> PermitGuardedStream<St> {
-    pub(crate) fn new(inner: St, guard: Option<AdmissionGuard>) -> Self {
-        Self {
+impl AdmissionLayer {
+    pub(crate) fn new(context: Arc<Context>) -> Self {
+        let admission = Arc::new(PerPeerAdmission::new(&context));
+        Self { context, admission }
+    }
+}
+
+impl<S> Layer<S> for AdmissionLayer {
+    type Service = AdmissionService<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        AdmissionService {
             inner,
-            _guard: guard,
+            context: self.context.clone(),
+            admission: self.admission.clone(),
         }
     }
 }
 
-impl<St: Stream + Unpin> Stream for PermitGuardedStream<St> {
-    type Item = St::Item;
+/// Answers an over-budget peer with `ResourceExhausted` and passes every other
+/// request on with its permit attached to the response body.
+#[derive(Clone)]
+pub(crate) struct AdmissionService<S> {
+    inner: S,
+    context: Arc<Context>,
+    admission: Arc<PerPeerAdmission>,
+}
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.get_mut().inner).poll_next(cx)
+impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for AdmissionService<S>
+where
+    S: Service<Request<ReqBody>, Response = Response<ResBody>>,
+    ResBody: HttpBody<Data = Bytes> + Send + 'static,
+    ResBody::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    type Response = Response<PermitGuardedBody<Body, AdmissionGuard>>;
+    type Error = S::Error;
+    type Future = AdmissionFuture<S::Future>;
+
+    fn poll_ready(&mut self, cx: &mut TaskContext<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
+        let path = request.uri().path();
+        // The deprecated method decodes its request before its handler answers,
+        // so answering here is what keeps its body from being read.
+        if path.strip_prefix(CONSENSUS_SERVICE_PATH_PREFIX) == Some(DEPRECATED_METHOD) {
+            return AdmissionFuture::rejected(Status::unimplemented(DEPRECATED_METHOD_MESSAGE));
+        }
+        let Some(group) = RpcGroup::from_path(path) else {
+            return AdmissionFuture::admitted(self.inner.call(request), None);
+        };
+        let Some(peer) = request
+            .extensions()
+            .get::<PeerInfo>()
+            .map(|peer| peer.authority_index)
+        else {
+            return AdmissionFuture::rejected(Status::internal("PeerInfo not found"));
+        };
+        match self.admission.try_acquire(group, peer) {
+            Admission::Unlimited => AdmissionFuture::admitted(self.inner.call(request), None),
+            Admission::Permit(permit) => {
+                let in_use = self
+                    .context
+                    .metrics
+                    .network_metrics
+                    .admission_in_use
+                    .with_label_values(&[group.as_str()]);
+                let guard = AdmissionGuard::new(permit, in_use);
+                AdmissionFuture::admitted(self.inner.call(request), Some(guard))
+            }
+            Admission::Rejected => {
+                self.context
+                    .metrics
+                    .network_metrics
+                    .admission_rejected
+                    .with_label_values(&[group.as_str()])
+                    .inc();
+                AdmissionFuture::rejected(Status::resource_exhausted(format!(
+                    "per-peer {} limit reached",
+                    group.as_str()
+                )))
+            }
+        }
+    }
+}
+
+pin_project! {
+    #[project = AdmissionFutureProj]
+    pub(crate) enum AdmissionFuture<F> {
+        Admitted {
+            #[pin]
+            inner: F,
+            guard: Option<AdmissionGuard>,
+        },
+        Rejected {
+            status: Status,
+        },
+    }
+}
+
+impl<F> AdmissionFuture<F> {
+    fn admitted(inner: F, guard: Option<AdmissionGuard>) -> Self {
+        Self::Admitted { inner, guard }
+    }
+
+    fn rejected(status: Status) -> Self {
+        Self::Rejected { status }
+    }
+}
+
+impl<F, E, ResBody> Future for AdmissionFuture<F>
+where
+    F: Future<Output = Result<Response<ResBody>, E>>,
+    ResBody: HttpBody<Data = Bytes> + Send + 'static,
+    ResBody::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    type Output = Result<Response<PermitGuardedBody<Body, AdmissionGuard>>, E>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Self::Output> {
+        match self.project() {
+            AdmissionFutureProj::Admitted { inner, guard } => {
+                Poll::Ready(ready!(inner.poll(cx)).map(|response| {
+                    response.map(|body| PermitGuardedBody::new(Body::new(body), guard.take()))
+                }))
+            }
+            AdmissionFutureProj::Rejected { status } => Poll::Ready(Ok(status
+                .clone()
+                .into_http()
+                .map(|body| PermitGuardedBody::new(body, None)))),
+        }
     }
 }
 
@@ -233,7 +374,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn permit_guarded_stream_holds_until_dropped() {
+    async fn permit_guarded_body_holds_until_dropped() {
         let admission = PerPeerAdmission {
             subscribe: PerPeerAdmission::row(4, 1),
             header: None,
@@ -242,18 +383,18 @@ mod tests {
         };
         let gauge = IntGauge::new("test_subscribe_in_use", "test").unwrap();
         let permit = expect_permit(admission.try_acquire(RpcGroup::Subscribe, peer(2)));
-        let guarded = PermitGuardedStream::new(
-            futures::stream::empty::<i32>(),
+        let guarded = PermitGuardedBody::new(
+            Body::default(),
             Some(AdmissionGuard::new(permit, gauge.clone())),
         );
-        // While the stream lives, the peer's single subscribe slot is taken and
-        // the in-use gauge reflects it.
+        // While the response body lives, the peer's single subscribe slot is
+        // taken and the in-use gauge reflects it.
         assert_eq!(gauge.get(), 1);
         assert!(matches!(
             admission.try_acquire(RpcGroup::Subscribe, peer(2)),
             Admission::Rejected
         ));
-        // Dropping the stream releases the permit and decrements the gauge.
+        // Dropping the body releases the permit and decrements the gauge.
         drop(guarded);
         assert_eq!(gauge.get(), 0);
         assert!(matches!(
@@ -284,5 +425,38 @@ mod tests {
         assert_eq!(gauge.get(), 1);
         drop(g1);
         assert_eq!(gauge.get(), 0);
+    }
+
+    #[test]
+    fn request_paths_map_to_their_group() {
+        let group =
+            |method: &str| RpcGroup::from_path(&format!("{CONSENSUS_SERVICE_PATH_PREFIX}{method}"));
+
+        assert!(matches!(
+            group("SubscribeBlockBundles"),
+            Some(RpcGroup::Subscribe)
+        ));
+        assert!(matches!(
+            group("FetchBlockHeaders"),
+            Some(RpcGroup::HeaderFetch)
+        ));
+        assert!(matches!(
+            group("FetchLatestBlockHeaders"),
+            Some(RpcGroup::HeaderFetch)
+        ));
+        assert!(matches!(
+            group("FetchTransactions"),
+            Some(RpcGroup::TransactionFetch)
+        ));
+        assert!(matches!(group("FetchCommits"), Some(RpcGroup::CommitFetch)));
+        assert!(matches!(
+            group("FetchCommitsAndTransactions"),
+            Some(RpcGroup::CommitFetch)
+        ));
+
+        assert!(group("GetLatestRounds").is_none());
+        assert!(group("Unknown").is_none());
+        assert!(RpcGroup::from_path("/other.Service/FetchCommits").is_none());
+        assert!(RpcGroup::from_path("FetchCommits").is_none());
     }
 }
