@@ -81,10 +81,13 @@ pub(crate) enum Admission {
     Rejected,
 }
 
-/// The slots one admitted request holds: its peer's, and the group's
-/// all-peers one where the group has one.
+/// Held while this node serves one inbound request, until its response is sent.
 pub(crate) struct AdmissionPermits {
+    /// Counts against the limit on requests served at once to the peer that
+    /// sent it.
     _peer: OwnedSemaphorePermit,
+    /// Counts against the limit on commit fetches served at once to all peers
+    /// together; `None` for other RPCs.
     _all_peers: Option<OwnedSemaphorePermit>,
 }
 
