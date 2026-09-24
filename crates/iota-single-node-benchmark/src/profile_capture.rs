@@ -26,12 +26,6 @@ pub fn set_capture_enabled(enabled: bool) {
 /// A tracing layer that writes one JSON line per executed transaction,
 /// containing the transaction digest, the measured wall-clock nanoseconds,
 /// and the full resource profile.
-///
-/// It captures the `resource_profile`-target event emitted by
-/// `AuthorityState::execute_transaction`, which carries the profile
-/// pre-serialized as JSON in its `profile_json` field. The first line of the
-/// output file is a metadata record describing the run; every following line
-/// is `{"tx_digest": ..., "measured_ns": ..., "profile": {...}}`.
 pub struct ProfileCapture {
     out: Mutex<File>,
 }

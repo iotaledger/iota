@@ -259,15 +259,9 @@ pub struct LocalExec {
     // Retry policies due to RPC errors
     pub num_retries_for_timeout: u32,
     pub sleep_period_for_timeout: std::time::Duration,
-    // Per-transaction profile capture: one JSON row per replayed user
-    // transaction, from a timed second execution against the warmed local
-    // store (see `execution_engine_execute_with_tx_info_impl`). Shared
-    // across checkpoint-replay tasks.
+    // Per-transaction profile capture.
     pub profile_output: Option<Arc<Mutex<std::fs::File>>>,
-    // Counts every network fetch this executor issues. The profile capture
-    // snapshots it around the timed re-execution and drops the row if it
-    // moved: a wall-clock that includes an RPC round-trip (or its retry
-    // sleeps) is not lane work.
+    // Counts every network fetch this executor issues.
     pub network_fetches: Arc<std::sync::atomic::AtomicU64>,
     // Negative lookups (object absent at the queried bound), cached so a
     // re-execution does not repeat the network round-trip; the positive
@@ -276,8 +270,7 @@ pub struct LocalExec {
 }
 
 impl LocalExec {
-    /// Route one profile row (digest, warm-re-execution wall-clock, resource
-    /// profile) per replayed user transaction into `out`.
+    /// Route one profile row per replayed user transaction into `out`.
     pub fn with_profile_output(mut self, out: Option<Arc<Mutex<std::fs::File>>>) -> Self {
         self.profile_output = out;
         self
@@ -824,9 +817,7 @@ impl LocalExec {
 
         // All prep done
         // Profile-capture runs skip the deep per-transaction conservation
-        // check: production validators do not run it either, so it would
-        // inflate the measured wall-clock — and it aborts the process when a
-        // non-archival RPC node cannot resolve a third-party object layout.
+        // check just like production validators.
         let expensive_checks = self.profile_output.is_none();
         let transaction_kind = override_transaction_kind.unwrap_or(tx_info.kind.clone());
         let certificate_deny_set = HashSet::new();
@@ -875,11 +866,6 @@ impl LocalExec {
             };
             let first = execute_once(make_gas_status());
             if let Some(out) = &self.profile_output {
-                // The first execution may fetch child objects over the
-                // network; re-executing against the now-local state gives a
-                // wall-clock that is lane work only (warm reads), comparable
-                // with the benchmark's capture. System transactions are
-                // skipped: they are unmetered and bypass admission.
                 if !tx_info.kind.is_system() {
                     let fetches_before = self
                         .network_fetches

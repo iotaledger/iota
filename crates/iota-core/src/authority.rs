@@ -288,9 +288,7 @@ pub struct AuthorityMetrics {
     pub(crate) execution_queueing_delay_s: Histogram,
     pub(crate) prepare_cert_gas_latency_ratio: Histogram,
     pub(crate) execution_gas_latency_ratio: Histogram,
-    /// Per-transaction resource-profile signals (the per-resource
-    /// decomposition of computation gas from
-    /// `iota_types::gas_model::resource_profile`), one histogram per signal.
+    /// Per-transaction resource-profile signals.
     pub(crate) execution_resource_profile: HistogramVec,
 
     pub(crate) skipped_consensus_txns: IntCounter,
@@ -849,8 +847,7 @@ impl AuthorityMetrics {
 
     /// Record a transaction's [`ResourceProfile`] into the per-signal
     /// `execution_resource_profile` histograms, together with the measured
-    /// executor wall-clock (`measured_ns`) — the node-local response variable
-    /// the profile's deterministic counters are calibrated against.
+    /// executor wall-clock (`measured_ns`).
     pub(crate) fn observe_resource_profile(&self, profile: &ResourceProfile, measured_ns: u64) {
         let observe = |signal: &str, value: u64| {
             self.execution_resource_profile
@@ -1803,10 +1800,7 @@ impl AuthorityState {
             return Ok((effects, None));
         }
 
-        // The measured wall-clock window opens before input-object loading:
-        // input reads run synchronously on this worker thread, so they are
-        // lane work and belong in `measured_ns` (the calibration response
-        // variable), exactly like execution itself.
+        // The measured wall-clock window opens before input-object loading.
         let execution_wall_clock_start = std::time::Instant::now();
         let (tx_input_objects, per_authenticator_inputs) = self.read_objects_for_execution(
             tx_guard.as_lock_guard(),
@@ -2473,9 +2467,6 @@ impl AuthorityState {
         let resource_profile = gas_status.resource_profile();
         self.metrics
             .observe_resource_profile(&resource_profile, measured_ns);
-        // The profile is attached as JSON so offline tooling (e.g. the
-        // calibration data capture in iota-single-node-benchmark) can consume
-        // it without parsing Debug output.
         tracing::trace!(
             target: "resource_profile",
             ?tx_digest,
