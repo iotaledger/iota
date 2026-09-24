@@ -32,10 +32,8 @@ pub(crate) struct InMemoryObjectStore {
     objects: Arc<RwLock<HashMap<ObjectId, Object>>>,
     package_cache: Arc<PackageObjectCache>,
     num_object_reads: Arc<AtomicU64>,
-    // Injected latency for `read_objects_for_execution`, in nanoseconds
-    // (0 = none). Lets the window-pinning test prove input-object loading
-    // happens inside the measured window: with a delay far above pure
-    // execution time, `measured_ns` must reflect it.
+    // Injected latency for `read_objects_for_execution` to let the window-pinning test prove
+    // input-object loading happens inside the measured window.
     read_delay_nanos: Arc<std::sync::atomic::AtomicU64>,
 }
 

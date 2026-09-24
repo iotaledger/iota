@@ -168,9 +168,6 @@ pub enum ReplayToolCommand {
         terminate_early: bool,
         #[arg(long, short, default_value = "16")]
         max_tasks: u64,
-        /// Write one JSON line per replayed user transaction: digest, the
-        /// wall-clock nanoseconds of a warm re-execution, and the resource
-        /// profile. Timings are only meaningful with --max-tasks 1.
         #[arg(long)]
         profile_output: Option<PathBuf>,
     },

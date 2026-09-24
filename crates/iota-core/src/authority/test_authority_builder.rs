@@ -85,8 +85,7 @@ impl<'a> TestAuthorityBuilder<'a> {
     }
 
     /// Enable RocksDB write stalls, which the test store disables by
-    /// default. Write-side calibration measures the stall onset, so it needs
-    /// the production throttling behavior.
+    /// default.
     pub fn with_write_stalls_enabled(mut self) -> Self {
         self.enable_write_stall = true;
         self

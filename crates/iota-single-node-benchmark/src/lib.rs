@@ -20,11 +20,7 @@ mod tests;
 pub(crate) mod tx_generator;
 pub mod workload;
 
-/// Install the tracing setup the benchmark binaries share. With a profile
-/// path, a subscriber that enables the `resource_profile` trace target and
-/// routes its per-transaction events to the capture layer; otherwise the
-/// standard telemetry setup, which keeps that target disabled. The returned
-/// guards must stay alive for the duration of the run.
+/// Install the tracing setup the benchmark binaries share.
 pub fn init_telemetry(
     profile_output: Option<&std::path::PathBuf>,
 ) -> Option<(
