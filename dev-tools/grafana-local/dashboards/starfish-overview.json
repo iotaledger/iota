@@ -20984,7 +20984,7 @@
           ],
           "title": "Consensus Admission Rejections Rate",
           "type": "timeseries",
-          "description": "Rate of inbound consensus requests rejected by per-peer admission control (ResourceExhausted), by RPC group. Should be ~0 under honest load."
+          "description": "Rate of inbound consensus requests rejected by admission control (ResourceExhausted), by RPC group. Should be ~0 under honest load."
         },
         {
           "datasource": {
