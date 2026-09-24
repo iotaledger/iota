@@ -336,6 +336,7 @@ rand = "0.10.2"
 #   versions return different values for the same seed, so old and new
 #   binaries would disagree; changing them needs a protocol feature flag.
 rand08 = { package = "rand", version = "0.8.5" }
+rcgen = "0.13"
 regex = "1.7.1"
 reqwest = { version = "0.13", default-features = false, features = ["http2", "json", "rustls-no-provider"] }
 roaring = "0.11.2"
@@ -521,4 +522,3 @@ typed-store-error = { path = "crates/typed-store-error" }
 # so the workspace shares a single fastcrypto instead of two conflicting copies.
 [patch."https://github.com/MystenLabs/fastcrypto"]
 fastcrypto = "=0.1.11"
-rcgen = "0.13"
