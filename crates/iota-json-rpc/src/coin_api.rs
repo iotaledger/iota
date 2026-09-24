@@ -1436,9 +1436,9 @@ mod tests {
     }
 
     mod get_total_supply_tests {
+        use iota_sdk_move_types::iota_framework::vec_map::VecMap;
         use iota_types::{
             coin::CoinMetadata,
-            collection_types::VecMap,
             gas_coin::IotaTreasuryCap,
             id::UID,
             iota_system_state::{

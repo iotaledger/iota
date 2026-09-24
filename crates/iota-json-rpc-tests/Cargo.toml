@@ -17,6 +17,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
 hyper.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 jsonrpsee.workspace = true
 rand.workspace = true
 reqwest.workspace = true

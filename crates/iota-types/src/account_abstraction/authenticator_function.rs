@@ -1,14 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::{
+    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
+};
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TypeTag,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    dynamic_field::{self, Field},
+    dynamic_field,
     error::{IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
     object::Object,

@@ -49,6 +49,9 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_move_types::iota_framework::{
+    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
+};
 use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
     Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
@@ -59,16 +62,13 @@ use iota_sdk_types::{
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
-    account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key,
-        authenticator_function::{
-            AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
-        },
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
     },
     coin::{PAY_SPLIT_N_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     crypto::EmptySignInfo,
     digests::ChainIdentifier,
-    dynamic_field::{DynamicFieldInfo, Field},
+    dynamic_field::DynamicFieldInfo,
     error::IotaError,
     gas::get_gas_balance,
     gas_coin::GasCoin,

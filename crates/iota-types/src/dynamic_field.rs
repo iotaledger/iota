@@ -8,9 +8,7 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-pub use iota_sdk_move_types::iota_framework::{
-    dynamic_field::Field, dynamic_object_field::Wrapper,
-};
+use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};

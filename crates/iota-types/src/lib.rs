@@ -97,7 +97,6 @@ pub mod transaction_deny_rules;
 pub mod transaction_driver_types;
 pub mod transaction_executor;
 pub mod transfer;
-pub mod versioned;
 
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;

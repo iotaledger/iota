@@ -4,9 +4,9 @@
 
 use std::collections::VecDeque;
 
+use iota_sdk_move_types::iota_framework::account::AuthenticatorFunctionRefV1Key;
 use iota_sdk_types::{Address, ObjectId, Owner, StructTag, Version};
 use iota_types::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key,
     dynamic_field::derive_dynamic_field_id, iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};

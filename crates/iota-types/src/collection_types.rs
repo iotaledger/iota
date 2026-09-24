@@ -2,10 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub use iota_sdk_move_types::iota_framework::{
-    vec_map::{Entry, VecMap},
-    vec_set::VecSet,
-};
 use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 

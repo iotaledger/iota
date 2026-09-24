@@ -7,7 +7,10 @@ use std::{
     fmt,
 };
 
-use iota_sdk_move_types::iota_framework::deny_list::{AddressKey, ConfigKey, GlobalPauseKey};
+use iota_sdk_move_types::iota_framework::{
+    deny_list::{AddressKey, ConfigKey, GlobalPauseKey},
+    dynamic_object_field::Wrapper,
+};
 use iota_sdk_types::{Address, Identifier, ObjectId, Version};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
@@ -16,7 +19,7 @@ use crate::{
     IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
     base_types::EpochId,
     config::{Config, Setting},
-    dynamic_field::{Wrapper, get_dynamic_field_from_store},
+    dynamic_field::get_dynamic_field_from_store,
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::{ID, UID},
     object::Object,
