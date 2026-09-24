@@ -221,10 +221,11 @@ if [[ "${REGEN:-yes}" == no || "${REGEN:-yes}" == n ]]; then
   echo
   echo "REGEN=no — skipping table/figure regen (CSV written, shared artifacts untouched)"
 elif [[ "$WHICH" == groth16 ]]; then
-  # The tables and figures below are built from calibration-*.csv only, which a
-  # groth16 sweep does not change.
+  # The tables include the groth16 points; the figures below are built from
+  # calibration-*.csv only, which a groth16 sweep does not change.
   echo
-  echo "groth16 sweep — slow tables and figures unchanged, nothing to regenerate"
+  echo "regenerating tables (the slow figures are unchanged)..."
+  python3 "$SCRIPT_DIR/make_calibration_table.py" || echo "  (table regen failed)"
 else
   echo
   echo "regenerating tables + figures..."

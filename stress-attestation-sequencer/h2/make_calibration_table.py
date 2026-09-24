@@ -3,7 +3,8 @@
 
 Writes results/probe/calibration-tables.md: one per-machine table for each
 calibration CSV that exists, plus a cross-machine comparison table when both
-are present.
+are present, and for each groth16-<machine>.csv one table per curve and
+function.
 These are the tables folded into probe-test.md. Pure stdlib; no venv.
 """
 
@@ -24,9 +25,9 @@ BASE_TXNS = 10
 OVERSHOOT_TXNS = 100
 
 
-def label_from(path):
-    """calibration-<cpu-slug>.csv -> machine label (e.g. 'EPYC 9454P')."""
-    slug = os.path.basename(path)[len("calibration-") : -len(".csv")]
+def label_from(path, prefix="calibration-"):
+    """<prefix><cpu-slug>.csv -> machine label (e.g. 'EPYC 9454P')."""
+    slug = os.path.basename(path)[len(prefix) : -len(".csv")]
     return slug.replace("-", " ").upper()
 
 
@@ -99,6 +100,31 @@ lines.append(
 lines.append("| --- | --- | --- |")
 for v in cu_values:
     lines.append(f"| {cu(v)} | {cu(v * BASE_TXNS)} | {cu(v * OVERSHOOT_TXNS)} |")
+
+# groth16 (W8) points: results/probe/groth16-<cpu-slug>.csv, written by
+# `probe.sh` with WORKLOAD=groth16. One table per machine, curve and function.
+G16_ORDER = {"bn254": 0, "bls12381": 1, "verify": 0, "prepare": 1}
+for path in sorted(glob.glob(os.path.join(RES, "groth16-*.csv"))):
+    name = label_from(path, "groth16-")
+    rows = load(path)
+    workloads = sorted(
+        {(r["curve"], r["function"]) for r in rows},
+        key=lambda w: (G16_ORDER.get(w[0], 9), w[0], G16_ORDER.get(w[1], 9), w[1]),
+    )
+    for curve, function in workloads:
+        sel = sorted(
+            (r for r in rows if (r["curve"], r["function"]) == (curve, function)),
+            key=lambda r: (int(r["calls"]), int(r["start_epoch"])),
+        )
+        lines.append(f"\n## {name}: groth16 {curve} {function} ({len(sel)} points)\n")
+        lines.append("| calls | CU | exec mean (ms) | exec sem (ms) | samples |")
+        lines.append("| --- | --- | --- | --- | --- |")
+        for r in sel:
+            lines.append(
+                f"| {r['calls']} | {cu(r['actual_cu'])} | "
+                f"{float(r['exec_mean_ms']):.3f} | {float(r['exec_sem_ms']):.3f} | "
+                f"{r['n_samples']} |"
+            )
 
 with open(OUT, "w") as f:
     f.write("\n".join(lines) + "\n")
