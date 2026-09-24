@@ -84,10 +84,10 @@ pub(crate) enum Admission {
 /// Held while this node serves one inbound request, until its response is sent.
 pub(crate) struct AdmissionPermits {
     /// Counts against the limit on requests served at once to the peer that
-    /// sent it.
-    _peer: OwnedSemaphorePermit,
+    /// sent it; `None` when that limit is off.
+    _peer: Option<OwnedSemaphorePermit>,
     /// Counts against the limit on commit fetches served at once to all peers
-    /// together; `None` for other RPCs.
+    /// together; `None` for other RPCs or when that limit is off.
     _all_peers: Option<OwnedSemaphorePermit>,
 }
 
@@ -148,23 +148,27 @@ impl PerPeerAdmission {
 
     /// Tries to admit one request from `peer` in `group`.
     pub(crate) fn try_acquire(&self, group: RpcGroup, peer: AuthorityIndex) -> Admission {
-        let Some(row) = self.group(group) else {
-            return Admission::Unlimited;
-        };
         // An authenticated committee peer's index is always in range; stay
         // defensive rather than panicking on any unexpected index.
-        let Some(semaphore) = row.get(peer.value()) else {
+        let peer_semaphore = self
+            .group(group)
+            .as_ref()
+            .and_then(|row| row.get(peer.value()));
+        let all_peers_semaphore = self.all_peers(group).as_ref();
+        if peer_semaphore.is_none() && all_peers_semaphore.is_none() {
             return Admission::Unlimited;
-        };
-        let Ok(peer_permit) = semaphore.clone().try_acquire_owned() else {
+        }
+        let Ok(peer_permit) = peer_semaphore
+            .map(|semaphore| semaphore.clone().try_acquire_owned())
+            .transpose()
+        else {
             return Admission::Rejected;
         };
-        let all_peers_permit = match self.all_peers(group) {
-            Some(all_peers) => match all_peers.clone().try_acquire_owned() {
-                Ok(permit) => Some(permit),
-                Err(_) => return Admission::Rejected,
-            },
-            None => None,
+        let Ok(all_peers_permit) = all_peers_semaphore
+            .map(|semaphore| semaphore.clone().try_acquire_owned())
+            .transpose()
+        else {
+            return Admission::Rejected;
         };
         Admission::Permit(AdmissionPermits {
             _peer: peer_permit,
@@ -434,6 +438,26 @@ mod tests {
         drop(p0);
         let p3 = expect_permit(admission.try_acquire(RpcGroup::CommitFetch, peer(1)));
         drop((p1, p2, p3));
+    }
+
+    #[tokio::test]
+    async fn all_peers_commit_limit_applies_without_a_per_peer_limit() {
+        let admission = PerPeerAdmission {
+            subscribe: None,
+            header: None,
+            transaction: None,
+            commit: None,
+            commit_from_all_peers: Some(Arc::new(Semaphore::new(2))),
+        };
+        let p0 = expect_permit(admission.try_acquire(RpcGroup::CommitFetch, peer(0)));
+        let p1 = expect_permit(admission.try_acquire(RpcGroup::CommitFetch, peer(0)));
+        assert!(matches!(
+            admission.try_acquire(RpcGroup::CommitFetch, peer(1)),
+            Admission::Rejected
+        ));
+        drop(p0);
+        let p2 = expect_permit(admission.try_acquire(RpcGroup::CommitFetch, peer(1)));
+        drop((p1, p2));
     }
 
     #[tokio::test]

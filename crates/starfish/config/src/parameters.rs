@@ -759,8 +759,8 @@ impl Default for TonicParameters {
 /// so they can be rolled out and tuned per node.
 ///
 /// The defaults are sized for ~100-validator committees and the local
-/// synchronizer fan-out toward one server. `0` disables admission for that
-/// group.
+/// synchronizer fan-out toward one server. `0` turns a cap off; each cap is
+/// checked on its own.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdmissionParameters {
     /// Max concurrent block-subscription streams per peer.
