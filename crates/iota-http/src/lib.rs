@@ -1627,4 +1627,42 @@ mod tests {
         assert!(matches!(closed, Ok(0) | Err(_)));
         drop(newest);
     }
+
+    /// Every reason a connection is asked to close has to bound the wait for
+    /// it to oblige, age included: a peer that ignores the request would
+    /// otherwise keep the connection for as long as it likes.
+    #[tokio::test]
+    async fn a_connection_past_its_age_is_dropped_even_if_it_ignores_the_request() {
+        use tokio::io::AsyncWriteExt as _;
+
+        const AGE: Duration = Duration::from_millis(200);
+        const EMPTY_SETTINGS: [u8; 9] = [0, 0, 0, 0x4, 0, 0, 0, 0, 0];
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_age(Some(AGE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        connection
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+
+        // Keep the connection busy at the protocol level and never acknowledge
+        // the shutdown, until writing fails because it was dropped anyway.
+        let ignoring_the_request = async {
+            loop {
+                if connection.write_all(&EMPTY_SETTINGS).await.is_err() {
+                    return;
+                }
+                tokio::time::sleep(AGE / 10).await;
+            }
+        };
+        tokio::time::timeout(AGE * 50, ignoring_the_request)
+            .await
+            .expect("a connection past its age must be dropped, not merely asked to leave");
+    }
 }

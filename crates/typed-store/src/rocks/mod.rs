@@ -27,9 +27,9 @@ use typed_store_error::TypedStoreError;
 pub use crate::{
     database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
     rocks::options::{
-        BulkIngestionOptions, DBMapTableConfigMap, DBOptions, FD_LIMIT_SHARE, ReadWriteOptions,
+        BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
         bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
-        raise_fd_limit, read_size_from_env,
+        read_size_from_env,
     },
 };
 use crate::{
@@ -170,7 +170,8 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
         // Customize database options
         let mut options = db_options.unwrap_or_else(|| default_db_options().options);
 
-        fdlimit::raise_fd_limit();
+        // Raise FD limit
+        iota_common::fd_budget::fd_limit();
         // This is a requirement by RocksDB when opening as secondary
         options.set_max_open_files(-1);
 

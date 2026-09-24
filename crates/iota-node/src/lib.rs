@@ -1563,11 +1563,14 @@ impl IotaNode {
         server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
         server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
         server_conf.max_connection_idle = Some(VALIDATOR_GRPC_IDLE);
-        server_conf.max_connections = Some(
-            config
-                .grpc_max_connections
-                .unwrap_or_else(listener_connection_budget),
+        let max_connections = config
+            .grpc_max_connections
+            .unwrap_or_else(listener_connection_budget);
+        info!(
+            "Validator gRPC listener will serve at most {max_connections} connections, \
+             {VALIDATOR_GRPC_CONNECTIONS_PER_PEER} of them per peer"
         );
+        server_conf.max_connections = Some(max_connections);
         server_conf.max_connections_per_peer = Some(VALIDATOR_GRPC_CONNECTIONS_PER_PEER);
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
@@ -2594,14 +2597,28 @@ async fn build_grpc_server(
 /// limit to that ceiling at startup and gives RocksDB the same share, so a
 /// listener takes its share of the same budget and the rest is left for
 /// consensus, state sync and the other listener.
+/// How many connections one listener may serve, from its share of the file
+/// descriptors this process may open.
+///
+/// A deployment that leaves the process a small ceiling gets a correspondingly
+/// small budget, which is correct but easy to miss: the only symptom is
+/// connections being refused.
 fn listener_connection_budget() -> usize {
-    /// Used where the platform reports no limit, which is Windows only.
-    const UNKNOWN_FD_LIMIT_BUDGET: usize = 2048;
+    /// Below this, the budget is more likely to be a deployment oversight than
+    /// a deliberate choice.
+    const SUSPICIOUSLY_SMALL_BUDGET: usize = 512;
 
-    typed_store::rocks::raise_fd_limit()
-        .map(|limit| (limit / typed_store::rocks::FD_LIMIT_SHARE) as usize)
-        .unwrap_or(UNKNOWN_FD_LIMIT_BUDGET)
-        .max(1)
+    let budget = iota_common::fd_budget::budget_for(iota_common::fd_budget::shares::LISTENER);
+
+    if budget < SUSPICIOUSLY_SMALL_BUDGET {
+        warn!(
+            "This process may open few enough files that a listener is left a budget of only \
+             {budget} connections. Raise the process file descriptor limit, or set the \
+             connection limits explicitly."
+        );
+    }
+
+    budget
 }
 
 pub async fn build_http_server(
@@ -2705,15 +2722,18 @@ pub async fn build_http_server(
     const JSON_RPC_CONNECTIONS_PER_PEER: usize = 64;
 
     let connection_metrics = crate::metrics::JsonRpcConnectionMetrics::new(prometheus_registry);
+    let max_connections = config
+        .json_rpc_max_connections
+        .unwrap_or_else(listener_connection_budget);
+    info!(
+        "JSON-RPC listener will serve at most {max_connections} connections, \
+         {JSON_RPC_CONNECTIONS_PER_PEER} of them per peer"
+    );
     let handle = iota_http::Builder::new()
         .config(
             iota_http::Config::default()
                 .max_connection_idle(Some(JSON_RPC_IDLE))
-                .max_connections(Some(
-                    config
-                        .json_rpc_max_connections
-                        .unwrap_or_else(listener_connection_budget),
-                ))
+                .max_connections(Some(max_connections))
                 .max_connections_per_peer(Some(JSON_RPC_CONNECTIONS_PER_PEER))
                 .on_connection_event(move |event| connection_metrics.record(event)),
         )

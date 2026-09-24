@@ -71,10 +71,13 @@ impl<A> ConnectionInfo<A> {
         self.0.graceful_shutdown_token.cancel()
     }
 
-    /// Whether this connection has ever asked the server for anything, and is
-    /// not asking now. Such a connection has held a slot without using it.
+    /// Whether this connection has ever asked the server for anything. One
+    /// that has not has held a slot without using it.
+    ///
+    /// A connection serving a request has necessarily started one, so this
+    /// rules those out too.
     pub(crate) fn is_unused(&self) -> bool {
-        !self.0.activity.has_started_a_request() && !self.0.activity.is_serving()
+        !self.0.activity.has_started_a_request()
     }
 }
 

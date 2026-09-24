@@ -5753,6 +5753,7 @@ dependencies = [
 name = "iota-common"
 version = "1.34.0-alpha"
 dependencies = [
+ "fdlimit",
  "futures",
  "getrandom 0.2.15",
  "iota-macros",
@@ -14969,7 +14970,6 @@ dependencies = [
  "bincode",
  "eyre",
  "fastcrypto",
- "fdlimit",
  "hdrhistogram",
  "iota-common",
  "iota-macros",

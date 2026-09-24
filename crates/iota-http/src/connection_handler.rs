@@ -15,10 +15,10 @@ use crate::{
     fuse::Fuse,
 };
 
-/// How long a connection closed for idleness is given to finish shutting down
+/// How long a connection asked to close is given to finish shutting down
 /// before it is dropped. It has no requests in flight by definition, so this
 /// only covers the round trip of the shutdown itself.
-const IDLE_SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
+const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
 // This is moved to its own function as a way to get around
 // https://github.com/rust-lang/rust/issues/102211
@@ -44,34 +44,40 @@ pub async fn serve_connection<IO, S, B, C>(
 
     let mut conn = pin!(builder.serve_connection_with_upgrades(hyper_io, hyper_svc));
 
-    let sleep = sleep_or_pending(max_connection_age);
-    tokio::pin!(sleep);
-    // Closing an idle connection more than once would be pointless, and the
-    // deadline stays elapsed once it passes.
-    let mut closed_for_idleness = false;
-    // A graceful shutdown asks the peer to go away and waits for it to do so.
-    // The peer this deadline exists for will not, so the wait is bounded and
-    // the connection is then dropped, which closes it.
+    let age = sleep_or_pending(max_connection_age);
+    tokio::pin!(age);
+    // A graceful shutdown asks the peer to go away and then waits for it. Every
+    // reason this connection is asked to go is a reason the peer may not
+    // oblige, so each of them bounds that wait and the connection is dropped
+    // when it runs out, which closes it. Asking is also what stops the branches
+    // below firing repeatedly, so they are disabled once it has been asked.
+    let mut shutdown_requested = false;
     let force_close = sleep_or_pending(None);
     tokio::pin!(force_close);
 
+    macro_rules! request_shutdown {
+        () => {{
+            shutdown_requested = true;
+            conn.as_mut().graceful_shutdown();
+            force_close.set(sleep_or_pending(Some(SHUTDOWN_GRACE_PERIOD)));
+        }};
+    }
+
     loop {
         tokio::select! {
-            _ = &mut sig => {
-                // A peer asked to leave need not oblige, and one that is being
-                // given up for another certainly will not, so the wait for it
-                // is bounded the same way the idle deadline's is.
-                conn.as_mut().graceful_shutdown();
-                force_close.set(sleep_or_pending(Some(IDLE_SHUTDOWN_GRACE_PERIOD)));
+            _ = &mut sig, if !shutdown_requested => {
+                request_shutdown!();
             }
-            _ = idle_elapsed(&activity, max_connection_idle), if !closed_for_idleness => {
+            _ = idle_elapsed(&activity, max_connection_idle), if !shutdown_requested => {
                 debug!("closing a connection that has been idle past its deadline");
-                closed_for_idleness = true;
-                conn.as_mut().graceful_shutdown();
-                force_close.set(sleep_or_pending(Some(IDLE_SHUTDOWN_GRACE_PERIOD)));
+                request_shutdown!();
+            }
+            _ = &mut age, if !shutdown_requested => {
+                debug!("closing a connection that has reached its maximum age");
+                request_shutdown!();
             }
             _ = &mut force_close => {
-                debug!("dropping an idle connection that did not close on request");
+                debug!("dropping a connection that did not close when asked");
                 break;
             }
             rv = &mut conn => {
@@ -79,10 +85,6 @@ pub async fn serve_connection<IO, S, B, C>(
                     debug!("failed serving connection: {:#}", err);
                 }
                 break;
-            },
-            _ = &mut sleep  => {
-                conn.as_mut().graceful_shutdown();
-                sleep.set(sleep_or_pending(None));
             },
         }
     }

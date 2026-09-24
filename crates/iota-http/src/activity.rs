@@ -51,11 +51,6 @@ impl ConnectionActivity {
         RequestGuard(self.clone())
     }
 
-    /// Whether this connection is serving a request right now.
-    pub(crate) fn is_serving(&self) -> bool {
-        self.0.in_flight.load(Ordering::Relaxed) > 0
-    }
-
     /// Whether this connection has ever asked the server for anything.
     ///
     /// A connection that has not is the one worth giving up when the listener
@@ -68,7 +63,12 @@ impl ConnectionActivity {
     /// When this connection may be closed for being idle, or `None` while it
     /// is serving something.
     fn idle_deadline(&self, idle: Duration) -> Option<Instant> {
-        if self.0.in_flight.load(Ordering::Relaxed) > 0 {
+        // Acquire pairs with the release in `RequestGuard::drop`: seeing no
+        // requests in flight guarantees seeing the time they stopped. Reading
+        // these two independently would let a request that has just finished be
+        // measured against the time the one before it did, closing a connection
+        // the moment it became free.
+        if self.0.in_flight.load(Ordering::Acquire) > 0 {
             return None;
         }
         let idle_since = Duration::from_millis(self.0.idle_since.load(Ordering::Relaxed));
@@ -84,10 +84,17 @@ pub(crate) struct RequestGuard(ConnectionActivity);
 impl Drop for RequestGuard {
     fn drop(&mut self) {
         let inner = &self.0.0;
-        if inner.in_flight.fetch_sub(1, Ordering::Relaxed) == 1 {
-            let now = inner.base.elapsed().as_millis() as u64;
-            inner.idle_since.store(now, Ordering::Relaxed);
-        }
+        // Stamped before the count drops and released with it, so a reader that
+        // sees the count reach zero cannot still be reading the previous stamp.
+        //
+        // Guards finishing together each stamp their own time and the last one
+        // written wins, which need not be the one whose decrement reached zero.
+        // They are within a moment of each other, and this feeds a deadline
+        // measured in minutes.
+        inner
+            .idle_since
+            .store(inner.base.elapsed().as_millis() as u64, Ordering::Relaxed);
+        inner.in_flight.fetch_sub(1, Ordering::Release);
     }
 }
 

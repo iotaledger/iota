@@ -25,6 +25,7 @@ iota-macros.workspace = true
 # themselves gated below.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # external dependencies
+fdlimit = "0.2.1"
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
 
