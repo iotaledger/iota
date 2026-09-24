@@ -77,15 +77,6 @@ if ! grep -qF 'and the `non_exhaustive_omitted_patterns` attribute was found' "$
   exit 1
 fi
 
-if ! report="$("$here/report.sh" "$log_file")"; then
-  echo "ERROR: report.sh failed." >&2
-  exit 1
-fi
-printf '%s\n' "$report"
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-  printf '%s\n' "$report" >> "$GITHUB_STEP_SUMMARY"
-fi
-
 if ! "$here/findings.sh" "$log_file" > "$findings"; then
   echo "ERROR: findings.sh could not parse the findings (see above)." >&2
   exit 1

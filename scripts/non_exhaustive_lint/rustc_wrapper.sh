@@ -11,7 +11,7 @@ pkg="${CARGO_PKG_NAME:-}"
 # rustc shortens type names in two independent ways: -Ztrim-diagnostic-paths=no
 # turns off the shortest-unambiguous-name trimming, -Zwrite-long-types-to-disk=no
 # the abbreviation of long types (above about 2/3 of the diagnostic width), which
-# drops crate paths. findings.sh and report.sh rely on the full paths.
+# drops crate paths. findings.sh relies on the full paths.
 if [[ -n "$pkg" && -n "${NELINT_PKGS_FILE:-}" && -f "$NELINT_PKGS_FILE" ]] \
    && grep -qxF -- "$pkg" "$NELINT_PKGS_FILE"; then
   exec "$rustc" "$@" \
