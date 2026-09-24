@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub use iota_sdk_move_types::move_stdlib::fixed_point32::FixedPoint32;
 use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -20,12 +21,6 @@ pub const NFT_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("nft_outp
 pub const NFT_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("NftOutput");
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
-
-/// Rust version of the Move std::fixed_point32::FixedPoint32 type.
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct FixedPoint32 {
-    pub value: u64,
-}
 
 /// Rust version of the Move iota::url::Url type.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]

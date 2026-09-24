@@ -94,7 +94,8 @@ pub fn receive_object_internal(
         let authenticator_fun_ref_id = derive_dynamic_field_id(
             parent,
             &StructTag::new_authenticator_function_ref_v1_key().into(),
-            &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+            &bcs::to_bytes(&AuthenticatorFunctionRefV1Key::default())
+                .expect("BCS of a struct with one bool field cannot fail"),
         )
         .expect("should not fail this serialization");
         if object_runtime.child_object_exists(parent, authenticator_fun_ref_id)? {

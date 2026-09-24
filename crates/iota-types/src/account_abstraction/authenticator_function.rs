@@ -120,7 +120,8 @@ pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
     dynamic_field::derive_dynamic_field_id(
         account_object_id,
         &StructTag::new_authenticator_function_ref_v1_key().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        &bcs::to_bytes(&AuthenticatorFunctionRefV1Key::default())
+            .expect("BCS of a struct with one bool field cannot fail"),
     )
     .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId { account_object_id })
 }

@@ -7,6 +7,7 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+pub use iota_sdk_move_types::iota_system::validator_wrapper::Validator;
 use iota_sdk_types::{Identifier, MoveStruct, ObjectId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -25,7 +26,6 @@ use crate::{
     id::UID,
     object::{MoveStructExt, Object},
     storage::ObjectStore,
-    versioned::Versioned,
 };
 
 // `EpochStartSystemState` pulls in anemo / starfish-config (consensus + p2p),
@@ -518,11 +518,6 @@ impl PoolTokenExchangeRate {
             pool_token_amount,
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct Validator {
-    pub inner: Versioned,
 }
 
 #[derive(Debug)]

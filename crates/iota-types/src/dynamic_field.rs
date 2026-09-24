@@ -8,6 +8,9 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
+pub use iota_sdk_move_types::iota_framework::{
+    dynamic_field::Field, dynamic_object_field::Wrapper,
+};
 use iota_sdk_types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -18,7 +21,6 @@ use crate::{
     MoveTypeTagTrait, ObjectId, Version,
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
-    id::UID,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     iota_serde::{IotaTypeTag, Readable},
     object::Object,
@@ -26,31 +28,6 @@ use crate::{
 };
 
 pub mod visitor;
-
-/// Rust version of the Move iota::dynamic_field::Field type
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Field<N, V> {
-    pub id: UID,
-    pub name: N,
-    pub value: V,
-}
-
-/// Rust version of the Move iota::dynamic_object_field::Wrapper type
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
-pub struct DOFWrapper<N> {
-    pub name: N,
-}
-
-impl<N> MoveTypeTagTrait for DOFWrapper<N>
-where
-    N: MoveTypeTagTrait,
-{
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(DynamicFieldInfo::dynamic_object_field_wrapper(
-            N::get_type_tag(),
-        )))
-    }
-}
 
 #[serde_as]
 #[derive(Clone, Serialize, Deserialize, Debug)]

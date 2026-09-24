@@ -250,7 +250,6 @@ mod tests {
     use super::*;
     use crate::{
         dynamic_field,
-        id::UID,
         object::bounded_visitor::tests::{enum_, layout_, value_, variant_},
     };
 
@@ -503,7 +502,7 @@ mod tests {
 
     fn serialized_df(id: &str, name: A::MoveValue, value: A::MoveValue) -> Vec<u8> {
         bcs::to_bytes(&dynamic_field::Field {
-            id: UID::new(oid_(id)),
+            id: iota_sdk_move_types::iota_framework::object::UID::new(oid_(id)),
             name: name.undecorate(),
             value: value.undecorate(),
         })

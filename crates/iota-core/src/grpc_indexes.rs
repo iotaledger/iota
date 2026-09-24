@@ -1516,7 +1516,7 @@ mod tests {
     /// the dynamic-field index sees one.
     fn dynamic_field_object(parent: ObjectId, field_id: ObjectId) -> Object {
         let field = iota_types::dynamic_field::Field {
-            id: iota_types::id::UID::new(field_id),
+            id: field_id.into(),
             name: 0u64,
             value: 0u64,
         };
