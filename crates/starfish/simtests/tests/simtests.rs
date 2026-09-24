@@ -19,7 +19,7 @@ mod test {
         configs::{bimodal_latency_ms, env_config, uniform_latency_ms},
     };
     use prometheus_filtered::Registry;
-    use rand::{Rng, SeedableRng as _, rngs::StdRng};
+    use rand08::{Rng, SeedableRng as _, rngs::StdRng};
     use starfish_config::{
         Authority, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair, ProtocolKeyPair, Stake,
     };
@@ -270,7 +270,7 @@ mod test {
         seed[..8].copy_from_slice(&seed_value.to_le_bytes());
         let mut rng = StdRng::from_seed(seed);
         let clock_drifts: Vec<u64> = (0..NUM_OF_AUTHORITIES)
-            .map(|_| rng.random_range(0..MAX_CLOCK_DRIFT_MS))
+            .map(|_| rng.gen_range(0..MAX_CLOCK_DRIFT_MS))
             .collect();
 
         // Create and start all authorities

@@ -7,7 +7,6 @@ use std::hash::Hasher;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 // Re-export things used by iota-macros
-pub use ::rand as rand_crate;
 pub use anemo;
 pub use anemo_tower;
 pub use fastcrypto;
@@ -149,7 +148,7 @@ pub fn current_simnode_id() -> msim::task::NodeId {
 pub mod random {
     use std::{cell::RefCell, collections::HashSet, hash::Hash};
 
-    use rand_crate::{RngExt, SeedableRng, rng, rngs::SmallRng};
+    use ::rand::{RngExt, SeedableRng, rng, rngs::SmallRng};
     use serde::Serialize;
 
     use super::*;
