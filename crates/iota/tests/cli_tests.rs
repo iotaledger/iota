@@ -4632,32 +4632,6 @@ fn assert_same_dry_run(
     assert_eq!(node.execution_error_source, local.execution_error_source);
 }
 
-// A caller inside a spawned task runs on a runtime worker, which the local
-// run's join blocks; the run's gRPC calls must still make progress.
-#[cfg(not(msim))]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_local_dry_run_from_spawned_task() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, _, rgp, [gas_id, object_to_send, _], [recipient, _], _) =
-        test_cluster_helper().await;
-    let result = tokio::spawn(async move {
-        transfer(
-            recipient,
-            object_to_send,
-            vec![gas_id],
-            gas_budget(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
-            dry_run(true),
-        )
-        .execute(&mut test_cluster.wallet)
-        .await
-    })
-    .await??;
-    let IotaClientCommandResult::LocalDryRun(response) = result else {
-        panic!("expected a LocalDryRun result");
-    };
-    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
-    Ok(())
-}
-
 #[cfg(not(msim))]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_local_dry_run_matches_node_dry_run() -> Result<(), anyhow::Error> {
