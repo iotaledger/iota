@@ -108,10 +108,10 @@ use crate::{
     PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::{PTB, PTBCommandResult},
-    displays::{DryRunOutput, Pretty},
+    displays::{DevInspectOutput, DryRunOutput, Pretty},
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::{Key, lowercase_key_scheme},
-    local_simulation::execute_local_dry_run,
+    local_simulation::{execute_local_dev_inspect, execute_local_dry_run},
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -660,8 +660,8 @@ pub struct TxProcessingArgs {
     #[arg(long)]
     pub dev_inspect: bool,
     /// Run the simulation locally through the Move VM instead of on the node.
-    /// Supported with --dry-run.
-    #[arg(long, requires = "dry_run", conflicts_with = "dev_inspect")]
+    /// Supported with --dry-run and --dev-inspect.
+    #[arg(long)]
     pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (Transaction) using base64 encoding,
@@ -2680,7 +2680,18 @@ impl Display for IotaClientCommandResult {
                 writeln!(f, "{}", Pretty(&output))?;
             }
             IotaClientCommandResult::DevInspect(response) => {
-                writeln!(f, "{}", Pretty(response))?;
+                let output = DevInspectOutput {
+                    response,
+                    local: false,
+                };
+                writeln!(f, "{}", Pretty(&output))?;
+            }
+            IotaClientCommandResult::LocalDevInspect(response) => {
+                let output = DevInspectOutput {
+                    response,
+                    local: true,
+                };
+                writeln!(f, "{}", Pretty(&output))?;
             }
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
@@ -2778,6 +2789,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::ChainIdentifier(_)
             | IotaClientCommandResult::DynamicFieldQuery(_)
             | IotaClientCommandResult::DevInspect(_)
+            | IotaClientCommandResult::LocalDevInspect(_)
             | IotaClientCommandResult::Envs(_, _)
             | IotaClientCommandResult::Gas(_)
             | IotaClientCommandResult::NewAddress(_)
@@ -2952,6 +2964,7 @@ pub enum IotaClientCommandResult {
     DryRun(DryRunTransactionBlockResponse),
     LocalDryRun(DryRunTransactionBlockResponse),
     DevInspect(DevInspectResults),
+    LocalDevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
     NewAddress(NewAddressOutput),
@@ -3413,14 +3426,16 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
-    // `--local` picks the local backend for whichever simulation mode was
-    // asked for, so these guards list the modes that have one. `iota client
-    // ptb` builds its flags by hand, so clap's `requires` and
-    // `conflicts_with` on `--local` do not apply there.
-    ensure!(!local || dry_run, "--local requires --dry-run");
+    // `iota client ptb` builds its flags by hand, so clap cannot enforce
+    // these there. Without `--local`, `--dev-inspect` wins over `--dry-run`;
+    // with it the pair is rejected rather than silently picking one.
     ensure!(
-        !(local && dev_inspect),
-        "--local is not supported with --dev-inspect"
+        !local || dry_run || dev_inspect,
+        "--local requires --dry-run or --dev-inspect"
+    );
+    ensure!(
+        !(local && dry_run && dev_inspect),
+        "--local takes only one of --dry-run and --dev-inspect"
     );
     let signer = sender.unwrap_or(signer);
 
@@ -3430,7 +3445,20 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
     );
 
-    if dry_run && local {
+    if local && dev_inspect {
+        return execute_local_dev_inspect(
+            context,
+            signer,
+            tx_kind,
+            gas_budget,
+            gas_price,
+            gas_payment,
+            gas_sponsor,
+        )
+        .await;
+    }
+
+    if local {
         return execute_local_dry_run(
             context,
             signer,

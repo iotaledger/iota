@@ -28,7 +28,7 @@ use crate::{
         error::{PTBError, build_error_reports},
         token::{Lexeme, Token},
     },
-    displays::Pretty,
+    displays::{DevInspectOutput, Pretty},
     sp,
 };
 
@@ -77,7 +77,11 @@ impl std::fmt::Display for PTBCommandResult {
             Self::Preview(ptb_preview) => ptb_preview.fmt(f),
             Self::CommandResult(res) => res.fmt(f),
             Self::Summary(summary) => Pretty(summary).fmt(f),
-            Self::DevInspect(dev_inspect_results) => Pretty(dev_inspect_results.as_ref()).fmt(f),
+            Self::DevInspect(response) => Pretty(&DevInspectOutput {
+                response,
+                local: false,
+            })
+            .fmt(f),
             Self::Json(value) => serde_json::to_string_pretty(&value)
                 .map_err(|_| std::fmt::Error)?
                 .fmt(f),
@@ -308,6 +312,7 @@ impl PTB {
             IotaClientCommandResult::ComputeTransactionDigest(_)
             | IotaClientCommandResult::DryRun(_)
             | IotaClientCommandResult::LocalDryRun(_)
+            | IotaClientCommandResult::LocalDevInspect(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
                 return Ok(PTBCommandResult::CommandResult(Box::new(
@@ -449,7 +454,7 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"local"
             "Run the simulation locally through the Move VM instead of on the node. Supported \
-            with --dry-run."
+            with --dry-run and --dev-inspect."
         ))
         .arg(arg!(
             --"gas-coins" <ID> ...

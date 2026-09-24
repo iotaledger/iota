@@ -2,25 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Run transaction simulations locally through [`iota_vm_sdk::LocalVm`]
-//! instead of a node's dry-run endpoint.
+//! instead of the node's dry-run and dev-inspect endpoints.
 //!
 //! Objects and chain parameters are resolved on demand from the active env's
 //! gRPC endpoint; execution itself happens in-process, against the same Move
-//! engine a node uses. The result is assembled into the same
-//! [`DryRunTransactionBlockResponse`] the node returns, so it renders through
-//! the same display code.
+//! engine a node uses. The results are assembled into the same
+//! [`DryRunTransactionBlockResponse`] / [`DevInspectResults`] the node
+//! returns, so they render through the same display code.
 //!
 //! The gas price defaults to the reference gas price the gRPC endpoint
 //! reports, so only rendering a Move abort still goes through JSON-RPC.
 //!
-//! Two checks a validator applies are out of reach here, so a transaction a
-//! node's dry run rejects can still succeed locally: the operator's
-//! transaction deny-list, and the network's signing verifier limits — this
-//! runs with an empty deny-list and the default limits.
+//! Two checks a validator applies are out of reach in a dry run, so a
+//! transaction a node's dry run rejects can still succeed locally: the
+//! operator's transaction deny-list, and the network's signing verifier
+//! limits — this runs with an empty deny-list and the default limits. A
+//! dev-inspect skips those checks on a node by default, so the local one
+//! matches.
 
 use anyhow::{Context, Result, anyhow};
 use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaTransactionBlockData, IotaTransactionBlockEvents,
+    DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlockData,
+    IotaTransactionBlockEvents,
 };
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{Address, ObjectReference, Transaction, TransactionKind};
@@ -46,13 +49,7 @@ pub(crate) async fn execute_local_dry_run(
     gas_payment: Vec<ObjectReference>,
     sponsor: Option<Address>,
 ) -> Result<IotaClientCommandResult> {
-    let client = context.get_grpc_client().await.context(
-        "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
-    )?;
-
-    let store = GrpcStore::new(client);
-    let chain_context = store.fetch_chain_context().await?;
-    let vm = LocalVm::new(chain_context, store)?;
+    let vm = local_vm(context).await?;
     let response = run_dry_run(
         vm,
         signer,
@@ -65,6 +62,43 @@ pub(crate) async fn execute_local_dry_run(
     IotaClientCommandResult::LocalDryRun(response)
         .prerender_clever_errors(context)
         .await
+}
+
+/// Run a dev-inspect locally and assemble the node-shaped results.
+///
+/// The run blocks the calling thread until it is done. Resolving an object
+/// the run asks for needs a multi-threaded Tokio runtime.
+pub(crate) async fn execute_local_dev_inspect(
+    context: &mut WalletContext,
+    signer: Address,
+    kind: TransactionKind,
+    gas_budget: Option<u64>,
+    gas_price: Option<u64>,
+    gas_payment: Vec<ObjectReference>,
+    sponsor: Option<Address>,
+) -> Result<IotaClientCommandResult> {
+    let vm = local_vm(context).await?;
+    let results = run_dev_inspect(
+        vm,
+        signer,
+        kind,
+        gas_budget,
+        gas_price,
+        gas_payment,
+        sponsor,
+    )?;
+    // The node's dev-inspect converts the effects as-is, so a Move abort is
+    // reported raw, unlike a dry run; nothing to re-render through JSON-RPC.
+    Ok(IotaClientCommandResult::LocalDevInspect(results))
+}
+
+async fn local_vm(context: &mut WalletContext) -> Result<LocalVm> {
+    let client = context.get_grpc_client().await.context(
+        "local simulation needs a gRPC endpoint; set `grpc` for the active env in client.yaml",
+    )?;
+    let store = GrpcStore::new(client);
+    let chain_context = store.fetch_chain_context().await?;
+    Ok(LocalVm::new(chain_context, store)?)
 }
 
 fn run_dry_run(
@@ -111,6 +145,45 @@ fn run_dry_run(
 
     let result = vm.execute(tx_data.clone(), ExecuteOptions::dry_run())?;
     dry_run_response(&vm, tx_data, result)
+}
+
+fn run_dev_inspect(
+    mut vm: LocalVm,
+    signer: Address,
+    kind: TransactionKind,
+    gas_budget: Option<u64>,
+    gas_price: Option<u64>,
+    gas_payment: Vec<ObjectReference>,
+    sponsor: Option<Address>,
+) -> Result<DevInspectResults> {
+    // A zero budget or price is filled in by the run the same way the node's
+    // dev-inspect fills it in, so neither is resolved here.
+    let tx_data = Transaction::new_with_gas_coins_allow_sponsor(
+        kind,
+        signer,
+        gas_payment,
+        gas_budget.unwrap_or_default(),
+        gas_price.unwrap_or_default(),
+        sponsor.unwrap_or(signer),
+    );
+    let mut result = vm.execute(tx_data, ExecuteOptions::dev_inspect())?;
+
+    let return_values = match result.execution_error.take() {
+        Some(error) => Err(error),
+        None => Ok(std::mem::take(&mut result.command_results)),
+    };
+    let events = result.events.take().unwrap_or_default();
+    let effects = result.effects.clone();
+    let mut layout_resolver = result.layout_resolver(&vm)?;
+    // The CLI does not ask for the raw transaction or effects bytes.
+    Ok(DevInspectResults::new(
+        effects,
+        events,
+        return_values,
+        vec![],
+        vec![],
+        layout_resolver.as_mut(),
+    )?)
 }
 
 /// Assemble a [`DryRunTransactionBlockResponse`] from a local run, resolving
