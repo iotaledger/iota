@@ -1219,8 +1219,8 @@ impl NodeMetrics {
             ).unwrap(),
             dropped_far_future_headers_total: register_int_counter_vec_with_registry!(
                 "dropped_far_future_headers_total",
-                "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source",
-                &["source"],
+                "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source and sending peer",
+                &["source", "peer"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
