@@ -27,6 +27,7 @@ use tracing::instrument;
 
 use crate::key_value_store_metrics::KeyValueStoreMetrics;
 
+#[derive(Clone)]
 pub struct TransactionKeyValueStore {
     store_name: &'static str,
     metrics: Arc<KeyValueStoreMetrics>,

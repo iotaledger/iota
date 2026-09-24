@@ -17,7 +17,7 @@ use iota_grpc_types::v1::{
     state_service::state_service_client::StateServiceClient,
     types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
 };
-use iota_node_storage::GrpcStateReader;
+use iota_node_storage::{GrpcStateReader, TransactionKeyValueStoreTrait};
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary,
     MoveStruct, ObjectId, Owner, StructTag, TransactionDigest, TransactionEffects,
@@ -166,6 +166,8 @@ pub struct MockGrpcStateReader {
     // -- Transactions --
     pub transactions: HashMap<TransactionDigest, Arc<VerifiedTransaction>>,
     pub effects: HashMap<TransactionDigest, TransactionEffects>,
+    pub events: HashMap<TransactionDigest, TransactionEvents>,
+    pub transaction_infos: HashMap<TransactionDigest, iota_types::storage::TransactionInfo>,
 
     // -- Pruning --
     pub lowest_available_checkpoint: u64,
@@ -332,9 +334,9 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
 
     fn try_get_events(
         &self,
-        _digest: &TransactionDigest,
+        digest: &TransactionDigest,
     ) -> StorageResult<Option<TransactionEvents>> {
-        Ok(None)
+        Ok(self.events.get(digest).cloned())
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -427,9 +429,9 @@ impl GrpcStateReader for MockGrpcStateReader {
 impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
     fn get_transaction_info(
         &self,
-        _digest: &TransactionDigest,
+        digest: &TransactionDigest,
     ) -> StorageResult<Option<iota_types::storage::TransactionInfo>> {
-        Ok(None)
+        Ok(self.transaction_infos.get(digest).cloned())
     }
 
     fn account_owned_objects_info_iter(
@@ -549,9 +551,13 @@ async fn start_test_server_with(
     state_reader: Arc<MockGrpcStateReader>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
+    transaction_fallback: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
+    let grpc_reader = Arc::new(
+        GrpcReader::new(state_reader, Some("test".to_string()))
+            .with_transaction_fallback(transaction_fallback),
+    );
     let localhost = local_ip_utils::localhost_for_testing();
     let port = local_ip_utils::get_available_port(&localhost);
     let mut config = GrpcApiConfig {
@@ -585,7 +591,16 @@ pub async fn start_test_server(
     state_reader: Arc<MockGrpcStateReader>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    start_test_server_with(state_reader, None, None, config_customizer).await
+    start_test_server_with(state_reader, None, None, None, config_customizer).await
+}
+
+/// Like [`start_test_server`], but with `transaction_fallback` as the
+/// key-value store serving data the state reader has pruned.
+pub async fn start_test_server_with_transaction_fallback(
+    state_reader: Arc<MockGrpcStateReader>,
+    transaction_fallback: Option<Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
+) -> (GrpcServerHandle, Arc<GrpcReader>) {
+    start_test_server_with(state_reader, None, None, transaction_fallback, |_| {}).await
 }
 
 /// Like [`start_test_server`], but with the given traffic controller wired
@@ -597,7 +612,14 @@ pub async fn start_test_server_with_traffic_controller(
     traffic_controller: Arc<iota_traffic_controller::TrafficController>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await
+    start_test_server_with(
+        state_reader,
+        executor,
+        Some(traffic_controller),
+        None,
+        |_| {},
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
