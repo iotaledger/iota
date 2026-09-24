@@ -82,7 +82,7 @@ use iota_types::{
     committee::Committee,
     messages_checkpoint::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, CheckpointSummaryExt,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        FullCheckpointContents, VerifiedCheckpoint,
     },
     storage::WriteStore,
 };
@@ -1873,12 +1873,11 @@ where
             .and_then(Response::into_inner)
             .tap_none(|| trace!("peer unable to help sync"))
         {
-            if contents.verify_digests(digest).is_ok() {
-                let verified_contents = VerifiedCheckpointContents::new_unchecked(contents.clone());
+            if let Ok(verified_contents) = contents.verify(digest) {
                 store
-                    .try_insert_checkpoint_contents(checkpoint, verified_contents)
+                    .try_insert_checkpoint_contents(checkpoint, verified_contents.clone())
                     .expect("store operation should not fail");
-                return Some(contents);
+                return Some(verified_contents.into_inner());
             }
         }
     }

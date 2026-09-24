@@ -845,7 +845,10 @@ impl CheckpointExecutor {
                 let full_contents = FullCheckpointContents::from_contents_and_execution_data(
                     checkpoint_contents.clone(),
                     execution_data,
-                );
+                )
+                // Both were loaded for this checkpoint's own contents above,
+                // one transaction and one effects entry per digest.
+                .expect("checkpoint has one executed transaction per pinned signature set");
                 self.checkpoint_store.cache_full_checkpoint_contents(
                     seq,
                     checkpoint.contents_digest,
