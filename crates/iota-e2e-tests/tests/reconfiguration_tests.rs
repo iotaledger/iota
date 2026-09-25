@@ -1188,7 +1188,7 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
+    let binary_config = to_binary_config(config, None);
 
     // Create the capability notification
     let available_system_packages = test_cluster
@@ -1262,7 +1262,7 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
+    let binary_config = to_binary_config(config, None);
     let available_system_packages = test_cluster
         .fullnode_handle
         .iota_node

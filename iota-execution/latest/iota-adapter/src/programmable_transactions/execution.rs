@@ -815,7 +815,7 @@ mod checked {
         };
 
         let pool = &mut normalized::RcPool::new();
-        let binary_config = to_binary_config(context.protocol_config);
+        let binary_config = to_binary_config(context.protocol_config, None);
         let current_normalized = match normalize_modules_with_metadata(
             pool,
             existing_package.serialized_module_map().values(),
@@ -1095,10 +1095,10 @@ mod checked {
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: &[Vec<u8>],
     ) -> Result<Vec<CompiledModule>, ExecutionError> {
-        let binary_config = to_binary_config(context.protocol_config);
         let check_canonical_header = context
             .protocol_config
             .check_canonical_module_version_header();
+        let binary_config = to_binary_config(context.protocol_config, None);
         let modules = module_bytes
             .iter()
             .map(|b| {

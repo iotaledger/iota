@@ -719,6 +719,10 @@ struct FeatureFlags {
     // at the immediate dependencies and never reports a cycle.
     #[serde(skip_serializing_if = "is_false")]
     check_cyclic_dependencies: bool,
+
+    // If true, deprecate global storage ops during Move module deserialization
+    #[serde(skip_serializing_if = "is_false")]
+    deprecate_global_storage_ops_during_deserialization: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2205,6 +2209,11 @@ impl ProtocolConfig {
 
     pub fn check_cyclic_dependencies(&self) -> bool {
         self.feature_flags.check_cyclic_dependencies
+    }
+
+    pub fn deprecate_global_storage_ops_during_deserialization(&self) -> bool {
+        self.feature_flags
+            .deprecate_global_storage_ops_during_deserialization
     }
 }
 
