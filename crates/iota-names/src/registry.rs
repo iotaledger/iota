@@ -3,8 +3,9 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use iota_sdk_move_types::iota_framework::{dynamic_field::Field, vec_map::VecMap};
 use iota_sdk_types::{Address, MoveStruct, ObjectId};
-use iota_types::{collection_types::VecMap, dynamic_field::Field, id::ID, object::Object};
+use iota_types::{id::ID, object::Object};
 use serde::{Deserialize, Serialize};
 
 use crate::{constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, error::IotaNamesError, name::Name};

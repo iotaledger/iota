@@ -6,6 +6,7 @@ use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
+use iota_sdk_move_types::iota_framework::{vec_map::VecMap, vec_set::VecSet};
 use iota_sdk_types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -22,7 +23,7 @@ use crate::iota_system_state::epoch_start_iota_system_state::{
 };
 use crate::{
     balance::Balance,
-    collection_types::{Bag, Table, TableVec, VecMap, VecSet},
+    collection_types::{Bag, Table, TableVec},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
         AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,

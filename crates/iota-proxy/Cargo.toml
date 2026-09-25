@@ -20,6 +20,7 @@ fastcrypto.workspace = true
 git-version.workspace = true
 hex.workspace = true
 hyper.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 itertools.workspace = true
 multiaddr.workspace = true
 once_cell.workspace = true

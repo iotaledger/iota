@@ -10,6 +10,7 @@ publish = false
 # external dependencies
 anyhow.workspace = true
 bcs.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 serde.workspace = true
 thiserror.workspace = true
 

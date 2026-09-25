@@ -30,6 +30,7 @@ colored.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 http.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 json_to_table.workspace = true
 miette = { version = "7", features = ["fancy"] }
 rand.workspace = true

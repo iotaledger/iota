@@ -1,31 +1,25 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::{
+    iota_framework::vec_map::VecMap,
+    move_stdlib::fixed_point32::FixedPoint32,
+    stardust::{
+        expiration_unlock_condition::ExpirationUnlockCondition,
+        storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition,
+        timelock_unlock_condition::TimelockUnlockCondition,
+    },
+};
 use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use super::unlock_conditions::{
-    ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
-};
-use crate::{
-    balance::Balance,
-    collection_types::{Bag, VecMap},
-    error::IotaError,
-    id::UID,
-    object::Object,
-};
+use crate::{balance::Balance, collection_types::Bag, error::IotaError, id::UID, object::Object};
 
 pub const NFT_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("nft_output");
 pub const NFT_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("NftOutput");
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
-
-/// Rust version of the Move std::fixed_point32::FixedPoint32 type.
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct FixedPoint32 {
-    pub value: u64,
-}
 
 /// Rust version of the Move iota::url::Url type.
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]

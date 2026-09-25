@@ -25,6 +25,7 @@ futures.workspace = true
 http-body.workspace = true
 hyper.workspace = true
 indexmap.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 itertools.workspace = true
 jsonrpsee.workspace = true
 serde.workspace = true

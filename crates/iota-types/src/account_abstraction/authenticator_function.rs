@@ -1,14 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::{
+    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
+};
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TypeTag,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    dynamic_field::{self, Field},
+    dynamic_field,
     error::{IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
     object::Object,
@@ -120,7 +122,8 @@ pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
     dynamic_field::derive_dynamic_field_id(
         account_object_id,
         &StructTag::new_authenticator_function_ref_v1_key().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        &bcs::to_bytes(&AuthenticatorFunctionRefV1Key::default())
+            .expect("BCS of a struct with one bool field cannot fail"),
     )
     .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId { account_object_id })
 }
