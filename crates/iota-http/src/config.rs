@@ -364,24 +364,26 @@ impl Config {
         }
     }
 
-    /// Sets how many established connections a single peer may hold at once.
-    /// Further connections from a peer already at the limit are closed as soon
-    /// as they are accepted.
-    ///
     /// Sets how many connections this listener may serve at once. Further
     /// connections are closed immediately after their handshake, before being
     /// served.
     ///
     /// This is the bound on file descriptors, and the only one: a per-peer
-    /// limit permits one connection per peer per limit, and on a listener
-    /// whose peers are not a known set that product is unbounded. The two are
-    /// meant to be set together, this one to bound the listener and the other
-    /// to stop one peer consuming all of it.
+    /// limit bounds each peer, and on a listener whose peers are not a known
+    /// set their number is not bounded either. The two are meant to be set
+    /// together, this one to bound the listener and the other to stop one peer
+    /// consuming all of it.
     ///
     /// The limit is enforced after the handshake rather than by refusing to
     /// accept, so that a full listener still answers new peers instead of
     /// leaving them in the kernel backlog with no way to tell a busy server
     /// from an unreachable one.
+    ///
+    /// It counts connections being served, which is not the same as
+    /// descriptors held: one given up to make room stops counting at once but
+    /// keeps its descriptor until it has finished shutting down. Descriptors in
+    /// use therefore run to about this limit plus the arrival rate over that
+    /// wait.
     ///
     /// Default is no limit (`None`).
     pub fn max_connections(self, max_connections: Option<usize>) -> Self {
@@ -391,6 +393,10 @@ impl Config {
         }
     }
 
+    /// Sets how many established connections a single peer may hold at once.
+    /// Further connections from a peer already at the limit are closed as soon
+    /// as they are accepted.
+    ///
     /// Connections are counted under the peer's certificate public key, or,
     /// for a peer that presents no certificate, under the prefix its address
     /// belongs to.
@@ -403,10 +409,6 @@ impl Config {
         }
     }
 
-    /// Sets a callback invoked with the peer's public key each time one of its
-    /// connections is established, closed or refused at the limit. Only
-    /// connections counted under `max_connections_per_peer` are reported. It
-    /// runs on the accept loop or a connection's task, so it must not block.
     /// Sets a callback invoked on each change to the connections this listener
     /// holds. It runs on the accept loop or a connection's task, so it must not
     /// block.
@@ -424,6 +426,13 @@ impl Config {
         }
     }
 
+    /// Sets a callback invoked each time one of a peer's connections is
+    /// established, closed or refused at the limit, with the key that peer's
+    /// connections are counted under: its certificate public key, or the prefix
+    /// its address belongs to where it presents no certificate. Only
+    /// connections counted under [`Config::max_connections_per_peer`] are
+    /// reported. It runs on the accept loop or a connection's task, so it must
+    /// not block.
     pub fn on_peer_connection_event(
         self,
         on_peer_connection_event: impl Fn(&[u8], PeerConnectionEvent) + Send + Sync + 'static,

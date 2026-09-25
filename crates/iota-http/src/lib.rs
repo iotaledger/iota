@@ -417,16 +417,10 @@ where
     fn handle_connection(&mut self, io: ServerIo<L::Io>, remote_addr: L::Addr) {
         // Both the TLS and the plaintext path arrive here, so this is where the
         // listener's connections can be counted whatever it is configured with.
-        if let Some(max) = self.config.max_connections {
-            let live = self.live_connections();
-            if live >= max && !self.evict_an_idle_connection() {
-                // Dropping the connection closes it, releasing its file descriptor.
-                trace!("listener already serves {live} connections, closing the new one");
-                self.notify_connection(ConnectionEvent::Refused { live });
-                return;
-            }
-        }
-
+        //
+        // The peer's own limit is checked before the listener's, so that a peer
+        // that may not connect anyway cannot cost another peer its connection:
+        // making room is only worth doing for a connection that will be served.
         let mut peer_connection_guard = None;
         if let (Some(max), Some(peer)) = (
             self.config.max_connections_per_peer,
@@ -440,6 +434,18 @@ where
                 return;
             };
             peer_connection_guard = Some(guard);
+        }
+
+        if let Some(max) = self.config.max_connections {
+            let live = self.live_connections();
+            if live >= max && !self.evict_an_idle_connection() {
+                // Dropping the connection closes it, releasing its file
+                // descriptor. The peer's slot goes back with the guard, which
+                // reports the connection closed as soon as it is taken again.
+                trace!("listener already serves {live} connections, closing the new one");
+                self.notify_connection(ConnectionEvent::Refused { live });
+                return;
+            }
         }
 
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
@@ -560,8 +566,6 @@ where
     Ok((ServerIo::new_tls_io(io), remote_addr))
 }
 
-/// Identifies the peer by the public key of the single certificate it
-/// authenticated with, or `None` if it presented no certificate.
 /// The key this connection's per-peer count is kept under.
 ///
 /// A certificate identifies its holder, so it is preferred wherever one is
@@ -573,6 +577,8 @@ fn connection_key<L: Listener>(io: &ServerIo<L::Io>, remote_addr: &L::Addr) -> O
     peer_public_key(io).or_else(|| L::connection_key(remote_addr))
 }
 
+/// Identifies the peer by the public key of the single certificate it
+/// authenticated with, or `None` if it presented no certificate.
 fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
     let certs = io.peer_certs()?;
     let [certificate] = certs.as_slice() else {
@@ -1517,6 +1523,25 @@ mod tests {
             key("[2001:db8:0:1::1]:1"),
             "different /64"
         );
+
+        // A dual-stack listener sees IPv4 peers as mapped addresses, which
+        // share their first eight octets with each other and with `::1`. They
+        // have to be grouped by the address they are carrying instead.
+        assert_eq!(
+            key("[::ffff:192.0.2.1]:1"),
+            key("192.0.2.99:2"),
+            "a mapped address is its IPv4 address"
+        );
+        assert_ne!(
+            key("[::ffff:192.0.2.1]:1"),
+            key("[::ffff:192.0.3.1]:1"),
+            "mapped addresses in different /24s"
+        );
+        assert_ne!(
+            key("[::ffff:192.0.2.1]:1"),
+            key("[::1]:1"),
+            "a mapped address is not grouped with the loopback"
+        );
     }
 
     /// A limit alone decides only that whoever arrives first keeps the
@@ -1739,5 +1764,36 @@ mod tests {
         for connection in &mut used {
             request_on(connection).await;
         }
+    }
+
+    /// A connection's id outlives the connection: it is held by the task that
+    /// is shutting one down, and handed out to callers through
+    /// [`ServerHandle::connections`]. Reusing one would mean an id taken while
+    /// a connection was being given up could name the connection admitted in
+    /// its place, and the one on its way out would then remove the newcomer
+    /// from the listener's count.
+    #[test]
+    fn a_connection_id_is_never_reused() {
+        let connection = || {
+            ConnectionInfo::new(
+                "127.0.0.1:1".parse::<std::net::SocketAddr>().unwrap(),
+                None,
+                tokio_util::sync::CancellationToken::new(),
+                activity::idle_sleep(None).handle(),
+            )
+        };
+
+        // Dropped before the next is made, which is what gives an id derived
+        // from the connection's address in memory the chance to come back.
+        let first = connection();
+        let first_id = first.id();
+        drop(first);
+
+        let second = connection();
+        assert_ne!(
+            first_id,
+            second.id(),
+            "an id must not be reused once its connection has gone"
+        );
     }
 }

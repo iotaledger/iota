@@ -4,7 +4,10 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        Arc, Mutex, RwLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use tokio_rustls::rustls::pki_types::CertificateDer;
@@ -17,6 +20,9 @@ use crate::{
 pub(crate) type ActiveConnections<A = std::net::SocketAddr> =
     Arc<RwLock<HashMap<ConnectionId, ConnectionInfo<A>>>>;
 
+/// Identifies one connection for as long as the server runs. Handed out in
+/// order and never reused, so an id kept after its connection has gone refers
+/// to nothing rather than to whichever connection came next.
 pub type ConnectionId = usize;
 
 #[derive(Debug)]
@@ -38,7 +44,10 @@ impl<A> ConnectionInfo<A> {
         graceful_shutdown_token: tokio_util::sync::CancellationToken,
         idle: IdleHandle,
     ) -> Self {
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
         Self(Arc::new(Inner {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             address,
             time_established: std::time::Instant::now(),
             peer_certificates: peer_certificates.map(PeerCertificates),
@@ -63,7 +72,7 @@ impl<A> ConnectionInfo<A> {
 
     /// A stable identifier for this connection
     pub fn id(&self) -> ConnectionId {
-        &*self.0 as *const _ as usize
+        self.0.id
     }
 
     /// Trigger a graceful shutdown of this connection
@@ -83,6 +92,7 @@ impl<A> ConnectionInfo<A> {
 
 #[derive(Debug)]
 struct Inner<A = std::net::SocketAddr> {
+    id: ConnectionId,
     address: A,
 
     // Time that the connection was established

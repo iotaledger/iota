@@ -13,8 +13,8 @@ use crate::{
 };
 
 /// How long a connection asked to close is given to finish shutting down
-/// before it is dropped. It has no requests in flight by definition, so this
-/// only covers the round trip of the shutdown itself.
+/// before it is dropped. A connection is only asked once it has nothing in
+/// flight, so this covers the round trip of the shutdown itself.
 const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
 // This is moved to its own function as a way to get around

@@ -43,7 +43,11 @@ fn address_prefix(addr: &std::net::SocketAddr) -> Vec<u8> {
     /// one holder rather than less.
     const IPV4_PREFIX_LEN: usize = 3;
 
-    match addr.ip() {
+    // A dual-stack listener sees IPv4 peers as `::ffff:a.b.c.d`, whose first
+    // eight octets are the same zeros for every one of them. Canonicalising
+    // first groups such a peer by its IPv4 address, as a listener bound to
+    // IPv4 would.
+    match addr.ip().to_canonical() {
         std::net::IpAddr::V4(ip) => ip.octets()[..IPV4_PREFIX_LEN].to_vec(),
         std::net::IpAddr::V6(ip) => ip.octets()[..IPV6_PREFIX_LEN].to_vec(),
     }

@@ -2574,29 +2574,6 @@ async fn build_grpc_server(
     Ok(Some(handle))
 }
 
-/// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
-/// API based on the node's configuration.
-///
-/// This function performs the following tasks:
-/// 1. Checks if the node is a validator by inspecting the consensus
-///    configuration; if so, it returns early as validators do not expose these
-///    APIs.
-/// 2. Creates an Axum router to handle HTTP requests.
-/// 3. Initializes the JSON-RPC server and registers various RPC modules based
-///    on the node's state and configuration, including CoinApi,
-///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
-///    IndexerApi.
-/// 4. Binds the server to the specified JSON-RPC address and starts listening
-///    for incoming connections.
-///
-/// How many connections one listener may serve, as a share of the file
-/// descriptors this process may open.
-///
-/// A fixed number cannot be right: the ceiling is the deployment's, not this
-/// repository's, and nothing here sets it. The node already raises its own
-/// limit to that ceiling at startup and gives RocksDB the same share, so a
-/// listener takes its share of the same budget and the rest is left for
-/// consensus, state sync and the other listener.
 /// How many connections one listener may serve, from its share of the file
 /// descriptors this process may open.
 ///
@@ -2621,6 +2598,20 @@ fn listener_connection_budget() -> usize {
     budget
 }
 
+/// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
+/// API based on the node's configuration.
+///
+/// This function performs the following tasks:
+/// 1. Checks if the node is a validator by inspecting the consensus
+///    configuration; if so, it returns early as validators do not expose these
+///    APIs.
+/// 2. Creates an Axum router to handle HTTP requests.
+/// 3. Initializes the JSON-RPC server and registers various RPC modules based
+///    on the node's state and configuration, including CoinApi,
+///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
+///    IndexerApi.
+/// 4. Binds the server to the specified JSON-RPC address and starts listening
+///    for incoming connections.
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
