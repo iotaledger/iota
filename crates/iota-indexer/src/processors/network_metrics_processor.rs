@@ -136,7 +136,9 @@ where
             // lower bound instead of persisting a partial batch.
             let batch_end_cp_seq = last_processed_cp_seq + batch_size;
             let Some(end_cp) = self.store.get_cp(batch_end_cp_seq).await? else {
-                warn!("checkpoint {batch_end_cp_seq} is not in the database, resuming from the lower bound");
+                warn!(
+                    "checkpoint {batch_end_cp_seq} is not in the database, resuming from the lower bound"
+                );
                 continue;
             };
 

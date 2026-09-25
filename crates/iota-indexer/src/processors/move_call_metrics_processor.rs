@@ -98,12 +98,16 @@ where
             // A missing row means the range was pruned meanwhile, so go back to the
             // lower bound instead of persisting a partial batch.
             let Some(batch_end_tx) = self.store.get_tx(batch_end_tx_seq).await? else {
-                warn!("transaction {batch_end_tx_seq} is not in the database, resuming from the lower bound");
+                warn!(
+                    "transaction {batch_end_tx_seq} is not in the database, resuming from the lower bound"
+                );
                 continue;
             };
             let batch_end_cp_seq = batch_end_tx.checkpoint_sequence_number;
             let Some(batch_end_cp) = self.store.get_cp(batch_end_cp_seq).await? else {
-                warn!("checkpoint {batch_end_cp_seq} is not in the database, resuming from the lower bound");
+                warn!(
+                    "checkpoint {batch_end_cp_seq} is not in the database, resuming from the lower bound"
+                );
                 continue;
             };
             let end_epoch = batch_end_cp.epoch;
