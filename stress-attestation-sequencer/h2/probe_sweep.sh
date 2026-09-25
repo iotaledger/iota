@@ -221,11 +221,18 @@ if [[ "${REGEN:-yes}" == no || "${REGEN:-yes}" == n ]]; then
   echo
   echo "REGEN=no — skipping table/figure regen (CSV written, shared artifacts untouched)"
 elif [[ "$WHICH" == groth16 ]]; then
-  # The tables include the groth16 points; the figures below are built from
-  # calibration-*.csv only, which a groth16 sweep does not change.
+  # The tables include the groth16 points and plot_groth16.py draws their
+  # figure; the slow figures are built from calibration-*.csv only, which a
+  # groth16 sweep does not change.
   echo
-  echo "regenerating tables (the slow figures are unchanged)..."
+  echo "regenerating tables + the groth16 figure (the slow figures are unchanged)..."
   python3 "$SCRIPT_DIR/make_calibration_table.py" || echo "  (table regen failed)"
+  VENV_PY="$SCRIPT_DIR/../h1/.venv/bin/python"
+  if [[ -x "$VENV_PY" ]]; then
+    "$VENV_PY" "$SCRIPT_DIR/plot_groth16.py" || echo "  (figure regen failed)"
+  else
+    echo "  (skipping the figure: no matplotlib venv at $VENV_PY)"
+  fi
 else
   echo
   echo "regenerating tables + figures..."

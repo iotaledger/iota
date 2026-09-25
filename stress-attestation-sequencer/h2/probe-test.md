@@ -27,6 +27,9 @@ points ran on two machines:
 `compare_machines.py` reproduces the cross-machine table below;
 `plot_calibration.py` reproduces the figures.
 
+The last section, *groth16 native calls (W8)*, runs the same probe on
+transactions that call a native function instead of Move code.
+
 ## How the probe measures
 
 The client is the `stress` benchmark running in-docker on the private network,
@@ -354,3 +357,178 @@ diverge when a commit carries transactions of *different* cost, which is what
 the `SLOW_MIX` configurations add — a count limit then admits a fixed number and
 lets the admitted work swing, while a unit limit admits a fixed amount of work
 and lets the number swing.
+
+---
+
+## groth16 native calls (W8)
+
+The same probe, run on W8 (`../stress-plan.md`): owned-object transactions
+that call one native function of the framework's `0x2::groth16` module a set
+number of times. Native functions are charged a fixed amount per call, set in
+the protocol config, not per instruction like Move code, so this checks whether
+computation units follow execution time for native calls as they do for
+`slow`. `probe.sh` runs one point with `WORKLOAD=groth16`, and `probe_sweep.sh
+groth16` runs the grid. Only the WS has run it so far.
+
+There are four workloads, the two functions on each of two curves:
+
+- `verify_groth16_proof` checks one proof against a verifying key prepared in
+  advance. It is the call that runs once per proof.
+- `prepare_verifying_key` turns a raw verifying key into that prepared form,
+  which includes one pairing. It runs once per circuit.
+
+The keys and proofs are the framework's own test vectors
+(`groth16_tests.move`), so every verify returns true and does its full work.
+Each call is charged a fixed amount (mainnet protocol version 34):
+
+| Function | BN254 | BLS12-381 |
+| --- | --- | --- |
+| `verify_groth16_proof`, one public input | 125 CUs | 80 CUs |
+| `prepare_verifying_key` | 82 CUs | 54 CUs |
+
+A transaction's total is rounded up to the next 1,000, as for `slow`. From the
+701st native call in a transaction, gas model v2 charges each call's amount as
+instructions, so later calls cost far more. The grid steps the calls per
+transaction: 1, 7, 8, 50, 100, 200, 400, 700, 701, 710 and 750. For BN254
+verify, 1 and 7 calls both round up to 1,000 CUs, 8 is the first step to 2,000,
+700 is the most at the flat price, and the last three show the jump.
+
+Each point ran 100 s at 1 transaction per second, so still 100 transactions and
+400 samples, and the client allowed 4 transactions in flight instead of 2
+(`IN_FLIGHT_RATIO`). At 700 calls a transaction executes for about a second on
+every validator: at 5 per second the four validators would need more cores than
+the machine has, and with 2 in flight the client could not keep up with its
+≈2.3 s transactions. The measurement is the one described in *How the probe
+measures*. The rows are in `results/probe/groth16-<machine>.csv`, which
+`make_calibration_table.py` and `plot_groth16.py` read.
+
+### Results: WS Ryzen 9 9950X3D
+
+#### BN254 verify
+
+| Calls | CU | Exec mean (ms) | Exec sem (ms) | Samples |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 2.391 | 0.030 | 400 |
+| 7 | 1,000 | 11.660 | 0.292 | 400 |
+| 8 | 2,000 | 12.787 | 0.236 | 400 |
+| 50 | 7,000 | 76.143 | 0.057 | 400 |
+| 100 | 13,000 | 151.628 | 1.169 | 400 |
+| 200 | 26,000 | 304.394 | 3.530 | 400 |
+| 400 | 51,000 | 610.116 | 6.994 | 400 |
+| 700 | 88,000 | 1075.494 | 21.225 | 400 |
+| 701 | 94,000 | 1078.186 | 21.091 | 400 |
+| 710 | 207,000 | 1093.618 | 20.319 | 400 |
+| 750 | 707,000 | 1155.873 | 17.206 | 400 |
+
+#### BLS12-381 verify
+
+| Calls | CU | Exec mean (ms) | Exec sem (ms) | Samples |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 1.418 | 0.079 | 400 |
+| 7 | 1,000 | 6.655 | 0.063 | 400 |
+| 8 | 1,000 | 7.535 | 0.035 | 400 |
+| 50 | 5,000 | 44.744 | 0.362 | 400 |
+| 100 | 9,000 | 89.680 | 0.734 | 400 |
+| 200 | 17,000 | 179.684 | 0.234 | 400 |
+| 400 | 33,000 | 360.750 | 0.713 | 400 |
+| 700 | 57,000 | 634.803 | 5.760 | 400 |
+| 701 | 58,000 | 635.335 | 5.733 | 400 |
+| 710 | 126,000 | 643.445 | 5.328 | 400 |
+| 750 | 448,000 | 680.450 | 3.478 | 400 |
+
+#### BN254 prepare
+
+| Calls | CU | Exec mean (ms) | Exec sem (ms) | Samples |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 1.602 | 0.070 | 400 |
+| 7 | 1,000 | 8.277 | 0.091 | 400 |
+| 8 | 1,000 | 10.244 | 0.281 | 400 |
+| 50 | 5,000 | 52.593 | 1.120 | 400 |
+| 100 | 9,000 | 104.544 | 3.523 | 400 |
+| 200 | 17,000 | 208.869 | 1.694 | 400 |
+| 400 | 34,000 | 416.701 | 2.085 | 400 |
+| 700 | 59,000 | 731.961 | 0.902 | 400 |
+| 701 | 60,000 | 735.684 | 0.716 | 400 |
+| 710 | 129,000 | 745.443 | 0.228 | 400 |
+| 750 | 457,000 | 786.233 | 1.812 | 400 |
+
+#### BLS12-381 prepare
+
+| Calls | CU | Exec mean (ms) | Exec sem (ms) | Samples |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 0.902 | 0.050 | 400 |
+| 7 | 1,000 | 4.497 | 0.086 | 400 |
+| 8 | 1,000 | 5.376 | 0.111 | 400 |
+| 50 | 3,000 | 29.215 | 0.414 | 400 |
+| 100 | 6,000 | 58.189 | 0.841 | 400 |
+| 200 | 12,000 | 116.302 | 2.935 | 400 |
+| 400 | 23,000 | 232.871 | 2.893 | 400 |
+| 700 | 40,000 | 408.768 | 1.688 | 400 |
+| 701 | 40,000 | 409.836 | 1.742 | 400 |
+| 710 | 83,000 | 413.925 | 1.946 | 400 |
+| 750 | 299,000 | 438.647 | 3.182 | 400 |
+
+### Findings
+
+**1. The charge is exactly what the protocol config says.** Attested and actual
+computation units are equal at every point, and every total is the charge per
+call times the number of calls, rounded up to 1,000: 700 BN254 verify calls
+cost 88,000. The rule for the 701st call works as intended: 701 calls cost
+94,000, 710 cost 207,000 and 750 cost 707,000.
+
+**2. Execution time is linear in calls, and far above the charge.** From 50
+calls up, each call takes the same time: 1.52–1.54 ms for BN254 verify, 0.90 ms
+for BLS12-381 verify, 1.04–1.05 ms for BN254 prepare and 0.58 ms for BLS12-381
+prepare. Per computation unit, that is 10–12 µs for all four. `slow` takes
+0.07–0.11 µs per unit at 50,000–100,000 units.
+
+**3. At the same computation units, the groth16 transactions run 80–155×
+longer than `slow`.** At 700 calls, the most at the flat price:
+
+| Workload | CU | Exec mean (ms) | `slow` at the same CU (ms) | Ratio |
+| --- | --- | --- | --- | --- |
+| BN254 verify | 88,000 | 1,075 | 6.9 | 155× |
+| BN254 prepare | 59,000 | 732 | 5.9 | 124× |
+| BLS12-381 verify | 57,000 | 635 | 5.8 | 109× |
+| BLS12-381 prepare | 40,000 | 409 | 5.1 | 80× |
+
+The `slow` values are read off its table between the two nearest points. The
+ratio is smaller for smaller transactions, 14–24× at 50 calls, because `slow`
+takes more time per unit when its transactions are small, while groth16's time
+per unit stays the same.
+
+**4. The two curves are priced correctly relative to each other; the scale is
+off.** BLS12-381 runs 1.7–1.8× faster than BN254 in both functions and is
+charged about 1.5× less, so all four land at 10–12 µs per unit. What is too low
+is the per-call charge compared with Move code, by about two orders of
+magnitude, not one curve's charge against the other's.
+
+**5. The rule for the 701st call narrows the gap but does not close it.** 750
+BN254 verify calls cost 707,000 units and take 1,156 ms, where `slow` at
+707,000 units takes about 24 ms: still about 49× longer, and 34–49× across the
+four workloads.
+
+![Execution time vs CUs, groth16 and slow](results/probe/groth16_exec_vs_cu-ryzen-9-9950x3d.png)
+
+*Execution time per transaction against its computation units on the WS: the
+four groth16 workloads drawn over the `slow` points (Move code). The dotted
+diagonals mark 0.1 and 10 µs per unit. Up to 700 calls, the groth16 lines
+follow the 10 µs line, about two orders of magnitude above `slow`; past 700
+calls they run flat to the right, charged more for about the same time. The
+vertical stacks at 1,000 units are transactions below 1,000, all charged
+1,000.*
+
+For H2 this matters because the mode comparison sets its unit limit in
+computation units, on the assumption that they stand for execution time. A
+700-call BN254 verify transaction costs 88,000 units, so it fits under a
+150,000-unit limit, the best one H2 found for mixing 1,000- and 100,000-unit
+transactions on the EPYC, yet it executes for about 1.1 s, against the ≈50 ms
+of work per commit that limit is meant to admit. `RESULTS.md` lists a rerun of
+a mix ladder with such transactions on a shared object as a next step.
+
+Caveats:
+
+- One machine so far, with the four validators sharing it.
+- The `slow` points were taken on 7 September, the groth16 points on
+  24 September with a newer node build.
+- The ratio depends on the size it is read at, as finding 3 shows.
