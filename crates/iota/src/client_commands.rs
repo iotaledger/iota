@@ -108,9 +108,10 @@ use crate::{
     PrintableResult,
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::{PTB, PTBCommandResult},
-    displays::Pretty,
+    displays::{DryRunOutput, Pretty},
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::{Key, lowercase_key_scheme},
+    local_simulation::execute_local_dry_run,
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -658,6 +659,10 @@ pub struct TxProcessingArgs {
     /// Perform a dev inspect of the transaction, without executing it.
     #[arg(long)]
     pub dev_inspect: bool,
+    /// Run the simulation locally through the Move VM instead of on the node.
+    /// Supported with --dry-run.
+    #[arg(long, requires = "dry_run", conflicts_with = "dev_inspect")]
+    pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (Transaction) using base64 encoding,
     /// and print out the string <TX_BYTES>. The string can be used to
@@ -716,6 +721,9 @@ impl TxProcessingArgs {
         }
         if self.dev_inspect {
             args.push("--dev-inspect".to_string());
+        }
+        if self.local {
+            args.push("--local".to_string());
         }
         if self.serialize_unsigned_transaction {
             args.push("--serialize-unsigned-transaction".to_string());
@@ -1956,7 +1964,7 @@ impl IotaClientCommands {
                 }
             },
         };
-        Ok(ret.prerender_clever_errors(context).await)
+        ret.prerender_clever_errors(context).await
     }
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
@@ -2658,7 +2666,18 @@ impl Display for IotaClientCommandResult {
             }
             IotaClientCommandResult::NoOutput => {}
             IotaClientCommandResult::DryRun(response) => {
-                writeln!(f, "{}", Pretty(response))?;
+                let output = DryRunOutput {
+                    response,
+                    local: false,
+                };
+                writeln!(f, "{}", Pretty(&output))?;
+            }
+            IotaClientCommandResult::LocalDryRun(response) => {
+                let output = DryRunOutput {
+                    response,
+                    local: true,
+                };
+                writeln!(f, "{}", Pretty(&output))?;
             }
             IotaClientCommandResult::DevInspect(response) => {
                 writeln!(f, "{}", Pretty(response))?;
@@ -2723,15 +2742,28 @@ impl IotaClientCommandResult {
         }
     }
 
-    pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
+    pub async fn prerender_clever_errors(
+        mut self,
+        context: &mut WalletContext,
+    ) -> Result<Self, anyhow::Error> {
         match &mut self {
             IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
+            | IotaClientCommandResult::LocalDryRun(DryRunTransactionBlockResponse {
+                effects,
+                ..
+            })
             | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
             }) => {
-                let client = context.get_client().await.expect("Cannot connect to RPC");
-                prerender_clever_errors(effects, client.read_api()).await
+                // Only a failed run can carry a Move abort to render, so a
+                // successful `--local` dry run needs no JSON-RPC at all.
+                if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {
+                    let client = context.get_client().await.context(
+                        "rendering a Move abort needs the JSON-RPC endpoint; set `rpc` for the active env in client.yaml",
+                    )?;
+                    prerender_clever_errors(effects, client.read_api()).await
+                }
             }
             IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: None,
@@ -2763,7 +2795,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::VerifyBytecodeMeter { .. }
             | IotaClientCommandResult::VerifySource => (),
         }
-        self
+        Ok(self)
     }
 }
 
@@ -2918,6 +2950,7 @@ pub enum IotaClientCommandResult {
     ComputeTransactionDigest(Transaction),
     DynamicFieldQuery(DynamicFieldPage),
     DryRun(DryRunTransactionBlockResponse),
+    LocalDryRun(DryRunTransactionBlockResponse),
     DevInspect(DevInspectResults),
     Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
@@ -3146,6 +3179,26 @@ fn format_balance(
     format!("{whole}.{fractional}{suffix}")
 }
 
+/// The gas budget for a simulation that was given no explicit `--gas-budget`:
+/// the protocol maximum, capped at the total balance of the gas coins the
+/// transaction carries, or that maximum outright when it carries none. Warns
+/// when the cap binds, since a budget equal to the whole balance leaves
+/// nothing to split off.
+pub(crate) fn fallback_gas_budget(payment_balance: Option<u64>, max_gas_budget: u64) -> u64 {
+    let Some(balance) = payment_balance else {
+        return max_gas_budget;
+    };
+    let gas_budget = min(balance, max_gas_budget);
+    if gas_budget == balance {
+        let warn_msg = format!(
+            "Gas budget is equal to the total gas balance of the provided gas coins: {balance}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
+        );
+        warn!("{warn_msg}");
+        eprintln!("{}", warn_msg.yellow().bold());
+    }
+    gas_budget
+}
+
 /// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
     context: &mut WalletContext,
@@ -3161,10 +3214,10 @@ pub async fn execute_dry_run(
         Some(gas_budget) => gas_budget,
         None => {
             let max_gas_budget = max_gas_budget(&client).await?;
-            if gas_payment.is_empty() {
-                max_gas_budget
+            let payment_balance = if gas_payment.is_empty() {
+                None
             } else {
-                let mut gas_budget = 0;
+                let mut balance = 0;
                 let gas_coins = client
                     .read_api()
                     .multi_get_object_with_options(
@@ -3176,23 +3229,16 @@ pub async fn execute_dry_run(
                     )
                     .await?;
                 for gas_coin in gas_coins {
-                    gas_budget += get_gas_balance(
+                    balance += get_gas_balance(
                         &gas_coin
                             .into_object()?
                             .try_into()
                             .expect("couldn't convert gas coin into object"),
                     )?
                 }
-                let final_gas_budget = min(gas_budget, max_gas_budget);
-                if final_gas_budget == gas_budget {
-                    let warn_msg = format!(
-                        "Gas budget is equal to the total gas balance of the provided gas coins: {gas_budget}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
-                    );
-                    warn!(warn_msg);
-                    eprintln!("{}", warn_msg.yellow().bold());
-                }
-                final_gas_budget
-            }
+                Some(balance)
+            };
+            fallback_gas_budget(payment_balance, max_gas_budget)
         }
     };
     debug!("Gas budget for dry run: {gas_budget}");
@@ -3207,10 +3253,9 @@ pub async fn execute_dry_run(
     debug!("Executing dry run");
     let response = client.read_api().dry_run_transaction_block(tx).await?;
     debug!("Finished executing dry run {response:?}");
-    let resp = IotaClientCommandResult::DryRun(response)
+    IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
-        .await;
-    Ok(resp)
+        .await
 }
 
 /// Call a dry run with the transaction data to estimate the gas budget.
@@ -3354,6 +3399,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         tx_digest,
         dry_run,
         dev_inspect,
+        local,
         serialize_unsigned_transaction,
         serialize_signed_transaction,
         sender,
@@ -3367,12 +3413,15 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
-    let gas_price = if let Some(gas_price) = gas_price {
-        gas_price
-    } else {
-        context.get_reference_gas_price().await?
-    };
-
+    // `--local` picks the local backend for whichever simulation mode was
+    // asked for, so these guards list the modes that have one. `iota client
+    // ptb` builds its flags by hand, so clap's `requires` and
+    // `conflicts_with` on `--local` do not apply there.
+    ensure!(!local || dry_run, "--local requires --dry-run");
+    ensure!(
+        !(local && dev_inspect),
+        "--local is not supported with --dev-inspect"
+    );
     let signer = sender.unwrap_or(signer);
 
     ensure!(
@@ -3380,6 +3429,25 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             || (sponsor_auth_call_args.is_none() && sponsor_auth_type_args.is_none()),
         "--sponsor-auth-call-args and --sponsor-auth-type-args require --gas-sponsor with an address different from the sender."
     );
+
+    if dry_run && local {
+        return execute_local_dry_run(
+            context,
+            signer,
+            tx_kind,
+            gas_budget,
+            gas_price,
+            gas_payment,
+            gas_sponsor,
+        )
+        .await;
+    }
+
+    let gas_price = if let Some(gas_price) = gas_price {
+        gas_price
+    } else {
+        context.get_reference_gas_price().await?
+    };
 
     if dev_inspect {
         return execute_dev_inspect(

@@ -298,6 +298,7 @@ impl PTB {
             tx_digest: program_metadata.tx_digest_set,
             dry_run: program_metadata.dry_run_set,
             dev_inspect: program_metadata.dev_inspect_set,
+            local: program_metadata.local_set,
             serialize_unsigned_transaction: program_metadata.serialize_unsigned_set,
             serialize_signed_transaction: program_metadata.serialize_signed_set,
             sender: program_metadata
@@ -317,6 +318,7 @@ impl PTB {
         let transaction_response = match transaction_response {
             IotaClientCommandResult::ComputeTransactionDigest(_)
             | IotaClientCommandResult::DryRun(_)
+            | IotaClientCommandResult::LocalDryRun(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_) => {
                 return Ok(PTBCommandResult::CommandResult(Box::new(
@@ -454,6 +456,11 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"dev-inspect"
             "Perform a dev-inspect of the PTB instead of executing it."
+        ))
+        .arg(arg!(
+            --"local"
+            "Run the simulation locally through the Move VM instead of on the node. Supported \
+            with --dry-run."
         ))
         .arg(arg!(
             --"gas-coins" <ID> ...
