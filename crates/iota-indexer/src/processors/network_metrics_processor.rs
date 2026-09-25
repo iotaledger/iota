@@ -89,22 +89,12 @@ where
                 .await?;
             // The cursor is the last processed key and the batch starts right after it,
             // so resume one below the first available key to include that key.
-            let resume_cp_seq = lower_bounds.min_available_cp - 1;
-            if last_processed_cp_seq < resume_cp_seq {
-                info!(
-                    "checkpoints below {} are not in the database, resuming from there",
-                    lower_bounds.min_available_cp
-                );
-                last_processed_cp_seq = resume_cp_seq;
-            }
-            let resume_epoch = lower_bounds.min_available_epoch - 1;
-            if last_processed_peak_tps_epoch < resume_epoch {
-                info!(
-                    "epochs below {} are not in the database, resuming from there",
-                    lower_bounds.min_available_epoch
-                );
-                last_processed_peak_tps_epoch = resume_epoch;
-            }
+            last_processed_cp_seq = last_processed_cp_seq.max(lower_bounds.min_available_cp - 1);
+            last_processed_peak_tps_epoch =
+                last_processed_peak_tps_epoch.max(lower_bounds.min_available_epoch - 1);
+            info!(
+                "starting network metrics processor from lowest available checkpoint {last_processed_cp_seq} and lowest available epoch {last_processed_peak_tps_epoch}"
+            );
 
             let latest_stored_checkpoint = loop {
                 if let Some(latest_stored_checkpoint) =

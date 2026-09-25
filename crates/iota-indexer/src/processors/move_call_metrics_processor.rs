@@ -63,22 +63,11 @@ where
                 .await?;
             // The cursor is the last processed key and the batch starts right after it,
             // so resume one below the first available key to include that key.
-            let resume_tx_seq = lower_bounds.min_available_tx - 1;
-            if last_processed_tx_seq < resume_tx_seq {
-                info!(
-                    "transactions below {} are not in the database, resuming from there",
-                    lower_bounds.min_available_tx
-                );
-                last_processed_tx_seq = resume_tx_seq;
-            }
-            let resume_epoch = lower_bounds.min_available_epoch - 1;
-            if last_processed_epoch < resume_epoch {
-                info!(
-                    "epochs below {} are not in the database, resuming from there",
-                    lower_bounds.min_available_epoch
-                );
-                last_processed_epoch = resume_epoch;
-            }
+            last_processed_tx_seq = last_processed_tx_seq.max(lower_bounds.min_available_tx - 1);
+            last_processed_epoch = last_processed_epoch.max(lower_bounds.min_available_epoch - 1);
+            info!(
+                "starting move call processor from lowest available transaction {last_processed_tx_seq} and lowest available epoch {last_processed_epoch}"
+            );
 
             let mut latest_tx = self.store.get_latest_stored_transaction().await?;
             while if let Some(tx) = latest_tx {
