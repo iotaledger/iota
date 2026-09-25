@@ -11,7 +11,7 @@ use bytes::Bytes;
 use http_body_util::BodyExt;
 use pin_project_lite::pin_project;
 
-use crate::{BoxError, activity::RequestGuard};
+use crate::{BoxError, activity::IdleGuard};
 
 pub type BoxBody = http_body_util::combinators::UnsyncBoxBody<Bytes, BoxError>;
 
@@ -25,12 +25,12 @@ pin_project! {
     pub(crate) struct GuardedBody<B> {
         #[pin]
         inner: B,
-        guard: RequestGuard,
+        guard: IdleGuard,
     }
 }
 
 impl<B> GuardedBody<B> {
-    pub(crate) fn new(inner: B, guard: RequestGuard) -> Self {
+    pub(crate) fn new(inner: B, guard: IdleGuard) -> Self {
         Self { inner, guard }
     }
 }

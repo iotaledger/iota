@@ -15,7 +15,7 @@ use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::trace;
 
 use self::{
-    activity::ConnectionActivity,
+
     body::BoxBody,
     connection_info::{ActiveConnections, PeerConnectionCounts},
 };
@@ -322,26 +322,25 @@ where
         self.connections.read().unwrap().len()
     }
 
-    /// Gives up the longest-held connection that has never asked for anything,
-    /// so that a peer which does can take its place. Reports whether it freed
-    /// one.
+    /// Gives up the connection whose slot has done the least good for the
+    /// longest, so that a peer with something to ask can take its place.
+    /// Reports whether it freed one.
     ///
     /// A limit on its own decides nothing beyond "first to arrive wins", which
-    /// under a flood is the flood. The connections it fills the listener with
-    /// are the ones that never send a request, so those are what this gives
-    /// up, and a peer that is using its connection is never given up for one
-    /// that has not yet proved it will.
+    /// under a flood is the flood. Ordering by when a connection was last
+    /// useful puts the peer that stopped asking, and the one that never
+    /// started, ahead of the peer still being served — and it protects a peer
+    /// that has only just connected, whose chance to ask has not come yet.
     ///
-    /// The *oldest* unused connection goes first, not the newest: a peer that
-    /// has only just connected has not had the chance to send anything yet,
-    /// and evicting it would be indistinguishable from refusing it.
-    fn evict_an_unused_connection(&mut self) -> bool {
-        let mut connections = self.connections.write().unwrap();
+    /// A connection serving a request is never given up: it is doing the work
+    /// the listener exists for, and a newcomer has not yet shown it will.
+    fn evict_least_recently_active_connection(&mut self) -> bool {
+        let mut connections: std::sync::RwLockWriteGuard<'_, HashMap<usize, ConnectionInfo<<L as Listener>::Addr>>> = self.connections.write().unwrap();
 
         let Some(evicted) = connections
             .values()
-            .filter(|connection| connection.is_unused())
-            .min_by_key(|connection| connection.time_established())
+            .filter(|connection| !connection.is_serving())
+            .min_by_key(|connection| connection.last_active())
             .map(|connection| connection.id())
         else {
             return false;
@@ -392,7 +391,7 @@ where
         // listener's connections can be counted whatever it is configured with.
         if let Some(max) = self.config.max_connections {
             let live = self.live_connections();
-            if live >= max && !self.evict_an_unused_connection() {
+            if live >= max && !self.evict_least_recently_active_connection() {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("listener already serves {live} connections, closing the new one");
                 self.notify_connection(ConnectionEvent::Refused { live });
@@ -416,12 +415,13 @@ where
         }
 
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
-        let activity = ConnectionActivity::new();
+        let idle_timer = activity::idle_sleep(self.config.max_connection_idle);
+        let idle = idle_timer.handle();
         let connection_info = ConnectionInfo::new(
             remote_addr,
             io.peer_certs(),
             connection_shutdown_token.clone(),
-            activity.clone(),
+            idle.clone(),
         );
         let connection_id = connection_info.id();
         let connect_info = connection_info::ConnectInfo {
@@ -443,12 +443,12 @@ where
                     request.map(body::boxed)
                 })
                 .map_future({
-                    let activity = activity.clone();
+                    let idle = idle.clone();
                     move |future| {
                         // Held by the response body rather than dropped here,
                         // so a streaming response counts as work until its
                         // last frame.
-                        let guard = activity.request_started();
+                        let guard = idle.guard();
                         async move {
                             let response: Result<Response<BoxBody>, BoxError> = future.await;
                             response.map(|response| {
@@ -481,8 +481,8 @@ where
                 self.config.connection_builder(),
                 connection_shutdown_token,
                 self.config.max_connection_age,
-                self.config.max_connection_idle,
-                activity,
+
+                idle_timer,
                 on_connection_close,
             ));
     }
@@ -1391,28 +1391,42 @@ mod tests {
     /// the guard rides the body. While one is alive the connection is busy.
     #[tokio::test]
     async fn a_request_in_flight_keeps_a_connection_from_going_idle() {
-        use crate::activity::{ConnectionActivity, idle_elapsed};
-
         const IDLE: Duration = Duration::from_millis(100);
 
-        let activity = ConnectionActivity::new();
-        let guard = activity.request_started();
+        let timer = activity::idle_sleep(Some(IDLE));
+        let handle = timer.handle();
+        let mut timer = std::pin::pin!(timer);
+
+        let guard = handle.guard();
+        assert!(handle.is_busy());
 
         // Well past the deadline, but the request has not finished.
         assert!(
-            tokio::time::timeout(IDLE * 10, idle_elapsed(&activity, Some(IDLE)))
-                .await
-                .is_err(),
+            tokio::time::timeout(IDLE * 10, &mut timer).await.is_err(),
             "a connection serving a request must not be considered idle"
         );
 
         // Once it does, the deadline runs from that point.
         drop(guard);
+        assert!(!handle.is_busy());
         assert!(
-            tokio::time::timeout(IDLE * 10, idle_elapsed(&activity, Some(IDLE)))
-                .await
-                .is_ok(),
+            tokio::time::timeout(IDLE * 10, &mut timer).await.is_ok(),
             "a connection must go idle once its last request finishes"
+        );
+    }
+
+    /// A timer with no deadline is never reached, however long the connection
+    /// sits there.
+    #[tokio::test]
+    async fn a_connection_with_no_idle_deadline_is_never_closed_for_idleness() {
+        let timer = activity::idle_sleep(None);
+        let mut timer = std::pin::pin!(timer);
+
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), &mut timer)
+                .await
+                .is_err(),
+            "a connection with no deadline must not be closed for being idle"
         );
     }
 
@@ -1553,44 +1567,63 @@ mod tests {
         drop(squatters);
     }
 
-    /// Connections doing work are not given up for ones that have not yet
-    /// proved they will: when every slot is in use, the listener is genuinely
-    /// full and the newcomer is refused.
+    /// A connection serving a request is doing the work the listener exists
+    /// for, so it is never given up for one that has not yet shown it will.
+    /// When every slot is serving something the listener is genuinely full,
+    /// and the newcomer is refused rather than work being thrown away.
     #[tokio::test]
-    async fn connections_that_are_in_use_are_not_given_up() {
+    async fn a_connection_serving_a_request_is_not_given_up() {
         const MAX_CONNECTIONS: usize = 1;
 
-        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        // The handler reports that it has been reached and then waits, so the
+        // test can be sure a request is in flight rather than merely sent.
+        let (reached, mut handler_reached) = tokio::sync::mpsc::channel::<()>(1);
+        let finish = Arc::new(tokio::sync::Notify::new());
+        let app = Router::new().route(
+            "/",
+            axum::routing::get({
+                let finish = finish.clone();
+                move || {
+                    let (reached, finish) = (reached.clone(), finish.clone());
+                    async move {
+                        let _ = reached.send(()).await;
+                        finish.notified().await;
+                        "ok"
+                    }
+                }
+            }),
+        );
+
         let handle = Builder::new()
             .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
             .serve(("localhost", 0), app)
             .unwrap();
         let url = format!("http://{}", handle.local_addr());
 
-        // A client that has made a request and keeps its connection pooled.
-        let client = reqwest::Client::builder().build().unwrap();
-        assert!(client.get(&url).send().await.unwrap().status().is_success());
-        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+        let serving = tokio::spawn(async move { reqwest::get(url).await });
+        handler_reached
+            .recv()
+            .await
+            .expect("the request must reach the handler");
 
-        // A second peer arrives. The slot is held by a connection that has been
-        // used, so it is kept and the newcomer is turned away rather than the
-        // working connection being dropped.
+        // A second peer arrives while the first is still being served.
         let _newcomer = hold_connections(&handle, 1).await;
         assert_eq!(
             handle.number_of_connections(),
             MAX_CONNECTIONS,
-            "a used connection must not be given up"
+            "a connection serving a request must not be given up"
         );
 
-        // And the first client's connection still works.
-        assert!(client.get(&url).send().await.unwrap().status().is_success());
+        // And the request it was serving still completes.
+        finish.notify_one();
+        assert!(serving.await.unwrap().unwrap().status().is_success());
     }
 
-    /// The oldest unused connection goes first: one that has only just arrived
-    /// has not had the chance to send anything yet, so giving it up would be
-    /// the same as refusing it.
+    /// The connection that has been useless for longest goes first. A peer
+    /// that has only just arrived has not had the chance to ask for anything
+    /// yet, so giving it up would be the same as refusing it.
     #[tokio::test]
-    async fn the_longest_held_unused_connection_goes_first() {
+    async fn the_least_recently_active_connection_goes_first() {
         const MAX_CONNECTIONS: usize = 2;
 
         let events = RecordedEvents::default();
@@ -1664,5 +1697,55 @@ mod tests {
         tokio::time::timeout(AGE * 50, ignoring_the_request)
             .await
             .expect("a connection past its age must be dropped, not merely asked to leave");
+    }
+
+    /// Having asked for something once does not protect a connection forever.
+    /// A peer that stopped asking long ago is given up before one that has
+    /// only just arrived and has not had its chance yet — which is what keeps
+    /// a flood from surviving by sending one request per connection.
+    #[tokio::test]
+    async fn a_connection_that_stopped_asking_goes_before_a_new_arrival() {
+        use tokio::io::AsyncReadExt as _;
+
+        const MAX_CONNECTIONS: usize = 2;
+
+        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .serve(("localhost", 0), app)
+            .unwrap();
+        let url = format!("http://{}", handle.local_addr());
+
+        // One connection that asks for something and then falls silent, kept
+        // open by holding the client that owns it.
+        let asked_once = reqwest::Client::builder().build().unwrap();
+        assert!(
+            asked_once.get(&url).send().await.unwrap().status().is_success(),
+            "the first request must be served"
+        );
+
+        // A second peer arrives later and never asks for anything.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let mut just_arrived = hold_connections(&handle, 1).await;
+        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+
+        // A third peer arrives. The connection that stopped asking has been
+        // useless for longer than the one that never started, so it goes.
+        assert!(
+            reqwest::get(&url).await.unwrap().status().is_success(),
+            "a full listener must still make room"
+        );
+
+        // The newest arrival is untouched.
+        let mut buf = [0u8; 1];
+        let still_open = tokio::time::timeout(
+            Duration::from_millis(500),
+            just_arrived.first_mut().unwrap().read(&mut buf),
+        )
+        .await;
+        assert!(
+            still_open.is_err(),
+            "a peer that has only just arrived must not be the one given up"
+        );
     }
 }

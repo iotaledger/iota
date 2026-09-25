@@ -10,7 +10,7 @@ use std::{
 use tokio_rustls::rustls::pki_types::CertificateDer;
 
 use crate::{
-    activity::ConnectionActivity,
+    activity::IdleHandle,
     config::{OnPeerConnectionEvent, PeerConnectionEvent},
 };
 
@@ -36,14 +36,14 @@ impl<A> ConnectionInfo<A> {
         address: A,
         peer_certificates: Option<Arc<Vec<CertificateDer<'static>>>>,
         graceful_shutdown_token: tokio_util::sync::CancellationToken,
-        activity: ConnectionActivity,
+        idle: IdleHandle,
     ) -> Self {
         Self(Arc::new(Inner {
             address,
             time_established: std::time::Instant::now(),
             peer_certificates: peer_certificates.map(PeerCertificates),
             graceful_shutdown_token,
-            activity,
+            idle,
         }))
     }
 
@@ -71,13 +71,20 @@ impl<A> ConnectionInfo<A> {
         self.0.graceful_shutdown_token.cancel()
     }
 
-    /// Whether this connection has ever asked the server for anything. One
-    /// that has not has held a slot without using it.
+    /// Whether this connection is serving a request right now. One that is
+    /// doing work for its peer is not a candidate to be given up.
+    pub(crate) fn is_serving(&self) -> bool {
+        self.0.idle.is_busy()
+    }
+
+    /// When this connection was last useful: the moment its last request
+    /// finished, or the moment it was established if it has finished none.
     ///
-    /// A connection serving a request has necessarily started one, so this
-    /// rules those out too.
-    pub(crate) fn is_unused(&self) -> bool {
-        !self.0.activity.has_started_a_request()
+    /// This orders connections against each other. The earliest is the one
+    /// whose slot has done the least good for the longest, whether that is a
+    /// peer that stopped asking or one that never started.
+    pub(crate) fn last_active(&self) -> std::time::Instant {
+        self.0.idle.idle_since().unwrap_or(self.0.time_established)
     }
 }
 
@@ -89,7 +96,7 @@ struct Inner<A = std::net::SocketAddr> {
     time_established: std::time::Instant,
 
     peer_certificates: Option<PeerCertificates>,
-    activity: ConnectionActivity,
+    idle: IdleHandle,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
 }
 

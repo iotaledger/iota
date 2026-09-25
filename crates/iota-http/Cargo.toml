@@ -16,7 +16,7 @@ hyper = { workspace = true, features = ["http1", "http2"] }
 hyper-util.workspace = true
 pin-project-lite.workspace = true
 socket2 = { version = "0.5", features = ["all"] }
-tokio = { workspace = true, features = ["macros"] }
+tokio = { workspace = true, features = ["macros", "sync"] }
 tokio-rustls.workspace = true
 tokio-util.workspace = true
 tower.workspace = true

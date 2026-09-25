@@ -9,7 +9,7 @@ use tracing::{debug, trace};
 
 use crate::{
     ActiveConnections, BoxError, ConnectionEvent, ConnectionId,
-    activity::{ConnectionActivity, idle_elapsed},
+    activity::IdleSleep,
     config::OnConnectionEvent,
     connection_info::PeerConnectionGuard,
     fuse::Fuse,
@@ -28,8 +28,7 @@ pub async fn serve_connection<IO, S, B, C>(
     builder: hyper_util::server::conn::auto::Builder<hyper_util::rt::TokioExecutor>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
-    max_connection_idle: Option<Duration>,
-    activity: ConnectionActivity,
+    idle_timer: IdleSleep,
     on_connection_close: C,
 ) where
     B: http_body::Body + Send + 'static,
@@ -46,6 +45,9 @@ pub async fn serve_connection<IO, S, B, C>(
 
     let age = sleep_or_pending(max_connection_age);
     tokio::pin!(age);
+    // Pinned once and polled by reference: built inside the branch below it
+    // would start again on every pass of the loop and never be reached.
+    tokio::pin!(idle_timer);
     // A graceful shutdown asks the peer to go away and then waits for it. Every
     // reason this connection is asked to go is a reason the peer may not
     // oblige, so each of them bounds that wait and the connection is dropped
@@ -68,7 +70,13 @@ pub async fn serve_connection<IO, S, B, C>(
             _ = &mut sig, if !shutdown_requested => {
                 request_shutdown!();
             }
-            _ = idle_elapsed(&activity, max_connection_idle), if !shutdown_requested => {
+            _ = &mut idle_timer, if !shutdown_requested => {
+                // A request can arrive between the timer being reached and this
+                // running, so being ready is not on its own proof that the
+                // connection is still idle.
+                if idle_timer.is_busy() {
+                    continue;
+                }
                 debug!("closing a connection that has been idle past its deadline");
                 request_shutdown!();
             }
