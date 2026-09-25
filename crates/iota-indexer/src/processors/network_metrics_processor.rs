@@ -3,13 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use tap::tap::TapFallible;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
-    errors::IndexerError,
     ingestion::common::persist::CommitterTables,
     metrics::IndexerMetrics,
-    processors::resume_cursor,
     store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
     types::IndexerResult,
 };
@@ -89,12 +87,24 @@ where
                 .store
                 .get_watermark_lower_bounds(NETWORK_METRICS_TABLES)
                 .await?;
-            last_processed_cp_seq =
-                resume_cursor(last_processed_cp_seq, lower_bounds.min_available_cp);
-            last_processed_peak_tps_epoch = resume_cursor(
-                last_processed_peak_tps_epoch,
-                lower_bounds.min_available_epoch,
-            );
+            // The cursor is the last processed key and the batch starts right after it,
+            // so resume one below the first available key to include that key.
+            let resume_cp_seq = lower_bounds.min_available_cp - 1;
+            if last_processed_cp_seq < resume_cp_seq {
+                info!(
+                    "checkpoints below {} are not in the database, resuming from there",
+                    lower_bounds.min_available_cp
+                );
+                last_processed_cp_seq = resume_cp_seq;
+            }
+            let resume_epoch = lower_bounds.min_available_epoch - 1;
+            if last_processed_peak_tps_epoch < resume_epoch {
+                info!(
+                    "epochs below {} are not in the database, resuming from there",
+                    lower_bounds.min_available_epoch
+                );
+                last_processed_peak_tps_epoch = resume_epoch;
+            }
 
             let latest_stored_checkpoint = loop {
                 if let Some(latest_stored_checkpoint) =
@@ -121,19 +131,14 @@ where
                 last_processed_cp_seq + batch_size
             );
 
-            // Confirm the end of the batch is in the database before doing the work,
-            // so a pruned range is caught before anything is persisted.
+            // Confirm the end of the batch is in the database before doing the work.
+            // A missing row means the range was pruned meanwhile, so go back to the
+            // lower bound instead of persisting a partial batch.
             let batch_end_cp_seq = last_processed_cp_seq + batch_size;
-            let end_cp = self
-                .store
-                .get_checkpoints_in_range(batch_end_cp_seq, batch_end_cp_seq + 1)
-                .await?
-                .first()
-                .ok_or(IndexerError::PostgresRead)
-                .inspect_err(|_| {
-                    tracing::error!("cannot read checkpoint from PG for epoch peak TPS")
-                })?
-                .clone();
+            let Some(end_cp) = self.store.get_cp(batch_end_cp_seq).await? else {
+                warn!("checkpoint {batch_end_cp_seq} is not in the database, resuming from the lower bound");
+                continue;
+            };
 
             let step_size =
                 (batch_size as usize / self.network_metrics_processor_parallelism).max(1);

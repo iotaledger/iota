@@ -3,13 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use tap::tap::TapFallible;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
-    errors::IndexerError,
     ingestion::common::persist::CommitterTables,
     metrics::IndexerMetrics,
-    processors::resume_cursor,
     store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
     types::IndexerResult,
 };
@@ -63,10 +61,24 @@ where
                 .store
                 .get_watermark_lower_bounds(MOVE_CALL_METRICS_TABLES)
                 .await?;
-            last_processed_tx_seq =
-                resume_cursor(last_processed_tx_seq, lower_bounds.min_available_tx);
-            last_processed_epoch =
-                resume_cursor(last_processed_epoch, lower_bounds.min_available_epoch);
+            // The cursor is the last processed key and the batch starts right after it,
+            // so resume one below the first available key to include that key.
+            let resume_tx_seq = lower_bounds.min_available_tx - 1;
+            if last_processed_tx_seq < resume_tx_seq {
+                info!(
+                    "transactions below {} are not in the database, resuming from there",
+                    lower_bounds.min_available_tx
+                );
+                last_processed_tx_seq = resume_tx_seq;
+            }
+            let resume_epoch = lower_bounds.min_available_epoch - 1;
+            if last_processed_epoch < resume_epoch {
+                info!(
+                    "epochs below {} are not in the database, resuming from there",
+                    lower_bounds.min_available_epoch
+                );
+                last_processed_epoch = resume_epoch;
+            }
 
             let mut latest_tx = self.store.get_latest_stored_transaction().await?;
             while if let Some(tx) = latest_tx {
@@ -82,24 +94,19 @@ where
             let batch_size = self.move_call_processor_batch_size;
             let batch_end_tx_seq = last_processed_tx_seq + batch_size as i64;
 
-            // Confirm the end of the batch is in the database before doing the work,
-            // so a pruned range is caught before anything is persisted.
-            let batch_end_tx = self.store.get_tx(batch_end_tx_seq).await?.ok_or_else(|| {
-                IndexerError::DataPruned(format!(
-                    "transaction {batch_end_tx_seq} is not in the database"
-                ))
-            })?;
+            // Confirm the end of the batch is in the database before doing the work.
+            // A missing row means the range was pruned meanwhile, so go back to the
+            // lower bound instead of persisting a partial batch.
+            let Some(batch_end_tx) = self.store.get_tx(batch_end_tx_seq).await? else {
+                warn!("transaction {batch_end_tx_seq} is not in the database, resuming from the lower bound");
+                continue;
+            };
             let batch_end_cp_seq = batch_end_tx.checkpoint_sequence_number;
-            let end_epoch = self
-                .store
-                .get_cp(batch_end_cp_seq)
-                .await?
-                .ok_or_else(|| {
-                    IndexerError::DataPruned(format!(
-                        "checkpoint {batch_end_cp_seq} is not in the database"
-                    ))
-                })?
-                .epoch;
+            let Some(batch_end_cp) = self.store.get_cp(batch_end_cp_seq).await? else {
+                warn!("checkpoint {batch_end_cp_seq} is not in the database, resuming from the lower bound");
+                continue;
+            };
+            let end_epoch = batch_end_cp.epoch;
 
             let step_size = batch_size / self.move_call_processor_parallelism;
             let mut persist_tasks = vec![];
