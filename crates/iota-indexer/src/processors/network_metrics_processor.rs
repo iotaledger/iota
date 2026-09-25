@@ -3,16 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use tap::tap::TapFallible;
+use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 use crate::{
     ingestion::common::persist::CommitterTables,
     metrics::IndexerMetrics,
+    processors::POLL_INTERVAL,
     store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
     types::IndexerResult,
 };
 
-/// The tables the transaction count metrics are computed from.
 const NETWORK_METRICS_TABLES: &[CommitterTables] =
     &[CommitterTables::Checkpoints, CommitterTables::Transactions];
 
@@ -107,7 +108,7 @@ where
                         break latest_stored_checkpoint;
                     }
                 }
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                sleep(POLL_INTERVAL).await;
             };
 
             let available_checkpoints =
@@ -121,14 +122,15 @@ where
                 last_processed_cp_seq + batch_size
             );
 
-            // Confirm the end of the batch is in the database before doing the work.
-            // A missing row means the range was pruned meanwhile, so go back to the
-            // lower bound instead of persisting a partial batch.
+            // Ensure the batch end exists in the database. This does not happen in
+            // normal circumstances: only an aggressive `pruning_delay_ms` can delete
+            // it, in which case the loop resumes from the new lower bound.
             let batch_end_cp_seq = last_processed_cp_seq + batch_size;
             let Some(end_cp) = self.store.get_cp(batch_end_cp_seq).await? else {
                 warn!(
                     "checkpoint {batch_end_cp_seq} is not in the database, resuming from the lower bound"
                 );
+                sleep(POLL_INTERVAL).await;
                 continue;
             };
 

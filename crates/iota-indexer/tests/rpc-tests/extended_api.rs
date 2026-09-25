@@ -10,9 +10,10 @@ use iota_indexer::{
     models::watermarks::StoredWatermark,
     processors::{
         address_metrics_processor::AddressMetricsProcessor,
+        move_call_metrics_processor::MoveCallMetricsProcessor,
         network_metrics_processor::NetworkMetricsProcessor,
     },
-    schema::{address_metrics, tx_count_metrics, watermarks},
+    schema::{address_metrics, move_calls, tx_count_metrics, watermarks},
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
 use iota_json::{call_args, type_args};
@@ -31,7 +32,7 @@ use test_cluster::TestCluster;
 
 use crate::common::{
     ApiTestSetup, SimulacrumTestSetup, indexer_wait_for_checkpoint,
-    indexer_wait_for_checkpoint_pruned, retry_with_timeout,
+    indexer_wait_for_checkpoint_pruned, indexer_wait_for_latest_checkpoint, retry_with_timeout,
     start_test_cluster_with_read_write_indexer,
 };
 
@@ -519,9 +520,9 @@ async fn query<T: Send + 'static>(
     .expect("failed to join blocking task")
 }
 
-/// Prunes the genesis epoch, then checks that the network and address
-/// processors still write metrics, starting at the first checkpoint left in
-/// the database.
+/// Prunes the genesis epoch, then checks that the network, address and move
+/// call processors still write metrics, starting at the first checkpoint left
+/// in the database.
 ///
 /// Batch size is one so the first batch falls inside the pruned range. A
 /// processor that starts from genesis instead of the lower bound then never
@@ -539,6 +540,9 @@ async fn analytics_resume_from_the_first_available_checkpoint_on_a_pruned_databa
     cluster.force_new_epoch().await;
     indexer_wait_for_checkpoint_pruned(store, 0).await;
 
+    execute_move_fn(cluster).await.unwrap();
+    indexer_wait_for_latest_checkpoint(store, cluster).await;
+
     let analytical_store = PgIndexerAnalyticalStore::new(store.blocking_cp());
     let metrics = IndexerMetrics::new(&Registry::new());
 
@@ -548,10 +552,16 @@ async fn analytics_resume_from_the_first_available_checkpoint_on_a_pruned_databa
     network_processor.max_network_metrics_processor_batch_size = 1;
     let network_task = tokio::spawn(async move { network_processor.start().await });
 
-    let mut address_processor = AddressMetricsProcessor::new(analytical_store, metrics);
+    let mut address_processor =
+        AddressMetricsProcessor::new(analytical_store.clone(), metrics.clone());
     address_processor.address_processor_batch_size = 1;
     address_processor.address_processor_parallelism = 1;
     let address_task = tokio::spawn(async move { address_processor.start().await });
+
+    let mut move_call_processor = MoveCallMetricsProcessor::new(analytical_store, metrics);
+    move_call_processor.move_call_processor_batch_size = 1;
+    move_call_processor.move_call_processor_parallelism = 1;
+    let move_call_task = tokio::spawn(async move { move_call_processor.start().await });
 
     let first_tx_count_checkpoint = retry_with_timeout(Duration::from_secs(60), || async move {
         query(store, |conn| {
@@ -574,9 +584,20 @@ async fn analytics_resume_from_the_first_available_checkpoint_on_a_pruned_databa
         })
         .await
         .expect("timeout waiting for an address metrics row");
+    let first_move_call_checkpoint = retry_with_timeout(Duration::from_secs(60), || async move {
+        query(store, |conn| {
+            move_calls::table
+                .select(min(move_calls::checkpoint_sequence_number))
+                .first::<Option<i64>>(conn)
+        })
+        .await
+    })
+    .await
+    .expect("timeout waiting for a move calls row");
 
     network_task.abort();
     address_task.abort();
+    move_call_task.abort();
 
     // The pruner has finished with the genesis epoch by now and nothing else
     // is pruned, so the watermark is the first checkpoint still in the database.
@@ -599,6 +620,11 @@ async fn analytics_resume_from_the_first_available_checkpoint_on_a_pruned_databa
     assert!(
         first_address_metrics_checkpoint >= first_available_checkpoint,
         "address metrics start at checkpoint {first_address_metrics_checkpoint}, \
+             before the first available checkpoint {first_available_checkpoint}"
+    );
+    assert!(
+        first_move_call_checkpoint >= first_available_checkpoint,
+        "move calls start at checkpoint {first_move_call_checkpoint}, \
              before the first available checkpoint {first_available_checkpoint}"
     );
 }

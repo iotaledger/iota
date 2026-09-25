@@ -3,16 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use tap::tap::TapFallible;
+use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 use crate::{
     ingestion::common::persist::CommitterTables,
     metrics::IndexerMetrics,
+    processors::POLL_INTERVAL,
     store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
     types::IndexerResult,
 };
 
-/// The tables the address metrics are computed from.
 const ADDRESS_METRICS_TABLES: &[CommitterTables] = &[
     CommitterTables::Transactions,
     CommitterTables::TxSenders,
@@ -76,20 +77,21 @@ where
             } else {
                 true
             } {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                sleep(POLL_INTERVAL).await;
                 latest_tx = self.store.get_latest_stored_transaction().await?;
             }
 
             let batch_size = self.address_processor_batch_size;
             let batch_end_tx_seq = last_processed_tx_seq + batch_size as i64;
 
-            // Confirm the end of the batch is in the database before doing the work.
-            // A missing row means the range was pruned meanwhile, so go back to the
-            // lower bound instead of persisting a partial batch.
+            // Ensure the batch end exists in the database. This does not happen in
+            // normal circumstances: only an aggressive `pruning_delay_ms` can delete
+            // it, in which case the loop resumes from the new lower bound.
             let Some(batch_end_tx) = self.store.get_tx(batch_end_tx_seq).await? else {
                 warn!(
                     "transaction {batch_end_tx_seq} is not in the database, resuming from the lower bound"
                 );
+                sleep(POLL_INTERVAL).await;
                 continue;
             };
             let batch_end_cp_seq = batch_end_tx.checkpoint_sequence_number;
