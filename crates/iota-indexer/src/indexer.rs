@@ -187,12 +187,13 @@ impl Indexer {
     >(
         store: S,
         metrics: IndexerMetrics,
+        cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Analytical Worker (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
+        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics, cancel);
         processor_orchestrator.run_forever().await;
         Ok(())
     }
