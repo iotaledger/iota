@@ -496,15 +496,12 @@ mod tests {
     /// A server config and a client config that trusts it, without client
     /// authentication.
     fn test_tls_configs() -> (rustls::ServerConfig, rustls::ClientConfig) {
-        use fastcrypto::{
-            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
-            traits::{KeyPair, ToFromBytes},
-        };
+        use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
 
-        let keypair = Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[42; 32]).unwrap());
-        let public_key = keypair.public().to_owned();
+        let private_key = Ed25519PrivateKey::new([42; 32]);
+        let public_key = private_key.public_key();
         (
-            iota_tls::create_rustls_server_config(keypair.private(), SERVER_NAME.to_string()),
+            iota_tls::create_rustls_server_config(private_key, SERVER_NAME.to_string()),
             iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
         )
     }
@@ -747,27 +744,19 @@ mod tests {
     /// soon as one of its connections closes.
     #[tokio::test]
     async fn connections_per_peer_are_capped() {
-        use fastcrypto::{
-            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
-            traits::{KeyPair, ToFromBytes},
-        };
+        use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
         use tokio::io::AsyncReadExt as _;
 
         const MAX_PER_PEER: usize = 2;
 
-        let client_key =
-            |seed: u8| Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap());
-        let server_keypair = client_key(1);
-        let server_public_key = server_keypair.public().to_owned();
+        let client_key = |seed: u8| Ed25519PrivateKey::new([seed; 32]);
+        let server_private_key = client_key(1);
+        let server_public_key = server_private_key.public_key();
         let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
-            server_keypair.private(),
+            server_private_key,
             SERVER_NAME.to_string(),
             iota_tls::AllowPublicKeys::new(
-                [
-                    client_key(2).public().to_owned(),
-                    client_key(3).public().to_owned(),
-                ]
-                .into(),
+                [client_key(2).public_key(), client_key(3).public_key()].into(),
             ),
         );
 
@@ -790,9 +779,9 @@ mod tests {
         let connect = |seed: u8| {
             let connector =
                 tokio_rustls::TlsConnector::from(Arc::new(iota_tls::create_rustls_client_config(
-                    server_public_key.clone(),
+                    server_public_key,
                     SERVER_NAME.to_string(),
-                    Some(client_key(seed).private()),
+                    Some(client_key(seed)),
                 )));
             let server_name = server_name.clone();
             async move {
@@ -802,7 +791,7 @@ mod tests {
         };
 
         let events_of = |seed: u8| -> Vec<PeerConnectionEvent> {
-            let peer = client_key(seed).public().as_ref().to_vec();
+            let peer = client_key(seed).public_key().bytes().to_vec();
             events
                 .lock()
                 .unwrap()
@@ -887,18 +876,14 @@ mod tests {
     /// connection.
     #[tokio::test]
     async fn peer_with_extra_certificates_is_refused_at_the_handshake() {
-        use fastcrypto::{
-            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
-            traits::{KeyPair, ToFromBytes},
-        };
+        use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
         use tokio::io::AsyncReadExt as _;
 
-        let key =
-            |seed: u8| Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap());
-        let server_public_key = key(1).public().to_owned();
-        let client_public_key = key(2).public().to_owned();
+        let key = |seed: u8| Ed25519PrivateKey::new([seed; 32]);
+        let server_public_key = key(1).public_key();
+        let client_public_key = key(2).public_key();
         let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
-            key(1).private(),
+            key(1),
             SERVER_NAME.to_string(),
             iota_tls::AllowPublicKeys::new([client_public_key].into()),
         );
@@ -909,9 +894,8 @@ mod tests {
             .unwrap();
 
         // The allowed certificate followed by an unrelated one.
-        let client_certificate =
-            iota_tls::SelfSignedCertificate::new(key(2).private(), SERVER_NAME);
-        let extra_certificate = iota_tls::SelfSignedCertificate::new(key(3).private(), SERVER_NAME);
+        let client_certificate = iota_tls::SelfSignedCertificate::new(key(2), SERVER_NAME);
+        let extra_certificate = iota_tls::SelfSignedCertificate::new(key(3), SERVER_NAME);
         let client_config =
             iota_tls::ServerCertVerifier::new(server_public_key, SERVER_NAME.to_string())
                 .rustls_client_config_with_client_auth(

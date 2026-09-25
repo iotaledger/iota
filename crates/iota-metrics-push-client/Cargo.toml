@@ -9,7 +9,6 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
-fastcrypto.workspace = true
 reqwest.workspace = true
 snap.workspace = true
 tokio = { workspace = true, features = ["rt", "time"] }

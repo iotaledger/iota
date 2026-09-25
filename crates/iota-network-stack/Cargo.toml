@@ -37,12 +37,12 @@ iota-multiaddr.workspace = true
 
 [dev-dependencies]
 # external dependencies
-fastcrypto = { workspace = true, features = ["copy_key"] }
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http2"] }
 rand.workspace = true
 
 # internal dependencies
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
 iota-tls.workspace = true
 
 [lints]
