@@ -6,7 +6,8 @@ use std::{fmt, sync::Arc, time::Duration};
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
 /// hyper's own default for the header read deadline; hyper only enforces it
-/// when a timer is configured, which this crate always does.
+/// when a timer is configured, which this crate does whenever it accepts
+/// HTTP/1 at all.
 const DEFAULT_HTTP1_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Covers a round trip plus a few TCP retransmissions on a lossy link; an
 /// unloaded TLS 1.3 handshake completes in one round trip.
@@ -35,10 +36,13 @@ pub struct Config {
     http1_header_read_timeout: Option<Duration>,
     enable_connect_protocol: bool,
     pub(crate) max_connection_age: Option<Duration>,
+    pub(crate) max_connection_idle: Option<Duration>,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
+    pub(crate) max_connections: Option<usize>,
     pub(crate) max_connections_per_peer: Option<usize>,
     pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
+    pub(crate) on_connection_event: Option<OnConnectionEvent>,
 }
 
 /// A change to the connections an authenticated peer holds, with the number
@@ -52,6 +56,54 @@ pub enum PeerConnectionEvent {
     /// A further connection was closed because the peer already holds the
     /// limit.
     RefusedAtLimit { held: usize },
+}
+
+/// A change to the connections a listener holds, with the count it holds
+/// afterwards.
+///
+/// Each variant carries the number the server itself is working from, rather
+/// than a delta, so a consumer that stores it cannot drift away from the
+/// server's own view.
+///
+/// `pending` counts connections whose TLS handshake is in progress — the same
+/// number `max_pending_connections` is compared against. `live` counts
+/// established connections being served. A connection that completes its
+/// handshake leaves the first and joins the second, so it reports both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionEvent {
+    /// A connection was accepted and its handshake started. Only listeners
+    /// configured with TLS have this phase.
+    HandshakeStarted { pending: usize },
+    /// A handshake completed; `Established` follows for the same connection.
+    HandshakeCompleted { pending: usize },
+    /// A handshake ended without a connection: it timed out, failed, or its
+    /// task panicked.
+    HandshakeFailed { pending: usize },
+    /// A connection is now being served.
+    Established { live: usize },
+    /// A served connection closed.
+    Closed { live: usize },
+    /// A connection was closed before being served because it was over a
+    /// limit.
+    Refused { live: usize },
+}
+
+type ConnectionCallback = Arc<dyn Fn(ConnectionEvent) + Send + Sync>;
+
+/// Called on each change to the connections the listener holds.
+#[derive(Clone)]
+pub(crate) struct OnConnectionEvent(ConnectionCallback);
+
+impl OnConnectionEvent {
+    pub(crate) fn call(&self, event: ConnectionEvent) {
+        (self.0)(event)
+    }
+}
+
+impl fmt::Debug for OnConnectionEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("OnConnectionEvent")
+    }
 }
 
 type PeerConnectionCallback = Arc<dyn Fn(&[u8], PeerConnectionEvent) + Send + Sync>;
@@ -90,10 +142,13 @@ impl Default for Config {
             http1_header_read_timeout: Some(DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
             enable_connect_protocol: true,
             max_connection_age: None,
+            max_connection_idle: None,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
+            max_connections: None,
             max_connections_per_peer: None,
             on_peer_connection_event: None,
+            on_connection_event: None,
         }
     }
 }
@@ -123,9 +178,11 @@ impl Config {
     }
 
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
-    /// connections.
+    /// connections. This bounds the requests one connection may have in flight,
+    /// so without it a single peer can occupy a whole service's admission
+    /// slots.
     ///
-    /// Default is no limit (`None`).
+    /// `None` leaves the transport's own default in place, currently 200.
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#n-stream-concurrency
     pub fn max_concurrent_streams(self, max: impl Into<Option<u32>>) -> Self {
@@ -135,12 +192,37 @@ impl Config {
         }
     }
 
-    /// Sets the maximum time option in milliseconds that a connection may exist
+    /// Sets how long a connection may serve no request before it is closed.
+    ///
+    /// Idle means serving no request, not receiving no bytes: the server's own
+    /// keepalive pings and the answers to them are bytes, so a peer that
+    /// answers them and does nothing else stays idle by this measure. A
+    /// connection that has not yet chosen a protocol is idle too, since it has
+    /// started no request either.
+    ///
+    /// Keepalive closes a connection whose peer has *gone*; this closes one
+    /// whose peer is present and doing nothing. Both are needed, and neither
+    /// substitutes for the other.
+    ///
+    /// The deadline must exceed the longest gap between requests a legitimate
+    /// peer leaves, or it will disconnect working clients.
     ///
     /// Default is no limit (`None`).
-    pub fn max_connection_age(self, max_connection_age: Duration) -> Self {
+    pub fn max_connection_idle(self, max_connection_idle: Option<Duration>) -> Self {
         Self {
-            max_connection_age: Some(max_connection_age),
+            max_connection_idle,
+            ..self
+        }
+    }
+
+    /// Sets how long a connection may exist at all, however busy. This is a
+    /// blunter bound than [`Config::max_connection_idle`], which it
+    /// complements rather than replaces: age closes a working connection too.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connection_age(self, max_connection_age: Option<Duration>) -> Self {
+        Self {
+            max_connection_age,
             ..self
         }
     }
@@ -297,9 +379,32 @@ impl Config {
     /// Further connections from a peer already at the limit are closed as soon
     /// as they are accepted.
     ///
-    /// Only connections that authenticate with a client certificate are
-    /// counted, since a peer that presents none cannot be told apart from any
-    /// other.
+    /// Sets how many connections this listener may serve at once. Further
+    /// connections are closed immediately after their handshake, before being
+    /// served.
+    ///
+    /// This is the bound on file descriptors, and the only one: a per-peer
+    /// limit permits one connection per peer per limit, and on a listener
+    /// whose peers are not a known set that product is unbounded. The two are
+    /// meant to be set together, this one to bound the listener and the other
+    /// to stop one peer consuming all of it.
+    ///
+    /// The limit is enforced after the handshake rather than by refusing to
+    /// accept, so that a full listener still answers new peers instead of
+    /// leaving them in the kernel backlog with no way to tell a busy server
+    /// from an unreachable one.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connections(self, max_connections: Option<usize>) -> Self {
+        Self {
+            max_connections,
+            ..self
+        }
+    }
+
+    /// Connections are counted under the peer's certificate public key, or,
+    /// for a peer that presents no certificate, under the prefix its address
+    /// belongs to.
     ///
     /// Default is no limit (`None`).
     pub fn max_connections_per_peer(self, max_connections_per_peer: Option<usize>) -> Self {
@@ -313,6 +418,23 @@ impl Config {
     /// connections is established, closed or refused at the limit. Only
     /// connections counted under `max_connections_per_peer` are reported. It
     /// runs on the accept loop or a connection's task, so it must not block.
+    /// Sets a callback invoked on each change to the connections this listener
+    /// holds. It runs on the accept loop or a connection's task, so it must not
+    /// block.
+    ///
+    /// A connection that is opened and then left silent is attributed nowhere
+    /// else: it sends no request, so no request-level metric records it. This
+    /// is the only place it is counted.
+    pub fn on_connection_event(
+        self,
+        on_connection_event: impl Fn(ConnectionEvent) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            on_connection_event: Some(OnConnectionEvent(Arc::new(on_connection_event))),
+            ..self
+        }
+    }
+
     pub fn on_peer_connection_event(
         self,
         on_peer_connection_event: impl Fn(&[u8], PeerConnectionEvent) + Send + Sync + 'static,
@@ -330,6 +452,12 @@ impl Config {
         if self.max_connections_per_peer == Some(0) {
             return Err("'max_connections_per_peer' must be greater than zero, \
                         a peer allowed no connection can never be served"
+                .into());
+        }
+
+        if self.max_connections == Some(0) {
+            return Err("'max_connections' must be greater than zero, \
+                        a server that serves no connection is never useful"
                 .into());
         }
 
@@ -371,12 +499,21 @@ impl Config {
             .http2_keepalive_timeout
             .unwrap_or_else(|| Duration::new(DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS, 0));
 
+        // hyper assigns whatever it is given, so passing `None` would replace
+        // its own protective default with no limit at all. `None` here means
+        // "no opinion", which is hyper's default, not "unlimited" — the
+        // adjacent `max_pending_accept_reset_streams` is guarded the same way.
+        if let Some(max_concurrent_streams) = self.max_concurrent_streams {
+            builder
+                .http2()
+                .max_concurrent_streams(max_concurrent_streams);
+        }
+
         builder
             .http2()
             .timer(hyper_util::rt::TokioTimer::new())
             .initial_connection_window_size(self.init_connection_window_size)
             .initial_stream_window_size(self.init_stream_window_size)
-            .max_concurrent_streams(self.max_concurrent_streams)
             .keep_alive_interval(self.http2_keepalive_interval)
             .keep_alive_timeout(http2_keepalive_timeout)
             .adaptive_window(self.http2_adaptive_window.unwrap_or_default())

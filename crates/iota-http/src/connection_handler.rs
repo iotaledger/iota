@@ -8,8 +8,17 @@ use http::{Request, Response};
 use tracing::{debug, trace};
 
 use crate::{
-    ActiveConnections, BoxError, ConnectionId, connection_info::PeerConnectionGuard, fuse::Fuse,
+    ActiveConnections, BoxError, ConnectionEvent, ConnectionId,
+    activity::{ConnectionActivity, idle_elapsed},
+    config::OnConnectionEvent,
+    connection_info::PeerConnectionGuard,
+    fuse::Fuse,
 };
+
+/// How long a connection closed for idleness is given to finish shutting down
+/// before it is dropped. It has no requests in flight by definition, so this
+/// only covers the round trip of the shutdown itself.
+const IDLE_SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
 // This is moved to its own function as a way to get around
 // https://github.com/rust-lang/rust/issues/102211
@@ -19,6 +28,8 @@ pub async fn serve_connection<IO, S, B, C>(
     builder: hyper_util::server::conn::auto::Builder<hyper_util::rt::TokioExecutor>,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
     max_connection_age: Option<Duration>,
+    max_connection_idle: Option<Duration>,
+    activity: ConnectionActivity,
     on_connection_close: C,
 ) where
     B: http_body::Body + Send + 'static,
@@ -35,11 +46,33 @@ pub async fn serve_connection<IO, S, B, C>(
 
     let sleep = sleep_or_pending(max_connection_age);
     tokio::pin!(sleep);
+    // Closing an idle connection more than once would be pointless, and the
+    // deadline stays elapsed once it passes.
+    let mut closed_for_idleness = false;
+    // A graceful shutdown asks the peer to go away and waits for it to do so.
+    // The peer this deadline exists for will not, so the wait is bounded and
+    // the connection is then dropped, which closes it.
+    let force_close = sleep_or_pending(None);
+    tokio::pin!(force_close);
 
     loop {
         tokio::select! {
             _ = &mut sig => {
+                // A peer asked to leave need not oblige, and one that is being
+                // given up for another certainly will not, so the wait for it
+                // is bounded the same way the idle deadline's is.
                 conn.as_mut().graceful_shutdown();
+                force_close.set(sleep_or_pending(Some(IDLE_SHUTDOWN_GRACE_PERIOD)));
+            }
+            _ = idle_elapsed(&activity, max_connection_idle), if !closed_for_idleness => {
+                debug!("closing a connection that has been idle past its deadline");
+                closed_for_idleness = true;
+                conn.as_mut().graceful_shutdown();
+                force_close.set(sleep_or_pending(Some(IDLE_SHUTDOWN_GRACE_PERIOD)));
+            }
+            _ = &mut force_close => {
+                debug!("dropping an idle connection that did not close on request");
+                break;
             }
             rv = &mut conn => {
                 if let Err(err) = rv {
@@ -69,6 +102,7 @@ pub(crate) struct OnConnectionClose<A> {
     id: ConnectionId,
     active_connections: ActiveConnections<A>,
     _peer_connection_guard: Option<PeerConnectionGuard>,
+    on_connection_event: Option<OnConnectionEvent>,
 }
 
 impl<A> OnConnectionClose<A> {
@@ -76,17 +110,31 @@ impl<A> OnConnectionClose<A> {
         id: ConnectionId,
         active_connections: ActiveConnections<A>,
         peer_connection_guard: Option<PeerConnectionGuard>,
+        on_connection_event: Option<OnConnectionEvent>,
     ) -> Self {
         Self {
             id,
             active_connections,
             _peer_connection_guard: peer_connection_guard,
+            on_connection_event,
         }
     }
 }
 
 impl<A> Drop for OnConnectionClose<A> {
     fn drop(&mut self) {
-        self.active_connections.write().unwrap().remove(&self.id);
+        let (was_registered, live) = {
+            let mut active_connections = self.active_connections.write().unwrap();
+            let was_registered = active_connections.remove(&self.id).is_some();
+            (was_registered, active_connections.len())
+        };
+        // An evicted connection was removed when its slot was handed on, and
+        // reported closed then; reporting it again here would count it twice.
+        if !was_registered {
+            return;
+        }
+        if let Some(on_connection_event) = &self.on_connection_event {
+            on_connection_event.call(ConnectionEvent::Closed { live });
+        }
     }
 }

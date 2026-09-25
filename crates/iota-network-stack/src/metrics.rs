@@ -43,6 +43,13 @@ pub trait MetricsCallbackProvider: Send + Sync + Clone + 'static {
     /// `on_failure` callback does not receive the response object).
     fn on_error(&self, _latency: Duration, _grpc_status_code: Code) {}
 
+    /// Called on each change to the connections this server holds.
+    ///
+    /// A connection that is opened and then left silent never produces a
+    /// request, so none of the other callbacks here ever see it. This is the
+    /// only one that does.
+    fn on_connection_event(&self, _event: iota_http::ConnectionEvent) {}
+
     /// Called when request call is started
     fn on_start(&self, _path: &str) {}
 

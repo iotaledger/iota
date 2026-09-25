@@ -15,10 +15,12 @@ use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::trace;
 
 use self::{
+    activity::ConnectionActivity,
     body::BoxBody,
     connection_info::{ActiveConnections, PeerConnectionCounts},
 };
 
+mod activity;
 pub mod body;
 mod config;
 mod connection_handler;
@@ -27,7 +29,7 @@ mod fuse;
 mod io;
 mod listener;
 
-pub use config::{Config, PeerConnectionEvent};
+pub use config::{Config, ConnectionEvent, PeerConnectionEvent};
 pub use connection_info::{ConnectInfo, ConnectionId, ConnectionInfo, PeerCertificates};
 pub use listener::{Listener, ListenerExt};
 
@@ -122,6 +124,10 @@ impl Builder {
         let connections = ActiveConnections::default();
 
         let tls_config = self.tls_config.map(|mut tls| {
+            // This crate decides which protocols it serves, so it owns the
+            // list: appending to whatever the caller set would advertise a
+            // protocol twice, or one this server does not accept.
+            tls.alpn_protocols.clear();
             tls.alpn_protocols.push(ALPN_H2.into());
             if self.config.accept_http1 {
                 tls.alpn_protocols.push(ALPN_H1.into());
@@ -264,16 +270,20 @@ where
                 // A failed task affects only its own connection, so the loop keeps serving
                 // the others.
                 Some(maybe_connection) = self.pending_connections.join_next() => {
+                    let pending = self.pending_connections.len();
                     let (io, remote_addr) = match maybe_connection {
                         Ok(Ok((io, remote_addr))) => {
+                            self.notify_connection(ConnectionEvent::HandshakeCompleted { pending });
                             (io, remote_addr)
                         }
                         Ok(Err(e)) => {
                             tracing::debug!(error = %e, "error accepting connection");
+                            self.notify_connection(ConnectionEvent::HandshakeFailed { pending });
                             continue;
                         }
                         Err(e) => {
                             tracing::error!(error = %e, "connection handshake task failed");
+                            self.notify_connection(ConnectionEvent::HandshakeFailed { pending });
                             continue;
                         }
                     };
@@ -303,6 +313,59 @@ where
             .is_none_or(|max| self.pending_connections.len() < max)
     }
 
+    /// Reports a change in the connections this listener holds, if a callback
+    /// is configured.
+    fn notify_connection(&self, event: ConnectionEvent) {
+        if let Some(on_connection_event) = &self.config.on_connection_event {
+            on_connection_event.call(event);
+        }
+    }
+
+    /// The number of connections currently being served.
+    fn live_connections(&self) -> usize {
+        self.connections.read().unwrap().len()
+    }
+
+    /// Gives up the longest-held connection that has never asked for anything,
+    /// so that a peer which does can take its place. Reports whether it freed
+    /// one.
+    ///
+    /// A limit on its own decides nothing beyond "first to arrive wins", which
+    /// under a flood is the flood. The connections it fills the listener with
+    /// are the ones that never send a request, so those are what this gives
+    /// up, and a peer that is using its connection is never given up for one
+    /// that has not yet proved it will.
+    ///
+    /// The *oldest* unused connection goes first, not the newest: a peer that
+    /// has only just connected has not had the chance to send anything yet,
+    /// and evicting it would be indistinguishable from refusing it.
+    fn evict_an_unused_connection(&mut self) -> bool {
+        let mut connections = self.connections.write().unwrap();
+
+        let Some(evicted) = connections
+            .values()
+            .filter(|connection| connection.is_unused())
+            .min_by_key(|connection| connection.time_established())
+            .map(|connection| connection.id())
+        else {
+            return false;
+        };
+
+        // Removed here rather than when the connection task notices, so the
+        // slot it frees is available to the caller now. Its own close will find
+        // the entry gone and report nothing.
+        let Some(connection) = connections.remove(&evicted) else {
+            return false;
+        };
+        let live = connections.len();
+        drop(connections);
+
+        trace!("giving up an unused connection to make room for a new one");
+        connection.close();
+        self.notify_connection(ConnectionEvent::Closed { live });
+        true
+    }
+
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
@@ -318,29 +381,51 @@ where
                     .into()),
                 }
             });
+            self.notify_connection(ConnectionEvent::HandshakeStarted {
+                pending: self.pending_connections.len(),
+            });
         } else {
+            // A listener without TLS has no handshake phase, so the connection
+            // goes straight to being served.
             self.handle_connection(ServerIo::new_io(io), remote_addr);
         }
     }
 
     fn handle_connection(&mut self, io: ServerIo<L::Io>, remote_addr: L::Addr) {
-        let mut peer_connection_guard = None;
-        if let (Some(max), Some(peer)) =
-            (self.config.max_connections_per_peer, peer_public_key(&io))
-        {
-            let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
+        // Both the TLS and the plaintext path arrive here, so this is where the
+        // listener's connections can be counted whatever it is configured with.
+        if let Some(max) = self.config.max_connections {
+            let live = self.live_connections();
+            if live >= max && !self.evict_an_unused_connection() {
                 // Dropping the connection closes it, releasing its file descriptor.
+                trace!("listener already serves {live} connections, closing the new one");
+                self.notify_connection(ConnectionEvent::Refused { live });
+                return;
+            }
+        }
+
+        let mut peer_connection_guard = None;
+        if let (Some(max), Some(peer)) = (
+            self.config.max_connections_per_peer,
+            connection_key::<L>(&io, &remote_addr),
+        ) {
+            let Some(guard) = self.peer_connection_counts.register(&peer, max) else {
                 trace!("peer already holds {max} connections, closing the new one");
+                self.notify_connection(ConnectionEvent::Refused {
+                    live: self.live_connections(),
+                });
                 return;
             };
             peer_connection_guard = Some(guard);
         }
 
         let connection_shutdown_token = self.graceful_shutdown_token.child_token();
+        let activity = ConnectionActivity::new();
         let connection_info = ConnectionInfo::new(
             remote_addr,
             io.peer_certs(),
             connection_shutdown_token.clone(),
+            activity.clone(),
         );
         let connection_id = connection_info.id();
         let connect_info = connection_info::ConnectInfo {
@@ -350,25 +435,47 @@ where
         let peer_certificates = connection_info.peer_certificates().cloned();
         let hyper_io = hyper_util::rt::TokioIo::new(io);
 
-        let hyper_svc = TowerToHyperService::new(self.service.clone().map_request(
-            move |mut request: Request<hyper::body::Incoming>| {
-                request.extensions_mut().insert(connect_info.clone());
-                if let Some(peer_certificates) = peer_certificates.clone() {
-                    request.extensions_mut().insert(peer_certificates);
-                }
+        let hyper_svc = TowerToHyperService::new(
+            self.service
+                .clone()
+                .map_request(move |mut request: Request<hyper::body::Incoming>| {
+                    request.extensions_mut().insert(connect_info.clone());
+                    if let Some(peer_certificates) = peer_certificates.clone() {
+                        request.extensions_mut().insert(peer_certificates);
+                    }
 
-                request.map(body::boxed)
-            },
-        ));
+                    request.map(body::boxed)
+                })
+                .map_future({
+                    let activity = activity.clone();
+                    move |future| {
+                        // Held by the response body rather than dropped here,
+                        // so a streaming response counts as work until its
+                        // last frame.
+                        let guard = activity.request_started();
+                        async move {
+                            let response: Result<Response<BoxBody>, BoxError> = future.await;
+                            response.map(|response| {
+                                response
+                                    .map(|inner| body::boxed(body::GuardedBody::new(inner, guard)))
+                            })
+                        }
+                    }
+                }),
+        );
 
         self.connections
             .write()
             .unwrap()
             .insert(connection_id, connection_info);
+        self.notify_connection(ConnectionEvent::Established {
+            live: self.live_connections(),
+        });
         let on_connection_close = OnConnectionClose::new(
             connection_id,
             self.connections.clone(),
             peer_connection_guard,
+            self.config.on_connection_event.clone(),
         );
 
         self.connection_handlers
@@ -378,6 +485,8 @@ where
                 self.config.connection_builder(),
                 connection_shutdown_token,
                 self.config.max_connection_age,
+                self.config.max_connection_idle,
+                activity,
                 on_connection_close,
             ));
     }
@@ -431,6 +540,17 @@ where
 
 /// Identifies the peer by the public key of the single certificate it
 /// authenticated with, or `None` if it presented no certificate.
+/// The key this connection's per-peer count is kept under.
+///
+/// A certificate identifies its holder, so it is preferred wherever one is
+/// presented. Without one there is nothing to go on but the address, which
+/// identifies a peer far more loosely — hence the prefix rather than the
+/// address, and hence a limit set on an unauthenticated listener bounding a
+/// network rather than a peer.
+fn connection_key<L: Listener>(io: &ServerIo<L::Io>, remote_addr: &L::Addr) -> Option<Vec<u8>> {
+    peer_public_key(io).or_else(|| L::connection_key(remote_addr))
+}
+
 fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
     let certs = io.peer_certs()?;
     let [certificate] = certs.as_slice() else {
@@ -449,6 +569,8 @@ fn peer_public_key<Io>(io: &ServerIo<Io>) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use axum::Router;
 
     use super::*;
@@ -935,5 +1057,532 @@ mod tests {
             .is_ok(),
             "removing both bounds stays allowed"
         );
+    }
+
+    /// Records every connection event a listener reports.
+    #[derive(Clone, Default)]
+    struct RecordedEvents(Arc<Mutex<Vec<ConnectionEvent>>>);
+
+    impl RecordedEvents {
+        fn record(&self) -> impl Fn(ConnectionEvent) + Send + Sync + 'static {
+            let events = self.0.clone();
+            move |event| events.lock().unwrap().push(event)
+        }
+
+        fn snapshot(&self) -> Vec<ConnectionEvent> {
+            self.0.lock().unwrap().clone()
+        }
+
+        /// Events are reported from the accept loop and from connection tasks,
+        /// so a test observing them from outside has to wait for the server to
+        /// get there.
+        async fn wait_for(&self, event: ConnectionEvent) {
+            let seen = async {
+                while !self.snapshot().contains(&event) {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            };
+            tokio::time::timeout(Duration::from_secs(10), seen)
+                .await
+                .unwrap_or_else(|_| panic!("never saw {event:?}, recorded {:?}", self.snapshot()));
+        }
+    }
+
+    /// A connection that is opened and then left silent sends no request, so no
+    /// request-level metric records it. These events are the only account of
+    /// it, and each carries the count the server itself is working from.
+    #[tokio::test]
+    async fn connection_events_report_the_listener_population() {
+        let events = RecordedEvents::default();
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(Config::default().on_connection_event(events.record()))
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let io = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        let connection = connector.connect(server_name, io).await.unwrap();
+
+        // The connection is established and never sends a request.
+        events
+            .wait_for(ConnectionEvent::Established { live: 1 })
+            .await;
+        assert_eq!(handle.number_of_connections(), 1);
+
+        let recorded = events.snapshot();
+        assert!(
+            recorded.contains(&ConnectionEvent::HandshakeStarted { pending: 1 }),
+            "the handshake phase must be reported, got {recorded:?}"
+        );
+        assert!(
+            recorded.contains(&ConnectionEvent::HandshakeCompleted { pending: 0 }),
+            "a completed handshake must leave the pending count, got {recorded:?}"
+        );
+
+        // Closing it returns the connection to the listener's budget.
+        drop(connection);
+        events.wait_for(ConnectionEvent::Closed { live: 0 }).await;
+        assert_eq!(handle.number_of_connections(), 0);
+    }
+
+    /// A handshake that never completes is reported as failed, so the pending
+    /// count a flood builds up is visible rather than inferred.
+    #[tokio::test]
+    async fn a_timed_out_handshake_is_reported() {
+        const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(200);
+
+        let events = RecordedEvents::default();
+        let (server_tls_config, _) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .handshake_timeout(Some(HANDSHAKE_TIMEOUT))
+                    .on_connection_event(events.record()),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Connect, then never send a ClientHello.
+        let _silent = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+
+        events
+            .wait_for(ConnectionEvent::HandshakeStarted { pending: 1 })
+            .await;
+        events
+            .wait_for(ConnectionEvent::HandshakeFailed { pending: 0 })
+            .await;
+        assert_eq!(handle.number_of_connections(), 0);
+    }
+
+    /// Reads the `SETTINGS_MAX_CONCURRENT_STREAMS` value a server advertises,
+    /// or `None` when it advertises no limit.
+    async fn advertised_max_concurrent_streams(addr: &std::net::SocketAddr) -> Option<u32> {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
+        /// Frame header: 3-byte length, 1-byte type, 1-byte flags, 4-byte
+        /// stream id.
+        const FRAME_HEADER_LEN: usize = 9;
+        const SETTINGS_FRAME_TYPE: u8 = 0x4;
+        const SETTINGS_MAX_CONCURRENT_STREAMS: u16 = 0x3;
+        /// Each setting is a 2-byte identifier and a 4-byte value.
+        const SETTING_LEN: usize = 6;
+
+        let mut connection = tokio::net::TcpStream::connect(addr).await.unwrap();
+        // The preface plus an empty SETTINGS frame of our own.
+        connection.write_all(PREFACE).await.unwrap();
+        connection
+            .write_all(&[0, 0, 0, SETTINGS_FRAME_TYPE, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+
+        // The server's own SETTINGS frame is the first thing it sends.
+        let mut header = [0u8; FRAME_HEADER_LEN];
+        connection.read_exact(&mut header).await.unwrap();
+        let length = u32::from_be_bytes([0, header[0], header[1], header[2]]) as usize;
+        assert_eq!(
+            header[3], SETTINGS_FRAME_TYPE,
+            "expected the server to open with SETTINGS"
+        );
+
+        let mut payload = vec![0u8; length];
+        connection.read_exact(&mut payload).await.unwrap();
+        payload.as_chunks::<SETTING_LEN>().0.iter().find_map(|setting| {
+            (u16::from_be_bytes([setting[0], setting[1]]) == SETTINGS_MAX_CONCURRENT_STREAMS)
+                .then(|| u32::from_be_bytes([setting[2], setting[3], setting[4], setting[5]]))
+        })
+    }
+
+    /// An unset `max_concurrent_streams` must leave the transport's own limit
+    /// in place. Forwarding `None` to hyper would replace its default with no
+    /// limit at all, letting one connection open as many streams as it likes.
+    #[tokio::test]
+    async fn an_unset_stream_cap_keeps_the_transport_default() {
+        let handle = Builder::new()
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert_eq!(
+            advertised_max_concurrent_streams(handle.local_addr()).await,
+            Some(200),
+            "a server with no opinion must still advertise a stream limit"
+        );
+    }
+
+    /// A configured limit is advertised as given.
+    #[tokio::test]
+    async fn a_configured_stream_cap_is_advertised() {
+        let handle = Builder::new()
+            .config(Config::default().max_concurrent_streams(17))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        assert_eq!(
+            advertised_max_concurrent_streams(handle.local_addr()).await,
+            Some(17)
+        );
+    }
+
+    /// A peer that completes the HTTP/2 preface and then falls silent is
+    /// closed once it fails to answer the keepalive ping.
+    #[tokio::test]
+    async fn silent_http2_peer_is_closed_by_keepalive() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        const KEEPALIVE: Duration = Duration::from_millis(100);
+
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .http2_keepalive_interval(Some(KEEPALIVE))
+                    .http2_keepalive_timeout(Some(KEEPALIVE)),
+            )
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        // Connection preface and an empty SETTINGS frame, then nothing more.
+        connection
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+        connection
+            .write_all(&[0, 0, 0, 0x4, 0, 0, 0, 0, 0])
+            .await
+            .unwrap();
+
+        let closed = tokio::time::timeout(KEEPALIVE * 50, async {
+            let mut buf = [0u8; 1024];
+            loop {
+                match connection.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => continue,
+                }
+            }
+        })
+        .await;
+        assert!(
+            closed.is_ok(),
+            "the server must close a peer that ignores keepalive pings"
+        );
+    }
+
+    /// A peer that completes the handshake and then never picks a protocol
+    /// starts no request, so the idle deadline is what closes it. Nothing else
+    /// does: the handshake budget was released when the handshake finished,
+    /// the HTTP/1 header deadline is not armed until the protocol is known,
+    /// and HTTP/2 keepalive cannot start before the preface.
+    #[tokio::test]
+    async fn a_peer_that_never_picks_a_protocol_is_closed_when_idle() {
+        use tokio::io::AsyncReadExt as _;
+
+        const IDLE: Duration = Duration::from_millis(200);
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_idle(Some(IDLE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+
+        let mut buf = [0u8; 1];
+        let read = tokio::time::timeout(IDLE * 50, connection.read(&mut buf))
+            .await
+            .expect("an idle connection must be closed by its deadline");
+        assert!(
+            matches!(read, Ok(0) | Err(_)),
+            "the server must close the connection, got {read:?}"
+        );
+    }
+
+    /// Protocol traffic is not work. A peer that keeps the bytes flowing
+    /// without ever sending a request must still be closed, which is why
+    /// idleness is measured in requests rather than in bytes.
+    #[tokio::test]
+    async fn protocol_traffic_alone_does_not_keep_a_connection_alive() {
+        use tokio::io::AsyncWriteExt as _;
+
+        const IDLE: Duration = Duration::from_millis(200);
+        const EMPTY_SETTINGS: [u8; 9] = [0, 0, 0, 0x4, 0, 0, 0, 0, 0];
+
+        let handle = Builder::new()
+            .config(Config::default().max_connection_idle(Some(IDLE)))
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        connection
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .unwrap();
+
+        // Keep sending frames the server must read and answer, but never a
+        // request, until the write fails because it closed the connection.
+        let chattering = async {
+            loop {
+                if connection.write_all(&EMPTY_SETTINGS).await.is_err() {
+                    return;
+                }
+                tokio::time::sleep(IDLE / 10).await;
+            }
+        };
+        tokio::time::timeout(IDLE * 50, chattering)
+            .await
+            .expect("traffic without requests must not hold a connection open");
+    }
+
+    /// A streaming response resolves its future long before its last frame, so
+    /// the guard rides the body. While one is alive the connection is busy.
+    #[tokio::test]
+    async fn a_request_in_flight_keeps_a_connection_from_going_idle() {
+        use crate::activity::{ConnectionActivity, idle_elapsed};
+
+        const IDLE: Duration = Duration::from_millis(100);
+
+        let activity = ConnectionActivity::new();
+        let guard = activity.request_started();
+
+        // Well past the deadline, but the request has not finished.
+        assert!(
+            tokio::time::timeout(IDLE * 10, idle_elapsed(&activity, Some(IDLE)))
+                .await
+                .is_err(),
+            "a connection serving a request must not be considered idle"
+        );
+
+        // Once it does, the deadline runs from that point.
+        drop(guard);
+        assert!(
+            tokio::time::timeout(IDLE * 10, idle_elapsed(&activity, Some(IDLE)))
+                .await
+                .is_ok(),
+            "a connection must go idle once its last request finishes"
+        );
+    }
+
+    /// Opens connections until the server stops serving them, and reports how
+    /// many it was serving at the end.
+    async fn hold_connections(
+        handle: &ServerHandle,
+        attempts: usize,
+    ) -> Vec<tokio::net::TcpStream> {
+        let mut held = Vec::new();
+        for _ in 0..attempts {
+            let Ok(connection) = tokio::net::TcpStream::connect(handle.local_addr()).await else {
+                continue;
+            };
+            held.push(connection);
+        }
+        // The accept loop registers connections on its own task.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        held
+    }
+
+    /// The listener's own limit is what bounds its file descriptors. A per-peer
+    /// limit cannot: it permits one peer's worth of connections per peer, and
+    /// here the peers are whoever connects.
+    #[tokio::test]
+    async fn connections_are_capped_for_the_whole_listener() {
+        const MAX_CONNECTIONS: usize = 4;
+
+        let events = RecordedEvents::default();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections(Some(MAX_CONNECTIONS))
+                    .on_connection_event(events.record()),
+            )
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        let _held = hold_connections(&handle, MAX_CONNECTIONS * 4).await;
+
+        assert!(
+            handle.number_of_connections() <= MAX_CONNECTIONS,
+            "the listener must never serve more than its limit, serving {}",
+            handle.number_of_connections()
+        );
+        // Every event carries the count at the time, so the limit can be
+        // checked against the whole run rather than against one moment of it.
+        // The count dips one below the limit while a connection is being given
+        // up for another, so it is a ceiling and not a fixed level.
+        let highest = events
+            .snapshot()
+            .iter()
+            .map(|event| match event {
+                ConnectionEvent::Established { live }
+                | ConnectionEvent::Closed { live }
+                | ConnectionEvent::Refused { live } => *live,
+                _ => 0,
+            })
+            .max()
+            .expect("the listener must have reported something");
+        assert_eq!(
+            highest, MAX_CONNECTIONS,
+            "the listener must fill to its limit and never past it"
+        );
+    }
+
+    /// A listener with no certificates to identify peers by still has to stop
+    /// one source taking its whole budget, so it counts by address prefix.
+    #[tokio::test]
+    async fn an_unauthenticated_peer_is_counted_by_address_prefix() {
+        const MAX_PER_PEER: usize = 3;
+
+        let handle = Builder::new()
+            .config(Config::default().max_connections_per_peer(Some(MAX_PER_PEER)))
+            .serve(("127.0.0.1", 0), Router::new())
+            .unwrap();
+
+        // Every connection here comes from loopback, so they share a prefix.
+        let _held = hold_connections(&handle, MAX_PER_PEER * 4).await;
+
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_PER_PEER,
+            "connections from one prefix must be capped without a certificate"
+        );
+    }
+
+    /// Addresses are grouped, not compared: a /24 and a /64 are one peer each.
+    #[test]
+    fn addresses_are_grouped_by_prefix() {
+        let key = |addr: &str| {
+            <tokio::net::TcpListener as Listener>::connection_key(&addr.parse().unwrap())
+        };
+
+        assert_eq!(key("192.0.2.1:1"), key("192.0.2.99:2"), "same /24");
+        assert_ne!(key("192.0.2.1:1"), key("192.0.3.1:1"), "different /24");
+        assert_eq!(
+            key("[2001:db8::1]:1"),
+            key("[2001:db8::ffff:ffff]:2"),
+            "same /64"
+        );
+        assert_ne!(
+            key("[2001:db8::1]:1"),
+            key("[2001:db8:0:1::1]:1"),
+            "different /64"
+        );
+    }
+
+    /// A limit alone decides only that whoever arrives first keeps the
+    /// listener, which under a flood is the flood. A peer that uses its
+    /// connection must be able to take the place of one that never did.
+    #[tokio::test]
+    async fn an_unused_connection_is_given_up_for_a_new_one() {
+        const MAX_CONNECTIONS: usize = 2;
+
+        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .serve(("localhost", 0), app)
+            .unwrap();
+        let url = format!("http://{}", handle.local_addr());
+
+        // Fill the listener with connections that ask for nothing.
+        let squatters = hold_connections(&handle, MAX_CONNECTIONS).await;
+        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+
+        // A peer that actually makes a request still gets served, which without
+        // giving one of them up it could not be.
+        let response = reqwest::get(&url).await.unwrap();
+        assert!(
+            response.status().is_success(),
+            "a full listener must make room for a peer that uses its connection"
+        );
+        assert!(
+            handle.number_of_connections() <= MAX_CONNECTIONS,
+            "making room must not take the listener past its limit"
+        );
+        drop(squatters);
+    }
+
+    /// Connections doing work are not given up for ones that have not yet
+    /// proved they will: when every slot is in use, the listener is genuinely
+    /// full and the newcomer is refused.
+    #[tokio::test]
+    async fn connections_that_are_in_use_are_not_given_up() {
+        const MAX_CONNECTIONS: usize = 1;
+
+        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let handle = Builder::new()
+            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .serve(("localhost", 0), app)
+            .unwrap();
+        let url = format!("http://{}", handle.local_addr());
+
+        // A client that has made a request and keeps its connection pooled.
+        let client = reqwest::Client::builder().build().unwrap();
+        assert!(client.get(&url).send().await.unwrap().status().is_success());
+        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+
+        // A second peer arrives. The slot is held by a connection that has been
+        // used, so it is kept and the newcomer is turned away rather than the
+        // working connection being dropped.
+        let _newcomer = hold_connections(&handle, 1).await;
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_CONNECTIONS,
+            "a used connection must not be given up"
+        );
+
+        // And the first client's connection still works.
+        assert!(client.get(&url).send().await.unwrap().status().is_success());
+    }
+
+    /// The oldest unused connection goes first: one that has only just arrived
+    /// has not had the chance to send anything yet, so giving it up would be
+    /// the same as refusing it.
+    #[tokio::test]
+    async fn the_longest_held_unused_connection_goes_first() {
+        const MAX_CONNECTIONS: usize = 2;
+
+        let events = RecordedEvents::default();
+        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections(Some(MAX_CONNECTIONS))
+                    .on_connection_event(events.record()),
+            )
+            .serve(("localhost", 0), app)
+            .unwrap();
+
+        let oldest = hold_connections(&handle, 1).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let newest = hold_connections(&handle, 1).await;
+        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+
+        let response = reqwest::get(format!("http://{}", handle.local_addr()))
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+
+        // The one that was given up is closed, and it is the older of the two.
+        let mut buf = [0u8; 1];
+        use tokio::io::AsyncReadExt as _;
+        let mut oldest = oldest;
+        let closed = tokio::time::timeout(
+            Duration::from_secs(10),
+            oldest.first_mut().unwrap().read(&mut buf),
+        )
+        .await
+        .expect("the connection given up must actually be closed");
+        assert!(matches!(closed, Ok(0) | Err(_)));
+        drop(newest);
     }
 }

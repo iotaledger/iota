@@ -27,9 +27,9 @@ use typed_store_error::TypedStoreError;
 pub use crate::{
     database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
     rocks::options::{
-        BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
+        BulkIngestionOptions, DBMapTableConfigMap, DBOptions, FD_LIMIT_SHARE, ReadWriteOptions,
         bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
-        read_size_from_env,
+        raise_fd_limit, read_size_from_env,
     },
 };
 use crate::{
