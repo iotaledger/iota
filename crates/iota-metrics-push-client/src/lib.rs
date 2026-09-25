@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use client::MetricsPushClient;
 use iota_metrics::RegistryService;
-use iota_types::crypto::NetworkKeyPair;
+use iota_types::crypto::NetworkPrivateKey;
 
 mod client;
 
@@ -15,7 +15,7 @@ mod client;
 pub fn start_metrics_push_task(
     push_interval_seconds: Option<u64>,
     push_url: String,
-    metrics_key_pair: NetworkKeyPair,
+    metrics_key_pair: NetworkPrivateKey,
     registry: RegistryService,
 ) {
     const DEFAULT_METRICS_PUSH_INTERVAL: Duration = Duration::from_secs(60);

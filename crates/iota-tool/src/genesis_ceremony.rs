@@ -21,7 +21,7 @@ use iota_protocol_config::MAX_PROTOCOL_VERSION;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_types::{
     committee::ProtocolVersion,
-    crypto::{AuthorityKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession},
+    crypto::{AuthorityKeyPair, KeypairTraits, NetworkPrivateKey, generate_proof_of_possession},
 };
 
 use crate::genesis_inspector::examine_genesis_checkpoint;
@@ -184,9 +184,10 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             let authority_keypair: AuthorityKeyPair =
                 read_authority_keypair_from_file(authority_key_file)?;
             let account_keypair: SimpleKeypair = read_keypair_from_file(account_key_file)?;
-            let protocol_keypair: NetworkKeyPair =
+            let protocol_keypair: NetworkPrivateKey =
                 read_network_keypair_from_file(protocol_key_file)?;
-            let network_keypair: NetworkKeyPair = read_network_keypair_from_file(network_key_file)?;
+            let network_keypair: NetworkPrivateKey =
+                read_network_keypair_from_file(network_key_file)?;
             let pop = generate_proof_of_possession(
                 &authority_keypair,
                 account_keypair.public_key().derive_address(),
@@ -349,9 +350,9 @@ mod test {
             .map(|i| {
                 let authority_keypair: AuthorityKeyPair =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-                let protocol_keypair: NetworkKeyPair =
+                let protocol_keypair: NetworkPrivateKey =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-                let network_keypair: NetworkKeyPair =
+                let network_keypair: NetworkPrivateKey =
                     get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
                 let account_private_key = AccountPrivateKey::random();
                 let info = ValidatorInfo {

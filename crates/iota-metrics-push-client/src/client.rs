@@ -15,7 +15,7 @@ pub struct MetricsPushClient {
 }
 
 impl MetricsPushClient {
-    pub fn new(metrics_key: iota_types::crypto::NetworkKeyPair) -> Self {
+    pub fn new(metrics_key: iota_types::crypto::NetworkPrivateKey) -> Self {
         let certificate = std::sync::Arc::new(iota_tls::SelfSignedCertificate::new(
             metrics_key,
             iota_tls::IOTA_VALIDATOR_SERVER_NAME,

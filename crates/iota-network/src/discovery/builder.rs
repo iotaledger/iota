@@ -10,7 +10,7 @@ use std::{
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::rate_limit;
 use iota_config::p2p::P2pConfig;
-use iota_types::crypto::NetworkKeyPair;
+use iota_types::crypto::NetworkPrivateKey;
 use tap::Pipe;
 use tokio::{
     sync::{oneshot, watch},
@@ -124,7 +124,7 @@ impl UnstartedDiscovery {
     pub(super) fn build(
         self,
         network: anemo::Network,
-        keypair: NetworkKeyPair,
+        keypair: NetworkPrivateKey,
     ) -> (DiscoveryEventLoop, Handle) {
         let Self {
             handle,
@@ -168,7 +168,7 @@ impl UnstartedDiscovery {
         )
     }
 
-    pub fn start(self, network: anemo::Network, keypair: NetworkKeyPair) -> Handle {
+    pub fn start(self, network: anemo::Network, keypair: NetworkPrivateKey) -> Handle {
         assert_eq!(network.peer_id().0, keypair.public_key().into_bytes());
         let (event_loop, handle) = self.build(network, keypair);
         tokio::spawn(event_loop.start());
