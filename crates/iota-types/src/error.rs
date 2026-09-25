@@ -373,6 +373,10 @@ pub enum UserInputError {
         "Immutable account object {object_id} cannot authenticate a transaction, only a shared account object is supported"
     )]
     ImmutableAccountObjectNotSupported { object_id: ObjectId },
+    #[error(
+        "Randomness state object {object_id} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    RandomnessStateIsInMoveAuthenticatorInput { object_id: ObjectId },
 }
 
 /// Custom error type for Iota.

@@ -72,3 +72,4 @@
 70: ObjectOwnedIsInMoveAuthenticatorInput
 71: MutableSharedIsInMoveAuthenticatorInput
 72: ImmutableAccountObjectNotSupported
+73: RandomnessStateIsInMoveAuthenticatorInput

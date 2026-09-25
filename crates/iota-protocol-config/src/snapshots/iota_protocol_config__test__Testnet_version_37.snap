@@ -60,6 +60,7 @@ feature_flags:
   validate_input_object_versions: true
   disallow_self_identifier: true
   check_canonical_module_version_header: true
+  disallow_randomness_in_move_authenticator: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

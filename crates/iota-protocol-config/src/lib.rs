@@ -241,6 +241,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Require the version field of a published module header to be the
 //             encoding the serializer produces for that version, rejecting a
 //             non-zero flavor byte below binary format version 7.
+//             Reject the randomness state object as a `MoveAuthenticator`
+//             input.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -701,6 +703,13 @@ struct FeatureFlags {
     // a non-zero flavor byte is masked off instead of rejected.
     #[serde(skip_serializing_if = "is_false")]
     check_canonical_module_version_header: bool,
+
+    // If true, `validity_check` rejects a `MoveAuthenticator` that names the
+    // randomness state object among its inputs. An authenticate function cannot
+    // derive randomness from it, but naming it schedules the transaction as
+    // randomness-using and defers it to a randomness round for nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_randomness_in_move_authenticator: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2180,6 +2189,10 @@ impl ProtocolConfig {
     pub fn check_canonical_module_version_header(&self) -> bool {
         self.feature_flags.check_canonical_module_version_header
     }
+
+    pub fn disallow_randomness_in_move_authenticator(&self) -> bool {
+        self.feature_flags.disallow_randomness_in_move_authenticator
+    }
 }
 
 #[cfg(not(msim))]
@@ -3561,6 +3574,11 @@ impl ProtocolConfig {
                     // Require a published module header to carry the canonical
                     // encoding of its binary format version.
                     cfg.feature_flags.check_canonical_module_version_header = true;
+                    // An authenticate function cannot read randomness, so the
+                    // randomness state object is refused as an authenticator
+                    // input instead of scheduling the transaction as
+                    // randomness-using for nothing.
+                    cfg.feature_flags.disallow_randomness_in_move_authenticator = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3858,6 +3876,10 @@ impl ProtocolConfig {
 
     pub fn set_validate_input_object_versions_for_testing(&mut self, val: bool) {
         self.feature_flags.validate_input_object_versions = val;
+    }
+
+    pub fn set_disallow_randomness_in_move_authenticator_for_testing(&mut self, val: bool) {
+        self.feature_flags.disallow_randomness_in_move_authenticator = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
