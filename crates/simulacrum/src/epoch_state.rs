@@ -16,6 +16,7 @@ use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,
     error::IotaResult,
+    execution::PreExecutionResult,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
@@ -174,6 +175,7 @@ impl EpochState {
                 self.limits_metrics.clone(),
                 false,           // enable_expensive_checks
                 &HashSet::new(), // certificate_deny_set
+                PreExecutionResult::Run,
                 &self.epoch_start_state.epoch(),
                 self.epoch_start_state.epoch_start_timestamp_ms(),
                 checked_input_objects,
