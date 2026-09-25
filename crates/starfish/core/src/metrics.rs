@@ -281,6 +281,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) subscribed_block_bundles: IntCounterVec,
     pub(crate) verified_blocks: IntCounterVec,
     pub(crate) decided_leaders_total: IntCounterVec,
+    pub(crate) decision_cache_hits_total: IntCounter,
+    pub(crate) decision_cache_misses_total: IntCounter,
     pub(crate) last_committed_authority_round: IntGaugeVec,
     pub(crate) last_committed_leader_round: IntGauge,
     pub(crate) last_commit_index: IntGauge,
@@ -990,6 +992,18 @@ impl NodeMetrics {
                 "decided_leaders_total",
                 "Total number of (direct or indirect, skip or commit) decided leaders per authority",
                 &["authority", "commit_type"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_cache_hits_total: register_int_counter_with_registry!(
+                "decision_cache_hits_total",
+                "Commit-rule predicates answered from the per-block cache",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_cache_misses_total: register_int_counter_with_registry!(
+                "decision_cache_misses_total",
+                "Commit-rule predicates computed and added to the per-block cache",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
