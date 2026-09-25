@@ -123,7 +123,7 @@ impl IdleHandle {
         self.shared.is_busy()
     }
 
-    /// How long the task has had nothing to do, or `None` if it is busy.
+    /// Approximately how long the task has been idle, or `None` if it is busy.
     ///
     /// The operation is not atomic -- it may become busy right after it returns
     /// `Some`.
@@ -154,6 +154,8 @@ impl Drop for IdleGuard {
         // and the task is woken to do it.
         let mut state = self.shared.state.lock().unwrap();
         let idle_since = Instant::now() - self.shared.created_at;
+        // Moving `store` before `fetch_sub` would make `idle_for` consistent at
+        // the cost of acquiring a mutex lock.
         self.shared
             .idle_since_ms
             .store(idle_since.as_millis() as u64, Ordering::Relaxed);
@@ -173,9 +175,10 @@ struct Shared {
     /// for one to give up. The lock is still taken whenever this reaches zero,
     /// so the timer is armed in step with it.
     busy: AtomicUsize,
-    /// Instance when the timer was created.
+    /// Instant when the timer was created.
     created_at: Instant,
-    /// When the task last became idle, in milliseconds relative to `start`.
+    /// When the task last became idle, in milliseconds relative to
+    /// `created_at`.
     idle_since_ms: AtomicU64,
     state: Mutex<State>,
 }
