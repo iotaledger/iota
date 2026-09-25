@@ -211,14 +211,10 @@ mod tests {
 
     #[test]
     fn extra_certificates_are_rejected() {
-        let mut rng = rand::thread_rng();
-        let allowed = Ed25519KeyPair::generate(&mut rng);
         let allowed_cert =
-            SelfSignedCertificate::new(allowed.private(), IOTA_VALIDATOR_SERVER_NAME);
-        let extra_cert = SelfSignedCertificate::new(
-            Ed25519KeyPair::generate(&mut rng).private(),
-            IOTA_VALIDATOR_SERVER_NAME,
-        );
+            SelfSignedCertificate::new(Ed25519PrivateKey::random(), IOTA_VALIDATOR_SERVER_NAME);
+        let extra_cert =
+            SelfSignedCertificate::new(Ed25519PrivateKey::random(), IOTA_VALIDATOR_SERVER_NAME);
 
         let verifier = ClientCertVerifier::new(AllowAll, IOTA_VALIDATOR_SERVER_NAME.to_string());
 
