@@ -1641,70 +1641,103 @@ mod tests {
             .expect("a connection past its age must be dropped, not merely asked to leave");
     }
 
-    /// Having asked for something recently is what keeps a connection out of
-    /// the way of a flood: under pressure the idle deadline effectively
-    /// shortens, and a peer that has used its connection within that window is
-    /// never the one given up.
+    /// The body [`request_on`] asks for, distinctive enough to read a response
+    /// until it arrives.
+    const BODY: &str = "served";
+
+    /// Makes a request on a raw connection and reads the whole response,
+    /// leaving the connection open, used, and serving nothing.
+    async fn request_on(connection: &mut tokio::net::TcpStream) {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        connection
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+
+        let mut response = Vec::new();
+        let answered = async {
+            let mut buf = [0u8; 256];
+            while !response.ends_with(BODY.as_bytes()) {
+                match connection.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(read) => response.extend_from_slice(&buf[..read]),
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), answered)
+            .await
+            .expect("the request must be answered");
+
+        assert!(
+            response.starts_with(b"HTTP/1.1 200 OK"),
+            "unexpected response: {}",
+            String::from_utf8_lossy(&response)
+        );
+    }
+
+    /// Having asked for something recently is what keeps a connection out of a
+    /// flood's way. It is serving nothing, so the idle threshold is all that
+    /// stands between it and being given up, and when every connection is
+    /// inside that window the listener is genuinely full: the newcomer is
+    /// refused rather than a working peer thrown out.
     #[tokio::test]
     async fn a_recently_used_connection_is_not_given_up() {
-        // The eviction threshold is a tenth of this, so 100ms.
-        const IDLE: Duration = Duration::from_secs(1);
+        // A tenth of this is the eviction threshold, so a connection has to go
+        // unused for a second before it can be given up. The requests below
+        // take milliseconds, leaving both connections well inside the window.
+        const IDLE: Duration = Duration::from_secs(10);
         const MAX_CONNECTIONS: usize = 2;
 
-        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
+        let app = Router::new().route("/", axum::routing::get(|| async { BODY }));
+        let events = RecordedEvents::default();
         let handle = Builder::new()
             .config(
                 Config::default()
                     .max_connections(Some(MAX_CONNECTIONS))
-                    .max_connection_idle(Some(IDLE)),
+                    .max_connection_idle(Some(IDLE))
+                    .on_connection_event(events.record()),
             )
             .serve(("localhost", 0), app)
             .unwrap();
-        let url = format!("http://{}", handle.local_addr());
 
-        // One connection that has gone unused for longer than the threshold.
-        let mut unused = hold_connections(&handle, 1).await;
-
-        // One that is using itself, kept busy by a client that keeps its
-        // connection pooled between requests.
-        let busy_client = reqwest::Client::builder().build().unwrap();
-        assert!(
-            busy_client
-                .get(&url)
-                .send()
+        // Fill the listener with connections that have each made a request and
+        // seen it through, so none of them is serving anything by the time the
+        // newcomer arrives.
+        let mut used = Vec::new();
+        for _ in 0..MAX_CONNECTIONS {
+            let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
                 .await
-                .unwrap()
-                .status()
-                .is_success()
-        );
-        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
+                .unwrap();
+            request_on(&mut connection).await;
+            used.push(connection);
+        }
+        events
+            .wait_for(ConnectionEvent::Established {
+                live: MAX_CONNECTIONS,
+            })
+            .await;
 
-        // A third peer arrives: the unused connection is the one that goes.
+        // A newcomer arrives with nothing the listener is willing to give up.
+        let _newcomer = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+        events
+            .wait_for(ConnectionEvent::Refused {
+                live: MAX_CONNECTIONS,
+            })
+            .await;
+        let recorded = events.snapshot();
         assert!(
-            reqwest::get(&url).await.unwrap().status().is_success(),
-            "a full listener must still make room"
+            !recorded
+                .iter()
+                .any(|event| matches!(event, ConnectionEvent::Closed { .. })),
+            "a recently used connection must not be given up, got {recorded:?}"
         );
 
-        use tokio::io::AsyncReadExt as _;
-        let mut buf = [0u8; 1];
-        let closed = tokio::time::timeout(
-            Duration::from_secs(5),
-            unused.first_mut().unwrap().read(&mut buf),
-        )
-        .await
-        .expect("the unused connection must be the one given up");
-        assert!(matches!(closed, Ok(0) | Err(_)));
-
-        // And the connection that was being used still works.
-        assert!(
-            busy_client
-                .get(&url)
-                .send()
-                .await
-                .unwrap()
-                .status()
-                .is_success(),
-            "a recently used connection must not be given up"
-        );
+        // And each of them is still there to be used.
+        for connection in &mut used {
+            request_on(connection).await;
+        }
     }
 }
