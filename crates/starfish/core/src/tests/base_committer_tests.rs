@@ -27,7 +27,7 @@ async fn try_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Build fully connected dag with empty blocks. Adding 8 rounds to the dag
     // so that we have 2 completed waves and one incomplete wave.
@@ -83,7 +83,7 @@ async fn idempotence() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Build fully connected dag with empty blocks. Adding 5 rounds to the dag
     // aka the certifying round of wave 1.
@@ -127,7 +127,7 @@ async fn multiple_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     let mut ancestors = None;
     for n in 1..=10 {
@@ -168,7 +168,7 @@ async fn direct_skip() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = committer.leader_round(1);
@@ -220,7 +220,7 @@ async fn indirect_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = committer.leader_round(1);
@@ -372,7 +372,7 @@ async fn indirect_skip() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 2.
     let leader_round_wave_2 = committer.leader_round(2);
@@ -507,7 +507,7 @@ async fn undecided() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach the leader round of wave 1.
     let leader_round_wave_1 = committer.leader_round(1);
@@ -597,7 +597,7 @@ async fn test_byzantine_direct_commit() {
         context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let mut committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
 
     // Add enough blocks to reach leader round of wave 4
     let leader_round_wave_4 = committer.leader_round(4);
