@@ -33,6 +33,7 @@ use iota_types::{
     },
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     storage::error::Result as StorageResult,
+    traffic_control::ClientIdSource,
     transaction::VerifiedTransaction,
 };
 use tonic::transport::Channel;
@@ -549,6 +550,7 @@ async fn start_test_server_with(
     state_reader: Arc<MockGrpcStateReader>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
+    client_id_source: Option<ClientIdSource>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
@@ -569,7 +571,7 @@ async fn start_test_server_with(
         iota_types::digests::ChainIdentifier::default(),
         None,
         traffic_controller,
-        None,
+        client_id_source,
     )
     .await
     .expect("Failed to start gRPC server");
@@ -585,19 +587,27 @@ pub async fn start_test_server(
     state_reader: Arc<MockGrpcStateReader>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    start_test_server_with(state_reader, None, None, config_customizer).await
+    start_test_server_with(state_reader, None, None, None, config_customizer).await
 }
 
 /// Like [`start_test_server`], but with the given traffic controller wired
-/// into the server's `TrafficControlLayer` and an optional transaction
-/// executor (required for the `TransactionExecutionService` to be
-/// registered).
+/// into the server's `TrafficControlLayer`, resolving client IPs from
+/// `client_id_source`, and an optional transaction executor (required for the
+/// `TransactionExecutionService` to be registered).
 pub async fn start_test_server_with_traffic_controller(
     state_reader: Arc<MockGrpcStateReader>,
     traffic_controller: Arc<iota_traffic_controller::TrafficController>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    client_id_source: ClientIdSource,
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
-    start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await
+    start_test_server_with(
+        state_reader,
+        executor,
+        Some(traffic_controller),
+        Some(client_id_source),
+        |_| {},
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
