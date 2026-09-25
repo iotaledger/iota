@@ -54,7 +54,7 @@ async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer =
+    let mut committer =
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
@@ -103,7 +103,7 @@ async fn direct_skip(#[values(false, true)] starfish_speed: bool) {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer =
+    let mut committer =
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
@@ -148,7 +148,7 @@ async fn direct_undecided(#[values(false, true)] starfish_speed: bool) {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer =
+    let mut committer =
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
@@ -227,7 +227,7 @@ async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer =
+    let mut committer =
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
@@ -320,7 +320,7 @@ async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
         dag_builder.context.clone(),
         Arc::new(MemStore::new()),
     )));
-    let committer =
+    let mut committer =
         BaseCommitterBuilder::new(dag_builder.context.clone(), dag_state.clone()).build();
     dag_builder.persist_all_blocks(dag_state);
 
