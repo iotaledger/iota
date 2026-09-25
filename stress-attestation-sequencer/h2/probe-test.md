@@ -362,13 +362,13 @@ and lets the number swing.
 
 ## groth16 native calls (W8)
 
-The same probe, run on W8 (`../stress-plan.md`): owned-object transactions
-that call one native function of the framework's `0x2::groth16` module a set
-number of times. Native functions are charged a fixed amount per call, set in
-the protocol config, not per instruction like Move code, so this checks whether
-computation units follow execution time for native calls as they do for
-`slow`. `probe.sh` runs one point with `WORKLOAD=groth16`, and `probe_sweep.sh
-groth16` runs the grid. Only the WS has run it so far.
+The same probe, run on W8 (`../stress-plan.md`): owned-object transactions that
+call one native function of the framework's `0x2::groth16` module a set number of
+times. Native functions are charged a fixed amount per call, set in the protocol
+config, not per instruction like Move code, so this checks whether computation
+units follow execution time for native calls as they do for `slow`. `probe.sh` runs
+one point with `WORKLOAD=groth16`, and `probe_sweep.sh groth16` runs the grid. It
+ran on both machines.
 
 There are four workloads, the two functions on each of two curves:
 
@@ -395,12 +395,82 @@ verify, 1 and 7 calls both round up to 1,000 CUs, 8 is the first step to 2,000,
 
 Each point ran 100 s at 1 transaction per second, so still 100 transactions and
 400 samples, and the client allowed 4 transactions in flight instead of 2
-(`IN_FLIGHT_RATIO`). At 700 calls a transaction executes for about a second on
-every validator: at 5 per second the four validators would need more cores than
-the machine has, and with 2 in flight the client could not keep up with its
-≈2.3 s transactions. The measurement is the one described in *How the probe
-measures*. The rows are in `results/probe/groth16-<machine>.csv`, which
-`make_calibration_table.py` and `plot_groth16.py` read.
+(`IN_FLIGHT_RATIO`). At 700 calls a transaction executes for about 1 s on every WS
+validator and about 2 s on every EPYC one: at 5 per second the four validators
+would need more cores than the machine has, and with 2 in flight the client
+could not keep up with its ≈2.3 s transactions. On the EPYC, where they took
+≈3.9 s from submission to finality, 4 in flight still fell short (84–89 of 100
+delivered), so it ran with 8. The rate cap keeps the load on the validators the
+same either way; only the client's room to keep up changes. The measurement is
+the one described in *How the probe measures*. The rows are in
+`results/probe/groth16-<machine>.csv`, which `make_calibration_table.py` and
+`plot_groth16.py` read.
+
+### Results: EPYC 9454P
+
+#### BN254 verify
+
+| Calls | CU | Exec mean (ms) | Exec sem (ms) | Samples |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 7.947 | 0.167 | 400 |
+| 7 | 1,000 | 49.550 | 0.758 | 400 |
+| 8 | 2,000 | 56.783 | 0.920 | 400 |
+| 50 | 7,000 | 182.925 | 0.396 | 400 |
+| 100 | 13,000 | 315.228 | 2.989 | 400 |
+| 200 | 26,000 | 581.594 | 8.420 | 400 |
+| 400 | 51,000 | 1109.786 | 19.511 | 400 |
+| 700 | 88,000 | 1898.412 | 19.921 | 400 |
+| 701 | 94,000 | 1900.602 | 20.030 | 400 |
+| 710 | 207,000 | 1924.949 | 21.270 | 400 |
+| 750 | 707,000 | 2033.157 | 23.519 | 400 |
+
+#### BLS12-381 verify
+
+| Calls | CU | Exec mean (ms) | Exec sem (ms) | Samples |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 5.094 | 0.107 | 400 |
+| 7 | 1,000 | 31.168 | 0.515 | 400 |
+| 8 | 1,000 | 34.595 | 0.529 | 400 |
+| 50 | 5,000 | 129.813 | 2.259 | 400 |
+| 100 | 9,000 | 207.724 | 1.636 | 400 |
+| 200 | 17,000 | 366.285 | 0.436 | 400 |
+| 400 | 33,000 | 680.472 | 3.476 | 400 |
+| 700 | 57,000 | 1154.233 | 17.288 | 400 |
+| 701 | 58,000 | 1154.263 | 17.287 | 400 |
+| 710 | 126,000 | 1169.410 | 16.529 | 400 |
+| 750 | 448,000 | 1233.435 | 13.328 | 400 |
+
+#### BN254 prepare
+
+| Calls | CU | Exec mean (ms) | Exec sem (ms) | Samples |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 5.609 | 0.096 | 400 |
+| 7 | 1,000 | 34.900 | 0.333 | 400 |
+| 8 | 1,000 | 39.232 | 0.475 | 400 |
+| 50 | 5,000 | 140.772 | 1.717 | 400 |
+| 100 | 9,000 | 231.133 | 2.807 | 400 |
+| 200 | 17,000 | 411.056 | 1.803 | 400 |
+| 400 | 34,000 | 772.060 | 1.103 | 400 |
+| 700 | 59,000 | 1313.705 | 9.315 | 400 |
+| 701 | 60,000 | 1316.145 | 9.193 | 400 |
+| 710 | 129,000 | 1331.897 | 8.405 | 400 |
+| 750 | 457,000 | 1403.601 | 4.820 | 400 |
+
+#### BLS12-381 prepare
+
+| Calls | CU | Exec mean (ms) | Exec sem (ms) | Samples |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 3.399 | 0.066 | 400 |
+| 7 | 1,000 | 20.723 | 0.320 | 400 |
+| 8 | 1,000 | 23.853 | 0.401 | 400 |
+| 50 | 3,000 | 101.115 | 3.256 | 400 |
+| 100 | 6,000 | 151.904 | 1.155 | 400 |
+| 200 | 12,000 | 254.889 | 5.818 | 400 |
+| 400 | 23,000 | 459.169 | 4.208 | 400 |
+| 700 | 40,000 | 762.758 | 0.638 | 400 |
+| 701 | 40,000 | 762.812 | 0.641 | 400 |
+| 710 | 83,000 | 773.489 | 1.174 | 400 |
+| 750 | 299,000 | 814.241 | 3.212 | 400 |
 
 ### Results: WS Ryzen 9 9950X3D
 
@@ -471,64 +541,162 @@ measures*. The rows are in `results/probe/groth16-<machine>.csv`, which
 ### Findings
 
 **1. The charge is exactly what the protocol config says.** Attested and actual
-computation units are equal at every point, and every total is the charge per
-call times the number of calls, rounded up to 1,000: 700 BN254 verify calls
-cost 88,000. The rule for the 701st call works as intended: 701 calls cost
-94,000, 710 cost 207,000 and 750 cost 707,000.
+computation units are equal at every point, and both machines report the same
+units at every point. Every total is the charge per call times the number of
+calls, rounded up to 1,000: 700 BN254 verify calls cost 88,000. The rule for the
+701st call works as intended: 701 calls cost 94,000, 710 cost 207,000 and 750
+cost 707,000.
 
-**2. Execution time is linear in calls, and far above the charge.** From 50
-calls up, each call takes the same time: 1.52–1.54 ms for BN254 verify, 0.90 ms
-for BLS12-381 verify, 1.04–1.05 ms for BN254 prepare and 0.58 ms for BLS12-381
-prepare. Per computation unit, that is 10–12 µs for all four. `slow` takes
-0.07–0.11 µs per unit at 50,000–100,000 units.
+**2. Execution time grows with calls, and is far above the charge.** On the WS,
+from 50 calls up, each call takes the same time: 1.52–1.54 ms for BN254 verify,
+0.90 ms for BLS12-381 verify, 1.04–1.05 ms for BN254 prepare and 0.58 ms for
+BLS12-381 prepare, which is 10–12 µs per computation unit for all four. On the
+EPYC, at 700 calls, each call takes 2.71, 1.65, 1.88 and 1.09 ms, 19–22 µs per
+unit; there the time per call keeps falling up to about 400 calls (finding 6).
+`slow` takes 0.07–0.11 µs per unit at 50,000–100,000 units on the WS and
+0.34–0.54 µs on the EPYC.
 
-**3. At the same computation units, the groth16 transactions run 80–155×
-longer than `slow`.** At 700 calls, the most at the flat price:
+**3. At the same computation units, the groth16 transactions run 80–155× longer
+than `slow` on the WS and 30–59× longer on the EPYC.** At 700 calls, the most at
+the flat price:
 
-| Workload | CU | Exec mean (ms) | `slow` at the same CU (ms) | Ratio |
-| --- | --- | --- | --- | --- |
-| BN254 verify | 88,000 | 1,075 | 6.9 | 155× |
-| BN254 prepare | 59,000 | 732 | 5.9 | 124× |
-| BLS12-381 verify | 57,000 | 635 | 5.8 | 109× |
-| BLS12-381 prepare | 40,000 | 409 | 5.1 | 80× |
+| Workload | CU | WS exec (ms) | `slow` on the WS (ms) | Ratio | EPYC exec (ms) | `slow` on the EPYC (ms) | Ratio |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| BN254 verify | 88,000 | 1,075 | 6.9 | 155× | 1,898 | 32.0 | 59× |
+| BN254 prepare | 59,000 | 732 | 5.9 | 124× | 1,314 | 28.0 | 47× |
+| BLS12-381 verify | 57,000 | 635 | 5.8 | 109× | 1,154 | 27.7 | 42× |
+| BLS12-381 prepare | 40,000 | 409 | 5.1 | 80× | 763 | 25.3 | 30× |
 
-The `slow` values are read off its table between the two nearest points. The
-ratio is smaller for smaller transactions, 14–24× at 50 calls, because `slow`
-takes more time per unit when its transactions are small, while groth16's time
-per unit stays the same.
+The `slow` values are read off each machine's table between the two nearest
+points. The ratio is smaller for smaller transactions, 14–24× at 50 calls on the
+WS and 10–13× on the EPYC, because `slow` takes much more time per unit when its
+transactions are small.
 
 **4. The two curves are priced correctly relative to each other; the scale is
-off.** BLS12-381 runs 1.7–1.8× faster than BN254 in both functions and is
-charged about 1.5× less, so all four land at 10–12 µs per unit. What is too low
-is the per-call charge compared with Move code, by about two orders of
-magnitude, not one curve's charge against the other's.
+off.** BLS12-381 runs 1.6–1.8× faster than BN254 in both functions, on both
+machines, and is charged about 1.5× less, so on each machine all four land close
+together: 10–12 µs per unit on the WS, 19–22 µs on the EPYC. What is too low is
+the per-call charge compared with Move code, by one to two orders of magnitude
+depending on the machine, not one curve's charge against the other's.
 
 **5. The rule for the 701st call narrows the gap but does not close it.** 750
-BN254 verify calls cost 707,000 units and take 1,156 ms, where `slow` at
-707,000 units takes about 24 ms: still about 49× longer, and 34–49× across the
-four workloads.
+BN254 verify calls cost 707,000 units and take 1,156 ms on the WS, where `slow` at
+707,000 units takes about 24 ms: still about 49× longer. Across the four
+workloads it is 34–49× on the WS and 14–21× on the EPYC.
 
-![Execution time vs CUs, groth16 and slow](results/probe/groth16_exec_vs_cu-ryzen-9-9950x3d.png)
+**6. The gap depends on the machine, because the two kinds of work speed up
+differently.** At 700 calls the WS runs these calls 1.8× faster than the EPYC (a
+WS/EPYC ratio of 0.54–0.57), but it runs Move code 4.5–5× faster in the same
+range of units (a ratio of 0.20–0.22 in the slow comparison table above). So the
+same transaction is 80–155× slower than Move code on the WS but only 30–59× on
+the EPYC. For H2 the smaller gap is no comfort: on the EPYC, where the mode
+comparison ran, a 700-call BN254 verify transaction executes for 1.9 s.
+
+Short transactions are relatively slow on the EPYC. Its time per call falls as
+calls grow, from 7.9 ms at 1 BN254 verify call and 3.7 ms at 50 to 2.7 ms from
+400 up, so the WS/EPYC ratio rises from 0.21–0.30 at 1–8 calls to 0.54–0.57 from
+700. The WS shows a smaller version of this: 2.4 ms at 1 call, 1.5 ms from 50
+up. The cause is a guess, not checked: the EPYC's cores may run at a lower clock
+while each transaction is short.
+
+<details>
+<summary>Per-point WS/EPYC comparison</summary>
+
+**BN254 verify**
+
+| Calls | CU | EPYC 9454P exec (ms) | RYZEN 9 9950X3D exec (ms) | Ratio |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 7.947 | 2.391 | 0.30 |
+| 7 | 1,000 | 49.550 | 11.660 | 0.24 |
+| 8 | 2,000 | 56.783 | 12.787 | 0.23 |
+| 50 | 7,000 | 182.925 | 76.143 | 0.42 |
+| 100 | 13,000 | 315.228 | 151.628 | 0.48 |
+| 200 | 26,000 | 581.594 | 304.394 | 0.52 |
+| 400 | 51,000 | 1109.786 | 610.116 | 0.55 |
+| 700 | 88,000 | 1898.412 | 1075.494 | 0.57 |
+| 701 | 94,000 | 1900.602 | 1078.186 | 0.57 |
+| 710 | 207,000 | 1924.949 | 1093.618 | 0.57 |
+| 750 | 707,000 | 2033.157 | 1155.873 | 0.57 |
+
+**BLS12-381 verify**
+
+| Calls | CU | EPYC 9454P exec (ms) | RYZEN 9 9950X3D exec (ms) | Ratio |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 5.094 | 1.418 | 0.28 |
+| 7 | 1,000 | 31.168 | 6.655 | 0.21 |
+| 8 | 1,000 | 34.595 | 7.535 | 0.22 |
+| 50 | 5,000 | 129.813 | 44.744 | 0.34 |
+| 100 | 9,000 | 207.724 | 89.680 | 0.43 |
+| 200 | 17,000 | 366.285 | 179.684 | 0.49 |
+| 400 | 33,000 | 680.472 | 360.750 | 0.53 |
+| 700 | 57,000 | 1154.233 | 634.803 | 0.55 |
+| 701 | 58,000 | 1154.263 | 635.335 | 0.55 |
+| 710 | 126,000 | 1169.410 | 643.445 | 0.55 |
+| 750 | 448,000 | 1233.435 | 680.450 | 0.55 |
+
+**BN254 prepare**
+
+| Calls | CU | EPYC 9454P exec (ms) | RYZEN 9 9950X3D exec (ms) | Ratio |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 5.609 | 1.602 | 0.29 |
+| 7 | 1,000 | 34.900 | 8.277 | 0.24 |
+| 8 | 1,000 | 39.232 | 10.244 | 0.26 |
+| 50 | 5,000 | 140.772 | 52.593 | 0.37 |
+| 100 | 9,000 | 231.133 | 104.544 | 0.45 |
+| 200 | 17,000 | 411.056 | 208.869 | 0.51 |
+| 400 | 34,000 | 772.060 | 416.701 | 0.54 |
+| 700 | 59,000 | 1313.705 | 731.961 | 0.56 |
+| 701 | 60,000 | 1316.145 | 735.684 | 0.56 |
+| 710 | 129,000 | 1331.897 | 745.443 | 0.56 |
+| 750 | 457,000 | 1403.601 | 786.233 | 0.56 |
+
+**BLS12-381 prepare**
+
+| Calls | CU | EPYC 9454P exec (ms) | RYZEN 9 9950X3D exec (ms) | Ratio |
+| --- | --- | --- | --- | --- |
+| 1 | 1,000 | 3.399 | 0.902 | 0.27 |
+| 7 | 1,000 | 20.723 | 4.497 | 0.22 |
+| 8 | 1,000 | 23.853 | 5.376 | 0.23 |
+| 50 | 3,000 | 101.115 | 29.215 | 0.29 |
+| 100 | 6,000 | 151.904 | 58.189 | 0.38 |
+| 200 | 12,000 | 254.889 | 116.302 | 0.46 |
+| 400 | 23,000 | 459.169 | 232.871 | 0.51 |
+| 700 | 40,000 | 762.758 | 408.768 | 0.54 |
+| 701 | 40,000 | 762.812 | 409.836 | 0.54 |
+| 710 | 83,000 | 773.489 | 413.925 | 0.54 |
+| 750 | 299,000 | 814.241 | 438.647 | 0.54 |
+
+</details>
+
+![Execution time vs CUs, groth16 and slow, WS](results/probe/groth16_exec_vs_cu-ryzen-9-9950x3d.png)
 
 *Execution time per transaction against its computation units on the WS: the
 four groth16 workloads drawn over the `slow` points (Move code). The dotted
-diagonals mark 0.1 and 10 µs per unit. Up to 700 calls, the groth16 lines
-follow the 10 µs line, about two orders of magnitude above `slow`; past 700
-calls they run flat to the right, charged more for about the same time. The
-vertical stacks at 1,000 units are transactions below 1,000, all charged
-1,000.*
+diagonals mark 0.1 and 10 µs per unit. Up to 700 calls, the groth16 lines follow
+the 10 µs line, about two orders of magnitude above `slow`; past 700 calls they
+run flat to the right, charged more for about the same time. The vertical stacks
+at 1,000 units are transactions below 1,000, all charged 1,000.*
+
+![Execution time vs CUs, groth16 and slow, EPYC](results/probe/groth16_exec_vs_cu-epyc-9454p.png)
+
+*The same on the EPYC. Everything sits higher, Move code more than groth16, so
+the two are closer together; the groth16 lines climb less steeply at the left,
+where short transactions take longer per call.*
 
 For H2 this matters because the mode comparison sets its unit limit in
 computation units, on the assumption that they stand for execution time. A
 700-call BN254 verify transaction costs 88,000 units, so it fits under a
 150,000-unit limit, the best one H2 found for mixing 1,000- and 100,000-unit
-transactions on the EPYC, yet it executes for about 1.1 s, against the ≈50 ms
-of work per commit that limit is meant to admit. `RESULTS.md` lists a rerun of
-a mix ladder with such transactions on a shared object as a next step.
+transactions on the EPYC, yet it executes for about 1.9 s on the EPYC and 1.1 s
+on the WS, against the ≈50 ms of work per commit that limit is meant to admit.
+`RESULTS.md` lists a rerun of a mix ladder with such transactions on a shared
+object as a next step.
 
 Caveats:
 
-- One machine so far, with the four validators sharing it.
-- The `slow` points were taken on 7 September, the groth16 points on
-  24 September with a newer node build.
+- In every run, the four validators share one machine.
+- The EPYC client ran with 8 transactions in flight and the WS with 4, both at
+  1 transaction per second.
+- The `slow` points were taken on 7 September on both machines, the groth16 points
+  on 24 September (WS) and 25 September (EPYC) with a newer node build.
 - The ratio depends on the size it is read at, as finding 3 shows.
