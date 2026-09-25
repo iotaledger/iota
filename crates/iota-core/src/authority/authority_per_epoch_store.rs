@@ -1971,6 +1971,26 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
+    /// The sync-ahead record of `id` in the durable table, skipping the
+    /// overlay.
+    #[cfg(test)]
+    pub fn durable_sync_ahead_record_for_testing(
+        &self,
+        id: &ObjectId,
+    ) -> IotaResult<Option<SyncAheadRecord>> {
+        Ok(self.tables()?.sync_ahead_records.get(id)?)
+    }
+
+    /// The handler-processed row at `key` in the durable table, skipping the
+    /// overlay and the read-through cache.
+    #[cfg(test)]
+    pub fn durable_handler_processed_object_for_testing(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<HandlerProcessedObject>> {
+        Ok(self.tables()?.handler_processed_objects.get(key)?)
+    }
+
     /// Durably writes a sync-executed checkpoint's records and sheltered
     /// bytes and then evicts them from the overlays, in that order - the
     /// checkpoint-executor auxiliary-batch path.
@@ -1992,6 +2012,62 @@ impl AuthorityPerEpochStore {
         self.handler_object_state
             .evict_flushed_sync_ahead_rows(&sync_rows, &shelter_rows);
         Ok(())
+    }
+
+    /// Flushes commit `index` out of the consensus quarantine through the
+    /// same path a running node takes, with one pending checkpoint of `roots`
+    /// at height `index` and checkpoint sequence number `index`. Calls must
+    /// use increasing indices.
+    #[cfg(test)]
+    pub fn flush_commit_through_quarantine_for_testing(
+        &self,
+        index: CommitIndex,
+        roots: Vec<TransactionDigest>,
+    ) -> IotaResult {
+        use iota_sdk_types::gas::GasCostSummary;
+        use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
+
+        let checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
+            roots: roots.iter().copied().map(TransactionKey::Digest).collect(),
+            details: PendingCheckpointInfo {
+                timestamp_ms: 0,
+                last_of_epoch: false,
+                checkpoint_height: index,
+            },
+        });
+        let mut output = ConsensusCommitOutput::new(index, index);
+        self.write_pending_checkpoint(&mut output, &checkpoint)?;
+        // Not the default stats: the stored `sub_dag_index` is the resume
+        // point a reopened epoch store starts from.
+        output.record_consensus_commit_stats(ExecutionIndicesWithStats {
+            index: ExecutionIndices {
+                last_committed_round: index,
+                sub_dag_index: index,
+                transaction_index: 0,
+            },
+            ..Default::default()
+        });
+        self.push_consensus_output_for_tests(output);
+
+        let contents = CheckpointContents::new_with_digests_only_for_tests(
+            roots
+                .iter()
+                .map(|digest| ExecutionDigests::new(*digest, TransactionEffectsDigest::ZERO)),
+        );
+        let summary = CheckpointSummary::new_with_protocol_config(
+            self.protocol_config(),
+            self.epoch(),
+            index,
+            0,
+            &contents,
+            None,
+            GasCostSummary::default(),
+            None,
+            0,
+            Vec::new(),
+        );
+        self.process_constructed_checkpoint(index, NonEmpty::new((summary.clone(), contents)));
+        self.handle_finalized_checkpoint(&summary, &roots)
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {

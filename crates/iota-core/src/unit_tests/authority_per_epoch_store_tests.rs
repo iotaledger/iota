@@ -23,6 +23,7 @@ use crate::authority::{
         AuthorityPerEpochStore, compute_deny_rule_update_chunks,
         consensus_quarantine::ConsensusCommitOutput,
     },
+    epoch_start_configuration::EpochStartConfiguration,
     test_authority_builder::TestAuthorityBuilder,
 };
 
@@ -456,6 +457,28 @@ fn reopen_with_deny_rules_object(
     let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
     epoch_start_configuration
         .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
+    reopen_with_config(authority_state, store, epoch_start_configuration)
+}
+
+/// Reopens `store` over the same epoch DB, as a restart does.
+pub(crate) fn reopen(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+) -> Arc<AuthorityPerEpochStore> {
+    reopen_with_config(
+        authority_state,
+        store,
+        (*store.epoch_start_configuration).clone(),
+    )
+}
+
+/// [`reopen`], starting from `epoch_start_configuration` instead of the
+/// store's own.
+fn reopen_with_config(
+    authority_state: &AuthorityState,
+    store: &AuthorityPerEpochStore,
+    epoch_start_configuration: EpochStartConfiguration,
+) -> Arc<AuthorityPerEpochStore> {
     store.release_db_handles();
     AuthorityPerEpochStore::new(
         store.name,
@@ -1820,6 +1843,7 @@ async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
 // === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
 
 mod handler_object_state_storage {
+    use futures::FutureExt;
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
     };
@@ -2126,6 +2150,65 @@ mod handler_object_state_storage {
                 .unwrap(),
             None
         );
+    }
+
+    /// The highest fully executed commit starts at the durable resume point,
+    /// both on a fresh epoch and when the epoch store reopens mid-epoch, and
+    /// never moves down.
+    #[tokio::test]
+    async fn highest_fully_executed_commit_resumes_from_the_flushed_commit() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_enable_pcool_flow_for_testing(true);
+                config.set_pcool_deterministic_validation_for_testing(true);
+                config
+            });
+        let authority = TestAuthorityBuilder::new().build().await;
+        let store = authority.epoch_store_for_testing().clone();
+        let assert_highest = |store: &AuthorityPerEpochStore, index: CommitIndex| {
+            assert_eq!(
+                *store.subscribe_highest_fully_executed_commit().borrow(),
+                index
+            );
+            assert_eq!(
+                store
+                    .metrics
+                    .handler_object_state_highest_fully_executed_commit
+                    .get(),
+                index as i64
+            );
+        };
+
+        assert_highest(&store, 0);
+        store
+            .wait_for_fully_executed_commit(0)
+            .now_or_never()
+            .expect("waiting for the resume point must return immediately");
+
+        // A waiter blocked before the flushes is released by the flush of its
+        // commit, not by an earlier one.
+        let mut waiter = std::pin::pin!(store.wait_for_fully_executed_commit(2));
+        assert!(futures::poll!(waiter.as_mut()).is_pending());
+        for index in [1, 2] {
+            store.assign_commit_to_transactions(index, vec![]);
+            store
+                .flush_commit_through_quarantine_for_testing(index, vec![])
+                .unwrap();
+            assert_highest(&store, index);
+            assert_eq!(futures::poll!(waiter.as_mut()).is_ready(), index == 2);
+        }
+
+        let reopened = reopen(&authority, &store);
+        reopened.set_effects_store(authority.get_transaction_cache_reader().clone());
+        assert_highest(&reopened, 2);
+
+        // Completing a later commit before an earlier one raises the value;
+        // the earlier completion arriving afterwards does not lower it.
+        reopened.assign_commit_to_transactions(3, vec![]);
+        reopened.assign_commit_to_transactions(4, vec![]);
+        reopened.record_commit_fully_executed(4, &[]).unwrap();
+        reopened.record_commit_fully_executed(3, &[]).unwrap();
+        assert_highest(&reopened, 4);
     }
 
     #[tokio::test]
