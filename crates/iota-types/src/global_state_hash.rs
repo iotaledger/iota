@@ -110,7 +110,7 @@ mod tests {
         let mut refs: Vec<_> = (0..100).map(|_| ObjectDigest::random()).collect();
         let mut global_state_hash = GlobalStateHash::default();
         global_state_hash.insert_all(&refs);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         (0..10).for_each(|_| {
             refs.shuffle(&mut rng);
             let mut a = GlobalStateHash::default();
@@ -126,7 +126,7 @@ mod tests {
         let mut global_state_hash = GlobalStateHash::default();
         global_state_hash.insert_all(&refs1);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         (0..10).for_each(|_| {
             refs1.shuffle(&mut rng);
             let mut a = GlobalStateHash::default();

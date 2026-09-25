@@ -1372,7 +1372,7 @@ async fn deny_rule_crash_before_flush_replays_the_derivation() {
 async fn deny_rule_committee_joiner_derives_identical_deltas() {
     use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
     use iota_types::crypto::KeypairTraits;
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     telemetry_subscribers::init_for_testing();
     let _guard = governance_overrides(1000, 0);
@@ -1381,7 +1381,7 @@ async fn deny_rule_committee_joiner_derives_identical_deltas() {
     let deny_config = TransactionDenyConfigBuilder::new()
         .add_denied_address(denied)
         .build();
-    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
     let joiner_name: iota_types::base_types::AuthorityName =
         new_validator.authority_key_pair.public().into();
     let candidate_address = new_validator.account_key_pair.public_key().derive_address();

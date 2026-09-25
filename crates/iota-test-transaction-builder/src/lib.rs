@@ -30,7 +30,7 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use rand::Rng;
+use rand::RngExt;
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
@@ -60,7 +60,7 @@ impl TestTransactionBuilder {
     /// transactions (same sender, gas object and arguments) and must avoid
     /// colliding on an already-executed digest.
     pub fn ensure_unique(mut self) -> Self {
-        self.nonce = Some(rand::thread_rng().gen());
+        self.nonce = Some(rand::rng().random());
         self
     }
 

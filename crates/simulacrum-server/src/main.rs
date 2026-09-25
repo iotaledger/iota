@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
     account_configs.insert(0, faucet_account); // ensure faucet account is first
 
     let simulacrum = Simulacrum::new_with_protocol_version_and_accounts(
-        rand::rngs::OsRng,
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
         args.chain_start_timestamp_ms.unwrap_or_default(),
         iota_protocol_config::ProtocolVersion::MAX,
         account_configs,

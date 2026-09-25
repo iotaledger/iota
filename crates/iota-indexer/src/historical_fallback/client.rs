@@ -198,6 +198,7 @@ impl HttpRestKVClient {
             "creating HttpRestKVClient with base_url: {base_url}, batch_size: {batch_size}, max_concurrent_batches: {max_concurrent_batches}",
         );
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = Client::builder().http2_prior_knowledge().build()?;
 
         let base_url = if base_url.ends_with('/') {

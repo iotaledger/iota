@@ -7,7 +7,7 @@ use iota_macros::sim_test;
 use super::super::utils::setup_grpc_test;
 
 #[sim_test]
-async fn get_health() {
+async fn health() {
     let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     // Default threshold: should succeed and return checkpoint info.

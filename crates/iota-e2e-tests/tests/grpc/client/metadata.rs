@@ -54,14 +54,11 @@ async fn metadata_envelope_headers() {
     let service_info = client
         .service_info(ServiceInfoReadMask::default())
         .await
-        .expect("get_service_info should succeed");
-    assert_standard_headers(&service_info, "get_service_info");
+        .expect("service_info should succeed");
+    assert_standard_headers(&service_info, "service_info");
 
-    let health = client
-        .health(None)
-        .await
-        .expect("get_health should succeed");
-    assert_standard_headers(&health, "get_health");
+    let health = client.health(None).await.expect("health should succeed");
+    assert_standard_headers(&health, "health");
 }
 
 /// Verify that the client successfully attaches HTTP auth credentials and the
@@ -89,7 +86,7 @@ async fn metadata_envelope_with_auth() {
         let service_info = authed_client
             .service_info(ServiceInfoReadMask::default())
             .await
-            .unwrap_or_else(|e| panic!("get_service_info should succeed with {label}: {e}"));
-        assert_standard_headers(&service_info, &format!("get_service_info ({label})"));
+            .unwrap_or_else(|e| panic!("service_info should succeed with {label}: {e}"));
+        assert_standard_headers(&service_info, &format!("service_info ({label})"));
     }
 }

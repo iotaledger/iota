@@ -31,7 +31,7 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation, VersionedDkgMessage},
 };
 use parking_lot::Mutex;
-use rand::{
+use rand08::{
     SeedableRng,
     rngs::{OsRng, StdRng},
 };
@@ -84,7 +84,7 @@ impl VersionedProcessedMessage {
     ) -> FastCryptoResult<VersionedProcessedMessage> {
         // All inputs are verified in add_message, so we can assume they are of the
         // correct version.
-        let processed = party.process_message(message.unwrap_v1(), &mut rand::thread_rng())?;
+        let processed = party.process_message(message.unwrap_v1(), &mut rand08::thread_rng())?;
         Ok(VersionedProcessedMessage::V1(processed))
     }
 
@@ -277,7 +277,7 @@ impl RandomnessManager {
             nodes,
             t,
             fastcrypto_tbls::random_oracle::RandomOracle::new(prefix_str.as_str()),
-            &mut rand::thread_rng(),
+            &mut rand08::thread_rng(),
         )
         .map_err(|err| IotaError::Unknown(format!("error while initializing Party: {err:?}")))?;
         info!(

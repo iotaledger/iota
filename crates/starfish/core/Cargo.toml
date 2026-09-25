@@ -32,6 +32,7 @@ parking_lot.workspace = true
 pin-project-lite.workspace = true
 prost.workspace = true
 rand.workspace = true
+rand08.workspace = true
 reed-solomon-simd = { version = "3.0.1" }
 rs_merkle.workspace = true
 serde.workspace = true

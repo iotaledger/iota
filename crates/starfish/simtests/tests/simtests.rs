@@ -19,7 +19,7 @@ mod test {
         configs::{bimodal_latency_ms, env_config, uniform_latency_ms},
     };
     use prometheus_filtered::Registry;
-    use rand::{Rng, SeedableRng as _, rngs::StdRng};
+    use rand08::{Rng, SeedableRng as _, rngs::StdRng};
     use starfish_config::{
         Authority, AuthorityKeyPair, Committee, Epoch, NetworkKeyPair, ProtocolKeyPair, Stake,
     };

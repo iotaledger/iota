@@ -25,6 +25,7 @@ struct GoogleCloudStorageClient {
 
 impl GoogleCloudStorageClient {
     pub fn new(bucket: &str) -> Result<Self> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let mut builder = ClientBuilder::new().pool_idle_timeout(None);
         builder = builder
             .user_agent(DEFAULT_USER_AGENT)

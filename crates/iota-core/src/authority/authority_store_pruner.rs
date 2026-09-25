@@ -984,6 +984,7 @@ mod tests {
     };
     use more_asserts as ma;
     use prometheus_filtered::Registry;
+    use rand::rand_core::UnwrapErr;
     use tokio::sync::{oneshot, watch};
     use tracing::info;
     use typed_store::{
@@ -1261,7 +1262,8 @@ mod tests {
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(perpetual_dir.path(), None));
         let checkpoint_store = CheckpointStore::new_for_tests();
 
-        let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+        let committee =
+            CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
         let checkpoints = committee.make_checkpoints_with_timestamps(timestamps_ms, None);
 
         // All empty checkpoints share the same content digest, so a single
@@ -1397,7 +1399,7 @@ mod tests {
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(perpetual_dir.path(), None));
         let checkpoint_store = CheckpointStore::new_for_tests();
 
-        let committee = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+        let committee = CommitteeFixture::generate(UnwrapErr(rand::rngs::SysRng), 0, 4);
         let timestamps: Vec<_> = (1..=9).map(|i| i * 1000).collect();
         let checkpoints = committee.make_checkpoints_with_timestamps(&timestamps, None);
         let empty_digest = checkpoints[0].contents_digest;

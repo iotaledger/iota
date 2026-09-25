@@ -31,9 +31,12 @@ pub fn create_rustls_server_config_from_pem(
 
     let certs = CertificateDer::pem_file_iter(cert_file)?.collect::<Result<_, _>>()?;
     let private_key = PrivateKeyDer::from_pem_file(private_key_file)?;
-    let tls_config = rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, private_key)?;
+    let tls_config = rustls::ServerConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()?
+    .with_no_client_auth()
+    .with_single_cert(certs, private_key)?;
 
     Ok(tls_config)
 }
@@ -110,7 +113,7 @@ mod tests {
 
     #[test]
     fn verify_allowall() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let allowed = Ed25519KeyPair::generate(&mut rng);
         let disallowed = Ed25519KeyPair::generate(&mut rng);
         let random_cert_bob =
@@ -137,7 +140,7 @@ mod tests {
 
     #[test]
     fn verify_server_cert() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let allowed = Ed25519KeyPair::generate(&mut rng);
         let disallowed = Ed25519KeyPair::generate(&mut rng);
         let allowed_public_key = allowed.public().to_owned();
@@ -178,7 +181,7 @@ mod tests {
 
     #[test]
     fn verify_hashset() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let allowed = Ed25519KeyPair::generate(&mut rng);
         let disallowed = Ed25519KeyPair::generate(&mut rng);
 
@@ -220,7 +223,7 @@ mod tests {
 
     #[test]
     fn extra_certificates_are_rejected() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let allowed = Ed25519KeyPair::generate(&mut rng);
         let allowed_cert =
             SelfSignedCertificate::new(allowed.private(), IOTA_VALIDATOR_SERVER_NAME);
@@ -247,7 +250,7 @@ mod tests {
 
     #[test]
     fn invalid_server_name() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let keypair = Ed25519KeyPair::generate(&mut rng);
         let public_key = keypair.public().to_owned();
         let cert = SelfSignedCertificate::new(keypair.private(), "not-iota");
@@ -290,7 +293,7 @@ mod tests {
     async fn axum_acceptor() {
         use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand08::thread_rng();
         let client_keypair = Ed25519KeyPair::generate(&mut rng);
         let client_public_key = client_keypair.public().to_owned();
         let client_certificate =
@@ -298,8 +301,9 @@ mod tests {
         let server_keypair = Ed25519KeyPair::generate(&mut rng);
         let server_certificate = SelfSignedCertificate::new(server_keypair.private(), "localhost");
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
-            .add_root_certificate(server_certificate.reqwest_certificate())
+            .tls_certs_only([server_certificate.reqwest_certificate()])
             .identity(client_certificate.reqwest_identity())
             .https_only(true)
             .build()

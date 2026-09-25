@@ -28,7 +28,7 @@ use iota_types::{
     storage::ObjectStore,
     transaction::CallArg,
 };
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
@@ -112,7 +112,7 @@ impl StressTestRunner {
     }
 
     pub fn pick_random_sender(&mut self) -> Address {
-        self.accounts[self.rng.gen_range(0..self.accounts.len())]
+        self.accounts[self.rng.random_range(0..self.accounts.len())]
     }
 
     pub fn system_state(&self) -> IotaSystemStateSummary {
@@ -128,7 +128,7 @@ impl StressTestRunner {
         let n = system_state.iter_committee_members().count();
         let random_committee_member = system_state
             .iter_committee_members()
-            .nth(self.rng.gen_range(0..n))
+            .nth(self.rng.random_range(0..n))
             .unwrap()
             .clone();
         random_committee_member
@@ -302,7 +302,7 @@ mod add_stake {
         fn create(&self, runner: &mut StressTestRunner) -> Self::StateChange {
             let stake_amount = runner
                 .rng
-                .gen_range(MIN_DELEGATION_AMOUNT..=MAX_DELEGATION_AMOUNT);
+                .random_range(MIN_DELEGATION_AMOUNT..=MAX_DELEGATION_AMOUNT);
             let staked_with = runner.pick_random_committee_member().iota_address;
             let sender = runner.pick_random_sender();
             RequestAddStake {
@@ -380,7 +380,7 @@ async fn fuzz_dynamic_committee() {
             runner.change_epoch().await;
             continue;
         }
-        let index = runner.rng.gen_range(0..actions.len());
+        let index = runner.rng.random_range(0..actions.len());
         let mut task = actions[index].create(&mut runner);
         let effects = task.run(&mut runner).await.unwrap();
         task.pre_epoch_post_condition(&runner, &effects).await;

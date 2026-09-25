@@ -38,7 +38,7 @@ iota-multiaddr.workspace = true
 [dev-dependencies]
 # external dependencies
 fastcrypto = { workspace = true, features = ["copy_key"] }
-rand.workspace = true
+rand08.workspace = true
 
 # internal dependencies
 iota-tls.workspace = true

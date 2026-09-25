@@ -265,7 +265,7 @@ mod test {
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand::thread_rng());
+        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
 
         let server = config
             .server_builder_with_metrics(metrics.clone())
@@ -342,7 +342,7 @@ mod test {
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand::thread_rng());
+        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
 
         let server = config
             .server_builder_with_metrics(metrics.clone())
@@ -385,7 +385,7 @@ mod test {
 
     async fn test_multiaddr(address: Multiaddr) {
         let config = Config::new();
-        let keypair = Ed25519KeyPair::generate(&mut rand::thread_rng());
+        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
 
         let server_handle = config
             .server_builder()
