@@ -4485,8 +4485,8 @@ type TransactionBlock {
 	This transaction's `SenderSignedTransaction`, BCS serialized and Base64
 	encoded.
 	
-	`null` for simulated transactions (dry run and dev inspect), which have
-	no signatures. use `bcsUnsigned` for them instead.
+	`null` for simulated transactions, which have no signatures. use
+	`bcsUnsigned` for them instead.
 	"""
 	bcs: Base64
 	"""
