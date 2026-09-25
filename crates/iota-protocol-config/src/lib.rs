@@ -243,6 +243,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             non-zero flavor byte below binary format version 7.
 //             Reject the randomness state object as a `MoveAuthenticator`
 //             input.
+//             Traverse the module graph when checking a published module for
+//             cyclic dependencies, instead of stopping at its immediate
+//             dependencies.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -710,6 +713,12 @@ struct FeatureFlags {
     // randomness-using and defers it to a randomness round for nothing.
     #[serde(skip_serializing_if = "is_false")]
     disallow_randomness_in_move_authenticator: bool,
+
+    // If true, the cyclic dependency check traverses the module graph. Without it
+    // the traversal descends only into modules it has already visited, so it stops
+    // at the immediate dependencies and never reports a cycle.
+    #[serde(skip_serializing_if = "is_false")]
+    check_cyclic_dependencies: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2193,6 +2202,10 @@ impl ProtocolConfig {
     pub fn disallow_randomness_in_move_authenticator(&self) -> bool {
         self.feature_flags.disallow_randomness_in_move_authenticator
     }
+
+    pub fn check_cyclic_dependencies(&self) -> bool {
+        self.feature_flags.check_cyclic_dependencies
+    }
 }
 
 #[cfg(not(msim))]
@@ -3579,6 +3592,9 @@ impl ProtocolConfig {
                     // input instead of scheduling the transaction as
                     // randomness-using for nothing.
                     cfg.feature_flags.disallow_randomness_in_move_authenticator = true;
+                    // Traverse the module graph when checking for cyclic
+                    // dependencies.
+                    cfg.feature_flags.check_cyclic_dependencies = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3654,6 +3670,7 @@ impl ProtocolConfig {
             additional_borrow_checks,
             sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
                 .map(|limit| limit as u128),
+            check_cyclic_dependencies: self.feature_flags.check_cyclic_dependencies,
         }
     }
 
