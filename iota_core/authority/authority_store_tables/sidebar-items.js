@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["AuthorityPerpetualTables","AuthorityPerpetualTablesOptions","AuthorityPerpetualTablesReadOnly","LiveObject","LiveSetIter","SnapshotLiveObject"]};

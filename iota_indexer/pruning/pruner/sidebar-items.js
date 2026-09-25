@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["PrunableTable","PruningStrategy"],"struct":["PrunableTableIter","Pruner","TablePruner"]};
