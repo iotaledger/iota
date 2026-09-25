@@ -15,7 +15,6 @@ use tower::{Service, ServiceBuilder, ServiceExt};
 use tracing::trace;
 
 use self::{
-
     body::BoxBody,
     connection_info::{ActiveConnections, PeerConnectionCounts},
 };
@@ -322,26 +321,55 @@ where
         self.connections.read().unwrap().len()
     }
 
-    /// Gives up the connection whose slot has done the least good for the
-    /// longest, so that a peer with something to ask can take its place.
-    /// Reports whether it freed one.
+    /// How long a connection must have gone unused before a full listener may
+    /// give it up, as a fraction of how long it may go unused before being
+    /// closed outright. Under pressure the idle deadline effectively shortens,
+    /// and a peer that has asked for something recently is never the one to go.
+    ///
+    /// A listener with no idle deadline has no such fraction, and will give up
+    /// any connection that is not being served.
+    fn eviction_idle_threshold(&self) -> Duration {
+        /// A connection has to have gone unused for a tenth of the deadline.
+        const OF_THE_IDLE_DEADLINE: u32 = 10;
+
+        self.config
+            .max_connection_idle
+            .map(|idle| idle / OF_THE_IDLE_DEADLINE)
+            .unwrap_or(Duration::ZERO)
+    }
+
+    /// Gives up a connection that nobody is using, so that a peer with
+    /// something to ask can take its place. Reports whether it freed one.
     ///
     /// A limit on its own decides nothing beyond "first to arrive wins", which
-    /// under a flood is the flood. Ordering by when a connection was last
-    /// useful puts the peer that stopped asking, and the one that never
-    /// started, ahead of the peer still being served — and it protects a peer
-    /// that has only just connected, whose chance to ask has not come yet.
+    /// under a flood is the flood. Two rules decide who goes, and neither
+    /// compares connections against each other: one being served is never given
+    /// up, because it is doing the work the listener exists for and a newcomer
+    /// has not yet shown that it will; and one used more recently than
+    /// [`Server::eviction_idle_threshold`] is never given up, which is what
+    /// keeps a working peer out of a flood's way.
     ///
-    /// A connection serving a request is never given up: it is doing the work
-    /// the listener exists for, and a newcomer has not yet shown it will.
-    fn evict_least_recently_active_connection(&mut self) -> bool {
-        let mut connections: std::sync::RwLockWriteGuard<'_, HashMap<usize, ConnectionInfo<<L as Listener>::Addr>>> = self.connections.write().unwrap();
+    /// Any connection past both rules will do. Choosing the least recently used
+    /// would mean reading every connection on every arrival, which under a
+    /// flood costs far more than it decides: nearly all of them belong to the
+    /// flood, so nearly any choice is the same choice.
+    fn evict_an_idle_connection(&mut self) -> bool {
+        /// How many connections to look at before concluding that the listener
+        /// is genuinely full. Bounds the case where every connection is in use
+        /// and the answer is to refuse.
+        const SCAN_LIMIT: usize = 256;
+
+        let idle_threshold = self.eviction_idle_threshold();
+        let mut connections = self.connections.write().unwrap();
 
         let Some(evicted) = connections
             .values()
-            .filter(|connection| !connection.is_serving())
-            .min_by_key(|connection| connection.last_active())
-            .map(|connection| connection.id())
+            .take(SCAN_LIMIT)
+            .find_map(|connection| {
+                connection
+                    .idle_for()
+                    .and_then(|idle_for| (idle_for > idle_threshold).then_some(connection.id()))
+            })
         else {
             return false;
         };
@@ -391,7 +419,7 @@ where
         // listener's connections can be counted whatever it is configured with.
         if let Some(max) = self.config.max_connections {
             let live = self.live_connections();
-            if live >= max && !self.evict_least_recently_active_connection() {
+            if live >= max && !self.evict_an_idle_connection() {
                 // Dropping the connection closes it, releasing its file descriptor.
                 trace!("listener already serves {live} connections, closing the new one");
                 self.notify_connection(ConnectionEvent::Refused { live });
@@ -443,7 +471,6 @@ where
                     request.map(body::boxed)
                 })
                 .map_future({
-                    let idle = idle.clone();
                     move |future| {
                         // Held by the response body rather than dropped here,
                         // so a streaming response counts as work until its
@@ -481,7 +508,6 @@ where
                 self.config.connection_builder(),
                 connection_shutdown_token,
                 self.config.max_connection_age,
-
                 idle_timer,
                 on_connection_close,
             ));
@@ -1237,10 +1263,14 @@ mod tests {
 
         let mut payload = vec![0u8; length];
         connection.read_exact(&mut payload).await.unwrap();
-        payload.as_chunks::<SETTING_LEN>().0.iter().find_map(|setting| {
-            (u16::from_be_bytes([setting[0], setting[1]]) == SETTINGS_MAX_CONCURRENT_STREAMS)
-                .then(|| u32::from_be_bytes([setting[2], setting[3], setting[4], setting[5]]))
-        })
+        payload
+            .as_chunks::<SETTING_LEN>()
+            .0
+            .iter()
+            .find_map(|setting| {
+                (u16::from_be_bytes([setting[0], setting[1]]) == SETTINGS_MAX_CONCURRENT_STREAMS)
+                    .then(|| u32::from_be_bytes([setting[2], setting[3], setting[4], setting[5]]))
+            })
     }
 
     /// An unset `max_concurrent_streams` must leave the transport's own limit
@@ -1619,48 +1649,6 @@ mod tests {
         assert!(serving.await.unwrap().unwrap().status().is_success());
     }
 
-    /// The connection that has been useless for longest goes first. A peer
-    /// that has only just arrived has not had the chance to ask for anything
-    /// yet, so giving it up would be the same as refusing it.
-    #[tokio::test]
-    async fn the_least_recently_active_connection_goes_first() {
-        const MAX_CONNECTIONS: usize = 2;
-
-        let events = RecordedEvents::default();
-        let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
-        let handle = Builder::new()
-            .config(
-                Config::default()
-                    .max_connections(Some(MAX_CONNECTIONS))
-                    .on_connection_event(events.record()),
-            )
-            .serve(("localhost", 0), app)
-            .unwrap();
-
-        let oldest = hold_connections(&handle, 1).await;
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        let newest = hold_connections(&handle, 1).await;
-        assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
-
-        let response = reqwest::get(format!("http://{}", handle.local_addr()))
-            .await
-            .unwrap();
-        assert!(response.status().is_success());
-
-        // The one that was given up is closed, and it is the older of the two.
-        let mut buf = [0u8; 1];
-        use tokio::io::AsyncReadExt as _;
-        let mut oldest = oldest;
-        let closed = tokio::time::timeout(
-            Duration::from_secs(10),
-            oldest.first_mut().unwrap().read(&mut buf),
-        )
-        .await
-        .expect("the connection given up must actually be closed");
-        assert!(matches!(closed, Ok(0) | Err(_)));
-        drop(newest);
-    }
-
     /// Every reason a connection is asked to close has to bound the wait for
     /// it to oblige, age included: a peer that ignores the request would
     /// otherwise keep the connection for as long as it likes.
@@ -1699,53 +1687,70 @@ mod tests {
             .expect("a connection past its age must be dropped, not merely asked to leave");
     }
 
-    /// Having asked for something once does not protect a connection forever.
-    /// A peer that stopped asking long ago is given up before one that has
-    /// only just arrived and has not had its chance yet — which is what keeps
-    /// a flood from surviving by sending one request per connection.
+    /// Having asked for something recently is what keeps a connection out of
+    /// the way of a flood: under pressure the idle deadline effectively
+    /// shortens, and a peer that has used its connection within that window is
+    /// never the one given up.
     #[tokio::test]
-    async fn a_connection_that_stopped_asking_goes_before_a_new_arrival() {
-        use tokio::io::AsyncReadExt as _;
-
+    async fn a_recently_used_connection_is_not_given_up() {
+        // The eviction threshold is a tenth of this, so 100ms.
+        const IDLE: Duration = Duration::from_secs(1);
         const MAX_CONNECTIONS: usize = 2;
 
         let app = Router::new().route("/", axum::routing::get(|| async { "ok" }));
         let handle = Builder::new()
-            .config(Config::default().max_connections(Some(MAX_CONNECTIONS)))
+            .config(
+                Config::default()
+                    .max_connections(Some(MAX_CONNECTIONS))
+                    .max_connection_idle(Some(IDLE)),
+            )
             .serve(("localhost", 0), app)
             .unwrap();
         let url = format!("http://{}", handle.local_addr());
 
-        // One connection that asks for something and then falls silent, kept
-        // open by holding the client that owns it.
-        let asked_once = reqwest::Client::builder().build().unwrap();
-        assert!(
-            asked_once.get(&url).send().await.unwrap().status().is_success(),
-            "the first request must be served"
-        );
+        // One connection that has gone unused for longer than the threshold.
+        let mut unused = hold_connections(&handle, 1).await;
 
-        // A second peer arrives later and never asks for anything.
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        let mut just_arrived = hold_connections(&handle, 1).await;
+        // One that is using itself, kept busy by a client that keeps its
+        // connection pooled between requests.
+        let busy_client = reqwest::Client::builder().build().unwrap();
+        assert!(
+            busy_client
+                .get(&url)
+                .send()
+                .await
+                .unwrap()
+                .status()
+                .is_success()
+        );
         assert_eq!(handle.number_of_connections(), MAX_CONNECTIONS);
 
-        // A third peer arrives. The connection that stopped asking has been
-        // useless for longer than the one that never started, so it goes.
+        // A third peer arrives: the unused connection is the one that goes.
         assert!(
             reqwest::get(&url).await.unwrap().status().is_success(),
             "a full listener must still make room"
         );
 
-        // The newest arrival is untouched.
+        use tokio::io::AsyncReadExt as _;
         let mut buf = [0u8; 1];
-        let still_open = tokio::time::timeout(
-            Duration::from_millis(500),
-            just_arrived.first_mut().unwrap().read(&mut buf),
+        let closed = tokio::time::timeout(
+            Duration::from_secs(5),
+            unused.first_mut().unwrap().read(&mut buf),
         )
-        .await;
+        .await
+        .expect("the unused connection must be the one given up");
+        assert!(matches!(closed, Ok(0) | Err(_)));
+
+        // And the connection that was being used still works.
         assert!(
-            still_open.is_err(),
-            "a peer that has only just arrived must not be the one given up"
+            busy_client
+                .get(&url)
+                .send()
+                .await
+                .unwrap()
+                .status()
+                .is_success(),
+            "a recently used connection must not be given up"
         );
     }
 }

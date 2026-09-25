@@ -71,20 +71,13 @@ impl<A> ConnectionInfo<A> {
         self.0.graceful_shutdown_token.cancel()
     }
 
-    /// Whether this connection is serving a request right now. One that is
-    /// doing work for its peer is not a candidate to be given up.
-    pub(crate) fn is_serving(&self) -> bool {
-        self.0.idle.is_busy()
-    }
-
-    /// When this connection was last useful: the moment its last request
-    /// finished, or the moment it was established if it has finished none.
+    /// How long this connection has gone without asking for anything, counted
+    /// from when it was established if it never has.
     ///
-    /// This orders connections against each other. The earliest is the one
-    /// whose slot has done the least good for the longest, whether that is a
-    /// peer that stopped asking or one that never started.
-    pub(crate) fn last_active(&self) -> std::time::Instant {
-        self.0.idle.idle_since().unwrap_or(self.0.time_established)
+    /// Only meaningful for a connection that is not serving: while it is, this
+    /// reports the gap before its current request began.
+    pub(crate) fn idle_for(&self) -> Option<std::time::Duration> {
+        self.0.idle.idle_for()
     }
 }
 

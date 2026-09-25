@@ -8,11 +8,8 @@ use http::{Request, Response};
 use tracing::{debug, trace};
 
 use crate::{
-    ActiveConnections, BoxError, ConnectionEvent, ConnectionId,
-    activity::IdleSleep,
-    config::OnConnectionEvent,
-    connection_info::PeerConnectionGuard,
-    fuse::Fuse,
+    ActiveConnections, BoxError, ConnectionEvent, ConnectionId, activity::IdleSleep,
+    config::OnConnectionEvent, connection_info::PeerConnectionGuard, fuse::Fuse,
 };
 
 /// How long a connection asked to close is given to finish shutting down

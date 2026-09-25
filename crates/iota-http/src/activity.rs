@@ -6,17 +6,16 @@
 use std::{
     future::Future,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+    },
     task::{Context, Poll, Waker},
     time::Duration,
 };
 
 use pin_project_lite::pin_project;
 use tokio::time::{Instant, Sleep};
-
-/// Far enough ahead that a timer set for it is never reached. Only used to
-/// give the timer of a task with no deadline some value; it is never polled.
-const NEVER: Duration = Duration::from_secs(60 * 60 * 24 * 365 * 30);
 
 /// Creates a timer that becomes ready once its task has been idle for
 /// `idle_timeout`, or one that is never ready when there is no timeout.
@@ -59,20 +58,32 @@ const NEVER: Duration = Duration::from_secs(60 * 60 * 24 * 365 * 30);
 /// ```
 pub fn idle_sleep(idle_timeout: Option<Duration>) -> IdleSleep {
     IdleSleep {
-        sleep: tokio::time::sleep(idle_timeout.unwrap_or(NEVER)),
-        timeout: idle_timeout,
-        shared: Arc::default(),
+        timer: idle_timeout.map(|timeout| Timer {
+            sleep: tokio::time::sleep(timeout),
+            timeout,
+        }),
+        shared: Arc::new(Shared::new()),
     }
 }
 
 pin_project! {
     /// A timer that runs only while its task is idle. See [`idle_sleep`].
     pub struct IdleSleep {
+        // Sleep timer, created only when finite idle timeout is requested.
+        #[pin]
+        timer: Option<Timer>,
+        shared: Arc<Shared>,
+    }
+}
+
+pin_project! {
+    struct Timer {
+        // Sleep timer, becomes ready only when the task has been idle for timeout or longer
+        // (after the start or the last job was complete, ie. the last related IdleGuard was dropped).
         #[pin]
         sleep: Sleep,
-        // `None` for a task that is never to be closed for being idle.
-        timeout: Option<Duration>,
-        shared: Arc<Mutex<Shared>>,
+        // Idle timeout: period after which the sleep timer becomes ready.
+        timeout: Duration,
     }
 }
 
@@ -87,15 +98,7 @@ impl IdleSleep {
 
     /// Whether the task has anything to do right now.
     pub fn is_busy(&self) -> bool {
-        self.shared.lock().unwrap().busy > 0
-    }
-}
-
-impl std::fmt::Debug for IdleSleep {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("IdleSleep")
-            .field("timeout", &self.timeout)
-            .finish_non_exhaustive()
+        self.shared.is_busy()
     }
 }
 
@@ -103,34 +106,29 @@ impl std::fmt::Debug for IdleSleep {
 /// [`idle_sleep`].
 #[derive(Clone, Debug)]
 pub struct IdleHandle {
-    shared: Arc<Mutex<Shared>>,
+    shared: Arc<Shared>,
 }
 
 impl IdleHandle {
     /// Counts the task as busy until the returned guard is dropped.
     pub fn guard(&self) -> IdleGuard {
-        self.shared.lock().unwrap().busy += 1;
+        self.shared.busy.fetch_add(1, Ordering::Relaxed);
         IdleGuard {
             shared: self.shared.clone(),
         }
     }
 
-    /// Whether the task has anything to do right now.
+    #[cfg(test)]
     pub fn is_busy(&self) -> bool {
-        self.shared.lock().unwrap().busy > 0
+        self.shared.is_busy()
     }
 
-    /// When the task last became idle, or `None` if it has never been busy.
+    /// How long the task has had nothing to do, or `None` if it is busy.
     ///
-    /// Unlike the timer, this is not consumed when the timer restarts, so it
-    /// can be read at any time to order tasks by how long each has had nothing
-    /// to do.
-    pub fn idle_since(&self) -> Option<std::time::Instant> {
-        self.shared
-            .lock()
-            .unwrap()
-            .idle_since
-            .map(Instant::into_std)
+    /// The operation is not atomic -- it may become busy right after it returns
+    /// `Some`.
+    pub fn idle_for(&self) -> Option<Duration> {
+        (!self.shared.is_busy()).then(|| self.shared.idle_for())
     }
 }
 
@@ -138,37 +136,78 @@ impl IdleHandle {
 #[must_use = "the task is only counted busy for as long as the guard is held"]
 #[derive(Debug)]
 pub struct IdleGuard {
-    shared: Arc<Mutex<Shared>>,
+    shared: Arc<Shared>,
 }
 
 impl Drop for IdleGuard {
     fn drop(&mut self) {
-        let mut shared = self.shared.lock().unwrap();
+        let previously_busy = self.shared.busy.fetch_sub(1, Ordering::Relaxed);
         debug_assert!(
-            shared.busy > 0,
+            previously_busy > 0,
             "guards are only ever created by IdleHandle::guard, which counts them"
         );
-        shared.busy -= 1;
-        if shared.busy == 0 {
-            // The last of the task's work is done: the timer restarts from
-            // here, and the task is woken to do it.
-            shared.idle_since = Some(Instant::now());
-            shared.restart_pending = true;
-            if let Some(waker) = shared.waker.take() {
-                waker.wake();
-            }
+        if previously_busy != 1 {
+            return;
+        }
+
+        // The last of the task's work is done: the timer restarts from here,
+        // and the task is woken to do it.
+        let mut state = self.shared.state.lock().unwrap();
+        let idle_since = Instant::now() - self.shared.created_at;
+        self.shared
+            .idle_since_ms
+            .store(idle_since.as_millis() as u64, Ordering::Relaxed);
+        state.restart_pending = true;
+        if let Some(waker) = state.waker.take() {
+            waker.wake();
         }
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 struct Shared {
-    /// Live [`IdleGuard`]s. The task is idle when this is zero.
-    busy: usize,
-    /// When the task last became idle, or `None` if it has never been busy.
-    idle_since: Option<Instant>,
+    /// Live [`IdleGuard`]s; the task is idle when this is zero.
+    ///
+    /// Outside the lock because every request takes and drops a guard, and
+    /// every connection is asked whether it is busy when a full listener looks
+    /// for one to give up. The lock is still taken whenever this reaches zero,
+    /// so the timer is armed in step with it.
+    busy: AtomicUsize,
+    /// Instance when the timer was created.
+    created_at: Instant,
+    /// When the task last became idle, in milliseconds relative to `start`.
+    idle_since_ms: AtomicU64,
+    state: Mutex<State>,
+}
+
+impl Shared {
+    fn new() -> Self {
+        Self {
+            busy: AtomicUsize::new(0),
+            created_at: Instant::now(),
+            idle_since_ms: AtomicU64::new(0),
+            state: Mutex::default(),
+        }
+    }
+
+    fn is_busy(&self) -> bool {
+        self.busy.load(Ordering::Relaxed) > 0
+    }
+
+    fn idle_since(&self) -> Instant {
+        self.created_at + Duration::from_millis(self.idle_since_ms.load(Ordering::Relaxed))
+    }
+
+    fn idle_for(&self) -> Duration {
+        self.idle_since().elapsed()
+    }
+}
+
+#[derive(Default, Debug)]
+struct State {
     /// Set when `idle_since` has moved and the timer has yet to be restarted
-    /// from it. Cleared by the poll that does so.
+    /// from it. While it is false the timer is armed from the current
+    /// `idle_since`, so a timer that is reached is genuinely due.
     restart_pending: bool,
     /// Waker of the task polling the timer, woken when the task becomes idle.
     waker: Option<Waker>,
@@ -178,35 +217,38 @@ impl Future for IdleSleep {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
+        let this = self.project();
 
-        let Some(timeout) = *this.timeout else {
+        let Some(timer) = this.timer.as_pin_mut() else {
             // No deadline, so nothing ever makes this ready and nothing needs
             // to wake the task on its account.
             return Poll::Pending;
         };
 
-        let mut shared = this.shared.lock().unwrap();
+        let mut state = this.shared.state.lock().unwrap();
 
-        if shared.busy > 0 {
-            // The task has work, so the timer does not run. Dropping the last
-            // guard wakes us to start it again.
-            shared.waker = Some(cx.waker().clone());
+        // Registering the waker under the same lock the last guard takes is
+        // what stops a wake going missing: either the guard has yet to reach
+        // the lock and will find the waker there, or it has already been
+        // through and this reads zero below.
+        if this.shared.is_busy() {
+            state.waker = Some(cx.waker().clone());
             return Poll::Pending;
         }
 
-        if shared.restart_pending {
-            shared.restart_pending = false;
-            let idle_since = shared
-                .idle_since
-                .expect("a restart is only ever pending once the task has become idle");
-            this.sleep.as_mut().reset(idle_since + timeout);
+        let mut timer = timer.project();
+        if state.restart_pending {
+            state.restart_pending = false;
+            let deadline = this.shared.idle_since() + *timer.timeout;
+            timer.sleep.as_mut().reset(deadline);
         }
 
-        // Not held across the poll below: nothing there touches the shared
-        // state, and a guard taken meanwhile is dealt with on the next poll.
-        drop(shared);
+        // A guard dropped between the read above and the lock being taken
+        // leaves the timer armed from the previous idle moment, which is never
+        // later than the current one. It is reached early, and that poll
+        // applies the restart rather than reporting the task idle.
+        drop(state);
 
-        this.sleep.poll(cx)
+        timer.sleep.poll(cx)
     }
 }
