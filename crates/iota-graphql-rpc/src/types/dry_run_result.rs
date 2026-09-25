@@ -9,6 +9,7 @@ use iota_sdk_types::{
 };
 
 use crate::{
+    consistency::UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
     error::Error,
     types::{
         base64::Base64,
@@ -130,9 +131,9 @@ impl TryFrom<DevInspectResults> for DryRunResult {
                 effects,
                 events,
             },
-            // set to u64::MAX, as dry running a transaction makes use of a fullnode's state, which
-            // is typically ahead of the indexed state.
-            checkpoint_viewed_at: u64::MAX,
+            // set to a large number, as dry running a transaction makes use of a fullnode's state,
+            // which is typically ahead of the indexed state.
+            checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
         });
         Ok(Self {
             error: dev_inspect_results.error,

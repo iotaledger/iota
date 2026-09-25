@@ -138,9 +138,10 @@ where
                 .get_checkpoints_in_range(last_processed_cp_seq, last_processed_cp_seq + 1)
                 .await?
                 .first()
-                .ok_or(IndexerError::PostgresRead(
-                    "cannot read checkpoint from PG for epoch peak TPS".to_string(),
-                ))?
+                .ok_or(IndexerError::PostgresRead)
+                .inspect_err(|_| {
+                    tracing::error!("cannot read checkpoint from PG for epoch peak TPS")
+                })?
                 .clone();
             for epoch in last_processed_peak_tps_epoch + 1..end_cp.epoch {
                 self.store.persist_epoch_peak_tps(epoch).await?;

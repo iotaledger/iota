@@ -11,7 +11,9 @@ use iota_indexer::{
     test_utils::{TestDatabase, db_url},
 };
 use iota_json::{IotaJsonValue, call_args, type_args};
-use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
+use iota_json_rpc_api::{
+    IndexerApiClient, QUERY_MAX_RESULT_LIMIT, ReadApiClient, TransactionBuilderClient,
+};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectResponse,
     IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
@@ -46,8 +48,8 @@ use crate::{
     common::{
         ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer_checkpoint,
         indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
-        indexer_wait_for_transaction, publish_test_move_package, rpc_call_error_msg_matches,
-        start_test_cluster_with_read_write_indexer,
+        indexer_wait_for_transaction, input_size_limit_exceeded_msg, publish_test_move_package,
+        rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -2675,4 +2677,43 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
 
         Ok(())
     })
+}
+
+#[test]
+fn try_multi_get_past_objects_at_and_above_limit() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let request = || IotaGetPastObjectRequest {
+            object_id: ObjectId::random(),
+            version: Version::default(),
+        };
+
+        let at_limit = std::iter::repeat_with(request)
+            .take(*QUERY_MAX_RESULT_LIMIT)
+            .collect();
+
+        let results = client
+            .try_multi_get_past_objects(at_limit, None)
+            .await
+            .expect("request at the limit should succeed");
+        assert_eq!(results.len(), *QUERY_MAX_RESULT_LIMIT);
+
+        let above_limit = std::iter::repeat_with(request)
+            .take(*QUERY_MAX_RESULT_LIMIT + 1)
+            .collect();
+
+        let result = client.try_multi_get_past_objects(above_limit, None).await;
+        assert!(rpc_call_error_msg_matches(
+            result,
+            &input_size_limit_exceeded_msg()
+        ));
+    });
 }

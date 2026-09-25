@@ -182,8 +182,8 @@ impl TestCluster {
     }
 
     /// Create a gRPC client connected to the fullnode's gRPC API.
-    pub fn grpc_client(&self) -> iota_grpc_client::Client {
-        iota_grpc_client::Client::new(self.grpc_url()).expect("failed to create gRPC client")
+    pub fn grpc_client(&self) -> iota_grpc_client::GrpcClient {
+        iota_grpc_client::GrpcClient::new(self.grpc_url()).expect("failed to create gRPC client")
     }
 
     /// Create a gRPC-driven [`TransactionBuilder`] for `sender`, resolving
@@ -191,7 +191,7 @@ impl TestCluster {
     pub fn grpc_transaction_builder(
         &self,
         sender: Address,
-    ) -> TransactionBuilder<iota_grpc_client::Client> {
+    ) -> TransactionBuilder<iota_grpc_client::GrpcClient> {
         TransactionBuilder::new(sender).with_client(self.grpc_client())
     }
 
@@ -561,6 +561,34 @@ impl TestCluster {
             self.start_node(&authority).await;
             info!("Restarted validator {}", authority);
         }
+    }
+
+    /// Replace one validator's transaction deny config, by restarting it.
+    ///
+    /// A deny list usually names objects or packages that only exist once the
+    /// cluster is running, which is too late for
+    /// [`TestClusterBuilder::with_transaction_deny_config`]. The config is read
+    /// once, when the node builds its `AuthorityState`, so a restart is the
+    /// only way to install a new one — the same procedure an operator follows.
+    ///
+    /// Restarting leaves the authority clients cached by the fullnode, and so
+    /// the ones [`Self::authority_aggregator`] hands out, connected to a node
+    /// that is gone. Reach the restarted validator through its node handle
+    /// instead, or drive an epoch change first.
+    pub async fn update_transaction_deny_config_on(
+        &self,
+        authority: &AuthorityName,
+        transaction_deny_config: TransactionDenyConfig,
+    ) {
+        self.stop_node(authority);
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+        self.swarm
+            .node(authority)
+            .unwrap()
+            .config()
+            .transaction_deny_config = transaction_deny_config;
+        self.start_node(authority).await;
+        info!("Restarted validator {}", authority);
     }
 
     /// Wait for all nodes in the network to upgrade to `protocol_version`.

@@ -148,7 +148,6 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
-        authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
@@ -234,6 +233,7 @@ pub mod transaction_deferral;
 pub(crate) mod authority_store;
 pub mod backpressure;
 pub(crate) mod dropped_tx_status_cache;
+pub(crate) mod pruner_db_migration;
 
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 pub struct AuthorityMetrics {
@@ -1092,6 +1092,22 @@ impl AuthorityState {
                 .all(|objects| objects.inner().filter_owned_objects().is_empty()),
             "Move authenticator input objects must not contain owned objects"
         );
+
+        // The package holding each authenticate function is known only now that the
+        // `AuthenticatorFunctionRef`s are loaded, so the deny-list check for it
+        // stands apart from the one above. It must stay ahead of two things: the
+        // filtering below, which drops authenticators that do not run
+        // pre-consensus, so that every authenticator is covered; and the
+        // authenticator execution itself, so that a denied package is never run.
+        if protocol_config.deny_authenticator_packages() {
+            iota_transaction_checks::deny::check_authenticator_packages(
+                deny_config,
+                per_authenticator_checked_inputs
+                    .iter()
+                    .map(|(_, authenticator_function_ref)| authenticator_function_ref),
+                self.get_backing_package_store().as_ref(),
+            )?;
+        }
 
         // Check if any of the sender, the transaction input objects, the receiving
         // objects and the authenticator input objects are in the coin deny
@@ -2051,6 +2067,7 @@ impl AuthorityState {
                                 auth_account_object_digest,
                                 account_object,
                                 &signer,
+                                protocol_config,
                             );
 
                         (
@@ -2285,6 +2302,8 @@ impl AuthorityState {
                 error: "simulate does not support system transactions".to_string(),
             });
         }
+
+        transaction.check_serialized_size(epoch_store.protocol_config())?;
 
         // Cheap validity checks for a transaction, including input size limits.
         // This does not check if gas objects are missing since we may create a
@@ -3050,7 +3069,6 @@ impl AuthorityState {
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
-        pruner_db: Option<Arc<AuthorityPrunerTables>>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
@@ -3086,7 +3104,6 @@ impl AuthorityState {
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            pruner_db,
             checkpoint_progress_tracker.clone(),
         );
         let input_loader =
@@ -3207,7 +3224,6 @@ impl AuthorityState {
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
             self.grpc_indexes_store.as_deref(),
-            None,
             config.authority_store_pruning_config,
             metrics,
             EPOCH_DURATION_MS_FOR_TESTING,
@@ -5634,6 +5650,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
+        protocol_config: &ProtocolConfig,
     ) -> AuthenticatorFunctionRefForExecution {
         self.check_move_account(
             auth_account_object_id,
@@ -5642,6 +5659,7 @@ impl AuthorityState {
             account_object,
             signer,
             true,
+            protocol_config,
         )
         .expect("move account checks cannot fail during execution")
     }
@@ -5656,6 +5674,7 @@ impl AuthorityState {
         auth_account_object_digest: Option<ObjectDigest>,
         account_object: ObjectReadResult,
         signer: &Address,
+        protocol_config: &ProtocolConfig,
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         self.check_move_account(
             auth_account_object_id,
@@ -5664,11 +5683,15 @@ impl AuthorityState {
             account_object,
             signer,
             false,
+            protocol_config,
         )
     }
 
     /// Checks whether `authenticator` unlocks a valid Move account and returns
-    /// the account-related `AuthenticatorFunctionRef`. When `is_execution` is
+    /// the account-related `AuthenticatorFunctionRef`. Where the protocol
+    /// config requires it, the account object must be shared, so that a
+    /// transaction carrying a `MoveAuthenticator` always has a shared input
+    /// and is ordered by consensus. When `is_execution` is
     /// set, a deleted or cancelled account object yields its version instead of
     /// an error, so execution can proceed to the proper effect. Prefer the
     /// `check_move_account_for_execution` / `check_move_account_for_validation`
@@ -5681,6 +5704,7 @@ impl AuthorityState {
         account_object: ObjectReadResult,
         signer: &Address,
         is_execution: bool,
+        protocol_config: &ProtocolConfig,
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         let auth_account_object_seq_number = match (&account_object.object, is_execution) {
             // In any case, if the account object is loaded, we can check its version and digest.
@@ -5696,6 +5720,16 @@ impl AuthorityState {
                     .into()
                 );
 
+                if protocol_config.reject_immutable_account_objects() {
+                    fp_ensure!(
+                        !object.is_immutable(),
+                        UserInputError::ImmutableAccountObjectNotSupported {
+                            object_id: auth_account_object_id
+                        }
+                        .into()
+                    );
+                }
+
                 fp_ensure!(
                     object.is_shared() || object.is_immutable(),
                     UserInputError::AccountObjectNotSupported {
@@ -5705,32 +5739,32 @@ impl AuthorityState {
                 );
 
                 let auth_account_object_seq_number =
-                    if let Some(auth_account_object_seq_number) = auth_account_object_seq_number {
+                    if let Some(expected_version) = auth_account_object_seq_number {
                         let account_object_version = object.version();
 
                         fp_ensure!(
-                            account_object_version == auth_account_object_seq_number,
+                            account_object_version == expected_version,
                             UserInputError::AccountObjectVersionMismatch {
                                 object_id: auth_account_object_id,
-                                expected_version: auth_account_object_seq_number,
+                                expected_version,
                                 actual_version: account_object_version,
                             }
                             .into()
                         );
 
-                        auth_account_object_seq_number
+                        expected_version
                     } else {
                         object.version()
                     };
 
-                if let Some(auth_account_object_digest) = auth_account_object_digest {
-                    let expected_digest = object.digest();
+                if let Some(expected_digest) = auth_account_object_digest {
+                    let account_object_digest = object.digest();
                     fp_ensure!(
-                        expected_digest == auth_account_object_digest,
+                        account_object_digest == expected_digest,
                         UserInputError::InvalidAccountObjectDigest {
                             object_id: auth_account_object_id,
                             expected_digest,
-                            actual_digest: auth_account_object_digest,
+                            actual_digest: account_object_digest,
                         }
                         .into()
                     );
@@ -5876,6 +5910,7 @@ impl AuthorityState {
                         auth_account_object_digest,
                         account_object,
                         &signer,
+                        protocol_config,
                     )?;
 
                     // Check the MoveAuthenticator input objects.

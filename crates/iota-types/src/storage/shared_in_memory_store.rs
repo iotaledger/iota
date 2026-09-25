@@ -303,10 +303,15 @@ impl InMemoryStore {
             }
         }
 
-        Some(FullCheckpointContents::from_contents_and_execution_data(
-            contents.to_owned(),
-            transactions.into_iter(),
-        ))
+        // One transaction was loaded per entry of `contents` in the loop above,
+        // so the two cannot differ in length.
+        Some(
+            FullCheckpointContents::from_contents_and_execution_data(
+                contents.to_owned(),
+                transactions.into_iter(),
+            )
+            .expect("in-memory store loads one transaction per pinned signature set"),
+        )
     }
 
     /// Get checkpoint sequence number by contents digest.

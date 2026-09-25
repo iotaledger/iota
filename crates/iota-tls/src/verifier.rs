@@ -125,6 +125,14 @@ impl<A: Allower> rustls::server::danger::ClientCertVerifier for ClientCertVerifi
         intermediates: &[CertificateDer],
         now: UnixTime,
     ) -> Result<rustls::server::danger::ClientCertVerified, rustls::Error> {
+        // Every peer signs its own certificate, so only a chain of one can be valid.
+        if !intermediates.is_empty() {
+            return Err(rustls::Error::General(format!(
+                "invalid certificate chain: expected one certificate, got {}",
+                intermediates.len() + 1
+            )));
+        }
+
         // Step 1: Check this matches the key we expect
         let public_key = public_key_from_certificate(end_entity)?;
 

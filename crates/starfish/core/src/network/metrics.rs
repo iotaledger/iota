@@ -17,12 +17,17 @@ pub(crate) struct NetworkMetrics {
     pub(crate) outbound: Arc<NetworkRouteMetrics>,
     #[cfg_attr(msim, allow(dead_code))]
     pub(crate) tcp_connection_metrics: Arc<TcpConnectionMetrics>,
-    /// Inbound requests rejected by per-peer admission control, by RPC group.
+    /// Inbound requests rejected by admission control, by RPC group and the
+    /// cap that was reached.
     pub(crate) admission_rejected: IntCounterVec,
     /// Inbound requests currently in flight under admission control, by RPC
     /// group (summed across peers). Shows live concurrency vs the per-peer
     /// caps.
     pub(crate) admission_in_use: IntGaugeVec,
+    /// Connections each peer currently holds on the inbound listener.
+    pub(crate) inbound_connections: IntGaugeVec,
+    /// Connections refused for being over a peer's connection limit.
+    pub(crate) inbound_connections_refused: IntCounterVec,
 }
 
 impl NetworkMetrics {
@@ -40,8 +45,8 @@ impl NetworkMetrics {
             tcp_connection_metrics: Arc::new(TcpConnectionMetrics::new(registry)),
             admission_rejected: register_int_counter_vec_with_registry!(
                 "inbound_admission_rejected",
-                "Inbound consensus requests rejected by per-peer admission control, by RPC group",
-                &["group"],
+                "Inbound consensus requests rejected by admission control, by RPC group and the cap that was reached",
+                &["group", "limit"],
                 registry;
                 MetricLevel::Warn,
             )
@@ -50,6 +55,22 @@ impl NetworkMetrics {
                 "inbound_admission_in_use",
                 "Inbound consensus requests currently in flight under admission control, by RPC group",
                 &["group"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            inbound_connections: register_int_gauge_vec_with_registry!(
+                "inbound_connections",
+                "Connections each peer currently holds on the inbound consensus listener",
+                &["authority"],
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            inbound_connections_refused: register_int_counter_vec_with_registry!(
+                "inbound_connections_refused",
+                "Connections refused for being over the peer's connection limit",
+                &["authority"],
                 registry;
                 MetricLevel::Warn,
             )
@@ -107,13 +128,9 @@ pub(crate) struct NetworkRouteMetrics {
     pub requests: IntCounterVec,
     /// Request latency by route
     pub request_latency: HistogramVec,
-    /// Request size by route
-    pub request_size: HistogramVec,
-    /// Response size by route
+    /// Wire size of each gRPC response message by route
     pub response_size: HistogramVec,
-    /// Counter of requests exceeding the "excessive" size limit
-    pub excessive_size_requests: IntCounterVec,
-    /// Counter of responses exceeding the "excessive" size limit
+    /// Counter of response messages exceeding the "excessive" size limit
     pub excessive_size_responses: IntCounterVec,
     /// Gauge of the number of inflight requests at any given time by route
     pub inflight_requests: IntGaugeVec,
@@ -156,37 +173,19 @@ impl NetworkRouteMetrics {
         )
         .unwrap();
 
-        let request_size = register_histogram_vec_with_registry!(
-            format!("{direction}_request_size"),
-            "Size of a request by route",
-            &["route"],
-            SIZE_BYTE_BUCKETS.to_vec(),
-            registry;
-            MetricLevel::Warn,
-        )
-        .unwrap();
-
         let response_size = register_histogram_vec_with_registry!(
             format!("{direction}_response_size"),
-            "Size of a response by route",
+            "Wire size of each gRPC response message by route, prefix included",
             &["route"],
             SIZE_BYTE_BUCKETS.to_vec(),
             registry;
             MetricLevel::Warn,
-        )
-        .unwrap();
-
-        let excessive_size_requests = register_int_counter_vec_with_registry!(
-            format!("{direction}_excessive_size_requests"),
-            "The number of excessively large request messages sent",
-            &["route"],
-            registry
         )
         .unwrap();
 
         let excessive_size_responses = register_int_counter_vec_with_registry!(
             format!("{direction}_excessive_size_responses"),
-            "The number of excessively large response messages seen",
+            "The number of response messages over the excessive message size",
             &["route"],
             registry
         )
@@ -211,9 +210,7 @@ impl NetworkRouteMetrics {
         Self {
             requests,
             request_latency,
-            request_size,
             response_size,
-            excessive_size_requests,
             excessive_size_responses,
             inflight_requests,
             errors,

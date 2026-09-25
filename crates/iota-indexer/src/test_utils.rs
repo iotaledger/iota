@@ -17,7 +17,7 @@ use crate::{
         DEFAULT_PRUNING_BATCH_SIZE, IngestionConfig, IotaNamesOptions, PruningOptions,
         RetentionConfig,
     },
-    db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
+    db::{ConnectionPool, ConnectionPoolConfig, DbUrl, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
@@ -247,7 +247,7 @@ impl TestDatabase {
 
         let db_name = db_url.split('/').next_back().unwrap().into();
         let (default_url, _) = replace_db_name(&db_url, "postgres");
-        let blocking_pool = new_connection_pool(&default_url, &pool_config).unwrap();
+        let blocking_pool = new_connection_pool(&DbUrl::from(default_url), &pool_config).unwrap();
         let connection = blocking_pool.get().unwrap();
         Self {
             url: db_url,
@@ -279,7 +279,7 @@ impl TestDatabase {
 
     /// Create a new connection pool to the database.
     pub fn to_connection_pool(&self) -> ConnectionPool {
-        new_connection_pool(&self.url, &self.pool_config).unwrap()
+        new_connection_pool(&DbUrl::from(self.url.as_str()), &self.pool_config).unwrap()
     }
 
     pub fn reset_db(&mut self) {
@@ -319,7 +319,7 @@ pub async fn force_delete_database(db_url: String) {
     let mut pool_config = ConnectionPoolConfig::default();
     pool_config.set_pool_size(1);
 
-    let blocking_pool = new_connection_pool(&default_db_url, &pool_config).unwrap();
+    let blocking_pool = new_connection_pool(&DbUrl::from(default_db_url), &pool_config).unwrap();
     blocking_pool
         .get()
         .unwrap()

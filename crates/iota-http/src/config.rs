@@ -2,15 +2,21 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::{fmt, sync::Arc, time::Duration};
 
 const DEFAULT_HTTP2_KEEPALIVE_TIMEOUT_SECS: u64 = 20;
+/// hyper's own default for the header read deadline; hyper only enforces it
+/// when a timer is configured, which this crate always does.
+const DEFAULT_HTTP1_HEADER_READ_TIMEOUT: Duration = Duration::from_secs(30);
 /// Covers a round trip plus a few TCP retransmissions on a lossy link; an
 /// unloaded TLS 1.3 handshake completes in one round trip.
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
-/// Concurrent handshakes only build up when peers are slow or silent, so this
-/// leaves ample room for a legitimate reconnect burst.
-const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 512;
+/// Every connection to a TLS listener passes through the handshake phase, so
+/// together with the handshake deadline this bounds how many silent peers it
+/// takes to make honest connections wait in the kernel backlog. Concurrent
+/// handshakes only build up when peers are slow or silent, so this leaves ample
+/// room for a legitimate reconnect burst.
+const DEFAULT_MAX_PENDING_CONNECTIONS: usize = 4096;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -26,11 +32,44 @@ pub struct Config {
     http2_max_header_list_size: Option<u32>,
     max_frame_size: Option<u32>,
     pub(crate) accept_http1: bool,
+    http1_header_read_timeout: Option<Duration>,
     enable_connect_protocol: bool,
     pub(crate) max_connection_age: Option<Duration>,
-    pub(crate) allow_insecure: bool,
     pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_pending_connections: Option<usize>,
+    pub(crate) max_connections_per_peer: Option<usize>,
+    pub(crate) on_peer_connection_event: Option<OnPeerConnectionEvent>,
+}
+
+/// A change to the connections an authenticated peer holds, with the number
+/// it holds afterwards.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PeerConnectionEvent {
+    /// A connection was accepted and counted.
+    Established { held: usize },
+    /// A counted connection closed.
+    Closed { held: usize },
+    /// A further connection was closed because the peer already holds the
+    /// limit.
+    RefusedAtLimit { held: usize },
+}
+
+type PeerConnectionCallback = Arc<dyn Fn(&[u8], PeerConnectionEvent) + Send + Sync>;
+
+/// Called with the peer's public key on each of its connection events.
+#[derive(Clone)]
+pub(crate) struct OnPeerConnectionEvent(PeerConnectionCallback);
+
+impl OnPeerConnectionEvent {
+    pub(crate) fn call(&self, peer_public_key: &[u8], event: PeerConnectionEvent) {
+        (self.0)(peer_public_key, event)
+    }
+}
+
+impl fmt::Debug for OnPeerConnectionEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("OnPeerConnectionEvent")
+    }
 }
 
 impl Default for Config {
@@ -48,11 +87,13 @@ impl Default for Config {
             http2_max_header_list_size: None,
             max_frame_size: None,
             accept_http1: true,
+            http1_header_read_timeout: Some(DEFAULT_HTTP1_HEADER_READ_TIMEOUT),
             enable_connect_protocol: true,
             max_connection_age: None,
-            allow_insecure: false,
             handshake_timeout: Some(DEFAULT_HANDSHAKE_TIMEOUT),
             max_pending_connections: Some(DEFAULT_MAX_PENDING_CONNECTIONS),
+            max_connections_per_peer: None,
+            on_peer_connection_event: None,
         }
     }
 }
@@ -213,18 +254,15 @@ impl Config {
         }
     }
 
-    /// Allow accepting insecure connections when a tls_config is provided.
+    /// Sets how long an HTTP/1 connection may take to send a complete request
+    /// header block before it is closed. Until the headers arrive no request
+    /// exists that a request deadline could apply to, so this is the only bound
+    /// on a peer that stalls mid-headers.
     ///
-    /// This will allow clients to connect both using TLS as well as without TLS
-    /// on the same network interface.
-    ///
-    /// Default is `false`.
-    ///
-    /// NOTE: This presently will only work for `tokio::net::TcpStream` IO
-    /// connections
-    pub fn allow_insecure(self, allow_insecure: bool) -> Self {
+    /// Default is 30 seconds. `None` disables the deadline.
+    pub fn http1_header_read_timeout(self, timeout: Option<Duration>) -> Self {
         Config {
-            allow_insecure,
+            http1_header_read_timeout: timeout,
             ..self
         }
     }
@@ -247,7 +285,7 @@ impl Config {
     /// connections in the kernel backlog instead of holding file descriptors
     /// for them.
     ///
-    /// Default is 512. `None` removes the limit.
+    /// Default is 4096. `None` removes the limit.
     pub fn max_pending_connections(self, max_pending_connections: Option<usize>) -> Self {
         Self {
             max_pending_connections,
@@ -255,8 +293,46 @@ impl Config {
         }
     }
 
+    /// Sets how many established connections a single peer may hold at once.
+    /// Further connections from a peer already at the limit are closed as soon
+    /// as they are accepted.
+    ///
+    /// Only connections that authenticate with a client certificate are
+    /// counted, since a peer that presents none cannot be told apart from any
+    /// other.
+    ///
+    /// Default is no limit (`None`).
+    pub fn max_connections_per_peer(self, max_connections_per_peer: Option<usize>) -> Self {
+        Self {
+            max_connections_per_peer,
+            ..self
+        }
+    }
+
+    /// Sets a callback invoked with the peer's public key each time one of its
+    /// connections is established, closed or refused at the limit. Only
+    /// connections counted under `max_connections_per_peer` are reported. It
+    /// runs on the accept loop or a connection's task, so it must not block.
+    pub fn on_peer_connection_event(
+        self,
+        on_peer_connection_event: impl Fn(&[u8], PeerConnectionEvent) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            on_peer_connection_event: Some(OnPeerConnectionEvent(Arc::new(
+                on_peer_connection_event,
+            ))),
+            ..self
+        }
+    }
+
     /// Rejects settings the accept loop cannot recover from.
     pub(crate) fn validate(&self) -> Result<(), crate::BoxError> {
+        if self.max_connections_per_peer == Some(0) {
+            return Err("'max_connections_per_peer' must be greater than zero, \
+                        a peer allowed no connection can never be served"
+                .into());
+        }
+
         match self.max_pending_connections {
             Some(0) => Err("'max_pending_connections' must be greater than zero, \
                             a server that accepts no connection is never useful"
@@ -278,7 +354,12 @@ impl Config {
         let mut builder =
             hyper_util::server::conn::auto::Builder::new(hyper_util::rt::TokioExecutor::new());
 
-        if !self.accept_http1 {
+        if self.accept_http1 {
+            builder
+                .http1()
+                .timer(hyper_util::rt::TokioTimer::new())
+                .header_read_timeout(self.http1_header_read_timeout);
+        } else {
             builder = builder.http2_only();
         }
 

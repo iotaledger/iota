@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 36
+              "value": 37
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "36",
-              "protocolVersion": "36",
+              "maxSupportedProtocolVersion": "37",
+              "protocolVersion": "37",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1304,6 +1304,8 @@
                 "allow_unbounded_system_objects": true,
                 "always_advance_dkg_to_resolution": true,
                 "calculate_validator_scores": true,
+                "check_canonical_module_version_header": true,
+                "check_cyclic_dependencies": true,
                 "congestion_control_gas_price_feedback_mechanism": true,
                 "congestion_control_min_free_execution_slot": true,
                 "congestion_limit_overshoot_in_gas_price_feedback_mechanism": true,
@@ -1322,11 +1324,13 @@
                 "consensus_starfish_speed": true,
                 "consensus_zstd_compression": true,
                 "convert_type_argument_error": true,
+                "deny_authenticator_packages": true,
                 "deny_rule_governance": false,
                 "deny_rule_governance_on_chain": false,
                 "dependency_linkage_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
+                "disallow_randomness_in_move_authenticator": true,
                 "disallow_self_identifier": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
@@ -1351,6 +1355,7 @@
                 "pre_consensus_sponsor_only_move_authentication": false,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
+                "reject_immutable_account_objects": true,
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
                 "rethrow_serialization_type_layout_errors": true,

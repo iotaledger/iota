@@ -318,7 +318,8 @@ pub(super) fn normalize(err: &IotaError) -> Weight {
                 | UserInputError::PackageIsInMoveAuthenticatorInput { .. }
                 | UserInputError::AddressOwnedIsInMoveAuthenticatorInput { .. }
                 | UserInputError::ObjectOwnedIsInMoveAuthenticatorInput { .. }
-                | UserInputError::MutableSharedIsInMoveAuthenticatorInput { .. },
+                | UserInputError::MutableSharedIsInMoveAuthenticatorInput { .. }
+                | UserInputError::RandomnessStateIsInMoveAuthenticatorInput { .. },
         } => Weight::one(),
         IotaError::InvalidSignature { .. }
         | IotaError::SignerSignatureAbsent { .. }

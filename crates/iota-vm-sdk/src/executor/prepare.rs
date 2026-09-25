@@ -12,6 +12,7 @@
 use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Digest, Event, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
     TransactionEffects, UserSignature,
@@ -78,6 +79,10 @@ pub(super) fn prepare_transaction(
         )
         .into());
     }
+    transaction
+        .check_serialized_size(&env.protocol_config)
+        .map_err(|e| ValidationError::new("transaction validity check", e))?;
+
     transaction
         .validity_check_no_gas_check(&env.protocol_config)
         .map_err(|e| ValidationError::new("transaction validity check", e))?;
@@ -364,7 +369,7 @@ pub(super) fn execute_with_move_authenticators(
     // transaction's checked inputs, enforcing consistency (matching object read
     // results, compatible shared-object kinds) for ids that appear in more than
     // one set.
-    let prepared_auths = prepare_authenticators(store, authenticators)?;
+    let prepared_auths = prepare_authenticators(store, authenticators, &env.protocol_config)?;
     let mut union_checked = checked_input_objects;
     for (_, _, inputs) in &prepared_auths {
         let auth_checked = CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone());
@@ -497,6 +502,7 @@ type PreparedAuthenticator = (
 pub(super) fn prepare_authenticators(
     store: &dyn BackingStore,
     authenticators: Vec<MoveAuthenticator>,
+    protocol_config: &ProtocolConfig,
 ) -> Result<Vec<PreparedAuthenticator>, VmSdkError> {
     let mut prepared = Vec::with_capacity(authenticators.len());
     for authenticator in authenticators {
@@ -506,7 +512,7 @@ pub(super) fn prepare_authenticators(
             auth_input_objects,
         )
         .map_err(|e| ValidationError::new("authenticator input check", e))?;
-        let fn_ref = resolve_authenticator_function_ref(store, &authenticator)?;
+        let fn_ref = resolve_authenticator_function_ref(store, &authenticator, protocol_config)?;
         prepared.push((authenticator, fn_ref, auth_checked.into_inner()));
     }
     Ok(prepared)
@@ -621,10 +627,32 @@ fn run_coin_deny_list_check(
 fn resolve_authenticator_function_ref(
     store: &dyn BackingStore,
     authenticator: &MoveAuthenticator,
+    protocol_config: &ProtocolConfig,
 ) -> Result<AuthenticatorFunctionRefForExecution, VmSdkError> {
     let (account_object_id, _version, _digest) = authenticator
         .object_to_authenticate_components()
         .map_err(|e| VmError::new(format!("invalid object_to_authenticate: {e}")))?;
+
+    if protocol_config.reject_immutable_account_objects() {
+        let account_object = store
+            .as_object_store()
+            .try_get_object(&account_object_id)
+            .map_err(|e| StoreError::new("load account object", e))?
+            .ok_or(VmSdkError::MissingObject {
+                id: account_object_id,
+                version: None,
+            })?;
+
+        if account_object.is_immutable() {
+            return Err(ValidationError::new(
+                "account object check",
+                UserInputError::ImmutableAccountObjectNotSupported {
+                    object_id: account_object_id,
+                },
+            )
+            .into());
+        }
+    }
 
     let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
         .map_err(|e| ValidationError::new("derive authenticator field id", e))?;
