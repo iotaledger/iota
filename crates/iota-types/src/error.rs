@@ -760,15 +760,26 @@ pub enum VMMemoryLimitExceededSubStatusCode {
 ///
 /// Use this instead of `Display` for errors such as `signature::Error`, whose
 /// `Display` output omits the underlying cause.
-pub fn error_chain(error: &dyn std::error::Error) -> String {
-    let mut out = error.to_string();
-    let mut source = error.source();
-    while let Some(cause) = source {
-        out.push_str(": ");
-        out.push_str(&cause.to_string());
-        source = cause.source();
+pub struct ErrorChain<'a>(pub &'a dyn std::error::Error);
+
+impl<'a> std::fmt::Display for ErrorChain<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)?;
+        let mut source = self.0.source();
+        while let Some(cause) = source {
+            write!(f, ": ")?;
+            write!(f, "{}", cause)?;
+            source = cause.source();
+        }
+        Ok(())
     }
-    out
+}
+
+impl<'a> std::fmt::Debug for ErrorChain<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0)?;
+        Ok(())
+    }
 }
 
 pub type IotaResult<T = ()> = Result<T, IotaError>;

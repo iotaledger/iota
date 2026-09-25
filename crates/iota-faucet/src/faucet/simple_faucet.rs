@@ -25,7 +25,7 @@ use iota_sdk_types::{
     TransactionEffects, crypto::Intent,
 };
 use iota_types::{
-    effects::TransactionEffectsAPI, error::error_chain, gas_coin::GasCoin, object::Object,
+    effects::TransactionEffectsAPI, error::ErrorChain, gas_coin::GasCoin, object::Object,
     transaction::TransactionEnvelope,
 };
 use prometheus_filtered::Registry;
@@ -484,7 +484,7 @@ impl SimpleFaucet {
             .config()
             .keystore()
             .sign_secure(&self.active_address, &tx, Intent::iota_transaction())
-            .map_err(|e| FaucetError::internal(error_chain(&e)))?;
+            .map_err(|e| FaucetError::internal(ErrorChain(&e)))?;
         let tx = TransactionEnvelope::from_data(tx, vec![signature]);
         let tx_digest = *tx.digest();
         info!(
