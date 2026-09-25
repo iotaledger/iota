@@ -9,7 +9,17 @@ use move_binary_format::{
 };
 
 /// Build a `BinaryConfig` from a `ProtocolConfig`
-pub fn to_binary_config(protocol_config: &ProtocolConfig) -> BinaryConfig {
+///
+/// `override_deprecate_global_storage_ops_during_deserialization` takes
+/// precedence over the protocol flag of the same name. The signing path passes
+/// `Some(true)` so that rejection of the deprecated global storage
+/// instructions ships with the binary rather than with a protocol version.
+pub fn to_binary_config(
+    protocol_config: &ProtocolConfig,
+    override_deprecate_global_storage_ops_during_deserialization: Option<bool>,
+) -> BinaryConfig {
+    let deprecate_global_storage_ops = override_deprecate_global_storage_ops_during_deserialization
+        .unwrap_or_else(|| protocol_config.deprecate_global_storage_ops_during_deserialization());
     BinaryConfig::new(
         protocol_config.move_binary_format_version(),
         protocol_config
@@ -17,6 +27,7 @@ pub fn to_binary_config(protocol_config: &ProtocolConfig) -> BinaryConfig {
             .unwrap_or(VERSION_1),
         protocol_config.no_extraneous_module_bytes(),
         protocol_config.metadata_in_module_bytes(),
+        deprecate_global_storage_ops,
         TableConfig {
             module_handles: protocol_config
                 .binary_module_handles_as_option()

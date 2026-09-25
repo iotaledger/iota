@@ -25,7 +25,7 @@ mod compatibility_tests {
         for (version, _snapshots) in load_bytecode_snapshot_manifest() {
             let config =
                 ProtocolConfig::get_for_version(ProtocolVersion::new(version), Chain::Unknown);
-            let binary_config = to_binary_config(&config);
+            let binary_config = to_binary_config(&config, None);
             let framework = load_bytecode_snapshot(version).unwrap();
             let old_framework_store: BTreeMap<_, _> = framework
                 .into_iter()

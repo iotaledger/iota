@@ -386,7 +386,7 @@ impl TransactionExecutionApi {
             ));
             let module_cache = TemporaryModuleResolver::new(
                 &simulation.output_objects,
-                to_binary_config(epoch_store.protocol_config()),
+                to_binary_config(epoch_store.protocol_config(), None),
                 epoch_store.module_cache().clone(),
             );
 

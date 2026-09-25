@@ -1824,7 +1824,7 @@ impl IotaNode {
                 tokio::time::sleep(Duration::from_millis(1)).await;
 
                 let config = cur_epoch_store.protocol_config();
-                let binary_config = to_binary_config(config);
+                let binary_config = to_binary_config(config, None);
                 let transaction = ConsensusTransaction::new_capability_notification_v1(
                     AuthorityCapabilitiesV1::new(
                         self.state.name,
@@ -2276,7 +2276,7 @@ impl IotaNode {
 
         // Create the capability notification once
         let config = epoch_store.protocol_config();
-        let binary_config = to_binary_config(config);
+        let binary_config = to_binary_config(config, None);
 
         // Create the capability notification
         let capabilities = AuthorityCapabilitiesV1::new(
