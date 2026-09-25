@@ -480,6 +480,7 @@ fn reopen_with_config(
     epoch_start_configuration: EpochStartConfiguration,
 ) -> Arc<AuthorityPerEpochStore> {
     store.release_db_handles();
+    wait_for_epoch_db_to_close();
     AuthorityPerEpochStore::new(
         store.name,
         store.committee().clone(),
@@ -495,6 +496,26 @@ fn reopen_with_config(
         0,
     )
     .unwrap()
+}
+
+/// Blocks until no epoch DB is open in this process. Releasing the store's
+/// handles does not close the DB at once: each column family's metrics task
+/// holds it while a report is queued or running on a blocking thread, and
+/// opening it again before then fails on the RocksDB lock. The count is per
+/// process, which holds under nextest, one process per test.
+fn wait_for_epoch_db_to_close() {
+    let open_epoch_dbs = typed_store::DBMetrics::get()
+        .op_metrics
+        .rocksdb_num_active_db_handles
+        .with_label_values(&["epoch"]);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while open_epoch_dbs.get() > 0 {
+        assert!(
+            Instant::now() < deadline,
+            "the epoch DB should close once its metrics reports finish"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
 }
 
 fn flush_deny_rule_proposal(store: &AuthorityPerEpochStore, proposal: TransactionDenyRuleProposal) {
