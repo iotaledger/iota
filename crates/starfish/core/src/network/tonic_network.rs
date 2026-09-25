@@ -20,6 +20,7 @@ use iota_network_stack::{
     Multiaddr,
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
+    request_message_timeout::RequestMessageTimeout,
 };
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
@@ -1215,8 +1216,9 @@ where
 }
 
 /// Long-lived server-streaming RPCs exempt from the server-side fallback
-/// request timeout: they carry no client `grpc-timeout`, so a deadline would
-/// abort an otherwise healthy subscription. Bounded RPCs are not listed.
+/// request timeout and from the request-message deadline: they carry no
+/// client `grpc-timeout`, and their request is a client stream that stays
+/// open with the subscription. Bounded RPCs are not listed.
 const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBlockBundles"];
 
 /// Connections a single committee peer may hold on the consensus listener at
@@ -1311,6 +1313,12 @@ impl<S: NetworkService> TonicManager<S> {
             .max_decoding_message_size(config.request_message_size_limit())
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
+        // A zero `request_message_timeout` disables the request-message deadline.
+        let consensus_service_server = RequestMessageTimeout::new(
+            consensus_service_server,
+            (!config.request_message_timeout.is_zero()).then_some(config.request_message_timeout),
+            TIMEOUT_EXEMPT_PATHS,
+        );
 
         let consensus_service = tonic::service::Routes::new(consensus_service_server)
             .into_axum_router()
@@ -2605,6 +2613,80 @@ mod tests {
             other.await.unwrap().unwrap_err().code(),
             tonic::Code::DeadlineExceeded
         );
+    }
+
+    /// A request whose message never arrives is cut by the request-message
+    /// deadline long before the fallback request timeout, and the peer's slot
+    /// serves a complete request right after.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_request_message_that_never_arrives_is_cut_by_its_deadline() {
+        use std::time::{Duration, Instant};
+
+        use parking_lot::Mutex;
+
+        use super::{FetchBlockHeadersRequest, FetchBlockHeadersResponse, TonicManager};
+        use crate::network::{NetworkClient as _, test_network::TestService};
+
+        const MESSAGE_TIMEOUT: Duration = Duration::from_millis(500);
+        const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let mut server_context = context.clone().with_authority_index(server_index);
+        server_context
+            .parameters
+            .tonic
+            .admission
+            .max_header_fetches_per_peer = 1;
+        server_context.parameters.tonic.request_timeout = REQUEST_TIMEOUT;
+        server_context.parameters.tonic.request_message_timeout = MESSAGE_TIMEOUT;
+        let server_context = Arc::new(server_context);
+        let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let started = Instant::now();
+        let status = stalled_call::<FetchBlockHeadersRequest, FetchBlockHeadersResponse>(
+            &client,
+            server_index,
+            &format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchBlockHeaders"),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(status.code(), tonic::Code::DeadlineExceeded);
+        assert!(
+            started.elapsed() < REQUEST_TIMEOUT / 2,
+            "the request-message deadline must cut the request, not the request timeout"
+        );
+
+        // The cut request gives its slot back once its error response is
+        // written; with one slot per peer, a complete request is then served.
+        let in_use = server_context
+            .metrics
+            .network_metrics
+            .admission_in_use
+            .with_label_values(&["header_fetch"]);
+        for _ in 0..500 {
+            if in_use.get() == 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert_eq!(in_use.get(), 0, "the cut request must release its slot");
+        client
+            .fetch_block_headers(server_index, vec![], vec![], Duration::from_secs(5))
+            .await
+            .expect("the peer's only header-fetch slot must be free again");
     }
 
     /// Opens a call whose request message never arrives, so it stays open until

@@ -688,6 +688,16 @@ pub struct TonicParameters {
     /// deadline.
     #[serde(default = "TonicParameters::default_subscribe_request_timeout")]
     pub subscribe_request_timeout: Duration,
+
+    /// Deadline for receiving the request message of a bounded RPC after its
+    /// headers arrive. A request whose message has not fully arrived by then
+    /// is answered with `DEADLINE_EXCEEDED`, releasing its admission slot; the
+    /// block-subscription stream keeps its own `subscribe_request_timeout`.
+    ///
+    /// If unspecified, this will default to 10s. A zero duration disables the
+    /// deadline.
+    #[serde(default = "TonicParameters::default_request_message_timeout")]
+    pub request_message_timeout: Duration,
 }
 
 impl TonicParameters {
@@ -732,6 +742,10 @@ impl TonicParameters {
     fn default_subscribe_request_timeout() -> Duration {
         Duration::from_secs(30)
     }
+
+    fn default_request_message_timeout() -> Duration {
+        Duration::from_secs(10)
+    }
 }
 
 impl Default for TonicParameters {
@@ -746,6 +760,7 @@ impl Default for TonicParameters {
             max_request_message_size: TonicParameters::default_max_request_message_size(),
             admission: AdmissionParameters::default(),
             subscribe_request_timeout: TonicParameters::default_subscribe_request_timeout(),
+            request_message_timeout: TonicParameters::default_request_message_timeout(),
         }
     }
 }
