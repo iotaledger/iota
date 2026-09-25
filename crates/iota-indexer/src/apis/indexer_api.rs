@@ -229,7 +229,7 @@ impl IndexerApiServer for IndexerApi {
         if limit == 0 {
             return Ok(TransactionBlocksPage::empty());
         }
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_transaction_blocks_in_blocking_task(
                 query.filter,
@@ -247,7 +247,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
-            oldest_available_checkpoint: None,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 
@@ -262,7 +262,7 @@ impl IndexerApiServer for IndexerApi {
         if limit == 0 {
             return Ok(TransactionBlocksPage::empty());
         }
-        let mut results = self
+        let (mut results, oldest_available_checkpoint) = self
             .inner
             .query_transaction_blocks_in_blocking_task_v2(
                 query.filter,
@@ -280,7 +280,7 @@ impl IndexerApiServer for IndexerApi {
             data: results,
             next_cursor,
             has_next_page,
-            oldest_available_checkpoint: None,
+            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
         })
     }
 

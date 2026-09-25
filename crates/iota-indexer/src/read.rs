@@ -193,6 +193,13 @@ impl IndexerReader {
     const EVENTS_BY_DIGEST_TABLES: &[CommitterTables] =
         &[CommitterTables::Events, CommitterTables::TxGlobalOrder];
 
+    /// Tables consulted when transactions are looked up by their checkpoint.
+    const TRANSACTIONS_BY_CHECKPOINT_TABLES: &[CommitterTables] = &[
+        CommitterTables::Transactions,
+        CommitterTables::PrunerCpWatermark,
+        CommitterTables::TxGlobalOrder,
+    ];
+
     pub fn new(pool: ConnectionPool, watermark_cache: WatermarkCache) -> Self {
         let indexer_store_pkg_resolver = IndexerStorePackageResolver::new(pool.clone());
         let package_cache = PackageStoreWithLruCache::new(indexer_store_pkg_resolver);
@@ -322,12 +329,25 @@ impl IndexerReader {
     /// Returns the oldest checkpoint and transaction available across `tables`.
     ///
     /// A table absent from the cache has not been written yet, and so has not
-    /// been pruned either, which is why it cannot raise the result. This relies
-    /// on the cache being filled before the RPC server starts serving.
+    /// been pruned either: it is skipped, and when no table has a watermark the
+    /// result is 0. This relies on the cache being filled before the RPC server
+    /// starts serving.
     fn oldest_available_cp_and_tx(&self, tables: &[CommitterTables]) -> (i64, i64) {
         self.watermark_cache
             .get_lowest_available_cp_and_tx_for_tables(tables)
             .unwrap_or((0, 0))
+    }
+
+    /// Returns the oldest checkpoint available across `tables`.
+    ///
+    /// A table absent from the cache has not been written yet, and so has not
+    /// been pruned either: it is skipped, and when no table has a watermark the
+    /// result is 0. This relies on the cache being filled before the RPC server
+    /// starts serving.
+    fn oldest_available_cp(&self, tables: &[CommitterTables]) -> CheckpointSequenceNumber {
+        self.watermark_cache
+            .get_lowest_available_cp_for_tables(tables)
+            .unwrap_or(0) as CheckpointSequenceNumber
     }
 
     pub async fn spawn_blocking<F, R, E>(&self, f: F) -> Result<R, E>
@@ -1328,7 +1348,7 @@ impl IndexerReader {
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
         self.query_transaction_blocks_impl_with_checkpointed_data_only(
             filter.map(TransactionFilterKind::V1),
             options,
@@ -1346,7 +1366,7 @@ impl IndexerReader {
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
         self.query_transaction_blocks_impl_with_checkpointed_data_only(
             filter.map(TransactionFilterKind::V2),
             options,
@@ -1364,7 +1384,14 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
+        // Fallback stores checkpoints since genesis
+        let oldest_available_cp = if self.is_fallback_enabled() {
+            0
+        } else {
+            self.oldest_available_cp(Self::TRANSACTIONS_BY_CHECKPOINT_TABLES)
+        };
+
         let db_res = self
             .db()
             .query_transactions_by_checkpoint_seq(checkpoint_seq, cursor, limit, is_descending)
@@ -1379,8 +1406,11 @@ impl IndexerReader {
         } else {
             db_res?
         };
-        self.stored_transaction_to_transaction_block(stored_txs, options)
-            .await
+        let transactions = self
+            .stored_transaction_to_transaction_block(stored_txs, options)
+            .await?;
+
+        Ok((transactions, oldest_available_cp))
     }
 
     /// Fetches transactions belonging to a checkpoint whose
@@ -1491,7 +1521,14 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
+        // Fallback stores transactions by address since genesis
+        let oldest_available_cp = if self.is_fallback_enabled() {
+            0
+        } else {
+            self.oldest_available_cp(Self::TRANSACTIONS_BY_ADDRESS_TABLES)
+        };
+
         let cursor_tx_seq = match cursor {
             None => None,
             Some(digest) => {
@@ -1533,8 +1570,11 @@ impl IndexerReader {
             )
             .await?;
 
-        self.stored_transaction_to_transaction_block(rows, options)
-            .await
+        let transactions = self
+            .stored_transaction_to_transaction_block(rows, options)
+            .await?;
+
+        Ok((transactions, oldest_available_cp))
     }
 
     async fn query_transaction_blocks_impl_with_checkpointed_data_only(
@@ -1544,7 +1584,7 @@ impl IndexerReader {
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
         if let Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
         | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) = filter
         {
@@ -1573,13 +1613,11 @@ impl IndexerReader {
                 .await;
         };
 
-        // scope the watermark and the cursor pruning check to only the tables this
+        // scope the watermarks and the cursor pruning check to only the tables this
         // filter reads.
         let tx_tables = self.tx_tables_for_filter(filter.as_ref())?;
-        let min_available_tx = self
-            .watermark_cache
-            .get_lowest_available_tx_for_tables(tx_tables)
-            .unwrap_or(0);
+        let (oldest_available_cp, min_available_tx) = self.oldest_available_cp_and_tx(tx_tables);
+        let oldest_available_cp = oldest_available_cp as CheckpointSequenceNumber;
 
         let cursor_tx_seq = if let Some(cursor) = cursor {
             let tx_seq = self
@@ -1810,12 +1848,17 @@ impl IndexerReader {
         .into_iter()
         .map(|tsn| tsn.tx_sequence_number)
         .collect::<Vec<i64>>();
-        self.multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
-            tx_sequence_numbers,
-            options,
-            Some(is_descending),
-        )
-        .await
+        // The fallback only fetches the transactions matched above, it cannot
+        // match more, so it does not lower the reported checkpoint.
+        let transactions = self
+            .multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
+                tx_sequence_numbers,
+                options,
+                Some(is_descending),
+            )
+            .await?;
+
+        Ok((transactions, oldest_available_cp))
     }
 
     /// Returns the set of tables read by [`EventFilter`], used for data

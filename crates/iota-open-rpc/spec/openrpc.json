@@ -5143,7 +5143,8 @@
                 }
               ],
               "nextCursor": "3nek86HEjXZ7K3EtrAcBG4wMrCS21gqr8BqwwC6M6P7F",
-              "hasNextPage": false
+              "hasNextPage": false,
+              "oldestAvailableCheckpoint": "0"
             }
           }
         }

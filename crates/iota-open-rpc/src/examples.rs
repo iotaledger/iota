@@ -569,7 +569,7 @@ impl RpcExampleProvider {
             data,
             next_cursor,
             has_next_page,
-            oldest_available_checkpoint: None,
+            oldest_available_checkpoint: Some(0u64.into()),
         };
         Examples::new(
             "iotax_queryTransactionBlocks",

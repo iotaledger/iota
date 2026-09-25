@@ -206,6 +206,114 @@ async fn query_events_reports_oldest_available_checkpoint() {
     );
 }
 
+/// Returns the `oldest_available_checkpoint` reported for `filter` by
+/// `iotax_queryTransactionBlocks`.
+async fn transaction_blocks_oldest_available_checkpoint(
+    client: &HttpClient,
+    filter: TransactionFilter,
+) -> Option<u64> {
+    client
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::new_with_filter(filter),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("query_transaction_blocks should succeed")
+        .oldest_available_checkpoint
+        .map(|cp| *cp)
+}
+
+/// Returns the `oldest_available_checkpoint` reported for `filter` by the v2
+/// version of `iotax_queryTransactionBlocks`.
+async fn transaction_blocks_v2_oldest_available_checkpoint(
+    client: &HttpClient,
+    filter: TransactionFilterV2,
+) -> Option<u64> {
+    client
+        .query_transaction_blocks_v2(
+            IotaTransactionBlockResponseQueryV2::new_with_filter(filter),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("query_transaction_blocks_v2 should succeed")
+        .oldest_available_checkpoint
+        .map(|cp| *cp)
+}
+
+#[tokio::test]
+async fn query_transaction_blocks_reports_oldest_available_checkpoint() {
+    // Only `tx_senders` is pruned; every other table is retained. A
+    // sender-filtered query reads `tx_senders` while a kind-filtered one does
+    // not, so they report different checkpoints.
+    let overrides = HashMap::from([(PrunableTable::TxSenders, 1)]);
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_query_transaction_blocks_reports_oldest_available_checkpoint"),
+        None,
+        Some(RetentionConfig::new(100, overrides)),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    let sender =
+        Address::from_str("0x9a934a2644c4ca2decbe3d126d80720429c5e31896aa756765afa23ae2cb4b99")
+            .unwrap();
+    let by_sender = TransactionFilter::FromAddress(sender);
+    let by_kind = TransactionFilter::TransactionKind(IotaTransactionKind::ProgrammableTransaction);
+
+    assert_eq!(
+        wait_for_oldest_available_checkpoint(
+            || transaction_blocks_oldest_available_checkpoint(client, by_sender.clone()),
+            |cp| cp.is_some()
+        )
+        .await,
+        Some(0)
+    );
+    assert_eq!(
+        transaction_blocks_oldest_available_checkpoint(client, by_kind.clone()).await,
+        Some(0)
+    );
+    assert_eq!(
+        transaction_blocks_v2_oldest_available_checkpoint(
+            client,
+            TransactionFilterV2::FromAddress(sender)
+        )
+        .await,
+        Some(0)
+    );
+
+    cluster.force_new_epoch().await;
+
+    // Once `tx_senders` is pruned, the sender filter reports a checkpoint
+    // above the genesis one, in both versions of the method.
+    wait_for_oldest_available_checkpoint(
+        || transaction_blocks_oldest_available_checkpoint(client, by_sender.clone()),
+        |cp| cp > Some(0),
+    )
+    .await;
+    wait_for_oldest_available_checkpoint(
+        || {
+            transaction_blocks_v2_oldest_available_checkpoint(
+                client,
+                TransactionFilterV2::FromAddress(sender),
+            )
+        },
+        |cp| cp > Some(0),
+    )
+    .await;
+
+    // The kind filter does not read `tx_senders`, so pruning it does not change
+    // what that filter reports.
+    assert_eq!(
+        transaction_blocks_oldest_available_checkpoint(client, by_kind).await,
+        Some(0)
+    );
+}
+
 #[test]
 fn query_events_by_sender() -> Result<(), IndexerError> {
     let ApiTestSetup {
