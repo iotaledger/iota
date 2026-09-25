@@ -39,7 +39,7 @@ async fn test_randomized_dag_all_direct_commit(#[values(false, true)] starfish_s
     for _ in 0..NUM_RUNS {
         let seed = random_test_setup.seeded_rng.gen_range(0..10000);
         let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
-        let authority = authority_setup(num_authorities, 0, starfish_speed);
+        let mut authority = authority_setup(num_authorities, 0, starfish_speed);
 
         let include_leader_percentage = 100;
         let dag_builder = create_random_dag(
