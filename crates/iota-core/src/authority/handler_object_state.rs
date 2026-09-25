@@ -674,11 +674,13 @@ impl HandlerObjectState {
     /// durable; the caller's write-then-evict order is what keeps a concurrent
     /// reader from finding a row in neither the overlay nor the table.
     ///
-    /// Every deletion queued for this commit or an earlier one is dropped here
-    /// too, now that this commit's batch is durable: a record whose replacing
-    /// rows flushed earlier may be deleted by any later flush. A deletion lost
-    /// to a batch that never became durable is re-queued when the commit
-    /// replays.
+    /// This commit's queued deletions are dropped here too, now that the batch
+    /// holding them is durable; until then they stay queued, so a sync-ahead
+    /// write landing between staging and the durable delete still sees the
+    /// record as dead. Earlier commits' buckets are dropped with it, but are
+    /// already empty: flushes run in commit order, and nothing queues into a
+    /// commit's bucket once it has flushed. A deletion lost to a batch that
+    /// never became durable is re-queued when the commit replays.
     ///
     /// A flushed commit's checkpoint has executed, so this also raises the
     /// highest fully executed commit.
@@ -942,6 +944,8 @@ impl HandlerObjectState {
         for (key, _) in upserts {
             let record = match overlay.get(&key.0) {
                 Some(record) => Some(*record),
+                // The durable record can outlive its first queued deletion.
+                None if deletions.values().any(|ids| ids.contains(&key.0)) => continue,
                 None => tables.sync_ahead_records.get(&key.0)?,
             };
             // The handler has caught up past the whole sync-ahead chain; the

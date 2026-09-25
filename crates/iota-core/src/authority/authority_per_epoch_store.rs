@@ -1948,9 +1948,11 @@ impl AuthorityPerEpochStore {
         &self.handler_object_state
     }
 
-    /// Durably writes a commit's handler-latest rows (draining queued
-    /// sync-record deletions into the same batch) and then evicts them from
-    /// the overlay, in that order - the quarantine-flush path.
+    /// Durably writes `handler_rows` with commit `commit_index`'s queued
+    /// sync-record deletions, then evicts the rows from the overlay - the
+    /// quarantine flush's write-then-evict order, without its row derivation
+    /// or its completion of the commit. Tests of the flush itself use
+    /// [`Self::flush_commit_through_quarantine_for_testing`].
     #[cfg(test)]
     pub fn flush_commit_rows_for_testing(
         &self,

@@ -1879,6 +1879,7 @@ mod handler_object_state_storage {
     use super::*;
     use crate::authority::authority_per_epoch_store::handler_object_state::{
         CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind, SyncAheadRecord,
+        handler_latest_upserts,
     };
 
     /// An [`ObjectStore`] for the map-hit arm: a handler-known transaction
@@ -2030,10 +2031,7 @@ mod handler_object_state_storage {
         let id = ObjectId::random();
 
         // Two commits write the same id (a sender's gas coin used in
-        // consecutive commits). The quarantine flush can drain several
-        // outputs into one batch, so commit 2's flush below carries commit
-        // 1's row as well, out of version order; only commit 2's deletion
-        // bucket is drained.
+        // consecutive commits); each flush writes only its own commit's row.
         let key = |version: u64| ObjectKey(id, Version::from_u64(version));
         let v3 = generate_live_entry(1);
         let v5 = generate_live_entry(2);
@@ -2046,9 +2044,13 @@ mod handler_object_state_storage {
             .record_commit_fully_executed(2, &[(key(5), v5)])
             .unwrap();
 
-        // Both versions become durable and stay readable by their key.
+        // Commit 2's row for the same id lands beside commit 1's rather than
+        // replacing it: both versions stay durable and readable by their key.
         epoch_store
-            .flush_commit_rows_for_testing(2, vec![(key(5), v5), (key(3), v3)])
+            .flush_commit_rows_for_testing(1, vec![(key(3), v3)])
+            .unwrap();
+        epoch_store
+            .flush_commit_rows_for_testing(2, vec![(key(5), v5)])
             .unwrap();
         assert_eq!(state.overlay_sizes_for_testing(), (0, 0, 0));
         let tables = epoch_store.tables().unwrap();
@@ -2068,6 +2070,79 @@ mod handler_object_state_storage {
             epoch_store.handler_processed_object(&key(5)).unwrap(),
             Some(v5)
         );
+    }
+
+    #[tokio::test]
+    async fn repeated_object_updates_do_not_skip_other_sync_record_deletions() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let (first, first_inputs) = executed_owned_tx_effects(ObjectId::random(), 5, 1);
+        let (other, other_inputs) = executed_owned_tx_effects(ObjectId::random(), 5, 1);
+
+        for (effects, inputs) in [(&first, &first_inputs), (&other, &other_inputs)] {
+            epoch_store
+                .record_executed_transaction(
+                    &TransactionKey::Digest(*effects.transaction_digest()),
+                    effects,
+                    &inputs.as_slice(),
+                )
+                .unwrap();
+            let records = inputs
+                .iter()
+                .map(|object| {
+                    let id = object.id();
+                    (id, epoch_store.sync_ahead_record(&id).unwrap().unwrap())
+                })
+                .collect();
+            epoch_store
+                .flush_sync_ahead_rows_for_testing(records, vec![])
+                .unwrap();
+        }
+
+        let first_rows = handler_latest_upserts(&first, 1);
+        let repeated_rows: Vec<_> = first_rows
+            .iter()
+            .map(|(key, _)| {
+                (
+                    ObjectKey(key.0, Version::from_u64(key.1.as_u64() + 1)),
+                    generate_live_entry(2),
+                )
+            })
+            .collect();
+        let other_rows = handler_latest_upserts(&other, 3);
+
+        // The first commit's records remain durable until its flush. Another
+        // mutation must not count their queued deletions again.
+        for (index, rows) in [(1, &first_rows), (2, &repeated_rows), (3, &other_rows)] {
+            epoch_store.assign_commit_to_transactions(index, vec![]);
+            epoch_store
+                .record_commit_fully_executed(index, rows)
+                .unwrap();
+        }
+
+        for (index, rows) in [(1, first_rows), (2, repeated_rows)] {
+            epoch_store
+                .flush_commit_rows_for_testing(index, rows)
+                .unwrap();
+            for object in &first_inputs {
+                assert_eq!(epoch_store.sync_ahead_record(&object.id()).unwrap(), None);
+            }
+            for object in &other_inputs {
+                assert!(
+                    epoch_store
+                        .sync_ahead_record(&object.id())
+                        .unwrap()
+                        .is_some()
+                );
+            }
+        }
+
+        epoch_store
+            .flush_commit_rows_for_testing(3, other_rows)
+            .unwrap();
+        for object in &other_inputs {
+            assert_eq!(epoch_store.sync_ahead_record(&object.id()).unwrap(), None);
+        }
     }
 
     #[tokio::test]
@@ -2139,6 +2214,81 @@ mod handler_object_state_storage {
         assert_eq!(
             epoch_store.sync_ahead_record(&mutated).unwrap(),
             Some(record)
+        );
+    }
+
+    /// The flush's deletion of a record stays queued until the batch holding
+    /// it is durable. A new sync-ahead chain starting in that window must
+    /// still see the old record as dead: it starts from the version it
+    /// consumed, and the old record's durable row is deleted underneath it
+    /// without taking the new one along.
+    #[tokio::test]
+    async fn sync_ahead_write_between_staging_and_durable_delete_starts_fresh() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+        let tables = epoch_store.tables().unwrap();
+        let execute_sync_ahead = |effects: &TransactionEffects, inputs: &[Object]| {
+            epoch_store
+                .record_executed_transaction(
+                    &TransactionKey::Digest(*effects.transaction_digest()),
+                    effects,
+                    &inputs,
+                )
+                .unwrap();
+        };
+
+        // A sync-ahead chain whose record is durable.
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&effects, &inputs);
+        let first_chain_head = effects.lamport_version();
+        let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(mutated, first_record)], vec![])
+            .unwrap();
+
+        // The handler catches up past the chain, and commit 8's flush stages
+        // the record's deletion.
+        let rows = [(ObjectKey(mutated, first_chain_head), generate_live_entry(8))];
+        epoch_store.assign_commit_to_transactions(8, vec![]);
+        epoch_store.record_commit_fully_executed(8, &rows).unwrap();
+        let mut batch = tables.handler_processed_objects.batch();
+        state
+            .write_commit_rows_to_batch(8, &tables, &mut batch, &rows)
+            .unwrap();
+
+        // A second chain starts before the batch is written.
+        let (next_effects, next_inputs) =
+            executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
+        execute_sync_ahead(&next_effects, &next_inputs);
+        let fresh_record = SyncAheadRecord {
+            base_version: Some(first_chain_head),
+            latest_created: next_effects.lamport_version(),
+        };
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+
+        batch.write().unwrap();
+        state.evict_flushed_commit_rows(8, &rows);
+        assert_eq!(tables.sync_ahead_records.get(&mutated).unwrap(), None);
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+
+        // Once the new record is durable, a later commit's flush leaves it.
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(mutated, fresh_record)], vec![])
+            .unwrap();
+        epoch_store
+            .flush_commit_rows_for_testing(9, vec![])
+            .unwrap();
+        assert_eq!(
+            tables.sync_ahead_records.get(&mutated).unwrap(),
+            Some(fresh_record)
         );
     }
 
