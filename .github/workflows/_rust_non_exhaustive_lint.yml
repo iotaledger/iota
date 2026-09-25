@@ -1,0 +1,36 @@
+name: Non-exhaustive SDK enum matches
+
+on:
+  workflow_call:
+    inputs:
+      isNightly:
+        type: boolean
+        default: false
+  workflow_dispatch:
+
+concurrency:
+  group: non-exhaustive-lint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  non-exhaustive-omitted-patterns:
+    name: SDK enum variants hidden behind wildcard arms
+    if: (!cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || inputs.isNightly))
+    runs-on: [self-hosted-x64]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check SDK enum variants hidden behind wildcard arms
+        run: scripts/non_exhaustive_lint/check.sh
+        env:
+          # Must be fresh per run: the wrapper's inject-or-not decision is not in
+          # cargo's fingerprint, so a reused target dir replays artifacts compiled
+          # without the lint.
+          CARGO_TARGET_DIR: ${{ runner.temp }}/nelint-target
