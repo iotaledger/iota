@@ -225,6 +225,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) reconstruction_queue: IntGauge,
     pub(crate) shard_reconstructor_processed_transactions: IntGauge,
     pub(crate) core_lock_enqueued: IntCounter,
+    pub(crate) priority_submission_backpressure: IntCounter,
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
     pub(crate) highest_accepted_round: IntGauge,
@@ -586,6 +587,11 @@ impl NodeMetrics {
             core_lock_enqueued: register_int_counter_with_registry!(
                 "core_lock_enqueued",
                 "Number of enqueued core requests",
+                registry,
+            ).unwrap(),
+            priority_submission_backpressure: register_int_counter_with_registry!(
+                "priority_submission_backpressure",
+                "Number of high-priority submissions that found the reserved priority input channel full and had to wait",
                 registry,
             ).unwrap(),
             core_skipped_proposals: register_int_counter_vec_with_registry!(
