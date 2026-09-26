@@ -96,8 +96,12 @@ fn get_available_port() -> Result<u16> {
     let addr = listener
         .local_addr()
         .context("failed to get local address")?;
-    _ = std::net::TcpStream::connect(addr).context("failed to connect to ephemeral port")?;
-    _ = listener.accept().context("failed to accept connection")?;
+    // Force the listening port into TIME_WAIT by opening a self-connection and
+    // letting the accepted socket drop first. This prevents the OS from reusing
+    // the port before `cbtemulator` binds it with `SO_REUSEADDR`.
+    let _sender =
+        std::net::TcpStream::connect(addr).context("failed to connect to ephemeral port")?;
+    let _incoming = listener.accept().context("failed to accept connection")?;
     Ok(addr.port())
 }
 
