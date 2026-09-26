@@ -5,7 +5,6 @@
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fs,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -157,6 +156,7 @@ use crate::{
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
+    epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, HandOver},
     execution_cache::{
         CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
         ExecutionCacheTraitPointers, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI,
@@ -261,7 +261,8 @@ pub struct AuthorityMetrics {
     execution_load_input_objects_latency: Histogram,
     prepare_certificate_latency: Histogram,
     commit_certificate_latency: Histogram,
-    db_checkpoint_latency: Histogram,
+    epoch_end_db_snapshot_handover_latency: Histogram,
+    epoch_end_db_snapshots_skipped: IntCounter,
 
     pub(crate) transaction_manager_num_enqueued_certificates: IntCounterVec,
     pub(crate) transaction_manager_num_missing_objects: IntGauge,
@@ -518,10 +519,17 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
-            db_checkpoint_latency: register_histogram_with_registry!(
-                "db_checkpoint_latency",
-                "Latency of checkpointing the perpetual store at epoch end",
+            epoch_end_db_snapshot_handover_latency: register_histogram_with_registry!(
+                "epoch_end_db_snapshot_handover_latency",
+                "Time the epoch boundary waits for the consumer to take its database \
+                 snapshot of the perpetual store",
                 LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            epoch_end_db_snapshots_skipped: register_int_counter_with_registry!(
+                "epoch_end_db_snapshots_skipped",
+                "Epoch boundaries whose database snapshot was not taken, because the \
+                 consumer was busy or did not take it in time",
                 registry,
             ).unwrap(),
             transaction_manager_num_enqueued_certificates: register_int_counter_vec_with_registry!(
@@ -940,6 +948,9 @@ pub struct AuthorityState {
 
     /// Traffic controller for IOTA core servers (json-rpc, validator service)
     pub traffic_controller: Option<Arc<TrafficController>>,
+    /// Set when a consumer wants a database snapshot of the perpetual store at
+    /// each epoch boundary. See [`Self::hand_over_epoch_end_db_snapshot`].
+    epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -3072,6 +3083,7 @@ impl AuthorityState {
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
+        epoch_end_db_snapshots: Option<EpochEndDbSnapshotHandle>,
     ) -> Arc<Self> {
         Self::check_protocol_version(supported_protocol_versions, epoch_store.protocol_version());
 
@@ -3143,6 +3155,7 @@ impl AuthorityState {
             chain_identifier,
             congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
             traffic_controller,
+            epoch_end_db_snapshots,
         });
 
         // Start a task to execute ready transactions.
@@ -3503,22 +3516,8 @@ impl AuthorityState {
 
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
-        // When state snapshots are published, a RocksDB checkpoint of the
-        // perpetual store taken at epoch end serves as the snapshot creation
-        // input.
-        if self
-            .config
-            .state_snapshot_write_config
-            .object_store_config
-            .is_some()
-        {
-            let current_epoch = cur_epoch_store.epoch();
-            let epoch_checkpoint_path = self
-                .config
-                .db_checkpoint_path()
-                .join(format!("epoch_{current_epoch}"));
-            self.checkpoint_perpetual_db(&epoch_checkpoint_path, cur_epoch_store)?;
-        }
+        self.hand_over_epoch_end_db_snapshot(cur_epoch_store.epoch())
+            .await;
 
         let new_epoch = new_committee.epoch;
         let new_epoch_store = self
@@ -3666,40 +3665,21 @@ impl AuthorityState {
         self.epoch_store_for_testing().epoch()
     }
 
-    /// Takes a RocksDB checkpoint of the perpetual store under
-    /// `<checkpoint_path>/store/perpetual`, the layout the state snapshot
-    /// uploader reads.
+    /// Lets the consumer take its database snapshot of the perpetual store as
+    /// the epoch ends, when there is one. See
+    /// [`EpochEndDbSnapshotHandle::hand_over`].
     #[instrument(level = "error", skip_all)]
-    fn checkpoint_perpetual_db(
-        &self,
-        checkpoint_path: &Path,
-        cur_epoch_store: &AuthorityPerEpochStore,
-    ) -> IotaResult {
-        let _metrics_guard = self.metrics.db_checkpoint_latency.start_timer();
-        let current_epoch = cur_epoch_store.epoch();
-
-        if checkpoint_path.exists() {
-            info!("Skipping db checkpoint as it already exists for epoch: {current_epoch}");
-            return Ok(());
+    async fn hand_over_epoch_end_db_snapshot(&self, epoch: EpochId) {
+        let Some(handle) = &self.epoch_end_db_snapshots else {
+            return;
+        };
+        let _metrics_guard = self
+            .metrics
+            .epoch_end_db_snapshot_handover_latency
+            .start_timer();
+        if handle.hand_over(epoch).await == HandOver::Skipped {
+            self.metrics.epoch_end_db_snapshots_skipped.inc();
         }
-
-        let checkpoint_path_tmp = checkpoint_path.with_extension("tmp");
-        let store_checkpoint_path_tmp = checkpoint_path_tmp.join("store");
-
-        if checkpoint_path_tmp.exists() {
-            fs::remove_dir_all(&checkpoint_path_tmp)
-                .map_err(|e| IotaError::FileIO(e.to_string()))?;
-        }
-
-        fs::create_dir_all(&checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
-        fs::create_dir(&store_checkpoint_path_tmp).map_err(|e| IotaError::FileIO(e.to_string()))?;
-
-        self.get_reconfig_api()
-            .try_checkpoint_db(&store_checkpoint_path_tmp.join("perpetual"))?;
-
-        fs::rename(checkpoint_path_tmp, checkpoint_path)
-            .map_err(|e| IotaError::FileIO(e.to_string()))?;
-        Ok(())
     }
 
     /// Load the current epoch store. This can change during reconfiguration. To

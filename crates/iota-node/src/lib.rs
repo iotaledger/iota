@@ -61,6 +61,7 @@ use iota_core::{
         epoch_metrics::EpochMetrics, randomness::RandomnessManager,
         reconfiguration::ReconfigurationInitiator,
     },
+    epoch_end_db_snapshot::{EpochEndDbSnapshotHandle, EpochEndDbSnapshotRequest},
     execution_cache::build_execution_cache,
     execution_scheduler::ExecutionSchedulerAPI,
     global_state_hasher::{GlobalStateHashMetrics, GlobalStateHasher},
@@ -465,6 +466,7 @@ impl IotaNode {
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
         let perpetual_tables_for_progress = perpetual_tables.clone();
+        let perpetual_tables_for_snapshots = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             &genesis,
@@ -641,9 +643,21 @@ impl IotaNode {
         );
 
         info!("start snapshot upload");
-        // Start uploading state snapshot to remote store
-        let state_snapshot_handle =
-            Self::start_state_snapshot(&config, &prometheus_registry, checkpoint_store.clone())?;
+        // The state snapshot writer is the consumer of the epoch end database
+        // snapshot: the boundary hands each epoch to it on this channel. A
+        // depth of one is enough, because an epoch arriving while the writer
+        // is still busy is skipped rather than queued.
+        let (state_snapshot_requests, state_snapshot_receiver) = mpsc::channel(1);
+        let state_snapshot_handle = Self::start_state_snapshot(
+            &config,
+            &prometheus_registry,
+            checkpoint_store.clone(),
+            perpetual_tables_for_snapshots,
+            state_snapshot_receiver,
+        )?;
+        let epoch_end_db_snapshots = state_snapshot_handle
+            .is_some()
+            .then(|| EpochEndDbSnapshotHandle::new(state_snapshot_requests));
 
         let checkpoint_progress_tracker = Arc::new(CheckpointProgressTracker::new());
 
@@ -682,6 +696,7 @@ impl IotaNode {
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),
+            epoch_end_db_snapshots,
         )
         .await;
 
@@ -972,6 +987,8 @@ impl IotaNode {
         config: &NodeConfig,
         prometheus_registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
+        perpetual_tables: Arc<AuthorityPerpetualTables>,
+        requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
     ) -> Result<Option<tokio::sync::broadcast::Sender<()>>> {
         if let Some(remote_store_config) = &config.state_snapshot_write_config.object_store_config {
             debug_assert!(
@@ -979,15 +996,15 @@ impl IotaNode {
                 "`NodeConfig::validate` rejects snapshot upload on a validator"
             );
             let snapshot_uploader = StateSnapshotUploader::new(
-                &config.db_checkpoint_path(),
                 &config.snapshot_path(),
                 remote_store_config.clone(),
                 config.state_snapshot_write_config.concurrency,
                 60,
                 prometheus_registry,
                 checkpoint_store,
+                perpetual_tables,
             )?;
-            Ok(Some(snapshot_uploader.start()))
+            Ok(Some(snapshot_uploader.start(requests)))
         } else {
             Ok(None)
         }

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, path::Path, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
@@ -1177,13 +1177,6 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
     ) {
         self.try_expensive_check_iota_conservation(old_epoch_store, epoch_supply_change)
             .expect("storage access failed")
-    }
-
-    fn try_checkpoint_db(&self, path: &Path) -> IotaResult;
-
-    /// Non-fallible version of `try_checkpoint_db`.
-    fn checkpoint_db(&self, path: &Path) {
-        self.try_checkpoint_db(path).expect("storage access failed")
     }
 }
 
