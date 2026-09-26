@@ -25,7 +25,7 @@ use crate::{
 #[rstest]
 #[tokio::test]
 async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // note: pipelines, waves & rounds are zero-indexed.
     let decision_round_wave_0_pipeline_1 = committer.committers[1].certifying_round(0);
@@ -52,7 +52,7 @@ async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn idempotence(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach decision round of pipeline 1 wave 0 which is round
     // 4. note: pipelines, waves & rounds are zero-indexed.
@@ -102,7 +102,7 @@ async fn idempotence(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn multiple_direct_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     let mut last_finalized = Slot::new(0, 0);
@@ -149,7 +149,7 @@ async fn multiple_direct_commit(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn direct_commit_late_call(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // note: pipelines, waves & rounds are zero-indexed.
@@ -181,7 +181,7 @@ async fn direct_commit_late_call(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn no_genesis_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // Pipeline 0 wave 0 will not have a commit because its leader round is the
     // genesis round.
@@ -202,7 +202,7 @@ async fn no_genesis_commit(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn direct_skip_no_leader(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the decision round of the leader of wave 0 for
     // pipeline 1 but without the leader block.
@@ -254,7 +254,7 @@ async fn direct_skip_no_leader(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn direct_skip_enough_blame(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the wave 0 leader for pipeline 1.
     // note: pipelines, waves & rounds are zero-indexed.
@@ -329,7 +329,7 @@ async fn direct_skip_enough_blame(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the wave 0 leader of pipeline 1.
@@ -449,7 +449,7 @@ async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the 4th leader.
@@ -546,7 +546,7 @@ async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn undecided(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the first leader.
     // note: pipelines, waves & rounds are zero-indexed.
@@ -598,7 +598,7 @@ async fn undecided(#[values(false, true)] starfish_speed: bool) {
 #[rstest]
 #[tokio::test]
 async fn test_byzantine_validator(#[values(false, true)] starfish_speed: bool) {
-    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let (context, dag_state, mut committer) = basic_test_setup(starfish_speed);
     let version = TestBlockHeaderVersion::from_context(&context);
 
     // Add enough blocks to reach leader A12
