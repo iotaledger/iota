@@ -5,6 +5,7 @@ pub mod backward_history;
 pub mod object_versions;
 
 use std::{
+    future::Future,
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -56,6 +57,7 @@ use tokio::{
     runtime::Runtime,
     sync::{Mutex, OnceCell},
     task::JoinHandle,
+    time::error::Elapsed,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -176,6 +178,36 @@ pub async fn start_test_cluster_with_read_write_indexer(
         .unwrap();
 
     (cluster, pg_store, rpc_client)
+}
+
+/// Calls `f` every 100 ms until it returns `Some`, returning an error if
+/// the given `timeout` is reached first.
+///
+/// Returns `Ok(value)` upon success, or `Err(Elapsed)` if the timeout expires.
+///
+/// # Example
+///
+/// ```ignore
+/// let first_row = retry_with_timeout(Duration::from_secs(60), || async move {
+///     read_first_row(store).await
+/// })
+/// .await
+/// .expect("timeout waiting for the first row");
+/// ```
+pub async fn retry_with_timeout<T, F, Fut>(timeout: Duration, mut f: F) -> Result<T, Elapsed>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Option<T>>,
+{
+    tokio::time::timeout(timeout, async {
+        loop {
+            if let Some(value) = f().await {
+                return value;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
 }
 
 /// Wait for the indexer to catch up to the given checkpoint sequence number

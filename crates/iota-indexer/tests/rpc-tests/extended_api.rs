@@ -1,8 +1,21 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{str::FromStr, sync::OnceLock};
+use std::{str::FromStr, sync::OnceLock, time::Duration};
 
+use diesel::{PgConnection, QueryDsl, RunQueryDsl, dsl::min, prelude::ExpressionMethods};
+use iota_indexer::{
+    config::RetentionConfig,
+    metrics::IndexerMetrics,
+    models::watermarks::StoredWatermark,
+    processors::{
+        address_metrics_processor::AddressMetricsProcessor,
+        move_call_metrics_processor::MoveCallMetricsProcessor,
+        network_metrics_processor::NetworkMetricsProcessor,
+    },
+    schema::{address_metrics, move_calls, tx_count_metrics, watermarks},
+    store::{PgIndexerAnalyticalStore, PgIndexerStore},
+};
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
     ExtendedApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
@@ -13,10 +26,15 @@ use iota_json_rpc_types::{
 };
 use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, storage::ReadStore};
+use prometheus_filtered::Registry;
 use simulacrum::Simulacrum;
 use test_cluster::TestCluster;
 
-use crate::common::{ApiTestSetup, SimulacrumTestSetup, indexer_wait_for_checkpoint};
+use crate::common::{
+    ApiTestSetup, SimulacrumTestSetup, indexer_wait_for_checkpoint,
+    indexer_wait_for_checkpoint_pruned, indexer_wait_for_latest_checkpoint, retry_with_timeout,
+    start_test_cluster_with_read_write_indexer,
+};
 
 static EXTENDED_API_SHARED_SIMULACRUM_INITIALIZED_ENV: OnceLock<SimulacrumTestSetup> =
     OnceLock::new();
@@ -486,4 +504,127 @@ fn add_checkpoints(sim: &mut Simulacrum, checkpoints_count: i32) {
     for _ in 0..checkpoints_count {
         sim.create_checkpoint();
     }
+}
+
+/// Runs a read-only query against the test database.
+async fn query<T: Send + 'static>(
+    store: &PgIndexerStore,
+    query: impl FnOnce(&mut PgConnection) -> diesel::QueryResult<T> + Send + 'static,
+) -> T {
+    let pool = store.blocking_cp();
+    tokio::task::spawn_blocking(move || {
+        let mut conn = pool.get().expect("failed to get a connection");
+        query(&mut conn).expect("query failed")
+    })
+    .await
+    .expect("failed to join blocking task")
+}
+
+/// Prunes the genesis epoch, then checks that the network, address and move
+/// call processors still write metrics, starting at the first checkpoint left
+/// in the database.
+///
+/// Batch size is one so the first batch falls inside the pruned range. A
+/// processor that starts from genesis instead of the lower bound then never
+/// writes a row.
+#[tokio::test]
+async fn analytics_resume_from_the_first_available_checkpoint_on_a_pruned_database() {
+    let (cluster, store, _client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_analytics_on_pruned_database"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(store, 1).await;
+    cluster.force_new_epoch().await;
+    indexer_wait_for_checkpoint_pruned(store, 0).await;
+
+    execute_move_fn(cluster).await.unwrap();
+    indexer_wait_for_latest_checkpoint(store, cluster).await;
+
+    let analytical_store = PgIndexerAnalyticalStore::new(store.blocking_cp());
+    let metrics = IndexerMetrics::new(&Registry::new());
+
+    let mut network_processor =
+        NetworkMetricsProcessor::new(analytical_store.clone(), metrics.clone());
+    network_processor.min_network_metrics_processor_batch_size = 1;
+    network_processor.max_network_metrics_processor_batch_size = 1;
+    let network_task = tokio::spawn(async move { network_processor.start().await });
+
+    let mut address_processor =
+        AddressMetricsProcessor::new(analytical_store.clone(), metrics.clone());
+    address_processor.address_processor_batch_size = 1;
+    address_processor.address_processor_parallelism = 1;
+    let address_task = tokio::spawn(async move { address_processor.start().await });
+
+    let mut move_call_processor = MoveCallMetricsProcessor::new(analytical_store, metrics);
+    move_call_processor.move_call_processor_batch_size = 1;
+    move_call_processor.move_call_processor_parallelism = 1;
+    let move_call_task = tokio::spawn(async move { move_call_processor.start().await });
+
+    let first_tx_count_checkpoint = retry_with_timeout(Duration::from_secs(60), || async move {
+        query(store, |conn| {
+            tx_count_metrics::table
+                .select(min(tx_count_metrics::checkpoint_sequence_number))
+                .first::<Option<i64>>(conn)
+        })
+        .await
+    })
+    .await
+    .expect("timeout waiting for a tx count metrics row");
+    let first_address_metrics_checkpoint =
+        retry_with_timeout(Duration::from_secs(60), || async move {
+            query(store, |conn| {
+                address_metrics::table
+                    .select(min(address_metrics::checkpoint))
+                    .first::<Option<i64>>(conn)
+            })
+            .await
+        })
+        .await
+        .expect("timeout waiting for an address metrics row");
+    let first_move_call_checkpoint = retry_with_timeout(Duration::from_secs(60), || async move {
+        query(store, |conn| {
+            move_calls::table
+                .select(min(move_calls::checkpoint_sequence_number))
+                .first::<Option<i64>>(conn)
+        })
+        .await
+    })
+    .await
+    .expect("timeout waiting for a move calls row");
+
+    network_task.abort();
+    address_task.abort();
+    move_call_task.abort();
+
+    // The pruner has finished with the genesis epoch by now and nothing else
+    // is pruned, so the watermark is the first checkpoint still in the database.
+    let checkpoints_watermark = query(store, |conn| {
+        watermarks::table
+            .filter(watermarks::entity.eq("checkpoints"))
+            .first::<StoredWatermark>(conn)
+    })
+    .await;
+    let first_available_checkpoint = checkpoints_watermark.min_available_cp;
+    assert!(first_available_checkpoint > 0);
+
+    // A checkpoint without transactions gets no tx count row, so the first row
+    // may sit a little above the first available checkpoint, never below it.
+    assert!(
+        first_tx_count_checkpoint >= first_available_checkpoint,
+        "tx count metrics start at checkpoint {first_tx_count_checkpoint}, \
+             before the first available checkpoint {first_available_checkpoint}"
+    );
+    assert!(
+        first_address_metrics_checkpoint >= first_available_checkpoint,
+        "address metrics start at checkpoint {first_address_metrics_checkpoint}, \
+             before the first available checkpoint {first_available_checkpoint}"
+    );
+    assert!(
+        first_move_call_checkpoint >= first_available_checkpoint,
+        "move calls start at checkpoint {first_move_call_checkpoint}, \
+             before the first available checkpoint {first_available_checkpoint}"
+    );
 }
