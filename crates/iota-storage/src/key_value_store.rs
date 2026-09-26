@@ -8,6 +8,9 @@
 use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
+pub use iota_node_storage::{
+    KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
+};
 use iota_sdk_types::{
     CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
     TransactionEvents, Version,
@@ -23,17 +26,6 @@ use iota_types::{
 use tracing::instrument;
 
 use crate::key_value_store_metrics::KeyValueStoreMetrics;
-
-pub type KVStoreTransactionData = (
-    Vec<Option<TransactionEnvelope>>,
-    Vec<Option<TransactionEffects>>,
-);
-
-pub type KVStoreCheckpointData = (
-    Vec<Option<CertifiedCheckpointSummary>>,
-    Vec<Option<CheckpointContents>>,
-    Vec<Option<CertifiedCheckpointSummary>>,
-);
 
 pub struct TransactionKeyValueStore {
     store_name: &'static str,
@@ -362,48 +354,67 @@ impl TransactionKeyValueStore {
     }
 }
 
-/// Immutable key/value store trait for storing/retrieving transactions,
-/// effects, and events. Only defines multi_get/multi_put methods to discourage
-/// single key/value operations.
+/// Records the same metrics as the inherent methods.
 #[async_trait]
-pub trait TransactionKeyValueStoreTrait {
-    /// Generic multi_get, allows implementors to get heterogenous values with a
-    /// single round trip.
+impl TransactionKeyValueStoreTrait for TransactionKeyValueStore {
     async fn multi_get(
         &self,
         transaction_keys: &[TransactionDigest],
         effects_keys: &[TransactionDigest],
-    ) -> IotaResult<KVStoreTransactionData>;
+    ) -> IotaResult<KVStoreTransactionData> {
+        Self::multi_get(self, transaction_keys, effects_keys).await
+    }
 
-    /// Generic multi_get to allow implementors to get heterogenous values with
-    /// a single round trip.
     async fn multi_get_checkpoints(
         &self,
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-    ) -> IotaResult<KVStoreCheckpointData>;
+    ) -> IotaResult<KVStoreCheckpointData> {
+        Self::multi_get_checkpoints(
+            self,
+            checkpoint_summaries,
+            checkpoint_contents,
+            checkpoint_summaries_by_digest,
+        )
+        .await
+    }
 
     async fn get_transaction_perpetual_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> IotaResult<Option<CheckpointSequenceNumber>>;
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
+        Self::get_transaction_perpetual_checkpoint(self, digest).await
+    }
 
-    async fn get_object(&self, object_id: ObjectId, version: Version)
-    -> IotaResult<Option<Object>>;
+    async fn get_object(
+        &self,
+        object_id: ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<Object>> {
+        Self::get_object(self, object_id, version).await
+    }
 
-    async fn multi_get_objects(&self, object_keys: &[ObjectKey])
-    -> IotaResult<Vec<Option<Object>>>;
+    async fn multi_get_objects(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> IotaResult<Vec<Option<Object>>> {
+        Self::multi_get_objects(self, object_keys).await
+    }
 
     async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>>;
+    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
+        Self::multi_get_transactions_perpetual_checkpoints(self, digests).await
+    }
 
     async fn multi_get_events_by_tx_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<TransactionEvents>>>;
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
+        Self::multi_get_events_by_tx_digests(self, digests).await
+    }
 }
 
 /// A TransactionKeyValueStoreTrait that falls back to a secondary store for any

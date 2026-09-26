@@ -7217,6 +7217,7 @@ dependencies = [
 name = "iota-node-storage"
 version = "1.34.0-alpha"
 dependencies = [
+ "async-trait",
  "iota-sdk-types",
  "iota-types",
  "move-core-types",
@@ -7925,6 +7926,7 @@ dependencies = [
  "iota-config",
  "iota-macros",
  "iota-metrics",
+ "iota-node-storage",
  "iota-protocol-config",
  "iota-sdk-types",
  "iota-simulator",
