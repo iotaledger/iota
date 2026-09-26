@@ -626,6 +626,12 @@ pub fn store_modules<'a, A: MoveTestAdapter<'a>>(
     data: NamedTempFile,
     mut modules: Vec<MaybeNamedCompiledModule>,
 ) {
+    // A publish that was only simulated returns nothing, and must leave no trace:
+    // registering its source file would keep a module the chain never got on the
+    // compiler's search path for every later task.
+    if modules.is_empty() {
+        return;
+    }
     match syntax {
         SyntaxChoice::Source => {
             let path = data.path().to_str().unwrap().to_owned();
