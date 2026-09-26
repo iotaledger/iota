@@ -352,6 +352,14 @@ impl HttpKVStore {
         Url::from_str(joined.as_str()).into_iota_result()
     }
 
+    fn evict(&self, keys: impl IntoIterator<Item = Key>) {
+        for key in keys {
+            if let Ok(url) = self.get_url(&key) {
+                self.cache.invalidate(&url);
+            }
+        }
+    }
+
     async fn multi_fetch(&self, uris: Vec<Key>) -> Vec<IotaResult<Option<Bytes>>> {
         let uris_vec = uris.to_vec();
         let fetches = stream::iter(uris_vec.into_iter().map(|url| self.fetch(url)));
@@ -555,8 +563,11 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .zip(checkpoint_summaries.iter())
             .map(map_fetch)
             .map(|maybe_bytes| {
-                maybe_bytes
-                    .and_then(|(bytes, seq)| deser::<_, CertifiedCheckpointSummary>(seq, bytes))
+                maybe_bytes.and_then(|(bytes, seq)| {
+                    deser_check_digest(seq, bytes, |s: &CertifiedCheckpointSummary| {
+                        s.data().sequence_number
+                    })
+                })
             })
             .collect::<Vec<_>>();
 
@@ -676,5 +687,17 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
                 maybe_bytes.and_then(|(bytes, key)| deser::<_, TransactionEvents>(&key, bytes))
             })
             .collect::<Vec<_>>())
+    }
+
+    async fn evict_objects(&self, object_keys: &[ObjectKey]) {
+        self.evict(object_keys.iter().map(|key| Key::ObjectKey(*key)));
+    }
+
+    async fn evict_events_by_tx_digests(&self, digests: &[TransactionDigest]) {
+        self.evict(
+            digests
+                .iter()
+                .map(|digest| Key::EventsByTransactionDigest(*digest)),
+        );
     }
 }
