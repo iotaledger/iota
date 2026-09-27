@@ -813,7 +813,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Get block refs from recent commits stored during fast sync
         // TODO: The commits might not yet stored, but only fetched and pending
         // processing.
-        let (commits_since_schedule_update, block_refs) = {
+        let (last_commit_index, commits_since_schedule_update, block_refs) = {
             let dag_state = inner.dag_state.read();
             let last_commit_index = dag_state.last_commit_index();
             let last_commit_info_index = dag_state.last_commit_info_index();
@@ -843,7 +843,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 num_commits
             };
             let block_refs = dag_state.get_block_refs_for_recent_commits(num_commits);
-            (commits_since_schedule_update, block_refs)
+            (last_commit_index, commits_since_schedule_update, block_refs)
         };
 
         let max_headers_per_fetch = inner.context.parameters.max_headers_per_commit_sync_fetch;
@@ -892,6 +892,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     &mut rng,
                 );
             }
+            // A peer that voted for the last commit holds these headers, while
+            // one with no observed vote may be down and cost the full timeout.
+            inner.order_voters_first(&mut target_authorities, last_commit_index);
 
             // Try fetching from different authorities until successful
             let mut fetched = false;
@@ -1608,10 +1611,11 @@ mod tests {
 
         use super::fetch_once::make_inner;
         use crate::{
-            block_header::{TestBlockHeader, VerifiedBlockHeader},
-            commit::{CommitDigest, CommitRef},
+            block_header::{BlockHeaderDigest, BlockRef, TestBlockHeader, VerifiedBlockHeader},
+            commit::{CommitDigest, CommitRef, TrustedCommit},
             commit_syncer::{fast::FastCommitSyncer, fetch_loop, tests::FakeNetworkClient},
             context::Context,
+            dag_state::DataSource,
         };
 
         /// Drives one pass of `fetch_loop` over a committee where no peer can
@@ -1677,6 +1681,60 @@ mod tests {
                     AuthorityIndex::new_for_test(3),
                 ]
             );
+        }
+
+        /// The reinitialization header fetch asks a peer that voted for the
+        /// last commit first, even when the responsiveness ranking prefers the
+        /// peers without a vote.
+        #[tokio::test(start_paused = true)]
+        async fn reinitialization_asks_voters_first() {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            let context = Arc::new(context);
+            for peer in [1, 2] {
+                context.peer_responsiveness.record_success(
+                    DataSource::FastCommitSyncer,
+                    AuthorityIndex::new_for_test(peer),
+                    Duration::from_millis(1),
+                );
+            }
+            // An empty answer never matches the requested header, so every
+            // peer is asked in turn.
+            let network_client = Arc::new(FakeNetworkClient {
+                block_headers: Some(vec![]),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+            let leader = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+            {
+                let mut dag_state = inner.dag_state.write();
+                dag_state.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    1,
+                    CommitDigest::MIN,
+                    0,
+                    leader,
+                    vec![leader],
+                    vec![],
+                ));
+                dag_state.flush();
+            }
+            inner
+                .commit_vote_monitor
+                .observe_block(&VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(3, 3)
+                        .set_commit_votes(vec![CommitRef::new(1, CommitDigest::MIN)])
+                        .build(),
+                ));
+
+            let result = FastCommitSyncer::fetch_headers_for_reinitialization(inner).await;
+
+            assert!(result.is_err());
+            let asked = network_client.requested_header_peers.lock().clone();
+            assert_eq!(asked.len(), 3);
+            assert_eq!(asked[0], AuthorityIndex::new_for_test(3));
         }
     }
 

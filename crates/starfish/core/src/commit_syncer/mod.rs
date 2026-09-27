@@ -971,6 +971,8 @@ pub(crate) mod tests {
         pub(crate) block_headers: Option<Vec<Bytes>>,
         /// Preset `fetch_transactions` response.
         pub(crate) transactions: Option<Vec<Bytes>>,
+        /// Every peer asked for block headers, in the order it was asked.
+        pub(crate) requested_header_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
     }
 
     #[async_trait::async_trait]
@@ -998,11 +1000,12 @@ pub(crate) mod tests {
 
         async fn fetch_block_headers(
             &self,
-            _peer: AuthorityIndex,
+            peer: AuthorityIndex,
             _block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            self.requested_header_peers.lock().push(peer);
             match &self.block_headers {
                 Some(response) => Ok(response.clone()),
                 None => unimplemented!("Unimplemented"),
