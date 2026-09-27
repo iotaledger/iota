@@ -244,6 +244,28 @@ impl<C: NetworkClient> Inner<C> {
             max_commits,
         )
     }
+
+    /// Moves the peers that have voted for `commit_index` or later ahead of
+    /// the rest, keeping the order within each group. Does nothing unless
+    /// `enable_commit_sync_peer_selection_by_commit_votes` is set.
+    pub(crate) fn order_voters_first(
+        &self,
+        authorities: &mut [AuthorityIndex],
+        commit_index: CommitIndex,
+    ) {
+        if !self
+            .context
+            .parameters
+            .enable_commit_sync_peer_selection_by_commit_votes
+        {
+            return;
+        }
+        authorities.sort_by_cached_key(|authority| {
+            !self
+                .commit_vote_monitor
+                .has_voted_for_commit(*authority, commit_index)
+        });
+    }
 }
 
 /// Rejects a deserialized commit whose variant does not match the local
@@ -624,19 +646,7 @@ where
         // that provably solidified the range, and any header from a
         // behind-listed peer carrying a recent commit vote promotes it
         // immediately.
-        if inner
-            .context
-            .parameters
-            .enable_commit_sync_peer_selection_by_commit_votes
-        {
-            let (caught_up, behind): (Vec<_>, Vec<_>) =
-                target_authorities.into_iter().partition(|authority| {
-                    inner
-                        .commit_vote_monitor
-                        .has_voted_for_commit(*authority, commit_range.end())
-                });
-            target_authorities = caught_up.into_iter().chain(behind).collect();
-        }
+        inner.order_voters_first(&mut target_authorities, commit_range.end());
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
         timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
