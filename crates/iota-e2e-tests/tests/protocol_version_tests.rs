@@ -557,7 +557,7 @@ mod sim_only_tests {
     }
 
     /// Modules at `package_id` whose bytes alone exceed `bytes`. They are
-    /// publishable -- `test_new_system_package_within_size_limit_is_added`
+    /// publishable -- `new_system_package_within_size_limit_is_added`
     /// publishes a package made of them, which runs the verifier the network
     /// would -- so the only thing wrong with a package that overruns its limit
     /// on them is its size.

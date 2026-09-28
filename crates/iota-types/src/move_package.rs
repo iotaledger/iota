@@ -312,8 +312,9 @@ impl MovePackageExt for MovePackage {
             (name, bytes)
         }));
 
-        // Deliberately not size-checked: a system package is published by the
-        // network rather than by a user, and is not held to a size limit.
+        // Not size-checked: an upgrade of a system package is exempt from the
+        // bound, and `compare_system_package` checks a package being added
+        // itself, against `max_package_size`.
         MovePackage::new(
             storage_id,
             version,
