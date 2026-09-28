@@ -15,9 +15,7 @@ use diesel::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, schema::packages};
 use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
-use iota_sdk_types::{
-    Address, Identifier, ObjectData, move_package::MovePackage as NativeMovePackage,
-};
+use iota_sdk_types::{Address, Identifier, MovePackage as NativeMovePackage, ObjectData};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -43,7 +41,7 @@ use crate::{
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::ExactTypeFilter,
-        uint53::UInt53,
+        uint53::{MAX_UINT53, UInt53},
     },
 };
 
@@ -156,10 +154,10 @@ pub(crate) type Cursor = BcsCursor<PackageCursor>;
 /// from.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct PackageCursor {
-    pub checkpoint_sequence_number: u64,
+    pub checkpoint_sequence_number: UInt53,
     pub original_id: Vec<u8>,
-    pub package_version: u64,
-    pub checkpoint_viewed_at: u64,
+    pub package_version: UInt53,
+    pub checkpoint_viewed_at: UInt53,
 }
 
 /// `DataLoader` key for fetching the storage ID of the (user) package at
@@ -535,7 +533,7 @@ impl MovePackage {
 
             let cursor = JsonCursor::new(ConsistentNamedCursor {
                 name: name.clone(),
-                c: checkpoint_viewed_at,
+                c: UInt53::new_unchecked(checkpoint_viewed_at),
             })
             .encode_cursor();
             connection.edges.push(Edge::new(
@@ -768,7 +766,7 @@ impl MovePackage {
             .as_ref()
             .and_then(|f| f.before_checkpoint)
             .map(|v| v.into())
-            .unwrap_or(u64::MAX)
+            .unwrap_or(MAX_UINT53)
             .min(checkpoint_viewed_at + 1);
 
         // Locate each `(package_id, package_version)` row in
@@ -915,7 +913,7 @@ impl MovePackage {
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        self.checkpoint_viewed_at.into()
     }
 }
 
@@ -972,10 +970,12 @@ impl RawPaginated<Cursor> for StoredHistoryPackage {
 impl Target<Cursor> for StoredHistoryPackage {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(PackageCursor {
-            checkpoint_sequence_number: self.object.checkpoint_sequence_number as u64,
+            checkpoint_sequence_number: UInt53::new_unchecked(
+                self.object.checkpoint_sequence_number as u64,
+            ),
             original_id: self.original_id.clone(),
-            package_version: self.object.object_version as u64,
-            checkpoint_viewed_at,
+            package_version: UInt53::new_unchecked(self.object.object_version as u64),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
         })
     }
 }

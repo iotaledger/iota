@@ -930,6 +930,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 FETCH_REQUEST_TIMEOUT,
                 context.clone(),
                 sync_method,
+                misbehavior_store.clone(),
             )
             .await?;
 
@@ -968,6 +969,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         request_timeout: Duration,
         context: Arc<Context>,
         sync_method: SyncMethod,
+        misbehavior_store: Arc<MisbehaviorStore>,
     ) -> ConsensusResult<(Vec<Bytes>, TransactionsGuard, AuthorityIndex)> {
         // Track concurrent inflight requests
         let inflight_metric = &context
@@ -1016,6 +1018,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
 
         let resp = match result {
             Ok(Err(err)) => {
+                misbehavior_store.record_fetch_fault(peer, &err);
                 // Record failure
                 context
                     .metrics

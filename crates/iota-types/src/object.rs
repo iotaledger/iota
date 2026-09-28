@@ -13,8 +13,8 @@ use iota_common::debug_fatal;
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::Object as ObjectInner;
 use iota_sdk_types::{
-    Address, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TypeTag, Version, move_package::MovePackage,
+    Address, MovePackage, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag, Version,
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -547,6 +547,7 @@ impl Object {
         let data_size = match &self.data {
             ObjectData::Struct(m) => m.object_size_for_gas_metering(),
             ObjectData::Package(p) => p.size(),
+            _ => unimplemented!("a new ObjectData enum variant was added and needs to be handled"),
         };
         meta_data_size + data_size
     }
@@ -563,6 +564,7 @@ impl Object {
         match &self.data {
             ObjectData::Struct(m) => Ok(Some(m.get_layout(resolver)?)),
             ObjectData::Package(_) => Ok(None),
+            _ => unimplemented!("a new ObjectData enum variant was added and needs to be handled"),
         }
     }
 
@@ -597,6 +599,9 @@ impl Object {
             + match &self.data {
                 ObjectData::Struct(m) => m.get_total_iota(layout_resolver)?,
                 ObjectData::Package(_) => 0,
+                _ => unimplemented!(
+                    "a new ObjectData enum variant was added and needs to be handled"
+                ),
             })
     }
 

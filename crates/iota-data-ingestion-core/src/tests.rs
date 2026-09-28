@@ -14,10 +14,9 @@ use std::{
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, ObjectReference, RandomnessStateUpdate, Transaction,
-    TransactionEffects, TransactionKind, Version,
-    checkpoint::{CheckpointContents, CheckpointSummary},
-    gas::GasCostSummary,
+    Address, CheckpointContents, CheckpointSummary, GasCostSummary, ObjectDigest, ObjectId,
+    ObjectReference, RandomnessStateUpdate, Transaction, TransactionEffects, TransactionKind,
+    Version,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{

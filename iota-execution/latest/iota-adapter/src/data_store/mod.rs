@@ -8,7 +8,7 @@ pub mod linkage_view;
 
 use std::rc::Rc;
 
-use iota_sdk_types::{ObjectId, move_package::MovePackage};
+use iota_sdk_types::{MovePackage, ObjectId};
 use iota_types::{error::IotaResult, storage::BackingPackageStore};
 
 // A unifying trait that allows us to load move packages that may not be objects

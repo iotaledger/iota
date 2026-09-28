@@ -402,7 +402,7 @@ impl Validator {
                 c.encode_cursor(),
                 Address {
                     address: addresses[c.ix].address,
-                    checkpoint_viewed_at: c.c,
+                    checkpoint_viewed_at: c.c.into(),
                 },
             ));
         }

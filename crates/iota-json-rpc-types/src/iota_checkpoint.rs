@@ -4,10 +4,8 @@
 
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
-    CheckpointDigest, Digest, TransactionDigest,
-    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
-    gas::GasCostSummary,
-    validator::ValidatorCommitteeMember,
+    CheckpointCommitment, CheckpointContents, CheckpointDigest, CheckpointSummary, Digest,
+    EndOfEpochData, GasCostSummary, TransactionDigest, ValidatorCommitteeMember,
 };
 use iota_types::{
     base_types::AuthorityName,

@@ -42,8 +42,8 @@ use std::{
 use derive_more::Display;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, PackageUpgradeError, StructTag, TypeTag, Version,
-    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+    Identifier, MovePackage, ObjectId, PackageUpgradeError, StructTag, TypeOrigin, TypeTag,
+    UpgradeInfo, Version,
 };
 use move_binary_format::{
     binary_config::BinaryConfig,

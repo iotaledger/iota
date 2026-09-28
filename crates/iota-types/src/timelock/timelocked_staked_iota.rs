@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectData, ObjectId};
+use iota_sdk_types::ObjectId;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -62,17 +62,12 @@ impl TimelockedStakedIota {
 impl TryFrom<&Object> for TimelockedStakedIota {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if o.struct_tag().is_timelocked_staked_iota() {
-                    return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
-                        error: format!(
-                            "Unable to deserialize TimelockedStakedIota object: {err:?}"
-                        ),
-                    });
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if o.struct_tag().is_timelocked_staked_iota() {
+                return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
+                    error: format!("Unable to deserialize TimelockedStakedIota object: {err:?}"),
+                });
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

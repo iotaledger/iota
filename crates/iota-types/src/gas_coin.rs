@@ -140,7 +140,7 @@ mod checked {
         fn try_from(value: &Object) -> Result<GasCoin, ExecutionError> {
             match &value.data {
                 ObjectData::Struct(obj) => obj.try_into(),
-                ObjectData::Package(_) => Err(ExecutionError::new_with_source(
+                _ => Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::InvalidGasObject,
                     format!("Gas object type is not a gas coin: {value:?}"),
                 )),

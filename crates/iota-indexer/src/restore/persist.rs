@@ -124,9 +124,8 @@ impl Restore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "failed to persist all formal snapshot object chunks: {e:?}",
-                ))
+                tracing::error!("failed to persist all formal snapshot object chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
 
         let checkpointed_tasks = checkpointed_chunks.into_iter().map(|c| {
@@ -143,9 +142,8 @@ impl Restore for PgIndexerStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "failed to persist all formal snapshot checkpointed object chunks: {e:?}",
-                ))
+                tracing::error!("failed to persist all formal snapshot checkpointed object chunks: {e:?}");
+                IndexerError::PostgresWrite
             })?;
         self.persist_displays(derived_data.displays.into_values().collect())
             .await?;
@@ -296,10 +294,7 @@ pub(crate) async fn populate_remaining_tables(
     verified_epoch_info: VerifiedEpochInfo,
     snapshot_chain_id: ChainIdentifier,
 ) -> IndexerResult<()> {
-    let snapshot_epoch_boundary = &verified_epoch_info
-        .entries()
-        .last()
-        .expect("there should be an entry for the snapshot epoch");
+    let snapshot_epoch_boundary = verified_epoch_info.snapshot_entry();
     let sync_watermark = IndexedCheckpoint::from_iota_checkpoint(
         &snapshot_epoch_boundary.last_checkpoint_summary,
         &snapshot_epoch_boundary.last_checkpoint_contents,

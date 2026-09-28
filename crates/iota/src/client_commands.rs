@@ -19,7 +19,7 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::{Client as GrpcClient, read_mask_fields::ObjectField};
+use iota_grpc_client::GrpcClient;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -51,12 +51,11 @@ use iota_sdk::{
 };
 use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
-    Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
-    SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
-    TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
+    Address, GasCostSummary, Identifier, MoveAuthenticatorV1, MovePackage, MovePackageData,
+    ObjectId, ObjectReference, Owner, SenderSignedTransaction, SharedObjectReference,
+    SignatureScheme, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
+    UserSignature, Version,
     crypto::{Intent, IntentMessage},
-    gas::GasCostSummary,
-    move_package::MovePackage,
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
@@ -1017,12 +1016,11 @@ impl IotaClientCommands {
                 );
                 let tx_kind = builder.finish_kind().await?;
 
-                let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
                 let result = dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
                     context,
-                    gas_payment,
+                    payment.gas,
                     gas_data,
                     processing,
                 )
@@ -1137,12 +1135,11 @@ impl IotaClientCommands {
                 builder.transfer_objects(sender, [upgrade_cap]);
                 let tx_kind = builder.finish_kind().await?;
 
-                let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
                 let result = dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
                     context,
-                    gas_payment,
+                    payment.gas,
                     gas_data,
                     processing,
                 )
@@ -1334,16 +1331,12 @@ impl IotaClientCommands {
                 } else {
                     context.infer_sender(&payment.gas).await?
                 };
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
 
                 dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
                     context,
-                    gas_payment,
+                    payment.gas,
                     gas_data,
                     processing,
                 )
@@ -1362,13 +1355,12 @@ impl IotaClientCommands {
                 let mut builder = client.transaction_builder(signer);
                 builder.transfer_objects(to, [object_id]);
                 let tx_kind = builder.finish_kind().await?;
-                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
                     tx_kind,
                     context,
-                    gas_payment,
+                    payment.gas,
                     gas_data,
                     processing,
                 )
@@ -1412,13 +1404,12 @@ impl IotaClientCommands {
                 let mut builder = client.transaction_builder(signer);
                 builder.pay(input_coins.clone(), recipients.into_iter().zip(amounts));
                 let tx_kind = builder.finish_kind().await?;
-                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
                     tx_kind,
                     context,
-                    gas_payment,
+                    payment.gas,
                     gas_data,
                     processing,
                 )
@@ -1487,13 +1478,11 @@ impl IotaClientCommands {
                     .await?
                 };
 
-                let gas_payment = grpc_input_refs(&client, &input_coins).await?;
-
                 dry_run_or_execute_or_serialize(
                     signer,
                     tx_kind,
                     context,
-                    gas_payment,
+                    input_coins,
                     gas_data,
                     processing,
                 )
@@ -1515,13 +1504,12 @@ impl IotaClientCommands {
                 let mut builder = client.transaction_builder(signer);
                 builder.transfer_objects(recipient, [unresolved::Argument::Gas]);
                 let tx_kind = builder.finish_kind().await?;
-                let gas_payment = grpc_input_refs(&client, &input_coins).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
                     tx_kind,
                     context,
-                    gas_payment,
+                    input_coins,
                     gas_data,
                     processing,
                 )
@@ -1658,7 +1646,7 @@ impl IotaClientCommands {
                 let client = context.get_grpc_client().await?;
                 // Two coins are enough to tell a lone coin from several
                 let iota_coins = client
-                    .get_coins(signer, StructTag::new_gas(), Some(2), None)
+                    .coins(signer, StructTag::new_gas(), Some(2), None)
                     .await?
                     .into_inner();
 
@@ -1703,13 +1691,12 @@ impl IotaClientCommands {
                     unreachable!("amounts or count must be provided")
                 }
                 let tx_kind = builder.finish_kind().await?;
-                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
                     tx_kind,
                     context,
-                    gas_payment,
+                    payment.gas,
                     gas_data,
                     processing,
                 )
@@ -1728,13 +1715,12 @@ impl IotaClientCommands {
                 let mut builder = client.transaction_builder(signer);
                 builder.merge_coins(primary_coin, [coin_to_merge]);
                 let tx_kind = builder.finish_kind().await?;
-                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
                     tx_kind,
                     context,
-                    gas_payment,
+                    payment.gas,
                     gas_data,
                     processing,
                 )
@@ -1777,22 +1763,17 @@ impl IotaClientCommands {
                     bail!("Failed to parse --tx-bytes as TransactionKind");
                 };
 
-                let client = context.get_client().await?;
                 let sender = if let Some(sender) = processing.sender {
                     sender
                 } else {
                     context.infer_sender(&payment.gas).await?
                 };
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
 
                 dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
                     context,
-                    gas_payment,
+                    payment.gas,
                     gas_data,
                     processing,
                 )
@@ -3291,25 +3272,43 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
     })
 }
 
-/// Fetch the current object references for the given object IDs over gRPC.
-pub(crate) async fn grpc_input_refs(
-    client: &GrpcClient,
-    object_ids: &[ObjectId],
-) -> Result<Vec<ObjectReference>, anyhow::Error> {
-    if object_ids.is_empty() {
-        return Ok(Vec::new());
+/// The gas coins paying for a transaction, either as object IDs to be resolved
+/// to their current references, or as references that must be used as-is (e.g.
+/// the ones pinned by an already serialized transaction).
+pub(crate) enum GasPayment {
+    Ids(Vec<ObjectId>),
+    Refs(Vec<ObjectReference>),
+}
+
+impl From<Vec<ObjectId>> for GasPayment {
+    fn from(ids: Vec<ObjectId>) -> Self {
+        Self::Ids(ids)
     }
-    let objects = client
-        .get_objects(object_ids.iter().copied(), ObjectField::REFERENCE)
-        .await?
-        .into_inner();
-    objects
-        .into_iter()
-        .map(|result| match result {
-            Ok(obj) => obj.object_reference().map_err(|e| anyhow::anyhow!(e)),
-            Err(e) => Err(anyhow::anyhow!(e)),
-        })
-        .collect()
+}
+
+impl From<Vec<ObjectReference>> for GasPayment {
+    fn from(refs: Vec<ObjectReference>) -> Self {
+        Self::Refs(refs)
+    }
+}
+
+impl GasPayment {
+    async fn resolve(self, context: &WalletContext) -> Result<Vec<ObjectReference>, anyhow::Error> {
+        match self {
+            Self::Refs(refs) => Ok(refs),
+            // The gRPC client rejects a request without any object IDs
+            Self::Ids(ids) if ids.is_empty() => Ok(Vec::new()),
+            Self::Ids(ids) => context
+                .get_grpc_client()
+                .await?
+                .object_references(ids)
+                .await?
+                .into_inner()
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(Into::into),
+        }
+    }
 }
 
 /// Fetch the coin with the given ID over gRPC, as a reference pinning the
@@ -3339,10 +3338,12 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     signer: Address,
     tx_kind: TransactionKind,
     context: &mut WalletContext,
-    gas_payment: Vec<ObjectReference>,
+    gas_payment: impl Into<GasPayment>,
     gas_data: GasDataArgs,
     processing: TxProcessingArgs,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
+    let gas_payment = gas_payment.into().resolve(context).await?;
+
     let GasDataArgs {
         gas_budget,
         gas_price,
@@ -3371,8 +3372,6 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else {
         context.get_reference_gas_price().await?
     };
-
-    let client = context.get_client().await?;
 
     let signer = sender.unwrap_or(signer);
 
@@ -3403,7 +3402,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             tx_kind,
             gas_budget,
             gas_price,
-            gas_payment.clone(),
+            gas_payment,
             gas_sponsor,
         )
         .await;
@@ -3426,6 +3425,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             budget
         }
     };
+
+    let client = context.get_client().await?;
 
     let gas_payment = if !gas_payment.is_empty() {
         gas_payment

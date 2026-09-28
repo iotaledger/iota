@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
-    Version, checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,

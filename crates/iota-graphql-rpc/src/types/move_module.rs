@@ -23,6 +23,7 @@ use crate::{
         move_function::MoveFunction,
         move_package::MovePackage,
         move_struct::MoveStruct,
+        uint53::UInt53,
     },
 };
 
@@ -196,7 +197,7 @@ impl MoveModule {
 
             let cursor = JsonCursor::new(ConsistentNamedCursor {
                 name: name.to_string(),
-                c: checkpoint_viewed_at,
+                c: UInt53::new_unchecked(checkpoint_viewed_at),
             })
             .encode_cursor();
             connection.edges.push(Edge::new(cursor, struct_));
@@ -261,7 +262,7 @@ impl MoveModule {
 
             let cursor = JsonCursor::new(ConsistentNamedCursor {
                 name: name.to_string(),
-                c: checkpoint_viewed_at,
+                c: UInt53::new_unchecked(checkpoint_viewed_at),
             })
             .encode_cursor();
             connection.edges.push(Edge::new(cursor, enum_));
@@ -341,7 +342,7 @@ impl MoveModule {
 
             let cursor = JsonCursor::new(ConsistentNamedCursor {
                 name: name.to_string(),
-                c: checkpoint_viewed_at,
+                c: UInt53::new_unchecked(checkpoint_viewed_at),
             })
             .encode_cursor();
             connection.edges.push(Edge::new(cursor, datatype));
@@ -405,7 +406,7 @@ impl MoveModule {
 
             let cursor = JsonCursor::new(ConsistentNamedCursor {
                 name: name.to_string(),
-                c: checkpoint_viewed_at,
+                c: UInt53::new_unchecked(checkpoint_viewed_at),
             })
             .encode_cursor();
             connection.edges.push(Edge::new(cursor, function));

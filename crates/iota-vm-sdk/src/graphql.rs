@@ -4,7 +4,7 @@
 //! GraphQL-backed store (`feature = "graphql"`, native only); see
 //! [`GraphQLStore`], which mirrors `GrpcStore` but fetches over GraphQL.
 
-use iota_sdk_graphql_client::Client;
+use iota_sdk_graphql_client::GraphQLClient;
 use iota_sdk_types::{ObjectId, Version};
 use iota_types::{digests::ChainIdentifier, object::Object};
 
@@ -33,7 +33,7 @@ pub struct GraphQLStore {
 impl GraphQLStore {
     /// Wrap an existing client. The store starts with the built-in framework
     /// packages already loaded so Move calls resolve.
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: GraphQLClient) -> Self {
         Self {
             cache: CachingStore::new(GraphQLFetcher { client }),
         }
@@ -46,8 +46,8 @@ impl GraphQLStore {
     ///
     /// Returns [`VmSdkError::Store`] if `url` is not a valid server address.
     pub fn connect(url: impl Into<String>) -> Result<Self, VmSdkError> {
-        let client =
-            Client::new(&url.into()).map_err(|e| StoreError::new("connect GraphQL client", e))?;
+        let client = GraphQLClient::new(&url.into())
+            .map_err(|e| StoreError::new("connect GraphQL client", e))?;
         Ok(Self::new(client))
     }
 
@@ -154,7 +154,7 @@ impl Store for GraphQLStore {
 /// GraphQL transport for [`CachingStore`].
 #[derive(Clone)]
 struct GraphQLFetcher {
-    client: Client,
+    client: GraphQLClient,
 }
 
 impl GraphQLFetcher {

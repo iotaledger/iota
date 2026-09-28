@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 
 use iota_config::genesis;
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents,
-    Version, checkpoint::CheckpointContents,
+    Address, CheckpointContents, ObjectId, ObjectReference, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use iota_types::{
     committee::{Committee, EpochId},

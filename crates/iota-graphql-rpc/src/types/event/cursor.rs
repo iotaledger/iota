@@ -18,6 +18,7 @@ use crate::{
     types::{
         cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
         event::Query,
+        uint53::UInt53,
     },
 };
 
@@ -25,14 +26,14 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct EventKey {
     /// Transaction Sequence Number
-    pub tx: u64,
+    pub tx: UInt53,
 
     /// Event Sequence Number
-    pub e: u64,
+    pub e: UInt53,
 
     /// The checkpoint sequence number this was viewed at.
     #[serde(rename = "c")]
-    pub checkpoint_viewed_at: u64,
+    pub checkpoint_viewed_at: UInt53,
 }
 
 pub(crate) type Cursor = cursor::JsonCursor<EventKey>;
@@ -53,16 +54,18 @@ impl Paginated<Cursor> for StoredEvent {
     fn filter_ge<ST, GB>(cursor: &Cursor, query: Query<ST, GB>) -> Query<ST, GB> {
         use events::dsl::{event_sequence_number as event, tx_sequence_number as tx};
         query.filter(
-            tx.gt(cursor.tx as i64)
-                .or(tx.eq(cursor.tx as i64).and(event.ge(cursor.e as i64))),
+            tx.gt(i64::from(cursor.tx)).or(tx
+                .eq(i64::from(cursor.tx))
+                .and(event.ge(i64::from(cursor.e)))),
         )
     }
 
     fn filter_le<ST, GB>(cursor: &Cursor, query: Query<ST, GB>) -> Query<ST, GB> {
         use events::dsl::{event_sequence_number as event, tx_sequence_number as tx};
         query.filter(
-            tx.lt(cursor.tx as i64)
-                .or(tx.eq(cursor.tx as i64).and(event.le(cursor.e as i64))),
+            tx.lt(i64::from(cursor.tx)).or(tx
+                .eq(i64::from(cursor.tx))
+                .and(event.le(i64::from(cursor.e)))),
         )
     }
 
@@ -113,16 +116,16 @@ impl RawPaginated<Cursor> for StoredEvent {
 impl Target<Cursor> for StoredEvent {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(EventKey {
-            tx: self.tx_sequence_number as u64,
-            e: self.event_sequence_number as u64,
-            checkpoint_viewed_at,
+            tx: UInt53::new_unchecked(self.tx_sequence_number as u64),
+            e: UInt53::new_unchecked(self.event_sequence_number as u64),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
         })
     }
 }
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        u64::from(self.checkpoint_viewed_at)
     }
 }
 
@@ -131,9 +134,9 @@ impl ScanLimited for Cursor {}
 impl Target<Cursor> for EvLookup {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(EventKey {
-            tx: self.tx as u64,
-            e: self.ev as u64,
-            checkpoint_viewed_at,
+            tx: UInt53::new_unchecked(self.tx as u64),
+            e: UInt53::new_unchecked(self.ev as u64),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
         })
     }
 }

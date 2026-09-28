@@ -30,7 +30,7 @@ pub const NFT_MINTED_EVENT: &str = "NFTMinted";
 pub async fn setup_grpc_test(
     wait_for_checkpoint: Option<u64>,
     client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, iota_grpc_client::Client) {
+) -> (TestCluster, iota_grpc_client::GrpcClient) {
     setup_grpc_test_with_builder(
         |builder| builder,
         wait_for_checkpoint,
@@ -49,7 +49,7 @@ pub async fn setup_grpc_test_with_builder<F>(
     builder_fn: F,
     wait_for_checkpoint: Option<u64>,
     client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, iota_grpc_client::Client)
+) -> (TestCluster, iota_grpc_client::GrpcClient)
 where
     F: FnOnce(TestClusterBuilder) -> TestClusterBuilder,
 {
@@ -63,7 +63,7 @@ where
         test_cluster.wait_for_checkpoint(checkpoint, None).await;
     }
 
-    let mut client = iota_grpc_client::Client::new(test_cluster.grpc_url())
+    let mut client = iota_grpc_client::GrpcClient::new(test_cluster.grpc_url())
         .expect("Failed to connect to gRPC service");
 
     if let Some(max_size) = client_max_message_size_bytes {
@@ -110,8 +110,8 @@ pub async fn publish_example_package(
     effects
         .created()
         .iter()
-        .find(|obj| obj.owner.is_immutable())
-        .map(|obj| obj.reference.object_id)
+        .find(|obj| obj.owner().is_immutable())
+        .map(|obj| obj.reference().object_id)
         .unwrap_or_else(|| panic!("Should have created '{package_name}' package"))
 }
 
@@ -175,10 +175,10 @@ pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> T
 /// safe upper bound for stream ranges that need to cover those transactions.
 pub async fn wait_for_executed_transactions_checkpointed(
     cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_grpc_client::GrpcClient,
 ) -> u64 {
     let baseline_seq = client
-        .get_checkpoint_latest(None, None, CheckpointResponseField::ALL)
+        .checkpoint_latest(None, None, CheckpointResponseField::ALL)
         .await
         .expect("get latest checkpoint")
         .body()

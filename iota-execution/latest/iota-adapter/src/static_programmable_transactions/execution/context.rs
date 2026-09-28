@@ -14,8 +14,7 @@ use iota_move_natives::object_runtime::{
     self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
 };
 use iota_sdk_types::{
-    Argument, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TypeTag,
-    move_package::MovePackage,
+    Argument, MovePackage, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TypeTag,
 };
 use iota_types::{
     base_types::{TxContext, TxContextKind},

@@ -29,8 +29,7 @@ pub trait WriteApi {
     ///    client fires subsequent queries. However if the node fails to execute the
     ///    transaction locally in a timely manner, a bool type in the response is
     ///    set to false to indicated the case.
-    /// request_type is default to be `WaitForEffectsCert` unless
-    /// options.show_events or options.show_effects is true
+    /// request_type defaults to `WaitForEffectsCert` when omitted.
     #[rustfmt::skip]
     #[method(name = "executeTransactionBlock")]
     async fn execute_transaction_block(
@@ -43,7 +42,7 @@ pub trait WriteApi {
         signatures: Vec<Base64>,
         /// options for specifying the content to be returned
         options: Option<IotaTransactionBlockResponseOptions>,
-        /// The request type, derived from `IotaTransactionBlockResponseOptions` if None
+        /// The request type, `WaitForEffectsCert` if None
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse>;
 

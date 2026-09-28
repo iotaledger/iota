@@ -5,6 +5,7 @@
 use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
     crypto::{Intent, IntentScope},
@@ -18,6 +19,7 @@ use iota_types::{
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
+    messages_consensus::ConsensusTransactionKind,
     transaction::{
         CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
@@ -317,5 +319,39 @@ pub fn set_scheduler_env(use_execution_scheduler: bool) {
     } else {
         std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
         std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
+    }
+}
+
+/// The feature flag that gates a consensus transaction kind, or `None` when
+/// the kind is accepted at every protocol version.
+///
+/// `IotaTxValidator` rejects a gated kind before a block is voted for, and
+/// `verify_consensus_transaction` applies the same gate to committed output.
+/// The tests for both layers check them against this one table; the
+/// exhaustive match forces a decision for every new kind.
+#[allow(deprecated)]
+pub fn consensus_transaction_feature_gate(
+    kind: &ConsensusTransactionKind,
+    config: &ProtocolConfig,
+) -> Option<bool> {
+    match kind {
+        ConsensusTransactionKind::CertifiedTransaction(_)
+        | ConsensusTransactionKind::CheckpointSignature(_)
+        | ConsensusTransactionKind::EndOfPublish(_)
+        | ConsensusTransactionKind::CapabilityNotificationV1(_)
+        | ConsensusTransactionKind::SignedCapabilityNotificationV1(_)
+        | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
+        | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => None,
+        ConsensusTransactionKind::UserTransactionV1(_)
+        | ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => {
+            Some(config.enable_pcool_flow())
+        }
+        ConsensusTransactionKind::MisbehaviorReport(_) => Some(config.calculate_validator_scores()),
+        // zkLogin JWK support was never enabled; the variant is retained only
+        // for serialization compatibility.
+        ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
+        ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
+            Some(config.deny_rule_governance())
+        }
     }
 }

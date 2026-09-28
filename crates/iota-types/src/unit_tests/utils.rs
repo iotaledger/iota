@@ -5,13 +5,15 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_crypto::{
     Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
-    Address, ObjectId, SenderSignedTransaction, SimpleSignature, Transaction, TransactionKind,
-    UserSignature,
+    Address, Argument, Command, ObjectId, ProgrammableTransaction, SenderSignedTransaction,
+    SharedObjectReference, SimpleSignature, Transaction, TransactionKind, TransferObjects,
+    UserSignature, Version,
     crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -23,9 +25,10 @@ use crate::{
         AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
         get_key_pair_from_rng,
     },
+    error::UserInputError,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
 };
 
 pub fn make_committee_key<R>(rand: &mut R) -> (Vec<AuthorityKeyPair>, Committee)
@@ -303,3 +306,49 @@ mod passkey {
 }
 
 pub use passkey::*;
+
+/// Asserts that `err` is a `SizeLimitExceeded` error whose limit name matches
+/// `limit_name` exactly, or matches the form `{limit_name} of {value}`.
+#[track_caller]
+pub fn assert_size_limit_err(err: &UserInputError, limit_name: &str) {
+    let UserInputError::SizeLimitExceeded { limit, .. } = err else {
+        panic!("expected a size limit, got {err:?}");
+    };
+    assert!(
+        limit == limit_name || limit.starts_with(&format!("{limit_name} of ")),
+        "expected {limit_name}, got {limit}"
+    );
+}
+
+/// A programmable transaction with `count` pure inputs of `size` zero bytes
+/// each, then the randomness state object when `with_randomness` is set. Its
+/// one command uses the first two inputs, so there must be at least two.
+pub fn ptb_with_pure_inputs(
+    count: usize,
+    size: usize,
+    with_randomness: bool,
+) -> ProgrammableTransaction {
+    let mut inputs = vec![CallArg::Pure(vec![0; size]); count];
+    if with_randomness {
+        inputs.push(CallArg::Shared(SharedObjectReference {
+            object_id: ObjectId::RANDOMNESS_STATE,
+            initial_shared_version: Version::from_u64(1),
+            mutable: false,
+        }));
+    }
+    assert!(inputs.len() >= 2, "the command names the first two inputs");
+    let commands = vec![Command::TransferObjects(TransferObjects {
+        objects: vec![Argument::Input(0)],
+        address: Argument::Input(1),
+    })];
+    ProgrammableTransaction { inputs, commands }
+}
+
+/// A programmable transaction above `max_tx_size_bytes` whose every pure input
+/// is under `max_pure_argument_size`, so only the transaction size cap rejects
+/// it.
+pub fn ptb_above_max_tx_size(config: &ProtocolConfig) -> ProgrammableTransaction {
+    let pure_size = config.max_pure_argument_size() as usize - 1;
+    let count = config.max_tx_size_bytes() as usize / pure_size + 1;
+    ptb_with_pure_inputs(count, pure_size, false)
+}
