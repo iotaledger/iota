@@ -97,7 +97,6 @@ pub mod transaction_deny_rules;
 pub mod transaction_driver_types;
 pub mod transaction_executor;
 pub mod transfer;
-pub mod versioned;
 
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;
@@ -268,6 +267,34 @@ impl MoveTypeTagTrait for Address {
 impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::object::ID {
     fn get_type_tag() -> TypeTag {
         TypeTag::Struct(Box::new(StructTag::new_id()))
+    }
+}
+
+impl<N: MoveTypeTagTrait> MoveTypeTagTrait
+    for iota_sdk_move_types::iota_framework::dynamic_object_field::Wrapper<N>
+{
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(
+            dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(N::get_type_tag()),
+        ))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::ConfigKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::AddressKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
+    }
+}
+
+impl MoveTypeTagTrait for iota_sdk_move_types::iota_framework::deny_list::GlobalPauseKey {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
     }
 }
 

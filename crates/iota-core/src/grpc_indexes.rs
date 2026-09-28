@@ -1381,6 +1381,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_move_types::iota_framework::dynamic_field::Field;
     use iota_sdk_types::{CheckpointSummary, GasCostSummary, MovePackage};
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
@@ -1515,8 +1516,8 @@ mod tests {
     /// A `0x2::dynamic_field::Field<u64, u64>` object owned by `parent`, as
     /// the dynamic-field index sees one.
     fn dynamic_field_object(parent: ObjectId, field_id: ObjectId) -> Object {
-        let field = iota_types::dynamic_field::Field {
-            id: iota_types::id::UID::new(field_id),
+        let field = Field {
+            id: field_id.into(),
             name: 0u64,
             value: 0u64,
         };
