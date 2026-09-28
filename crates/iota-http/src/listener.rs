@@ -25,23 +25,25 @@ pub trait Listener: Send + 'static {
     /// The key connections from this address are counted under when the peer
     /// presents no certificate identifying it, or `None` when this listener's
     /// addresses cannot be grouped.
-    ///
-    /// Returning the address itself would be close to meaningless over IPv6,
-    /// where one host routinely holds a whole /64, so addresses are grouped by
-    /// prefix: a peer has to hold allocations, not merely addresses, to raise
-    /// its own limit.
     fn connection_key(_addr: &Self::Addr) -> Option<Vec<u8>> {
         None
     }
 }
 
-/// Groups an address with the other addresses its holder is likely to control.
+/// The key an address is counted under.
+///
+/// An IPv4 address identifies its holder closely enough to count against on its
+/// own, which is what a reverse proxy does and what a coarser key would get
+/// wrong: single addresses are routinely handed out from a shared /24, by cloud
+/// providers and by carrier-grade NAT, so grouping by /24 would count unrelated
+/// holders together. An IPv6 address does not, because one host is routinely
+/// given a whole /64 and could raise its own limit by moving within it, so
+/// those are counted by the allocation rather than the address.
 fn address_prefix(addr: &std::net::SocketAddr) -> Vec<u8> {
     /// A single site is commonly allocated a whole /64.
     const IPV6_PREFIX_LEN: usize = 8;
-    /// Smaller than a typical IPv4 allocation, so it groups a little more than
-    /// one holder rather than less.
-    const IPV4_PREFIX_LEN: usize = 3;
+    /// The whole address.
+    const IPV4_PREFIX_LEN: usize = 4;
 
     // A dual-stack listener sees IPv4 peers as `::ffff:a.b.c.d`, whose first
     // eight octets are the same zeros for every one of them. Canonicalising
