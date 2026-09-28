@@ -142,6 +142,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
+use tower_http::timeout::RequestBodyTimeoutLayer;
 use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
 use typed_store::{
     DBMetrics,
@@ -2584,8 +2585,15 @@ fn listener_connection_budget() -> usize {
     /// Below this, the budget is more likely to be a deployment oversight than
     /// a deliberate choice.
     const SUSPICIOUSLY_SMALL_BUDGET: usize = 512;
+    /// The most a listener is given, however many descriptors the process may
+    /// open. A hard limit of a million is ordinary in a container, and an
+    /// eighth of it is more connections than the tasks and buffers to serve
+    /// them would fit in memory: past this point descriptors are no longer what
+    /// runs out first, so a larger budget would bound nothing.
+    const LARGEST_USABLE_BUDGET: usize = 32768;
 
-    let budget = iota_common::fd_budget::budget_for(iota_common::fd_budget::shares::LISTENER);
+    let budget = iota_common::fd_budget::budget_for(iota_common::fd_budget::shares::LISTENER)
+        .min(LARGEST_USABLE_BUDGET);
 
     if budget < SUSPICIOUSLY_SMALL_BUDGET {
         warn!(
@@ -2711,6 +2719,18 @@ pub async fn build_http_server(
     // connection; this covers the HTTP/2 ones it does not reach.
     const JSON_RPC_IDLE: Duration = Duration::from_secs(300);
     const JSON_RPC_CONNECTIONS_PER_PEER: usize = 64;
+    // A request that has begun is not idle, so a client that sends headers and
+    // then stalls its body holds a connection that neither the idle deadline
+    // nor eviction can reclaim. These two bound that: the first is how long a
+    // body may go without a frame, the second how long any connection may be
+    // held at all, whatever it is doing.
+    //
+    // The body deadline is per frame rather than for the whole body, so it
+    // stops a client that goes silent but not one that dribbles. The age is
+    // what makes holding a connection indefinitely impossible; it costs a
+    // pooled client one reconnect, as an HTTP server's own connection age does.
+    const JSON_RPC_REQUEST_BODY_IDLE: Duration = Duration::from_secs(30);
+    const JSON_RPC_CONNECTION_AGE: Duration = Duration::from_secs(30 * 60);
 
     let connection_metrics = crate::metrics::JsonRpcConnectionMetrics::new(prometheus_registry);
     let max_connections = config
@@ -2720,15 +2740,22 @@ pub async fn build_http_server(
         "JSON-RPC listener will serve at most {max_connections} connections, \
          {JSON_RPC_CONNECTIONS_PER_PEER} of them per peer"
     );
+    // Outside the router rather than one of its layers, because it changes the
+    // request body type and the router is generic over it.
+    let service = ServiceBuilder::new()
+        .layer(RequestBodyTimeoutLayer::new(JSON_RPC_REQUEST_BODY_IDLE))
+        .service(router);
+
     let handle = iota_http::Builder::new()
         .config(
             iota_http::Config::default()
                 .max_connection_idle(Some(JSON_RPC_IDLE))
+                .max_connection_age(Some(JSON_RPC_CONNECTION_AGE))
                 .max_connections(Some(max_connections))
                 .max_connections_per_peer(Some(JSON_RPC_CONNECTIONS_PER_PEER))
                 .on_connection_event(move |event| connection_metrics.record(event)),
         )
-        .serve(&config.json_rpc_address, router)
+        .serve(&config.json_rpc_address, service)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
 

@@ -14,14 +14,25 @@
 //! the hard limit the service manager or container grants. What this module
 //! does is raise the process to that ceiling rather than accepting the
 //! conventional soft default, and then hand out shares of the result.
+//!
+//! A share is a ceiling its holder will not exceed, not a reservation set aside
+//! for it, and nothing enforces one. Two consequences are worth knowing before
+//! reading a share as a guarantee. A subsystem that opens fewer descriptors
+//! than its share leaves the remainder to whoever asks next, which is what
+//! makes the division workable in practice. And a share handed to more than one
+//! instance of the same subsystem is worth that many times its size: RocksDB
+//! takes [`shares::TYPED_STORE`] for each database it opens, and a node opens
+//! several, so what RocksDB may open at once is its share times the number of
+//! databases rather than its share. The shares below therefore describe how the
+//! limit is meant to be divided in the ordinary case, not a bound that holds
+//! when every subsystem reaches its ceiling at once.
 
 use std::sync::OnceLock;
 
 /// The shares the budget is divided into. They are named rather than written
-/// as fractions at each call site so that what is left over is visible, and
-/// they are checked below to sum to the whole.
+/// as fractions at each call site so that what is left over is visible.
 pub mod shares {
-    /// RocksDB's open-file cache.
+    /// RocksDB's open-file cache, for each database that is opened.
     pub const TYPED_STORE: u64 = 1;
     /// Each listener that bounds the connections it serves. Two do today: the
     /// validator gRPC and the JSON-RPC interfaces.
@@ -37,7 +48,7 @@ pub mod shares {
 
 const _: () = assert!(
     shares::TYPED_STORE + 2 * shares::LISTENER + shares::UNBUDGETED == shares::TOTAL,
-    "the file descriptor shares must add up to the whole budget"
+    "one of each share must account for the whole budget"
 );
 
 /// Used where the platform reports no limit, which is Windows only.
