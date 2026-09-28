@@ -1352,10 +1352,17 @@ The takeaway is the TL;DR at the top of this document. Everything behind it:
   execution time at each cost, and the `mix3700`, `mix20800` and `mix50900` ladders
   would show which limit is best on it. A limit recommended for mainnet should
   come from those runs.
-- **Rerun a mix ladder with transactions whose CUs understate their execution
-  time.** All workloads here run Move code, where CUs follow execution time.
-  Native functions are charged a fixed amount per call instead: a groth16 proof
-  check costs about 125 CUs, so one transaction with 700 of them, the most at
-  that price, costs about 88K CUs. If it takes much longer than 88K CUs of Move
-  code (about 7 ms on the WS), a unit limit lets far more work into a commit
-  than its CUs suggest.
+- **Report that groth16 native calls are charged far less than they cost to
+  execute.** All the workloads above run Move code, where CUs follow execution
+  time. Native functions are instead charged a fixed amount per call, set in the
+  protocol config, and the [groth16
+  probe](probe-test.md#groth16-native-calls-w8) shows how far off that amount
+  is: a transaction with 700 BN254 proof checks costs 88K CUs but executes for
+  1.9 s on the EPYC, about 60× longer than Move code of the same CUs there and
+  about 155× on the WS. Part of the reason is that Move code pays more per
+  instruction the longer a transaction runs, while a native call pays the same
+  fixed amount up to the 700th call. A unit limit only sees the CUs, so it lets
+  such transactions through as if they were cheap. The fix belongs in the
+  charges, not in the congestion control mode, so this is for whoever owns gas
+  metering and the protocol config: raise the charge per call, or make native
+  calls pay more as a transaction runs longer, as Move instructions do.
