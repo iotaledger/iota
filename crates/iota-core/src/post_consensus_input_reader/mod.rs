@@ -19,7 +19,11 @@
 //! `pub(crate)` would be dead code under `-D warnings` until then.
 
 use iota_sdk_types::{TransactionDigest, Version};
-use iota_types::{object::Object, storage::PackageObject};
+use iota_types::{
+    object::Object,
+    storage::PackageObject,
+    transaction::{InputObjectKind, InputObjects},
+};
 
 mod owned;
 mod package;
@@ -143,4 +147,16 @@ pub enum MissingKind {
     /// The package has a sync-ahead record: published by execution the
     /// handler has not reached.
     PackageSyncPublished,
+}
+
+/// The loader's answer for one transaction's inputs at a commit. `Loaded`
+/// holds every input as the existing input checks expect it. Receiving
+/// objects are resolved by the caller. The other two name the first input
+/// that decided, so the caller must handle missing itself rather than map it
+/// to an error.
+#[must_use]
+pub enum InputResolution {
+    Loaded(InputObjects),
+    Drop(InputObjectKind, DropReason),
+    Missing(InputObjectKind, MissingReason),
 }
