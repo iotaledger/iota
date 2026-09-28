@@ -144,6 +144,10 @@ pub struct SyncAheadRecord {
     /// version validation may still treat as live. `None` when the chain
     /// created the object itself, in which case every named version answers
     /// missing.
+    ///
+    /// In the durable table, this version is durable in the store, or was
+    /// written by the same checkpoint, whose batch then also holds its
+    /// handler row.
     pub base_version: Option<Version>,
     /// The highest version the chain has created so far; extended as the
     /// chain grows.
@@ -358,6 +362,37 @@ fn present_entries<K: Ord, V: Clone>(
     let overlay = overlay.read();
     keys.into_iter()
         .filter_map(|key| overlay.get(&key).cloned().map(|value| (key, value)))
+        .collect()
+}
+
+/// The records in `sync_rows` that a checkpoint's own sync-ahead executions
+/// wrote: those of objects with a key in `handler_keys` that has no row in
+/// `handler_rows`. The execution hook writes either a row or a record for
+/// each write, so a key without a row is a sync-ahead write that started or
+/// extended the record.
+///
+/// A record of an object the checkpoint wrote only handler-known was started
+/// by an execution of a later checkpoint, whose base version may not be
+/// durable yet. It goes with the batch of the checkpoint whose execution
+/// wrote it, which the checkpoint executor writes after the outputs of every
+/// earlier checkpoint.
+fn records_written_by_sync_ahead(
+    sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
+    handler_keys: &[ObjectKey],
+    handler_rows: &[(ObjectKey, HandlerProcessedObject)],
+) -> Vec<(ObjectId, SyncAheadRecord)> {
+    if sync_rows.is_empty() {
+        return sync_rows;
+    }
+    let with_row: BTreeSet<ObjectKey> = handler_rows.iter().map(|(key, _)| *key).collect();
+    let written_sync_ahead: BTreeSet<ObjectId> = handler_keys
+        .iter()
+        .filter(|key| !with_row.contains(key))
+        .map(|key| key.0)
+        .collect();
+    sync_rows
+        .into_iter()
+        .filter(|(id, _)| written_sync_ahead.contains(id))
         .collect()
 }
 
@@ -792,8 +827,14 @@ impl HandlerObjectState {
 
     /// The bookkeeping entries the executions behind `effects` left in the
     /// overlays: the handler row at every key the execution hook could have
-    /// written, the sync-ahead record of every object they wrote, and the
-    /// sheltered bytes of every owned input they consumed.
+    /// written, the sync-ahead record of every object their sync-ahead
+    /// executions wrote, and the sheltered bytes of every owned input they
+    /// consumed.
+    ///
+    /// A handler-known write's row must still be in the overlay: only this
+    /// checkpoint's batch or its commit's flush evicts it, and the flush
+    /// follows this checkpoint's outputs. Otherwise the write looks
+    /// sync-ahead, and a record of a later checkpoint is persisted early.
     pub fn checkpoint_rows<'a>(
         &self,
         effects: impl IntoIterator<Item = &'a TransactionEffects>,
@@ -835,8 +876,13 @@ impl HandlerObjectState {
         // that this snapshot persists at least one side of that transition.
         let sync_rows = present_entries(&self.sync_ahead_overlay, sync_ids);
         iota_macros::fail_point!("pcool-checkpoint-rows-between-data-reads");
+        let handler_rows = present_entries(
+            &self.handler_processed_overlay,
+            handler_keys.iter().copied(),
+        );
+        let sync_rows = records_written_by_sync_ahead(sync_rows, &handler_keys, &handler_rows);
         CheckpointRows {
-            handler_rows: present_entries(&self.handler_processed_overlay, handler_keys),
+            handler_rows,
             sync_rows,
             shelter_rows: present_entries(&self.sheltered_overlay, shelter_keys),
         }
