@@ -37,10 +37,10 @@ use move_core_types::annotated_value::MoveValue;
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, execute_tx_must_succeed,
-        indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
-        indexer_wait_for_transaction, publish_test_move_package, rpc_call_error_msg_matches,
-        start_test_cluster_with_read_write_indexer,
+        ApiTestSetup, WATERMARK_REFRESH_TIMEOUT, execute_tx_and_wait_for_indexer_checkpoint,
+        execute_tx_must_succeed, indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint,
+        indexer_wait_for_object, indexer_wait_for_transaction, publish_test_move_package,
+        retry_with_timeout, rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -132,29 +132,6 @@ async fn events_oldest_available_checkpoint(
         .map(|cp| *cp)
 }
 
-/// Polls `iotax_queryEvents` with `filter` until the reported
-/// `oldest_available_checkpoint` satisfies `predicate`, and returns it.
-///
-/// The reader refreshes its watermarks from the database periodically, so the
-/// checkpoint it reports trails the pruner by up to one refresh interval.
-async fn wait_for_events_oldest_available_checkpoint(
-    client: &HttpClient,
-    filter: EventFilter,
-    predicate: impl Fn(Option<u64>) -> bool,
-) -> Option<u64> {
-    tokio::time::timeout(Duration::from_secs(30), async {
-        loop {
-            let oldest = events_oldest_available_checkpoint(client, filter.clone()).await;
-            if predicate(oldest) {
-                return oldest;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-    })
-    .await
-    .expect("timeout waiting for the reported oldest available checkpoint")
-}
-
 #[tokio::test]
 async fn query_events_reports_oldest_available_checkpoint() {
     // Only `tx_senders` is pruned; every other table, `events` included, is
@@ -176,11 +153,12 @@ async fn query_events_reports_oldest_available_checkpoint() {
     );
     let by_package = EventFilter::Package(ObjectId::from_str("0x2").unwrap());
 
-    assert_eq!(
-        wait_for_events_oldest_available_checkpoint(client, by_sender.clone(), |cp| cp.is_some())
-            .await,
-        Some(0)
-    );
+    let oldest = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        events_oldest_available_checkpoint(client, by_sender.clone())
+    })
+    .await
+    .expect("timeout waiting for the reported oldest available checkpoint");
+    assert_eq!(oldest, 0);
     assert_eq!(
         events_oldest_available_checkpoint(client, by_package.clone()).await,
         Some(0)
@@ -212,12 +190,13 @@ async fn query_events_reports_oldest_available_checkpoint() {
 
     // Once `tx_senders` is pruned, the sender filter reports a checkpoint
     // above the genesis one.
-    let oldest =
-        wait_for_events_oldest_available_checkpoint(client, by_sender, |cp| cp > Some(0)).await;
-    assert!(
-        oldest > Some(0),
-        "expected a checkpoint above the pruned genesis one, got {oldest:?}"
-    );
+    retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || async {
+        events_oldest_available_checkpoint(client, by_sender.clone())
+            .await
+            .filter(|cp| *cp > 0)
+    })
+    .await
+    .expect("timeout waiting for a checkpoint above the pruned genesis one");
 
     // The package filter does not read `tx_senders`, so pruning it does not
     // change what that filter reports.
