@@ -773,10 +773,11 @@ impl HandlerObjectState {
         &self,
         effects: impl IntoIterator<Item = &'a TransactionEffects>,
     ) -> CheckpointRows {
-        let find_handler_rows = !self.handler_latest_overlay.read().is_empty();
-        // Both empty on a healthy validator, which then skips deriving their
-        // keys.
+        // The sync-ahead and shelter overlays are empty on a healthy
+        // validator, which then skips deriving their keys.
         let find_sync_rows = !self.sync_ahead_overlay.read().is_empty();
+        iota_macros::fail_point!("pcool-checkpoint-rows-between-presence-reads");
+        let find_handler_rows = !self.handler_latest_overlay.read().is_empty();
         let find_shelter_rows = !self.sheltered_overlay.read().is_empty();
         if !(find_handler_rows || find_sync_rows || find_shelter_rows) {
             return CheckpointRows::default();
@@ -805,9 +806,13 @@ impl HandlerObjectState {
         } else {
             BTreeSet::new()
         };
+        // Completion inserts H before removing S. Reading S first ensures
+        // that this snapshot persists at least one side of that transition.
+        let sync_rows = present_entries(&self.sync_ahead_overlay, sync_ids);
+        iota_macros::fail_point!("pcool-checkpoint-rows-between-data-reads");
         CheckpointRows {
             handler_rows: present_entries(&self.handler_latest_overlay, handler_keys),
-            sync_rows: present_entries(&self.sync_ahead_overlay, sync_ids),
+            sync_rows,
             shelter_rows: present_entries(&self.sheltered_overlay, shelter_keys),
         }
     }
@@ -1176,6 +1181,52 @@ mod tests {
             wrapped,
             unwrapped,
             gas,
+        }
+    }
+
+    #[cfg(msim)]
+    #[iota_macros::sim_test]
+    async fn checkpoint_snapshot_keeps_a_row_during_completion() {
+        let authority = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .build()
+            .await;
+        let epoch = authority.epoch_store_for_testing().clone();
+        for point in [
+            "pcool-checkpoint-rows-between-presence-reads",
+            "pcool-checkpoint-rows-between-data-reads",
+        ] {
+            let fixture = effects_fixture();
+            let state = epoch.handler_object_state_for_testing();
+            state.handler_latest_overlay.write().clear();
+            state.sync_ahead_overlay.write().insert(
+                fixture.created_owned,
+                SyncAheadRecord {
+                    base_version: None,
+                    latest_created: fixture.effects.lamport_version(),
+                    initial_shared_version: None,
+                },
+            );
+            let weak_epoch = Arc::downgrade(&epoch);
+            let id = fixture.created_owned;
+            let upserts = handler_latest_upserts(&fixture.effects, 1);
+            iota_macros::register_fail_point(point, move || {
+                let epoch = weak_epoch.upgrade().unwrap();
+                let state = epoch.handler_object_state_for_testing();
+                state.upsert_handler_processed_rows(&upserts);
+                state.sync_ahead_overlay.write().remove(&id);
+            });
+            let snapshot = state.checkpoint_rows([&fixture.effects]);
+            iota_macros::clear_fail_point(point);
+            assert!(
+                state.sync_ahead_overlay.read().is_empty(),
+                "completion must run between snapshot reads"
+            );
+            let key = ObjectKey(id, fixture.effects.lamport_version());
+            assert!(
+                snapshot.handler_rows.iter().any(|(k, _)| *k == key)
+                    || snapshot.sync_rows.iter().any(|(k, _)| *k == id),
+                "checkpoint snapshot lost both sides of the completion transition"
+            );
         }
     }
 
