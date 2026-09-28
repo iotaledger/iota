@@ -2035,6 +2035,8 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
 // === P-COOL deterministic-validation bookkeeping (handler_object_state) ===
 
 mod handler_object_state_storage {
+    use std::time::Duration;
+
     use futures::FutureExt;
     use iota_sdk_types::{
         Address, ObjectDigest, ObjectReference, Owner, SenderSignedTransaction, TransactionEffects,
@@ -2118,6 +2120,21 @@ mod handler_object_state_storage {
             owned_object(gas, gas_version),
         ];
         (effects, inputs)
+    }
+
+    /// Records `effects` as a sync-ahead execution that consumed `inputs`.
+    fn execute_sync_ahead(
+        epoch_store: &AuthorityPerEpochStore,
+        effects: &TransactionEffects,
+        inputs: &[Object],
+    ) {
+        epoch_store
+            .record_executed_transaction(
+                &TransactionKey::Digest(*effects.transaction_digest()),
+                effects,
+                &inputs,
+            )
+            .unwrap();
     }
 
     fn generate_live_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
@@ -2400,20 +2417,11 @@ mod handler_object_state_storage {
         let epoch_store = authority.epoch_store_for_testing();
         let state = epoch_store.handler_object_state_for_testing();
         let tables = epoch_store.tables().unwrap();
-        let execute_sync_ahead = |effects: &TransactionEffects, inputs: &[Object]| {
-            epoch_store
-                .record_executed_transaction(
-                    &TransactionKey::Digest(*effects.transaction_digest()),
-                    effects,
-                    &inputs,
-                )
-                .unwrap();
-        };
 
         // A sync-ahead chain whose record is durable.
         let mutated = ObjectId::random();
         let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
-        execute_sync_ahead(&effects, &inputs);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
         let first_chain_head = effects.lamport_version();
         let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
         epoch_store
@@ -2433,7 +2441,7 @@ mod handler_object_state_storage {
         // A second chain starts before the batch is written.
         let (next_effects, next_inputs) =
             executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
-        execute_sync_ahead(&next_effects, &next_inputs);
+        execute_sync_ahead(&epoch_store, &next_effects, &next_inputs);
         let fresh_record = SyncAheadRecord {
             base_version: Some(first_chain_head),
             latest_created: next_effects.lamport_version(),
@@ -2461,6 +2469,92 @@ mod handler_object_state_storage {
             .unwrap();
         assert_eq!(
             tables.sync_ahead_records.get(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+    }
+
+    /// A deletion copied into the flush batch cannot be cancelled, so a
+    /// replacement record must not become durable between the staging and
+    /// the batch write. The auxiliary write that persists it waits for the
+    /// flush, which holds the quarantine write lock throughout, and lands
+    /// after the delete.
+    #[tokio::test]
+    async fn auxiliary_write_of_a_replacement_record_waits_for_the_staged_delete() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+        let state = epoch_store.handler_object_state_for_testing();
+
+        // A sync-ahead chain whose record is durable, and which the handler
+        // then catches up past: commit 8 queues the record's deletion.
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
+        let first_chain_head = effects.lamport_version();
+        let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(mutated, first_record)], vec![])
+            .unwrap();
+        let rows = vec![(ObjectKey(mutated, first_chain_head), generate_live_entry(8))];
+        epoch_store.assign_commit_to_transactions(8, vec![]);
+        epoch_store.record_commit_fully_executed(8, &rows).unwrap();
+
+        // Commit 8's flush stages the deletion. Before its batch is written,
+        // a second chain starts and a checkpoint's auxiliary write tries to
+        // persist the fresh record.
+        let (next_effects, next_inputs) =
+            executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
+        let fresh_record = SyncAheadRecord {
+            base_version: Some(first_chain_head),
+            latest_created: next_effects.lamport_version(),
+            initial_shared_version: None,
+        };
+        let (written, wait_written) = std::sync::mpsc::channel();
+        let mut auxiliary_write = None;
+        let overlay_records = state.overlay_sizes_for_testing().1;
+        epoch_store
+            .flush_commit_rows_interleaved_for_testing(8, rows, || {
+                execute_sync_ahead(&epoch_store, &next_effects, &next_inputs);
+                assert_eq!(
+                    epoch_store.sync_ahead_record(&mutated).unwrap(),
+                    Some(fresh_record)
+                );
+                let epoch_store = epoch_store.clone();
+                auxiliary_write = Some(std::thread::spawn(move || {
+                    epoch_store
+                        .flush_sync_ahead_rows_for_testing(vec![(mutated, fresh_record)], vec![])
+                        .unwrap();
+                    written.send(()).unwrap();
+                }));
+                assert!(
+                    wait_written
+                        .recv_timeout(Duration::from_millis(500))
+                        .is_err(),
+                    "the auxiliary write must wait for the flush"
+                );
+            })
+            .unwrap();
+        wait_written
+            .recv_timeout(Duration::from_secs(30))
+            .expect("the auxiliary write proceeds once the flush is done");
+        auxiliary_write.unwrap().join().unwrap();
+
+        assert_eq!(
+            epoch_store
+                .durable_sync_ahead_record_for_testing(&mutated)
+                .unwrap(),
+            Some(fresh_record)
+        );
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+        // The auxiliary write evicted the record it persisted, and only it.
+        assert_eq!(state.overlay_sizes_for_testing().1, overlay_records + 1);
+        let reopened = reopen(&authority, &epoch_store);
+        assert_eq!(
+            reopened
+                .durable_sync_ahead_record_for_testing(&mutated)
+                .unwrap(),
             Some(fresh_record)
         );
     }
