@@ -9,7 +9,10 @@
 use std::sync::Arc;
 
 use iota_sdk_types::{ObjectId, ObjectReference, Version};
-use iota_types::error::{IotaError, IotaResult};
+use iota_types::{
+    error::{IotaError, IotaResult},
+    storage::{BackingPackageStore, PackageObject},
+};
 
 use super::{
     KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
@@ -218,5 +221,17 @@ impl CommitIndexedReader {
                     "kept input {key:?} has bytes in neither the object store nor the shelter"
                 ))
             })
+    }
+}
+
+/// The deny check's package view as of the commit. A package the reader
+/// answers missing reads as absent, which the deny check reports as not
+/// found. The missing reason is set aside on this path.
+impl BackingPackageStore for CommitIndexedReader {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        Ok(match self.read_package(*package_id)? {
+            PackageVerdict::Visible(package) => Some(package),
+            PackageVerdict::Missing(_) => None,
+        })
     }
 }
