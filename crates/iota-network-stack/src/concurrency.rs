@@ -19,19 +19,25 @@ use std::{
     convert::Infallible,
     num::NonZeroUsize,
     pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
+    sync::{Arc, Mutex, PoisonError},
+    task::{Context, Poll, ready},
+    time::Duration,
 };
 
+use bytes::Bytes;
 use futures::future::BoxFuture;
+use http_body::Frame;
 use pin_project_lite::pin_project;
-use tokio::sync::Semaphore;
+use tokio::{sync::Semaphore, task::AbortHandle};
 use tonic::{
+    Status,
     body::Body,
     codegen::http::{Request, Response},
     server::NamedService,
 };
 use tower::Service;
+
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 /// Bounds the number of concurrent in-flight requests to the wrapped gRPC
 /// service, independently of any other service registered on the same server.
@@ -165,12 +171,155 @@ where
     }
 }
 
+/// Largest data frame `ReclaimableBody` hands to the transport. Whatever has
+/// been handed over sits in the stream's send buffer out of reach, so a small
+/// frame keeps what a reclaim cannot free small.
+const MAX_FRAME_BYTES: usize = 64 * 1024;
+
+/// What a `ReclaimableBody` gives up at its deadline.
+struct Held<B, D> {
+    inner: B,
+    /// Rest of the data frame being handed over in `MAX_FRAME_BYTES` pieces.
+    pending: Bytes,
+    _until_deadline: Option<D>,
+}
+
+pin_project! {
+    /// Response body that gives up its contents when a deadline passes before
+    /// it has been sent. The transport polls a body only when the receiver
+    /// grants it window, so a receiver that stops reading leaves the body
+    /// parked, together with everything it owns; the deadline takes the inner
+    /// body and `until_deadline` away from under it, and any later poll yields
+    /// an error. `until_end` stays until the body itself is dropped, once the
+    /// stream has been written, reset or abandoned.
+    pub struct ReclaimableBody<B, D, E> {
+        held: Arc<Mutex<Option<Held<B, D>>>>,
+        _until_end: Option<E>,
+        timer: Option<AbortHandle>,
+    }
+
+    impl<B, D, E> PinnedDrop for ReclaimableBody<B, D, E> {
+        fn drop(this: Pin<&mut Self>) {
+            if let Some(timer) = &this.timer {
+                timer.abort();
+            }
+        }
+    }
+}
+
+impl<B, D, E> ReclaimableBody<B, D, E>
+where
+    B: Send + 'static,
+    D: Send + 'static,
+{
+    /// A body with no deadline; `until_deadline` and `until_end` are then both
+    /// released when it is dropped.
+    pub fn new(inner: B, until_deadline: Option<D>, until_end: Option<E>) -> Self {
+        Self {
+            held: Arc::new(Mutex::new(Some(Held {
+                inner,
+                pending: Bytes::new(),
+                _until_deadline: until_deadline,
+            }))),
+            _until_end: until_end,
+            timer: None,
+        }
+    }
+
+    /// A body that gives up `inner` and `until_deadline` once `deadline` has
+    /// passed, calling `on_reclaim` when it does.
+    pub fn with_deadline(
+        inner: B,
+        until_deadline: Option<D>,
+        until_end: Option<E>,
+        deadline: Duration,
+        on_reclaim: impl FnOnce() + Send + 'static,
+    ) -> Self {
+        let mut body = Self::new(inner, until_deadline, until_end);
+        let held = body.held.clone();
+        let timer = tokio::spawn(async move {
+            tokio::time::sleep(deadline).await;
+            let reclaimed = held.lock().unwrap_or_else(PoisonError::into_inner).take();
+            if reclaimed.is_some() {
+                on_reclaim();
+            }
+        });
+        body.timer = Some(timer.abort_handle());
+        body
+    }
+}
+
+impl<B, D, E> http_body::Body for ReclaimableBody<B, D, E>
+where
+    B: http_body::Body<Data = Bytes> + Unpin,
+    B::Error: Into<BoxError>,
+{
+    type Data = Bytes;
+    type Error = BoxError;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        let this = self.project();
+        let mut held = this.held.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(state) = held.as_mut() else {
+            return Poll::Ready(Some(Err(Box::new(Status::deadline_exceeded(
+                "response was not read in time",
+            )))));
+        };
+        if state.pending.is_empty() {
+            match ready!(Pin::new(&mut state.inner).poll_frame(cx)) {
+                None => {
+                    // The stream is over; nothing is left to reclaim.
+                    if let Some(timer) = this.timer.take() {
+                        timer.abort();
+                    }
+                    return Poll::Ready(None);
+                }
+                Some(Err(error)) => return Poll::Ready(Some(Err(error.into()))),
+                Some(Ok(frame)) => match frame.into_data() {
+                    Ok(data) => state.pending = data,
+                    Err(frame) => {
+                        if let Some(timer) = this.timer.take() {
+                            timer.abort();
+                        }
+                        return Poll::Ready(Some(Ok(frame)));
+                    }
+                },
+            }
+        }
+        let piece = state
+            .pending
+            .split_to(state.pending.len().min(MAX_FRAME_BYTES));
+        Poll::Ready(Some(Ok(Frame::data(piece))))
+    }
+
+    fn is_end_stream(&self) -> bool {
+        let held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
+        held.as_ref()
+            .is_some_and(|state| state.pending.is_empty() && state.inner.is_end_stream())
+    }
+
+    fn size_hint(&self) -> http_body::SizeHint {
+        let held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
+        match held.as_ref() {
+            Some(state) => {
+                let mut hint = state.inner.size_hint();
+                hint.set_lower(hint.lower().saturating_add(state.pending.len() as u64));
+                if let Some(upper) = hint.upper() {
+                    hint.set_upper(upper.saturating_add(state.pending.len() as u64));
+                }
+                hint
+            }
+            None => http_body::SizeHint::default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::atomic::{AtomicBool, Ordering},
-        time::Duration,
-    };
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     use http_body::Body as _;
     use tower::ServiceExt;
@@ -344,5 +493,103 @@ mod tests {
 
         drop(body);
         assert!(dropped.load(Ordering::SeqCst));
+    }
+
+    const DEADLINE: Duration = Duration::from_millis(30);
+
+    fn flag() -> (Arc<AtomicBool>, DropFlag) {
+        let raised = Arc::new(AtomicBool::new(false));
+        (raised.clone(), DropFlag(raised))
+    }
+
+    /// A reclaim callback and the flag it raises when called.
+    fn report() -> (Arc<AtomicBool>, impl FnOnce() + Send + 'static) {
+        let reported = Arc::new(AtomicBool::new(false));
+        let raise = reported.clone();
+        (reported, move || raise.store(true, Ordering::SeqCst))
+    }
+
+    /// Reads one frame, or the end of the body.
+    async fn next_frame<B: http_body::Body + Unpin>(
+        body: &mut B,
+    ) -> Option<Result<Frame<B::Data>, B::Error>> {
+        std::future::poll_fn(|cx| Pin::new(&mut *body).poll_frame(cx)).await
+    }
+
+    #[tokio::test]
+    async fn reclaimable_body_hands_over_frames_of_bounded_size() {
+        let inner = http_body_util::Full::new(Bytes::from(vec![7u8; MAX_FRAME_BYTES * 2 + 5]));
+        let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::new(inner, None, None);
+
+        let mut sizes = Vec::new();
+        while let Some(frame) = next_frame(&mut body).await {
+            sizes.push(frame.unwrap().into_data().unwrap().len());
+        }
+        assert_eq!(sizes, [MAX_FRAME_BYTES, MAX_FRAME_BYTES, 5]);
+    }
+
+    #[tokio::test]
+    async fn the_deadline_reclaims_the_body_and_keeps_the_end_guard() {
+        let (reclaimed_deadline, until_deadline) = flag();
+        let (reclaimed_end, until_end) = flag();
+        let (reported, on_reclaim) = report();
+        let mut body = ReclaimableBody::with_deadline(
+            PendingBody,
+            Some(until_deadline),
+            Some(until_end),
+            DEADLINE,
+            on_reclaim,
+        );
+
+        tokio::time::sleep(DEADLINE * 3).await;
+        assert!(reclaimed_deadline.load(Ordering::SeqCst));
+        assert!(reported.load(Ordering::SeqCst));
+        assert!(!reclaimed_end.load(Ordering::SeqCst));
+        // The transport, once the peer lets it poll again, gets an error.
+        let error = next_frame(&mut body).await.unwrap().unwrap_err();
+        assert_eq!(
+            Status::from_error(error).code(),
+            tonic::Code::DeadlineExceeded
+        );
+
+        drop(body);
+        assert!(reclaimed_end.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn a_body_read_to_the_end_is_never_reclaimed() {
+        let (reclaimed_deadline, until_deadline) = flag();
+        let (reported, on_reclaim) = report();
+        let mut body = ReclaimableBody::<_, _, DropFlag>::with_deadline(
+            Body::default(),
+            Some(until_deadline),
+            None,
+            DEADLINE,
+            on_reclaim,
+        );
+
+        assert!(next_frame(&mut body).await.is_none());
+        tokio::time::sleep(DEADLINE * 3).await;
+        assert!(!reclaimed_deadline.load(Ordering::SeqCst));
+        assert!(!reported.load(Ordering::SeqCst));
+
+        drop(body);
+        assert!(reclaimed_deadline.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn dropping_a_reclaimable_body_stops_its_deadline() {
+        let (reported, on_reclaim) = report();
+        let body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
+            PendingBody,
+            None,
+            None,
+            DEADLINE,
+            on_reclaim,
+        );
+
+        drop(body);
+        tokio::time::sleep(DEADLINE * 3).await;
+        assert!(!reported.load(Ordering::SeqCst));
     }
 }

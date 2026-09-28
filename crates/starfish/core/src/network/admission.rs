@@ -20,14 +20,15 @@ use std::{
         atomic::{AtomicU32, Ordering},
     },
     task::{Context as TaskContext, Poll, ready},
+    time::Duration,
 };
 
 use bytes::Bytes;
 use http::{Request, Response};
 use http_body::Body as HttpBody;
-use iota_network_stack::concurrency::PermitGuardedBody;
+use iota_network_stack::concurrency::ReclaimableBody;
 use pin_project_lite::pin_project;
-use prometheus_filtered::IntGauge;
+use prometheus_filtered::{IntCounter, IntGauge};
 use starfish_config::AuthorityIndex;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tonic::{Status, body::Body};
@@ -37,6 +38,7 @@ use crate::{
     context::Context,
     network::tonic_network::{
         CONSENSUS_SERVICE_PATH_PREFIX, DEPRECATED_METHOD, DEPRECATED_METHOD_MESSAGE, PeerInfo,
+        RESPONSE_SEND_TIMEOUT,
     },
 };
 
@@ -103,14 +105,19 @@ impl AdmissionLimit {
     }
 }
 
-/// Held while this node serves one inbound request, until its response is sent.
+/// Held while this node serves one inbound request.
 pub(crate) struct AdmissionPermits {
-    /// Counts against the limit on requests served at once to the peer that
-    /// sent it; `None` for commit fetches.
-    _peer: Option<OwnedSemaphorePermit>,
-    /// Counts against the peer's and the node-wide limits on commit fetches;
-    /// `None` for other RPCs.
-    _commit: Option<CommitFetchSlot>,
+    /// The peer's own slot, held until the response stream has ended.
+    peer: PeerHold,
+    /// The node-wide commit-fetch slot, given back once the response has been
+    /// sent or its send deadline has passed; `None` for other RPCs.
+    total: Option<TotalSlot>,
+}
+
+/// A peer's slot in one RPC group, given back when dropped.
+pub(crate) enum PeerHold {
+    Semaphore { _permit: OwnedSemaphorePermit },
+    CommitFetch { _slot: PeerSlot },
 }
 
 /// Commit-fetch slots held per peer and node-wide. A peer's first slot is
@@ -164,24 +171,38 @@ impl CommitFetchSlots {
             return Admission::Rejected(AdmissionLimit::AllPeers);
         }
         Admission::Permit(AdmissionPermits {
-            _peer: None,
-            _commit: Some(CommitFetchSlot {
+            peer: PeerHold::CommitFetch {
+                _slot: PeerSlot {
+                    slots: self.clone(),
+                    peer,
+                },
+            },
+            total: Some(TotalSlot {
                 slots: self.clone(),
-                peer,
             }),
         })
     }
 }
 
-/// One held commit-fetch slot; dropping it gives the slot back.
-pub(crate) struct CommitFetchSlot {
+/// A peer's held commit-fetch slot; dropping it gives the slot back.
+pub(crate) struct PeerSlot {
     slots: Arc<CommitFetchSlots>,
     peer: usize,
 }
 
-impl Drop for CommitFetchSlot {
+impl Drop for PeerSlot {
     fn drop(&mut self) {
         self.slots.held_by_peer[self.peer].fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+/// A held node-wide commit-fetch slot; dropping it gives the slot back.
+pub(crate) struct TotalSlot {
+    slots: Arc<CommitFetchSlots>,
+}
+
+impl Drop for TotalSlot {
+    fn drop(&mut self) {
         self.slots.held_total.fetch_sub(1, Ordering::Relaxed);
     }
 }
@@ -243,27 +264,27 @@ impl PerPeerAdmission {
         };
         match semaphore.clone().try_acquire_owned() {
             Ok(permit) => Admission::Permit(AdmissionPermits {
-                _peer: Some(permit),
-                _commit: None,
+                peer: PeerHold::Semaphore { _permit: permit },
+                total: None,
             }),
             Err(_) => Admission::Rejected(AdmissionLimit::Peer),
         }
     }
 }
 
-/// RAII guard for an admitted request: holds the per-peer permit and keeps the
+/// RAII guard for an admitted request: holds the peer's slot and keeps the
 /// per-group in-use gauge incremented for the request's (or stream's) lifetime.
 /// Dropping it releases the slot and decrements the gauge.
 pub(crate) struct AdmissionGuard {
-    _permits: AdmissionPermits,
+    _peer: PeerHold,
     in_use: IntGauge,
 }
 
 impl AdmissionGuard {
-    pub(crate) fn new(permits: AdmissionPermits, in_use: IntGauge) -> Self {
+    pub(crate) fn new(peer: PeerHold, in_use: IntGauge) -> Self {
         in_use.inc();
         Self {
-            _permits: permits,
+            _peer: peer,
             in_use,
         }
     }
@@ -303,7 +324,8 @@ impl<S> Layer<S> for AdmissionLayer {
 }
 
 /// Answers an over-budget peer with `ResourceExhausted` and passes every other
-/// request on with its permit attached to the response body.
+/// request on with its permits attached to the response body, which gives up
+/// the response and the node-wide slot when the peer stops reading it.
 #[derive(Clone)]
 pub(crate) struct AdmissionService<S> {
     inner: S,
@@ -317,7 +339,7 @@ where
     ResBody: HttpBody<Data = Bytes> + Send + 'static,
     ResBody::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    type Response = Response<PermitGuardedBody<Body, AdmissionGuard>>;
+    type Response = Response<ReclaimableBody<Body, TotalSlot, AdmissionGuard>>;
     type Error = S::Error;
     type Future = AdmissionFuture<S::Future>;
 
@@ -333,7 +355,7 @@ where
             return AdmissionFuture::rejected(Status::unimplemented(DEPRECATED_METHOD_MESSAGE));
         }
         let Some(group) = RpcGroup::from_path(path) else {
-            return AdmissionFuture::admitted(self.inner.call(request), None);
+            return AdmissionFuture::admitted(self.inner.call(request), None, None, None);
         };
         let Some(peer) = request
             .extensions()
@@ -342,17 +364,31 @@ where
         else {
             return AdmissionFuture::rejected(Status::internal("PeerInfo not found"));
         };
+        let metrics = &self.context.metrics.network_metrics;
+        // A subscription stream is open for as long as the peer is subscribed.
+        let send_deadline = (!matches!(group, RpcGroup::Subscribe)).then(|| {
+            (
+                RESPONSE_SEND_TIMEOUT,
+                metrics
+                    .admission_reclaimed
+                    .with_label_values(&[group.as_str()]),
+            )
+        });
         match self.admission.try_acquire(group, peer) {
-            Admission::Unlimited => AdmissionFuture::admitted(self.inner.call(request), None),
-            Admission::Permit(permit) => {
-                let in_use = self
-                    .context
-                    .metrics
-                    .network_metrics
+            Admission::Unlimited => {
+                AdmissionFuture::admitted(self.inner.call(request), None, None, send_deadline)
+            }
+            Admission::Permit(AdmissionPermits { peer, total }) => {
+                let in_use = metrics
                     .admission_in_use
                     .with_label_values(&[group.as_str()]);
-                let guard = AdmissionGuard::new(permit, in_use);
-                AdmissionFuture::admitted(self.inner.call(request), Some(guard))
+                let guard = AdmissionGuard::new(peer, in_use);
+                AdmissionFuture::admitted(
+                    self.inner.call(request),
+                    Some(guard),
+                    total,
+                    send_deadline,
+                )
             }
             Admission::Rejected(limit) => {
                 self.context
@@ -381,6 +417,10 @@ pin_project! {
             #[pin]
             inner: F,
             guard: Option<AdmissionGuard>,
+            total: Option<TotalSlot>,
+            // The send deadline and the counter of responses it reclaims;
+            // `None` for a response that may stay open.
+            send_deadline: Option<(Duration, IntCounter)>,
         },
         Rejected {
             status: Status,
@@ -389,8 +429,18 @@ pin_project! {
 }
 
 impl<F> AdmissionFuture<F> {
-    fn admitted(inner: F, guard: Option<AdmissionGuard>) -> Self {
-        Self::Admitted { inner, guard }
+    fn admitted(
+        inner: F,
+        guard: Option<AdmissionGuard>,
+        total: Option<TotalSlot>,
+        send_deadline: Option<(Duration, IntCounter)>,
+    ) -> Self {
+        Self::Admitted {
+            inner,
+            guard,
+            total,
+            send_deadline,
+        }
     }
 
     fn rejected(status: Status) -> Self {
@@ -404,19 +454,31 @@ where
     ResBody: HttpBody<Data = Bytes> + Send + 'static,
     ResBody::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    type Output = Result<Response<PermitGuardedBody<Body, AdmissionGuard>>, E>;
+    type Output = Result<Response<ReclaimableBody<Body, TotalSlot, AdmissionGuard>>, E>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Self::Output> {
         match self.project() {
-            AdmissionFutureProj::Admitted { inner, guard } => {
-                Poll::Ready(ready!(inner.poll(cx)).map(|response| {
-                    response.map(|body| PermitGuardedBody::new(Body::new(body), guard.take()))
-                }))
-            }
+            AdmissionFutureProj::Admitted {
+                inner,
+                guard,
+                total,
+                send_deadline,
+            } => Poll::Ready(ready!(inner.poll(cx)).map(|response| {
+                response.map(|body| match send_deadline.take() {
+                    Some((deadline, reclaimed)) => ReclaimableBody::with_deadline(
+                        Body::new(body),
+                        total.take(),
+                        guard.take(),
+                        deadline,
+                        move || reclaimed.inc(),
+                    ),
+                    None => ReclaimableBody::new(Body::new(body), total.take(), guard.take()),
+                })
+            })),
             AdmissionFutureProj::Rejected { status } => Poll::Ready(Ok(status
                 .clone()
                 .into_http()
-                .map(|body| PermitGuardedBody::new(body, None)))),
+                .map(|body| ReclaimableBody::new(body, None, None)))),
         }
     }
 }
@@ -589,6 +651,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn giving_back_the_node_wide_slot_alone_frees_the_shared_budget() {
+        let admission = PerPeerAdmission {
+            subscribe: None,
+            header: None,
+            transaction: None,
+            commit_fetch: CommitFetchSlots::new(4, 8, 1),
+        };
+        let mut p0 = expect_permit(admission.try_acquire(RpcGroup::CommitFetch, peer(0)));
+        assert!(matches!(
+            admission.try_acquire(RpcGroup::CommitFetch, peer(0)),
+            Admission::Rejected(AdmissionLimit::AllPeers)
+        ));
+        // The send deadline gives back the node-wide slot and keeps the peer's
+        // own, so the peer may fetch again but stays charged for both.
+        drop(p0.total.take());
+        let p1 = expect_permit(admission.try_acquire(RpcGroup::CommitFetch, peer(0)));
+        let held_by_peer = &admission.commit_fetch.as_ref().unwrap().held_by_peer;
+        assert_eq!(held_by_peer[0].load(Ordering::Relaxed), 2);
+        assert!(matches!(
+            admission.try_acquire(RpcGroup::CommitFetch, peer(0)),
+            Admission::Rejected(AdmissionLimit::AllPeers)
+        ));
+        drop((p0, p1));
+        assert_eq!(held_by_peer[0].load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
     async fn permit_guarded_body_holds_until_dropped() {
         let admission = PerPeerAdmission {
             subscribe: PerPeerAdmission::row(4, 1),
@@ -598,9 +687,10 @@ mod tests {
         };
         let gauge = IntGauge::new("test_subscribe_in_use", "test").unwrap();
         let permit = expect_permit(admission.try_acquire(RpcGroup::Subscribe, peer(2)));
-        let guarded = PermitGuardedBody::new(
+        let guarded = ReclaimableBody::new(
             Body::default(),
-            Some(AdmissionGuard::new(permit, gauge.clone())),
+            None::<TotalSlot>,
+            Some(AdmissionGuard::new(permit.peer, gauge.clone())),
         );
         // While the response body lives, the peer's single subscribe slot is
         // taken and the in-use gauge reflects it.
@@ -628,11 +718,11 @@ mod tests {
         };
         let gauge = IntGauge::new("test_header_in_use", "test").unwrap();
         let g0 = AdmissionGuard::new(
-            expect_permit(admission.try_acquire(RpcGroup::HeaderFetch, peer(0))),
+            expect_permit(admission.try_acquire(RpcGroup::HeaderFetch, peer(0))).peer,
             gauge.clone(),
         );
         let g1 = AdmissionGuard::new(
-            expect_permit(admission.try_acquire(RpcGroup::HeaderFetch, peer(1))),
+            expect_permit(admission.try_acquire(RpcGroup::HeaderFetch, peer(1))).peer,
             gauge.clone(),
         );
         assert_eq!(gauge.get(), 2);

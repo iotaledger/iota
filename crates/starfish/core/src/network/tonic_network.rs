@@ -1238,6 +1238,17 @@ const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(test)]
 const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Time a response has to be fully written after its handler returned it. A
+/// peer that stops reading leaves the stream parked with the built response,
+/// the encoder buffer and the admission permits in it; past this the body
+/// gives them up, keeping only the peer's own slot until the stream ends. The
+/// block-subscription stream is exempt. Any working link drains a response in
+/// seconds, and a requester gives up on its own after at most 120 s.
+#[cfg(not(test))]
+pub(crate) const RESPONSE_SEND_TIMEOUT: Duration = Duration::from_secs(60);
+#[cfg(test)]
+pub(crate) const RESPONSE_SEND_TIMEOUT: Duration = Duration::from_secs(2);
+
 impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
         Self {
@@ -2695,6 +2706,150 @@ mod tests {
             .fetch_block_headers(server_index, vec![], vec![], Duration::from_secs(5))
             .await
             .expect("the peer's only header-fetch slot must be free again");
+    }
+
+    /// A response the peer never reads gives up the node-wide commit-fetch slot
+    /// and its contents at the send deadline, while the peer's own slot stays
+    /// charged until the peer finally reads and the stream is reset.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn an_unread_response_gives_up_its_shared_slot_at_the_deadline() {
+        use std::time::Duration;
+
+        use bytes::Bytes;
+        use parking_lot::Mutex;
+
+        use super::{
+            FetchCommitsAndTransactionsRequest, FetchCommitsAndTransactionsResponse,
+            RESPONSE_SEND_TIMEOUT, TonicManager,
+        };
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let mut server_context = context.clone().with_authority_index(server_index);
+        server_context
+            .parameters
+            .tonic
+            .admission
+            .max_commit_fetches_total = 1;
+        let server_context = Arc::new(server_context);
+        let mut service = TestService::new();
+        // Larger than the client's window below, so the server stalls on it.
+        service.fetch_commits_and_transactions_payload = vec![Bytes::from(vec![0u8; 1 << 20])];
+        let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server.install_service(Arc::new(Mutex::new(service))).await;
+
+        let mut client_context = context
+            .clone()
+            .with_authority_index(context.committee.to_authority_index(1).unwrap());
+        // A small window, so little of the response is in flight before the
+        // client reads.
+        client_context.parameters.tonic.connection_buffer_size = 128 << 10;
+        let client =
+            TonicManager::<Mutex<TestService>>::new(Arc::new(client_context), keys[1].0.clone())
+                .client();
+        let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchCommitsAndTransactions");
+        let fetch = || {
+            unread_call::<_, FetchCommitsAndTransactionsResponse>(
+                &client,
+                server_index,
+                &path,
+                FetchCommitsAndTransactionsRequest { start: 0, end: 0 },
+            )
+        };
+        let metrics = &server_context.metrics.network_metrics;
+        let in_use = metrics
+            .admission_in_use
+            .with_label_values(&["commit_fetch"]);
+        let reclaimed = metrics
+            .admission_reclaimed
+            .with_label_values(&["commit_fetch"]);
+        let settles = async |what: &str, holds: &dyn Fn() -> bool| {
+            for _ in 0..500 {
+                if holds() {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            panic!("{what}");
+        };
+
+        let unread = fetch().await.expect("the first fetch is admitted");
+        settles("the unread fetch is not counted in use", &|| {
+            in_use.get() == 1
+        })
+        .await;
+        // The peer's second fetch needs the shared budget, which the unread
+        // response holds.
+        assert_eq!(
+            fetch().await.unwrap_err().code(),
+            tonic::Code::ResourceExhausted
+        );
+
+        // At the deadline the shared budget is free again; the peer's own slot
+        // is not.
+        settles("the unread response was not reclaimed", &|| {
+            reclaimed.get() == 1
+        })
+        .await;
+        assert_eq!(in_use.get(), 1);
+        let admitted = fetch().await.expect("the shared budget is free again");
+        assert_eq!(in_use.get(), 2);
+
+        // Reading the abandoned response fails before its payload arrives,
+        // and only that releases the peer's slot.
+        let mut unread = unread.into_inner();
+        let read_to_the_end = async {
+            while let Some(response) = unread.message().await? {
+                assert!(
+                    response.transactions.is_empty(),
+                    "the reclaimed payload must not arrive"
+                );
+            }
+            Ok::<(), tonic::Status>(())
+        }
+        .await;
+        assert!(
+            read_to_the_end.is_err(),
+            "reading a reclaimed response must fail"
+        );
+        drop((unread, admitted));
+        settles("the reset streams keep their slots", &|| in_use.get() == 0).await;
+        // The deadline fired once, for the response that was never read.
+        tokio::time::sleep(RESPONSE_SEND_TIMEOUT).await;
+        assert_eq!(reclaimed.get(), 1);
+    }
+
+    /// Opens a server-streaming call and returns its response stream without
+    /// reading from it.
+    async fn unread_call<Req, Res>(
+        client: &TonicClient,
+        peer: AuthorityIndex,
+        path: &str,
+        request: Req,
+    ) -> Result<tonic::Response<tonic::Streaming<Res>>, tonic::Status>
+    where
+        Req: prost::Message + Default + Send + Sync + 'static,
+        Res: prost::Message + Default + Send + Sync + 'static,
+    {
+        use std::time::Duration;
+
+        use tonic::Request;
+
+        let channel = client
+            .channel_pool
+            .get_channel(client.network_keypair.clone(), peer, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let mut grpc = tonic::client::Grpc::new(channel);
+        grpc.ready().await.unwrap();
+        grpc.server_streaming(
+            Request::new(request),
+            http::uri::PathAndQuery::try_from(path).unwrap(),
+            tonic_prost::ProstCodec::default(),
+        )
+        .await
     }
 
     /// Opens a call whose request message never arrives, so it stays open until
