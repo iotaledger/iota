@@ -647,9 +647,13 @@ impl ValidatorService {
         );
 
         let client_addr = if let Some(client_id_source) = &self.client_id_source {
-            self.get_client_ip_addr(&request, client_id_source)
+            ValidatorService::get_client_ip_addr(&self.metrics, &request, client_id_source)
         } else {
-            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
+            ValidatorService::get_client_ip_addr(
+                &self.metrics,
+                &request,
+                &ClientIdSource::SocketAddr,
+            )
         };
 
         let request = request.into_inner();

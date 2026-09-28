@@ -22,6 +22,11 @@ use iota_types::{
 };
 use move_binary_format::{
     CompiledModule,
+    file_format::{
+        Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, FunctionHandleIndex,
+        IdentifierIndex, Signature, SignatureIndex, SignatureToken, StructDefinitionIndex,
+        Visibility,
+    },
     file_format_common::{BinaryConstants, VERSION_6},
 };
 use move_package::source_package::manifest_parser;
@@ -521,6 +526,140 @@ async fn test_publish_non_canonical_version_header_before_the_check() {
         publish_v6_module_with_flavor_byte(0xFF).await,
         ExecutionStatus::Success
     );
+}
+
+/// A module using one of the deprecated global storage instructions passes the
+/// Move verifier, so the transaction is signed and executed; it is the IOTA
+/// verifier that rejects it, during execution.
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn test_publish_deprecated_bytes_modules() {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas = ObjectId::random();
+    let authority = init_state_with_ids(vec![(sender, gas)]).await;
+    let gas_object = authority.get_object(&gas);
+    let gas_object_ref = gas_object.unwrap().object_ref();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    // test valid module bytes
+    let correct_modules =
+        build_test_package("object_owner", /* with_unpublished_deps */ false);
+    assert_eq!(correct_modules.len(), 1);
+    let tx = Transaction::new_module(
+        sender,
+        gas_object_ref,
+        correct_modules.clone(),
+        BuiltInFramework::all_package_ids(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        rgp,
+    );
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
+    let result = send_and_confirm_transaction(&authority, transaction)
+        .await
+        .unwrap()
+        .1;
+    assert_eq!(result.status(), &ExecutionStatus::Success);
+
+    // give the module a private function that uses a deprecated global storage
+    // instruction
+    let gas_object = authority.get_object(&gas);
+    let gas_object_ref = gas_object.unwrap().object_ref();
+    let mut modules = correct_modules.clone();
+    let new_bytes = {
+        let mut m = CompiledModule::deserialize_with_defaults(&modules[0]).unwrap();
+
+        // `exists` needs a struct with `key` and no type parameters, so that the
+        // non-generic form of the instruction applies
+        let key_struct = m
+            .struct_defs
+            .iter()
+            .position(|def| {
+                let handle = m.datatype_handle_at(def.struct_handle);
+                handle.abilities.has_key() && handle.type_parameters.is_empty()
+            })
+            .expect("test package must declare a non-generic object");
+
+        // reuse the signatures if they are already there: `DuplicationChecker`
+        // rejects a module with two identical ones
+        let empty = match m.signatures.iter().position(|sig| sig.0.is_empty()) {
+            Some(idx) => idx,
+            None => {
+                m.signatures.push(Signature(vec![]));
+                m.signatures.len() - 1
+            }
+        };
+        let empty = SignatureIndex(empty as u16);
+        let address = match m
+            .signatures
+            .iter()
+            .position(|sig| sig.0.len() == 1 && sig.0[0] == SignatureToken::Address)
+        {
+            Some(idx) => idx,
+            None => {
+                m.signatures.push(Signature(vec![SignatureToken::Address]));
+                m.signatures.len() - 1
+            }
+        };
+        let address = SignatureIndex(address as u16);
+
+        let name = IdentifierIndex(m.identifiers.len() as u16);
+        m.identifiers
+            .push(move_core_types::identifier::Identifier::new("uses_global_storage").unwrap());
+
+        let function = FunctionHandleIndex(m.function_handles.len() as u16);
+        m.function_handles.push(FunctionHandle {
+            module: m.self_module_handle_idx,
+            name,
+            parameters: address,
+            return_: empty,
+            type_parameters: vec![],
+        });
+        m.function_defs.push(FunctionDefinition {
+            function,
+            visibility: Visibility::Private,
+            is_entry: false,
+            // `exists` does not acquire the resource it looks up
+            acquires_global_resources: vec![],
+            code: Some(CodeUnit {
+                locals: empty,
+                code: vec![
+                    Bytecode::CopyLoc(0),
+                    Bytecode::ExistsDeprecated(StructDefinitionIndex(key_struct as u16)),
+                    Bytecode::Pop,
+                    Bytecode::Ret,
+                ],
+                jump_tables: vec![],
+            }),
+        });
+
+        let mut buf = vec![];
+        m.serialize_with_version(m.version, &mut buf).unwrap();
+        buf
+    };
+    modules[0] = new_bytes;
+    let tx = Transaction::new_module(
+        sender,
+        gas_object_ref,
+        modules,
+        BuiltInFramework::all_package_ids(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        rgp,
+    );
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
+    let result = send_and_confirm_transaction(&authority, transaction)
+        .await
+        .unwrap()
+        .1;
+    // Raised at execution by `global_storage_access_verifier::verify_module` in
+    // `iota-execution/latest/iota-verifier`, which rejects every deprecated
+    // global storage instruction.
+    assert_eq!(
+        result.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionError::IotaMoveVerificationError,
+            command: Some(0)
+        }
+    )
 }
 
 #[tokio::test]

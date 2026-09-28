@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use async_graphql::{
     connection::{Connection, ConnectionNameType, CursorType, Edge, EdgeNameType, EmptyFields},
     *,
@@ -9,16 +11,18 @@ use async_graphql::{
 use iota_indexer::{
     models::transactions::{OptimisticTransaction, StoredTransaction},
     optimistic_indexing::IngestionPath,
+    types::IndexedBalanceChange,
 };
 use iota_json_rpc_types::IotaExecutionStatus;
 use iota_package_resolver::CleverError;
 use iota_sdk_types::{
     Event as NativeEvent, ExecutionError as ExecutionFailureStatus,
-    ExecutionStatus as NativeExecutionStatus, Transaction as NativeTransactionData,
+    ExecutionStatus as NativeExecutionStatus, ObjectId, Transaction as NativeTransactionData,
     TransactionEffects as NativeTransactionEffects,
 };
 use iota_types::{
     effects::TransactionEffectsAPI, iota_sdk_types_conversions::identifier_sdk_to_core,
+    object::Object as NativeObject,
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 
@@ -70,13 +74,18 @@ pub(crate) enum TransactionBlockEffectsKind {
         native: NativeTransactionEffects,
     },
 
-    /// A transaction block that has been executed via dryRunTransactionBlock.
-    /// Similar to Executed, it does not contain checkpoint, timestamp or
-    /// balanceChanges.
-    DryRun {
+    /// A simulated transaction block - the result of `dryRunTransactionBlock`.
+    /// Like Executed, it has no checkpoint or timestamp.
+    ///
+    /// The object maps hold the simulation's input and output objects, which
+    /// may not be in the DB.
+    Simulated {
         tx_data: NativeTransactionData,
         native: NativeTransactionEffects,
         events: Vec<NativeEvent>,
+        balance_changes: Vec<IndexedBalanceChange>,
+        input_objects: Arc<BTreeMap<ObjectId, NativeObject>>,
+        output_objects: Arc<BTreeMap<ObjectId, NativeObject>>,
     },
 }
 
@@ -312,11 +321,24 @@ impl TransactionBlockEffects {
         connection.has_previous_page = consistent_page.has_previous_page;
         connection.has_next_page = consistent_page.has_next_page;
 
-        // Determine the source based on the transaction block effects kind
-        let source = match &self.kind {
-            TransactionBlockEffectsKind::Checkpointed { .. } => ObjectChangeSource::Checkpointed,
-            TransactionBlockEffectsKind::Executed { .. } => ObjectChangeSource::Executed,
-            TransactionBlockEffectsKind::DryRun { .. } => ObjectChangeSource::DryRun,
+        // Determine the source based on the transaction block effects kind. For a
+        // simulated transaction, forward the input and output objects.
+        let (source, input_objects, output_objects) = match &self.kind {
+            TransactionBlockEffectsKind::Checkpointed { .. } => {
+                (ObjectChangeSource::Checkpointed, None, None)
+            }
+            TransactionBlockEffectsKind::Executed { .. } => {
+                (ObjectChangeSource::Executed, None, None)
+            }
+            TransactionBlockEffectsKind::Simulated {
+                input_objects,
+                output_objects,
+                ..
+            } => (
+                ObjectChangeSource::Simulated,
+                Some(input_objects.clone()),
+                Some(output_objects.clone()),
+            ),
         };
 
         for c in consistent_page.cursors {
@@ -325,6 +347,8 @@ impl TransactionBlockEffects {
                 lamport_version: self.native().lamport_version(),
                 checkpoint_viewed_at: c.c.into(),
                 source: source.clone(),
+                input_objects: input_objects.clone(),
+                output_objects: output_objects.clone(),
             };
 
             connection
@@ -356,8 +380,9 @@ impl TransactionBlockEffects {
             TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
                 optimistic_tx.get_balance_len()
             }
-            // DryRun variant doesn't have balance changes available
-            _ => return Ok(connection),
+            TransactionBlockEffectsKind::Simulated {
+                balance_changes, ..
+            } => balance_changes.len(),
         };
 
         let Some(consistent_page) =
@@ -370,21 +395,28 @@ impl TransactionBlockEffects {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let serialized = match &self.kind {
-                TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
-                    stored_tx.get_balance_at_idx(c.ix)
-                }
-                TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
-                    optimistic_tx.get_balance_at_idx(c.ix)
-                }
-                _ => None,
+            let balance_change = match &self.kind {
+                TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => stored_tx
+                    .get_balance_at_idx(c.ix)
+                    .map(|serialized| BalanceChange::read(&serialized, c.c.into()))
+                    .transpose()
+                    .extend()?,
+                TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => optimistic_tx
+                    .get_balance_at_idx(c.ix)
+                    .map(|serialized| BalanceChange::read(&serialized, c.c.into()))
+                    .transpose()
+                    .extend()?,
+                TransactionBlockEffectsKind::Simulated {
+                    balance_changes, ..
+                } => balance_changes
+                    .get(c.ix)
+                    .map(|stored| BalanceChange::from_stored(stored.clone(), c.c.into())),
             };
 
-            let Some(serialized) = serialized else {
+            let Some(balance_change) = balance_change else {
                 continue;
             };
 
-            let balance_change = BalanceChange::read(&serialized, c.c.into()).extend()?;
             connection
                 .edges
                 .push(Edge::new(c.encode_cursor(), balance_change));
@@ -414,7 +446,7 @@ impl TransactionBlockEffects {
             TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
                 optimistic_tx.get_event_len()
             }
-            TransactionBlockEffectsKind::DryRun { events, .. } => events.len(),
+            TransactionBlockEffectsKind::Simulated { events, .. } => events.len(),
         };
         let Some(consistent_page) =
             page.paginate_consistent_indices(len, self.checkpoint_viewed_at)?
@@ -434,7 +466,7 @@ impl TransactionBlockEffects {
                     Event::try_from_optimistic_transaction(optimistic_tx, c.ix, c.c.into())
                         .extend()?
                 }
-                TransactionBlockEffectsKind::DryRun { events, .. } => Event {
+                TransactionBlockEffectsKind::Simulated { events, .. } => Event {
                     checkpointed_info: None,
                     native: events[c.ix].clone(),
                     checkpoint_viewed_at: c.c.into(),
@@ -509,7 +541,7 @@ impl TransactionBlockEffects {
     fn native(&self) -> &NativeTransactionEffects {
         match &self.kind {
             TransactionBlockEffectsKind::Checkpointed { native, .. } => native,
-            TransactionBlockEffectsKind::DryRun { native, .. } => native,
+            TransactionBlockEffectsKind::Simulated { native, .. } => native,
             TransactionBlockEffectsKind::Executed { native, .. } => native,
         }
     }
@@ -579,14 +611,20 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffectsKind {
                 TransactionBlockEffectsKind::try_from(optimistic_tx)
             }
 
-            TransactionBlockInner::DryRun {
+            TransactionBlockInner::Simulated {
                 tx_data,
                 effects,
                 events,
-            } => Ok(TransactionBlockEffectsKind::DryRun {
+                balance_changes,
+                input_objects,
+                output_objects,
+            } => Ok(TransactionBlockEffectsKind::Simulated {
                 tx_data,
                 native: effects,
                 events,
+                balance_changes,
+                input_objects,
+                output_objects,
             }),
         }
     }

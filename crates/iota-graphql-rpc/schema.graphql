@@ -941,6 +941,10 @@ type DryRunResult {
 	The transaction block representing the dry run execution.
 	"""
 	transaction: TransactionBlock
+	"""
+	If an input object is congested, suggest a gas price to use.
+	"""
+	suggestedGasPrice: BigInt
 }
 
 type DryRunReturn {
@@ -4478,10 +4482,20 @@ type TransactionBlock {
 	"""
 	expiration: Epoch
 	"""
-	Serialized form of this transaction's `SenderSignedTransaction`, BCS
-	serialized and Base64 encoded.
+	This transaction's `SenderSignedTransaction`, BCS serialized and Base64
+	encoded.
+	
+	`null` for simulated transactions, which have no signatures. use
+	`bcsUnsigned` for them instead.
 	"""
 	bcs: Base64
+	"""
+	This transaction's `TransactionData` (the transaction without its
+	signatures), BCS serialized and Base64 encoded.
+	
+	Available for every transaction, including simulated ones.
+	"""
+	bcsUnsigned: Base64
 	"""
 	Returns whether the transaction has been indexed on the fullnode.
 	
