@@ -370,6 +370,13 @@ impl MovePackageExt for MovePackage {
             type_origin_table,
             linkage_table,
         );
+        // This is the one path that writes a package other than a system
+        // package upgrade: a first publish -- by a user, at genesis, or of a
+        // system package added at an epoch change -- and a user package
+        // upgrade. So the bound for the package's address is applied here. A
+        // system package upgrade goes through `new_system` and is exempt, and
+        // a package read back from the network is rebuilt with
+        // `MovePackage::new` and not checked again.
         package.check_size(max_package_size(storage_id, protocol_config))?;
 
         Ok(package)
