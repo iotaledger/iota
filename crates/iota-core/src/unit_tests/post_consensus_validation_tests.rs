@@ -3401,6 +3401,233 @@ async fn healthy_checkpoint_persists_only_handler_rows() {
     }
 }
 
+/// The checkpoint executor runs a checkpoint's executions before the previous
+/// checkpoints' outputs are durable. A record that such an execution started
+/// on an object the earlier checkpoints wrote handler-known goes with its own
+/// checkpoint's batch, not theirs: a crash before their outputs must not
+/// leave it durable on a version the store never got.
+#[tokio::test]
+async fn record_goes_with_the_checkpoint_that_wrote_it() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let handler_gas_id = ObjectId::random();
+    let sync_gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(handler_gas_id, sender),
+            Object::with_id_owner_for_testing(sync_gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    // Two checkpoints of handler-known transfers, then one whose transfer ran
+    // ahead of the handler on the second's output.
+    let first = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &handler_gas_id, sender, &sender_key, sender)],
+            1,
+        )
+        .remove(0);
+    let second = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &handler_gas_id, sender, &sender_key, sender)],
+            2,
+        )
+        .remove(0);
+    let third = s.transfer(&obj_id, &sync_gas_id, sender, &sender_key, sender);
+    s.assert_record(
+        &obj_id,
+        Some(second.lamport_version()),
+        third.lamport_version(),
+    );
+    let record = s.epoch_store.sync_ahead_record(&obj_id).unwrap().unwrap();
+
+    for (effects, index) in [(&first, 1), (&second, 2)] {
+        s.epoch_store
+            .persist_checkpoint_bookkeeping([effects])
+            .unwrap();
+        let row = s
+            .epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(
+                obj_id,
+                effects.lamport_version(),
+            ))
+            .unwrap()
+            .expect("the handler row must be durable with its checkpoint");
+        assert_eq!(row.produced_at, index);
+        assert_eq!(
+            s.epoch_store
+                .durable_sync_ahead_record_for_testing(&obj_id)
+                .unwrap(),
+            None,
+            "a record based on a later checkpoint's output must stay out of this batch"
+        );
+        assert_eq!(
+            s.epoch_store.sync_ahead_record(&obj_id).unwrap(),
+            Some(record)
+        );
+    }
+
+    let state = s.epoch_store.handler_object_state_for_testing();
+    let records_before = state.overlay_sizes_for_testing().1;
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&third])
+        .unwrap();
+    assert_eq!(
+        s.epoch_store
+            .durable_sync_ahead_record_for_testing(&obj_id)
+            .unwrap(),
+        Some(record)
+    );
+    // The object's record and the sync-ahead gas coin's.
+    assert_eq!(state.overlay_sizes_for_testing().1, records_before - 2);
+}
+
+/// A record goes with every checkpoint whose executions wrote it, including
+/// one that also holds the handler-known write of the record's base: the
+/// base's row is then in the same batch.
+#[tokio::test]
+async fn record_goes_with_every_checkpoint_that_wrote_it() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let other_id = ObjectId::random();
+    let handler_gas_id = ObjectId::random();
+    let sync_gas_id = ObjectId::random();
+    let other_sync_gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(other_id, sender),
+            Object::with_id_owner_for_testing(handler_gas_id, sender),
+            Object::with_id_owner_for_testing(sync_gas_id, sender),
+            Object::with_id_owner_for_testing(other_sync_gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    // Two sync-ahead transfers in separate checkpoints: the first
+    // checkpoint's batch persists the chain so far.
+    let genesis_version = s.latest_ref(&obj_id).version;
+    let sync_1 = s.transfer(&obj_id, &sync_gas_id, sender, &sender_key, sender);
+    let sync_2 = s.transfer(&obj_id, &sync_gas_id, sender, &sender_key, sender);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&sync_1])
+        .unwrap();
+    assert_eq!(
+        s.epoch_store
+            .durable_sync_ahead_record_for_testing(&obj_id)
+            .unwrap(),
+        Some(SyncAheadRecord {
+            base_version: Some(genesis_version),
+            latest_created: sync_2.lamport_version(),
+            initial_shared_version: None,
+        })
+    );
+
+    // A handler-known transfer and a sync-ahead transfer on top of it in one
+    // checkpoint, as when the builder merges the pending checkpoints of
+    // several commits.
+    let handler_known = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&other_id, &handler_gas_id, sender, &sender_key, sender)],
+            1,
+        )
+        .remove(0);
+    let sync_ahead = s.transfer(&other_id, &other_sync_gas_id, sender, &sender_key, sender);
+    let record = s.epoch_store.sync_ahead_record(&other_id).unwrap().unwrap();
+    assert_eq!(record.base_version, Some(handler_known.lamport_version()));
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&handler_known, &sync_ahead])
+        .unwrap();
+    assert_eq!(
+        s.epoch_store
+            .durable_sync_ahead_record_for_testing(&other_id)
+            .unwrap(),
+        Some(record)
+    );
+    assert!(
+        s.epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(
+                other_id,
+                handler_known.lamport_version(),
+            ))
+            .unwrap()
+            .is_some(),
+        "the base's row must be in the same batch as the record"
+    );
+}
+
+/// A record that starts with no base - an unwrap run ahead of the handler -
+/// stays out of the batch of the checkpoint that wrapped the object
+/// handler-known.
+#[tokio::test]
+async fn record_of_an_unwrap_goes_with_the_unwrapping_checkpoint() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let create = s.handler_known_object_basics_call(
+        "create",
+        create_object_args(sender),
+        &gas_id,
+        sender,
+        &sender_key,
+        1,
+    );
+    let created_ref = create.created()[0].reference;
+    let wrap = s.handler_known_object_basics_call(
+        "wrap",
+        vec![CallArg::ImmutableOrOwned(created_ref)],
+        &gas_id,
+        sender,
+        &sender_key,
+        2,
+    );
+    let wrapper_ref = wrap.created()[0].reference;
+    let unwrap = s.object_basics_call(
+        "unwrap",
+        vec![CallArg::ImmutableOrOwned(wrapper_ref)],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    let wrapped_id = created_ref.object_id();
+    s.assert_record(wrapped_id, None, unwrap.lamport_version());
+
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&create, &wrap])
+        .unwrap();
+    for id in [*wrapped_id, *wrapper_ref.object_id(), gas_id] {
+        assert_eq!(
+            s.epoch_store
+                .durable_sync_ahead_record_for_testing(&id)
+                .unwrap(),
+            None,
+            "no record of {id} may be durable before the unwrap's checkpoint"
+        );
+    }
+
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&unwrap])
+        .unwrap();
+    for id in [*wrapped_id, *wrapper_ref.object_id(), gas_id] {
+        assert!(
+            s.epoch_store
+                .durable_sync_ahead_record_for_testing(&id)
+                .unwrap()
+                .is_some(),
+            "the unwrap's checkpoint must persist the record of {id}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn bookkeeping_disabled_writes_nothing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
