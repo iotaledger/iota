@@ -18,11 +18,11 @@
 //! Visibility is `pub` until the validation entry point consumes the module;
 //! `pub(crate)` would be dead code under `-D warnings` until then.
 
-use iota_sdk_types::{TransactionDigest, Version};
+use iota_sdk_types::{ObjectReference, TransactionDigest, Version};
 use iota_types::{
     object::Object,
     storage::PackageObject,
-    transaction::{InputObjectKind, InputObjects},
+    transaction::{InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects},
 };
 
 mod owned;
@@ -157,6 +157,31 @@ pub enum MissingKind {
 #[must_use]
 pub enum InputResolution {
     Loaded(InputObjects),
+    Drop(InputObjectKind, DropReason),
+    Missing(InputObjectKind, MissingReason),
+}
+
+/// One transaction's inputs for validation at a commit, grouped as the input
+/// checks take them, or the first input that decided.
+#[must_use]
+pub enum ValidationInputsAtCommit {
+    Loaded {
+        tx_input_objects: InputObjects,
+        tx_receiving_objects: ReceivingObjects,
+        per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+    },
+    Drop(InputObjectKind, DropReason),
+    Missing(InputObjectKind, MissingReason),
+}
+
+/// The entry point's answer for one transaction at a commit. Checks that
+/// reject after loading still return `Err`, as at admission, so the caller's
+/// storage-or-epoch split stays as it is.
+#[must_use]
+#[derive(Debug)]
+pub enum ValidationAtCommit {
+    /// Every check passed. The owned references to lock.
+    Keep(Vec<ObjectReference>),
     Drop(InputObjectKind, DropReason),
     Missing(InputObjectKind, MissingReason),
 }

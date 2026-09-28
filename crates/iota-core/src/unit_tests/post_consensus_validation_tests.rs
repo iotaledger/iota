@@ -25,7 +25,7 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::ObjectKey,
+    storage::{BackingPackageStore, ObjectKey},
     transaction::{
         CallArg, InputObjectKind, ObjectReadResultKind, SenderSignedTransactionAPI,
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionEnvelope, TransactionKey,
@@ -55,7 +55,8 @@ use crate::{
         ExecutionWatcher, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
     },
     post_consensus_input_reader::{
-        DropKind, InputResolution, MissingKind, SharedVerdict, reader::CommitIndexedReader,
+        DropKind, InputResolution, MissingKind, SharedVerdict, ValidationAtCommit,
+        reader::CommitIndexedReader,
     },
     post_consensus_validation,
     test_utils::make_transfer_object_transaction,
@@ -5048,6 +5049,33 @@ async fn reader_checks_the_declared_version_against_the_deletion_row() {
 // P-COOL deterministic-validation loader
 // ---------------------------------------------------------------------------
 
+/// The deny check's package store answers as the reader does: the package is
+/// there from epoch-start state, and absent once a record marks it as
+/// published ahead of the handler.
+#[tokio::test]
+async fn package_store_view_follows_the_reader() {
+    let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let reader = s.reader_at(12);
+    let package = BackingPackageStore::get_package_object(&reader, &s.package_id)
+        .unwrap()
+        .expect("a genesis package is epoch-start state");
+    assert_eq!(package.object().id(), s.package_id);
+
+    s.record_package_published_ahead(&gas_id, sender);
+    assert!(
+        BackingPackageStore::get_package_object(&reader, &s.package_id)
+            .unwrap()
+            .is_none()
+    );
+}
+
 /// A sync-ahead record marks the package as published ahead of the handler.
 /// The record decides, and the loader stops at it naming the package input.
 #[tokio::test]
@@ -5231,6 +5259,114 @@ async fn loader_answers_missing_for_an_owned_input_above_the_horizon() {
         s.read_inputs_at_commit(13, &tx),
         InputResolution::Loaded(_)
     ));
+}
+
+/// The entry point passes the reader's verdicts through and answers `Keep`
+/// with the owned references to lock once every check passed.
+#[tokio::test]
+async fn validation_at_commit_keeps_drops_and_reports_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference().object_id();
+    let set_value = |arg: CallArg, value: u64| {
+        s.build_move_call(
+            "object_basics",
+            "set_value",
+            vec![arg, CallArg::Pure(bcs::to_bytes(&value).unwrap())],
+            &gas_id,
+            sender,
+            &sender_key,
+        )
+    };
+
+    // Keep: every input visible at commit 12. Only the gas coin is locked.
+    let gas_ref = s.latest_ref(&gas_id);
+    let tx = set_value(s.shared_arg(shared_id), 1);
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![gas_ref]),
+        ValidationAtCommit::Drop(kind, reason) => panic!("dropped on {kind:?}: {reason:?}"),
+        ValidationAtCommit::Missing(kind, reason) => panic!("missing {kind:?}: {reason:?}"),
+    }
+
+    // Drop: a wrong declared initial version, named by the shared input.
+    let wrong = set_value(
+        CallArg::Shared(SharedObjectReference::new(
+            *shared_id,
+            Version::from_u64(1),
+            true,
+        )),
+        2,
+    );
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &wrong,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Drop(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(&id, shared_id);
+            assert_eq!(reason.kind(), DropKind::SharedInitialVersionMismatch);
+        }
+        other => panic!("expected a drop on the shared input, got {other:?}"),
+    }
+
+    // Missing: the gas coin was produced at commit 11, above commit 12's
+    // horizon.
+    s.handler_known_shared_object_basics_call(
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&3u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+        11,
+    );
+    let gas_ref = s.latest_ref(&gas_id);
+    let tx = set_value(s.shared_arg(shared_id), 4);
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+            VerifierLimitsSource::ProtocolConfig,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Missing(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, gas_ref);
+            assert_eq!(reason.kind(), MissingKind::HandlerRowAboveHorizon);
+        }
+        other => panic!("expected missing on the gas coin, got {other:?}"),
+    }
 }
 
 // ---------------------------------------------------------------------------
