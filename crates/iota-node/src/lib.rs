@@ -30,10 +30,7 @@ use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, ExecutionEnv, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_pruner::ObjectsCompactionFilter,
-        authority_store_tables::{
-            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
-        },
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
         shared_object_version_manager::Schedulable,
@@ -445,25 +442,9 @@ impl IotaNode {
             None,
         ));
 
-        let mut pruner_db = None;
-        if config
-            .authority_store_pruning_config
-            .enable_compaction_filter
-        {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
-                &config.db_path().join("store"),
-            )));
-        }
-        let compaction_filter = pruner_db
-            .clone()
-            .map(|db| ObjectsCompactionFilter::new(db, &prometheus_registry));
-
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions {
-            enable_write_stall,
-            compaction_filter,
-        };
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
         let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
             &config.db_path().join("store"),
             Some(perpetual_tables_options),
@@ -698,7 +679,6 @@ impl IotaNode {
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
-            pruner_db,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),
@@ -1553,7 +1533,21 @@ impl IotaNode {
         );
         let load_shed = config.grpc_load_shed.unwrap_or_default();
 
-        let server_conf = iota_network_stack::config::Config::new();
+        // HTTP/2 keepalive is the only mechanism that closes a connection whose
+        // peer has gone away without closing it: the server pings after this
+        // long without inbound frames and drops the connection when the ping
+        // goes unanswered for as long again.
+        const VALIDATOR_GRPC_KEEPALIVE: Duration = Duration::from_secs(60);
+        // Bounds the streams one connection may hold open, so a single peer
+        // cannot fill a service's admission slots on its own. A fullnode sends
+        // every request to this validator over one connection, so the cap must
+        // stay well above a busy fullnode's peak concurrency.
+        const VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS: u32 = 1000;
+
+        let mut server_conf = iota_network_stack::config::Config::new();
+        server_conf.http2_keepalive_interval = Some(VALIDATOR_GRPC_KEEPALIVE);
+        server_conf.http2_keepalive_timeout = Some(VALIDATOR_GRPC_KEEPALIVE);
+        server_conf.http2_max_concurrent_streams = Some(VALIDATOR_GRPC_MAX_CONCURRENT_STREAMS);
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
                 .add_service_with_concurrency_limit(
@@ -1844,7 +1838,7 @@ impl IotaNode {
                 tokio::time::sleep(Duration::from_millis(1)).await;
 
                 let config = cur_epoch_store.protocol_config();
-                let binary_config = to_binary_config(config);
+                let binary_config = to_binary_config(config, None);
                 let transaction = ConsensusTransaction::new_capability_notification_v1(
                     AuthorityCapabilitiesV1::new(
                         self.state.name,
@@ -2296,7 +2290,7 @@ impl IotaNode {
 
         // Create the capability notification once
         let config = epoch_store.protocol_config();
-        let binary_config = to_binary_config(config);
+        let binary_config = to_binary_config(config, None);
 
         // Create the capability notification
         let capabilities = AuthorityCapabilitiesV1::new(

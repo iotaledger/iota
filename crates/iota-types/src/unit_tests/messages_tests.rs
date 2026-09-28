@@ -1059,6 +1059,148 @@ fn validity_check_rejects_authenticated_object_version_in_or_below_canceled_rang
     }
 }
 
+/// A programmable transaction that reads the randomness state object and
+/// then only transfers, which the post-randomness command restriction allows.
+fn transaction_using_randomness(sender: Address) -> Transaction {
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let random = builder
+        .obj(CallArg::Shared(SharedObjectReference::new(
+            ObjectId::RANDOMNESS_STATE,
+            Version::from(1),
+            false,
+        )))
+        .unwrap();
+    builder.programmable_move_call(
+        ObjectId::random(),
+        Identifier::from_static("random_module"),
+        Identifier::from_static("random_function"),
+        vec![],
+        vec![random],
+    );
+    builder
+        .transfer_object(dbg_addr(2), random_object_ref())
+        .unwrap();
+    Transaction::new_programmable(
+        sender,
+        vec![random_object_ref()],
+        builder.finish(),
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        1,
+    )
+}
+
+fn with_move_authenticator(
+    tx: Transaction,
+    authenticator: MoveAuthenticatorV1,
+) -> SenderSignedTransaction {
+    SenderSignedTransaction::new(
+        tx,
+        vec![UserSignature::MoveAuthenticator(MoveAuthenticator::from(
+            authenticator,
+        ))],
+    )
+}
+
+/// The randomness state object is refused as a `MoveAuthenticator` input
+/// from the transaction bytes alone, whether it is named as a call argument
+/// or as the object to authenticate, and only when the flag is set.
+#[test]
+fn validity_check_rejects_randomness_state_in_move_authenticator() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(config.disallow_randomness_in_move_authenticator());
+    let mut flag_off = config.clone();
+    flag_off.set_disallow_randomness_in_move_authenticator_for_testing(false);
+
+    let sender = Address::random();
+    let random = SharedObjectReference::new(ObjectId::RANDOMNESS_STATE, Version::from(1), false);
+    let account = SharedObjectReference::new(sender.into(), Version::from(1), false);
+
+    let as_call_arg = MoveAuthenticatorV1::new_with_shared_account_object(
+        vec![CallArg::Shared(random)],
+        vec![],
+        account,
+    );
+    let as_account_object =
+        MoveAuthenticatorV1::new_with_shared_account_object(vec![], vec![], random);
+
+    for authenticator in [as_call_arg, as_account_object] {
+        let tx = with_move_authenticator(make_transaction_data(sender), authenticator);
+        assert_eq!(
+            tx.validity_check(&TxValidityCheckContext {
+                config: &config,
+                epoch: 0,
+            })
+            .unwrap_err(),
+            IotaError::UserInput {
+                error: UserInputError::RandomnessStateIsInMoveAuthenticatorInput {
+                    object_id: ObjectId::RANDOMNESS_STATE,
+                },
+            }
+        );
+        tx.validity_check(&TxValidityCheckContext {
+            config: &flag_off,
+            epoch: 0,
+        })
+        .unwrap();
+    }
+}
+
+/// The restriction is on the authenticator only: a transaction whose
+/// programmable part reads the randomness state object, and then only
+/// transfers, is still accepted alongside an authenticator that does not name
+/// it.
+#[test]
+fn validity_check_accepts_randomness_state_in_programmable_transaction() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(config.disallow_randomness_in_move_authenticator());
+
+    let sender = Address::random();
+    let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
+        vec![],
+        vec![],
+        SharedObjectReference::new(sender.into(), Version::from(1), false),
+    );
+    with_move_authenticator(transaction_using_randomness(sender), authenticator)
+        .validity_check(&TxValidityCheckContext {
+            config: &config,
+            epoch: 0,
+        })
+        .unwrap();
+}
+
+/// Naming the randomness state object in both the programmable transaction
+/// and the authenticator is refused by the authenticator check, before the
+/// two input sets are merged.
+#[test]
+fn validity_check_rejects_randomness_state_in_both_transaction_and_move_authenticator() {
+    let config = ProtocolConfig::get_for_max_version_UNSAFE();
+    assert!(config.disallow_randomness_in_move_authenticator());
+
+    let sender = Address::random();
+    let authenticator = MoveAuthenticatorV1::new_with_shared_account_object(
+        vec![CallArg::Shared(SharedObjectReference::new(
+            ObjectId::RANDOMNESS_STATE,
+            Version::from(1),
+            false,
+        ))],
+        vec![],
+        SharedObjectReference::new(sender.into(), Version::from(1), false),
+    );
+    assert_eq!(
+        with_move_authenticator(transaction_using_randomness(sender), authenticator)
+            .validity_check(&TxValidityCheckContext {
+                config: &config,
+                epoch: 0,
+            })
+            .unwrap_err(),
+        IotaError::UserInput {
+            error: UserInputError::RandomnessStateIsInMoveAuthenticatorInput {
+                object_id: ObjectId::RANDOMNESS_STATE,
+            },
+        }
+    );
+}
+
 #[test]
 fn verify_sender_signature_correctly_with_flag() {
     // set up authorities

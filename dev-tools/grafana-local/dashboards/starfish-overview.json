@@ -20977,14 +20977,14 @@
               },
               "editorMode": "code",
               "expr": "rate(consensus_inbound_admission_rejected[2m])",
-              "legendFormat": "{{group}} @ {{host}}",
+              "legendFormat": "{{group}} {{limit}} @ {{host}}",
               "range": true,
               "refId": "A"
             }
           ],
           "title": "Consensus Admission Rejections Rate",
           "type": "timeseries",
-          "description": "Rate of inbound consensus requests rejected by per-peer admission control (ResourceExhausted), by RPC group. Should be ~0 under honest load."
+          "description": "Rate of inbound consensus requests rejected by admission control (ResourceExhausted), by RPC group and the cap that was reached. Should be ~0 under honest load."
         },
         {
           "datasource": {

@@ -74,6 +74,12 @@ public fun build(self: AbstractAccountBuilder) {
     account::create_account_v1(account, authenticator);
 }
 
+/// Finish building the `AbstractAccount` and freeze the object.
+public fun build_immutable(self: AbstractAccountBuilder) {
+    let AbstractAccountBuilder { account, authenticator } = self;
+    account::create_immutable_account_v1(account, authenticator);
+}
+
 /// Adds a new dynamic field to the account.
 ///
 /// Only the account itself can call this function.

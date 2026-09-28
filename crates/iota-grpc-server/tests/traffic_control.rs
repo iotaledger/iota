@@ -49,7 +49,7 @@ use iota_types::{
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
-    traffic_control::{PolicyConfig, PolicyType, Weight},
+    traffic_control::{ClientIdSource, PolicyConfig, PolicyType, Weight},
     transaction_executor::{SimulateTransactionResult, TransactionExecutor, VmChecks},
 };
 use tonic::{Code, transport::Channel};
@@ -79,11 +79,13 @@ async fn server_with_policy(
     policy_config: PolicyConfig,
     executor: Option<Arc<dyn TransactionExecutor>>,
 ) -> GrpcServerHandle {
+    let client_id_source = policy_config.client_id_source.clone();
     let traffic_controller = Arc::new(TrafficController::init_for_test(policy_config, None));
     let (handle, _reader) = start_test_server_with_traffic_controller(
         Arc::new(MockGrpcStateReader::default()),
         traffic_controller,
         executor,
+        client_id_source,
     )
     .await;
     handle
@@ -327,8 +329,13 @@ async fn stream_errors_feed_the_error_policy() {
         },
         None,
     ));
-    let (handle, _reader) =
-        start_test_server_with_traffic_controller(state_reader, traffic_controller, None).await;
+    let (handle, _reader) = start_test_server_with_traffic_controller(
+        state_reader,
+        traffic_controller,
+        None,
+        ClientIdSource::SocketAddr,
+    )
+    .await;
     let client = LedgerServiceClient::new(connect(&handle).await);
 
     let request = GetObjectsRequest::default()
@@ -482,4 +489,44 @@ async fn read_errors_do_not_feed_the_error_policy() {
             item.expect("stream item should be Ok");
         }
     }
+}
+
+/// An allowlist admits the clients it names. The node resolves no client IP for
+/// a request that arrives without the `x-forwarded-for` header it reads, so it
+/// refuses that request, and serves one that names a listed client.
+#[tokio::test]
+async fn an_allowlist_refuses_an_unidentified_request_over_grpc() {
+    const LISTED: &str = "10.0.0.7";
+    let handle = server_with_policy(
+        PolicyConfig {
+            client_id_source: ClientIdSource::XForwardedFor(1),
+            allow_list: Some(vec![LISTED.to_string()]),
+            dry_run: false,
+            ..Default::default()
+        },
+        Some(Arc::new(UnreachableExecutor)),
+    )
+    .await;
+    let mut client = TransactionExecutionServiceClient::new(connect(&handle).await);
+
+    assert_client_blocked(1, || {
+        let mut client = client.clone();
+        async move { client.execute_transactions(execute_batch(1)).await }
+    })
+    .await;
+
+    client
+        .execute_transactions(forwarded_for(LISTED, execute_batch(1)))
+        .await
+        .expect("a request naming an allowlisted client is served");
+}
+
+/// `message` as a request carrying an `x-forwarded-for` header that names
+/// `client` as the request's origin.
+fn forwarded_for<T>(client: &str, message: T) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(message);
+    request
+        .metadata_mut()
+        .insert("x-forwarded-for", client.parse().unwrap());
+    request
 }

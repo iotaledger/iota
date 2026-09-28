@@ -2051,6 +2051,10 @@ impl CheckpointBuilder {
                     contents.clone(),
                     execution_data,
                 )
+                // `contents` was built from these same transactions and
+                // effects a few lines above, so the two cannot differ in
+                // length.
+                .expect("checkpoint builder pins one signature set per transaction it includes")
             });
 
             last_checkpoint = Some((sequence_number, summary.clone()));

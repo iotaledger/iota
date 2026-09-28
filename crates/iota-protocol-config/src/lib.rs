@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 36;
+pub const MAX_PROTOCOL_VERSION: u64 = 37;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -227,7 +227,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the redesigned leader schedule (sliding-window reputation
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on mainnet.
-// Version 36: Reject a transaction that names an object version in the range
+// Version 36: Reject a transaction whose sender or sponsor is authenticated by
+//             a `MoveAuthenticator` with an immutable account object.
+// Version 37: Reject a transaction that names an object version in the range
 //             assigned to canceled transactions, or one below it, from the
 //             transaction bytes, before any object is loaded.
 //             Reject `<SELF>` as an identifier in published modules.
@@ -239,6 +241,11 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Require the version field of a published module header to be the
 //             encoding the serializer produces for that version, rejecting a
 //             non-zero flavor byte below binary format version 7.
+//             Reject the randomness state object as a `MoveAuthenticator`
+//             input.
+//             Traverse the module graph when checking a published module for
+//             cyclic dependencies, instead of stopping at its immediate
+//             dependencies.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -676,6 +683,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     allow_unbounded_system_objects: bool,
 
+    // If true, transaction validation rejects a `MoveAuthenticator` whose
+    // account object is immutable.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_immutable_account_objects: bool,
+
     // If true, `validity_check` rejects a transaction that names an object
     // version at or above `Version::MAX_VALID_EXCL`, the range assigned to the
     // objects of canceled transactions, or right below it, from the transaction
@@ -694,6 +706,23 @@ struct FeatureFlags {
     // a non-zero flavor byte is masked off instead of rejected.
     #[serde(skip_serializing_if = "is_false")]
     check_canonical_module_version_header: bool,
+
+    // If true, `validity_check` rejects a `MoveAuthenticator` that names the
+    // randomness state object among its inputs. An authenticate function cannot
+    // derive randomness from it, but naming it schedules the transaction as
+    // randomness-using and defers it to a randomness round for nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_randomness_in_move_authenticator: bool,
+
+    // If true, the cyclic dependency check traverses the module graph. Without it
+    // the traversal descends only into modules it has already visited, so it stops
+    // at the immediate dependencies and never reports a cycle.
+    #[serde(skip_serializing_if = "is_false")]
+    check_cyclic_dependencies: bool,
+
+    // If true, deprecate global storage ops during Move module deserialization
+    #[serde(skip_serializing_if = "is_false")]
+    deprecate_global_storage_ops_during_deserialization: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2157,12 +2186,34 @@ impl ProtocolConfig {
         self.feature_flags.allow_unbounded_system_objects
     }
 
+    pub fn reject_immutable_account_objects(&self) -> bool {
+        let reject_immutable_account_objects = self.feature_flags.reject_immutable_account_objects;
+        assert!(
+            !reject_immutable_account_objects || self.enable_move_authentication(),
+            "reject_immutable_account_objects requires enable_move_authentication to be set"
+        );
+        reject_immutable_account_objects
+    }
+
     pub fn validate_input_object_versions(&self) -> bool {
         self.feature_flags.validate_input_object_versions
     }
 
     pub fn check_canonical_module_version_header(&self) -> bool {
         self.feature_flags.check_canonical_module_version_header
+    }
+
+    pub fn disallow_randomness_in_move_authenticator(&self) -> bool {
+        self.feature_flags.disallow_randomness_in_move_authenticator
+    }
+
+    pub fn check_cyclic_dependencies(&self) -> bool {
+        self.feature_flags.check_cyclic_dependencies
+    }
+
+    pub fn deprecate_global_storage_ops_during_deserialization(&self) -> bool {
+        self.feature_flags
+            .deprecate_global_storage_ops_during_deserialization
     }
 }
 
@@ -3528,6 +3579,11 @@ impl ProtocolConfig {
                         .pre_consensus_sponsor_only_move_authentication = false;
                 }
                 36 => {
+                    // No immutable account object can authenticate a sender or
+                    // a sponsor.
+                    cfg.feature_flags.reject_immutable_account_objects = true;
+                }
+                37 => {
                     // Refuse object versions in, or right below, the range
                     // assigned to canceled transactions before any object is
                     // loaded, by consulting the transaction bytes only.
@@ -3540,6 +3596,14 @@ impl ProtocolConfig {
                     // Require a published module header to carry the canonical
                     // encoding of its binary format version.
                     cfg.feature_flags.check_canonical_module_version_header = true;
+                    // An authenticate function cannot read randomness, so the
+                    // randomness state object is refused as an authenticator
+                    // input instead of scheduling the transaction as
+                    // randomness-using for nothing.
+                    cfg.feature_flags.disallow_randomness_in_move_authenticator = true;
+                    // Traverse the module graph when checking for cyclic
+                    // dependencies.
+                    cfg.feature_flags.check_cyclic_dependencies = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3615,6 +3679,7 @@ impl ProtocolConfig {
             additional_borrow_checks,
             sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
                 .map(|limit| limit as u128),
+            check_cyclic_dependencies: self.feature_flags.check_cyclic_dependencies,
         }
     }
 
@@ -3831,8 +3896,16 @@ impl ProtocolConfig {
             .pcool_verifier_limits_from_protocol_config = val;
     }
 
+    pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
+        self.feature_flags.reject_immutable_account_objects = val;
+    }
+
     pub fn set_validate_input_object_versions_for_testing(&mut self, val: bool) {
         self.feature_flags.validate_input_object_versions = val;
+    }
+
+    pub fn set_disallow_randomness_in_move_authenticator_for_testing(&mut self, val: bool) {
+        self.feature_flags.disallow_randomness_in_move_authenticator = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {

@@ -7,6 +7,7 @@ use std::{
     net::{SocketAddr, SocketAddrV4, SocketAddrV6},
     pin::Pin,
     sync::Arc,
+    task::{Context as TaskContext, Poll},
     time::{Duration, Instant},
 };
 
@@ -25,15 +26,16 @@ use parking_lot::RwLock;
 use starfish_config::{
     AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH, NetworkKeyPair, NetworkPublicKey,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedSemaphorePermit};
 use tokio_stream::iter;
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer};
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
-    BlockBundleStream, NetworkClient, NetworkService, SerializedBlockBundle, TransactionFetchMode,
-    admission::{Admission, AdmissionGuard, PerPeerAdmission, PermitGuardedStream, RpcGroup},
+    BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient, NetworkService,
+    SerializedBlockBundle,
+    admission::AdmissionLayer,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
@@ -841,52 +843,11 @@ impl ChannelPool {
 struct TonicServiceProxy<S: NetworkService> {
     context: Arc<Context>,
     service: Arc<S>,
-    admission: PerPeerAdmission,
 }
 
 impl<S: NetworkService> TonicServiceProxy<S> {
     fn new(context: Arc<Context>, service: Arc<S>) -> Self {
-        let admission = PerPeerAdmission::new(&context);
-        Self {
-            context,
-            service,
-            admission,
-        }
-    }
-
-    /// Admits one request from `peer` in `group`, returning a permit to hold
-    /// for the request's (or stream's) lifetime, or `None` when the group's
-    /// limit is disabled. A rejected request increments the admission
-    /// metric and returns `ResourceExhausted` so the peer backs off.
-    fn admit(
-        &self,
-        group: RpcGroup,
-        peer: AuthorityIndex,
-    ) -> Result<Option<AdmissionGuard>, tonic::Status> {
-        match self.admission.try_acquire(group, peer) {
-            Admission::Unlimited => Ok(None),
-            Admission::Permit(permit) => {
-                let in_use = self
-                    .context
-                    .metrics
-                    .network_metrics
-                    .admission_in_use
-                    .with_label_values(&[group.as_str()]);
-                Ok(Some(AdmissionGuard::new(permit, in_use)))
-            }
-            Admission::Rejected => {
-                self.context
-                    .metrics
-                    .network_metrics
-                    .admission_rejected
-                    .with_label_values(&[group.as_str()])
-                    .inc();
-                Err(tonic::Status::resource_exhausted(format!(
-                    "per-peer {} limit reached",
-                    group.as_str()
-                )))
-            }
-        }
+        Self { context, service }
     }
 }
 
@@ -906,9 +867,6 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
-        // Acquire before reading the request stream so a peer cannot stack
-        // half-open subscriptions; the permit is held for the stream's lifetime.
-        let permit = self.admit(RpcGroup::Subscribe, peer_index)?;
         let mut request_stream = request.into_inner();
         let subscribe_request_timeout = self.context.parameters.tonic.subscribe_request_timeout;
         let first_message = if subscribe_request_timeout.is_zero() {
@@ -953,9 +911,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let rate_limited_stream =
             tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_block_delay / 2)
                 .boxed();
-        Ok(Response::new(
-            PermitGuardedStream::new(rate_limited_stream, permit).boxed(),
-        ))
+        Ok(Response::new(rate_limited_stream))
     }
 
     type FetchBlockHeadersStream =
@@ -972,7 +928,6 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
-        let permit = self.admit(RpcGroup::HeaderFetch, peer_index)?;
         let inner = request.into_inner();
         let highest_accepted_rounds = inner.highest_accepted_rounds;
         let max_fetch_size = self
@@ -1014,7 +969,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 })
                 .collect::<Vec<_>>()
                 .into_iter();
-        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
+        let stream = iter(responses).boxed();
         Ok(Response::new(stream))
     }
 
@@ -1029,7 +984,6 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
-        let _permit = self.admit(RpcGroup::CommitFetch, peer_index)?;
         let request = request.into_inner();
         let (commits, certifier_block_headers) = self
             .service
@@ -1069,13 +1023,25 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
-        let permit = self.admit(RpcGroup::CommitFetch, peer_index)?;
         let request = request.into_inner();
-        let (serialized_commits, serialized_headers, serialized_transactions) = self
+        let FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_headers,
+            transactions: serialized_transactions,
+            oversized_commit_permit,
+        } = self
             .service
             .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
             .await
-            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+            .map_err(|e| match e {
+                ConsensusError::OversizedCommitAlreadyServed => {
+                    tonic::Status::resource_exhausted(e.to_string())
+                }
+                ConsensusError::TransactionsNotAvailable { .. } => {
+                    tonic::Status::unavailable(e.to_string())
+                }
+                e => tonic::Status::internal(format!("{e:?}")),
+            })?;
 
         // Build response as a stream of chunks to stay under gRPC message size limit.
         // Commits and transactions are chunked by size. Certifier headers are small
@@ -1112,7 +1078,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             }));
         }
 
-        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
+        let stream = PermitHoldingStream {
+            inner: iter(responses),
+            _permit: oversized_commit_permit,
+        }
+        .boxed();
         Ok(Response::new(stream))
     }
 
@@ -1130,7 +1100,6 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
-        let permit = self.admit(RpcGroup::HeaderFetch, peer_index)?;
         let inner = request.into_inner();
 
         // Convert the authority indexes and validate them
@@ -1163,7 +1132,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 })
                 .collect::<Vec<_>>()
                 .into_iter();
-        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
+        let stream = iter(responses).boxed();
         Ok(Response::new(stream))
     }
 
@@ -1174,9 +1143,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         // This RPC is kept in the service definition for backward compatibility,
         // but is not supported by Starfish.
         error!("get_latest_rounds() is deprecated in starfish and should not be called");
-        Err(tonic::Status::unimplemented(
-            "get_latest_rounds is deprecated and not supported",
-        ))
+        Err(tonic::Status::unimplemented(DEPRECATED_METHOD_MESSAGE))
     }
 
     type FetchTransactionsStream =
@@ -1193,7 +1160,6 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         else {
             return Err(tonic::Status::internal("PeerInfo not found"));
         };
-        let permit = self.admit(RpcGroup::TransactionFetch, peer_index)?;
 
         let request = request.into_inner();
         let committed_transactions_refs: Vec<TransactionRef> = request
@@ -1210,11 +1176,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(
-                peer_index,
-                committed_transactions_refs,
-                TransactionFetchMode::TransactionSync,
-            )
+            .handle_fetch_transactions(peer_index, committed_transactions_refs)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 
@@ -1228,7 +1190,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 })
                 .collect::<Vec<_>>()
                 .into_iter();
-        let stream = PermitGuardedStream::new(iter(responses), permit).boxed();
+        let stream = iter(responses).boxed();
         Ok(Response::new(stream))
     }
 }
@@ -1338,7 +1300,11 @@ impl<S: NetworkService> TonicManager<S> {
                         TIMEOUT_EXEMPT_PATHS,
                     )
                 }
-            });
+            })
+            // Innermost, so a rejected request is still counted and traced by
+            // the layers above, and a request stalled in decode has its permit
+            // released when the timeout above fires.
+            .layer(AdmissionLayer::new(self.context.clone()));
 
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
@@ -1400,7 +1366,6 @@ impl<S: NetworkService> TonicManager<S> {
         }
 
         let http_config = iota_http::Config::default()
-            .tcp_nodelay(true)
             .initial_connection_window_size(64 << 20)
             .initial_stream_window_size(32 << 20)
             .max_concurrent_streams(
@@ -1611,14 +1576,14 @@ impl ConnectionsInfo {
 
 /// Information about the client peer, set per connection.
 #[derive(Clone, Debug)]
-struct PeerInfo {
-    authority_index: AuthorityIndex,
+pub(crate) struct PeerInfo {
+    pub(crate) authority_index: AuthorityIndex,
 }
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
 /// Path prefix the consensus service is served under.
-const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
+pub(crate) const CONSENSUS_SERVICE_PATH_PREFIX: &str = "/consensus.ConsensusService/";
 
 /// Methods served by the consensus service, each recorded under its own metric
 /// label.
@@ -1634,6 +1599,14 @@ const CONSENSUS_SERVICE_METHODS: &[&str] = &[
 
 /// Label recorded for every path that is not a served method.
 const UNKNOWN_ROUTE: &str = "unknown";
+
+/// Method the service declares for backward compatibility and does no work
+/// for. Admission answers it without reading its request body.
+pub(crate) const DEPRECATED_METHOD: &str = "GetLatestRounds";
+
+/// Status message returned for [`DEPRECATED_METHOD`].
+pub(crate) const DEPRECATED_METHOD_MESSAGE: &str =
+    "get_latest_rounds is deprecated and not supported";
 
 /// Metric label for a request path: the name of the served method, or
 /// `unknown`. Callers choose the path, so the label never derives from it.
@@ -1809,6 +1782,21 @@ pub(crate) struct FetchTransactionsResponse {
     vec_serialized_transactions: Vec<Bytes>,
 }
 
+/// A response stream that keeps `_permit` held until the stream is dropped,
+/// which is once the response has been sent or the peer has gone away.
+struct PermitHoldingStream<St> {
+    inner: St,
+    _permit: Option<OwnedSemaphorePermit>,
+}
+
+impl<St: Stream + Unpin> Stream for PermitHoldingStream<St> {
+    type Item = St::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.get_mut().inner).poll_next(cx)
+    }
+}
+
 // Splits a list of byte sequences into chunks where each chunk's total size
 // does not exceed the specified `chunk_limit`.
 // Returns a vector of chunks, each being a vector of `Bytes`.
@@ -1837,15 +1825,17 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
-    use futures::stream;
+    use futures::{StreamExt as _, stream};
     use starfish_config::{AuthorityIndex, MAX_HEADERS_PER_HEADER_SYNC_FETCH};
+    use tokio::sync::Semaphore;
 
     use super::{
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
-        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, UNKNOWN_ROUTE,
-        collect_block_headers, collect_commits_and_transactions, collect_transactions,
-        max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
-        max_serialized_transactions_entry_bytes, route_label,
+        FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, PermitHoldingStream,
+        TonicClient, UNKNOWN_ROUTE, collect_block_headers, collect_commits_and_transactions,
+        collect_transactions, max_fetch_block_headers_response_bytes,
+        max_fetch_transactions_response_bytes, max_serialized_transactions_entry_bytes,
+        route_label,
     };
     use crate::{
         block_header::max_signed_block_header_bytes,
@@ -2515,5 +2505,202 @@ mod tests {
         ));
 
         long.abort();
+    }
+
+    /// A header fetch whose request message never arrives is charged to its
+    /// peer's budget from the moment its headers land, so a peer cannot stack
+    /// pending decodes across connections. The permit is returned when the
+    /// server-side request timeout cuts the stalled request.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_request_body_that_never_arrives_is_still_charged() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::{FetchBlockHeadersRequest, FetchBlockHeadersResponse, TonicManager};
+        use crate::network::test_network::TestService;
+
+        const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
+
+        async fn header_fetch(
+            client: &TonicClient,
+            peer: AuthorityIndex,
+        ) -> Result<tonic::Response<tonic::Streaming<FetchBlockHeadersResponse>>, tonic::Status>
+        {
+            stalled_call::<FetchBlockHeadersRequest, _>(
+                client,
+                peer,
+                &format!("{CONSENSUS_SERVICE_PATH_PREFIX}FetchBlockHeaders"),
+            )
+            .await
+        }
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let mut server_context = context.clone().with_authority_index(server_index);
+        server_context
+            .parameters
+            .tonic
+            .admission
+            .max_header_fetches_per_peer = 1;
+        server_context.parameters.tonic.request_timeout = REQUEST_TIMEOUT;
+        let server_context = Arc::new(server_context);
+        let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_for = |authority: usize| {
+            let client_context =
+                Arc::new(context.clone().with_authority_index(
+                    context.committee.to_authority_index(authority).unwrap(),
+                ));
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[authority].0.clone())
+                .client()
+        };
+        // Two clients for one authority, so each opens its own connection.
+        let first = client_for(1);
+        let second = client_for(1);
+        let other_peer = client_for(2);
+
+        let in_use = server_context
+            .metrics
+            .network_metrics
+            .admission_in_use
+            .with_label_values(&["header_fetch"]);
+        let settles_at = async |count: i64| {
+            for _ in 0..500 {
+                if in_use.get() == count {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            panic!("admitted header fetches stayed at {}", in_use.get());
+        };
+
+        let held = tokio::spawn(async move { header_fetch(&first, server_index).await });
+        settles_at(1).await;
+
+        let Err(status) =
+            tokio::time::timeout(REQUEST_TIMEOUT / 2, header_fetch(&second, server_index))
+                .await
+                .expect("the server must answer without waiting for the request body")
+        else {
+            panic!("the peer holds its only header-fetch slot");
+        };
+        assert_eq!(status.code(), tonic::Code::ResourceExhausted);
+
+        // Another authority has its own budget.
+        let other = tokio::spawn(async move { header_fetch(&other_peer, server_index).await });
+        settles_at(2).await;
+
+        // Both stalled requests give their slot back when the timeout cuts them.
+        settles_at(0).await;
+        assert_eq!(
+            held.await.unwrap().unwrap_err().code(),
+            tonic::Code::DeadlineExceeded
+        );
+        assert_eq!(
+            other.await.unwrap().unwrap_err().code(),
+            tonic::Code::DeadlineExceeded
+        );
+    }
+
+    /// Opens a call whose request message never arrives, so it stays open until
+    /// the server answers or the caller drops it.
+    async fn stalled_call<Req, Res>(
+        client: &TonicClient,
+        peer: AuthorityIndex,
+        path: &str,
+    ) -> Result<tonic::Response<tonic::Streaming<Res>>, tonic::Status>
+    where
+        Req: prost::Message + Default + Send + Sync + 'static,
+        Res: prost::Message + Default + Send + Sync + 'static,
+    {
+        use std::time::Duration;
+
+        use tonic::Request;
+
+        let channel = client
+            .channel_pool
+            .get_channel(client.network_keypair.clone(), peer, Duration::from_secs(5))
+            .await
+            .unwrap();
+        let mut grpc = tonic::client::Grpc::new(channel);
+        grpc.ready().await.unwrap();
+        grpc.streaming(
+            Request::new(stream::pending::<Req>()),
+            http::uri::PathAndQuery::try_from(path).unwrap(),
+            tonic_prost::ProstCodec::default(),
+        )
+        .await
+    }
+
+    /// The deprecated method decodes its request like any served method, so
+    /// admission answers it before its body is read.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn the_deprecated_method_is_answered_without_reading_its_body() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::{
+            DEPRECATED_METHOD, DEPRECATED_METHOD_MESSAGE, GetLatestRoundsRequest,
+            GetLatestRoundsResponse, TonicManager,
+        };
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let server_context = Arc::new(context.clone().with_authority_index(server_index));
+        let mut server = TonicManager::new(server_context, keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let path = format!("{CONSENSUS_SERVICE_PATH_PREFIX}{DEPRECATED_METHOD}");
+        let Err(status) = tokio::time::timeout(
+            Duration::from_secs(5),
+            stalled_call::<GetLatestRoundsRequest, GetLatestRoundsResponse>(
+                &client,
+                server_index,
+                &path,
+            ),
+        )
+        .await
+        .expect("the server must answer without waiting for the request body") else {
+            panic!("the deprecated method is not served");
+        };
+        assert_eq!(status.code(), tonic::Code::Unimplemented);
+        assert_eq!(status.message(), DEPRECATED_METHOD_MESSAGE);
+    }
+
+    /// The permit stays held while the response is streamed, including after
+    /// its last message, and is released once the stream is dropped.
+    #[tokio::test]
+    async fn permit_holding_stream_releases_the_permit_when_dropped() {
+        let slot = Arc::new(Semaphore::new(1));
+        let mut responses = PermitHoldingStream {
+            inner: stream::iter([1, 2]),
+            _permit: Some(slot.clone().try_acquire_owned().unwrap()),
+        };
+        assert_eq!(responses.next().await, Some(1));
+        assert_eq!(slot.available_permits(), 0);
+        assert_eq!(responses.next().await, Some(2));
+        assert_eq!(responses.next().await, None);
+        assert_eq!(slot.available_permits(), 0);
+
+        drop(responses);
+        assert_eq!(slot.available_permits(), 1);
     }
 }
