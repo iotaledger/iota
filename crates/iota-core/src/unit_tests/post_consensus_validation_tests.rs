@@ -3248,6 +3248,159 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     }
 }
 
+/// A checkpoint's bookkeeping becomes durable with the checkpoint, before its
+/// commit flushes: a restart in between finds every row, record and
+/// sheltered version on disk, although the overlays are gone and the
+/// execution hook does not run again.
+#[tokio::test]
+async fn checkpoint_bookkeeping_is_durable_before_its_commit_flushes() {
+    let (address_1, address_1_key): (Address, AccountPrivateKey) = get_key_pair();
+    let (address_2, address_2_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj1_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let obj2_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj1_id, address_1),
+            Object::with_id_owner_for_testing(gas1_id, address_1),
+            Object::with_id_owner_for_testing(obj2_id, address_2),
+            Object::with_id_owner_for_testing(gas2_id, address_2),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    // One checkpoint with a transaction state sync executed ahead of the
+    // handler, and one the handler assigned to commit 1 before it executed.
+    let consumed = [s.latest_ref(&obj1_id), s.latest_ref(&gas1_id)];
+    let sync_ahead = s.transfer(
+        &obj1_id,
+        &gas1_id,
+        address_1,
+        &address_1_key,
+        Address::random(),
+    );
+    let handler_known = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(
+                &obj2_id,
+                &gas2_id,
+                address_2,
+                &address_2_key,
+                Address::random(),
+            )],
+            1,
+        )
+        .remove(0);
+    let records =
+        [obj1_id, gas1_id].map(|id| (id, s.epoch_store.sync_ahead_record(&id).unwrap().unwrap()));
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&sync_ahead, &handler_known])
+        .unwrap();
+
+    // The entries left the overlays once durable.
+    assert_eq!(state.overlay_sizes_for_testing().0, 0);
+    for (id, record) in records {
+        assert_eq!(
+            s.epoch_store
+                .durable_sync_ahead_record_for_testing(&id)
+                .unwrap(),
+            Some(record)
+        );
+    }
+
+    // The node crashes before commit 1 flushes.
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    let reopened_state = reopened.handler_object_state_for_testing();
+    assert_eq!(reopened_state.overlay_sizes_for_testing(), (0, 0, 0));
+    for id in [obj2_id, gas2_id] {
+        let row = reopened
+            .handler_processed_object(&ObjectKey(id, handler_known.lamport_version()))
+            .unwrap()
+            .expect("the handler row must be durable with its checkpoint");
+        assert_eq!(row.produced_at, 1);
+    }
+    for (id, record) in records {
+        assert_eq!(reopened.sync_ahead_record(&id).unwrap(), Some(record));
+    }
+    let sheltered: Vec<Object> = consumed
+        .iter()
+        .map(|reference| {
+            let object = reopened
+                .sheltered_object(&ObjectKey::from(*reference))
+                .unwrap()
+                .expect("the consumed version must be sheltered durably");
+            assert_eq!(object.digest(), reference.digest);
+            object
+        })
+        .collect();
+
+    // Re-executing the checkpoint after the crash re-inserts the same
+    // entries, and its auxiliary batch writes the same rows and clears them.
+    reopened
+        .record_executed_transaction(
+            &TransactionKey::Digest(*sync_ahead.transaction_digest()),
+            &sync_ahead,
+            &sheltered.as_slice(),
+        )
+        .unwrap();
+    assert_ne!(reopened_state.overlay_sizes_for_testing(), (0, 0, 0));
+    reopened
+        .persist_checkpoint_bookkeeping([&sync_ahead, &handler_known])
+        .unwrap();
+    assert_eq!(reopened_state.overlay_sizes_for_testing(), (0, 0, 0));
+    for (id, record) in records {
+        assert_eq!(reopened.sync_ahead_record(&id).unwrap(), Some(record));
+    }
+}
+
+/// On a validator whose handler keeps up, a checkpoint's bookkeeping is its
+/// handler rows alone.
+#[tokio::test]
+async fn healthy_checkpoint_persists_only_handler_rows() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let consumed = [s.latest_ref(&obj_id), s.latest_ref(&gas_id)];
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
+
+    for (id, consumed_ref) in [obj_id, gas_id].into_iter().zip(consumed) {
+        let row = s
+            .epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(id, effects.lamport_version()))
+            .unwrap()
+            .expect("the handler row must be durable with its checkpoint");
+        assert_eq!(row.produced_at, 1);
+        assert_eq!(
+            s.epoch_store
+                .durable_sync_ahead_record_for_testing(&id)
+                .unwrap(),
+            None
+        );
+        s.assert_not_sheltered(consumed_ref);
+    }
+}
+
 #[tokio::test]
 async fn bookkeeping_disabled_writes_nothing() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -3265,6 +3418,10 @@ async fn bookkeeping_disabled_writes_nothing() {
 
     let obj_genesis_ref = s.latest_ref(&obj_id);
     let effects = s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
 
     s.assert_no_handler_row(&obj_id, effects.lamport_version());
     assert_eq!(s.epoch_store.sync_ahead_record(&obj_id).unwrap(), None);

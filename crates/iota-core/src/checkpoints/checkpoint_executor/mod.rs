@@ -386,16 +386,16 @@ impl CheckpointExecutor {
 
         finish_stage!(pipeline_handle, BuildDbBatch);
 
-        // TODO: here we should write aux batch that contains sync ahead rows as well as
-        //  handler latest rows for transactions in this checkpoint - so that if a node
-        //  restarts, newly created and persisted objects are known to have been
-        // executed  by a transaction that was processed by a commit handler.
-        // This should  be done  holding the quarantine write lock so that we don't have
-        // a race with the handler comitting the ConsensuscommitOutput while we
-        // update it.
         let mut ckpt_state = tokio::task::spawn_blocking({
             let this = self.clone();
             move || {
+                // Before the outputs, so no durable object lacks its
+                // bookkeeping. A transaction whose outputs are already durable
+                // is not in `batch` and needs nothing: its bookkeeping was
+                // written before them.
+                this.epoch_store
+                    .persist_checkpoint_bookkeeping(batch.0.iter().map(|outputs| &outputs.effects))
+                    .expect("the epoch tables should accept the checkpoint's bookkeeping batch");
                 // Commit all transaction effects to disk
                 let cache_commit = this.state.get_cache_commit();
                 debug!(?seq, "committing checkpoint transactions to disk");
