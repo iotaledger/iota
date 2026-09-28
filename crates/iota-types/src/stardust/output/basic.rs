@@ -5,13 +5,15 @@
 //! package.
 
 use anyhow::Result;
+use iota_sdk_move_types::stardust::{
+    expiration_unlock_condition::ExpirationUnlockCondition,
+    storage_deposit_return_unlock_condition::StorageDepositReturnUnlockCondition,
+    timelock_unlock_condition::TimelockUnlockCondition,
+};
 use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use super::unlock_conditions::{
-    ExpirationUnlockCondition, StorageDepositReturnUnlockCondition, TimelockUnlockCondition,
-};
 use crate::{balance::Balance, collection_types::Bag, error::IotaError, id::UID, object::Object};
 
 pub const BASIC_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("basic_output");

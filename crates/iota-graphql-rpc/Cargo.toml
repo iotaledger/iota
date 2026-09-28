@@ -29,6 +29,7 @@ hex.workspace = true
 http.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 once_cell.workspace = true
 reqwest.workspace = true
 serde.workspace = true

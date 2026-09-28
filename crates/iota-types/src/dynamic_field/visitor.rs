@@ -243,16 +243,13 @@ fn extract_name_layout(
 mod tests {
     use std::str::FromStr;
 
+    use iota_sdk_move_types::iota_framework::{dynamic_field::Field, object::UID};
     use move_core_types::{
         account_address::AccountAddress, annotated_value as A, language_storage::TypeTag,
     };
 
     use super::*;
-    use crate::{
-        dynamic_field,
-        id::UID,
-        object::bounded_visitor::tests::{enum_, layout_, value_, variant_},
-    };
+    use crate::object::bounded_visitor::tests::{enum_, layout_, value_, variant_};
 
     #[test]
     fn test_dynamic_field_name() {
@@ -502,7 +499,7 @@ mod tests {
     }
 
     fn serialized_df(id: &str, name: A::MoveValue, value: A::MoveValue) -> Vec<u8> {
-        bcs::to_bytes(&dynamic_field::Field {
+        bcs::to_bytes(&Field {
             id: UID::new(oid_(id)),
             name: name.undecorate(),
             value: value.undecorate(),

@@ -11,14 +11,12 @@ use std::{
 use anyhow::Result;
 use bcs;
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaObjectDataOptions};
+use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Ed25519PublicKey, ObjectId, crypto::PublicKeyExt as _};
 use iota_tls::Allower;
-use iota_types::{
-    dynamic_field::Field,
-    iota_system_state::{
-        iota_system_state_inner_v1::ValidatorV1,
-        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-    },
+use iota_types::iota_system_state::{
+    iota_system_state_inner_v1::ValidatorV1,
+    iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
 };
 use itertools::Itertools;
 use tracing::{debug, error, info};
