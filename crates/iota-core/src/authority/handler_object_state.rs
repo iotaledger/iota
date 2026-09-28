@@ -46,9 +46,11 @@
 //! - the quarantine flush of a commit's output (once its checkpoint is certified and executed):
 //!   inserts the commit's handler-processed rows atomically with `last_consensus_stats`, and drains
 //!   the queued sync-record deletions ([`HandlerObjectState::write_commit_rows_to_batch`]);
-//! - the checkpoint executor's auxiliary batch for a sync-executed checkpoint, durable before the
-//!   watermark bump: inserts sync-ahead records and sheltered bytes
-//!   ([`HandlerObjectState::write_sync_ahead_rows_to_batch`]).
+//! - the checkpoint executor's auxiliary batch for every executed checkpoint, durable before the
+//!   checkpoint's outputs and its watermark bump: inserts the handler-processed rows, sync-ahead
+//!   records and sheltered bytes its executions left in the overlays
+//!   ([`HandlerObjectState::write_checkpoint_rows_to_batch`]), so an object is never durable
+//!   without its row or record.
 //!
 //! Both batches go through `DBBatch::write`, which does not fsync. Every
 //! ordering this module relies on between a durable write and what follows
@@ -59,7 +61,7 @@
 //! lose its tail independently of the other.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -346,6 +348,32 @@ pub struct AssignedCommit {
     /// The commit's roots: the same keys written to its pending checkpoints,
     /// cancelled transactions included.
     pub roots: Vec<TransactionKey>,
+}
+
+/// The entries of `overlay` at `keys`, skipping absent ones.
+fn present_entries<K: Ord, V: Clone>(
+    overlay: &RwLock<BTreeMap<K, V>>,
+    keys: impl IntoIterator<Item = K>,
+) -> Vec<(K, V)> {
+    let overlay = overlay.read();
+    keys.into_iter()
+        .filter_map(|key| overlay.get(&key).cloned().map(|value| (key, value)))
+        .collect()
+}
+
+/// A checkpoint's bookkeeping entries; see
+/// [`HandlerObjectState::checkpoint_rows`].
+#[derive(Debug, Default)]
+pub struct CheckpointRows {
+    pub handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
+    pub sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
+    pub shelter_rows: Vec<(ObjectKey, Object)>,
+}
+
+impl CheckpointRows {
+    pub fn is_empty(&self) -> bool {
+        self.handler_rows.is_empty() && self.sync_rows.is_empty() && self.shelter_rows.is_empty()
+    }
 }
 
 /// A commit whose rows a quarantine flush staged into its batch. The flush
@@ -754,62 +782,101 @@ impl HandlerObjectState {
         self.sync_ahead_record_deletions
             .lock()
             .retain(|_, &mut index| index > commit_index);
-        {
-            let mut overlay = self.handler_processed_overlay.write();
-            for (key, _) in handler_rows {
-                overlay.remove(key);
-            }
-            self.metrics
-                .handler_object_state_handler_processed_overlay_entries
-                .set(overlay.len() as i64);
-        }
+        self.remove_handler_overlay_rows(handler_rows);
         // Last, so a validation released by the signal finds the rows.
         self.advance_highest_fully_executed_commit(commit_index);
     }
 
-    /// Stages a sync-executed checkpoint's records and sheltered bytes into
-    /// `batch` - the checkpoint executor's auxiliary batch, durable before
-    /// the executed-checkpoint watermark bump that lets the pruner delete the
-    /// consumed versions' perpetual rows. After the batch is durably written
-    /// (never before), pass the same rows to
-    /// [`Self::evict_flushed_sync_ahead_rows`].
+    /// The bookkeeping entries the executions behind `effects` left in the
+    /// overlays: the handler row at every key the execution hook could have
+    /// written, the sync-ahead record of every object they wrote, and the
+    /// sheltered bytes of every owned input they consumed.
+    pub fn checkpoint_rows<'a>(
+        &self,
+        effects: impl IntoIterator<Item = &'a TransactionEffects>,
+    ) -> CheckpointRows {
+        let find_handler_rows = !self.handler_processed_overlay.read().is_empty();
+        // Both empty on a healthy validator, which then skips deriving their
+        // keys.
+        let find_sync_rows = !self.sync_ahead_overlay.read().is_empty();
+        let find_shelter_rows = !self.sheltered_overlay.read().is_empty();
+        if !(find_handler_rows || find_sync_rows || find_shelter_rows) {
+            return CheckpointRows::default();
+        }
+        let mut handler_keys = Vec::new();
+        let mut shelter_keys = Vec::new();
+        for effects in effects {
+            // Only the keys are used; the rows' commit index comes from the
+            // overlay.
+            handler_keys.extend(
+                handler_processed_upserts(effects, 0)
+                    .into_iter()
+                    .map(|(key, _)| key),
+            );
+            if find_shelter_rows {
+                shelter_keys.extend(consumed_input_keys_to_shelter(
+                    &effects.old_object_metadata(),
+                ));
+            }
+        }
+        // `sync_ahead_writes` covers the same objects as the handler rows: the
+        // two differ only on unwrapping into a shared object, which cannot
+        // happen.
+        let sync_ids: BTreeSet<ObjectId> = if find_sync_rows {
+            handler_keys.iter().map(|key| key.0).collect()
+        } else {
+            BTreeSet::new()
+        };
+        CheckpointRows {
+            handler_rows: present_entries(&self.handler_processed_overlay, handler_keys),
+            sync_rows: present_entries(&self.sync_ahead_overlay, sync_ids),
+            shelter_rows: present_entries(&self.sheltered_overlay, shelter_keys),
+        }
+    }
+
+    /// Stages a checkpoint's bookkeeping entries into `batch`, the checkpoint
+    /// executor's auxiliary batch. After the batch is durably written (never
+    /// before), pass the same rows to [`Self::evict_flushed_checkpoint_rows`].
     ///
-    /// These writes carry no version guard: the caller must flush checkpoints
-    /// in order, one at a time (the checkpoint executor does), or an older
-    /// record could overwrite a newer durable one.
-    pub fn write_sync_ahead_rows_to_batch(
+    /// Sync-ahead records carry no version guard: the caller must flush
+    /// checkpoints in order, one at a time (the checkpoint executor does), or
+    /// an older record could overwrite a newer durable one. Handler rows and
+    /// sheltered bytes never change once written for a key.
+    pub fn write_checkpoint_rows_to_batch(
         &self,
         tables: &AuthorityEpochTables,
         batch: &mut DBBatch,
-        sync_rows: &[(ObjectId, SyncAheadRecord)],
-        shelter_rows: &[(ObjectKey, Object)],
+        rows: &CheckpointRows,
     ) -> IotaResult {
         batch.insert_batch(
+            &tables.handler_processed_objects,
+            rows.handler_rows.iter().map(|(key, row)| (key, row)),
+        )?;
+        batch.insert_batch(
             &tables.sync_ahead_records,
-            sync_rows.iter().map(|(id, record)| (id, record)),
+            rows.sync_rows.iter().map(|(id, record)| (id, record)),
         )?;
         batch.insert_batch(
             &tables.sheltered_objects,
-            shelter_rows.iter().map(|(key, object)| (key, object)),
+            rows.shelter_rows.iter().map(|(key, object)| (key, object)),
         )?;
         Ok(())
     }
 
-    /// Evicts sync-ahead overlay entries once their rows are durable. Must
-    /// cover the checkpoint's full derived row set - including keys the write
-    /// skipped as already present - because a replay after a crash re-inserts
-    /// overlay entries for rows that are already durable, and this recurring
-    /// eviction is what clears them. An entry extended since the flush is
-    /// kept; shelter rows are immutable per key, so no such check is needed
-    /// there.
-    pub fn evict_flushed_sync_ahead_rows(
-        &self,
-        sync_rows: &[(ObjectId, SyncAheadRecord)],
-        shelter_rows: &[(ObjectKey, Object)],
-    ) {
-        {
+    /// Evicts a checkpoint's bookkeeping entries from the overlays once their
+    /// rows are durable. A sync-ahead record extended since it was read is
+    /// kept; handler rows and sheltered bytes are immutable per key, so no
+    /// such check is needed for them.
+    ///
+    /// A handler row evicted here may be inserted again by its commit's
+    /// completion, with the same value; the commit's flush evicts it then. A
+    /// replay after a crash re-inserts entries whose rows are already durable,
+    /// and re-running this for the re-executed checkpoint clears them.
+    pub fn evict_flushed_checkpoint_rows(&self, rows: &CheckpointRows) {
+        self.remove_handler_overlay_rows(&rows.handler_rows);
+        if !rows.sync_rows.is_empty() {
             let mut overlay = self.sync_ahead_overlay.write();
-            for (id, record) in sync_rows {
+            for (id, record) in &rows.sync_rows {
                 if overlay.get(id) == Some(record) {
                     overlay.remove(id);
                 }
@@ -818,16 +885,31 @@ impl HandlerObjectState {
                 .handler_object_state_sync_ahead_overlay_entries
                 .set(overlay.len() as i64);
         }
-        let mut overlay = self.sheltered_overlay.write();
-        for (key, _) in shelter_rows {
-            if let Some(object) = overlay.remove(key) {
-                self.metrics
-                    .handler_object_state_sheltered_overlay_bytes
-                    .sub(object.object_size_for_gas_metering() as i64);
+        if !rows.shelter_rows.is_empty() {
+            let mut overlay = self.sheltered_overlay.write();
+            for (key, _) in &rows.shelter_rows {
+                if let Some(object) = overlay.remove(key) {
+                    self.metrics
+                        .handler_object_state_sheltered_overlay_bytes
+                        .sub(object.object_size_for_gas_metering() as i64);
+                }
             }
+            self.metrics
+                .handler_object_state_sheltered_overlay_entries
+                .set(overlay.len() as i64);
+        }
+    }
+
+    fn remove_handler_overlay_rows(&self, rows: &[(ObjectKey, HandlerProcessedObject)]) {
+        if rows.is_empty() {
+            return;
+        }
+        let mut overlay = self.handler_processed_overlay.write();
+        for (key, _) in rows {
+            overlay.remove(key);
         }
         self.metrics
-            .handler_object_state_sheltered_overlay_entries
+            .handler_object_state_handler_processed_overlay_entries
             .set(overlay.len() as i64);
     }
 
@@ -965,9 +1047,9 @@ impl HandlerObjectState {
             }
         }
         // A replay after a crash may re-insert rows that are already durable;
-        // that is fine - the checkpoint executor's persist step re-runs on the
-        // same replay and evicts them again, and the bytes are identical
-        // either way.
+        // that is fine - the checkpoint's auxiliary batch re-runs on the same
+        // replay and evicts them again, and the bytes are identical either
+        // way.
         let mut overlay = self.sheltered_overlay.write();
         for (key, object) in rows {
             let size = object.object_size_for_gas_metering();
@@ -1012,10 +1094,9 @@ impl HandlerObjectState {
                 overlay.remove(&key.0);
                 // Queue the durable deletion even when the record was found
                 // only in the overlay: an extended record leaves its older
-                // durable row behind, and the checkpoint executor's persist
-                // step (which derives rows from effects, not the overlay) can
-                // still write this record after the removal. Deleting a key
-                // that never became durable is a no-op.
+                // durable row behind, and a checkpoint's auxiliary batch that
+                // read the record before this removal can still write it
+                // after. Deleting a key that never became durable is a no-op.
                 if deletions.insert(key.0, index).is_none() {
                     self.live_sync_ahead_records_count
                         .fetch_sub(1, Ordering::Relaxed);
