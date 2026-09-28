@@ -323,7 +323,7 @@ impl BaseCommitter {
                 let mut any_cert = false;
                 let mut any_strong = false;
                 for potential_certificate in &potential_certificates {
-                    let (is_cert, is_strong) = self.cached_certificate(
+                    let (is_cert, is_strong) = self.classify_certificate_cached(
                         potential_certificate,
                         &leader_block,
                         &vote_refs,
@@ -448,7 +448,7 @@ impl BaseCommitter {
         let mut enough_support = false;
         let mut strong_qc_quorum = false;
         for decision_block in decision_blocks {
-            let (is_cert, is_strong) = self.cached_certificate(
+            let (is_cert, is_strong) = self.classify_certificate_cached(
                 decision_block,
                 leader_block,
                 &vote_refs,
@@ -505,7 +505,7 @@ impl BaseCommitter {
     }
 
     /// `classify_certificate` memoized per (certifying block, leader block).
-    fn cached_certificate(
+    fn classify_certificate_cached(
         &mut self,
         potential_certificate: &VerifiedBlockHeader,
         leader_block: &VerifiedBlockHeader,
