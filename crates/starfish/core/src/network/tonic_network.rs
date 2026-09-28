@@ -1227,6 +1227,17 @@ const TIMEOUT_EXEMPT_PATHS: &[&str] = &["/consensus.ConsensusService/SubscribeBl
 /// headroom for a reconnect whose predecessor has not been reaped yet.
 const MAX_CONNECTIONS_PER_PEER: usize = 4;
 
+/// Time a bounded RPC has to deliver its request message after its headers;
+/// a request still waiting for it is answered with `DEADLINE_EXCEEDED`, which
+/// releases its admission slot. Requests are at most
+/// `max_request_message_size`, so any working link delivers them well within
+/// this. Paths in `TIMEOUT_EXEMPT_PATHS` carry client streams and are exempt.
+#[cfg(not(test))]
+const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Long enough that `request_timeout` still cuts the tests that rely on it.
+#[cfg(test)]
+const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
+
 impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
         Self {
@@ -1313,10 +1324,9 @@ impl<S: NetworkService> TonicManager<S> {
             .max_decoding_message_size(config.request_message_size_limit())
             .send_compressed(CompressionEncoding::Zstd)
             .accept_compressed(CompressionEncoding::Zstd);
-        // A zero `request_message_timeout` disables the request-message deadline.
         let consensus_service_server = RequestMessageTimeout::new(
             consensus_service_server,
-            (!config.request_message_timeout.is_zero()).then_some(config.request_message_timeout),
+            REQUEST_MESSAGE_TIMEOUT,
             TIMEOUT_EXEMPT_PATHS,
         );
 
@@ -2628,7 +2638,6 @@ mod tests {
         use super::{FetchBlockHeadersRequest, FetchBlockHeadersResponse, TonicManager};
         use crate::network::{NetworkClient as _, test_network::TestService};
 
-        const MESSAGE_TIMEOUT: Duration = Duration::from_millis(500);
         const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
         let (context, keys) = Context::new_for_test(4);
@@ -2640,7 +2649,6 @@ mod tests {
             .admission
             .max_header_fetches_per_peer = 1;
         server_context.parameters.tonic.request_timeout = REQUEST_TIMEOUT;
-        server_context.parameters.tonic.request_message_timeout = MESSAGE_TIMEOUT;
         let server_context = Arc::new(server_context);
         let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
         server

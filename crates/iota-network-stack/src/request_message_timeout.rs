@@ -21,17 +21,16 @@ type BoxError = Box<dyn std::error::Error + Send + Sync>;
 /// Fails a request whose body has not fully arrived within `timeout` of its
 /// headers with `DEADLINE_EXCEEDED`, so a peer cannot keep a request open by
 /// withholding its message. Requests on `exempt_paths` pass through untouched;
-/// they carry client streams that stay open by design. A `None` timeout
-/// disables the deadline.
+/// they carry client streams that stay open by design.
 #[derive(Debug, Clone)]
 pub struct RequestMessageTimeout<S> {
     inner: S,
-    timeout: Option<Duration>,
+    timeout: Duration,
     exempt_paths: &'static [&'static str],
 }
 
 impl<S> RequestMessageTimeout<S> {
-    pub fn new(inner: S, timeout: Option<Duration>, exempt_paths: &'static [&'static str]) -> Self {
+    pub fn new(inner: S, timeout: Duration, exempt_paths: &'static [&'static str]) -> Self {
         Self {
             inner,
             timeout,
@@ -53,11 +52,7 @@ where
     }
 
     fn call(&mut self, request: Request<B>) -> Self::Future {
-        let timeout = if self.exempt_paths.contains(&request.uri().path()) {
-            None
-        } else {
-            self.timeout
-        };
+        let timeout = (!self.exempt_paths.contains(&request.uri().path())).then_some(self.timeout);
         self.inner
             .call(request.map(|body| TimedRequestBody::new(body, timeout)))
     }
@@ -175,7 +170,7 @@ mod tests {
 
     #[tokio::test]
     async fn withheld_message_fails_with_deadline_exceeded() {
-        let mut service = RequestMessageTimeout::new(Echo, Some(TIMEOUT), EXEMPT);
+        let mut service = RequestMessageTimeout::new(Echo, TIMEOUT, EXEMPT);
         let body = service
             .call(request("/pkg.Svc/Unary", Withheld))
             .await
@@ -189,7 +184,7 @@ mod tests {
 
     #[tokio::test]
     async fn withheld_message_on_an_exempt_path_stays_open() {
-        let mut service = RequestMessageTimeout::new(Echo, Some(TIMEOUT), EXEMPT);
+        let mut service = RequestMessageTimeout::new(Echo, TIMEOUT, EXEMPT);
         let body = service
             .call(request("/pkg.Svc/Stream", Withheld))
             .await
@@ -204,7 +199,7 @@ mod tests {
 
     #[tokio::test]
     async fn message_that_arrives_in_time_passes_through() {
-        let mut service = RequestMessageTimeout::new(Echo, Some(TIMEOUT), EXEMPT);
+        let mut service = RequestMessageTimeout::new(Echo, TIMEOUT, EXEMPT);
         let body = service
             .call(request(
                 "/pkg.Svc/Unary",
