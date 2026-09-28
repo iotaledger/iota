@@ -1939,34 +1939,39 @@ impl AuthorityPerEpochStore {
             Err(IotaError::EpochEnded(_)) => return Ok(()),
             Err(e) => return Err(e),
         };
-        // No quarantine lock: the flushes that could conflict - writing rows
-        // or deleting records for these transactions - belong to commits
-        // whose roots are in this checkpoint or a later one, and none can run
-        // before the quarantine's executed watermark reaches this checkpoint,
-        // which only `handle_finalized_checkpoint` moves, after this call.
-        let rows = self.handler_object_state.checkpoint_rows(effects);
-        self.write_and_evict_checkpoint_rows(&tables, &rows)
+        self.write_and_evict_checkpoint_rows(&tables, |state| state.checkpoint_rows(effects))
     }
 
-    /// Writes `rows` durably, then evicts them from the overlays - the order
-    /// that keeps a reader from finding an entry in neither.
+    /// Snapshots the rows with `rows`, writes them durably, then evicts them
+    /// from the overlays - the order that keeps a reader from finding an
+    /// entry in neither.
+    ///
+    /// All three steps run under the quarantine read lock. A quarantine
+    /// flush stages the sync-record deletions its commit queued and writes
+    /// the batch under the write lock; a record recreated after the staging
+    /// cancels its queued deletion too late for that batch. This write
+    /// therefore lands either before the staging, when the cancellation
+    /// reaches the batch, or after the flush, when the delete precedes it.
+    /// In between, the batch would delete the record just written.
     fn write_and_evict_checkpoint_rows(
         &self,
         tables: &AuthorityEpochTables,
-        rows: &handler_object_state::CheckpointRows,
+        rows: impl FnOnce(&HandlerObjectState) -> handler_object_state::CheckpointRows,
     ) -> IotaResult {
+        let _quarantine = self.consensus_quarantine.read();
+        let rows = rows(&self.handler_object_state);
         if rows.is_empty() {
             return Ok(());
         }
         let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state
-            .write_checkpoint_rows_to_batch(tables, &mut batch, rows)?;
+            .write_checkpoint_rows_to_batch(tables, &mut batch, &rows)?;
         batch.write()?;
         // Lets a test crash the node with the bookkeeping durable and the
         // checkpoint's outputs not.
         fail_point!("crash-after-checkpoint-bookkeeping-write");
         self.handler_object_state
-            .evict_flushed_checkpoint_rows(rows);
+            .evict_flushed_checkpoint_rows(&rows);
         Ok(())
     }
 
@@ -2000,16 +2005,30 @@ impl AuthorityPerEpochStore {
 
     /// Durably writes `handler_rows` with commit `commit_index`'s queued
     /// sync-record deletions, then evicts the rows from the overlay - the
-    /// quarantine flush's write-then-evict order, without its row derivation
-    /// or its completion of the commit. Tests of the flush itself use
-    /// [`Self::flush_commit_through_quarantine_for_testing`].
+    /// quarantine flush's locking and write-then-evict order, without its row
+    /// derivation or its completion of the commit. Tests of the flush itself
+    /// use [`Self::flush_commit_through_quarantine_for_testing`].
     #[cfg(test)]
     pub fn flush_commit_rows_for_testing(
         &self,
         commit_index: CommitIndex,
         handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
     ) -> IotaResult {
+        self.flush_commit_rows_interleaved_for_testing(commit_index, handler_rows, || {})
+    }
+
+    /// [`Self::flush_commit_rows_for_testing`] with `between` run once the
+    /// rows and deletions are staged and before the batch is written, still
+    /// under the quarantine write lock.
+    #[cfg(test)]
+    pub fn flush_commit_rows_interleaved_for_testing(
+        &self,
+        commit_index: CommitIndex,
+        handler_rows: Vec<(ObjectKey, HandlerProcessedObject)>,
+        between: impl FnOnce(),
+    ) -> IotaResult {
         let tables = self.tables()?;
+        let _quarantine = self.consensus_quarantine.write();
         let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state.write_commit_rows_to_batch(
             commit_index,
@@ -2017,6 +2036,7 @@ impl AuthorityPerEpochStore {
             &mut batch,
             &handler_rows,
         )?;
+        between();
         batch.write()?;
         self.handler_object_state
             .evict_flushed_commit_rows(commit_index, &handler_rows);
@@ -2059,7 +2079,7 @@ impl AuthorityPerEpochStore {
             shelter_rows,
         };
         let tables = self.tables()?;
-        self.write_and_evict_checkpoint_rows(&tables, &rows)
+        self.write_and_evict_checkpoint_rows(&tables, |_| rows)
     }
 
     /// Flushes commit `index` out of the consensus quarantine through the
