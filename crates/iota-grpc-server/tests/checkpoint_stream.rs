@@ -9,7 +9,9 @@ use std::{
 
 use common::MockGrpcStateReader;
 use iota_config::node::GrpcApiConfig;
-use iota_grpc_client::{CheckpointStreamItem, Client, read_mask_fields::CheckpointResponseField};
+use iota_grpc_client::{
+    CheckpointStreamItem, GrpcClient, read_mask_fields::CheckpointResponseField,
+};
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::{
     read_mask_fields::CheckpointResponseReadMask,
@@ -141,7 +143,7 @@ async fn test_server_and_client_setup_with_large_checkpoints<
     client_max_message_size_bytes: Option<u32>,
 ) -> (
     GrpcServerHandle,
-    Client,
+    GrpcClient,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
     let mut mock = MockGrpcStateReader::new_from_iter(checkpoint_range);
@@ -162,7 +164,7 @@ async fn test_server_and_client_setup_with_large_checkpoints<
     .await
 }
 
-/// Set up a test server and high-level `Client` with a set of available
+/// Set up a test server and high-level `GrpcClient` with a set of available
 /// checkpoint sequence numbers.
 async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     checkpoint_range: I,
@@ -171,7 +173,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     client_max_message_size_bytes: Option<u32>,
 ) -> (
     GrpcServerHandle,
-    Client,
+    GrpcClient,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
     let mock = mock_state_reader
@@ -182,7 +184,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
 
     let server_addr = server_handle.address();
     let mut client =
-        Client::new(format!("http://{server_addr}")).expect("Failed to connect to gRPC server");
+        GrpcClient::new(format!("http://{server_addr}")).expect("Failed to connect to gRPC server");
 
     if let Some(max_size) = client_max_message_size_bytes {
         client = client.with_max_decoding_message_size(usize::try_from(max_size).unwrap());
@@ -1153,7 +1155,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
     .await;
     let addr = server_handle.address();
 
-    // Use the raw tonic client instead of the high-level Client so we can
+    // Use the raw tonic client instead of the high-level GrpcClient so we can
     // inspect individual streamed CheckpointData messages and verify their
     // sizes. The high-level client reassembles them into a single response.
     let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
@@ -1228,7 +1230,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     .await;
     let addr = server_handle.address();
 
-    // Use the raw tonic client instead of the high-level Client so we can
+    // Use the raw tonic client instead of the high-level GrpcClient so we can
     // inspect individual streamed CheckpointData messages and verify their
     // sizes. The high-level client reassembles them into a single response.
     let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))

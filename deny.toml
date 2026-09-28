@@ -82,10 +82,9 @@ ignore = [
   "RUSTSEC-2026-0195",
   # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
   # its `bitmaps` dependency. Only reachable through `fastcrypto-zkp`; remove
-  # once that switches to `imbl`.
+  # all three once that switches to `imbl`.
   "RUSTSEC-2026-0248",
   "RUSTSEC-2026-0251",
-  # `bitmaps` is also pulled in by `imbl-sized-chunks`
   "RUSTSEC-2026-0247",
   # `clear_on_drop` is unmaintained. Only reachable through `bulletproofs`,
   # pinned by `fastcrypto`; neither has a newer release that drops it.

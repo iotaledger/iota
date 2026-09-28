@@ -5,7 +5,7 @@
 use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use iota_grpc_client::{Client, read_mask_fields::ObjectField};
+use iota_grpc_client::{GrpcClient, read_mask_fields::ObjectField};
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
@@ -67,11 +67,11 @@ impl PackageStoreTables {
 #[derive(Clone)]
 pub struct LocalDBPackageStore {
     package_store_tables: Arc<PackageStoreTables>,
-    fallback_client: Client,
+    fallback_client: GrpcClient,
 }
 
 impl LocalDBPackageStore {
-    pub fn new(path: &Path, client: Client) -> Self {
+    pub fn new(path: &Path, client: GrpcClient) -> Self {
         Self {
             package_store_tables: PackageStoreTables::new(path),
             fallback_client: client,

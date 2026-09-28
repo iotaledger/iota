@@ -6,14 +6,11 @@ use std::{str::FromStr, time::Duration};
 
 use iota_config::{IOTA_CLIENT_CONFIG, iota_config_dir};
 use iota_faucet::FaucetError;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{ObjectId, crypto::Intent};
-use iota_types::{
-    gas_coin::GasCoin, quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionEnvelope,
-};
+use iota_sdk_transaction_builder::WaitForTransaction;
+use iota_sdk_types::ObjectId;
+use iota_types::gas_coin::GasCoin;
 use tracing::info;
 
 #[tokio::main]
@@ -49,29 +46,18 @@ async fn _split_coins_equally(
     let active_address = wallet
         .active_address()
         .map_err(|err| FaucetError::Wallet(err.to_string()))?;
-    let client = wallet.get_client().await?;
+    let client = wallet.get_grpc_client().await?;
     let coin_object_id = ObjectId::from_str(gas_coin).unwrap();
-    let tx_data = client
-        .transaction_builder()
-        .split_coin_equal(active_address, coin_object_id, count, None, 50000000000)
-        .await?;
 
-    let signature = wallet
-        .config()
-        .keystore()
-        .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
-        .unwrap();
-    let tx = TransactionEnvelope::from_data(tx_data, vec![signature]);
-    let resp = client
-        .quorum_driver_api()
-        .execute_transaction_block(
-            tx.clone(),
-            IotaTransactionBlockResponseOptions::new().with_effects(),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await?;
+    let mut builder = client.transaction_builder(active_address);
+    builder.divide_coin(coin_object_id, count);
+    builder.gas_budget(50000000000);
 
-    println!("{resp:?}");
+    let signer = wallet.config().keystore().get_key(&active_address)?;
+    let effects = builder
+        .execute(signer.as_keypair()?, WaitForTransaction::Finalized)
+        .await?;
+    println!("{effects:?}");
     Ok(())
 }
 
@@ -79,7 +65,7 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
     let active_address = wallet
         .active_address()
         .map_err(|err| FaucetError::Wallet(err.to_string()))?;
-    let client = wallet.get_client().await?;
+    let client = wallet.get_grpc_client().await?;
     // Pick a gas coin here that isn't in use by the faucet otherwise there will be
     // some contention.
     let small_coins = wallet
@@ -93,6 +79,8 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
         .filter(|coin| coin.0.balance.value() <= 10000000000)
         .collect::<Vec<GasCoin>>();
 
+    let signer = wallet.config().keystore().get_key(&active_address)?;
+
     // Smash coins togethers 254 objects at a time
     for chunk in small_coins.chunks(254) {
         let total_balance: u64 = chunk.iter().map(|coin| coin.0.balance.value()).sum();
@@ -104,26 +92,17 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
 
         // prepend big gas coin instance to vector
         coin_vector.insert(0, ObjectId::from_str(gas_coin).unwrap());
-        let target = vec![active_address];
-        let target_amount = vec![total_balance];
 
-        let tx_data = client
-            .transaction_builder()
-            .pay_iota(active_address, coin_vector, target, target_amount, 1000000)
-            .await?;
-        let signature = wallet
-            .config()
-            .keystore()
-            .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
-            .unwrap();
-        let tx = TransactionEnvelope::from_data(tx_data, vec![signature]);
-        client
-            .quorum_driver_api()
-            .execute_transaction_block(
-                tx.clone(),
-                IotaTransactionBlockResponseOptions::new().with_effects(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-            )
+        // The coins pay for the transaction, so that gas smashing is what merges
+        // them, and the whole balance is split back to the sender.
+        let mut builder = client.transaction_builder(active_address);
+        builder
+            .pay_iota([(active_address, total_balance)])
+            .gas(coin_vector);
+        builder.gas_budget(1000000);
+
+        builder
+            .execute(signer.as_keypair()?, WaitForTransaction::Finalized)
             .await?;
     }
     Ok(())

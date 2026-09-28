@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 
 use crate::{
+    ingestion::common::persist::CommitterTables,
     models::{
         checkpoints::StoredCheckpoint,
         move_call_metrics::StoredMoveCallMetrics,
@@ -18,10 +19,26 @@ use crate::{
     types::IndexerResult,
 };
 
+/// The lowest epoch, checkpoint and transaction still available in a set of
+/// tables, taken from their pruning watermarks.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WatermarkLowerBounds {
+    pub min_available_epoch: i64,
+    pub min_available_cp: i64,
+    pub min_available_tx: i64,
+}
+
 /// Provides methods to get and persist metrics. Utility methods for calculating
 /// metrics are also provided.
 #[async_trait]
 pub trait IndexerAnalyticalStore {
+    /// Returns the lower bounds shared by all of `tables`, that is the highest
+    /// lower bound among them, so that a range starting there has rows in
+    /// every table.
+    async fn get_watermark_lower_bounds(
+        &self,
+        tables: &[CommitterTables],
+    ) -> IndexerResult<WatermarkLowerBounds>;
     async fn get_latest_stored_transaction(&self) -> IndexerResult<Option<StoredTransaction>>;
     async fn get_latest_stored_checkpoint(&self) -> IndexerResult<Option<StoredCheckpoint>>;
     async fn get_checkpoints_in_range(

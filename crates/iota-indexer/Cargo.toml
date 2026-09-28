@@ -26,6 +26,7 @@ downcast.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
 indicatif.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 itertools.workspace = true
 jsonrpsee.workspace = true
 moka.workspace = true

@@ -3,13 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use tap::tap::TapFallible;
-use tracing::{error, info};
+use tokio::time::sleep;
+use tracing::{error, info, warn};
 
 use crate::{
+    ingestion::common::persist::CommitterTables,
     metrics::IndexerMetrics,
+    processors::POLL_INTERVAL,
     store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
     types::IndexerResult,
 };
+
+const ADDRESS_METRICS_TABLES: &[CommitterTables] = &[
+    CommitterTables::Transactions,
+    CommitterTables::TxSenders,
+    CommitterTables::TxRecipients,
+];
 
 const ADDRESS_PROCESSOR_BATCH_SIZE: usize = 80000;
 const PARALLELISM: usize = 10;
@@ -48,6 +57,19 @@ where
             .await?;
         let mut last_processed_tx_seq = latest_tx_seq.unwrap_or_default().seq;
         loop {
+            // The database may not hold history back to the cursor, either because
+            // it was restored from a snapshot or because the pruner moved past it.
+            let lower_bounds = self
+                .store
+                .get_watermark_lower_bounds(ADDRESS_METRICS_TABLES)
+                .await?;
+            // The cursor is the last processed key and the batch starts right after it,
+            // so resume one below the first available key to include that key.
+            last_processed_tx_seq = last_processed_tx_seq.max(lower_bounds.min_available_tx - 1);
+            info!(
+                "starting address processor from lowest available transaction {last_processed_tx_seq}"
+            );
+
             let mut latest_tx = self.store.get_latest_stored_transaction().await?;
             while if let Some(tx) = latest_tx {
                 tx.tx_sequence_number
@@ -55,12 +77,26 @@ where
             } else {
                 true
             } {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                sleep(POLL_INTERVAL).await;
                 latest_tx = self.store.get_latest_stored_transaction().await?;
             }
 
-            let mut persist_tasks = vec![];
             let batch_size = self.address_processor_batch_size;
+            let batch_end_tx_seq = last_processed_tx_seq + batch_size as i64;
+
+            // Ensure the batch end exists in the database. This does not happen in
+            // normal circumstances: only an aggressive `pruning_delay_ms` can delete
+            // it, in which case the loop resumes from the new lower bound.
+            let Some(batch_end_tx) = self.store.get_tx(batch_end_tx_seq).await? else {
+                warn!(
+                    "transaction {batch_end_tx_seq} is not in the database, resuming from the lower bound"
+                );
+                sleep(POLL_INTERVAL).await;
+                continue;
+            };
+            let batch_end_cp_seq = batch_end_tx.checkpoint_sequence_number;
+
+            let mut persist_tasks = vec![];
             let step_size = batch_size / self.address_processor_parallelism;
             for chunk_start_tx_seq in (last_processed_tx_seq + 1
                 ..last_processed_tx_seq + batch_size as i64 + 1)
@@ -95,19 +131,12 @@ where
                 .latest_address_metrics_tx_seq
                 .set(last_processed_tx_seq);
 
-            let mut last_processed_tx = self.store.get_tx(last_processed_tx_seq).await?;
-            while last_processed_tx.is_none() {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                last_processed_tx = self.store.get_tx(last_processed_tx_seq).await?;
-            }
-            // unwrap is safe here b/c we just checked that it's not None
-            let last_processed_cp = last_processed_tx.unwrap().checkpoint_sequence_number;
             self.store
-                .calculate_and_persist_address_metrics(last_processed_cp)
+                .calculate_and_persist_address_metrics(batch_end_cp_seq)
                 .await?;
             info!(
                 "Persisted address metrics for checkpoint: {}",
-                last_processed_cp
+                batch_end_cp_seq
             );
         }
     }

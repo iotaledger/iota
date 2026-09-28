@@ -366,6 +366,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             // drop entries while we're iterating over the sequenced
             // transactions.
             let mut processed_set = HashSet::new();
+            let skipped_consensus_txns = &self.metrics.skipped_consensus_txns;
 
             for (seq, (transaction, cert_origin)) in transactions.into_iter().enumerate() {
                 // In process_consensus_transactions_and_commit_boundary(), we will add a system
@@ -393,19 +394,26 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                     transaction,
                 };
 
-                let key = sequenced_transaction.key();
-                let in_set = !processed_set.insert(key);
-                let in_cache = self
-                    .processed_cache
-                    .put(sequenced_transaction.key(), ())
-                    .is_some();
+                // Verify before deduplicating. The key is derived from identities the
+                // payload claims, so a rejected transaction must not be able to shadow a
+                // later valid one carrying the same key.
+                let Some(verified_transaction) = self
+                    .epoch_store
+                    .verify_consensus_transaction(sequenced_transaction, skipped_consensus_txns)
+                else {
+                    continue;
+                };
+
+                let key = verified_transaction.0.key();
+                let in_set = !processed_set.insert(key.clone());
+                let in_cache = self.processed_cache.put(key, ()).is_some();
 
                 if in_set || in_cache {
                     self.metrics.skipped_consensus_txns_cache_hit.inc();
                     continue;
                 }
 
-                all_transactions.push(sequenced_transaction);
+                all_transactions.push(verified_transaction);
             }
         }
 
@@ -1412,6 +1420,173 @@ mod tests {
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats, last_consensus_stats_2);
         }
+    }
+
+    /// Builds a commit in which every entry is a separate block authored by the
+    /// given committee index and carrying exactly one consensus transaction.
+    /// Blocks keep the given order, so callers control which entry the
+    /// handler sees first.
+    fn commit_with_transactions(
+        commit_index: u32,
+        round: u32,
+        entries: Vec<(u8, ConsensusTransaction)>,
+    ) -> CommittedSubDag {
+        let mut headers = Vec::new();
+        let mut subdag_transactions = Vec::new();
+        for (author, transaction) in entries {
+            let header =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
+            let tx_batch = CommitmentVerifiedTransactions::new_for_test(
+                &header,
+                vec![starfish_core::Transaction::new(
+                    bcs::to_bytes(&transaction).unwrap(),
+                )],
+            );
+            headers.push(header);
+            subdag_transactions.push(tx_batch);
+        }
+        let leader_header = headers[0].clone();
+        let committed_header_refs: Vec<_> = headers.iter().map(|h| h.reference()).collect();
+        CommittedSubDag::new(
+            leader_header.reference(),
+            headers,
+            committed_header_refs,
+            subdag_transactions,
+            leader_header.timestamp_ms(),
+            CommitRef::new(commit_index, CommitDigest::MIN),
+            vec![],
+            vec![],
+        )
+    }
+
+    /// A handler over a fresh authority plus the name of committee member 1,
+    /// used as the authority whose messages another block author impersonates.
+    async fn handler_with_impersonated_authority() -> (
+        Arc<AuthorityState>,
+        ConsensusHandler<CheckpointServiceNoop>,
+        AuthorityName,
+    ) {
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .committee_size(NonZeroUsize::new(4).unwrap())
+                .build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let consensus_committee = get_consensus_committee(epoch_store.epoch_start_state());
+        let impersonated = *epoch_store.committee().authority_by_index(1).unwrap();
+        let handler = ConsensusHandler::new(
+            epoch_store,
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            consensus_committee,
+            Arc::new(AuthorityMetrics::new(&Registry::new())),
+            BackpressureManager::new_for_tests().subscribe(),
+        );
+        (state, handler, impersonated)
+    }
+
+    /// An `EndOfPublish` naming authority B but committed in a block authored
+    /// by A is rejected. Its key must not shadow B's own `EndOfPublish` in a
+    /// later commit, otherwise a handler that ran continuously and one that
+    /// restarted in between would count different stake.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_rejected_end_of_publish_does_not_shadow_later_valid_one() {
+        telemetry_subscribers::init_for_testing();
+        let (state, mut handler, b) = handler_with_impersonated_authority().await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                10,
+                100,
+                vec![(0, ConsensusTransaction::new_end_of_publish(b))],
+            ))
+            .await;
+        assert!(!epoch_store.has_sent_end_of_publish(&b).unwrap());
+        assert!(
+            !epoch_store
+                .is_consensus_message_processed(&SequencedConsensusTransactionKey::External(
+                    ConsensusTransactionKey::EndOfPublish(b),
+                ))
+                .unwrap()
+        );
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                11,
+                101,
+                vec![(1, ConsensusTransaction::new_end_of_publish(b))],
+            ))
+            .await;
+        assert!(epoch_store.has_sent_end_of_publish(&b).unwrap());
+    }
+
+    /// Same as above, but the forged and the authentic `EndOfPublish` land in
+    /// one commit, with the forged one ordered first.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_rejected_end_of_publish_does_not_shadow_valid_one_in_same_commit() {
+        telemetry_subscribers::init_for_testing();
+        let (state, mut handler, b) = handler_with_impersonated_authority().await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                10,
+                100,
+                vec![
+                    (0, ConsensusTransaction::new_end_of_publish(b)),
+                    (1, ConsensusTransaction::new_end_of_publish(b)),
+                ],
+            ))
+            .await;
+        assert!(epoch_store.has_sent_end_of_publish(&b).unwrap());
+    }
+
+    /// The DKG message key is one per authority per epoch and has no nonce, so
+    /// a forged key is the cheapest way to suppress an authority's only DKG
+    /// message. The payload bytes are irrelevant here: the handler records the
+    /// key as processed whenever the message reaches the randomness manager.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_rejected_dkg_message_does_not_shadow_later_valid_one() {
+        telemetry_subscribers::init_for_testing();
+        let (state, mut handler, b) = handler_with_impersonated_authority().await;
+        let epoch_store = state.epoch_store_for_testing();
+        let dkg_message = |author: u8| {
+            (
+                author,
+                ConsensusTransaction {
+                    tracking_id: [0; 8],
+                    kind: ConsensusTransactionKind::RandomnessDkgMessage(b, vec![0xff]),
+                },
+            )
+        };
+        let key = SequencedConsensusTransactionKey::External(
+            ConsensusTransactionKey::RandomnessDkgMessage(b),
+        );
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                10,
+                100,
+                vec![dkg_message(0)],
+            ))
+            .await;
+        assert!(!epoch_store.is_consensus_message_processed(&key).unwrap());
+
+        handler
+            .handle_consensus_output_for_test(commit_with_transactions(
+                11,
+                101,
+                vec![dkg_message(1)],
+            ))
+            .await;
+        assert!(epoch_store.is_consensus_message_processed(&key).unwrap());
     }
 
     #[test]

@@ -47,7 +47,7 @@ struct ViewDemoPackage {
 /// behind local (`WaitForLocalExecution`) visibility.
 async fn publish_view_demo_package(
     test_cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_grpc_client::GrpcClient,
 ) -> ViewDemoPackage {
     let sender = first_sender(test_cluster);
 

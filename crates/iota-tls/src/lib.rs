@@ -210,6 +210,29 @@ mod tests {
     }
 
     #[test]
+    fn extra_certificates_are_rejected() {
+        let allowed_cert =
+            SelfSignedCertificate::new(Ed25519PrivateKey::random(), IOTA_VALIDATOR_SERVER_NAME);
+        let extra_cert =
+            SelfSignedCertificate::new(Ed25519PrivateKey::random(), IOTA_VALIDATOR_SERVER_NAME);
+
+        let verifier = ClientCertVerifier::new(AllowAll, IOTA_VALIDATOR_SERVER_NAME.to_string());
+
+        // An allowed cert followed by any other one fails validation
+        let err = verifier
+            .verify_client_cert(
+                &allowed_cert.rustls_certificate(),
+                &[extra_cert.rustls_certificate()],
+                UnixTime::now(),
+            )
+            .unwrap_err();
+        assert!(
+            matches!(err, rustls::Error::General(_)),
+            "Actual error: {err:?}"
+        );
+    }
+
+    #[test]
     fn invalid_server_name() {
         let private_key = Ed25519PrivateKey::random();
         let public_key = private_key.public_key();

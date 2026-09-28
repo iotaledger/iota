@@ -1907,7 +1907,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) {
-        let binary_config = to_binary_config(protocol_config);
+        let binary_config = to_binary_config(protocol_config, None);
         for SystemPackage {
             version,
             modules,

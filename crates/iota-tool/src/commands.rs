@@ -780,7 +780,7 @@ impl ToolCommand {
                 crate::fire_drill::run_fire_drill(fire_drill).await?;
             }
             ToolCommand::GrpcHealthCheck { address } => {
-                let client = iota_grpc_client::Client::new(address)?;
+                let client = iota_grpc_client::GrpcClient::new(address)?;
                 client.health(None).await?;
                 println!("OK");
             }

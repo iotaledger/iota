@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, time::Duration};
+use std::env;
 
 use anyhow::{Context, Result};
 use iota_data_ingestion_core::ReaderOptions;
@@ -17,7 +17,10 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     historical_fallback::reader::HistoricalFallbackReader,
-    ingestion::{common::connection::resolve_remote_url, primary::orchestration::PrimaryPipeline},
+    ingestion::{
+        common::connection::{MAX_URL_RESOLUTION_TIMEOUT, resolve_remote_url},
+        primary::orchestration::PrimaryPipeline,
+    },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
     pruning::{
@@ -28,9 +31,6 @@ use crate::{
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
     system_package_task::SystemPackageTask,
 };
-
-/// Maximum timeout for resolving the remote checkpoint source.
-const MAX_URL_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct Indexer;
 
@@ -187,12 +187,13 @@ impl Indexer {
     >(
         store: S,
         metrics: IndexerMetrics,
+        cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Analytical Worker (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
+        let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics, cancel);
         processor_orchestrator.run_forever().await;
         Ok(())
     }

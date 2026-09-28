@@ -52,13 +52,16 @@ use iota_types::{
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
-        CallArg, CancelledObjects, SenderSignedTransactionAPI,
+        CallArg, CancelledObjects, MAX_PROGRAMMABLE_TX_INPUTS, SenderSignedTransactionAPI,
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope, TransactionKey,
         VerifiedCertificate, VerifiedTransaction,
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
-    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
+    utils::{
+        assert_size_limit_err, ptb_above_max_tx_size, ptb_with_pure_inputs,
+        to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
+    },
 };
 use move_binary_format::{
     CompiledModule,
@@ -8575,4 +8578,58 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
             &previously_signed_sig,
         )
         .unwrap();
+}
+
+/// Simulates `transaction` under both `VmChecks` modes and asserts that each
+/// run is rejected by the size limit named by `limit_name`.
+#[track_caller]
+fn assert_simulation_rejects_for_size(
+    fullnode: &AuthorityState,
+    transaction: Transaction,
+    limit_name: &str,
+) {
+    for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+        let Err(error) = fullnode.simulate_transaction(transaction.clone(), checks) else {
+            panic!("{checks:?} should reject the transaction");
+        };
+        let IotaError::UserInput { error } = &error else {
+            panic!("unexpected error for {checks:?}: {error:?}");
+        };
+        assert_size_limit_err(error, limit_name);
+    }
+}
+
+#[tokio::test]
+async fn simulate_rejects_a_randomness_input_past_the_last_input_index() {
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+
+    // The randomness object sits at an index no `Argument::Input` can name.
+    // The payload is also above `max_tx_size_bytes`, so the size cap answers
+    // first; the input count itself is covered in iota-types.
+    let pt = ptb_with_pure_inputs(MAX_PROGRAMMABLE_TX_INPUTS + 1, 0, true);
+    let transaction =
+        Transaction::new_programmable(Address::random(), vec![], pt, 10_000_000, 1000);
+    assert_simulation_rejects_for_size(
+        &fullnode,
+        transaction,
+        "serialized transaction size exceeded maximum",
+    );
+}
+
+#[tokio::test]
+async fn simulate_rejects_a_transaction_above_the_size_limit() {
+    let (_validator, fullnode, _object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let pt = {
+        let epoch_store = fullnode.epoch_store_for_testing();
+        ptb_above_max_tx_size(epoch_store.protocol_config())
+    };
+    let transaction =
+        Transaction::new_programmable(Address::random(), vec![], pt, 10_000_000, 1000);
+    assert_simulation_rejects_for_size(
+        &fullnode,
+        transaction,
+        "serialized transaction size exceeded maximum",
+    );
 }

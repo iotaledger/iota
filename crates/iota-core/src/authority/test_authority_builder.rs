@@ -31,10 +31,7 @@ use crate::{
     authority::{
         AuthorityState, AuthorityStore,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_pruner::ObjectsCompactionFilter,
-        authority_store_tables::{
-            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
-        },
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         epoch_start_configuration::EpochStartConfiguration,
     },
     checkpoints::CheckpointStore,
@@ -230,26 +227,10 @@ impl<'a> TestAuthorityBuilder<'a> {
             .unwrap_or_else(|| iota_common::tempdir().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
         let registry = Registry::new();
-        let mut pruner_db = None;
-        if config
-            .authority_store_pruning_config
-            .enable_compaction_filter
-        {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
-                &storage_dir.join("store"),
-            )));
-        }
-        let compaction_filter = pruner_db
-            .clone()
-            .map(|db| ObjectsCompactionFilter::new(db, &registry));
-
         let authority_store = match self.store {
             Some(store) => store,
             None => {
-                let perpetual_tables_options = AuthorityPerpetualTablesOptions {
-                    compaction_filter,
-                    ..Default::default()
-                };
+                let perpetual_tables_options = AuthorityPerpetualTablesOptions::default();
                 let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
                     &storage_dir.join("store"),
                     Some(perpetual_tables_options),
@@ -392,7 +373,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             config.clone(),
             None,
             chain_identifier,
-            pruner_db,
             None,
             policy_config,
             firewall_config,

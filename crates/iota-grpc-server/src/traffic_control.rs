@@ -102,10 +102,8 @@ where
             .and_then(|info| info.remote_addr());
         let client = match get_client_ip(req.headers(), remote_addr, &self.client_id_source) {
             ClientIpStatus::Ok(ip) => Some(ip),
-            other => {
-                warn!(
-                    "Skipping traffic controller request handling for client {remote_addr:?}: {other:?}"
-                );
+            status => {
+                warn!("Request from {remote_addr:?}: {status}");
                 None
             }
         };

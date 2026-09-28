@@ -30,7 +30,7 @@ use crate::{
     backward_view::{HistoricalFilter, consistent, historical},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::Checkpointed,
+    consistency::{Checkpointed, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
     data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
     error::Error,
     filter, or_filter,
@@ -53,8 +53,7 @@ use crate::{
         move_package::MovePackage,
         owner::{Owner, OwnerImpl},
         stake::StakedIota,
-        transaction_block,
-        transaction_block::{TransactionBlock, TransactionBlockFilter},
+        transaction_block::{self, TransactionBlock, TransactionBlockFilter},
         type_filter::{ExactTypeFilter, TypeFilter},
         uint53::UInt53,
     },
@@ -239,10 +238,10 @@ pub(crate) struct HistoricalObjectCursor {
     object_id: Vec<u8>,
     /// The version of the object this cursor points at.
     #[serde(rename = "v")]
-    object_version: u64,
+    object_version: UInt53,
     /// The checkpoint sequence number this was viewed at.
     #[serde(rename = "c")]
-    checkpoint_viewed_at: u64,
+    checkpoint_viewed_at: UInt53,
 }
 
 /// Interface implemented by on-chain values that are addressable by an ID (also
@@ -1259,15 +1258,15 @@ impl HistoricalObjectCursor {
     pub(crate) fn new(object_id: Vec<u8>, object_version: u64, checkpoint_viewed_at: u64) -> Self {
         Self {
             object_id,
-            object_version,
-            checkpoint_viewed_at,
+            object_version: UInt53::new_unchecked(object_version),
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
         }
     }
 }
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        self.checkpoint_viewed_at.into()
     }
 }
 
@@ -1671,7 +1670,11 @@ impl Loader<OptimisticKey> for Db {
         let mut missing_keys = Vec::new();
         for key in keys {
             if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
-                let object = Object::try_from_stored_object(stored.clone(), u64::MAX, None)?;
+                let object = Object::try_from_stored_object(
+                    stored.clone(),
+                    UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
+                    None,
+                )?;
                 result.insert(*key, Ok(object));
             } else {
                 missing_keys.push(*key);
@@ -1685,7 +1688,7 @@ impl Loader<OptimisticKey> for Db {
                 .map(|key| HistoricalKey {
                     id: key.id,
                     version: key.version,
-                    checkpoint_viewed_at: u64::MAX,
+                    checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
                 })
                 .collect();
 

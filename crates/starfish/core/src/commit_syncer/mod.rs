@@ -95,16 +95,15 @@ impl CommitSyncType {
         }
     }
 
-    /// Maximum number of commits a peer may return in a single fetch response.
-    /// This is the bound `verify_commits` enforces and the same bound the
-    /// streaming fetch loop applies before buffering. Fast sync extends past
-    /// the requested range end to reach a  certifiable commit, so it accepts up
-    /// to twice the batch size; regular sync stays within one batch.
-    pub(crate) fn max_commits_per_response(&self, context: &Context) -> usize {
-        let batch_size = self.commit_sync_batch_size(context) as usize;
+    /// Maximum number of commits a peer may return for `commit_range`. This is
+    /// the bound `verify_commits` enforces and the same bound the streaming
+    /// fetch loop applies before buffering. Fast sync extends past the
+    /// requested range end to reach a certifiable commit, so it accepts up to
+    /// twice the requested range; regular sync stays within it.
+    pub(crate) fn max_commits_per_response(&self, commit_range: &CommitRange) -> usize {
         match self {
-            CommitSyncType::Fast => 2 * batch_size,
-            CommitSyncType::Regular => batch_size,
+            CommitSyncType::Fast => 2 * commit_range.size(),
+            CommitSyncType::Regular => commit_range.size(),
         }
     }
 

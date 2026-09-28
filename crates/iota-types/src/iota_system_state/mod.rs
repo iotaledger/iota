@@ -7,6 +7,9 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_move_types::{
+    iota_framework::dynamic_field::Field, iota_system::validator_wrapper::Validator,
+};
 use iota_sdk_types::{Identifier, MoveStruct, ObjectId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -20,12 +23,11 @@ use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemSta
 use crate::{
     MoveTypeTagTrait,
     committee::CommitteeWithNetworkMetadata,
-    dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
+    dynamic_field::{get_dynamic_field_from_store, get_dynamic_field_object_from_store},
     error::IotaError,
     id::UID,
     object::{MoveStructExt, Object},
     storage::ObjectStore,
-    versioned::Versioned,
 };
 
 // `EpochStartSystemState` pulls in anemo / starfish-config (consensus + p2p),
@@ -231,12 +233,13 @@ impl IotaSystemState {
     /// Intended for test fixtures that need a structurally valid system
     /// state to exercise BCS round-trip paths.
     pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
+        use iota_sdk_move_types::iota_framework::vec_map::VecMap;
         use iota_sdk_types::ObjectId;
 
         use crate::{
             balance::{Balance, Supply},
             coin::TreasuryCap,
-            collection_types::{Bag, Table, TableVec, VecMap},
+            collection_types::{Bag, Table, TableVec},
             gas_coin::IotaTreasuryCap,
             id::UID,
             iota_system_state::iota_system_state_inner_v1::{
@@ -518,11 +521,6 @@ impl PoolTokenExchangeRate {
             pool_token_amount,
         }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct Validator {
-    pub inner: Versioned,
 }
 
 #[derive(Debug)]

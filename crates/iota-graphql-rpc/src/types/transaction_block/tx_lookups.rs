@@ -212,19 +212,20 @@ impl TxBounds {
         };
 
         // If the cursors point outside checkpoint bounds, we can return early.
-        if matches!(page.after(), Some(a) if tx_hi <= a.tx_sequence_number.saturating_add(1)) {
+        if matches!(page.after(), Some(a) if tx_hi <= u64::from(a.tx_sequence_number).saturating_add(1))
+        {
             return Ok(None);
         }
 
-        if matches!(page.before(), Some(b) if b.tx_sequence_number <= tx_lo) {
+        if matches!(page.before(), Some(b) if u64::from(b.tx_sequence_number) <= tx_lo) {
             return Ok(None);
         }
 
         Ok(Some(Self {
             tx_lo,
             tx_hi,
-            cursor_lo_exclusive: page.after().map(|a| a.tx_sequence_number),
-            cursor_hi: page.before().map(|b| b.tx_sequence_number),
+            cursor_lo_exclusive: page.after().map(|a| a.tx_sequence_number.into()),
+            cursor_hi: page.before().map(|b| b.tx_sequence_number.into()),
             scan_limit,
             end: page.end(),
         }))
