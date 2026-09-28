@@ -51,7 +51,7 @@ use crate::{
         ExecutionWatcher, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
     },
     post_consensus_input_reader::{
-        DropKind, InputResolution, MissingKind, SharedVerdict, ValidationAtCommit,
+        DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
         reader::CommitIndexedReader,
     },
     post_consensus_validation,
@@ -2348,6 +2348,12 @@ impl BookkeepingSetup {
         )
     }
 
+    /// The commit-indexed reader's verdict for the owned input `reference`,
+    /// as of `commit_index`.
+    fn read_owned(&self, commit_index: CommitIndex, reference: ObjectReference) -> OwnedVerdict {
+        self.reader_at(commit_index).read_owned(reference).unwrap()
+    }
+
     /// The commit-indexed reader's verdict for shared input `id` declared at
     /// `initial_shared_version`, as of `commit_index`.
     fn read_shared(
@@ -4493,6 +4499,182 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
         }
         other => panic!("expected missing on the gas coin, got {other:?}"),
     }
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation reader: owned inputs
+// ---------------------------------------------------------------------------
+
+#[track_caller]
+fn assert_keeps(verdict: OwnedVerdict, reference: ObjectReference) {
+    match verdict {
+        OwnedVerdict::Keep(kept) => assert_eq!(kept.into_object().object_ref(), reference),
+        OwnedVerdict::Drop(reason) => panic!("expected keep, got drop {reason:?}"),
+        OwnedVerdict::Missing(reason) => panic!("expected keep, got missing {reason:?}"),
+    }
+}
+
+#[track_caller]
+fn assert_owned_missing(verdict: OwnedVerdict, kind: MissingKind) {
+    match verdict {
+        OwnedVerdict::Missing(reason) => assert_eq!(reason.kind(), kind),
+        OwnedVerdict::Keep(_) => panic!("expected missing, got keep"),
+        OwnedVerdict::Drop(reason) => panic!("expected missing, got drop {reason:?}"),
+    }
+}
+
+#[track_caller]
+fn assert_owned_drops(verdict: OwnedVerdict, kind: DropKind) {
+    match verdict {
+        OwnedVerdict::Drop(reason) => assert_eq!(reason.kind(), kind),
+        OwnedVerdict::Keep(_) => panic!("expected drop, got keep"),
+        OwnedVerdict::Missing(reason) => panic!("expected drop, got missing {reason:?}"),
+    }
+}
+
+/// A row at `produced_at = C - K` decides. One commit later it is above the
+/// horizon and answers missing.
+#[tokio::test]
+async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
+    s.execute_as_handler_known(vec![tx], 10);
+    let produced = s.latest_ref(&obj_id);
+
+    assert_keeps(s.read_owned(12, produced), produced);
+    assert_owned_missing(
+        s.read_owned(11, produced),
+        MissingKind::HandlerRowAboveHorizon,
+    );
+}
+
+/// The record restores a version the store no longer holds, and its bytes
+/// come from the shelter. The consumed object never reaches the store here,
+/// which is what a pruned version looks like to the keyed read.
+#[tokio::test]
+async fn owned_bytes_are_served_from_the_shelter_when_the_store_lacks_the_version() {
+    let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let consumed = Object::with_id_owner_version_for_testing(
+        ObjectId::random(),
+        Version::from_u64(3),
+        Owner::Address(sender),
+    );
+    let consumed_ref = consumed.object_ref();
+    let transaction = SenderSignedTransaction::new(
+        TestTransactionBuilder::new(sender, s.latest_ref(&gas_id), s.rgp)
+            .transfer_iota(None, sender)
+            .build(),
+        vec![],
+    );
+    let effects = TestEffectsBuilder::new(&transaction)
+        .with_mutated_objects([(
+            consumed_ref.object_id,
+            consumed_ref.version,
+            Owner::Address(sender),
+        )])
+        .build();
+    // The hook shelters every consumed input from the loaded inputs it is
+    // given, the gas coin included.
+    let loaded_inputs = std::collections::BTreeMap::from([
+        (consumed_ref.object_id, consumed),
+        (gas_id, s.authority.get_object(&gas_id).unwrap()),
+    ]);
+    s.epoch_store
+        .record_executed_transaction(
+            &TransactionKey::Digest(*effects.transaction_digest()),
+            &effects,
+            &loaded_inputs,
+        )
+        .unwrap();
+    assert!(
+        s.store_object(&consumed_ref.object_id, consumed_ref.version)
+            .is_none()
+    );
+    s.assert_sheltered(consumed_ref);
+
+    assert_keeps(s.read_owned(12, consumed_ref), consumed_ref);
+}
+
+/// An object the sync-ahead chain created answers missing at every commit:
+/// no other validator is required to have it.
+#[tokio::test]
+async fn owned_sync_created_object_answers_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let (created_ref, _) = s.create_object(&gas_id, sender, &sender_key);
+    assert_owned_missing(
+        s.read_owned(12, created_ref),
+        MissingKind::SyncAheadCreatedId,
+    );
+    assert_owned_missing(
+        s.read_owned(100, created_ref),
+        MissingKind::SyncAheadCreatedId,
+    );
+}
+
+/// Rule 3, the store fallback. Untouched epoch-start objects keep, owned or
+/// immutable. A version consumed by a handler-known commit drops as
+/// superseded, while the same consumption ahead of the handler keeps, since
+/// the record restores it.
+#[tokio::test]
+async fn owned_store_fallback_keeps_untouched_and_drops_superseded_versions() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let untouched_id = ObjectId::random();
+    let immutable_id = ObjectId::random();
+    let handler_consumed_id = ObjectId::random();
+    let sync_consumed_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(untouched_id, sender),
+            Object::immutable_with_id_for_testing(immutable_id),
+            Object::with_id_owner_for_testing(handler_consumed_id, sender),
+            Object::with_id_owner_for_testing(sync_consumed_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let untouched = s.latest_ref(&untouched_id);
+    let immutable = s.latest_ref(&immutable_id);
+    let handler_consumed = s.latest_ref(&handler_consumed_id);
+    let sync_consumed = s.latest_ref(&sync_consumed_id);
+
+    let tx = s.build_transfer(&handler_consumed_id, &gas_id, sender, &sender_key, sender);
+    s.execute_as_handler_known(vec![tx], 5);
+    s.transfer(&sync_consumed_id, &gas_id, sender, &sender_key, sender);
+
+    assert_keeps(s.read_owned(12, untouched), untouched);
+    assert_keeps(s.read_owned(12, immutable), immutable);
+    assert_owned_drops(
+        s.read_owned(12, handler_consumed),
+        DropKind::StoreSuperseded,
+    );
+    assert_keeps(s.read_owned(12, sync_consumed), sync_consumed);
 }
 
 // ---------------------------------------------------------------------------
