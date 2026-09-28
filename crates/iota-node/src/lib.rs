@@ -2606,6 +2606,39 @@ fn listener_connection_budget() -> usize {
     budget
 }
 
+/// How many connections one client may hold on the JSON-RPC listener, or
+/// `None` where the node config turns the limit off.
+///
+/// Zero is what turns it off: `iota_http::Config::validate` rejects a limit of
+/// zero, since a peer allowed no connection could never be served.
+fn json_rpc_connections_per_peer(config: &NodeConfig) -> Option<usize> {
+    /// Where the node config does not say. It is worth a limit because the
+    /// clients are not a known set, and one address may legitimately stand for
+    /// many of them — which a proxy or NAT that does not preserve the client
+    /// address makes true of every client at once.
+    const DEFAULT: usize = 64;
+
+    let per_peer = config.json_rpc_connections_per_peer.unwrap_or(DEFAULT);
+    (per_peer > 0).then_some(per_peer)
+}
+
+/// The bounds the JSON-RPC listener serves under.
+///
+/// Separate from the listener itself so that what it is configured with can be
+/// tested without a node to configure it from.
+fn json_rpc_listener_config(
+    max_connections: usize,
+    connections_per_peer: Option<usize>,
+    idle: Duration,
+    age: Duration,
+) -> iota_http::Config {
+    iota_http::Config::default()
+        .max_connection_idle(Some(idle))
+        .max_connection_age(Some(age))
+        .max_connections(Some(max_connections))
+        .max_connections_per_peer(connections_per_peer)
+}
+
 /// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
 /// API based on the node's configuration.
 ///
@@ -2718,7 +2751,7 @@ pub async fn build_http_server(
     // which also bounds the wait for the next request on a kept-alive
     // connection; this covers the HTTP/2 ones it does not reach.
     const JSON_RPC_IDLE: Duration = Duration::from_secs(300);
-    const JSON_RPC_CONNECTIONS_PER_PEER: usize = 64;
+
     // A request that has begun is not idle, so a client that sends headers and
     // then stalls its body holds a connection that neither the idle deadline
     // nor eviction can reclaim. These two bound that: the first is how long a
@@ -2736,10 +2769,17 @@ pub async fn build_http_server(
     let max_connections = config
         .json_rpc_max_connections
         .unwrap_or_else(listener_connection_budget);
-    info!(
-        "JSON-RPC listener will serve at most {max_connections} connections, \
-         {JSON_RPC_CONNECTIONS_PER_PEER} of them per peer"
-    );
+    let connections_per_peer = json_rpc_connections_per_peer(config);
+    match connections_per_peer {
+        Some(per_peer) => info!(
+            "JSON-RPC listener will serve at most {max_connections} connections, \
+             {per_peer} of them per peer"
+        ),
+        None => info!(
+            "JSON-RPC listener will serve at most {max_connections} connections, \
+             with no per-peer limit"
+        ),
+    }
     // Outside the router rather than one of its layers, because it changes the
     // request body type and the router is generic over it.
     let service = ServiceBuilder::new()
@@ -2748,12 +2788,13 @@ pub async fn build_http_server(
 
     let handle = iota_http::Builder::new()
         .config(
-            iota_http::Config::default()
-                .max_connection_idle(Some(JSON_RPC_IDLE))
-                .max_connection_age(Some(JSON_RPC_CONNECTION_AGE))
-                .max_connections(Some(max_connections))
-                .max_connections_per_peer(Some(JSON_RPC_CONNECTIONS_PER_PEER))
-                .on_connection_event(move |event| connection_metrics.record(event)),
+            json_rpc_listener_config(
+                max_connections,
+                connections_per_peer,
+                JSON_RPC_IDLE,
+                JSON_RPC_CONNECTION_AGE,
+            )
+            .on_connection_event(move |event| connection_metrics.record(event)),
         )
         .serve(&config.json_rpc_address, service)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -2950,5 +2991,131 @@ genesis:
 
         let err = format!("{err:#}");
         assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
+    }
+}
+
+#[cfg(test)]
+mod json_rpc_listener_tests {
+    use std::time::Duration;
+
+    use iota_config::NodeConfig;
+
+    use super::{json_rpc_connections_per_peer, json_rpc_listener_config};
+
+    fn node_config() -> NodeConfig {
+        serde_yaml::from_str(
+            r#"
+db-path: /nonexistent/db
+network-address: /dns/localhost/tcp/8080/http
+metrics-address: "0.0.0.0:9184"
+json-rpc-address: "0.0.0.0:9000"
+genesis:
+  genesis-file-location: /nonexistent/genesis.blob
+"#,
+        )
+        .unwrap()
+    }
+
+    /// A limit the operator has to know about to raise is one they have to be
+    /// able to lower and to remove, since one address stands for every client
+    /// behind a proxy that does not preserve theirs.
+    #[test]
+    fn the_per_peer_limit_is_configurable_and_can_be_turned_off() {
+        let mut config = node_config();
+
+        assert_eq!(
+            json_rpc_connections_per_peer(&config),
+            Some(64),
+            "a config that says nothing must still bound one client"
+        );
+
+        config.json_rpc_connections_per_peer = Some(8);
+        assert_eq!(json_rpc_connections_per_peer(&config), Some(8));
+
+        config.json_rpc_connections_per_peer = Some(0);
+        assert_eq!(
+            json_rpc_connections_per_peer(&config),
+            None,
+            "zero must remove the limit rather than admit no one"
+        );
+    }
+
+    /// Opens connections until the listener stops serving them, and reports
+    /// how many it was holding at the end.
+    async fn hold_connections(
+        handle: &iota_http::ServerHandle,
+        attempts: usize,
+    ) -> Vec<tokio::net::TcpStream> {
+        let mut held = Vec::new();
+        for _ in 0..attempts {
+            let Ok(connection) = tokio::net::TcpStream::connect(handle.local_addr()).await else {
+                continue;
+            };
+            held.push(connection);
+        }
+        // The accept loop registers connections on its own task.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        held
+    }
+
+    fn serve(
+        max_connections: usize,
+        connections_per_peer: Option<usize>,
+        idle: Duration,
+        age: Duration,
+    ) -> iota_http::ServerHandle {
+        iota_http::Builder::new()
+            .config(json_rpc_listener_config(
+                max_connections,
+                connections_per_peer,
+                idle,
+                age,
+            ))
+            .serve(("127.0.0.1", 0), axum::Router::new())
+            .unwrap()
+    }
+
+    /// Each of the four bounds the JSON-RPC listener is given has to reach the
+    /// listener to be worth configuring. The deadlines are minutes and hours in
+    /// production, so they are given here as the short values that let a test
+    /// watch them pass; what this pins is that they are wired at all.
+    #[tokio::test]
+    async fn the_listener_serves_under_every_bound_it_is_given() {
+        const LONG: Duration = Duration::from_secs(3600);
+        const SHORT: Duration = Duration::from_millis(150);
+
+        let handle = serve(2, None, LONG, LONG);
+        let _held = hold_connections(&handle, 8).await;
+        assert_eq!(
+            handle.number_of_connections(),
+            2,
+            "the listener must serve no more connections than its limit"
+        );
+
+        let handle = serve(64, Some(2), LONG, LONG);
+        let _held = hold_connections(&handle, 8).await;
+        assert_eq!(
+            handle.number_of_connections(),
+            2,
+            "one client must hold no more than its share"
+        );
+
+        let handle = serve(64, None, SHORT, LONG);
+        let _held = hold_connections(&handle, 1).await;
+        tokio::time::sleep(SHORT * 4).await;
+        assert_eq!(
+            handle.number_of_connections(),
+            0,
+            "a connection that asks for nothing must be closed when it goes idle"
+        );
+
+        let handle = serve(64, None, LONG, SHORT);
+        let _held = hold_connections(&handle, 1).await;
+        tokio::time::sleep(SHORT * 4).await;
+        assert_eq!(
+            handle.number_of_connections(),
+            0,
+            "a connection must be closed once it reaches its maximum age"
+        );
     }
 }

@@ -397,9 +397,9 @@ impl Config {
     /// Further connections from a peer already at the limit are closed as soon
     /// as they are accepted.
     ///
-    /// Connections are counted under the peer's certificate public key, or,
-    /// for a peer that presents no certificate, under the prefix its address
-    /// belongs to.
+    /// Connections are counted under the peer's certificate public key, or, for
+    /// a peer that presents no certificate, under its address — its /64 over
+    /// IPv6, where one host is routinely given a whole allocation.
     ///
     /// Default is no limit (`None`).
     pub fn max_connections_per_peer(self, max_connections_per_peer: Option<usize>) -> Self {
@@ -428,8 +428,8 @@ impl Config {
 
     /// Sets a callback invoked each time one of a peer's connections is
     /// established, closed or refused at the limit, with the key that peer's
-    /// connections are counted under: its certificate public key, or the prefix
-    /// its address belongs to where it presents no certificate. Only
+    /// connections are counted under: its certificate public key, or its
+    /// address where it presents no certificate. Only
     /// connections counted under [`Config::max_connections_per_peer`] are
     /// reported. It runs on the accept loop or a connection's task, so it must
     /// not block.

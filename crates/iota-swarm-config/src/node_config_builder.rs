@@ -227,6 +227,7 @@ impl ValidatorConfigBuilder {
             grpc_load_shed: None,
             grpc_max_connections: None,
             json_rpc_max_connections: None,
+            json_rpc_connections_per_peer: None,
             // Effectively unlimited: tests and benchmarks must not be
             // throttled.
             grpc_concurrency_limit_per_core: NonZeroUsize::new(500_000_000).unwrap(),
@@ -635,6 +636,7 @@ impl FullnodeConfigBuilder {
             grpc_load_shed: None,
             grpc_max_connections: None,
             json_rpc_max_connections: None,
+            json_rpc_connections_per_peer: None,
             // Effectively unlimited: tests and benchmarks must not be
             // throttled.
             grpc_concurrency_limit_per_core: NonZeroUsize::new(500_000_000).unwrap(),

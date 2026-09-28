@@ -124,6 +124,19 @@ pub struct NodeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub json_rpc_max_connections: Option<usize>,
 
+    /// How many of those connections one client may hold at once, counted by
+    /// certificate where the client presents one and otherwise by address —
+    /// by /64 over IPv6, where one host is routinely given a whole allocation.
+    ///
+    /// Everything reaching this listener from one address counts as one client,
+    /// so a deployment behind a proxy or NAT that does not preserve the client
+    /// address shares a single limit between all of them. `0` turns the limit
+    /// off, leaving `json_rpc_max_connections` as the only bound.
+    ///
+    /// Defaults to 64.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub json_rpc_connections_per_peer: Option<usize>,
+
     /// Maximum number of concurrent in-flight requests per CPU core, applied
     /// to each service of the validator gRPC server separately (`Validator`,
     /// `ValidatorV2`, `ValidatorPeer`), so a flood of client transaction

@@ -1036,6 +1036,97 @@ mod tests {
         drop((peer, other_peer, reconnected));
     }
 
+    /// Making room is only worth doing for a connection that will be served.
+    /// A peer already at its own limit will not be, so it must be turned away
+    /// on its own account before the listener gives anything up for it —
+    /// otherwise one connect, which is refused anyway, costs another peer the
+    /// connection it was using.
+    #[tokio::test]
+    async fn a_peer_at_its_own_limit_costs_no_one_their_connection() {
+        use fastcrypto::{
+            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
+            traits::{KeyPair, ToFromBytes},
+        };
+
+        const MAX_CONNECTIONS: usize = 2;
+        const MAX_PER_PEER: usize = 1;
+
+        let client_key =
+            |seed: u8| Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[seed; 32]).unwrap());
+        let server_keypair = client_key(1);
+        let server_public_key = server_keypair.public().to_owned();
+        let server_config = iota_tls::create_rustls_server_config_with_client_verifier(
+            server_keypair.private(),
+            SERVER_NAME.to_string(),
+            iota_tls::AllowPublicKeys::new(
+                [
+                    client_key(2).public().to_owned(),
+                    client_key(3).public().to_owned(),
+                ]
+                .into(),
+            ),
+        );
+
+        let events = RecordedEvents::default();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    .max_connections(Some(MAX_CONNECTIONS))
+                    .max_connections_per_peer(Some(MAX_PER_PEER))
+                    .on_connection_event(events.record()),
+            )
+            .tls_config(server_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let connect = |seed: u8| {
+            let connector =
+                tokio_rustls::TlsConnector::from(Arc::new(iota_tls::create_rustls_client_config(
+                    server_public_key.clone(),
+                    SERVER_NAME.to_string(),
+                    Some(client_key(seed).private()),
+                )));
+            let server_name = server_name.clone();
+            async move {
+                let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+                connector.connect(server_name, io).await.unwrap()
+            }
+        };
+
+        // Two peers, one connection each, which fills the listener. Neither is
+        // serving anything, so both are candidates to be given up.
+        let _first = connect(2).await;
+        let _second = connect(3).await;
+        events
+            .wait_for(ConnectionEvent::Established {
+                live: MAX_CONNECTIONS,
+            })
+            .await;
+
+        // The first peer comes back, already holding all it may.
+        let _refused = connect(2).await;
+        events
+            .wait_for(ConnectionEvent::Refused {
+                live: MAX_CONNECTIONS,
+            })
+            .await;
+
+        let recorded = events.snapshot();
+        assert!(
+            !recorded
+                .iter()
+                .any(|event| matches!(event, ConnectionEvent::Closed { .. })),
+            "a peer that may not connect must not cost anyone a connection, got {recorded:?}"
+        );
+        assert_eq!(
+            handle.number_of_connections(),
+            MAX_CONNECTIONS,
+            "the listener must still hold both connections"
+        );
+    }
+
     /// The cap identifies a peer by its single certificate, so a peer sending
     /// a longer chain is refused at the handshake and never holds a
     /// connection.
@@ -1494,7 +1585,7 @@ mod tests {
             .serve(("127.0.0.1", 0), Router::new())
             .unwrap();
 
-        // Every connection here comes from loopback, so they share a prefix.
+        // Every connection here comes from loopback, so they share a key.
         let _held = hold_connections(&handle, MAX_PER_PEER * 4).await;
 
         assert_eq!(
@@ -1504,15 +1595,24 @@ mod tests {
         );
     }
 
-    /// Addresses are grouped, not compared: a /24 and a /64 are one peer each.
+    /// An IPv4 peer is counted by its address and an IPv6 peer by its /64, and
+    /// only the port is ever disregarded.
     #[test]
     fn addresses_are_grouped_by_prefix() {
         let key = |addr: &str| {
             <tokio::net::TcpListener as Listener>::connection_key(&addr.parse().unwrap())
         };
 
-        assert_eq!(key("192.0.2.1:1"), key("192.0.2.99:2"), "same /24");
-        assert_ne!(key("192.0.2.1:1"), key("192.0.3.1:1"), "different /24");
+        assert_eq!(
+            key("192.0.2.1:1"),
+            key("192.0.2.1:2"),
+            "one address, whatever port it connects from"
+        );
+        assert_ne!(
+            key("192.0.2.1:1"),
+            key("192.0.2.99:1"),
+            "neighbouring addresses are separate peers"
+        );
         assert_eq!(
             key("[2001:db8::1]:1"),
             key("[2001:db8::ffff:ffff]:2"),
@@ -1529,13 +1629,13 @@ mod tests {
         // have to be grouped by the address they are carrying instead.
         assert_eq!(
             key("[::ffff:192.0.2.1]:1"),
-            key("192.0.2.99:2"),
+            key("192.0.2.1:2"),
             "a mapped address is its IPv4 address"
         );
         assert_ne!(
             key("[::ffff:192.0.2.1]:1"),
-            key("[::ffff:192.0.3.1]:1"),
-            "mapped addresses in different /24s"
+            key("[::ffff:192.0.2.99]:1"),
+            "mapped addresses of different peers"
         );
         assert_ne!(
             key("[::ffff:192.0.2.1]:1"),
