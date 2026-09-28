@@ -768,7 +768,7 @@ impl<'a> std::fmt::Display for ErrorChain<'a> {
         let mut source = self.0.source();
         while let Some(cause) = source {
             write!(f, ": ")?;
-            write!(f, "{}", cause)?;
+            write!(f, "{cause}")?;
             source = cause.source();
         }
         Ok(())
