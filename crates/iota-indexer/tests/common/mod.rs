@@ -17,6 +17,13 @@ use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// How long to wait for a reported watermark to catch up with the pruner.
+///
+/// The reader refreshes its watermarks from the database periodically, so after
+/// pruning it can still report the old checkpoint for up to one refresh
+/// interval.
+pub const WATERMARK_REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
+
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
