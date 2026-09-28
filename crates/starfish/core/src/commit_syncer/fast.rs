@@ -2347,10 +2347,14 @@ mod tests {
         // Fast-sync fetch batch size; also the stride at which a fast-syncing
         // validator stores voting block headers.
         const FAST_COMMIT_SYNC_BATCH_SIZE: u32 = 20;
-        // Gap a restarted validator must close, in commits. Set comfortably above
-        // COMMIT_GAP_THRESHOLD so fast sync (not regular sync) is selected even with
-        // some slack between the consumer high-water mark and the quorum index.
-        const TARGET_GAP: u32 = COMMIT_GAP_THRESHOLD * 2;
+        // Commits A misses while stopped. Above COMMIT_GAP_THRESHOLD so A fast
+        // syncs on restart, and large enough that A, fetching one batch at a
+        // time, is still fast syncing when B restarts and asks it for commits.
+        const COMMITS_MISSED_BY_A: u32 = 400;
+        // Commits B misses while stopped. Comfortably above COMMIT_GAP_THRESHOLD
+        // so B fast syncs on restart even with some slack between the consumer
+        // high-water mark and the quorum index.
+        const COMMITS_MISSED_BY_B: u32 = 60;
         // Safety bound on how long a work phase waits to reach its target commit
         // count; generous so a slow host still completes rather than hangs.
         let work_phase_timeout = Duration::from_secs(60);
@@ -2359,10 +2363,11 @@ mod tests {
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_gc_depth_for_testing(5);
         // Shrink the leader-schedule rotation window — which also bounds the
-        // fast-sync reinitialization fetch window — well below TARGET_GAP. With the
-        // default window a recovering node refetches the whole synced gap into its
-        // regular block storage, so the fallback always answers and the voting-block
-        // store this test exercises is never actually consulted.
+        // fast-sync reinitialization fetch window — well below
+        // COMMITS_MISSED_BY_A. With the default window a recovering node
+        // refetches the whole synced gap into its regular block storage, so the
+        // fallback always answers and the voting-block store this test
+        // exercises is never actually consulted.
         protocol_config.set_commits_per_schedule_for_testing(10);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
@@ -2416,14 +2421,15 @@ mod tests {
             consumer_monitors.push(monitor);
         }
 
-        // Phase 1: Let all authorities run and build a shared committed prefix.
+        // Phase 1: Let all authorities run and build a shared committed prefix
+        // of 60 commits.
         let mut committed_index = [0u32; NUM_AUTHORITIES];
         run_until_commit_index(
             &mut output_receivers,
             &mut committed_index,
             &consumer_monitors,
             &[],
-            TARGET_GAP,
+            60,
             work_phase_timeout,
         )
         .await;
@@ -2440,7 +2446,7 @@ mod tests {
             &mut committed_index,
             &consumer_monitors,
             &[validator_b_index],
-            last_processed_b + TARGET_GAP,
+            last_processed_b + COMMITS_MISSED_BY_B,
             work_phase_timeout,
         )
         .await;
@@ -2458,7 +2464,7 @@ mod tests {
             &mut committed_index,
             &consumer_monitors,
             &[validator_a_index, validator_b_index],
-            last_processed_a + TARGET_GAP,
+            last_processed_a + COMMITS_MISSED_BY_A,
             work_phase_timeout,
         )
         .await;
@@ -2467,7 +2473,8 @@ mod tests {
         let parameters = Parameters {
             db_path: temp_dirs[validator_a_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
-            commit_sync_parallel_fetches: 2,
+            // One batch at a time, so A is still fast syncing when B asks it.
+            commit_sync_parallel_fetches: 1,
             commit_sync_batch_size: 10,
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
             fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
@@ -2495,11 +2502,10 @@ mod tests {
 
         // Wait until A has fast-synced two batches past its restart point:
         // enough for its voting storage to cover B's first overlapping fetch
-        // bound, yet reachable before A can stall on stopped B (batch fetching
-        // stops only within one batch of a head at least three batches ahead).
-        // Unlike a margin below the moving head, a fixed target cannot be
-        // outrun under load, and stopping short of convergence keeps A
-        // un-reinitialized, which serving from voting storage requires.
+        // bound. Unlike a margin below the moving head, a fixed target cannot
+        // be outrun under load, and with most of COMMITS_MISSED_BY_A still to
+        // close A is not yet reinitialized when B asks it for commits, which
+        // serving from voting storage requires.
         let a_target = last_processed_a + 2 * FAST_COMMIT_SYNC_BATCH_SIZE;
         let start_time = Instant::now();
         let mut a_fast_synced = false;
@@ -2554,9 +2560,7 @@ mod tests {
 
         authorities.insert(validator_b_index, authority);
 
-        // Wait for both restarted validators to catch up: A finishes its
-        // interrupted fast sync once B is reachable again. With all
-        // validators running, neither can stall on an unreachable peer.
+        // Wait for both restarted validators to catch up.
         let start_time = Instant::now();
         let mut caught_up = false;
         while start_time.elapsed() < Duration::from_secs(90) {
