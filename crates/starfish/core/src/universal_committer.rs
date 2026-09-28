@@ -10,7 +10,7 @@ use starfish_config::AuthorityIndex;
 use crate::{
     base_committer::BaseCommitter,
     block_header::{GENESIS_ROUND, Round, Slot},
-    commit::{CommitMetastate, DecidedLeader, Decision, LeaderStatus},
+    commit::{CommitMetastate, DecidedLeader, Decision, LeaderStatus, WAVE_LENGTH},
     context::Context,
     dag_state::DagState,
 };
@@ -43,7 +43,12 @@ impl UniversalCommitter {
     /// Try to decide part of the dag. This function is idempotent and returns
     /// an ordered list of decided leaders.
     #[tracing::instrument(skip_all, fields(last_finalized = %last_finalized))]
-    pub(crate) fn try_decide(&self, last_finalized: Slot) -> Vec<DecidedLeader> {
+    pub(crate) fn try_decide(&mut self, last_finalized: Slot) -> Vec<DecidedLeader> {
+        // Slots up to `last_finalized` are never examined again; the next
+        // slot's certifying round is `last_finalized.round + WAVE_LENGTH`.
+        for committer in &mut self.committers {
+            committer.evict_cache_below(last_finalized.round + WAVE_LENGTH);
+        }
         let highest_accepted_round = self.dag_state.read().highest_accepted_round();
 
         // Try to decide as many leaders as possible, starting with the highest round.
@@ -56,7 +61,7 @@ impl UniversalCommitter {
         // decision for a leader at round R we need blocks from round R+2 to figure
         // out that enough certificates and support exist to commit a leader.
         'outer: for round in (last_round..=highest_accepted_round.saturating_sub(2)).rev() {
-            for committer in self.committers.iter().rev() {
+            for committer in self.committers.iter_mut().rev() {
                 // Skip committers that don't have a leader for this round.
                 let Some(slot) = committer.elect_leader(round) else {
                     tracing::debug!("No leader for round {round}, skipping");
