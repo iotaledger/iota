@@ -119,6 +119,11 @@ impl BaseCommitter {
             );
             return LeaderStatus::Undecided(leader);
         }
+        self.context
+            .metrics
+            .node_metrics
+            .decision_direct_quorum_passed_total
+            .inc();
 
         let mut leaders_with_enough_support: Vec<_> = leader_blocks
             .into_iter()
@@ -282,6 +287,11 @@ impl BaseCommitter {
         // linked to the anchor.
         let wave = self.wave_number(leader_slot.round);
         let certifying_round = self.certifying_round(wave);
+        self.context
+            .metrics
+            .node_metrics
+            .decision_anchor_traversals_total
+            .inc();
         let potential_certificates = self
             .dag_state
             .read()
@@ -296,6 +306,7 @@ impl BaseCommitter {
             .dag_state
             .read()
             .get_block_headers_at_round_above_last_commit(leader_slot.round + 1);
+        let mut certificates_classified = 0;
         let mut certified_leader_blocks: Vec<(
             VerifiedBlockHeader,
             Option<CommitMetastate>,
@@ -308,6 +319,7 @@ impl BaseCommitter {
                 let mut any_cert = false;
                 let mut any_strong = false;
                 for potential_certificate in &potential_certificates {
+                    certificates_classified += 1;
                     let (is_cert, is_strong) = self.classify_certificate(
                         potential_certificate,
                         &vote_refs,
@@ -344,6 +356,13 @@ impl BaseCommitter {
             if any_cert {
                 certified_leader_blocks.push((leader_block, metastate, strong_voters));
             }
+        }
+        if certificates_classified > 0 {
+            self.context
+                .metrics
+                .node_metrics
+                .decision_indirect_certificates_classified_total
+                .inc_by(certificates_classified);
         }
 
         // There can be at most one certified leader, otherwise it means the BFT
@@ -431,7 +450,9 @@ impl BaseCommitter {
         let mut strong_qc_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         let mut enough_support = false;
         let mut strong_qc_quorum = false;
+        let mut certificates_classified = 0;
         for decision_block in decision_blocks {
+            certificates_classified += 1;
             let (is_cert, is_strong) =
                 self.classify_certificate(decision_block, &vote_refs, &strong_vote_refs);
             let authority = decision_block.reference().author;
@@ -444,6 +465,13 @@ impl BaseCommitter {
             if enough_support && strong_qc_quorum {
                 break;
             }
+        }
+        if certificates_classified > 0 {
+            self.context
+                .metrics
+                .node_metrics
+                .decision_direct_certificates_classified_total
+                .inc_by(certificates_classified);
         }
 
         if !enough_support {
