@@ -227,14 +227,13 @@ pub async fn compare_system_package<S: ObjectStore>(
             // the upgrade here is what keeps the network off that path: it stays on
             // its current version instead. Upgrades of an existing package are
             // exempt from the bound, so the branch below does not check it.
-            let size = new_object
+            if let Err(e) = new_object
                 .data
                 .as_opt_package()
                 .expect("Created as package")
-                .size() as u64;
-            let max_size = max_package_size(*id, protocol_config);
-            if size > max_size {
-                error!("New system package {id} is {size} bytes, over the {max_size} byte limit");
+                .check_size(max_package_size(*id, protocol_config))
+            {
+                error!("New system package {id} cannot be published: {e}");
                 return None;
             }
 

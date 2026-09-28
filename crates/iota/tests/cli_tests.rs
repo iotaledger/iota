@@ -312,8 +312,7 @@ pub async fn fetch_move_packages(
             let Some(IotaRawData::Package(p)) = o.bcs else {
                 panic!("Expected package");
             };
-            p.to_move_package(u64::MAX /* safe as this pkg comes from the network */)
-                .unwrap()
+            p.to_move_package()
         })
         .collect()
 }
