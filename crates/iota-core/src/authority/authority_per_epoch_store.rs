@@ -1918,6 +1918,56 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Makes the bookkeeping entries left by the executions behind `effects` -
+    /// one checkpoint's transactions - durable, then evicts them from the
+    /// overlays. The checkpoint executor calls this before committing the
+    /// checkpoint's outputs, so an object is never durable without its
+    /// handler row or sync-ahead record, and a consumed version's bytes are
+    /// durable before the watermark bump lets the pruner delete its perpetual
+    /// row. Does nothing when the bookkeeping is off or the epoch has ended.
+    pub fn persist_checkpoint_bookkeeping<'a>(
+        &self,
+        effects: impl IntoIterator<Item = &'a TransactionEffects>,
+    ) -> IotaResult {
+        if !self.protocol_config.pcool_deterministic_validation() {
+            return Ok(());
+        }
+        let tables = match self.tables() {
+            Ok(tables) => tables,
+            Err(IotaError::EpochEnded(_)) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        // No quarantine lock: the flushes that could conflict - writing rows
+        // or deleting records for these transactions - belong to commits
+        // whose roots are in this checkpoint or a later one, and none can run
+        // before the quarantine's executed watermark reaches this checkpoint,
+        // which only `handle_finalized_checkpoint` moves, after this call.
+        let rows = self.handler_object_state.checkpoint_rows(effects);
+        self.write_and_evict_checkpoint_rows(&tables, &rows)
+    }
+
+    /// Writes `rows` durably, then evicts them from the overlays - the order
+    /// that keeps a reader from finding an entry in neither.
+    fn write_and_evict_checkpoint_rows(
+        &self,
+        tables: &AuthorityEpochTables,
+        rows: &handler_object_state::CheckpointRows,
+    ) -> IotaResult {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let mut batch = tables.handler_processed_objects.batch();
+        self.handler_object_state
+            .write_checkpoint_rows_to_batch(tables, &mut batch, rows)?;
+        batch.write()?;
+        // Lets a test crash the node with the bookkeeping durable and the
+        // checkpoint's outputs not.
+        fail_point!("crash-after-checkpoint-bookkeeping-write");
+        self.handler_object_state
+            .evict_flushed_checkpoint_rows(rows);
+        Ok(())
+    }
+
     /// The handler-processed row at `key`, the exact version a transaction
     /// names.
     pub fn handler_processed_object(
@@ -1991,27 +2041,23 @@ impl AuthorityPerEpochStore {
         Ok(self.tables()?.handler_processed_objects.get(key)?)
     }
 
-    /// Durably writes a sync-executed checkpoint's records and sheltered
-    /// bytes and then evicts them from the overlays, in that order - the
-    /// checkpoint-executor auxiliary-batch path.
+    /// Durably writes the given records and sheltered bytes and then evicts
+    /// them from the overlays, in that order - the auxiliary batch's
+    /// write-then-evict, with rows picked by the test instead of derived from
+    /// a checkpoint's effects.
     #[cfg(test)]
     pub fn flush_sync_ahead_rows_for_testing(
         &self,
         sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
         shelter_rows: Vec<(ObjectKey, Object)>,
     ) -> IotaResult {
+        let rows = handler_object_state::CheckpointRows {
+            handler_rows: Vec::new(),
+            sync_rows,
+            shelter_rows,
+        };
         let tables = self.tables()?;
-        let mut batch = tables.sync_ahead_records.batch();
-        self.handler_object_state.write_sync_ahead_rows_to_batch(
-            &tables,
-            &mut batch,
-            &sync_rows,
-            &shelter_rows,
-        )?;
-        batch.write()?;
-        self.handler_object_state
-            .evict_flushed_sync_ahead_rows(&sync_rows, &shelter_rows);
-        Ok(())
+        self.write_and_evict_checkpoint_rows(&tables, &rows)
     }
 
     /// Flushes commit `index` out of the consensus quarantine through the
