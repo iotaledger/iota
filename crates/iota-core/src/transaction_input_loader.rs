@@ -22,9 +22,15 @@ use crate::{
         authority_per_epoch_store::TxLockGuard, shared_object_version_manager::AssignedVersions,
     },
     execution_cache::ObjectCacheRead,
+    post_consensus_input_reader::{
+        InputResolution, OwnedVerdict, PackageVerdict, SharedVerdict, reader::CommitIndexedReader,
+    },
 };
 
-pub(crate) struct TransactionInputLoader {
+/// Visibility is `pub` until the validation entry point consumes
+/// `read_objects_at_commit`; `pub(crate)` would be dead code under
+/// `-D warnings` until then.
+pub struct TransactionInputLoader {
     cache: Arc<dyn ObjectCacheRead>,
 }
 
@@ -267,9 +273,12 @@ impl TransactionInputLoader {
     }
 }
 
-// private methods
 impl TransactionInputLoader {
-    fn read_receiving_objects_for_signing(
+    /// Reads receiving objects as at signing: the received marker for this
+    /// epoch, then the object at latest. Also used by post-consensus
+    /// validation at a commit, where receiving objects are out of the
+    /// commit-indexed reader's scope.
+    pub(crate) fn read_receiving_objects_for_signing(
         &self,
         receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
@@ -303,5 +312,64 @@ impl TransactionInputLoader {
             receiving_results.push(ReceivingObjectReadResult::new(*objref, object.into()));
         }
         Ok(receiving_results.into())
+    }
+
+    /// Reads the inputs of a transaction being validated post-consensus, as of
+    /// the commit `reader` was built for. Owned and shared inputs and packages
+    /// go through the commit-indexed reader. Receiving objects are not read
+    /// here: the caller reads them as at signing, per the design. `Err` is a
+    /// storage failure. A drop or a missing input is a resolution, never an
+    /// error.
+    #[instrument(level = "trace", skip_all)]
+    pub fn read_objects_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        input_object_kinds: &[InputObjectKind],
+    ) -> IotaResult<InputResolution> {
+        let mut input_results = Vec::with_capacity(input_object_kinds.len());
+        for kind in input_object_kinds {
+            let object = match kind {
+                InputObjectKind::MovePackage(id) => match reader.read_package(*id)? {
+                    PackageVerdict::Visible(package) => {
+                        ObjectReadResultKind::Object(package.object().clone())
+                    }
+                    PackageVerdict::Missing(reason) => {
+                        return Ok(InputResolution::Missing(*kind, reason));
+                    }
+                },
+                InputObjectKind::SharedMoveObject {
+                    id,
+                    initial_shared_version,
+                    ..
+                } => match reader.read_shared(*id, *initial_shared_version)? {
+                    SharedVerdict::Exists(object) => ObjectReadResultKind::Object(object),
+                    SharedVerdict::Deleted(version, digest) => {
+                        ObjectReadResultKind::DeletedSharedObject(version, digest)
+                    }
+                    SharedVerdict::Drop(reason) => return Ok(InputResolution::Drop(*kind, reason)),
+                    SharedVerdict::Missing(reason) => {
+                        return Ok(InputResolution::Missing(*kind, reason));
+                    }
+                },
+                InputObjectKind::ImmOrOwnedMoveObject(reference) => {
+                    match reader.read_owned(*reference)? {
+                        OwnedVerdict::Keep(kept) => {
+                            ObjectReadResultKind::Object(kept.into_object())
+                        }
+                        OwnedVerdict::Drop(reason) => {
+                            return Ok(InputResolution::Drop(*kind, reason));
+                        }
+                        OwnedVerdict::Missing(reason) => {
+                            return Ok(InputResolution::Missing(*kind, reason));
+                        }
+                    }
+                }
+            };
+            input_results.push(ObjectReadResult {
+                input_object_kind: *kind,
+                object,
+            });
+        }
+        Ok(InputResolution::Loaded(input_results.into()))
     }
 }
