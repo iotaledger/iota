@@ -15,6 +15,38 @@
 //! earlier record read anchors that order. Each machine's module doc says
 //! which of the two it relies on.
 //!
+//! # Why a store answer for an id neither table knows is epoch-start state
+//!
+//! The owned and shared machines ask the store only when the handler row and
+//! the sync-ahead record are both absent. That answer is the same on every
+//! validator for three reasons.
+//!
+//! 1. Every write this epoch leaves a table entry before its object. The hook writes the row or the
+//!    record and then the outputs reach the store, and a completion inserts a row before it removes
+//!    a record. The store is never ahead of the tables for an id.
+//! 2. The tables are per epoch and start empty. An id in neither table has not been written this
+//!    epoch on this validator, so its latest reference is what the epoch started with, and
+//!    epoch-start state is committed state every validator shares.
+//! 3. The pruner removes only superseded lower versions. The latest version of a live object and
+//!    the tombstone of a deleted one stay, and a consumed version validation may still keep is
+//!    sheltered by the hook.
+//!
+//! The re-read after the store answer closes the window between the table
+//! reads and the store read. A write whose object the store answer already
+//! reflects put its entry in place first, by point 1, so the re-read finds
+//! the entry and decides from it. A write landing after the store answer
+//! belongs to a commit above the horizon, because the wait before validation
+//! completes every commit at or below it. Its entry answers missing when the
+//! re-read sees it, and when the re-read does not, the held answer is the
+//! state every validator that has not executed that commit shares. A version
+//! such a commit consumed is caught by the lock check before the reader runs.
+//! So one re-read is enough, and a second would face the same window again.
+//!
+//! Both arguments take validation of a commit to run on the handler thread,
+//! which is the thread that assigns commits. A record is removed only by the
+//! completion of an assigned commit, so no record born during validation is
+//! removed during it, and the re-read's record lookup sees it.
+//!
 //! Visibility is `pub` until the validation entry point consumes the module;
 //! `pub(crate)` would be dead code under `-D warnings` until then.
 
