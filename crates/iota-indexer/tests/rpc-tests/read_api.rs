@@ -46,11 +46,11 @@ use serde_json::Value;
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer_checkpoint,
-        indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
-        indexer_wait_for_transaction, input_size_limit_exceeded_msg, publish_test_move_package,
+        ApiTestSetup, FIXTURES_DIR, WATERMARK_REFRESH_TIMEOUT,
+        execute_tx_and_wait_for_indexer_checkpoint, indexer_wait_for_checkpoint,
+        indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
+        input_size_limit_exceeded_msg, publish_test_move_package, retry_with_timeout,
         rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
-        wait_for_oldest_available_checkpoint,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -2047,24 +2047,24 @@ async fn get_checkpoints_reports_oldest_available_checkpoint() {
     indexer_wait_for_checkpoint(store, 1).await;
 
     // Nothing is pruned yet, so the response reaches the genesis checkpoint.
-    assert_eq!(
-        wait_for_oldest_available_checkpoint(
-            || checkpoints_oldest_available_checkpoint(client),
-            |cp| cp.is_some()
-        )
-        .await,
-        Some(0)
-    );
+    let oldest = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        checkpoints_oldest_available_checkpoint(client)
+    })
+    .await
+    .expect("timeout waiting for the reported oldest available checkpoint");
+    assert_eq!(oldest, 0);
 
     cluster.force_new_epoch().await;
     indexer_wait_for_checkpoint_pruned(store, 0).await;
 
     // Once the genesis checkpoint is pruned, the reported checkpoint is above it.
-    wait_for_oldest_available_checkpoint(
-        || checkpoints_oldest_available_checkpoint(client),
-        |cp| cp > Some(0),
-    )
-    .await;
+    retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || async {
+        checkpoints_oldest_available_checkpoint(client)
+            .await
+            .filter(|cp| *cp > 0)
+    })
+    .await
+    .expect("timeout waiting for a checkpoint above the pruned genesis one");
 }
 
 #[test]
