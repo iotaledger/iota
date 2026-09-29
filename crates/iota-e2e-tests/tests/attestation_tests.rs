@@ -246,17 +246,9 @@ async fn test_normal_tx_with_body_abort_is_attested() -> Result<(), anyhow::Erro
     Ok(())
 }
 
-/// A plain transfer submitted with the gas vector fully active on every node:
-/// the `attestation_gas_vector` flag, a coefficient table, and the
-/// memory-bandwidth ceiling. The attestor prices its dry-run and attests
-/// `AttestationData::V2` (the payload identity is asserted at the authority
-/// level in `validator_v2_tests`); here the claim is that the whole cluster
-/// accepts and sequences such a submission — the producer, the flag-gated
-/// acceptance, and the rate rule all active at once.
-///
-/// The nested coefficient table cannot be expressed through the flat env
-/// variables the other tests use, so this test installs the process-wide
-/// config override, which reaches node threads just the same.
+/// A cluster with the gas vector enabled accepts a plain transfer. Uses the
+/// process-wide override because env variables cannot set the coefficient
+/// table.
 #[sim_test]
 async fn test_tx_accepted_with_gas_vector_active() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
@@ -265,8 +257,6 @@ async fn test_tx_accepted_with_gas_vector_active() -> Result<(), anyhow::Error> 
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
         config.set_attestation_gas_vector_for_testing(true);
-        // A minimal table that can price a plain transfer (it calls no
-        // native functions): fixed overhead plus per-byte input/write costs.
         config.set_gas_vector_coefficients_for_testing(GasVectorCoefficientsV1 {
             memory_bandwidth_bytes_per_sec: 1_000_000_000,
             input_object_bytes_fs: 5_000_000,

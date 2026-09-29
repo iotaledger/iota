@@ -290,10 +290,8 @@ pub struct AuthorityMetrics {
     pub(crate) execution_gas_latency_ratio: Histogram,
     /// Per-transaction resource-profile signals.
     pub(crate) execution_resource_profile: HistogramVec,
-    /// Outcomes of recomputing the gas vector from the actual execution
-    /// counters and comparing it to the attested one (match / divergent /
-    /// unpriceable), labeled by outcome. Divergence is evidence about the
-    /// attestation, never grounds to abort the transaction.
+    /// Outcomes of comparing the attested gas vector with the one recomputed
+    /// after execution, labeled by outcome.
     pub(crate) attestation_gas_vector_comparisons: IntCounterVec,
 
     pub(crate) skipped_consensus_txns: IntCounter,
@@ -1430,12 +1428,7 @@ impl AuthorityState {
         }
 
         // Step 7: build AttestationData.
-        // The gas vector (`AttestationData::V2`) is attested when the
-        // `attestation_gas_vector` flag is on and the calibrated coefficient
-        // table can price the dry-run's resource profile; otherwise — flag
-        // off, no table in this version, or an unpriceable profile (a native
-        // function the table does not list, arithmetic overflow) — the
-        // attestation stays on V1. V1's `computation_units`:
+        // Attest V2 when the gas vector can be priced, otherwise V1.
         // `gas_cost_summary().computation_cost` is in NANOS; convert to gas
         // units (`computation_units = computation_cost / gas_price`) so the
         // attestation is independent of the gas price the user chose.
@@ -2505,17 +2498,10 @@ impl AuthorityState {
             "transaction execution wall-clock"
         );
 
-        // Divergence recomputation: recompute the gas vector from the actual
-        // counters with the same function the attestor priced its dry-run
-        // with, and compare. Deterministic — every validator reaches the same
-        // outcome — so anything but a match is a consensus-wide signal about
-        // the attestation (the attestor mispriced, or shared-object state
-        // changed between dry-run and execution; the attested object versions
-        // adjudicate which). Never grounds to abort the transaction —
-        // the comparison observes, it does not enforce. Skipped when the
-        // epoch's config carries no
-        // coefficient table: without it nothing can be recomputed and an
-        // "unpriceable" outcome would say nothing about the attestation.
+        // Recompute the gas vector from the actual counters and compare it with
+        // the attested one; this is observed only and never aborts the
+        // transaction. Skipped without a coefficient table, since nothing can
+        // be recomputed.
         let attested = transaction
             .attestation()
             .and_then(|a| a.declared_gas_vector())

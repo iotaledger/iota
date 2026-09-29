@@ -750,17 +750,12 @@ pub enum IotaError {
     )]
     AttestationGasVectorNotEnabled,
 
-    #[error(
-        "Attestation reports cpu_time = 0; no dry-run of a valid transaction \
-         can execute in zero lane-time"
-    )]
+    #[error("Attestation reports cpu_time = 0")]
     AttestationCpuTimeZero,
 
     #[error(
         "Attestation declares {moved_bytes} moved bytes in {cpu_time} ns of \
-         cpu_time — a rate above the memory-bandwidth ceiling; a declared \
-         duration can never be shorter than the time the memory path needs \
-         for the declared bytes"
+         cpu_time, a rate above the memory-bandwidth ceiling"
     )]
     AttestationRateAboveBandwidth { cpu_time: u64, moved_bytes: u64 },
 }

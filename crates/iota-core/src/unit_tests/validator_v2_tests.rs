@@ -216,11 +216,9 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
     );
 }
 
-/// Builds an authority with a transfer to attest, submits it through
-/// `submit_single_tx`, and returns the authority, the signed transaction,
-/// and the attested payload captured on its way to consensus. Protocol
-/// overrides must already be installed by the caller (the returned guard
-/// must outlive the submission).
+/// Submits a transfer through `submit_single_tx` and returns the authority,
+/// the transaction, and the attested payload sent to consensus. The caller
+/// installs any protocol overrides.
 async fn submit_transfer_and_capture_payload() -> (
     Arc<crate::authority::AuthorityState>,
     iota_types::transaction::TransactionEnvelope,
@@ -300,9 +298,7 @@ async fn submit_transfer_and_capture_payload() -> (
     (authority_state, tx, payload)
 }
 
-/// A minimal coefficient table that can price a plain transfer: nonzero
-/// fixed overhead plus per-byte costs for inputs and writes; no native
-/// functions (a transfer calls none).
+/// A minimal coefficient table that can price a plain transfer.
 fn transfer_pricing_table() -> iota_protocol_config::GasVectorCoefficientsV1 {
     iota_protocol_config::GasVectorCoefficientsV1 {
         input_object_bytes_fs: 5_000_000, // 5 ns per input byte
@@ -315,12 +311,6 @@ fn transfer_pricing_table() -> iota_protocol_config::GasVectorCoefficientsV1 {
     }
 }
 
-/// With the `attestation_gas_vector` flag on and the coefficient table plus
-/// the memory-bandwidth ceiling in the config, the attestor prices its
-/// dry-run's resource profile and attests `AttestationData::V2` — with a
-/// nonzero cpu_time, moved bytes covering the transfer's input reads, the
-/// written bytes, and a declared rate within the ceiling (the producer's
-/// bandwidth floor guarantees it).
 #[tokio::test]
 async fn test_attestation_carries_gas_vector_when_table_present() {
     telemetry_subscribers::init_for_testing();
@@ -345,10 +335,9 @@ async fn test_attestation_carries_gas_vector_when_table_present() {
     else {
         panic!("expected AttestationData::V2, got {payload:?}");
     };
-    // 20 µs fixed overhead × 1.5 safety multiplier is the prediction's floor.
+    // 20 µs × 1.5
     assert!(cpu_time >= 30_000, "cpu_time {cpu_time} below c0 × m");
-    // The transfer reads at least its object and gas coin: two read
-    // operations at 5_000 equivalent bytes each, plus their payload bytes.
+    // At least two reads (object and gas coin) at 5_000 bytes each.
     assert!(moved_bytes >= 10_000, "moved_bytes {moved_bytes} too small");
     assert!(write_bytes > 0, "a transfer writes its mutated objects");
     assert!(
@@ -359,14 +348,10 @@ async fn test_attestation_carries_gas_vector_when_table_present() {
         ),
         "declared rate must satisfy the bandwidth rule the validators check"
     );
-    // The evidence base is unchanged from V1: a plain transfer's inputs are
-    // all pinned by the transaction itself (owned object + gas coin), which
-    // the attested versions deliberately exclude — so the list is empty.
+    // All of a plain transfer's inputs are pinned by the transaction.
     assert!(object_versions.is_empty());
 }
 
-/// With the flag on but no coefficient table in the config, the producer
-/// stays on V1 — a gas vector cannot be priced without the constants.
 #[tokio::test]
 async fn test_attestation_stays_v1_without_coefficient_table() {
     telemetry_subscribers::init_for_testing();
@@ -384,9 +369,8 @@ async fn test_attestation_stays_v1_without_coefficient_table() {
     );
 }
 
-/// Executes `tx` on `authority_state` carrying `payload` as its validator
-/// attestation, then returns the authority's gas-vector comparison counts as
-/// `[match, divergent, unpriceable]`.
+/// Executes `tx` with `payload` as its attestation and returns the gas
+/// vector comparison counts as `[match, divergent, unpriceable]`.
 async fn execute_with_attested_payload(
     authority_state: &Arc<crate::authority::AuthorityState>,
     tx: iota_types::transaction::TransactionEnvelope,
@@ -420,11 +404,6 @@ async fn execute_with_attested_payload(
     })
 }
 
-/// After execution every validator recomputes the gas vector from the actual
-/// counters and compares it to the attested one. A faithfully
-/// attested transfer recomputes to the identical vector — the real execution
-/// runs the same transaction from the same state the attestor dry-ran — so
-/// the comparison records exactly one match.
 #[tokio::test]
 async fn test_divergence_recomputation_matches_faithful_attestation() {
     telemetry_subscribers::init_for_testing();
@@ -441,9 +420,6 @@ async fn test_divergence_recomputation_matches_faithful_attestation() {
     assert_eq!(outcomes, [1, 0, 0], "expected exactly one match outcome");
 }
 
-/// A tampered attestation — the producer's vector with one nanosecond added
-/// to `cpu_time` — cannot survive the recomputation: execution recomputes the
-/// true vector from the actual counters and records a divergence.
 #[tokio::test]
 async fn test_divergence_recomputation_flags_tampered_attestation() {
     telemetry_subscribers::init_for_testing();

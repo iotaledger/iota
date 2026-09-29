@@ -677,11 +677,8 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
 
-    // If true, attestations may carry the gas vector (`AttestationData::V2`:
-    // cpu_time, moved_bytes, write_bytes) computed from the attestor's
-    // dry-run resource profile, and post-consensus validation accepts that
-    // variant. Gated because old nodes cannot BCS-decode an unknown enum
-    // variant. Requires `enable_validator_attestation`.
+    // If true, attestations may carry the gas vector (`AttestationData::V2`).
+    // Requires `enable_validator_attestation`.
     #[serde(skip_serializing_if = "is_false")]
     attestation_gas_vector: bool,
 }
@@ -3743,14 +3740,9 @@ impl ProtocolConfig {
         })
     }
 
-    /// Process-wide variant of [`Self::apply_overrides_for_testing`]. Unlike
-    /// the thread-local version it also reaches validator node threads
-    /// spawned by in-process test clusters, which build their configs on
-    /// their own threads — and unlike the env-variable overrides it can set
-    /// nested values (the gas-vector coefficient table) that flat variables
-    /// cannot express. Same contract otherwise: install before anything
-    /// calls `get_for_version`, one override at a time, cleared when the
-    /// guard drops.
+    /// Process-wide variant of [`Self::apply_overrides_for_testing`], which
+    /// also reaches node threads in in-process test clusters. Install before
+    /// anything calls `get_for_version`; only one may be active at a time.
     pub fn apply_global_overrides_for_testing(
         override_fn: impl Fn(ProtocolVersion, Self) -> Self + Send + Sync + 'static,
     ) -> GlobalOverrideGuard {
