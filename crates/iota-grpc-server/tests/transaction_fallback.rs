@@ -878,11 +878,12 @@ const CASES: &[Case] = &[
         ..CASE
     },
     Case {
-        name: "not pruned, events missing locally: not read from the store",
+        name: "not pruned, events missing locally: read from the store",
         node: LOCAL,
         store: FULL_STORE,
         read_mask: "transaction,events",
-        expect: Expect::Error(tonic::Code::FailedPrecondition),
+        expect: SERVED,
+        requests: &[READ_EVENTS],
         ..CASE
     },
     Case {

@@ -1148,9 +1148,9 @@ impl GrpcReader {
     /// the response — the `Merge` impls only populate mask-requested fields.
     ///
     /// A transaction is pruned when its checkpoint is below the node's lowest
-    /// available checkpoint. The data of a pruned transaction, and any object
-    /// or checkpoint summary the node lacks, is read from the key-value
-    /// store set with [`Self::with_transaction_fallback`], if any.
+    /// available checkpoint. The data of a pruned transaction, and any
+    /// events, object or checkpoint summary the node lacks, is read from the
+    /// key-value store set with [`Self::with_transaction_fallback`], if any.
     ///
     /// Store reads give up at `store_deadline`, which callers share across
     /// the transactions of one request.
@@ -1284,13 +1284,8 @@ impl GrpcReader {
 
             let events = match effects.events_digest().filter(|_| fields.include_events) {
                 Some(events_digest) => Some(
-                    self.require_events(
-                        digest,
-                        events_digest,
-                        pruned.map(|(store, _)| store),
-                        store_deadline,
-                    )
-                    .await?,
+                    self.require_events(digest, events_digest, store_deadline)
+                        .await?,
                 ),
                 None => None,
             };
@@ -1427,12 +1422,12 @@ impl GrpcReader {
         &self,
         digest: &TransactionDigest,
         events_digest: &TransactionEventsDigest,
-        store: Option<&Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
         store_deadline: tokio::time::Instant,
     ) -> Result<TransactionEvents, crate::error::RpcError> {
         if let Some(events) = self.state_reader.try_get_events(digest)? {
             return Ok(events);
         }
+        let store = self.transaction_fallback.as_ref();
         let events = match store {
             Some(store) => first(
                 store_read(
