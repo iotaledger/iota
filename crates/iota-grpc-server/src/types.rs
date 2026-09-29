@@ -1790,7 +1790,7 @@ mod tests {
     async fn time_outside_store_reads_does_not_spend_the_budget() {
         let budget = StoreReadBudget::default();
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-        assert_eq!(store_read(async { Ok(()) }, &budget).await.unwrap(), ());
+        store_read(async { Ok(()) }, &budget).await.unwrap();
         assert!(!budget.is_spent());
     }
 
