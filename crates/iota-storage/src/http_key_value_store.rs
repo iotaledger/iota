@@ -452,6 +452,20 @@ fn multi_split_slice<'a, T>(slice: &'a [T], lengths: &'a [usize]) -> Vec<&'a [T]
         .collect()
 }
 
+/// The keys whose fetch returned data that was then rejected.
+fn rejected_keys<'a, K: Copy, T>(
+    fetches: &'a [IotaResult<Option<Bytes>>],
+    keys: &'a [K],
+    values: &'a [Option<T>],
+) -> impl Iterator<Item = K> + 'a {
+    fetches
+        .iter()
+        .zip(keys)
+        .zip(values)
+        .filter(|((fetch, _), value)| matches!(fetch, Ok(Some(_))) && value.is_none())
+        .map(|((_, key), _)| *key)
+}
+
 fn deser_check_digest<T, D>(
     digest: &D,
     bytes: &Bytes,
@@ -573,16 +587,6 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
                 })
             })
             .collect::<Vec<_>>();
-        // A rejected summary would otherwise stay cached and keep being rejected.
-        self.evict(
-            result_slices[0]
-                .iter()
-                .zip(checkpoint_summaries)
-                .zip(&summaries_results)
-                .filter(|((fetch, _), summary)| matches!(fetch, Ok(Some(_))) && summary.is_none())
-                .map(|((_, seq), _)| Key::CheckpointSummary(*seq)),
-        );
-
         let contents_results = result_slices[1]
             .iter()
             .zip(checkpoint_contents.iter())
@@ -602,6 +606,20 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
                 })
             })
             .collect::<Vec<_>>();
+
+        // A rejected summary would otherwise stay cached and keep being rejected.
+        self.evict(
+            rejected_keys(result_slices[0], checkpoint_summaries, &summaries_results)
+                .map(Key::CheckpointSummary)
+                .chain(
+                    rejected_keys(
+                        result_slices[2],
+                        checkpoint_summaries_by_digest,
+                        &summaries_by_digest_results,
+                    )
+                    .map(Key::CheckpointSummaryByDigest),
+                ),
+        );
 
         Ok((
             summaries_results,

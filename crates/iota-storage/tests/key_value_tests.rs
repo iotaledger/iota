@@ -615,6 +615,48 @@ mod simtests {
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]
+    async fn checkpoint_summary_for_another_digest_is_read_again_once_fixed() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let mut checkpoints = MockTxStore::new();
+        let (other, _) = checkpoints.add_random_checkpoint();
+        let (summary, _) = checkpoints.add_random_checkpoint();
+        let (item_type, key) = Key::CheckpointSummaryByDigest(*summary.digest()).to_path_elements();
+        let path = format!("{item_type}/{key}");
+
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            path.clone(),
+            bcs::to_bytes(&other).unwrap(),
+        )])));
+        test_server(data.clone()).await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let read = || async {
+            let (_, _, summaries) = store
+                .multi_get_checkpoints(&[], &[], &[*summary.digest()])
+                .await
+                .unwrap();
+            summaries
+                .iter()
+                .map(|summary| summary.as_ref().map(|summary| *summary.digest()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(read().await, vec![None]);
+
+        data.lock()
+            .unwrap()
+            .insert(path, bcs::to_bytes(&summary).unwrap());
+        assert_eq!(read().await, vec![Some(*summary.digest())]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
     async fn evicted_object_is_fetched_again() {
         if CryptoProvider::get_default().is_none() {
             ring::default_provider().install_default().ok();
