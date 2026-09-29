@@ -22,7 +22,7 @@ use iota_sdk_types::{
     crypto::{Ed25519Signature, IntentScope},
 };
 use iota_types::{
-    crypto::{NetworkKeyPair, NetworkPublicKey},
+    crypto::{NetworkPrivateKey, NetworkPublicKey},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
 };
 use serde::{Deserialize, Serialize};
@@ -88,7 +88,7 @@ pub struct NodeInfo {
 }
 
 impl NodeInfo {
-    fn sign(self, keypair: &NetworkKeyPair) -> SignedNodeInfo {
+    fn sign(self, keypair: &NetworkPrivateKey) -> SignedNodeInfo {
         let msg = bcs::to_bytes(&self).expect("BCS serialization should not fail");
         let sig = keypair.sign(&msg);
         SignedNodeInfo::new_from_data_and_sig(self, sig)
@@ -129,7 +129,7 @@ struct DiscoveryEventLoop {
     discovery_config: Arc<DiscoveryConfig>,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
     network: Network,
-    keypair: NetworkKeyPair,
+    keypair: NetworkPrivateKey,
     tasks: JoinSet<()>,
     pending_dials: HashMap<PeerId, AbortHandle>,
     dial_seed_peers_task: Option<AbortHandle>,

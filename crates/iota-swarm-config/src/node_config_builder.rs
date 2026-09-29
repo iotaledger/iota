@@ -31,7 +31,7 @@ use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
-    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair},
+    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkPrivateKey},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
@@ -398,7 +398,7 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkKeyPair>) -> Self {
+    pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkPrivateKey>) -> Self {
         if let Some(network_key_pair) = network_key_pair {
             self.network_key_pair = Some(KeyPairWithPath::new(network_key_pair.into()));
         }
