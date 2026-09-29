@@ -93,9 +93,11 @@ impl UnchangedSharedObject {
                 version: object.version().as_u64().try_into()?,
             })),
 
-            _ => unimplemented!(
-                "a new InputSharedObject enum variant was added and needs to be handled"
-            ),
+            _ => {
+                return Err(Error::Internal(
+                    "unknown InputSharedObject variant".to_string(),
+                ));
+            }
         })
     }
 }
