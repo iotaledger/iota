@@ -18,7 +18,10 @@ use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use bimap::btree::BiBTreeMap;
 use criterion::Criterion;
-use fastcrypto::encoding::{Base64, Encoding};
+use fastcrypto::{
+    encoding::{Base64, Encoding},
+    hash::{Blake2b256, HashFunction},
+};
 use iota_core::authority::{
     AuthorityState, shared_object_version_manager::AssignedVersions,
     test_authority_builder::TestAuthorityBuilder,
@@ -30,13 +33,16 @@ use iota_json_rpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, simple::SimpleKeypair,
+};
 use iota_sdk_types::{
     Address, Argument, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Command,
-    ConsensusCommitDigest, Event, ExecutionStatus, GasCostSummary, GasPayment, Identifier,
+    ConsensusCommitDigest, Event, ExecutionStatus, GasCostSummary, GasPayment, Identifier, Intent,
     MoveAuthenticatorV1, MovePackage, ObjectData, ObjectId, ObjectReference,
-    ProgrammableTransaction, RandomnessRound, Transaction, TransactionDenyRulesUpdate,
-    TransactionDigest, TransactionEffects, TransactionEvents, TransactionExpiration,
-    TransactionKind, TransactionV1, TypeTag, UserSignature, Version,
+    ProgrammableTransaction, RandomnessRound, SignatureScheme, Transaction,
+    TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionEvents,
+    TransactionExpiration, TransactionKind, TransactionV1, TypeTag, UserSignature, Version,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -157,6 +163,8 @@ struct AdapterInitConfig {
     /// Configuration for offchain state reader read from the file itself, and
     /// can be passed to the specific indexing and reader flavor.
     offchain_config: Option<OffChainConfig>,
+    /// The `--signers` of the init command, by name.
+    signer_schemes: BTreeMap<String, SignatureScheme>,
 }
 
 pub struct IotaTestAdapter {
@@ -166,6 +174,8 @@ pub struct IotaTestAdapter {
     package_upgrade_mapping: BTreeMap<Symbol, Symbol>,
     accounts: BTreeMap<String, TestAccount>,
     abstract_accounts: BTreeMap<ObjectId, TestAccount>,
+    /// Keys that only sign for built-in authenticators (`--signers`).
+    signers: BTreeMap<String, SimpleKeypair>,
     default_account: TestAccount,
     default_syntax: SyntaxChoice,
     object_enumeration: BiBTreeMap<ObjectId, FakeID>,
@@ -219,12 +229,31 @@ impl AdapterInitConfig {
             data_ingestion_path,
             grpc_api_url,
             package_metadata_with_dynamic_module_metadata,
+            signers,
         } = iota_args;
 
         let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
         let accounts = accounts
             .map(|v| v.into_iter().collect::<BTreeSet<_>>())
             .unwrap_or_default();
+        let signer_schemes = signers
+            .unwrap_or_default()
+            .into_iter()
+            .map(|signer| {
+                let Some((name, scheme)) = signer.split_once('=') else {
+                    panic!("Signer '{signer}' must be given as <name>=<scheme>");
+                };
+                let scheme = match scheme {
+                    "ed25519" => SignatureScheme::Ed25519,
+                    "secp256k1" => SignatureScheme::Secp256k1,
+                    other => panic!("Unsupported signer scheme '{other}' for '{name}'"),
+                };
+                if accounts.contains(name) {
+                    panic!("Signer '{name}' is also an account name");
+                }
+                (name.to_owned(), scheme)
+            })
+            .collect();
 
         let mut protocol_config = if let Some(protocol_version) = protocol_version {
             ProtocolConfig::get_for_version(protocol_version.into(), Chain::Unknown)
@@ -286,6 +315,7 @@ impl AdapterInitConfig {
             default_gas_price,
             flavor,
             offchain_config,
+            signer_schemes,
         }
     }
 }
@@ -382,6 +412,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             default_gas_price,
             flavor,
             offchain_config,
+            signer_schemes,
         } = match task_opt.map(|t| t.command) {
             Some((init_cmd, iota_args)) => AdapterInitConfig::from_args(init_cmd, iota_args),
             None => AdapterInitConfig::default(),
@@ -438,6 +469,13 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             package_upgrade_mapping: BTreeMap::new(),
             accounts,
             abstract_accounts: BTreeMap::new(),
+            signers: signer_schemes
+                .into_iter()
+                .map(|(name, scheme)| {
+                    let keypair = signer_keypair(&name, scheme);
+                    (name, keypair)
+                })
+                .collect(),
             default_account,
             default_syntax,
             object_enumeration: BiBTreeMap::new(),
@@ -971,7 +1009,6 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         sender,
                         sponsor,
                         gas_payment.unwrap_or_default(),
-                        None,
                         |sender, sponsor, gas| {
                             Transaction::new_programmable_allow_sponsor(
                                 sender,
@@ -1242,6 +1279,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     IotaValue::ImmShared(_, _) => {
                         bail!("read-only shared object is not supported as an input")
                     }
+                    IotaValue::PublicKey(_) => bail!("pubkey is not supported as an input"),
                 };
                 let value = NumericalAddress::new(value.into_bytes(), NumberFormat::Hex);
                 self.compiled_state
@@ -1343,6 +1381,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 gas_payment,
                 ptb_inputs,
                 authenticator_inputs,
+                builtin_signer,
             }) => {
                 if self.is_simulator() {
                     bail!("Abstract transactions are not supported in simulator mode");
@@ -1353,22 +1392,27 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price = gas_price.unwrap_or(self.gas_price);
 
-                // Parse and resolve auth inputs.
-                // Build MoveAuthenticator.
-                // Get Abstract Test Account
-                let (aa_id, move_authenticator) = self
-                    .prepare_move_authenticator_data(authenticator_inputs, account)
-                    .await?;
+                let (aa_id, account_arg) = self.resolve_abstract_account(account)?;
+                let auth_inputs = self.resolve_authenticator_inputs(authenticator_inputs)?;
+                let builtin_signer = builtin_signer
+                    .map(|name| self.signing_key(&name))
+                    .transpose()?;
 
                 let account = self.abstract_accounts.get(&aa_id).ok_or_else(|| {
                     anyhow::anyhow!("Unbound abstract account @{aa_id} for MoveAuthenticator")
                 })?;
 
-                let tx = self.sign_sponsor_txn(
+                let tx = self.sign_abstract_txn(
                     account,
                     sponsor,
                     gas_payment,
-                    Some(move_authenticator),
+                    |tx| {
+                        let auth_inputs = match &builtin_signer {
+                            Some(signer) => vec![builtin_signature_arg(tx, signer)],
+                            None => auth_inputs,
+                        };
+                        move_authenticator(auth_inputs, &account_arg)
+                    },
                     |sender, sponsor, gas| {
                         Transaction::new_programmable_allow_sponsor(
                             sender,
@@ -1543,20 +1587,12 @@ impl IotaTestAdapter {
         Ok((ptb_inputs, ptb_cmds))
     }
 
-    /// Build a MoveAuthenticator.
-    /// Returns the Abstract Test Account and MoveAuthenticator.
-    async fn prepare_move_authenticator_data(
+    /// Resolves the `--account` of an abstract transaction to the account's id
+    /// and the object argument its `MoveAuthenticator` refers to.
+    fn resolve_abstract_account(
         &mut self,
-        authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
         account: ParsedValue<IotaExtraValueArgs>,
-    ) -> anyhow::Result<(ObjectId, UserSignature)> {
-        // Resolve authenticator inputs
-        let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
-        let auth_inputs: Vec<CallArg> = auth_inputs_resolved
-            .into_iter()
-            .map(|arg| arg.into_call_arg(self))
-            .collect::<anyhow::Result<_>>()?;
-
+    ) -> anyhow::Result<(ObjectId, CallArg)> {
         let aa_arg = self
             .compiled_state()
             .resolve_args(vec![account])?
@@ -1565,34 +1601,54 @@ impl IotaTestAdapter {
             .ok_or_else(|| anyhow::anyhow!("Missing account for MoveAuthenticator"))?;
         let aa_call_arg = aa_arg.into_call_arg(self)?;
 
-        match &aa_call_arg {
-            CallArg::ImmutableOrOwned(obj_ref) => Ok((
-                obj_ref.object_id,
-                UserSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_with_immutable_account_object(
-                        auth_inputs,
-                        vec![],
-                        *obj_ref,
-                    )
-                    .into(),
-                ),
-            )),
-            CallArg::Shared(shared) => Ok((
-                shared.object_id,
-                UserSignature::MoveAuthenticator(
-                    MoveAuthenticatorV1::new_with_shared_account_object(
-                        auth_inputs,
-                        vec![],
-                        *shared,
-                    )
-                    .into(),
-                ),
-            )),
-            CallArg::Pure(_) | CallArg::Receiving(_) => Err(anyhow::anyhow!(
-                "abstract: account must be an object representing the abstract account"
-            )),
+        let aa_id = match &aa_call_arg {
+            CallArg::ImmutableOrOwned(obj_ref) => obj_ref.object_id,
+            CallArg::Shared(shared) => shared.object_id,
+            CallArg::Pure(_) | CallArg::Receiving(_) => {
+                bail!("abstract: account must be an object representing the abstract account")
+            }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
+        };
+        Ok((aa_id, aa_call_arg))
+    }
+
+    fn resolve_authenticator_inputs(
+        &mut self,
+        authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    ) -> anyhow::Result<Vec<CallArg>> {
+        self.compiled_state()
+            .resolve_args(authenticator_inputs)?
+            .into_iter()
+            .map(|arg| arg.into_call_arg(self))
+            .collect()
+    }
+
+    /// The key of the named test account or `--signers` entry, for
+    /// `pubkey(<name>)` and `--builtin-signer <name>`.
+    fn signing_key(&self, name: &str) -> anyhow::Result<SimpleKeypair> {
+        if let Some(signer) = self.signers.get(name) {
+            return Ok(signer.clone());
         }
+        let account = self
+            .accounts
+            .get(name)
+            .ok_or_else(|| anyhow!("Unbound account or signer '{name}'"))?;
+        let key = account
+            .private_key
+            .clone()
+            .ok_or_else(|| anyhow!("Account '{name}' has no private key"))?;
+        Ok(SimpleKeypair::from(key))
+    }
+
+    /// The flag-prefixed public key (`flag || raw key bytes`) of the named test
+    /// account or `--signers` entry.
+    pub(crate) fn prefixed_public_key(&self, name: &str) -> anyhow::Result<Vec<u8>> {
+        let public_key = self.signing_key(name)?.public_key();
+        Ok([
+            vec![public_key.scheme().to_u8()],
+            public_key.as_ref().to_vec(),
+        ]
+        .concat())
     }
 
     fn named_variables(&self) -> BTreeMap<String, String> {
@@ -1828,7 +1884,7 @@ impl IotaTestAdapter {
         ) -> Transaction,
     ) -> TransactionEnvelope {
         let sender = self.get_sender(sender);
-        self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
+        self.sign_sponsor_txn(sender, None, vec![], move |sender, _, gas| {
             txn_data(sender, gas)
         })
     }
@@ -1857,7 +1913,6 @@ impl IotaTestAdapter {
         sender: &TestAccount,
         sponsor: Option<String>,
         payment: Vec<FakeID>,
-        aa_sig: Option<UserSignature>,
         txn_data: impl FnOnce(
             // sender
             Address,
@@ -1873,10 +1928,7 @@ impl IotaTestAdapter {
 
         let data = txn_data(sender.address, sponsor.address, payment_refs);
 
-        if let Some(aa_sig) = aa_sig {
-            let sponsor_key = sponsor.private_key.as_ref();
-            to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_key)
-        } else if sender.address == sponsor.address {
+        if sender.address == sponsor.address {
             to_sender_signed_transaction(
                 data,
                 sender.private_key.as_ref().expect("Sender key missing"),
@@ -1890,6 +1942,38 @@ impl IotaTestAdapter {
                 ],
             )
         }
+    }
+
+    /// Like [`Self::sign_sponsor_txn`], for a sender that is an abstract
+    /// account: its signature is the `MoveAuthenticator` that `authenticator`
+    /// builds from the transaction data.
+    fn sign_abstract_txn(
+        &self,
+        sender: &TestAccount,
+        sponsor: Option<String>,
+        payment: Vec<FakeID>,
+        authenticator: impl FnOnce(&Transaction) -> UserSignature,
+        txn_data: impl FnOnce(
+            // sender
+            Address,
+            // sponsor
+            Address,
+            // gas
+            Vec<ObjectReference>,
+        ) -> Transaction,
+    ) -> TransactionEnvelope {
+        let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
+
+        let payment_refs = self.get_payments(sponsor, payment);
+
+        let data = txn_data(sender.address, sponsor.address, payment_refs);
+        let authenticator = authenticator(&data);
+
+        to_sender_signed_transaction_with_optional_sponsor(
+            data,
+            authenticator,
+            sponsor.private_key.as_ref(),
+        )
     }
 
     fn get_sender(&self, sender: Option<String>) -> &TestAccount {
@@ -2606,6 +2690,44 @@ impl fmt::Display for FakeID {
     }
 }
 
+/// A `MoveAuthenticator` that calls the account's authenticator with
+/// `auth_inputs`. `account_arg` comes from
+/// [`IotaTestAdapter::resolve_abstract_account`].
+fn move_authenticator(auth_inputs: Vec<CallArg>, account_arg: &CallArg) -> UserSignature {
+    let authenticator = match account_arg {
+        CallArg::ImmutableOrOwned(obj_ref) => {
+            MoveAuthenticatorV1::new_with_immutable_account_object(auth_inputs, vec![], *obj_ref)
+        }
+        CallArg::Shared(shared) => {
+            MoveAuthenticatorV1::new_with_shared_account_object(auth_inputs, vec![], *shared)
+        }
+        _ => unreachable!("an abstract account is always an owned, immutable or shared object"),
+    };
+    UserSignature::MoveAuthenticator(authenticator.into())
+}
+
+/// The single argument the built-in authenticators take: `signer`'s signature
+/// of `tx`, as the BCS encoding of its `UserSignature` wire bytes.
+fn builtin_signature_arg(tx: &Transaction, signer: &SimpleKeypair) -> CallArg {
+    let signature =
+        TransactionEnvelope::signature_from_signer(tx.clone(), Intent::iota_transaction(), signer);
+    CallArg::pure(&UserSignature::Simple(signature).to_bytes())
+}
+
+/// The key of the `--signers` entry `name`. It is drawn from a seed of its
+/// own, so that declaring signers changes no other key or object of the test.
+fn signer_keypair(name: &str, scheme: SignatureScheme) -> SimpleKeypair {
+    let mut hasher = Blake2b256::default();
+    hasher.update(b"signer:");
+    hasher.update(name.as_bytes());
+    let rng = StdRng::from_seed(hasher.finalize().digest);
+    match scheme {
+        SignatureScheme::Ed25519 => SimpleKeypair::from(Ed25519PrivateKey::random_with(rng)),
+        SignatureScheme::Secp256k1 => SimpleKeypair::from(Secp256k1PrivateKey::random_with(rng)),
+        other => unreachable!("--signers only accepts ed25519 and secp256k1, not {other:?}"),
+    }
+}
+
 impl Default for AdapterInitConfig {
     fn default() -> Self {
         Self {
@@ -2618,6 +2740,7 @@ impl Default for AdapterInitConfig {
             default_gas_price: None,
             flavor: None,
             offchain_config: None,
+            signer_schemes: BTreeMap::new(),
         }
     }
 }

@@ -8431,6 +8431,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-node-storage",
  "iota-protocol-config",
+ "iota-sdk-crypto",
  "iota-sdk-types",
  "iota-storage",
  "iota-swarm-config",
