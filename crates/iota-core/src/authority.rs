@@ -5666,7 +5666,10 @@ impl AuthorityState {
     ///
     /// On any other failure and when `gas_owner`'s own account cannot be
     /// resolved. Both are broken invariants: a check before execution was
-    /// skipped or wrong.
+    /// skipped or wrong. The gas owner's account must therefore stay checked
+    /// before execution: at signing, and in post-consensus validation under
+    /// P-COOL. Under attestation, only the attestor checks it, so there this
+    /// failure has to become effects charged to the attestor instead.
     fn check_move_account_for_execution(
         &self,
         auth_account_object_id: ObjectId,
