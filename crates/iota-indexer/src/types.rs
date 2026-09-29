@@ -965,7 +965,7 @@ pub(crate) mod grpc_conversion {
             .into_iter()
             .map(|command_output| -> IndexerResult<_> {
                 Ok((
-                    IotaArgument::from(command_output.argument()?),
+                    IotaArgument::try_from(command_output.argument()?)?,
                     command_output.output_bcs()?.to_vec(),
                     command_output.type_tag()?.into(),
                 ))
