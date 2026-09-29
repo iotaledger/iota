@@ -1,40 +1,27 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Deterministic products of a [`ResourceProfile`] and the protocol config's
-//! gas-vector coefficients: the predicted `cpu_time` and the weighted
-//! `moved_bytes` sum attested in `AttestationData::V2`, and the validity
-//! comparison tying the two to the memory-bandwidth ceiling.
+//! Prices a [`ResourceProfile`] with the protocol config's gas-vector
+//! coefficients into the `cpu_time` and `moved_bytes` attested in
+//! `AttestationData::V2`.
 //!
-//! The attesting validator prices its dry-run's profile with these functions,
-//! and every validator recomputes the same values from the actual counters
-//! after execution — so all arithmetic is integer, checked, and rounds
-//! divisions up (uncertainty resolves upward). No floats, no node-local
-//! state. Native functions are priced directly on their deterministic
-//! observables (call count and abstract input bytes), never on the gas the
-//! cost tables charge for them.
+//! Every validator must compute the same values, so all arithmetic is
+//! integer and checked, and divisions round up.
 
 use iota_protocol_config::GasVectorCoefficientsV1;
 
 use super::resource_profile::ResourceProfile;
 
-/// Femtoseconds per nanosecond: coefficient values are stored in
-/// femtoseconds, predictions are returned in nanoseconds.
 const FS_PER_NS: u128 = 1_000_000;
 
-/// Denominator of basis-point fixed-point values (10_000 = ×1.0).
 const BPS_DENOMINATOR: u128 = 10_000;
 
 const NS_PER_SEC: u128 = 1_000_000_000;
 
-/// Predicted execution time of `profile` in reference-machine nanoseconds:
-/// `(fixed overhead + Σ counter × coefficient) × safety multiplier`, every
-/// division rounded up.
+/// Predicted execution time of `profile` in reference-machine nanoseconds.
 ///
-/// Returns `None` when the table cannot price the profile: a native function
-/// is missing from `native_functions`, the arithmetic overflows, or the
-/// result is zero (a zero `cpu_time` is not attestable). Callers fall back
-/// to not producing a gas vector for such a transaction.
+/// Returns `None` if a native function is missing from `native_functions`,
+/// the arithmetic overflows, or the result is zero (not attestable).
 pub fn predicted_cpu_time_ns(
     profile: &ResourceProfile,
     table: &GasVectorCoefficientsV1,
@@ -106,16 +93,10 @@ pub fn predicted_cpu_time_ns(
     u64::try_from(ns).ok()
 }
 
-/// The weighted sum of the bytes `profile` moved through the shared
-/// memory/store path during execution: reads and working-set growth at their
-/// byte counts, plus a per-operation equivalent for each storage read and
-/// each streaming native's input bytes at its per-function weight (divisions
-/// rounded up).
+/// Weighted sum of the bytes `profile` moved through memory and storage.
 ///
-/// Returns `None` when a native function in the profile is missing from the
-/// table (the same rule as the cpu_time prediction) or on arithmetic
-/// overflow. Zero is a valid result — a pure-compute transaction moves
-/// nothing.
+/// Returns `None` if a native function is missing from `native_functions` or
+/// the arithmetic overflows. Zero is a valid result.
 pub fn moved_bytes(profile: &ResourceProfile, table: &GasVectorCoefficientsV1) -> Option<u64> {
     let plain_bytes: u128 = [
         profile.input_object_bytes,
@@ -147,11 +128,8 @@ pub fn moved_bytes(profile: &ResourceProfile, table: &GasVectorCoefficientsV1) -
     u64::try_from(total).ok()
 }
 
-/// Whether a declared `cpu_time` is long enough for the declared
-/// `moved_bytes` at the given bandwidth — that is, whether the transaction's
-/// average declared rate `moved_bytes / cpu_time` stays at or below
-/// `bandwidth_bytes_per_sec`. Compared exactly by cross-multiplication, so
-/// there is no division and no rounding.
+/// Whether `moved_bytes / cpu_time_ns` is at most `bandwidth_bytes_per_sec`,
+/// compared exactly without division.
 pub fn cpu_time_covers_moved_bytes(
     cpu_time_ns: u64,
     moved_bytes: u64,
@@ -198,8 +176,7 @@ mod tests {
             )]),
             ..Default::default()
         };
-        // fs total: 25e9 + 1000×1.5e6 + 3×8e8 + 6000×4e5 = 31_300_000_000
-        // ×1.5 = 46_950_000_000 fs = 46_950 ns, both divisions exact.
+        // (25e9 + 1000 × 1.5e6 + 3 × 8e8 + 6000 × 4e5) fs × 1.5 = 46_950 ns
         assert_eq!(
             predicted_cpu_time_ns(&profile, &table_pricing_instructions_and_one_hash()),
             Some(46_950)
@@ -208,8 +185,7 @@ mod tests {
 
     #[test]
     fn predicted_cpu_time_rounds_divisions_up() {
-        // One instruction at 1 fs, multiplier ×1.0001: 1 fs × 10_001 / 10_000
-        // rounds up to 2 fs, and 2 fs rounds up to 1 ns.
+        // 1 fs × 1.0001 rounds up to 2 fs, which rounds up to 1 ns.
         let table = GasVectorCoefficientsV1 {
             interp_instruction_count_fs: 1,
             safety_multiplier_bps: 10_001,
@@ -243,7 +219,6 @@ mod tests {
 
     #[test]
     fn zero_prediction_is_not_priced() {
-        // An all-zero table cannot produce an attestable (nonzero) cpu_time.
         assert_eq!(
             predicted_cpu_time_ns(
                 &ResourceProfile::default(),
@@ -286,8 +261,7 @@ mod tests {
             )]),
             ..Default::default()
         };
-        // plain 1300 + 5 ops × 5300 + ceil(3 × 31_000 / 10_000) = 1300 +
-        // 26_500 + 10 = 27_810 (the hash term rounds 9.3 up to 10).
+        // 1300 + 5 × 5300 + ceil(3 × 3.1) = 27_810
         assert_eq!(
             moved_bytes(&profile, &table_pricing_instructions_and_one_hash()),
             Some(27_810)
@@ -307,11 +281,8 @@ mod tests {
 
     #[test]
     fn rate_comparison_is_exact_at_the_boundary() {
-        // 1000 bytes in 1000 ns at 1 GB/s: exactly one byte per ns — holds.
         assert!(cpu_time_covers_moved_bytes(1_000, 1_000, 1_000_000_000));
-        // One more byte in the same time exceeds the bandwidth.
         assert!(!cpu_time_covers_moved_bytes(1_000, 1_001, 1_000_000_000));
-        // Zero declared time covers zero bytes and nothing else.
         assert!(cpu_time_covers_moved_bytes(0, 0, 1_000_000_000));
         assert!(!cpu_time_covers_moved_bytes(0, 1, 1_000_000_000));
     }
