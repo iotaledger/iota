@@ -97,17 +97,12 @@ struct Inner<'a> {
     metrics: Arc<LimitsMetrics>,
     // Epoch ID for the current transaction. Used for receiving objects.
     current_epoch_id: EpochId,
-    // Counters feeding the per-transaction resource profile: child-object
-    // loads issued to the resolver, the serialized bytes they fetched, and the
-    // serialized bytes retained in `cached_objects`. Updating them does not
-    // change the gas charged or the existing limit checks.
+    // Counters feeding the per-transaction resource profile.
     child_object_reads: u64,
     child_object_read_bytes: u64,
     cached_objects_bytes: u64,
-    // Abstract sizes (the VM value model's units, not serialized bytes) of
-    // child objects added during execution via `add_object`. Added children
-    // were never serialized, so their abstract size is the only size
-    // available; the profile documents the mixed units.
+    // Added children were never serialized, so only their abstract size is
+    // available.
     child_objects_added_abstract_bytes: u64,
 }
 
@@ -471,10 +466,7 @@ impl<'a> ChildObjectStore<'a> {
         }
     }
 
-    /// Counters for the resource profile: number of child-object loads issued
-    /// to the resolver, the serialized bytes they fetched, and the bytes
-    /// retained by the object runtime (serialized bytes of cached loads plus
-    /// abstract sizes of children added during execution).
+    /// Returns `(reads, read_bytes, cached_bytes)` for the resource profile.
     pub(super) fn read_counters(&self) -> (u64, u64, u64) {
         (
             self.inner.child_object_reads,
@@ -679,10 +671,6 @@ impl<'a> ChildObjectStore<'a> {
             let fingerprint = ObjectFingerprint::none(self.inner.protocol_config);
             (GlobalValue::none(), fingerprint)
         };
-        // Record the added child's abstract size for the resource profile:
-        // it is retained by the runtime for the rest of the transaction just
-        // like a cached load, but was never serialized, so its abstract size
-        // is the only size available.
         self.inner.child_objects_added_abstract_bytes = self
             .inner
             .child_objects_added_abstract_bytes

@@ -51,16 +51,7 @@ pub struct LinkageView<'state> {
     past_contexts: RefCell<HashSet<ObjectId>>,
     /// Distinct non-system packages fetched through
     /// `PackageStore::get_package` on this view, and their total serialized
-    /// bytes, for the read-I/O component of the resource profile. Only the
-    /// adapter's own fetches (call targets, publish/upgrade dependencies,
-    /// linkage contexts) go through that interface, and they are issued per
-    /// transaction regardless of node-local cache state, so the counts are
-    /// deterministic. Module fetches (`ModuleResolver::get_module`) are
-    /// issued by the VM loader only on misses of its module cache, which
-    /// belongs to the per-epoch executor and so carries state from earlier
-    /// transactions; they bypass the counters, and a package reached only as
-    /// a transitive dependency of a call is therefore never counted. See
-    /// `ResourceProfile::packages_loaded`.
+    /// bytes, for the read-I/O component of the resource profile.
     counted_packages: RefCell<HashSet<ObjectId>>,
     packages_loaded: RefCell<u64>,
     package_bytes_loaded: RefCell<u64>,
@@ -386,11 +377,9 @@ impl ModuleResolver for LinkageView<'_> {
     type Error = IotaError;
 
     fn get_module(&self, id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
-        // Fetch through the resolver directly, bypassing the counted
-        // `PackageStore::get_package` below: module fetches are issued by the
-        // VM loader only on misses of its module cache, which outlives the
-        // transaction, so counting them would make the package-load counters
-        // depend on node-local history. See `counted_packages`.
+        // Bypasses the package-load counters: the VM loader fetches modules
+        // only on misses of its per-epoch cache, which depends on node-local
+        // history.
         Ok(self
             .resolver
             .get_package(&ObjectId::new(id.address().into_bytes()))?
@@ -433,7 +422,6 @@ mod tests {
     use super::LinkageView;
     use crate::data_store::PackageStore;
 
-    /// Serves the packages it was built with; no caching, no counting.
     struct StubPackages(BTreeMap<ObjectId, Rc<MovePackage>>);
 
     impl PackageStore for StubPackages {
@@ -456,10 +444,6 @@ mod tests {
         )
     }
 
-    /// The package-load counters must reflect only the adapter's direct
-    /// package fetches: module fetches are issued by the VM loader on misses
-    /// of its per-epoch cache, so counting them would make the counters
-    /// depend on node-local history and diverge between validators.
     #[test]
     fn module_fetches_are_not_counted_as_package_loads() {
         let user_a = ObjectId::new([0xA; 32]);
@@ -472,7 +456,6 @@ mod tests {
             (system, stub_package(system)),
         ]))));
 
-        // A module fetch (the VM loader's path) is not counted.
         let module_id = ModuleId::new(
             AccountAddress::new(user_b.into_bytes()),
             CoreIdentifier::new("m").unwrap(),
@@ -480,19 +463,14 @@ mod tests {
         assert!(view.get_module(&module_id).unwrap().is_some());
         assert_eq!(view.package_load_counters(), (0, 0));
 
-        // A direct package fetch counts once, with the package's serialized
-        // size; repeated fetches of the same package are deduplicated.
         let package_bytes = view.get_package(&user_a).unwrap().unwrap().size() as u64;
         assert_eq!(view.package_load_counters(), (1, package_bytes));
         view.get_package(&user_a).unwrap();
         assert_eq!(view.package_load_counters(), (1, package_bytes));
 
-        // System packages are not counted, matching the storage-read charge.
         view.get_package(&system).unwrap();
         assert_eq!(view.package_load_counters(), (1, package_bytes));
 
-        // An earlier module fetch does not stop a later direct fetch of the
-        // same package from being counted.
         view.get_package(&user_b).unwrap();
         assert_eq!(view.package_load_counters(), (2, 2 * package_bytes));
     }

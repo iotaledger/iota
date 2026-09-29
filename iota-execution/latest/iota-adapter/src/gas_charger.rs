@@ -240,13 +240,7 @@ pub mod checked {
                 }
                 let size = obj.object_size_for_gas_metering();
                 total_size += size;
-                // The profile counts package inputs separately (as
-                // `packages_loaded` / `package_bytes_loaded`): a
-                // transaction's input objects include its package
-                // dependencies, and counting them here too would leave the
-                // two counters moving in lockstep, with their costs
-                // inseparable in calibration. The read charge below still
-                // covers all input bytes, packages included.
+                // Packages are counted separately by `packages_loaded`.
                 if !obj.is_package() {
                     object_count += 1;
                     object_bytes += size as u64;

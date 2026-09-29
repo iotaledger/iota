@@ -209,12 +209,8 @@ mod checked {
         /// values at the end of execution to determine storage charges
         /// and rebates.
         per_object_storage: Vec<(ObjectId, PerObjectStorage)>,
-        /// Post-transaction serialized size of every mutation tracked, one
-        /// entry per written or deleted object (0 = deleted). Unlike
-        /// `per_object_storage`, which feeds fees and is skipped in unmetered
-        /// mode, this list is maintained unconditionally so the resource
-        /// profile records system transactions' writes too. Maintaining it
-        /// deducts no gas, and fee computation does not consult it.
+        /// New serialized size of each written object (0 = deleted). Unlike
+        /// `per_object_storage`, also maintained in unmetered mode.
         profile_write_sizes: Vec<u64>,
         // storage rebate rate as defined in the ProtocolConfig
         rebate_rate: u64,
@@ -371,10 +367,8 @@ mod checked {
             &self.per_object_storage
         }
 
-        /// Assemble the per-transaction [`ResourceProfile`]: the VM-side
-        /// counters from the Move gas status plus the write-side signals
-        /// from storage tracking. Call after storage collection; earlier
-        /// calls see empty write-side fields.
+        /// The per-transaction [`ResourceProfile`]. Before storage collection
+        /// the write fields are empty.
         pub fn resource_profile(&self) -> ResourceProfile {
             let mut profile = self.gas_status.resource_profile();
             for new_size in &self.profile_write_sizes {
@@ -593,9 +587,6 @@ mod checked {
 
         #[test]
         fn unmetered_mutations_recorded_in_resource_profile() {
-            // System transactions run unmetered: fees skip storage tracking,
-            // but the resource profile must still record their writes and
-            // deletions (e.g. the consensus-commit prologue's Clock update).
             let mut status = IotaGasStatus::new_unmetered();
             status.track_storage_mutation(ObjectId::ZERO, 512, 0);
             status.track_storage_mutation(ObjectId::ZERO, 0, 100);
@@ -604,7 +595,6 @@ mod checked {
             assert_eq!(profile.written_object_count, 1);
             assert_eq!(profile.written_bytes, 512);
             assert_eq!(profile.deleted_object_count, 1);
-            // Fee-side storage tracking stays untouched in unmetered mode.
             assert!(status.per_object_storage().is_empty());
         }
     }

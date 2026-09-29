@@ -75,43 +75,21 @@ pub struct GasStatus {
     pub profiler: Option<GasProfiler>,
     pub num_native_calls: u64,
 
-    // Counters feeding `ResourceProfile`. Updating them deducts no gas, and
-    // they are derived from deterministic quantities (sizes and counts), so
-    // they are identical on every validator.
+    // Counters feeding `ResourceProfile`; updating them deducts no gas.
     locals_size_current: u64,
     locals_size_high_water_mark: u64,
-    // Abstract bytes added to each live frame's locals through the store/call
-    // hooks, innermost frame last. At frame drop, any excess of the dropped
-    // values' size over the frame's tracked additions is growth that happened
-    // in place through references (e.g. `vector::push_back`), invisible to the
-    // hooks; it is recorded late so the locals high-water mark includes it and
-    // the running size never deflates below the other frames' contributions.
+    // Abstract bytes added to each live frame's locals, innermost frame last.
     frame_locals_added: Vec<u64>,
-    // True peak of the operand stack's abstract size: unlike the charged
-    // `stack_size_current` above (whose decreases are intentionally not
-    // applied, preserving today's tier escalation), this pair applies both
-    // increases and decreases, giving the peak resident size for the
-    // working-memory profile.
+    // Unlike the charged `stack_size_current`, this applies decreases too.
     profile_stack_size_current: u64,
     profile_stack_size_peak: u64,
-    // Internal gas actually deducted (tiering-correct) for native calls and
-    // for the two per-byte categories (storage reads vs. package
-    // publish/upgrade bytes, which use different rates). The interpreter
-    // share is the remainder: `total_deducted - native - per-byte`. Tracking
-    // the non-interpreter categories by delta keeps the per-instruction
-    // charging path untouched.
     native_gas_deducted: u64,
     storage_read_gas_deducted: u64,
     publish_gas_deducted: u64,
-    // The three untiered components of interpreter gas, accumulated so each can
-    // be calibrated separately: instruction dispatch count, operand-stack bytes
-    // moved, and pushes. Interpreter-only (native's share is subtracted via
-    // `discount_native_flows`).
     interp_instr_flow: u64,
     interp_stack_size_flow: u64,
     interp_stack_height_flow: u64,
-    // Module id + function name of the native currently executing; attributes
-    // the next `record_native_gas_deducted` into the per-function maps.
+    // Key of the native currently executing, for the per-function maps.
     pending_native_function: String,
     native_gas_by_function: BTreeMap<String, u64>,
     native_calls_by_function: BTreeMap<String, u64>,
@@ -344,19 +322,14 @@ impl GasStatus {
         incr_size: u64,
         decr_size: u64,
     ) -> PartialVMResult<()> {
-        // Accumulate the three untiered components that make up interpreter gas
-        // — instruction dispatch, operand-stack bytes moved, and pushes — so
-        // the profile can reprice each separately. Native calls also route
-        // through `charge`; the meter subtracts their share via
-        // `discount_native_flows`, leaving these interpreter-only.
+        // Native calls also route through here; the meter subtracts their
+        // share via `discount_native_flows`.
         self.interp_instr_flow = self.interp_instr_flow.saturating_add(num_instructions);
         self.interp_stack_size_flow = self.interp_stack_size_flow.saturating_add(incr_size);
         self.interp_stack_height_flow = self.interp_stack_height_flow.saturating_add(pushes);
 
-        // Maintain the true operand-stack size peak for the resource profile.
-        // `decr_size` is applied here and only here: the charged
-        // `stack_size_current` below intentionally ignores decreases (that is
-        // what today's tiers escalate on), so it must stay untouched.
+        // The charged `stack_size_current` intentionally ignores decreases, so
+        // `decr_size` is applied only to the profile's copy.
         self.profile_stack_size_current = self.profile_stack_size_current.saturating_add(incr_size);
         if self.profile_stack_size_current > self.profile_stack_size_peak {
             self.profile_stack_size_peak = self.profile_stack_size_current;
@@ -445,20 +418,14 @@ impl GasStatus {
         let computation_cost = size as u64 * cost_per_byte;
         let gas_before = self.gas_left;
         let result = self.deduct_units(computation_cost);
-        // Attribute the internal gas actually deducted (partial on
-        // out-of-gas, zero when unmetered) to the storage-read per-byte
-        // category, so it is excluded from the interpreter share of the
-        // resource profile.
         self.storage_read_gas_deducted = self
             .storage_read_gas_deducted
             .saturating_add(Self::gas_delta(gas_before, self.gas_left));
         result
     }
 
-    /// Like [`charge_bytes`](Self::charge_bytes), but attributes the deducted
-    /// gas to the package publish/upgrade per-byte category instead of
-    /// storage reads. The two categories use different per-byte rates and
-    /// price different work, so the profile keeps them apart.
+    /// Like [`charge_bytes`](Self::charge_bytes), but records the deducted gas
+    /// as package publish/upgrade gas instead of storage-read gas.
     pub fn charge_publish_bytes(&mut self, size: usize, cost_per_byte: u64) -> PartialVMResult<()> {
         let computation_cost = size as u64 * cost_per_byte;
         let gas_before = self.gas_left;
@@ -469,8 +436,7 @@ impl GasStatus {
         result
     }
 
-    /// Internal gas deducted between two `gas_left` readings (`before - after`,
-    /// saturating at zero).
+    /// `before - after`, saturating at zero.
     fn gas_delta(before: InternalGas, after: InternalGas) -> u64 {
         u64::from(
             before
@@ -495,9 +461,6 @@ impl GasStatus {
         self.instructions_executed
     }
 
-    /// Record that `amount` abstract bytes moved into frame locals. Locals are
-    /// not charged by gas; this records the bytes for the working-memory
-    /// component of [`ResourceProfile`].
     fn increase_locals_size(&mut self, amount: u64) {
         self.locals_size_current = self.locals_size_current.saturating_add(amount);
         if self.locals_size_current > self.locals_size_high_water_mark {
@@ -505,16 +468,12 @@ impl GasStatus {
         }
     }
 
-    /// Record that `amount` abstract bytes left frame locals (moved out or
-    /// dropped with the frame).
     fn decrease_locals_size(&mut self, amount: u64) {
         self.locals_size_current = self.locals_size_current.saturating_sub(amount);
     }
 
-    /// Add `amount` to the innermost live frame's tracked locals additions,
-    /// opening an implicit root frame if none is live. The entry function's
-    /// frame gets no `record_call_frame` (only `Call` instructions do), so its
-    /// stores land in the implicit root.
+    /// Opens an implicit root frame if none is live, since the entry
+    /// function's frame gets no `record_call_frame`.
     fn add_to_current_frame(&mut self, amount: u64) {
         match self.frame_locals_added.last_mut() {
             Some(top) => *top = top.saturating_add(amount),
@@ -522,25 +481,21 @@ impl GasStatus {
         }
     }
 
-    /// Record a function call: `args_size` abstract bytes move from the
-    /// operand stack into the callee frame's locals, and a new frame becomes
-    /// live for per-frame growth tracking.
+    /// Record a function call whose arguments total `args_size` abstract
+    /// bytes.
     pub fn record_call_frame(&mut self, args_size: u64) {
         self.increase_locals_size(args_size);
         self.frame_locals_added.push(args_size);
     }
 
-    /// Record a value of `size` abstract bytes stored from the operand stack
-    /// into a local. Storing over an occupied local over-counts (the
-    /// displaced value is not visible here), which is conservative for a
-    /// high-water mark.
+    /// Record a value stored into a local. Storing over an occupied local
+    /// over-counts, since the displaced value is not visible here.
     pub fn record_store_loc(&mut self, size: u64) {
         self.increase_locals_size(size);
         self.add_to_current_frame(size);
     }
 
-    /// Record a value of `size` abstract bytes moved out of a local onto the
-    /// operand stack.
+    /// Record a value moved out of a local.
     pub fn record_move_loc(&mut self, size: u64) {
         self.decrease_locals_size(size);
         if let Some(top) = self.frame_locals_added.last_mut() {
@@ -548,33 +503,25 @@ impl GasStatus {
         }
     }
 
-    /// Record a frame drop: `dropped_size` is the total abstract size of the
-    /// non-reference values still in the frame's locals. Values grown in
-    /// place through references (e.g. `vector::push_back` via `&mut`) never
-    /// passed the store/move hooks, so any excess of `dropped_size` over the
-    /// frame's tracked additions is growth observed late: it is added first
-    /// (raising the high-water mark to include it) and then the whole dropped
-    /// size is removed, so the running size never deflates below the still-
-    /// live frames' contributions.
+    /// Record a frame drop, where `dropped_size` is the total abstract size of
+    /// the values still in the frame's locals.
     pub fn record_drop_frame(&mut self, dropped_size: u64) {
         let tracked = self.frame_locals_added.pop().unwrap_or(0);
+        // The excess is growth in place through `&mut` references (e.g.
+        // `vector::push_back`), which the store/move hooks never saw.
         if dropped_size > tracked {
             self.increase_locals_size(dropped_size - tracked);
         }
         self.decrease_locals_size(dropped_size);
     }
 
-    /// Record the distinct non-system packages fetched for this transaction,
-    /// for the read-I/O component of [`ResourceProfile`].
     pub fn record_package_loads(&mut self, count: u64, bytes: u64) {
         self.packages_loaded = count;
         self.package_bytes_loaded = bytes;
     }
 
-    /// Record the identity (module id + function name) of the native about
-    /// to execute; the next
-    /// [`record_native_gas_deducted`](Self::record_native_gas_deducted) is
-    /// attributed to it.
+    /// Set the native function that the following native recordings are
+    /// attributed to.
     pub fn set_pending_native_function(&mut self, module_id: &str, function_name: &str) {
         self.pending_native_function.clear();
         self.pending_native_function.push_str(module_id);
@@ -582,9 +529,7 @@ impl GasStatus {
         self.pending_native_function.push_str(function_name);
     }
 
-    /// Record the abstract size of the pending native's argument values (the
-    /// bytes the native actually consumes, sizes taken through references),
-    /// attributed to the pending function. Profile-only; charges nothing.
+    /// Record the abstract size of the pending native's arguments.
     pub fn record_native_input_bytes(&mut self, bytes: u64) {
         if let Some(per_function) = self
             .native_input_bytes_by_function
@@ -597,16 +542,12 @@ impl GasStatus {
         }
     }
 
-    /// Attribute the internal gas deducted for a native call to the pending
-    /// native function. Call with the `gas_left` reading captured *before*
-    /// the native's charges; the delta is the gas actually deducted (tiering-
-    /// correct, and partial on out-of-gas). This observes charging that has
-    /// already happened; it does not itself charge gas.
+    /// Record the gas deducted since `gas_left_before` against the pending
+    /// native function. Does not charge gas.
     pub fn record_native_gas_deducted(&mut self, gas_left_before: InternalGas) {
         let deducted = Self::gas_delta(gas_left_before, self.gas_left);
         self.native_gas_deducted = self.native_gas_deducted.saturating_add(deducted);
-        // Look up before inserting so the key is cloned only once per
-        // distinct function, not on every native call.
+        // Look up before inserting so the key is cloned only once per function.
         if let Some(per_function) = self
             .native_gas_by_function
             .get_mut(&self.pending_native_function)
@@ -627,49 +568,33 @@ impl GasStatus {
         }
     }
 
-    /// Subtract a native call's contribution from the interpreter component
-    /// flows. Native calls route through [`charge`](Self::charge), which adds
-    /// to those flows; the meter calls this afterward with the same
-    /// `(num_instructions, pushes, incr_size)` the native charge used, leaving
-    /// the flows interpreter-only.
+    /// Undo a native call's additions to the interpreter counters. Pass the
+    /// same values the native's [`charge`](Self::charge) call used.
     pub fn discount_native_flows(&mut self, num_instructions: u64, pushes: u64, incr_size: u64) {
         self.interp_instr_flow = self.interp_instr_flow.saturating_sub(num_instructions);
         self.interp_stack_size_flow = self.interp_stack_size_flow.saturating_sub(incr_size);
         self.interp_stack_height_flow = self.interp_stack_height_flow.saturating_sub(pushes);
     }
 
-    /// Record the input objects loaded before execution, for the read-I/O
-    /// component of [`ResourceProfile`].
     pub fn record_input_objects(&mut self, count: u64, bytes: u64) {
         self.input_object_count = count;
         self.input_object_bytes = bytes;
     }
 
-    /// Record the object runtime's child-object load counters at the end of
-    /// execution, for the read-I/O and working-memory components of
-    /// [`ResourceProfile`].
     pub fn record_object_runtime_usage(&mut self, reads: u64, read_bytes: u64, cached_bytes: u64) {
         self.child_object_reads = reads;
         self.child_object_read_bytes = read_bytes;
         self.object_runtime_cached_bytes = cached_bytes;
     }
 
-    /// Record the emitted events' count and total serialized size at the end
-    /// of execution, for the commit-write and cardinality components of
-    /// [`ResourceProfile`].
     pub fn record_events(&mut self, count: u64, bytes: u64) {
         self.event_count = count;
         self.event_bytes = bytes;
     }
 
-    /// Assemble the VM-side portion of the per-transaction
-    /// [`ResourceProfile`]. The write-side fields (written/deleted objects)
-    /// are not visible here and are filled in by the caller from storage
-    /// tracking.
+    /// The [`ResourceProfile`] without the write fields (written and deleted
+    /// objects), which the caller fills in from storage tracking.
     pub fn resource_profile(&self) -> ResourceProfile {
-        // Interpreter gas is the part of the computation total that is neither
-        // a native call nor a per-byte charge. All categories are internal gas
-        // units, so they sum exactly to the total deducted.
         let total_deducted = Self::gas_delta(self.initial_budget, self.gas_left);
         let interpreter_gas = total_deducted
             .saturating_sub(self.native_gas_deducted)
@@ -808,8 +733,6 @@ mod tests {
         assert_eq!(profile.object_runtime_cached_bytes, 900);
         assert_eq!(profile.event_count, 2);
         assert_eq!(profile.event_bytes, 64);
-        // Write-side fields are filled by the storage-tracking layer, not
-        // here.
         assert_eq!(profile.written_object_count, 0);
         assert_eq!(profile.written_bytes, 0);
         assert_eq!(profile.deleted_object_count, 0);
@@ -820,28 +743,21 @@ mod tests {
         let cost_table = initial_cost_schedule_v1();
         let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
 
-        // An interpreter charge (bytecode instruction + stack ops). Measure
-        // the gas it deducts independently.
         let before_interp = u64::from(status.gas_left);
         status.charge(1, 1, 0, 0, 0).unwrap();
         let interp = before_interp - u64::from(status.gas_left);
         assert!(interp > 0, "interpreter charge should deduct gas");
 
-        // A native call: the adapter's meter captures gas_left before the
-        // native's charges and records the delta against the pending module.
         status.set_pending_native_function("0x2::ed25519", "ed25519_verify");
         let before_native = status.gas_left;
         status.deduct_gas(InternalGas::new(5000)).unwrap();
         status.record_native_gas_deducted(before_native);
 
-        // A second native in a different module.
         status.set_pending_native_function("0x2::bls12381", "bls12381_min_sig_verify");
         let before_native2 = status.gas_left;
         status.deduct_gas(InternalGas::new(2000)).unwrap();
         status.record_native_gas_deducted(before_native2);
 
-        // A per-byte charge (storage read): excluded from the interpreter
-        // share.
         status.charge_bytes(10, 3).unwrap();
 
         let profile = status.resource_profile();
@@ -864,9 +780,6 @@ mod tests {
                 .get("0x2::ed25519::ed25519_verify"),
             Some(&1)
         );
-        // Interpreter gas = total deducted − native − byte, so it recovers
-        // exactly the interpreter charge and excludes the 7000 native and the
-        // 30 byte gas.
         assert_eq!(profile.interpreter_gas, interp);
     }
 
@@ -875,21 +788,17 @@ mod tests {
         let cost_table = initial_cost_schedule_v1();
         let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
 
-        // Two interpreter charges: (2 instructions, 3 pushes, 40 size) and
-        // (1 instruction, 0 pushes, 8 size).
         status.charge(2, 3, 0, 40, 0).unwrap();
         status.charge(1, 0, 0, 8, 0).unwrap();
 
-        // Simulate an above-threshold native call, which routes through
-        // `charge` with the amount as instruction count, then discounts its
-        // own share so the interpreter flows stay interpreter-only.
+        // An above-threshold native call.
         status.charge(500, 2, 0, 16, 0).unwrap();
         status.discount_native_flows(500, 2, 16);
 
         let profile = status.resource_profile();
-        assert_eq!(profile.interp_instruction_count, 3); // 2 + 1, native 500 discounted
-        assert_eq!(profile.interp_stack_height_flow, 3); // 3 + 0, native 2 discounted
-        assert_eq!(profile.interp_stack_size_flow, 48); // 40 + 8, native 16 discounted
+        assert_eq!(profile.interp_instruction_count, 3);
+        assert_eq!(profile.interp_stack_height_flow, 3);
+        assert_eq!(profile.interp_stack_size_flow, 48);
     }
 
     #[test]
@@ -912,8 +821,7 @@ mod tests {
     #[test]
     fn operand_stack_peak_applies_decreases() {
         let mut status = GasStatus::new_unmetered();
-        // Push 100, pop 60, push 30, pop 70: the running size is
-        // 100 → 40 → 70 → 0, so the true peak is 100.
+        // Running size: 100 → 40 → 70 → 0.
         status.charge(1, 1, 0, 100, 0).unwrap();
         status.charge(1, 0, 1, 0, 60).unwrap();
         status.charge(1, 1, 0, 30, 0).unwrap();
@@ -921,7 +829,6 @@ mod tests {
         let profile = status.resource_profile();
         assert_eq!(profile.stack_size_high_water_mark, 100);
 
-        // A later spike above the previous peak raises it.
         status.charge(1, 1, 0, 200, 0).unwrap();
         let profile = status.resource_profile();
         assert_eq!(profile.stack_size_high_water_mark, 200);
@@ -930,24 +837,19 @@ mod tests {
     #[test]
     fn frame_drop_captures_in_place_growth() {
         let mut status = GasStatus::new_unmetered();
-        // Outer frame receives 8 bytes of arguments, inner frame 4.
         status.record_call_frame(8);
         status.record_call_frame(4);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 12);
 
-        // The inner frame drops 20 bytes although only 4 were recorded: the
-        // missing 16 grew in place through references (e.g. vector pushes via
-        // `&mut`), so they are recorded late — the high-water mark includes
-        // them — and the running size returns to the outer frame's 8, never
-        // below it.
+        // The inner frame grew by 16 bytes in place; the running size returns
+        // to the outer frame's 8.
         status.record_drop_frame(20);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 28);
         status.record_store_loc(1);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 28);
 
         status.record_drop_frame(9);
-        // Store/move without any live frame (the entry function's frame gets
-        // no record_call_frame) lands in an implicit root frame.
+        // No live frame: lands in the implicit root frame.
         status.record_store_loc(5);
         status.record_move_loc(5);
         assert_eq!(status.resource_profile().locals_size_high_water_mark, 28);
@@ -962,14 +864,11 @@ mod tests {
         let profile = status.resource_profile();
         assert_eq!(profile.storage_read_gas, 30);
         assert_eq!(profile.package_publish_gas, 20);
-        // Neither per-byte category leaks into the interpreter share.
         assert_eq!(profile.interpreter_gas, 0);
     }
 
-    /// Manual benchmark of the per-instruction charging hot path, used to
-    /// measure the resource-profile counters' overhead. Run with:
-    /// `cargo test --release -p iota-types --lib bench_charge -- --ignored
-    /// --nocapture`
+    /// Run with: `cargo test --release -p iota-types --lib bench_charge --
+    /// --ignored --nocapture`
     #[test]
     #[ignore = "manual benchmark, run explicitly in release mode"]
     fn bench_charge_hot_path() {
@@ -1008,8 +907,6 @@ mod tests {
         status.record_native_input_bytes(512);
         status.set_pending_native_function("0x1::hash", "sha2_256");
         status.record_native_input_bytes(256);
-        // A native with no arguments still records its (zero) entry, so the
-        // key set matches the calls map.
         status.set_pending_native_function("0x2::tx_context", "fresh_id");
         status.record_native_input_bytes(0);
 
