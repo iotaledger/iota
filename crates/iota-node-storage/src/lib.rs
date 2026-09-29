@@ -8,8 +8,8 @@
 //! `iota-types` with queries that are only available on full nodes (e.g. epoch
 //! info, transaction-to-checkpoint mapping, type layout resolution).
 //!
-//! It also defines [`TransactionKeyValueStoreTrait`], the key-value store that
-//! serves transaction data a node has pruned.
+//! It also defines [`TransactionKeyValueStoreTrait`], for reading transactions,
+//! effects, events, checkpoints and objects from a key-value store.
 //!
 //! These traits live in a dedicated lightweight crate so that:
 //! - `iota-core` can implement them without depending on `iota-grpc-server`
