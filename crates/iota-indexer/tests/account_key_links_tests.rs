@@ -11,20 +11,22 @@ mod account_key_links_tests {
     use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper};
     use fastcrypto::encoding::Base64;
     use iota_indexer::{
-        account_key_events::LinkSource,
+        account_key_events::{AuthenticatorKind, LinkSource},
         db::get_pool_connection,
         errors::IndexerError,
         models::{
+            account_authenticators::StoredAccountAuthenticator,
             account_key_links::{LINK_STATUS_ACTIVE, LINK_STATUS_UNLINKED, StoredAccountKeyLink},
             smart_accounts::StoredSmartAccount,
         },
-        schema::{account_key_links, smart_accounts},
+        schema::{account_authenticators, account_key_links, smart_accounts},
         store::{PgIndexerStore, indexer_store::IndexerStore},
         test_utils::{IndexerTypeConfig, db_url, start_test_indexer},
     };
     use iota_json_rpc_api::ExtendedApiClient;
     use iota_json_rpc_types::{
-        AccountKeyLinkSource, AccountKeyLinkStatus, IotaTransactionBlockEffectsAPI,
+        AccountAuthenticatorKind, AccountKeyLinkSource, AccountKeyLinkStatus,
+        IotaTransactionBlockEffectsAPI,
     };
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk::wallet_context::WalletContext;
@@ -36,10 +38,12 @@ mod account_key_links_tests {
         Transaction, TransactionEffects, TransactionKind, TypeTag, UserSignature, WriteKind,
         crypto::{Intent, IntentMessage, SimpleSignature},
     };
+    use iota_test_transaction_builder::publish_package;
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID,
         account_abstraction::public_key::key_id,
         effects::{TransactionEffectsAPI, TransactionEffectsExt},
+        move_package::derive_package_metadata_id,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{
             CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
@@ -57,6 +61,9 @@ mod account_key_links_tests {
 
     const DB: &str = "account_key_links_tests_db";
     const REPLICA_DB: &str = "account_key_links_tests_replica_db";
+    /// The test package in `tests/data` that defines a custom authenticator
+    /// for `SmartAccount`, in a module of the same name.
+    const CUSTOM_AUTHENTICATOR: &str = "custom_authenticator";
 
     /// A claim links the claiming key to the account, through the
     /// `PublicKeyAttached` it emits, and records a `SmartAccount`.
@@ -116,6 +123,11 @@ mod account_key_links_tests {
         assert_eq!(accounts[0].status, AccountKeyLinkStatus::Active);
         assert_eq!(accounts[0].source, AccountKeyLinkSource::Attach);
         assert!(accounts[0].smart_account);
+        assert_eq!(
+            accounts[0].authenticator,
+            Some(AccountAuthenticatorKind::Ed25519),
+            "a claimed account uses the built-in authenticator of its key's scheme"
+        );
 
         Ok(())
     }
@@ -200,13 +212,17 @@ mod account_key_links_tests {
                 .expect("each account holding the key must be returned");
             assert!(account.smart_account);
             assert_eq!(account.source, AccountKeyLinkSource::Attach);
+            assert_eq!(
+                account.authenticator,
+                Some(AccountAuthenticatorKind::Ed25519)
+            );
         }
 
         Ok(())
     }
 
-    /// A `SmartAccount` with a custom authenticator has no key to be found by,
-    /// but is still recorded as a `SmartAccount`.
+    /// A `SmartAccount` without a key has nothing to be found by, but is still
+    /// recorded, with its authenticator kind.
     #[tokio::test]
     async fn a_keyless_smart_account_is_recorded_without_a_link() -> Result<(), IndexerError> {
         let (cluster, store, _client) =
@@ -221,6 +237,9 @@ mod account_key_links_tests {
 
         let recorded = smart_account_for(&store, &account)?.expect("the account must be recorded");
         assert!(!recorded.immutable);
+        let authenticator =
+            authenticator_for(&store, &account)?.expect("its authenticator must be recorded");
+        assert_eq!(authenticator.kind, AuthenticatorKind::Ed25519 as i16);
         assert!(
             all_links(&store)?.is_empty(),
             "an account without a key has nothing to be linked by"
@@ -420,6 +439,154 @@ mod account_key_links_tests {
         let accounts = all_smart_accounts(&store)?;
         assert_eq!(accounts.len(), 2);
         assert_eq!(accounts, all_smart_accounts(&replica)?);
+        let authenticators = all_account_authenticators(&store)?;
+        assert_eq!(authenticators.len(), 2);
+        assert_eq!(authenticators, all_account_authenticators(&replica)?);
+
+        Ok(())
+    }
+
+    /// Detaching and re-attaching the key in one transaction leaves the account
+    /// discoverable, with its authenticator unchanged.
+    #[tokio::test]
+    async fn detaching_and_reattaching_in_one_transaction_keeps_the_account()
+    -> Result<(), IndexerError> {
+        let (cluster, store, client) =
+            start_test_cluster_with_read_write_indexer(DB, None, None).await;
+        let owner = first_address(&cluster.wallet);
+        let keypair = keypair_for(&cluster.wallet, owner);
+
+        let account = build_account_with_key(
+            &cluster,
+            owner,
+            keypair.public_key().scheme(),
+            keypair.public_key().as_ref().to_vec(),
+        )
+        .await;
+        send_from_account(
+            &cluster,
+            account,
+            &keypair,
+            detach_then_reattach_ptb(account),
+        )
+        .await;
+        indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+        let accounts = client
+            .get_accounts_by_public_key(
+                Base64::from_bytes(&prefixed_keypair_public_key(&keypair)),
+                None,
+            )
+            .await
+            .expect("the lookup must succeed");
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].status, AccountKeyLinkStatus::Active);
+        assert_eq!(accounts[0].source, AccountKeyLinkSource::Attach);
+        assert_eq!(
+            accounts[0].authenticator,
+            Some(AccountAuthenticatorKind::Ed25519)
+        );
+
+        Ok(())
+    }
+
+    /// Rotating the authenticator and the key together, the way an account
+    /// switches scheme, updates the kind reported for the new key.
+    #[tokio::test]
+    async fn rotating_the_authenticator_with_the_key_updates_the_kind() -> Result<(), IndexerError>
+    {
+        let (cluster, store, client) =
+            start_test_cluster_with_read_write_indexer(DB, None, None).await;
+        let owner = first_address(&cluster.wallet);
+        let old_keypair = keypair_for(&cluster.wallet, owner);
+        let new_keypair = fresh_secp256k1_keypair();
+
+        let account = build_account_with_key(
+            &cluster,
+            owner,
+            old_keypair.public_key().scheme(),
+            old_keypair.public_key().as_ref().to_vec(),
+        )
+        .await;
+        send_from_account(
+            &cluster,
+            account,
+            &old_keypair,
+            rotate_authenticator_and_key_ptb(account, &new_keypair),
+        )
+        .await;
+        indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+        let accounts = client
+            .get_accounts_by_public_key(
+                Base64::from_bytes(&prefixed_keypair_public_key(&new_keypair)),
+                None,
+            )
+            .await
+            .expect("the lookup must succeed");
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(
+            accounts[0].authenticator,
+            Some(AccountAuthenticatorKind::Secp256k1)
+        );
+
+        Ok(())
+    }
+
+    /// An account that rotates to a custom authenticator stays discoverable by
+    /// its key, but is reported as one the IOTA wallet cannot authenticate.
+    #[tokio::test]
+    async fn rotating_to_a_custom_authenticator_reports_custom() -> Result<(), IndexerError> {
+        let (cluster, store, client) =
+            start_test_cluster_with_read_write_indexer(DB, None, None).await;
+        let owner = first_address(&cluster.wallet);
+        let keypair = keypair_for(&cluster.wallet, owner);
+
+        let package = publish_package(
+            &cluster.wallet,
+            [
+                env!("CARGO_MANIFEST_DIR"),
+                "tests",
+                "data",
+                CUSTOM_AUTHENTICATOR,
+            ]
+            .iter()
+            .collect(),
+        )
+        .await;
+        let package_metadata = cluster
+            .get_latest_object_ref(&derive_package_metadata_id(package.object_id))
+            .await;
+
+        let account = build_account_with_key(
+            &cluster,
+            owner,
+            keypair.public_key().scheme(),
+            keypair.public_key().as_ref().to_vec(),
+        )
+        .await;
+        send_from_account(
+            &cluster,
+            account,
+            &keypair,
+            rotate_to_custom_authenticator_ptb(account, package_metadata),
+        )
+        .await;
+        indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+        let accounts = client
+            .get_accounts_by_public_key(
+                Base64::from_bytes(&prefixed_keypair_public_key(&keypair)),
+                None,
+            )
+            .await
+            .expect("the lookup must succeed");
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].status, AccountKeyLinkStatus::Active);
+        assert_eq!(
+            accounts[0].authenticator,
+            Some(AccountAuthenticatorKind::Custom)
+        );
 
         Ok(())
     }
@@ -544,21 +711,11 @@ mod account_key_links_tests {
             .expect("the account must be created as a shared object")
     }
 
-    /// Builds a shared `SmartAccount` with a custom authenticator and no
-    /// built-in key, sent by `sender`. Returns the account.
+    /// Builds a shared `SmartAccount` with the built-in Ed25519 authenticator
+    /// and no key, sent by `sender`. Returns the account.
     async fn build_keyless_account(cluster: &TestCluster, sender: Address) -> ObjectReference {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let smart_account_type = TypeTag::from_str(&format!(
-            "{IOTA_FRAMEWORK_PACKAGE_ID}::smart_account::SmartAccount"
-        ))
-        .unwrap();
-        let authenticator = builder.programmable_move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            Identifier::new("builtin_authenticator_functions").unwrap(),
-            Identifier::new("ed25519_authenticator_function_ref_v1").unwrap(),
-            vec![smart_account_type],
-            vec![],
-        );
+        let authenticator = builtin_authenticator_arg(&mut builder, SignatureScheme::Ed25519);
         let account_builder = framework_call(
             &mut builder,
             "smart_account",
@@ -651,6 +808,109 @@ mod account_key_links_tests {
             vec![account],
         );
         builder.finish()
+    }
+
+    /// Detaches the account's key and attaches it again, in one transaction.
+    fn detach_then_reattach_ptb(account: ObjectReference) -> ProgrammableTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let account = shared_account_arg(&mut builder, account);
+        let key = framework_call(
+            &mut builder,
+            "smart_account",
+            "detach_builtin_auth_public_key",
+            vec![account],
+        );
+        framework_call(
+            &mut builder,
+            "smart_account",
+            "attach_builtin_auth_public_key",
+            vec![account, key],
+        );
+        builder.finish()
+    }
+
+    /// Switches the account to the built-in authenticator and key of
+    /// `new_keypair`'s scheme, in one transaction.
+    fn rotate_authenticator_and_key_ptb(
+        account: ObjectReference,
+        new_keypair: &SimpleKeypair,
+    ) -> ProgrammableTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let account = shared_account_arg(&mut builder, account);
+        let new_key = new_keypair.public_key();
+        let authenticator = builtin_authenticator_arg(&mut builder, new_key.scheme());
+        framework_call(
+            &mut builder,
+            "smart_account",
+            "rotate_auth_function_ref_v1",
+            vec![account, authenticator],
+        );
+        let public_key = public_key_arg(&mut builder, new_key.scheme(), new_key.as_ref().to_vec());
+        framework_call(
+            &mut builder,
+            "smart_account",
+            "rotate_builtin_auth_public_key",
+            vec![account, public_key],
+        );
+        builder.finish()
+    }
+
+    /// Switches the account to the custom authenticator published in the
+    /// package whose metadata is `package_metadata`.
+    fn rotate_to_custom_authenticator_ptb(
+        account: ObjectReference,
+        package_metadata: ObjectReference,
+    ) -> ProgrammableTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let account = shared_account_arg(&mut builder, account);
+        let arguments = vec![
+            builder
+                .obj(CallArg::ImmutableOrOwned(package_metadata))
+                .unwrap(),
+            builder.pure(CUSTOM_AUTHENTICATOR).unwrap(),
+            builder.pure("authenticate").unwrap(),
+        ];
+        let authenticator = builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::new("authenticator_function").unwrap(),
+            Identifier::new("create_auth_function_ref_v1").unwrap(),
+            vec![smart_account_type()],
+            arguments,
+        );
+        framework_call(
+            &mut builder,
+            "smart_account",
+            "rotate_auth_function_ref_v1",
+            vec![account, authenticator],
+        );
+        builder.finish()
+    }
+
+    /// The built-in authenticator for `scheme`, for a `SmartAccount`.
+    fn builtin_authenticator_arg(
+        builder: &mut ProgrammableTransactionBuilder,
+        scheme: SignatureScheme,
+    ) -> iota_sdk_types::Argument {
+        let function = match scheme {
+            SignatureScheme::Ed25519 => "ed25519_authenticator_function_ref_v1",
+            SignatureScheme::Secp256k1 => "secp256k1_authenticator_function_ref_v1",
+            SignatureScheme::Secp256r1 => "secp256r1_authenticator_function_ref_v1",
+            other => panic!("no built-in account test support for {other:?}"),
+        };
+        builder.programmable_move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            Identifier::new("builtin_authenticator_functions").unwrap(),
+            Identifier::new(function).unwrap(),
+            vec![smart_account_type()],
+            vec![],
+        )
+    }
+
+    fn smart_account_type() -> TypeTag {
+        TypeTag::from_str(&format!(
+            "{IOTA_FRAMEWORK_PACKAGE_ID}::smart_account::SmartAccount"
+        ))
+        .unwrap()
     }
 
     fn shared_account_arg(
@@ -803,6 +1063,30 @@ mod account_key_links_tests {
         account_key_links::table
             .order((account_key_links::key_id, account_key_links::account_id))
             .select(StoredAccountKeyLink::as_select())
+            .load(&mut conn)
+            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+    }
+
+    fn authenticator_for(
+        store: &PgIndexerStore,
+        account: &Address,
+    ) -> Result<Option<StoredAccountAuthenticator>, IndexerError> {
+        let mut conn = get_pool_connection(&store.blocking_cp())?;
+        account_authenticators::table
+            .filter(account_authenticators::account_id.eq(account.as_bytes().to_vec()))
+            .select(StoredAccountAuthenticator::as_select())
+            .load(&mut conn)
+            .map(|rows: Vec<StoredAccountAuthenticator>| rows.into_iter().next())
+            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+    }
+
+    fn all_account_authenticators(
+        store: &PgIndexerStore,
+    ) -> Result<Vec<StoredAccountAuthenticator>, IndexerError> {
+        let mut conn = get_pool_connection(&store.blocking_cp())?;
+        account_authenticators::table
+            .order(account_authenticators::account_id)
+            .select(StoredAccountAuthenticator::as_select())
             .load(&mut conn)
             .map_err(|e| IndexerError::PostgresRead(e.to_string()))
     }

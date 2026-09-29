@@ -39,6 +39,7 @@ use crate::{
     insert_or_ignore_into,
     metrics::IndexerMetrics,
     models::{
+        account_authenticators::StoredAccountAuthenticator,
         account_key_links::StoredAccountKeyLink,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
         display::StoredDisplay,
@@ -60,13 +61,14 @@ use crate::{
     pruning::pruner::PrunableTable,
     read_only_blocking, run_query, run_query_with_retry,
     schema::{
-        account_key_links, chain_identifier, checkpointed_objects, checkpoints, display, epochs,
-        event_emit_module, event_emit_package, event_senders, event_struct_instantiation,
-        event_struct_module, event_struct_name, event_struct_package, events, feature_flags,
-        objects, objects_backward_history, objects_version, optimistic_transactions, packages,
-        protocol_configs, pruner_cp_watermark, smart_accounts, transactions, tx_calls_fun,
-        tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects,
-        tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
+        account_authenticators, account_key_links, chain_identifier, checkpointed_objects,
+        checkpoints, display, epochs, event_emit_module, event_emit_package, event_senders,
+        event_struct_instantiation, event_struct_module, event_struct_name, event_struct_package,
+        events, feature_flags, objects, objects_backward_history, objects_version,
+        optimistic_transactions, packages, protocol_configs, pruner_cp_watermark, smart_accounts,
+        transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects,
+        tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
+        tx_wrapped_or_deleted_objects, watermarks,
     },
     store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
     transactional_blocking_with_retry,
@@ -893,6 +895,39 @@ impl PgIndexerStore {
                         ),
                         excluded(smart_accounts::created_tx_sequence_number)
                             .ge(smart_accounts::created_tx_sequence_number),
+                        conn
+                    );
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    /// Upserts the current authenticator kind of each `SmartAccount`, under the
+    /// same monotonic guard as [`Self::persist_account_key_links`].
+    fn persist_account_authenticators(
+        &self,
+        account_authenticators: &[StoredAccountAuthenticator],
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for chunk in account_authenticators.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    on_conflict_do_update_with_condition!(
+                        account_authenticators::table,
+                        chunk,
+                        account_authenticators::account_id,
+                        (
+                            account_authenticators::kind.eq(excluded(account_authenticators::kind)),
+                            account_authenticators::last_change_tx_sequence_number.eq(excluded(
+                                account_authenticators::last_change_tx_sequence_number
+                            )),
+                            account_authenticators::last_change_epoch
+                                .eq(excluded(account_authenticators::last_change_epoch)),
+                        ),
+                        excluded(account_authenticators::last_change_tx_sequence_number)
+                            .ge(account_authenticators::last_change_tx_sequence_number),
                         conn
                     );
                 }
@@ -2031,6 +2066,27 @@ impl IndexerStore for PgIndexerStore {
             .await?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {len} smart accounts");
+        Ok(())
+    }
+
+    async fn persist_account_authenticators(
+        &self,
+        account_authenticators: Vec<StoredAccountAuthenticator>,
+    ) -> Result<(), IndexerError> {
+        if account_authenticators.is_empty() {
+            return Ok(());
+        }
+        let len = account_authenticators.len();
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_account_authenticators
+            .start_timer();
+        self.execute_in_blocking_worker(move |this| {
+            this.persist_account_authenticators(&account_authenticators)
+        })
+        .await?;
+        let elapsed = guard.stop_and_record();
+        info!(elapsed, "Persisted {len} account authenticators");
         Ok(())
     }
 

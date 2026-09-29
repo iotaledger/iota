@@ -8,9 +8,9 @@ use iota_json_rpc_api::{
     ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS, internal_error, validate_limit,
 };
 use iota_json_rpc_types::{
-    AccountKeyLink, AccountKeyLinkSource, AccountKeyLinkStatus, AddressMetrics, EpochInfo,
-    EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics, NetworkMetrics, Page,
-    ParticipationMetrics,
+    AccountAuthenticatorKind, AccountKeyLink, AccountKeyLinkSource, AccountKeyLinkStatus,
+    AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
+    NetworkMetrics, Page, ParticipationMetrics,
 };
 use iota_open_rpc::Module;
 use iota_sdk_types::Address;
@@ -18,9 +18,10 @@ use iota_types::{account_abstraction::public_key::key_id_from_prefixed_bytes, io
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
-    account_key_events::LinkSource,
+    account_key_events::{AuthenticatorKind, LinkSource},
     errors::IndexerError,
     models::{
+        account_authenticators::StoredAccountAuthenticator,
         account_key_links::{LINK_STATUS_ACTIVE, StoredAccountKeyLink},
         smart_accounts::StoredSmartAccount,
     },
@@ -132,7 +133,9 @@ impl ExtendedApiServer for ExtendedApi {
 
         Ok(rows
             .into_iter()
-            .map(|(link, smart_account)| to_account_key_link(link, smart_account))
+            .map(|(link, smart_account, authenticator)| {
+                to_account_key_link(link, smart_account, authenticator)
+            })
             .collect::<Result<Vec<_>, _>>()?)
     }
 
@@ -213,11 +216,12 @@ impl IotaRpcModule for ExtendedApi {
     }
 }
 
-/// Shapes one stored link, and the `SmartAccount` row of its account if it has
-/// one, for the RPC.
+/// Shapes one stored link, and the `smart_accounts` and
+/// `account_authenticators` rows of its account if it has them, for the RPC.
 fn to_account_key_link(
     link: StoredAccountKeyLink,
     smart_account: Option<StoredSmartAccount>,
+    authenticator: Option<StoredAccountAuthenticator>,
 ) -> Result<AccountKeyLink, IndexerError> {
     let address = Address::from_bytes(&link.account_id).map_err(|e| {
         IndexerError::PersistentStorageDataCorruption(format!("invalid account id: {e}"))
@@ -234,6 +238,25 @@ fn to_account_key_link(
         }
     };
 
+    let authenticator = authenticator
+        .map(|authenticator| {
+            let kind = AuthenticatorKind::from_stored(authenticator.kind).ok_or_else(|| {
+                IndexerError::PersistentStorageDataCorruption(format!(
+                    "unknown authenticator kind {}",
+                    authenticator.kind
+                ))
+            })?;
+            Ok::<_, IndexerError>(match kind {
+                AuthenticatorKind::Ed25519 => AccountAuthenticatorKind::Ed25519,
+                AuthenticatorKind::Secp256k1 => AccountAuthenticatorKind::Secp256k1,
+                AuthenticatorKind::Secp256r1 => AccountAuthenticatorKind::Secp256r1,
+                AuthenticatorKind::Multisig => AccountAuthenticatorKind::Multisig,
+                AuthenticatorKind::Passkey => AccountAuthenticatorKind::Passkey,
+                AuthenticatorKind::Custom => AccountAuthenticatorKind::Custom,
+            })
+        })
+        .transpose()?;
+
     Ok(AccountKeyLink {
         address,
         status: if link.status == LINK_STATUS_ACTIVE {
@@ -243,6 +266,7 @@ fn to_account_key_link(
         },
         source,
         smart_account: smart_account.is_some(),
+        authenticator,
         scheme: link.scheme as u8,
         last_change_epoch: link.last_change_epoch as u64,
     })

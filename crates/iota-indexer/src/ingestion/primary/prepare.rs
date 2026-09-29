@@ -30,7 +30,9 @@ use itertools::Itertools;
 use tracing::{info, warn};
 
 use crate::{
-    account_key_events::{AccountKeyLinkOp, account_key_link_ops, smart_account_row},
+    account_key_events::{
+        AccountKeyLinkOp, account_authenticator_row, account_key_link_ops, smart_account_row,
+    },
     db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
@@ -39,6 +41,7 @@ use crate::{
     },
     metrics::IndexerMetrics,
     models::{
+        account_authenticators::StoredAccountAuthenticator,
         display::{
             StoredDisplay, display_id_from_created_event, displayed_type_from_created_event,
         },
@@ -65,6 +68,7 @@ pub struct PrimaryWorker {
 pub struct AccountDiscoverability {
     pub link_ops: Vec<AccountKeyLinkOp>,
     pub smart_accounts: Vec<StoredSmartAccount>,
+    pub account_authenticators: Vec<StoredAccountAuthenticator>,
 }
 
 pub type IndexedTransactionComponents = (
@@ -312,6 +316,7 @@ impl PrimaryWorker {
             epoch,
             account_key_link_ops: discoverability.link_ops,
             smart_accounts: discoverability.smart_accounts,
+            account_authenticators: discoverability.account_authenticators,
         })
     }
 
@@ -389,6 +394,13 @@ impl PrimaryWorker {
                     tx_sequence_number,
                     checkpoint_epoch,
                 ));
+                discoverability
+                    .account_authenticators
+                    .extend(account_authenticator_row(
+                        event,
+                        tx_sequence_number,
+                        checkpoint_epoch,
+                    ));
             }
         }
         Ok((

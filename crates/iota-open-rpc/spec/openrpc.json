@@ -3445,7 +3445,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return the accounts controlled by the given public key, folded from the on-chain account-discoverability event stream (`PublicKeyAttached`, `PublicKeyRotated`, `PublicKeyDetached`, `SmartAccountCreated`).\n\nResults are not authenticated by this call: anyone can create an account with someone else's public key, or attach a key to an object that is not an account. Use the `smartAccount` flag to drop the latter, or verify a returned account on chain.\n\nExclusively served by the indexer.",
+      "description": "Return the accounts controlled by the given public key, folded from the on-chain account-discoverability event stream (`PublicKeyAttached`, `PublicKeyRotated`, `PublicKeyDetached`, `SmartAccountCreated`, and the `iota::account` creation and authenticator-rotation events).\n\nEach result says which authenticator the account has: with a built-in one the IOTA wallet can authenticate the account using this key, with a `custom` one it cannot.\n\nResults are not authenticated by this call: anyone can create an account with someone else's public key, or attach a key to an object that is not an account. Use the `smartAccount` flag to drop the latter, or verify a returned account on chain.\n\nExclusively served by the indexer.",
       "params": [
         {
           "name": "public_key",
@@ -6199,6 +6199,28 @@
   ],
   "components": {
     "schemas": {
+      "AccountAuthenticatorKind": {
+        "description": "The authenticator of an account in an [`AccountKeyLink`]: one of the built-in authenticators, or a custom one.",
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "ed25519",
+              "secp256k1",
+              "secp256r1",
+              "multisig",
+              "passkey"
+            ]
+          },
+          {
+            "description": "Any authenticator other than the built-in ones.",
+            "type": "string",
+            "enum": [
+              "custom"
+            ]
+          }
+        ]
+      },
       "AccountKeyLink": {
         "description": "An account a public key controls, or used to control, as folded from the on-chain account-discoverability event stream.",
         "type": "object",
@@ -6216,6 +6238,17 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/Address"
+              }
+            ]
+          },
+          "authenticator": {
+            "description": "The kind of the account's current authenticator. A built-in one means the IOTA wallet can authenticate the account with this key; `custom` means it cannot. `null` when the address is not a framework `SmartAccount`.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountAuthenticatorKind"
+              },
+              {
+                "type": "null"
               }
             ]
           },

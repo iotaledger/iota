@@ -129,6 +129,7 @@ pub struct IndexerMetrics {
     pub checkpoint_db_commit_latency_event_indices_chunks: Histogram,
     pub checkpoint_db_commit_latency_account_key_links: Histogram,
     pub checkpoint_db_commit_latency_smart_accounts: Histogram,
+    pub checkpoint_db_commit_latency_account_authenticators: Histogram,
     pub checkpoint_db_commit_latency_packages: Histogram,
     pub checkpoint_db_commit_latency_tx_indices: Histogram,
     pub checkpoint_db_commit_latency_tx_indices_chunks: Histogram,
@@ -533,6 +534,13 @@ impl IndexerMetrics {
             checkpoint_db_commit_latency_smart_accounts: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_smart_accounts",
                 "Time spent committing smart accounts",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            checkpoint_db_commit_latency_account_authenticators: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_account_authenticators",
+                "Time spent committing account authenticators",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )

@@ -18,10 +18,36 @@ All nine tasks are implemented on `vm-lang/10722-fix-after-rebase`, commits `a77
 follow-up on 28 Sep then removed the Move `key_id` (**Decisions needed** #1, now resolved), added the missing
 integration scenarios, and cherry-picked the `PackageTooBig` fix so the integration tests can run at all.
 
-What passes now, after the design change below: all 11 `pg_integration` tests in
-`crates/iota-indexer/tests/account_key_links_tests.rs`, the `iota-indexer` unit tests (46), all 721
+What passes now, after the two design changes below: all 14 `pg_integration` tests in
+`crates/iota-indexer/tests/account_key_links_tests.rs`, the `iota-indexer` unit tests (54), all 721
 `iota-framework` Move tests, the `iota-open-rpc` spec test, and the rollout's regression gate
 `cargo simtest -p iota-e2e-tests --test claim_account_tests` (6 tests).
+
+### Design change (29 Sep 2026): the authenticator kind of each account
+
+A `SmartAccount` has a key or not, and a built-in or a custom authenticator. The accounts the index returns are the
+ones with a key, and each result now says which authenticator the account has:
+
+* **Built-in** (`ed25519`, `secp256k1`, `secp256r1`, `multisig`, `passkey`): the IOTA wallet can authenticate the
+  account with its key.
+* **Custom**: the account is discoverable by its key, but the IOTA wallet cannot authenticate it.
+
+A key and an authenticator of different schemes are not handled specially: whoever rotates one is expected to
+rotate the other.
+
+* **No framework change.** The authenticator comes from events `iota::account` already emits:
+  `MutableAccountCreated` / `ImmutableAccountCreated` (`authenticator`) and `AuthenticatorFunctionRefV1Rotated`
+  (`to`). Only those whose type parameter is `0x2::smart_account::SmartAccount` are consumed.
+* **Classification is a comparison.** Built-in means package `0x2`, module `builtin_authenticator_functions`, and one
+  of the five `*_authenticator_function_ref_v1` names, which selects the kind; anything else is custom.
+* **New table `account_authenticators`** (`account_id`, `kind` 1–6, last change transaction and epoch), one row per
+  `SmartAccount`, keyless ones included: `PublicKeyAttached` does not say which authenticator an account has, so the
+  kind must already be known when a key is attached. It is a separate table because other events write it than
+  `smart_accounts`.
+* **RPC.** `AccountKeyLink` gains `authenticator: AccountAuthenticatorKind | null` (`null` when the address is not a
+  `SmartAccount`).
+* A `SmartAccount` with a built-in authenticator and no key cannot send a transaction, so it can gain a key again only
+  in the same transaction that detached it.
 
 ### Design change (28 Sep 2026): no claimed/unclaimed distinction
 
@@ -226,7 +252,8 @@ _Rewritten on 28 Sep 2026 for the design without claims; see **Design change** i
 | `PublicKeyDetached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` | links |
 | `PublicKeyRotated` | `iota::builtin_authenticator_functions` | `account_id: ID, from: PublicKey, to: PublicKey` | links |
 | `SmartAccountCreated` | `iota::smart_account` | `account_id: ID, public_key: Option<PublicKey>, immutable: bool` | `smart_accounts` rows |
-| `MutableAccountCreated<Account>` / `ImmutableAccountCreated<Account>` / `AuthenticatorFunctionRefV1Rotated<Account>` | `iota::account` | account lifecycle with an `AuthenticatorFunctionRefV1` | not consumed |
+| `MutableAccountCreated<SmartAccount>` / `ImmutableAccountCreated<SmartAccount>` | `iota::account` | `account_id: ID, authenticator: AuthenticatorFunctionRefV1` | `account_authenticators` rows |
+| `AuthenticatorFunctionRefV1Rotated<SmartAccount>` | `iota::account` | `account_id: ID, from: AuthenticatorFunctionRefV1, to: AuthenticatorFunctionRefV1` | `account_authenticators` rows |
 
 `SmartAccountCreated` is emitted by `smart_account::build_v1` and `build_immutable_v1`, so by every framework
 `SmartAccount`, whether it was claimed, built with `builtin_auth_builder_v1`, or built with a custom authenticator
@@ -242,7 +269,7 @@ alone. The key in `SmartAccountCreated` duplicates the `PublicKeyAttached` of th
 **Emission order within a build.** `PublicKeyAttached` (from the builder), then `SmartAccountCreated`, then
 `{Mutable,Immutable}AccountCreated`. The fold does not depend on it: the two event kinds write different tables.
 
-**Fold semantics** — the index is a pure left-fold of these four events in total order
+**Fold semantics** — the index is a pure left-fold of these events in total order
 `(checkpoint_sequence, tx_sequence_in_checkpoint, event_sequence_in_tx)`:
 
 ```
@@ -251,6 +278,10 @@ PublicKeyRotated(account, from, to)           → tombstone (key_id(from), accou
                                                 then link (key_id(to), account)   source=rotate, ACTIVE
 PublicKeyDetached(account, pk)                → tombstone (key_id(pk), account)    source=detach
 SmartAccountCreated(account, _, immutable)    → upsert smart_accounts(account, immutable)   (no link)
+{Mutable,Immutable}AccountCreated<SmartAccount>(account, authenticator)
+                                              → upsert account_authenticators(account, kind(authenticator))
+AuthenticatorFunctionRefV1Rotated<SmartAccount>(account, _, to)
+                                              → upsert account_authenticators(account, kind(to))
 ```
 
 Within a rotation, the unlink must precede the link, so that rotating a key onto itself leaves the link active.

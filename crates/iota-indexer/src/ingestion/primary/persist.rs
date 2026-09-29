@@ -15,6 +15,7 @@ use crate::{
     },
     metrics::IndexerMetrics,
     models::{
+        account_authenticators::StoredAccountAuthenticator,
         account_key_links::StoredAccountKeyLink,
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
@@ -43,6 +44,7 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) epoch: Option<EpochToCommit>,
     pub(crate) account_key_link_ops: Vec<AccountKeyLinkOp>,
     pub(crate) smart_accounts: Vec<StoredSmartAccount>,
+    pub(crate) account_authenticators: Vec<StoredAccountAuthenticator>,
 }
 
 /// Collapses `rows` to the last one seen per key.
@@ -131,6 +133,7 @@ impl PrimaryWriter {
         let mut packages_batch = Vec::with_capacity(batch_len);
         let mut account_key_link_ops = Vec::new();
         let mut smart_accounts = Vec::new();
+        let mut account_authenticators = Vec::new();
 
         for indexed_checkpoint in indexed_checkpoint_batch {
             let CheckpointDataToCommit {
@@ -146,6 +149,7 @@ impl PrimaryWriter {
                 packages,
                 account_key_link_ops: checkpoint_link_ops,
                 smart_accounts: checkpoint_smart_accounts,
+                account_authenticators: checkpoint_account_authenticators,
                 ..
             } = indexed_checkpoint;
             checkpoint_batch.push(checkpoint);
@@ -160,9 +164,10 @@ impl PrimaryWriter {
             packages_batch.push(packages);
             account_key_link_ops.extend(checkpoint_link_ops);
             smart_accounts.extend(checkpoint_smart_accounts);
+            account_authenticators.extend(checkpoint_account_authenticators);
         }
 
-        // Both tables hold the latest state per key, so collapse the batch to
+        // These tables hold the latest state per key, so collapse the batch to
         // one row per key before writing: the result must not depend on how the
         // batch is chunked. Ops arrive in (checkpoint, transaction, event)
         // order, so the last write per key is its final state.
@@ -173,6 +178,10 @@ impl PrimaryWriter {
         let smart_accounts = collapse_last_write_wins(smart_accounts.into_iter(), |account| {
             account.account_id.clone()
         });
+        let account_authenticators =
+            collapse_last_write_wins(account_authenticators.into_iter(), |authenticator| {
+                authenticator.account_id.clone()
+            });
 
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
         let committer_watermark = CommitterWatermark::from(checkpoint_batch.last().unwrap());
@@ -206,6 +215,8 @@ impl PrimaryWriter {
                 self.state.persist_events(events_batch),
                 self.state.persist_account_key_links(account_key_links),
                 self.state.persist_smart_accounts(smart_accounts),
+                self.state
+                    .persist_account_authenticators(account_authenticators),
                 self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(displays_batch),
                 self.state

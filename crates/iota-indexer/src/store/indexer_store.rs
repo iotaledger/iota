@@ -15,6 +15,7 @@ use crate::{
         primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
     },
     models::{
+        account_authenticators::StoredAccountAuthenticator,
         account_key_links::StoredAccountKeyLink,
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
@@ -79,6 +80,13 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn persist_smart_accounts(
         &self,
         smart_accounts: Vec<StoredSmartAccount>,
+    ) -> Result<(), IndexerError>;
+
+    /// Upserts the current authenticator kind of each `SmartAccount`. Not
+    /// prunable: see [`crate::pruning::pruner::PrunableTable`].
+    async fn persist_account_authenticators(
+        &self,
+        account_authenticators: Vec<StoredAccountAuthenticator>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_event_indices(
