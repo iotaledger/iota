@@ -1152,15 +1152,20 @@ impl GrpcReader {
     /// or checkpoint summary the node lacks, is read from the key-value
     /// store set with [`Self::with_transaction_fallback`], if any.
     ///
+    /// Store reads give up at `store_deadline`, which callers share across
+    /// the transactions of one request.
+    ///
     /// Errors with `FAILED_PRECONDITION` if a required object or the events are
-    /// unavailable, with `UNAVAILABLE` if a key-value store read fails or times
-    /// out (a failed checkpoint lookup counts as a miss), and with `INTERNAL`
-    /// if the store returns data that does not match the effects.
+    /// unavailable, with `UNAVAILABLE` if a key-value store read returns an
+    /// error, times out or passes `store_deadline` (a failed checkpoint lookup
+    /// counts as a miss before the deadline), and with `INTERNAL` if the store
+    /// returns data that does not match the effects.
     #[tracing::instrument(skip(self))]
     pub async fn get_transaction_read(
         &self,
         digest: &TransactionDigest,
         fields: &TransactionReadFields,
+        store_deadline: tokio::time::Instant,
     ) -> Result<TransactionReadData, crate::error::RpcError> {
         // Derived change fields need effects plus the input/output objects
         let include_derived_changes =
@@ -1197,7 +1202,7 @@ impl GrpcReader {
                         || needs_checkpoint
                         || (needs_transaction && local_transaction.is_none())) =>
             {
-                self.pruned_checkpoint(store, digest)
+                self.pruned_checkpoint(store, digest, store_deadline)
                     .await?
                     .map(|checkpoint| (store, checkpoint))
             }
@@ -1214,6 +1219,7 @@ impl GrpcReader {
                 } else {
                     let (transactions, effects) = store_read(
                         store.multi_get(transaction_keys.as_slice(), effects_keys.as_slice()),
+                        store_deadline,
                     )
                     .await?;
                     (first(transactions), first(effects))
@@ -1256,9 +1262,10 @@ impl GrpcReader {
 
             let timestamp_ms = if fields.include_timestamp {
                 match checkpoint {
-                    Some(checkpoint_seq) => {
-                        Some(self.checkpoint_timestamp_ms(digest, checkpoint_seq).await?)
-                    }
+                    Some(checkpoint_seq) => Some(
+                        self.checkpoint_timestamp_ms(digest, checkpoint_seq, store_deadline)
+                            .await?,
+                    ),
                     // Transaction not yet included in a checkpoint
                     None => None,
                 }
@@ -1277,8 +1284,13 @@ impl GrpcReader {
 
             let events = match effects.events_digest().filter(|_| fields.include_events) {
                 Some(events_digest) => Some(
-                    self.require_events(digest, events_digest, pruned.map(|(store, _)| store))
-                        .await?,
+                    self.require_events(
+                        digest,
+                        events_digest,
+                        pruned.map(|(store, _)| store),
+                        store_deadline,
+                    )
+                    .await?,
                 ),
                 None => None,
             };
@@ -1304,7 +1316,10 @@ impl GrpcReader {
                 Vec::new()
             };
             let mut objects = self
-                .require_objects(&[input_keys.as_slice(), output_keys.as_slice()].concat())
+                .require_objects(
+                    &[input_keys.as_slice(), output_keys.as_slice()].concat(),
+                    store_deadline,
+                )
                 .await?;
             let output_objects = objects.split_off(input_keys.len());
 
@@ -1338,6 +1353,7 @@ impl GrpcReader {
         &self,
         store: &Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
         digest: &TransactionDigest,
+        store_deadline: tokio::time::Instant,
     ) -> Result<Option<u64>, crate::error::RpcError> {
         let lowest_available = self.state_reader.try_get_lowest_available_checkpoint()?;
         if lowest_available == 0 {
@@ -1351,12 +1367,20 @@ impl GrpcReader {
         };
         let checkpoint = match indexed_checkpoint {
             Some(checkpoint) => Some(checkpoint),
+            None if tokio::time::Instant::now() >= store_deadline => {
+                return Err(store_unavailable(
+                    "the request's store read budget is spent",
+                ));
+            }
             // A failed lookup counts as a miss, so a client polling for a new
             // transaction never gets a store error.
-            None => store_read(store.get_transaction_perpetual_checkpoint(*digest))
-                .await
-                .ok()
-                .flatten(),
+            None => store_read(
+                store.get_transaction_perpetual_checkpoint(*digest),
+                store_deadline,
+            )
+            .await
+            .ok()
+            .flatten(),
         };
         Ok(checkpoint.filter(|&checkpoint| checkpoint < lowest_available))
     }
@@ -1365,6 +1389,7 @@ impl GrpcReader {
         &self,
         digest: &TransactionDigest,
         checkpoint_seq: u64,
+        store_deadline: tokio::time::Instant,
     ) -> Result<u64, crate::error::RpcError> {
         if let Some(summary) = self
             .state_reader
@@ -1374,8 +1399,11 @@ impl GrpcReader {
         }
         let summary = match &self.transaction_fallback {
             Some(store) => {
-                let (summaries, _, _) =
-                    store_read(store.multi_get_checkpoints(&[checkpoint_seq], &[], &[])).await?;
+                let (summaries, _, _) = store_read(
+                    store.multi_get_checkpoints(&[checkpoint_seq], &[], &[]),
+                    store_deadline,
+                )
+                .await?;
                 first(summaries)
             }
             None => None,
@@ -1400,14 +1428,18 @@ impl GrpcReader {
         digest: &TransactionDigest,
         events_digest: &TransactionEventsDigest,
         store: Option<&Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>>,
+        store_deadline: tokio::time::Instant,
     ) -> Result<TransactionEvents, crate::error::RpcError> {
         if let Some(events) = self.state_reader.try_get_events(digest)? {
             return Ok(events);
         }
         let events = match store {
             Some(store) => first(
-                store_read(store.multi_get_events_by_tx_digests(std::slice::from_ref(digest)))
-                    .await?,
+                store_read(
+                    store.multi_get_events_by_tx_digests(std::slice::from_ref(digest)),
+                    store_deadline,
+                )
+                .await?,
             ),
             None => None,
         };
@@ -1439,6 +1471,7 @@ impl GrpcReader {
     async fn require_objects(
         &self,
         keys: &[ObjectReference],
+        store_deadline: tokio::time::Instant,
     ) -> Result<Vec<Object>, crate::error::RpcError> {
         let unavailable = |key: &ObjectReference| {
             let (object_id, version) = (key.object_id, key.version);
@@ -1477,7 +1510,8 @@ impl GrpcReader {
                 .iter()
                 .map(|&index| ObjectKey::from(&keys[index]))
                 .collect::<Vec<_>>();
-            let fetched = store_read(store.multi_get_objects(&missing_keys)).await?;
+            let fetched =
+                store_read(store.multi_get_objects(&missing_keys), store_deadline).await?;
 
             for ((&index, key), object) in missing.iter().zip(&missing_keys).zip(fetched) {
                 if let Some(object) = &object {
@@ -1521,20 +1555,30 @@ fn first<T>(values: Vec<Option<T>>) -> Option<T> {
 
 const STORE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
+/// How long the key-value store reads of one request may take in total.
+pub(crate) const STORE_READ_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
 async fn store_read<T>(
     read: impl std::future::Future<Output = iota_types::error::IotaResult<T>>,
+    deadline: tokio::time::Instant,
 ) -> Result<T, crate::error::RpcError> {
-    let error = match tokio::time::timeout(STORE_READ_TIMEOUT, read).await {
-        Ok(Ok(value)) => return Ok(value),
-        Ok(Err(error)) => error.to_string(),
-        Err(_) => format!("timed out after {STORE_READ_TIMEOUT:?}"),
-    };
+    let now = tokio::time::Instant::now();
+    if now >= deadline {
+        return Err(store_unavailable(
+            "the request's store read budget is spent",
+        ));
+    }
+    match tokio::time::timeout_at(deadline.min(now + STORE_READ_TIMEOUT), read).await {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(error)) => Err(store_unavailable(error)),
+        Err(_) => Err(store_unavailable("read timed out")),
+    }
+}
+
+fn store_unavailable(detail: impl std::fmt::Display) -> crate::error::RpcError {
     // The store's error text can name its URL, so it stays in the log.
-    tracing::warn!("key-value store read failed: {error}");
-    Err(crate::error::RpcError::new(
-        tonic::Code::Unavailable,
-        "key-value store unavailable",
-    ))
+    tracing::warn!("key-value store read failed: {detail}");
+    crate::error::RpcError::new(tonic::Code::Unavailable, "key-value store unavailable")
 }
 
 fn mismatched_store_data(detail: String) -> crate::error::RpcError {
@@ -1710,9 +1754,22 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn store_read_that_never_completes_is_unavailable() {
-        let error = store_read(std::future::pending::<iota_types::error::IotaResult<()>>())
-            .await
-            .unwrap_err();
+        let deadline = tokio::time::Instant::now() + STORE_READ_BUDGET;
+        let error = store_read(
+            std::future::pending::<iota_types::error::IotaResult<()>>(),
+            deadline,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(Status::from(error).code(), tonic::Code::Unavailable);
+        assert!(tokio::time::Instant::now() < deadline);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn store_read_past_the_budget_is_unavailable_without_reading() {
+        let deadline = tokio::time::Instant::now();
+        let read = async { panic!("the store must not be read past the budget") };
+        let error = store_read::<()>(read, deadline).await.unwrap_err();
         assert_eq!(Status::from(error).code(), tonic::Code::Unavailable);
     }
 }

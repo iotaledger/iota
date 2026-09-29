@@ -61,9 +61,11 @@ pub(crate) fn validate_get_transaction_requests(
 /// Available Read Mask Fields
 ///
 /// Data the node has pruned is read from the configured key-value store. A
-/// failed store read gives that transaction an `UNAVAILABLE` error, except the
-/// checkpoint lookup, which counts as a miss; data that does not match the
-/// effects gives `INTERNAL`.
+/// store read that returns an error or times out gives that transaction an
+/// `UNAVAILABLE` error, except the checkpoint lookup, which counts as a miss;
+/// once the request's store reads have taken 30 s in total, every further store
+/// read is `UNAVAILABLE`. Data that does not match the effects gives
+/// `INTERNAL`.
 ///
 /// The `get_transactions` function supports the following `read_mask` fields to
 /// control which data is included in the response:
@@ -158,15 +160,21 @@ pub(crate) fn get_transactions(
 
     let (digests, read_mask) = validate_get_transaction_requests(requests, read_mask)?;
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
+    let store_deadline = tokio::time::Instant::now() + crate::types::STORE_READ_BUDGET;
 
     Ok(crate::create_batching_stream!(
         digests.into_iter(),
         digest,
         {
-            let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask).await {
-                Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
-                Err(error) => TransactionResult::default().with_error(error.into_status_proto()),
-            };
+            let tx_result =
+                match get_transaction_impl(&reader, &config, digest, &read_mask, store_deadline)
+                    .await
+                {
+                    Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
+                    Err(error) => {
+                        TransactionResult::default().with_error(error.into_status_proto())
+                    }
+                };
 
             let tx_size = tx_result.encoded_len();
             (tx_result, tx_size)
@@ -184,12 +192,15 @@ async fn get_transaction_impl(
     config: &iota_config::node::GrpcApiConfig,
     digest: TransactionDigest,
     read_mask: &FieldMaskTree,
+    store_deadline: tokio::time::Instant,
 ) -> Result<ExecutedTransaction, RpcError> {
     // Derive which optional fields to fetch based on the read_mask
     let fields = TransactionReadFields::from_mask(read_mask);
 
     // Get transaction data from storage, skipping unrequested fields
-    let tx_read = reader.get_transaction_read(&digest, &fields).await?;
+    let tx_read = reader
+        .get_transaction_read(&digest, &fields, store_deadline)
+        .await?;
 
     // Create a source for the merge
     let source = TransactionReadSource {
