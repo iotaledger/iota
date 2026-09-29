@@ -6162,6 +6162,29 @@ impl AuthorityState {
         Ok(())
     }
 
+    /// Runs the input checks on an attested transaction and returns its owned
+    /// inputs for locking.
+    pub(crate) fn check_attested_transaction_inputs(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaResult<Vec<ObjectReference>> {
+        let tx = transaction.data().transaction();
+        let (input_objects, _) = self.input_loader.read_objects_for_signing(
+            Some(transaction.digest()),
+            &tx.input_objects()?,
+            &[],
+            epoch_store.epoch(),
+        )?;
+        let (_, checked_inputs) = iota_transaction_checks::check_transaction_input_for_execution(
+            tx,
+            input_objects,
+            epoch_store.protocol_config(),
+            epoch_store.reference_gas_price(),
+        )?;
+        Ok(checked_inputs.inner().filter_owned_objects())
+    }
+
     #[allow(clippy::type_complexity)]
     fn read_objects_for_validation(
         &self,

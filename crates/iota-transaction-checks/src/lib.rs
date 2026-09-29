@@ -168,7 +168,24 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        let transaction = cert.data().transaction();
+        check_transaction_input_for_execution(
+            cert.data().transaction(),
+            input_objects,
+            protocol_config,
+            reference_gas_price,
+        )
+    }
+
+    /// The input checks execution runs: gas coins and balance, and each
+    /// input's kind, version, digest and owner. Receiving objects and the
+    /// bytecode verifier are checked at signing only.
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    pub fn check_transaction_input_for_execution(
+        transaction: &Transaction,
+        input_objects: InputObjects,
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
@@ -178,10 +195,6 @@ mod checked {
             0,
             true,
         )?;
-        // NB: We do not check receiving objects when executing. Only at signing
-        // time do we check. NB: move verifier is only checked at
-        // signing time, not at execution.
-
         Ok((gas_status, input_objects.into_checked()))
     }
 

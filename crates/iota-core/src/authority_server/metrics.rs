@@ -229,7 +229,7 @@ impl ValidatorServiceMetrics {
                 .unwrap(),
             num_rejected_externally_attested_tx: register_int_counter_vec_with_registry!(
                 "validator_service_num_rejected_externally_attested_tx",
-                "Number of externally attested transactions rejected by the attestation check",
+                "Number of externally attested transactions rejected by the attestation or input checks, by error type",
                 &["error_type"],
                 registry,
             )

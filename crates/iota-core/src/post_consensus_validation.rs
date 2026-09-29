@@ -629,9 +629,7 @@ fn extract_owned_input_objects(
 /// The `ImmOrOwnedMoveObject` input references of a transaction, from its
 /// bytes alone; owned and immutable inputs share one kind, so callers that
 /// lock must narrow the set with loaded objects first.
-pub(crate) fn owned_input_object_refs(
-    transaction: &TransactionEnvelope,
-) -> IotaResult<Vec<ObjectReference>> {
+fn owned_input_object_refs(transaction: &TransactionEnvelope) -> IotaResult<Vec<ObjectReference>> {
     // Use SenderSignedTransaction::input_objects() rather than
     // Transaction::input_objects() to also include objects coming from
     // MoveAuthenticator signatures. Those can only be immutable or shared,

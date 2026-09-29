@@ -10,14 +10,12 @@ use iota_network::api::{
     NotifyCapabilitiesResponse, SubmitExternallyAttestedTxRequest, SubmitTxRequest, TxStatus,
     ValidatorV2,
 };
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, TransactionDigest, TransactionEffects,
-};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, TransactionEffects};
 use iota_types::{
     attestation::{Attestation, AttestedTransaction},
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult},
+    error::IotaError,
     fp_ensure,
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
@@ -39,7 +37,6 @@ use crate::{
     },
     consensus_adapter::ConsensusAdapter,
     execution_scheduler::ExecutionSchedulerAPI,
-    post_consensus_validation::owned_input_object_refs,
 };
 
 /// Maximum number of transactions allowed in a single `submit_tx` request,
@@ -531,9 +528,9 @@ impl ValidatorService {
     }
 
     /// Handles submission of a single externally attested transaction. The
-    /// attestor vouches for the validation and the dry-run; the validator only
-    /// verifies the attestation, then submits to consensus. Post-consensus
-    /// validation applies the remaining deterministic checks.
+    /// attestor vouches for the dry-run; the validator verifies the
+    /// attestation, runs the input checks, then submits to consensus.
+    /// Post-consensus validation applies the remaining deterministic checks.
     fn submit_single_externally_attested_tx(
         state: &Arc<AuthorityState>,
         consensus_adapter: &Arc<ConsensusAdapter>,
@@ -574,9 +571,18 @@ impl ValidatorService {
             return rejected(e);
         }
 
-        let owned_objects = match Self::owned_objects_of_attested_tx(state, &verified_tx) {
+        // The same input checks execution runs, so a false attestation is
+        // rejected here rather than sequenced.
+        let owned_objects = match state.check_attested_transaction_inputs(&verified_tx, epoch_store)
+        {
             Ok(owned_objects) => owned_objects,
-            Err(e) => return rejected(e),
+            Err(e) => {
+                metrics
+                    .num_rejected_externally_attested_tx
+                    .with_label_values(&[e.as_ref()])
+                    .inc();
+                return rejected(e);
+            }
         };
 
         let consensus_tx = ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
@@ -597,30 +603,6 @@ impl ValidatorService {
             metrics.num_submitted_externally_attested_tx.inc();
         }
         outcome
-    }
-
-    /// The owned inputs of an attested transaction, taken from its payload
-    /// alone, minus the immutable objects among them, which are never locked.
-    fn owned_objects_of_attested_tx(
-        state: &AuthorityState,
-        transaction: &VerifiedTransaction,
-    ) -> IotaResult<Vec<ObjectReference>> {
-        let candidates = owned_input_object_refs(transaction)?;
-        let ids: Vec<ObjectId> = candidates
-            .iter()
-            .map(|obj_ref| *obj_ref.object_id())
-            .collect();
-        let objects = state.get_object_cache_reader().try_get_objects(&ids)?;
-        Ok(candidates
-            .into_iter()
-            .zip(objects)
-            .filter(|(_, object)| {
-                !object
-                    .as_ref()
-                    .is_some_and(|object| matches!(object.owner(), Owner::Immutable))
-            })
-            .map(|(obj_ref, _)| obj_ref)
-            .collect())
     }
 
     /// Lock-and-submit steps shared by plain and attested submission: owned

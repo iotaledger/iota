@@ -10,7 +10,7 @@ use iota_types::{
     attestation::{Attestation, AttestationData, AttestedTransaction},
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair, get_key_pair_from_rng},
-    error::IotaError,
+    error::{IotaError, UserInputError},
     iota_system_state::attestor_registry::{EpochStartAttestorInfoV1, attestor_pubkey_bytes},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::TxStatusUpdate,
@@ -454,6 +454,63 @@ async fn test_submit_single_externally_attested_tx_rejects_unknown_attestor_and_
         ),
         "expected ExplicitAttestationKeyMismatch, got {update:?}",
     );
+}
+
+/// A verified attestation over a transaction whose input is not owned by its
+/// sender fails the input checks, and is rejected before anything is
+/// soft-locked or submitted.
+#[tokio::test]
+async fn test_submit_single_externally_attested_tx_rejects_input_not_owned_by_sender() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_external_attestation();
+    let (keypair, attestor) = test_attestor(7);
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, dbg_addr(3)),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .with_epoch_start_attestors(vec![attestor.clone()])
+        .build()
+        .await;
+
+    let mut mock = MockConsensusClient::new();
+    mock.expect_submit().never();
+    let consensus_adapter = consensus_adapter_with(&authority_state, mock);
+    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
+    let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+
+    let attested = attested_transfer(
+        &authority_state,
+        sender,
+        &sender_key,
+        object_id,
+        gas_id,
+        attestor.attestor_address,
+        &keypair,
+    );
+    let (update, _) = ValidatorService::submit_single_externally_attested_tx(
+        &authority_state,
+        &consensus_adapter,
+        &Arc::new(ValidatorServiceMetrics::new_for_tests()),
+        &epoch_store,
+        &soft_locks,
+        attested,
+    );
+    assert!(
+        matches!(
+            update,
+            TxStatusUpdate::Rejected {
+                error: IotaError::UserInput {
+                    error: UserInputError::IncorrectUserSignature { .. }
+                }
+            }
+        ),
+        "expected IncorrectUserSignature, got {update:?}",
+    );
+    assert_eq!(soft_locks.lock_count(), 0, "rejected before soft-locking");
 }
 
 /// With external attestation disabled the endpoint refuses attested
