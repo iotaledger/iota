@@ -2118,8 +2118,10 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
-            // With a pre-execution failure, no authenticator runs, so none is handed to
-            // the executor.
+            // With a pre-execution failure, no authenticator runs, the gas owner's
+            // included, so none is handed to the executor. That changes neither
+            // who pays nor the outcome: the gas owner is charged either way, as
+            // when the first authenticator fails.
             let move_authenticators = if pre_execution_error.is_some() {
                 Vec::new()
             } else {
