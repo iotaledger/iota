@@ -15,14 +15,13 @@ CREATE TABLE account_key_links (
 CREATE INDEX account_key_links_account ON account_key_links (account_id);
 CREATE INDEX account_key_links_active  ON account_key_links (key_id) WHERE status = 0;
 
--- Accounts created by a ClaimAccount transaction. Written only from
--- SmartAccountClaimed. Absence means the account was not claimed.
--- Not prunable, for the same reason as account_key_links.
-CREATE TABLE claimed_accounts (
-    account_id                BYTEA    NOT NULL PRIMARY KEY,
-    key_id                    BYTEA    NOT NULL,  -- the key that claimed the address
-    immutable                 BOOLEAN  NOT NULL,
-    claim_tx_sequence_number  BIGINT   NOT NULL,
-    claim_epoch               BIGINT   NOT NULL
+-- Every framework SmartAccount, with or without a built-in key. Written only
+-- from SmartAccountCreated. An account_key_links row with no match here is some
+-- other object a key was attached to. Not prunable, for the same reason as
+-- account_key_links.
+CREATE TABLE smart_accounts (
+    account_id                  BYTEA    NOT NULL PRIMARY KEY,
+    immutable                   BOOLEAN  NOT NULL,
+    created_tx_sequence_number  BIGINT   NOT NULL,
+    created_epoch               BIGINT   NOT NULL
 );
-CREATE INDEX claimed_accounts_key ON claimed_accounts (key_id);

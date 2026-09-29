@@ -423,6 +423,36 @@ fn key_id_coincides_with_address_for_flag_prefixed_schemes() {
     assert_eq!(passkey.key_id(), passkey.address().unwrap().into_bytes());
 }
 
+#[test]
+fn key_id_fixed_vectors() {
+    // Independent indexers must agree on key_id, and nothing on chain computes
+    // it, so pin the formula to fixed outputs rather than only to itself.
+    for (prefixed_hex, expected_hex) in [
+        // Ed25519.
+        (
+            "00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88",
+            "43541042c153e0e498a08a8db868f1614c9366694fa730bd8a07fc5d7c931f0d",
+        ),
+        // 1-of-1 MultiSig with the Ed25519 key above as its only member.
+        (
+            "030100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100",
+            "37330e88388d526046696b5b5113cd64e81eb1b1bcd403372666cc54970ddbf4",
+        ),
+        // 1-of-2 MultiSig with an Ed25519 and a Secp256k1 member.
+        (
+            "030200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100",
+            "dd22eb5c98cdc27de98174a69b68ca1603bdda8aeb226c5232273cfdc9655811",
+        ),
+    ] {
+        let prefixed = hex::decode(prefixed_hex).unwrap();
+        assert_eq!(
+            key_id_from_prefixed_bytes(&prefixed).unwrap().to_vec(),
+            hex::decode(expected_hex).unwrap(),
+            "key_id of {prefixed_hex}"
+        );
+    }
+}
+
 // === Cross-language pin tests (Move ↔ Rust address parity) ===
 
 // Key material shared with the Move test vectors in public_key_tests.move.

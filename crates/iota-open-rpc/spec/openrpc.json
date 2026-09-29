@@ -3445,11 +3445,11 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return the accounts controlled by the given public key, folded from the on-chain account-discoverability event stream (`SmartAccountClaimed`, `PublicKeyAttached`, `PublicKeyRotated`, `PublicKeyDetached`).\n\nResults are not authenticated by this call: anyone can create an account and attach someone else's public key to it. Use the `claimed` flag to tell accounts the key holder created for themselves from accounts someone else created with their key, or verify a returned account on chain.\n\nExclusively served by the indexer.",
+      "description": "Return the accounts controlled by the given public key, folded from the on-chain account-discoverability event stream (`PublicKeyAttached`, `PublicKeyRotated`, `PublicKeyDetached`, `SmartAccountCreated`).\n\nResults are not authenticated by this call: anyone can create an account with someone else's public key, or attach a key to an object that is not an account. Use the `smartAccount` flag to drop the latter, or verify a returned account on chain.\n\nExclusively served by the indexer.",
       "params": [
         {
           "name": "public_key",
-          "description": "Base64 of the scheme-flag-prefixed public key bytes (`flag || raw key bytes`).",
+          "description": "Base64 of the scheme-flag-prefixed public key bytes.",
           "required": true,
           "schema": {
             "$ref": "#/components/schemas/Base64"
@@ -3457,7 +3457,7 @@
         },
         {
           "name": "include_unlinked",
-          "description": "Whether to also return links rotated away from or detached (default false).",
+          "description": "Whether to also return rotated-away or detached links.",
           "schema": {
             "type": "boolean"
           }
@@ -6204,9 +6204,9 @@
         "type": "object",
         "required": [
           "address",
-          "claimed",
           "lastChangeEpoch",
           "scheme",
+          "smartAccount",
           "source",
           "status"
         ],
@@ -6219,17 +6219,6 @@
               }
             ]
           },
-          "claimed": {
-            "description": "Whether the account was created by a `ClaimAccount` transaction, rather than by someone attaching this key to an account they created. Only a claimed account is one the key holder made for themselves.",
-            "type": "boolean"
-          },
-          "immutable": {
-            "description": "Whether a claimed account was frozen at creation, so that its links can never change. `None` for an account that was not claimed, where the property is unknown rather than false.",
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
           "lastChangeEpoch": {
             "description": "The epoch of the last change to this link.",
             "type": "string"
@@ -6239,6 +6228,10 @@
             "type": "integer",
             "format": "uint8",
             "minimum": 0.0
+          },
+          "smartAccount": {
+            "description": "Whether the address is a framework `SmartAccount`. When false, the key was attached to some other object, which may not be usable as an account at all.",
+            "type": "boolean"
           },
           "source": {
             "description": "How the link came about.",
@@ -6280,13 +6273,6 @@
             "type": "string",
             "enum": [
               "detach"
-            ]
-          },
-          {
-            "description": "The account was created by claiming the address this key derives.",
-            "type": "string",
-            "enum": [
-              "claim"
             ]
           }
         ]

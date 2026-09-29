@@ -5,7 +5,6 @@
 pub mod account_key_links;
 pub mod address_metrics;
 pub mod checkpoints;
-pub mod claimed_accounts;
 pub mod display;
 pub mod epoch;
 pub mod event_indices;
@@ -16,6 +15,7 @@ pub mod obj_indices;
 pub mod objects;
 pub mod packages;
 pub mod participation_metrics;
+pub mod smart_accounts;
 pub mod system_state;
 pub mod transactions;
 pub mod tx_count_metrics;

@@ -236,14 +236,10 @@ pub struct AccountKeyLink {
     pub status: AccountKeyLinkStatus,
     /// How the link came about.
     pub source: AccountKeyLinkSource,
-    /// Whether the account was created by a `ClaimAccount` transaction, rather
-    /// than by someone attaching this key to an account they created. Only a
-    /// claimed account is one the key holder made for themselves.
-    pub claimed: bool,
-    /// Whether a claimed account was frozen at creation, so that its links can
-    /// never change. `None` for an account that was not claimed, where the
-    /// property is unknown rather than false.
-    pub immutable: Option<bool>,
+    /// Whether the address is a framework `SmartAccount`. When false, the key
+    /// was attached to some other object, which may not be usable as an
+    /// account at all.
+    pub smart_account: bool,
     /// The signature scheme flag of the key, as recorded on chain. Not resolved
     /// to a named scheme: a link stays indexable under a flag this build does
     /// not recognize.
@@ -272,6 +268,4 @@ pub enum AccountKeyLinkSource {
     Rotate,
     /// The key was detached from the account.
     Detach,
-    /// The account was created by claiming the address this key derives.
-    Claim,
 }

@@ -2491,9 +2491,6 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
-key_id
-	public fun
-	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
@@ -3787,7 +3784,7 @@ generate_u8_in_range
 shuffle
 	public fun
 	0x2::random
-SmartAccountClaimed
+SmartAccountCreated
 	public struct
 	0x2::smart_account
 SmartAccount
@@ -3860,6 +3857,9 @@ claim_immutable_account_v1
 	fun
 	0x2::smart_account
 claim_builder
+	fun
+	0x2::smart_account
+emit_smart_account_event
 	fun
 	0x2::smart_account
 ensure_tx_sender_is_smart_account

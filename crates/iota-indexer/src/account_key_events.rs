@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Rust mirrors of the account-discoverability Move events, and the fold that
-//! turns them into `account_key_links` and `claimed_accounts` rows.
+//! turns them into `account_key_links` and `smart_accounts` rows.
 //!
 //! These types mirror BCS layouts frozen in the iota-framework
 //! (`builtin_authenticator_functions.move`, `smart_account.move`). Once the
@@ -18,7 +18,7 @@ use iota_sdk_types::{Address, Event, ObjectId};
 use iota_types::account_abstraction::public_key::MovePublicKey;
 use serde::Deserialize;
 
-use crate::models::claimed_accounts::StoredClaimedAccount;
+use crate::models::smart_accounts::StoredSmartAccount;
 
 const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE: &str = "builtin_authenticator_functions";
 const SMART_ACCOUNT_MODULE: &str = "smart_account";
@@ -26,7 +26,7 @@ const SMART_ACCOUNT_MODULE: &str = "smart_account";
 const PUBLIC_KEY_ATTACHED: &str = "PublicKeyAttached";
 const PUBLIC_KEY_DETACHED: &str = "PublicKeyDetached";
 const PUBLIC_KEY_ROTATED: &str = "PublicKeyRotated";
-const SMART_ACCOUNT_CLAIMED: &str = "SmartAccountClaimed";
+const SMART_ACCOUNT_CREATED: &str = "SmartAccountCreated";
 
 /// Mirror of `iota::builtin_authenticator_functions::PublicKeyAttached`.
 #[derive(Debug, Clone, Deserialize)]
@@ -50,11 +50,15 @@ pub struct PublicKeyRotatedEvent {
     pub to: MovePublicKey,
 }
 
-/// Mirror of `iota::smart_account::SmartAccountClaimed`.
+/// Mirror of `iota::smart_account::SmartAccountCreated`.
+///
+/// Emitted for every `SmartAccount`, with or without a built-in key. The key,
+/// when present, is also announced by the `PublicKeyAttached` of the same
+/// transaction, which is what the link is folded from.
 #[derive(Debug, Clone, Deserialize)]
-pub struct SmartAccountClaimedEvent {
+pub struct SmartAccountCreatedEvent {
     pub account_id: ObjectId,
-    pub public_key: MovePublicKey,
+    pub public_key: Option<MovePublicKey>,
     pub immutable: bool,
 }
 
@@ -73,7 +77,6 @@ pub enum LinkSource {
     Attach = 0,
     Rotate = 1,
     Detach = 2,
-    Claim = 3,
 }
 
 impl LinkSource {
@@ -84,7 +87,6 @@ impl LinkSource {
             0 => Some(Self::Attach),
             1 => Some(Self::Rotate),
             2 => Some(Self::Detach),
-            3 => Some(Self::Claim),
             _ => None,
         }
     }
@@ -206,39 +208,25 @@ pub fn account_key_link_ops(
         ];
     }
 
-    if is_framework_event(event, SMART_ACCOUNT_MODULE, SMART_ACCOUNT_CLAIMED) {
-        let Ok(claimed) = bcs::from_bytes::<SmartAccountClaimedEvent>(&event.contents) else {
-            return vec![];
-        };
-        return vec![AccountKeyLinkOp::new(
-            &claimed.public_key,
-            &claimed.account_id,
-            LinkSource::Claim,
-            LinkOpKind::Link,
-            tx_sequence_number,
-            epoch,
-        )];
-    }
-
     vec![]
 }
 
-/// The `claimed_accounts` row `event` contributes, if it is a claim.
-pub fn claimed_account_row(
+/// The `smart_accounts` row `event` contributes, if it announces a new
+/// `SmartAccount`.
+pub fn smart_account_row(
     event: &Event,
     tx_sequence_number: u64,
     epoch: u64,
-) -> Option<StoredClaimedAccount> {
-    if !is_framework_event(event, SMART_ACCOUNT_MODULE, SMART_ACCOUNT_CLAIMED) {
+) -> Option<StoredSmartAccount> {
+    if !is_framework_event(event, SMART_ACCOUNT_MODULE, SMART_ACCOUNT_CREATED) {
         return None;
     }
-    let claimed = bcs::from_bytes::<SmartAccountClaimedEvent>(&event.contents).ok()?;
-    Some(StoredClaimedAccount {
-        account_id: claimed.account_id.as_bytes().to_vec(),
-        key_id: claimed.public_key.key_id().to_vec(),
-        immutable: claimed.immutable,
-        claim_tx_sequence_number: tx_sequence_number as i64,
-        claim_epoch: epoch as i64,
+    let created = bcs::from_bytes::<SmartAccountCreatedEvent>(&event.contents).ok()?;
+    Some(StoredSmartAccount {
+        account_id: created.account_id.as_bytes().to_vec(),
+        immutable: created.immutable,
+        created_tx_sequence_number: tx_sequence_number as i64,
+        created_epoch: epoch as i64,
     })
 }
 
@@ -248,21 +236,20 @@ mod tests {
 
     use super::*;
 
-    // Same key material as the Move test vectors in public_key_tests.move, so
-    // the key_id pinned below is directly comparable across the two languages.
+    // Same key material as the fixed vectors in iota-types' public_key_tests.rs.
     const ED25519_RAW_HEX: &str =
         "cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
     const SECP256K1_RAW_HEX: &str =
         "02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
-    /// `blake2b256(0x00 || ED25519_RAW)`, pinned by `key_id_vectors` in
-    /// `public_key_tests.move`.
+    /// `blake2b256(0x00 || ED25519_RAW)`, pinned by `key_id_fixed_vectors` in
+    /// iota-types.
     const ED25519_KEY_ID_HEX: &str =
         "43541042c153e0e498a08a8db868f1614c9366694fa730bd8a07fc5d7c931f0d";
 
     const ACCOUNT: [u8; 32] = [0x11; 32];
 
     #[test]
-    fn move_public_key_bcs_layout_and_key_id_match_move() {
+    fn move_public_key_bcs_layout_and_pinned_key_id() {
         // flag || uleb(len) || raw, the Move `PublicKey` layout.
         let bytes = move_public_key_bcs(SignatureScheme::Ed25519.to_u8(), &ed25519_raw());
         let decoded: MovePublicKey = bcs::from_bytes(&bytes).unwrap();
@@ -278,15 +265,10 @@ mod tests {
     fn link_source_discriminants_round_trip() {
         // The discriminants are persisted, so this pins them against a
         // renumbering that would silently reinterpret existing rows.
-        for source in [
-            LinkSource::Attach,
-            LinkSource::Rotate,
-            LinkSource::Detach,
-            LinkSource::Claim,
-        ] {
+        for source in [LinkSource::Attach, LinkSource::Rotate, LinkSource::Detach] {
             assert_eq!(LinkSource::from_stored(source as i16), Some(source));
         }
-        assert_eq!(LinkSource::from_stored(4), None);
+        assert_eq!(LinkSource::from_stored(3), None);
     }
 
     #[test]
@@ -334,67 +316,79 @@ mod tests {
     }
 
     #[test]
-    fn claimed_event_yields_a_claim_link_and_a_claimed_row() {
-        let event = claimed_event(false);
-        let ops = account_key_link_ops(&event, 9, 4);
+    fn created_event_yields_a_smart_account_row_and_no_link() {
+        // The key of a new account is linked from the PublicKeyAttached of the
+        // same transaction; the creation event only records the account.
+        let event = created_event(Some(&ed25519_raw()), false);
+        assert!(account_key_link_ops(&event, 9, 4).is_empty());
 
-        assert_eq!(ops.len(), 1);
-        assert_eq!(ops[0].source, LinkSource::Claim);
-        assert_eq!(ops[0].kind, LinkOpKind::Link);
-
-        let row = claimed_account_row(&event, 9, 4).unwrap();
+        let row = smart_account_row(&event, 9, 4).unwrap();
         assert_eq!(row.account_id, ACCOUNT.to_vec());
-        assert_eq!(row.key_id, ops[0].key_id.to_vec());
         assert!(!row.immutable);
-        assert_eq!(row.claim_tx_sequence_number, 9);
-        assert_eq!(row.claim_epoch, 4);
+        assert_eq!(row.created_tx_sequence_number, 9);
+        assert_eq!(row.created_epoch, 4);
     }
 
     #[test]
-    fn claimed_event_carries_the_build_kind() {
-        let row = claimed_account_row(&claimed_event(true), 9, 4).unwrap();
+    fn created_event_carries_the_build_kind() {
+        let row = smart_account_row(&created_event(Some(&ed25519_raw()), true), 9, 4).unwrap();
         assert!(row.immutable);
     }
 
     #[test]
-    fn only_a_claim_writes_a_claimed_row() {
-        assert!(claimed_account_row(&attached_event(), 1, 1).is_none());
-        assert!(claimed_account_row(&detached_event(), 1, 1).is_none());
+    fn an_account_without_a_key_is_still_recorded() {
+        let row = smart_account_row(&created_event(None, false), 9, 4).unwrap();
+        assert_eq!(row.account_id, ACCOUNT.to_vec());
+    }
+
+    #[test]
+    fn only_a_creation_writes_a_smart_account_row() {
+        assert!(smart_account_row(&attached_event(), 1, 1).is_none());
+        assert!(smart_account_row(&detached_event(), 1, 1).is_none());
         assert!(
-            claimed_account_row(&rotated_event(&ed25519_raw(), &secp256k1_raw()), 1, 1).is_none()
+            smart_account_row(&rotated_event(&ed25519_raw(), &secp256k1_raw()), 1, 1).is_none()
         );
     }
 
     #[test]
     fn events_from_another_package_are_ignored() {
-        let mut event = claimed_event(false);
-        event.struct_tag = StructTag::new(
+        let mut created = created_event(Some(&ed25519_raw()), false);
+        created.struct_tag = StructTag::new(
             Address::new([0x99; 32]),
             Identifier::new(SMART_ACCOUNT_MODULE).unwrap(),
-            Identifier::new(SMART_ACCOUNT_CLAIMED).unwrap(),
+            Identifier::new(SMART_ACCOUNT_CREATED).unwrap(),
             Vec::new(),
         );
+        assert!(smart_account_row(&created, 1, 1).is_none());
 
-        assert!(account_key_link_ops(&event, 1, 1).is_empty());
-        assert!(claimed_account_row(&event, 1, 1).is_none());
+        let mut attached = attached_event();
+        attached.struct_tag = StructTag::new(
+            Address::new([0x99; 32]),
+            Identifier::new(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE).unwrap(),
+            Identifier::new(PUBLIC_KEY_ATTACHED).unwrap(),
+            Vec::new(),
+        );
+        assert!(account_key_link_ops(&attached, 1, 1).is_empty());
     }
 
     #[test]
     fn other_structs_in_a_matched_module_are_ignored() {
-        let mut event = claimed_event(false);
+        let mut event = created_event(Some(&ed25519_raw()), false);
         event.struct_tag = framework_struct_tag(SMART_ACCOUNT_MODULE, "SomethingElse");
 
         assert!(account_key_link_ops(&event, 1, 1).is_empty());
-        assert!(claimed_account_row(&event, 1, 1).is_none());
+        assert!(smart_account_row(&event, 1, 1).is_none());
     }
 
     #[test]
     fn a_payload_this_build_cannot_decode_yields_nothing() {
-        let mut event = claimed_event(false);
-        event.contents.truncate(4);
+        let mut created = created_event(Some(&ed25519_raw()), false);
+        created.contents.truncate(4);
+        assert!(smart_account_row(&created, 1, 1).is_none());
 
-        assert!(account_key_link_ops(&event, 1, 1).is_empty());
-        assert!(claimed_account_row(&event, 1, 1).is_none());
+        let mut attached = attached_event();
+        attached.contents.truncate(4);
+        assert!(account_key_link_ops(&attached, 1, 1).is_empty());
     }
 
     #[test]
@@ -489,13 +483,17 @@ mod tests {
         )
     }
 
-    fn claimed_event(immutable: bool) -> Event {
+    /// `Option<PublicKey>` is a BCS vector of zero or one keys.
+    fn created_event(ed25519_raw_key: Option<&[u8]>, immutable: bool) -> Event {
         let mut contents = ACCOUNT.to_vec();
-        contents.extend(move_public_key_bcs(
-            SignatureScheme::Ed25519.to_u8(),
-            &ed25519_raw(),
-        ));
+        match ed25519_raw_key {
+            Some(raw) => {
+                contents.push(1);
+                contents.extend(move_public_key_bcs(SignatureScheme::Ed25519.to_u8(), raw));
+            }
+            None => contents.push(0),
+        }
         contents.push(immutable as u8);
-        framework_event(SMART_ACCOUNT_MODULE, SMART_ACCOUNT_CLAIMED, contents)
+        framework_event(SMART_ACCOUNT_MODULE, SMART_ACCOUNT_CREATED, contents)
     }
 }

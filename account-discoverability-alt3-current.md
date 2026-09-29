@@ -8,103 +8,122 @@
 
 **Written against** `vm-lang/10722-fix-after-rebase` at `9b9746e4f4` — _key_id_, 15 Sep 2026.
 
-> **What changed since the original Alt 3 page.** The claim registry is gone: `ClaimRegistry`, `claim_registry.move`, the `0x10` singleton and `iota_types::claim_registry` no longer exist, in the framework, at genesis or in the node. Claiming is now split between `iota::claim` (a 36-line address helper) and `iota::smart_account` (the actual entry points). The claim event is `SmartAccountClaimed` in `iota::smart_account`, not `ClaimedAddress` in `claim_registry`, and it carries the whole `PublicKey` rather than a `key_id` field. `key_id` shipped in Move, which the original plan did not anticipate and which is now an open question (see **Decisions needed**). The single `account_key_links` table becomes two tables.
+> **What changed since the original Alt 3 page.** The claim registry is gone: `ClaimRegistry`, `claim_registry.move`, the `0x10` singleton and `iota_types::claim_registry` no longer exist, in the framework, at genesis or in the node. Claiming is now split between `iota::claim` (a 36-line address helper) and `iota::smart_account` (the actual entry points). The claim event is `SmartAccountClaimed` in `iota::smart_account`, not `ClaimedAddress` in `claim_registry`, and it carries the whole `PublicKey` rather than a `key_id` field. `key_id` briefly shipped in Move, which the original plan did not anticipate. It was removed again, and is defined in `iota-types` only (see **Decisions needed** #1). The single `account_key_links` table becomes two tables.
 
 ---
 
-## Implementation status (as of 15 Sep 2026)
+## Implementation status (as of 28 Sep 2026)
 
-All nine tasks are implemented on `vm-lang/10722-fix-after-rebase`, commits `a772a4433c`..`7a19a54b3a`.
-`cargo clippy --all-targets --all-features -- -D warnings` is clean on every touched crate; 335 `iota-types`
-and 44 `iota-indexer` unit tests and 35 `smart_account` / 3 `key_id` Move tests pass.
+All nine tasks are implemented on `vm-lang/10722-fix-after-rebase`, commits `a772a4433c`..`7a19a54b3a`. A review
+follow-up on 28 Sep then removed the Move `key_id` (**Decisions needed** #1, now resolved), added the missing
+integration scenarios, and cherry-picked the `PackageTooBig` fix so the integration tests can run at all.
+
+What passes now, after the design change below: all 11 `pg_integration` tests in
+`crates/iota-indexer/tests/account_key_links_tests.rs`, the `iota-indexer` unit tests (46), all 721
+`iota-framework` Move tests, the `iota-open-rpc` spec test, and the rollout's regression gate
+`cargo simtest -p iota-e2e-tests --test claim_account_tests` (6 tests).
+
+### Design change (28 Sep 2026): no claimed/unclaimed distinction
+
+The index no longer tells a claimed account from any other `SmartAccount`. What changed:
+
+* **Framework.** `SmartAccountClaimed` is gone. `smart_account::build_v1` and `build_immutable_v1` emit
+  `SmartAccountCreated { account_id, public_key: Option<PublicKey>, immutable }` for every `SmartAccount`, including
+  one with a custom authenticator and no key. The claim entry points emit nothing of their own.
+* **Links** come only from `PublicKeyAttached`, `PublicKeyDetached` and `PublicKeyRotated`, which cover every key
+  change on a `SmartAccount` (§1.3). The `claim` link source is removed (`LinkSource` keeps 0 attach, 1 rotate,
+  2 detach).
+* **`claimed_accounts` is replaced by `smart_accounts`** (`account_id`, `immutable`, creation transaction and epoch),
+  one row per `SmartAccountCreated`, keyless accounts included.
+* **RPC.** `AccountKeyLink` loses `claimed` and `immutable` and gains `smartAccount: bool`: whether the address has a
+  `smart_accounts` row, meaning it is a framework `SmartAccount` rather than some other object a key was attached
+  to. Immutability is not exposed; a wallet reads it from the object's owner (`Immutable` vs `Shared`).
+* The migration, models and tests were changed in place: none of this has been released.
+
+Sections of this document that still describe claims, `SmartAccountClaimed` or `claimed_accounts` (§1.4, §1.5,
+Tasks 1 and 4–9, the rollout checklist, **Decisions needed** #2–#6) record the earlier design and are superseded
+where they conflict with this section and with §1.3.
+
+### Open problems from review (not fixed, need a decision)
+
+1. **An indexer restored from a formal snapshot has an incomplete index, and nothing tells the caller.** `iota-indexer
+   restore` rebuilds the live objects of one epoch and does not replay events, so `account_key_links` and
+   `smart_accounts` stay empty for every account created before the snapshot. The RPC then returns partial results
+   with no error. Replaying only the relevant events is not cheaper: it still needs every checkpoint from genesis to
+   the snapshot. Without claims, the snapshot's objects can rebuild most of it: every active link (each object with a
+   built-in key stores its `PublicKey` as a dynamic field) and every `smart_accounts` row (the `SmartAccount` objects
+   themselves, with immutability from the owner). What is lost: tombstones (keys rotated away or detached no longer
+   exist on the object), and the transaction and epoch of each change, so a rebuilt index would not match a replayed
+   one row for row. Neither §1.4 nor the operator docs mention the restore path.
+2. **`iotax_getAccountsByPublicKey` has no limit and no paging.** `smart_account::builtin_auth_builder_v1` is a
+   `public fun` that takes any `PublicKey` without checking the sender, and
+   `builtin_authenticator_functions::attach_public_key` is `public` over a bare `&mut UID`. So anyone can, for the
+   gas alone, create any number of accounts authenticated by someone else's key. Nobody but the key holder can use
+   such an account, so this is not a takeover. But each one adds a row to that key's result, and
+   `get_accounts_by_key_id` (`read.rs`) loads every row, newest change first. The other list methods of `ExtendedApi`
+   take a `cursor` and a `limit`.
+3. **Regenerating `schema.rs` will likely fail.** The single hunk of `crates/iota-indexer/src/schema.patch` locates
+   the license header by the context lines `diesel::table! {` / `active_addresses (address) {`. `account_key_links`
+   now sorts before `active_addresses`, so after regeneration that context no longer matches. Neither CI nor any
+   test runs `scripts/indexer-schema/generate.sh`, so this surfaces only for the next person who changes a
+   migration. Changing the second context line to `account_key_links (key_id, account_id) {` should fix it. This also
+   leaves "still missing" #2 below unconfirmed.
 
 ### Still missing
 
-1. **The `pg_integration` tests still do not pass — but no longer because of PostgreSQL.** A local Postgres is
-   now set up (see below) and the tests connect and execute. All five then fail inside genesis with
-   `PackageTooBig` — the branch-level blocker in the next section. Every assertion in
-   `crates/iota-indexer/tests/account_key_links_tests.rs` therefore remains unproven, and will stay so until the
-   framework package fits under the limit again. Re-run with:
-   `cargo nextest run -p iota-indexer --features pg_integration --test account_key_links_tests`.
-
-   Local Postgres setup that the harness expects (`postgres://postgres:postgrespw@localhost:5432/<db>`), on
-   macOS with Homebrew — Docker is not needed, though CI uses the `postgres:15` image:
-
-   ```sh
-   brew services start postgresql@14
-   psql -h localhost -d postgres -c "CREATE ROLE postgres LOGIN SUPERUSER CREATEDB PASSWORD 'postgrespw';"
-   psql -h localhost -d postgres -c "ALTER SYSTEM SET max_connections = 500;"   # CI does the same
-   brew services restart postgresql@14
-   ```
-
-   The harness creates and resets its own databases; `brew services stop postgresql@14` undoes the above.
-2. **`schema.rs` was hand-edited, not generated.** `scripts/indexer-schema/generate.sh` needs Docker (daemon not
-   running) and the `diesel` CLI (not installed). The two `diesel::table!` blocks and the `for_all_tables!`
-   entries were written to match what generation produces — alphabetical placement, matching column types — but
-   that has not been confirmed. Re-run the script and check the diff is empty.
-3. **`dprint fmt` was not run** (dprint not installed), so TOML/Markdown/YAML formatting is unverified for
+1. **`schema.rs` was hand-edited, not generated.** `scripts/indexer-schema/generate.sh` needs Docker and the `diesel`
+   CLI. The two `diesel::table!` blocks and the `for_all_tables!` entries were written to match what generation
+   produces, but that is unconfirmed, and see open problem #3 above.
+2. **`dprint fmt` was not run** (dprint not installed), so TOML/Markdown/YAML formatting is unverified for
    `.config/nextest.toml`, `iota-indexer.mdx` and this document.
-4. **`cargo simtest -p iota-e2e-tests --test claim_account_tests` was not run** — the rollout's regression gate.
-5. **Rotation and detach are not covered end to end.** Both need the account itself as transaction sender, hence
-   a `MoveAuthenticator`; they are driven from event payloads in the unit tests only.
+
+Postgres for the `pg_integration` harness (`postgres://postgres:postgrespw@localhost:5432/<db>`): use the repo's
+compose service, which is the `postgres:15` image CI uses, and delete it afterwards:
+
+```sh
+pushd dev-tools/pg-services-local && docker compose up -d postgres && popd
+cargo nextest run -p iota-indexer --features pg_integration --test account_key_links_tests
+pushd dev-tools/pg-services-local && docker compose down -v && popd
+```
+
+The harness creates and resets its own databases. The compose file fixes `container_name: postgres`, and the project
+name comes from the directory, so a `postgres` container started from another checkout is reused silently. Check
+`docker ps -a --filter name=postgres` first.
 
 ### Decisions still open, and what was assumed
 
-* **#1 (`key_id` in Move)** — assumed **keep**, on the conservative reading that shipped code should not be
-  deleted while the decision is open. Tests and the snapshot entry were added on that basis. If the decision goes
-  the other way, `public_key::key_id`, its three Move tests and its `published_api.txt` entry all come back out;
-  the Rust definition is unaffected.
+* **#1 (`key_id` in Move)** — **resolved: removed.** Nothing on chain called it, and every event carries the full
+  `PublicKey`, so no consumer needs the value on chain. `key_id` now exists only in `iota-types`
+  (`account_abstraction::public_key::key_id`). Its formula is pinned there by `key_id_fixed_vectors`, which carries
+  over the three Move vectors unchanged. Re-adding it to Move later is additive; it becomes necessary only if #2
+  makes an event carry a `key_id`.
 * **#2 (what the events emit)** — unresolved; the implementation assumes the events keep carrying the full
   `PublicKey`, which is what is on the branch today.
 * **#3 (`smart_account` attach/detach/rotate events)** — unresolved; **not implemented**, matching the leaning
   recorded below.
 
-### Pre-existing failures on the branch (not caused by this work, still red)
+### The `PackageTooBig` blocker (resolved by a cherry-pick)
 
-Both were verified to fail at `HEAD` with these changes stashed:
+Genesis could not be built on this branch: `PackageTooBig: Move package with size 104133 is larger than the maximum
+object size 102400` (`iota-genesis-builder/src/lib.rs:963`). `max_move_package_size` is `100 * 1024`, and the
+account-abstraction work as a whole had pushed `packages_compiled/iota-framework` from 88046 bytes (`develop`) to
+95259. The discoverability work contributed ~250 of those bytes.
 
-* **`PackageTooBig` — genesis cannot be built on this branch at all.** Any test that builds a genesis aborts with
-  `PackageTooBig: Move package with size 104133 is larger than the maximum object size 102400`
-  (`iota-genesis-builder/src/lib.rs:963`). That is `iota-cost` `test_good_snapshot`, all five
-  `account_key_links_tests`, and by construction anything else using a `TestCluster` or `Simulacrum` genesis —
-  including the `claim_account_tests` the rollout checklist names as its regression gate.
+The fix, `3d8a371b44` (Valerii Reutov, PR #12913 / issue #12905), is cherry-picked onto this branch as `e3de872ca3`.
+It adds `max_move_system_package_size = 200 * 1024` at protocol version 36. The reasoning: a system package is
+published by the network rather than by a user, so the user-package bound was never meant to apply to it. Only the
+functional commit was picked; the two cleanups on that branch (`2f571c3a4d`, `843096e4e0`) were not. Two conflicts
+had to be resolved:
 
-  `max_move_package_size` is `100 * 1024` (`iota-protocol-config/src/lib.rs:2411`), set once in the base config
-  and never overridden per protocol version, so raising it is a protocol config change at a new version — not
-  something to do casually.
+* In `iota-protocol-config`, this branch's version-36 changes were kept and the new field, its version-36 value and
+  the three snapshot lines were added. `develop`'s `validate_input_object_versions`, which appeared in the conflict
+  as context only, was **not** taken.
+* In `openrpc.json`, the commit's only change is the new protocol-config attribute.
 
-  The overrun is the account-abstraction work as a whole, not this task: `packages_compiled/iota-framework` is
-  88046 bytes on `develop` and 95259 on this branch, and the package object is 1733 bytes over the limit. The
-  discoverability work contributes ~250 of those ~7200 bytes; the branch was already ~1.5 KB over before it.
-  **This has to be resolved before any of the integration or e2e work on this branch can be verified.**
-
-  > **A fix already exists and will be cherry-picked manually.** Commit `3d8a371b44` — _feat: bound system Move
-  > packages by `max_move_system_package_size` rather than the limit that applies to user packages_ (Valerii
-  > Reutov, 15 Sep 2026), on `origin/vm-lang/12905-system-package-size-limit`, PR #12913 / issue #12905. It is on
-  > neither `develop` nor this branch.
-  >
-  > It adds a separate `max_move_system_package_size` of `200 * 1024` at protocol version 36, on the reasoning
-  > that a system package is published by the network rather than by a user, so the user-package bound was never
-  > meant to apply: an existing system package is already exempt when it is upgraded at an epoch change, and only
-  > a first publish — genesis, or a newly added system package — is checked against it. That is exactly the path
-  > genesis dies on here, and 200 KiB clears the 104133 bytes comfortably.
-  >
-  > The fix branch is three commits on top of `develop`; `3d8a371b44` alone is the functional change, the other
-  > two (`2f571c3a4d` comment cleanup, `843096e4e0` dropping an e2e dependency) are cleanup on top. Expect two
-  > conflicts when picking it: it touches `iota-protocol-config/src/lib.rs` and carries three version-36
-  > snapshots, and it edits `openrpc.json`, which this work regenerated in `519997ecc3`.
-  >
-  > Once it is in, re-run the `pg_integration` suite (§2.8), `iota-cost` `test_good_snapshot`, and
-  > `claim_account_tests` — all three fail for this one reason, so the fix should clear them together.
-* `iota-framework` Move `bls12381_tests::test_uncompressed_g1_sum_too_long` — runs out of gas instead of aborting
-  with code 2.
-
-Both block the "suites green" gate in the rollout checklist and need fixing independently.
+After removing the Move `key_id` and adding `SmartAccountCreated`, the compiled framework is 95308 bytes.
 
 ### Deviations from this document, for review
 
-* `AccountKeyLink.immutable` is `Option<bool>`, not `bool`: an account with no claim record has an unknown
-  immutability, not a false one.
 * `MovePublicKey::scheme_flag()` was added to `iota-types` (not in the plan). `scheme()` panics on a flag byte the
   build does not know, which a chain-read value may carry once the framework gains a scheme — that would break
   the fold's totality.
@@ -113,9 +132,20 @@ Both block the "suites green" gate in the rollout checklist and need fixing inde
 * `crates/iota-indexer/tests/account_key_links_tests.rs` carries `#[expect(dead_code)]` on the shared `mod
   common`, matching `ingestion_tests.rs`. It is a lint suppression, which the repo conventions forbid; flagged
   rather than removed because every test file in that directory does it.
+* The integration tests run on `TestCluster`, not `Simulacrum`. That makes rotation and detach executable end to
+  end: they are sent by the account itself, authenticated with a `MoveAuthenticator` over its built-in key, the way
+  `crates/iota-e2e-tests/tests/abstract_account_tests.rs` does it. So Task 8 #5 is covered on chain rather than from
+  event payloads, and all six Task 8 scenarios are implemented (the claim-specific ones rewritten for the design
+  change). The reader test Task 7 asked for (`include_unlinked`) is covered through the RPC by the rotation and
+  detach tests. A keyless `SmartAccount` is covered too. Not covered: a result with `smartAccount = false`, which
+  needs a package attaching a key to its own object.
+* The tests that query the RPC right after startup wait for the reader first (`wait_for_reader`). The reader starts
+  in the background, and the empty-key test used to pass only because a refused connection is also an error. It now
+  asserts the handler's own error message.
 * The regenerated `openrpc.json` also absorbs pre-existing branch drift (protocol version 35 → 36, a
-  transaction-kind description), as does the refreshed `iota-swarm-config` genesis snapshot.
-
+  transaction-kind description), as does the refreshed `iota-swarm-config` genesis snapshot. A second regeneration
+  on 28 Sep fixed two `getAccountsByPublicKey` parameter descriptions, which the committed spec had out of sync with
+  the doc comments in `extended.rs`.
 ---
 
 ## 1. Design
@@ -132,7 +162,7 @@ Already merged on the feature branch `vm-lang/10722-fix-after-rebase`:
 | `PublicKey { scheme, raw_bytes }` + full construction-time validation | `.../sources/account_abstraction/public_key.move` | `61f6b1fe17` (PR #12005), `e60dab7e82` (PR #12126) |
 | `TransactionKind::ClaimAccount`, `iota::claim::claim_address`, the private `claim_account_v1` / `claim_immutable_account_v1` | `.../sources/account_abstraction/claim.move`, `.../smart_account.move`, `iota-execution/latest/iota-adapter/src/execution_engine.rs:2085` | `3f72b2497b` (PR #12082) |
 | **Event** `SmartAccountClaimed { account_id, public_key, immutable }` | `.../sources/account_abstraction/smart_account.move:50-55` | `ea2da5d222` |
-| `public_key::key_id` | `.../sources/account_abstraction/public_key.move:115-119` | `9b9746e4f4` |
+| ~~`public_key::key_id`~~ (removed from Move on 28 Sep; now in `iota-types` only) | `crates/iota-types/src/account_abstraction/public_key.rs` | `9b9746e4f4`, removed in the review follow-up |
 
 **What the claim path looks like now.** There is no registry and no marker. `iota::claim` is the whole of what survived:
 
@@ -178,57 +208,70 @@ Two further properties, both minor on their own:
 
 **`key_id` has no protocol role.** Authentication verifies a signature against the address derived from the stored `PublicKey` (`iota_types::account_abstraction::builtin_authenticator_functions::verify_builtin_signature`). `key_id` is an index identity and nothing more.
 
-**Where it is defined today.** Only in Move, at `public_key.move:115-119`:
-
-```move
-public fun key_id(self: &PublicKey): address {
-    let mut flag = vector[self.scheme.flag()];
-    flag.append(self.raw_bytes);
-    address::from_bytes(hash::blake2b256(&flag))
-}
-```
-
-It has **no consumer** — nothing on chain calls it, no event carries it, and there is no Rust twin. The Rust side that the indexer actually needs is still outstanding (Task 3). Whether the Move definition should stay at all is an open question; see **Decisions needed** #1.
+**Where it is defined.** Only in Rust, in `iota-types` (`account_abstraction::public_key`): the free functions
+`key_id(scheme_flag, raw_key_bytes)` and `key_id_from_prefixed_bytes(prefixed)`, and the method
+`MovePublicKey::key_id()`. `key_id_fixed_vectors` pins the formula to fixed outputs. A Move `public_key::key_id`
+shipped in `9b9746e4f4` and was removed again, because nothing on chain used it (**Decisions needed** #1). Nothing on
+chain computes `key_id`, and no event carries it.
 
 Because the four consumed events all carry the whole `PublicKey`, the indexer computes `key_id` from the payload and **address derivation disappears from the indexer entirely**. Nothing an independent implementer has to re-derive, and no fallible operation anywhere in the fold.
 
 ### 1.3. The event schema
 
-| Event | Module | Fields | Carries key? | Status |
-| --- | --- | --- | --- | --- |
-| `SmartAccountClaimed` | `iota::smart_account` | `account_id: ID, public_key: PublicKey, immutable: bool` | **yes** | shipped (`ea2da5d222`) |
-| `PublicKeyAttached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` | **yes** | shipped (PR #11856) |
-| `PublicKeyDetached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` | **yes** | shipped (PR #11856) |
-| `PublicKeyRotated` | `iota::builtin_authenticator_functions` | `account_id: ID, from: PublicKey, to: PublicKey` | **yes** | shipped (PR #11856) |
-| `MutableAccountCreated<Account>` / `ImmutableAccountCreated<Account>` / `AuthenticatorFunctionRefV1Rotated<Account>` | `iota::account` | account lifecycle with an `AuthenticatorFunctionRefV1` | no | shipped; **not consumed** |
+_Rewritten on 28 Sep 2026 for the design without claims; see **Design change** in the status section._
 
-The three `iota::account` events are generic, so their `StructTag`s carry a type parameter that any matcher would have to allow for. They are not consumed: `SmartAccountClaimed.immutable` supplies the only property of theirs the index wants.
+| Event | Module | Fields | Consumed for |
+| --- | --- | --- | --- |
+| `PublicKeyAttached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` | links |
+| `PublicKeyDetached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` | links |
+| `PublicKeyRotated` | `iota::builtin_authenticator_functions` | `account_id: ID, from: PublicKey, to: PublicKey` | links |
+| `SmartAccountCreated` | `iota::smart_account` | `account_id: ID, public_key: Option<PublicKey>, immutable: bool` | `smart_accounts` rows |
+| `MutableAccountCreated<Account>` / `ImmutableAccountCreated<Account>` / `AuthenticatorFunctionRefV1Rotated<Account>` | `iota::account` | account lifecycle with an `AuthenticatorFunctionRefV1` | not consumed |
 
-**Why a claim needs its own event.** At the event level a claim is otherwise indistinguishable from an ordinary key attachment — `claim_builder` calls `attach_public_key`, so both arrive as `PublicKeyAttached { account_id, public_key }`. An indexer could in principle classify a claim by computing `address(public_key)` and comparing it to `account_id`, but that makes replayability conditional on reimplementing IOTA address derivation for all five schemes, including the MultiSig structured preimage and the Ed25519 legacy rule that omits its own flag. An implementation that gets the Ed25519 exemption wrong produces a plausible but different index. It also puts a fallible operation in the fold, and it makes re-claims invisible — a second claim re-emits an identical `PublicKeyAttached`, which the upsert absorbs. One event turns a reimplementation into a read.
+`SmartAccountCreated` is emitted by `smart_account::build_v1` and `build_immutable_v1`, so by every framework
+`SmartAccount`, whether it was claimed, built with `builtin_auth_builder_v1`, or built with a custom authenticator
+and no key (`public_key = none`). A claim and any other build look the same on the wire, and the index does not
+tell them apart.
 
-**The event carries the whole `PublicKey`**, not just a flag or a `key_id`, so it is self-sufficient: one event, one complete fact, no correlation with the neighbouring `PublicKeyAttached` required.
+**Every key change on a `SmartAccount` emits one of the three `PublicKey*` events.** `attach_public_key` is called
+from `builtin_auth_builder_v1`, `claim_builder` and `attach_builtin_auth_public_key`; `detach_public_key` from
+`detach_builtin_auth_public_key`; `rotate_public_key` from `rotate_builtin_auth_public_key`. A `SmartAccount` can
+never be deleted, so no link goes stale through deletion. The links are therefore complete from these three events
+alone. The key in `SmartAccountCreated` duplicates the `PublicKeyAttached` of the same transaction and is not used.
 
-**Emission order.** Both entry points emit after the finalizer, so within a claim transaction the order is `PublicKeyAttached` → `{Mutable,Immutable}AccountCreated` → `SmartAccountClaimed`. The fold relies on this.
+**Emission order within a build.** `PublicKeyAttached` (from the builder), then `SmartAccountCreated`, then
+`{Mutable,Immutable}AccountCreated`. The fold does not depend on it: the two event kinds write different tables.
 
-**Fold semantics** — the index is a pure left-fold of these four events in total order `(checkpoint_sequence, tx_sequence_in_checkpoint, event_sequence_in_tx)`:
+**Fold semantics** — the index is a pure left-fold of these four events in total order
+`(checkpoint_sequence, tx_sequence_in_checkpoint, event_sequence_in_tx)`:
 
 ```
 PublicKeyAttached(account, pk)                → link      (key_id(pk), account)   source=attach, ACTIVE
 PublicKeyRotated(account, from, to)           → tombstone (key_id(from), account)
                                                 then link (key_id(to), account)   source=rotate, ACTIVE
 PublicKeyDetached(account, pk)                → tombstone (key_id(pk), account)    source=detach
-SmartAccountClaimed(account, pk, immutable)   → link      (key_id(pk), account)   source=claim,  ACTIVE
-                                                and upsert claimed_accounts(account, key_id, immutable)
+SmartAccountCreated(account, _, immutable)    → upsert smart_accounts(account, immutable)   (no link)
 ```
 
-Two orderings carry weight:
+Within a rotation, the unlink must precede the link, so that rotating a key onto itself leaves the link active.
 
-* Within a rotation, the unlink must precede the link, so that rotating a key onto itself leaves the link active.
-* Within a claim transaction, `PublicKeyAttached` precedes `SmartAccountClaimed`, and the batch collapse is last-write-wins per `(key_id, account_id)`. So the claim's `source = claim` overwrites the attach's `source = attach` deterministically, and a claim produces exactly one link row, not two.
+Properties to preserve: **total** (every matched event yields its rows, no decode-or-drop path on the index key, no
+address derivation anywhere), **deterministic** (replaying the same checkpoints in the same order yields the same
+rows — this is what lets an independently run indexer be checked against ours), **idempotent and monotonic**
+(re-ingesting a checkpoint rewrites identical values; both upserts guarded on `excluded.<tx_sequence_number> >=
+existing`, so a replayed or out-of-order write can never move state backwards), and **batch-order independent**
+(collapse to one row per key before writing).
 
-Properties to preserve: **total** (every matched event yields its rows, no decode-or-drop path on the index key, no address derivation anywhere), **deterministic** (replaying the same checkpoints in the same order yields the same rows — this is what lets an independently run indexer be checked against ours), **idempotent and monotonic** (re-ingesting a checkpoint rewrites identical values; both upserts guarded on `excluded.<tx_sequence_number> >= existing`, so a replayed or out-of-order write can never move state backwards), and **batch-order independent** (collapse to one row per key before writing).
+**What a result does and does not mean.** The three `PublicKey*` functions are `public` over a bare `&mut UID`, and
+the module's own docs show them used on any account type. So a link may point at:
 
-**Authentication.** Events are only ever emitted by authenticated chain operations: a claim requires `sender == derived address` (`claim_address`), and attach/detach/rotate require `sender == account` (`ensure_tx_sender_is_smart_account`). An adversary cannot fabricate a link to a victim's key on an account they control *and have it count as a claim*. The honest-but-unwanted case is dust-account gifting — creating an account through `builtin_auth_builder_v1` whose authenticator is the victim's key, a link that is _true_ — and the two-table split is what makes it filterable: such an account never appears in `claimed_accounts`, and every link on a claimed account is self-authorized because post-creation mutation requires the account itself to be the sender.
+* a framework `SmartAccount` (it has a `smart_accounts` row; the RPC reports `smartAccount = true`);
+* a third-party account type that uses the built-in authenticators — a real account the key controls;
+* any other object a package attached a key to, which cannot act as an account.
+
+A link also does not mean the key holder created the account: anyone can build a `SmartAccount` whose key is
+someone else's public key. Only the key holder can use such an account, but it appears in that key's results. A
+wallet that needs certainty verifies each result on chain (§1.4).
 
 ### 1.4. Trust model, retention, bootstrap
 
@@ -266,7 +309,7 @@ Live updates: wallets can subscribe to the four event types on a fullnode WebSoc
 
 ---
 
-### 2.1. Task 1: `smart_account::SmartAccountClaimed` (Move) — ✅ **DONE**
+### 2.1. Task 1: `smart_account::SmartAccountClaimed` (Move) — ⚠️ **SUPERSEDED** by `SmartAccountCreated` (28 Sep 2026)
 
 Landed on the branch in `ea2da5d222`. No TDD steps are reconstructed here; the code exists.
 
@@ -292,17 +335,13 @@ public struct SmartAccountClaimed has copy, drop {
 
 ---
 
-### 2.2. Task 2: `public_key::key_id` (Move) — ✅ **DONE**
+### 2.2. Task 2: `public_key::key_id` (Move) — ❌ **REMOVED**
 
-Landed on the branch in `9b9746e4f4`. Code exists; see §1.2 for the body.
-
-**Where it is:** `crates/iota-framework/packages/iota-framework/sources/account_abstraction/public_key.move:115-119`.
-
-**Outstanding on this task:**
-
-* \[ \] **No test.** `tests/account_abstraction/public_key_tests.move` does not mention `key_id`. If the function stays, it needs per-scheme fixed vectors and an explicit assertion that `key_id != to_iota_address()` for Ed25519 and MultiSig while coinciding for Secp256k1 / Secp256r1 / Passkey.
-* \[ \] **Framework snapshots not refreshed.** `published_api.txt` lists `to_iota_address` for `0x2::public_key` but not `key_id`.
-* \[ \] **No consumer.** Nothing on chain calls it, and no event carries a `key_id` field. See **Decisions needed** #1 — the alternative is to remove it and define `key_id` in Rust only.
+Landed in `9b9746e4f4`, then removed in the review follow-up together with its three Move tests and its
+`published_api.txt` entry. It had no on-chain user, and a `public fun` in a system package cannot be removed in a
+compatible upgrade once a network has activated it, so it had to go before any shared network, not after. The three
+Move test vectors moved to `key_id_fixed_vectors` in
+`crates/iota-types/src/unit_tests/account_abstraction/public_key_tests.rs`. See **Decisions needed** #1.
 
 ---
 
@@ -1021,7 +1060,7 @@ Nothing here blocks on `iota-rust-sdk`.
 
 ## Decisions needed
 
-1. **Keep `key_id` in Move, or remove it?** `public_key::key_id` shipped in `9b9746e4f4` and has no consumer: nothing on chain calls it, no event carries a `key_id` field, there is no Move test for it, and it is absent from `published_api.txt`. If it stays, it needs per-scheme test vectors, a snapshot refresh, and — once Task 3 lands — a cross-language parity test guarding a value with no on-chain consumer. If it goes, `key_id` is defined in Rust only, as `MovePublicKey::key_id()`, and re-adding it to Move later is purely additive. **Open.** The argument for keeping it is that it documents the canonical formula where the `PublicKey` type itself lives and makes an on-chain registry keyed by `key_id` cheap to reach for later; the argument against is dead code plus a parity test that guards nothing anyone reads.
+1. **Keep `key_id` in Move, or remove it?** **Resolved: removed.** Nothing on chain called it, and every event carries the full `PublicKey`, so no consumer needs the value on chain. A public function in a system package cannot be removed once a network has activated it, which is what made the question urgent. `key_id` now lives in `iota-types` only, pinned by fixed vectors. Re-adding it to Move later is purely additive, and it becomes necessary only if #2 makes an event carry a `key_id`.
 
 2. **What should `SmartAccountClaimed` — and by extension the other key-carrying events — emit: the full `public_key`, `key_id` alone, or both?** The event currently carries the full `PublicKey`, and this reopens a call the V3 draft already made in favour of exactly that, at a time when `key_id` did not exist on chain. Now that it does, the question is live again. **Open.** The considerations, none of which is decisive on its own:
 
@@ -1030,7 +1069,7 @@ Nothing here blocks on `iota-rust-sdk`.
     * **Consistency.** The three shipped `PublicKey*` events all carry a full `PublicKey`. Making `SmartAccountClaimed` carry `key_id` alone would make it the odd one out, and the fold would need two code paths for what is conceptually one fact. Changing all four to `key_id` is possible only before testnet activation, and would be a much larger change.
     * **Privacy.** Hashing does not meaningfully hide key material here: the claiming transaction is signed by that very key, so its public key is already on the wire in the transaction's own signature, and `PublicKeyAttached` carries it in the same transaction regardless. `key_id` only obscures the key against someone reading the claim event in isolation — which is not a realistic adversary model, since the events and the transactions are published together. The shipped privacy regime is R0 in either case (§1.4).
 
-    A decision to carry `key_id` in addition to `public_key` would also make the Move `key_id` function load-bearing, which settles #1 in favour of keeping it. The three are entangled: decide #2 first.
+    A decision to carry `key_id` in an event would mean adding a Move `key_id` back, since #1 removed it. That is additive and can happen whenever #2 is decided.
 
 3. **Should `smart_account` emit its own attach / detach / rotate events?** `SmartAccountClaimed` gave the claim path an event of its own; the same question applies to the other three key operations, which today emit only the shared `builtin_authenticator_functions` events. **Open.**
 

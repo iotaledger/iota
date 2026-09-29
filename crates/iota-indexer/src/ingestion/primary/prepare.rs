@@ -30,7 +30,7 @@ use itertools::Itertools;
 use tracing::{info, warn};
 
 use crate::{
-    account_key_events::{AccountKeyLinkOp, account_key_link_ops, claimed_account_row},
+    account_key_events::{AccountKeyLinkOp, account_key_link_ops, smart_account_row},
     db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
@@ -39,13 +39,13 @@ use crate::{
     },
     metrics::IndexerMetrics,
     models::{
-        claimed_accounts::StoredClaimedAccount,
         display::{
             StoredDisplay, display_id_from_created_event, displayed_type_from_created_event,
         },
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
+        smart_accounts::StoredSmartAccount,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
@@ -64,7 +64,7 @@ pub struct PrimaryWorker {
 #[derive(Default)]
 pub struct AccountDiscoverability {
     pub link_ops: Vec<AccountKeyLinkOp>,
-    pub claimed_accounts: Vec<StoredClaimedAccount>,
+    pub smart_accounts: Vec<StoredSmartAccount>,
 }
 
 pub type IndexedTransactionComponents = (
@@ -311,7 +311,7 @@ impl PrimaryWorker {
             packages,
             epoch,
             account_key_link_ops: discoverability.link_ops,
-            claimed_accounts: discoverability.claimed_accounts,
+            smart_accounts: discoverability.smart_accounts,
         })
     }
 
@@ -384,7 +384,7 @@ impl PrimaryWorker {
                     tx_sequence_number,
                     checkpoint_epoch,
                 ));
-                discoverability.claimed_accounts.extend(claimed_account_row(
+                discoverability.smart_accounts.extend(smart_account_row(
                     event,
                     tx_sequence_number,
                     checkpoint_epoch,

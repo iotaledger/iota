@@ -52,14 +52,13 @@ pub trait ExtendedApi {
     async fn get_current_epoch(&self) -> RpcResult<EpochInfo>;
 
     /// Return the accounts controlled by the given public key, folded from the
-    /// on-chain account-discoverability event stream (`SmartAccountClaimed`,
-    /// `PublicKeyAttached`, `PublicKeyRotated`, `PublicKeyDetached`).
+    /// on-chain account-discoverability event stream (`PublicKeyAttached`,
+    /// `PublicKeyRotated`, `PublicKeyDetached`, `SmartAccountCreated`).
     ///
     /// Results are not authenticated by this call: anyone can create an account
-    /// and attach someone else's public key to it. Use the `claimed` flag to
-    /// tell accounts the key holder created for themselves from accounts
-    /// someone else created with their key, or verify a returned account on
-    /// chain.
+    /// with someone else's public key, or attach a key to an object that is not
+    /// an account. Use the `smartAccount` flag to drop the latter, or verify a
+    /// returned account on chain.
     ///
     /// Exclusively served by the indexer.
     #[rustfmt::skip]
