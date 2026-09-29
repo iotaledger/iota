@@ -9,6 +9,7 @@ use iota_types::{
     attestation::Attestation,
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
+    gas_model::gas_vector::GasVector,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     messages_grpc::TxStatusUpdate,
     object::Object,
@@ -333,9 +334,12 @@ async fn test_attestation_carries_gas_vector_when_table_present() {
 
     let (_, _, payload) = submit_transfer_and_capture_payload().await;
     let iota_types::attestation::AttestationData::V2 {
-        cpu_time,
-        moved_bytes,
-        write_bytes,
+        gas_vector:
+            GasVector {
+                cpu_time,
+                moved_bytes,
+                write_bytes,
+            },
         object_versions,
     } = payload
     else {
@@ -453,18 +457,17 @@ async fn test_divergence_recomputation_flags_tampered_attestation() {
 
     let (authority_state, tx, payload) = submit_transfer_and_capture_payload().await;
     let iota_types::attestation::AttestationData::V2 {
-        cpu_time,
-        moved_bytes,
-        write_bytes,
+        gas_vector,
         object_versions,
     } = payload
     else {
         panic!("expected AttestationData::V2, got {payload:?}");
     };
     let tampered = iota_types::attestation::AttestationData::V2 {
-        cpu_time: cpu_time + 1,
-        moved_bytes,
-        write_bytes,
+        gas_vector: GasVector {
+            cpu_time: gas_vector.cpu_time + 1,
+            ..gas_vector
+        },
         object_versions,
     };
     let outcomes = execute_with_attested_payload(&authority_state, tx, tampered).await;
