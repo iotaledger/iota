@@ -13,8 +13,8 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
 use iota_sdk_types::{
-    ObjectId, OwnedObjectReference, Owner, Transaction, TransactionDigest, TransactionEffects,
-    TransactionEvents, Version, checkpoint::CheckpointContents,
+    CheckpointContents, ObjectId, Owner, Transaction, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -448,15 +448,7 @@ impl PrimaryWorker {
         let changed_objects = fx
             .all_changed_objects()
             .into_iter()
-            .map(
-                |(
-                    OwnedObjectReference {
-                        reference: object_ref,
-                        owner: _owner,
-                    },
-                    _write_kind,
-                )| object_ref.object_id,
-            )
+            .map(|(changed, _write_kind)| changed.reference().object_id)
             .collect::<Vec<_>>();
 
         // Wrapped or deleted objects
@@ -477,18 +469,10 @@ impl PrimaryWorker {
         let recipients = fx
             .all_changed_objects()
             .into_iter()
-            .filter_map(
-                |(
-                    OwnedObjectReference {
-                        reference: _object_ref,
-                        owner,
-                    },
-                    _write_kind,
-                )| match owner {
-                    Owner::Address(address) => Some(address),
-                    _ => None,
-                },
-            )
+            .filter_map(|(changed, _write_kind)| match changed.owner() {
+                Owner::Address(address) => Some(*address),
+                _ => None,
+            })
             .unique()
             .collect::<Vec<_>>();
 
@@ -611,7 +595,7 @@ impl PrimaryWorker {
             let superseded_ids: HashSet<ObjectId> = effects
                 .mutated()
                 .into_iter()
-                .map(|mutated| mutated.reference.object_id)
+                .map(|mutated| mutated.reference().object_id)
                 .chain(
                     effects
                         .all_removed_objects()
@@ -639,8 +623,8 @@ impl PrimaryWorker {
             //    same object.
             for created in effects.created() {
                 result.push(StoredBackwardHistoryObject::from_empty(
-                    created.reference.object_id,
-                    created.reference.version.as_u64() as i64 - 1,
+                    created.reference().object_id,
+                    created.reference().version.as_u64() as i64 - 1,
                     ObjectStatus::NotYetCreated,
                     checkpoint_seq,
                 ));
@@ -651,7 +635,7 @@ impl PrimaryWorker {
             let unwrapped_refs = effects
                 .unwrapped()
                 .into_iter()
-                .map(|unwrapped| unwrapped.reference);
+                .map(|unwrapped| *unwrapped.reference());
             let unwrapped_then_deleted_refs = effects.unwrapped_then_deleted().into_iter();
             for r in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
                 result.push(StoredBackwardHistoryObject::from_empty(

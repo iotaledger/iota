@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -166,7 +166,7 @@ pub(crate) fn create_random_dag(
     let mut dag_builder = DagBuilder::new(context);
 
     for r in 1..=num_rounds {
-        let random_num = rng.gen_range(0..100);
+        let random_num = rng.random_range(0..100);
         let include_leader = random_num <= include_leader_percentage;
         dag_builder
             .layer(r)

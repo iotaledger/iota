@@ -6,8 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use iota_config::genesis::Genesis;
 use iota_sdk_types::{
-    CheckpointDigest,
-    checkpoint::{CheckpointSummary, EndOfEpochData},
+    CheckpointDigest, CheckpointSummary, EndOfEpochData,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
@@ -41,7 +40,7 @@ pub type MakeCheckpointResults = (
 );
 
 impl CommitteeFixture {
-    pub fn generate<R: ::rand::RngCore + ::rand::CryptoRng>(
+    pub fn generate<R: ::rand::CryptoRng>(
         mut rng: R,
         epoch: EpochId,
         committee_size: usize,

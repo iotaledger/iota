@@ -1,18 +1,17 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::{
+    account::AuthenticatorFunctionRefV1Key, dynamic_field::Field,
+};
 use iota_sdk_types::{
-    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TypeTag,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    account_abstraction::{
-        account::AuthenticatorFunctionRefV1Key,
-        builtin_authenticator_functions::PreloadedBuiltinAuthenticatorData,
-    },
-    dynamic_field::{self, Field},
+    account_abstraction::builtin_authenticator_functions::PreloadedBuiltinAuthenticatorData,
+    dynamic_field,
     error::{IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
     object::Object,
@@ -71,13 +70,10 @@ impl AuthenticatorFunctionRefV1 {
 impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(o.struct_tag()) {
-                    return AuthenticatorFunctionRefV1::from_bcs_bytes(o.contents());
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(o.struct_tag()) {
+                return AuthenticatorFunctionRefV1::from_bcs_bytes(o.contents());
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {
@@ -149,7 +145,8 @@ pub fn derive_authenticator_function_ref_v1_dynamic_field_id(
     dynamic_field::derive_dynamic_field_id(
         account_object_id,
         &StructTag::new_authenticator_function_ref_v1_key().into(),
-        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+        &bcs::to_bytes(&AuthenticatorFunctionRefV1Key::default())
+            .expect("BCS of a struct with one bool field cannot fail"),
     )
     .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId { account_object_id })
 }

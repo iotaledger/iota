@@ -7,25 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::id::UID;
 
-/// Rust version of the Move iota::vec_map::VecMap type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct VecMap<K, V> {
-    pub contents: Vec<Entry<K, V>>,
-}
-
-/// Rust version of the Move iota::vec_map::Entry type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct Entry<K, V> {
-    pub key: K,
-    pub value: V,
-}
-
-/// Rust version of the Move iota::vec_set::VecSet type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct VecSet<T> {
-    pub contents: Vec<T>,
-}
-
 /// Rust version of the Move iota::table::Table type.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct TableVec {

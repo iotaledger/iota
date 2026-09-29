@@ -42,8 +42,10 @@ use iota_sdk_types::{
 };
 use rand::{
     SeedableRng,
-    rngs::{OsRng, StdRng},
+    rand_core::UnwrapErr,
+    rngs::{StdRng, SysRng},
 };
+use rand08::SeedableRng as _;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
@@ -84,6 +86,7 @@ pub type AuthorityKeyPair = BLS12381KeyPair;
 pub type AuthorityPublicKey = BLS12381PublicKey;
 pub type AuthorityPrivateKey = BLS12381PrivateKey;
 pub type AuthoritySignature = BLS12381Signature;
+pub type AggregateAuthorityPublicKey = BLS12381PublicKey;
 pub type AggregateAuthoritySignature = BLS12381AggregateSignature;
 pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
 
@@ -343,16 +346,18 @@ impl Display for ConciseAuthorityPublicKeyBytes {
     }
 }
 
-impl TryFrom<AuthorityPublicKeyBytes> for AuthorityPublicKey {
+impl TryFrom<AuthorityPublicKeyBytes> for AggregateAuthorityPublicKey {
     type Error = FastCryptoError;
 
-    fn try_from(bytes: AuthorityPublicKeyBytes) -> Result<AuthorityPublicKey, Self::Error> {
-        AuthorityPublicKey::from_bytes(bytes.as_ref())
+    fn try_from(
+        bytes: AuthorityPublicKeyBytes,
+    ) -> Result<AggregateAuthorityPublicKey, Self::Error> {
+        AggregateAuthorityPublicKey::from_bytes(bytes.as_ref())
     }
 }
 
-impl From<&AuthorityPublicKey> for AuthorityPublicKeyBytes {
-    fn from(pk: &AuthorityPublicKey) -> AuthorityPublicKeyBytes {
+impl From<&AggregateAuthorityPublicKey> for AuthorityPublicKeyBytes {
+    fn from(pk: &AggregateAuthorityPublicKey) -> AuthorityPublicKeyBytes {
         AuthorityPublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
@@ -472,12 +477,14 @@ impl IotaAuthoritySignature for AuthoritySignature {
 /// Random key-pair generation for the `get_key_pair` helpers, implemented for
 /// the fastcrypto authority/network keypairs and the SDK account keys.
 pub trait RandomKeyPair: Sized {
-    fn generate_with_address(rng: &mut StdRng) -> (Address, Self);
+    fn generate_with_address(seed: [u8; 32]) -> (Address, Self);
 }
 
 impl RandomKeyPair for BLS12381KeyPair {
-    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-        let kp = <BLS12381KeyPair as KeypairTraits>::generate(rng);
+    fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
+        let kp = <BLS12381KeyPair as KeypairTraits>::generate(
+            &mut rand08::rngs::StdRng::from_seed(seed),
+        );
         // Authority keys have no on-chain account; this address only labels
         // key files and `keytool` output.
         let mut hasher = DefaultHash::default();
@@ -488,8 +495,9 @@ impl RandomKeyPair for BLS12381KeyPair {
 }
 
 impl RandomKeyPair for Ed25519KeyPair {
-    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-        let kp = <Ed25519KeyPair as KeypairTraits>::generate(rng);
+    fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
+        let kp =
+            <Ed25519KeyPair as KeypairTraits>::generate(&mut rand08::rngs::StdRng::from_seed(seed));
         let public = PublicKey::Ed25519(BytesRepresentation(
             kp.public()
                 .as_ref()
@@ -503,8 +511,8 @@ impl RandomKeyPair for Ed25519KeyPair {
 macro_rules! random_key_pair_from_sdk {
     ($private_key:ty, $variant:ident) => {
         impl RandomKeyPair for $private_key {
-            fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-                let key = <$private_key>::random_with(rng);
+            fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
+                let key = <$private_key>::random_with(StdRng::from_seed(seed));
                 let public =
                     PublicKey::$variant(BytesRepresentation(key.public_key().into_bytes()));
                 (Address::from(&public), key)
@@ -520,7 +528,7 @@ random_key_pair_from_sdk!(Secp256r1PrivateKey, Secp256r1);
 // TODO: get_key_pair() should return KeyPair only.
 // TODO: rename to random_key_pair
 pub fn get_key_pair<KP: RandomKeyPair>() -> (Address, KP) {
-    get_key_pair_from_rng(&mut OsRng)
+    get_key_pair_from_rng(&mut UnwrapErr(SysRng))
 }
 
 /// Generate a random committee key pairs with a given committee size
@@ -559,9 +567,11 @@ pub fn get_authority_key_pair() -> (Address, AuthorityKeyPair) {
 /// rngs).
 pub fn get_key_pair_from_rng<KP: RandomKeyPair, R>(csprng: &mut R) -> (Address, KP)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
-    KP::generate_with_address(&mut StdRng::from_rng(csprng).unwrap())
+    let mut seed = [0u8; 32];
+    csprng.fill_bytes(&mut seed);
+    KP::generate_with_address(seed)
 }
 
 // TODO: C-GETTER
@@ -1036,8 +1046,8 @@ mod bcs_signable {
 
     pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
     impl BcsSignable for crate::committee::Committee {}
-    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointSummary {}
-    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointContents {}
+    impl BcsSignable for iota_sdk_types::CheckpointSummary {}
+    impl BcsSignable for iota_sdk_types::CheckpointContents {}
     #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 
@@ -1093,7 +1103,7 @@ pub fn default_hash<S: Signable<DefaultHash>>(signable: &S) -> [u8; 32] {
 pub struct VerificationObligation<'a> {
     pub messages: Vec<Vec<u8>>,
     pub signatures: Vec<AggregateAuthoritySignature>,
-    pub public_keys: Vec<Vec<&'a AuthorityPublicKey>>,
+    pub public_keys: Vec<Vec<&'a AggregateAuthorityPublicKey>>,
 }
 
 impl<'a> VerificationObligation<'a> {
@@ -1122,7 +1132,7 @@ impl<'a> VerificationObligation<'a> {
     pub fn add_signature_and_public_key(
         &mut self,
         signature: &AuthoritySignature,
-        public_key: &'a AuthorityPublicKey,
+        public_key: &'a AggregateAuthorityPublicKey,
         idx: usize,
     ) -> IotaResult<()> {
         self.public_keys

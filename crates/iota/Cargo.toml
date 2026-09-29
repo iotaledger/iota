@@ -35,6 +35,7 @@ miette = { version = "7", features = ["fancy"] }
 rand.workspace = true
 regex.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
@@ -66,6 +67,7 @@ iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
 iota-sdk-crypto = { workspace = true, features = ["bech32", "ed25519", "secp256k1"] }
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-transaction-builder.workspace = true
 iota-sdk-types.workspace = true
 iota-source-validation.workspace = true

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 36;
+pub const MAX_PROTOCOL_VERSION: u64 = 38;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -227,7 +227,28 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the redesigned leader schedule (sliding-window reputation
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on mainnet.
-// Version 36: Enable built-in Move authenticators in devnet.
+// Version 36: Reject a transaction whose sender or sponsor is authenticated by
+//             a `MoveAuthenticator` with an immutable account object.
+// Version 37: Reject a transaction that names an object version in the range
+//             assigned to canceled transactions, or one below it, from the
+//             transaction bytes, before any object is loaded.
+//             Reject `<SELF>` as an identifier in published modules.
+//             Make the enum variant count limit explicit in the protocol
+//             config.
+//             Check the package that holds a `MoveAuthenticator`'s
+//             authenticate function, and that package's dependencies, against
+//             the package deny list.
+//             Require the version field of a published module header to be the
+//             encoding the serializer produces for that version, rejecting a
+//             non-zero flavor byte below binary format version 7.
+//             Reject the randomness state object as a `MoveAuthenticator`
+//             input.
+//             Traverse the module graph when checking a published module for
+//             cyclic dependencies, instead of stopping at its immediate
+//             dependencies.
+// Version 38: Bound system Move packages by `max_move_system_package_size`
+//             rather than the limit that applies to user packages.
+//             Enable built-in Move authenticators in devnet.
 //             Accept the `ClaimAccount` transaction kind in devnet, which
 //             creates an account object at the sender's address.
 //             Introduce Move native functions for validating public keys for
@@ -634,6 +655,12 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     deny_rule_governance_on_chain: bool,
 
+    // If true, the package holding a `MoveAuthenticator`'s authenticate function,
+    // together with that package's dependencies, is checked against the package
+    // deny list.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_authenticator_packages: bool,
+
     // If true, package metadata can be published with ModuleMetadata as a dynamic
     // field.
     #[serde(skip_serializing_if = "is_false")]
@@ -665,6 +692,47 @@ struct FeatureFlags {
     // Allow objects created or mutated in system transactions to exceed the max object size limit.
     #[serde(skip_serializing_if = "is_false")]
     allow_unbounded_system_objects: bool,
+
+    // If true, transaction validation rejects a `MoveAuthenticator` whose
+    // account object is immutable.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_immutable_account_objects: bool,
+
+    // If true, `validity_check` rejects a transaction that names an object
+    // version at or above `Version::MAX_VALID_EXCL`, the range assigned to the
+    // objects of canceled transactions, or right below it, from the transaction
+    // bytes alone. Version assignment increments the largest input version and
+    // halts the node when the result is not a valid version.
+    #[serde(skip_serializing_if = "is_false")]
+    validate_input_object_versions: bool,
+
+    // Disallow self identifier
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_self_identifier: bool,
+
+    // If true, the version field of a published module header must be the encoding
+    // the serializer produces for the version it decodes to. Below binary format
+    // version 7 the flavor byte is not part of the header, and without this check
+    // a non-zero flavor byte is masked off instead of rejected.
+    #[serde(skip_serializing_if = "is_false")]
+    check_canonical_module_version_header: bool,
+
+    // If true, `validity_check` rejects a `MoveAuthenticator` that names the
+    // randomness state object among its inputs. An authenticate function cannot
+    // derive randomness from it, but naming it schedules the transaction as
+    // randomness-using and defers it to a randomness round for nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_randomness_in_move_authenticator: bool,
+
+    // If true, the cyclic dependency check traverses the module graph. Without it
+    // the traversal descends only into modules it has already visited, so it stops
+    // at the immediate dependencies and never reports a cycle.
+    #[serde(skip_serializing_if = "is_false")]
+    check_cyclic_dependencies: bool,
+
+    // If true, deprecate global storage ops during Move module deserialization
+    #[serde(skip_serializing_if = "is_false")]
+    deprecate_global_storage_ops_during_deserialization: bool,
 
     // If true, enables the authentication with built-in Move authenticators.
     #[serde(skip_serializing_if = "is_false")]
@@ -808,7 +876,9 @@ pub struct ProtocolConfig {
     max_tx_size_bytes: Option<u64>,
 
     /// Maximum number of input objects to a transaction. Enforced by the
-    /// transaction input checker
+    /// transaction input checker. Pure inputs do not count towards it; all
+    /// inputs together cannot exceed
+    /// `iota_types::transaction::MAX_PROGRAMMABLE_TX_INPUTS`.
     max_input_objects: Option<u64>,
 
     /// Max size of objects a transaction can write to disk after completion.
@@ -1620,6 +1690,12 @@ pub struct ProtocolConfig {
     /// when `consensus_enable_sliding_window_leader_schedule` is set.
     consensus_leader_schedule_window_size: Option<u32>,
 
+    /// Maximum size of a system Move package object, in bytes. System packages
+    /// are published by the network rather than by users, so they are held to a
+    /// larger bound than `max_move_package_size`. When unset, system packages
+    /// are bound by `max_move_package_size` like any other package.
+    max_move_system_package_size: Option<u64>,
+
     // Cost params for built-in Move authenticators
     builtin_move_authenticator_cost_base: Option<u64>,
 
@@ -2096,6 +2172,10 @@ impl ProtocolConfig {
         self.feature_flags.deny_rule_governance_on_chain
     }
 
+    pub fn deny_authenticator_packages(&self) -> bool {
+        self.feature_flags.deny_authenticator_packages
+    }
+
     pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
         let res = self
             .feature_flags
@@ -2154,6 +2234,36 @@ impl ProtocolConfig {
 
     pub fn allow_unbounded_system_objects(&self) -> bool {
         self.feature_flags.allow_unbounded_system_objects
+    }
+
+    pub fn reject_immutable_account_objects(&self) -> bool {
+        let reject_immutable_account_objects = self.feature_flags.reject_immutable_account_objects;
+        assert!(
+            !reject_immutable_account_objects || self.enable_move_authentication(),
+            "reject_immutable_account_objects requires enable_move_authentication to be set"
+        );
+        reject_immutable_account_objects
+    }
+
+    pub fn validate_input_object_versions(&self) -> bool {
+        self.feature_flags.validate_input_object_versions
+    }
+
+    pub fn check_canonical_module_version_header(&self) -> bool {
+        self.feature_flags.check_canonical_module_version_header
+    }
+
+    pub fn disallow_randomness_in_move_authenticator(&self) -> bool {
+        self.feature_flags.disallow_randomness_in_move_authenticator
+    }
+
+    pub fn check_cyclic_dependencies(&self) -> bool {
+        self.feature_flags.check_cyclic_dependencies
+    }
+
+    pub fn deprecate_global_storage_ops_during_deserialization(&self) -> bool {
+        self.feature_flags
+            .deprecate_global_storage_ops_during_deserialization
     }
 
     pub fn enable_builtin_move_authenticators(&self) -> bool {
@@ -2839,6 +2949,8 @@ impl ProtocolConfig {
             validator_very_low_stake_threshold: None,
             validator_low_stake_grace_period: None,
             consensus_leader_schedule_window_size: None,
+
+            max_move_system_package_size: None,
 
             // Built-in Move authenticators
             builtin_move_authenticator_cost_base: None,
@@ -3552,6 +3664,41 @@ impl ProtocolConfig {
                         .pre_consensus_sponsor_only_move_authentication = false;
                 }
                 36 => {
+                    // No immutable account object can authenticate a sender or
+                    // a sponsor.
+                    cfg.feature_flags.reject_immutable_account_objects = true;
+                }
+                37 => {
+                    // Refuse object versions in, or right below, the range
+                    // assigned to canceled transactions before any object is
+                    // loaded, by consulting the transaction bytes only.
+                    cfg.feature_flags.validate_input_object_versions = true;
+                    cfg.feature_flags.disallow_self_identifier = true;
+                    cfg.max_move_enum_variants = Some(move_core_types::VARIANT_COUNT_MAX);
+                    // Apply the package deny list to the package that holds a
+                    // `MoveAuthenticator`'s authenticate function.
+                    cfg.feature_flags.deny_authenticator_packages = true;
+                    // Require a published module header to carry the canonical
+                    // encoding of its binary format version.
+                    cfg.feature_flags.check_canonical_module_version_header = true;
+                    // An authenticate function cannot read randomness, so the
+                    // randomness state object is refused as an authenticator
+                    // input instead of scheduling the transaction as
+                    // randomness-using for nothing.
+                    cfg.feature_flags.disallow_randomness_in_move_authenticator = true;
+                    // Traverse the module graph when checking for cyclic
+                    // dependencies.
+                    cfg.feature_flags.check_cyclic_dependencies = true;
+                }
+                38 => {
+                    // A system package is published by the network, not by a
+                    // user, so the user-package bound was never meant to apply
+                    // to it: an existing system package is already exempt when
+                    // it is upgraded at an epoch change, and only a first
+                    // publish (genesis, or a newly added system package) is
+                    // checked against it.
+                    cfg.max_move_system_package_size = Some(200 * 1024);
+
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable built-in Move authenticators in devnet.
                         cfg.feature_flags.enable_builtin_move_authenticators = true;
@@ -3640,11 +3787,13 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
+            disallow_self_identifier: self.feature_flags.disallow_self_identifier,
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
             additional_borrow_checks,
             sanity_check_with_regex_reference_safety: sanity_check_with_regex_reference_safety
                 .map(|limit| limit as u128),
+            check_cyclic_dependencies: self.feature_flags.check_cyclic_dependencies,
         }
     }
 
@@ -3720,6 +3869,10 @@ impl ProtocolConfig {
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
         self.feature_flags
             .disallow_new_modules_in_deps_only_packages = val;
+    }
+
+    pub fn set_check_canonical_module_version_header_for_testing(&mut self, val: bool) {
+        self.feature_flags.check_canonical_module_version_header = val;
     }
 
     pub fn set_consensus_round_prober_for_testing(&mut self, val: bool) {
@@ -3861,6 +4014,18 @@ impl ProtocolConfig {
             .pcool_verifier_limits_from_protocol_config = val;
     }
 
+    pub fn set_reject_immutable_account_objects_for_testing(&mut self, val: bool) {
+        self.feature_flags.reject_immutable_account_objects = val;
+    }
+
+    pub fn set_validate_input_object_versions_for_testing(&mut self, val: bool) {
+        self.feature_flags.validate_input_object_versions = val;
+    }
+
+    pub fn set_disallow_randomness_in_move_authenticator_for_testing(&mut self, val: bool) {
+        self.feature_flags.disallow_randomness_in_move_authenticator = val;
+    }
+
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
         self.consensus_commits_per_schedule = Some(val);
     }
@@ -3869,8 +4034,27 @@ impl ProtocolConfig {
         self.feature_flags.deny_rule_governance = val;
     }
 
+    pub fn set_deny_authenticator_packages_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_authenticator_packages = val;
+    }
+
     pub fn set_deny_rule_governance_on_chain_for_testing(&mut self, val: bool) {
         self.feature_flags.deny_rule_governance_on_chain = val;
+    }
+
+    /// Keeps the config consistent with the getters that assert on this flag:
+    /// enabling fills in `scorer_version` when unset, disabling also switches
+    /// off `adjust_rewards_by_score` and
+    /// `pass_calculated_validator_scores_to_advance_epoch`.
+    pub fn set_calculate_validator_scores_for_testing(&mut self, val: bool) {
+        self.feature_flags.calculate_validator_scores = val;
+        if val {
+            self.scorer_version.get_or_insert(1);
+        } else {
+            self.feature_flags.adjust_rewards_by_score = false;
+            self.feature_flags
+                .pass_calculated_validator_scores_to_advance_epoch = false;
+        }
     }
 
     pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {

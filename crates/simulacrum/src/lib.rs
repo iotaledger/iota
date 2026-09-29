@@ -32,10 +32,9 @@ use iota_config::{
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
-    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
-    checkpoint::{CheckpointContents, EndOfEpochData},
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
+    EndOfEpochData, EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage,
+    Transaction, TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
 };
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
@@ -60,7 +59,7 @@ use iota_types::{
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
     transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
 pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
@@ -74,7 +73,7 @@ use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 /// See [module level][mod] documentation for more details.
 ///
 /// [mod]: index.html
-pub struct Simulacrum<R = OsRng, Store: SimulatorStore = InMemoryStore> {
+pub struct Simulacrum<R = UnwrapErr<SysRng>, Store: SimulatorStore = InMemoryStore> {
     // Mutable state protected by RwLock for thread-safe interior mutability
     inner: RwLock<SimulacrumInner<R, Store>>,
     // Immutable config - can be accessed directly
@@ -100,13 +99,13 @@ impl Simulacrum {
     /// of randomness.
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self::new_with_rng(OsRng)
+        Self::new_with_rng(UnwrapErr(SysRng))
     }
 }
 
 impl<R> Simulacrum<R>
 where
-    R: rand::RngCore + rand::CryptoRng,
+    R: rand::CryptoRng,
 {
     /// Create a new Simulacrum instance using the provided `rng`.
     ///
@@ -970,7 +969,12 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionAPI,
+        effects::TransactionEffectsAPI,
+        error::IotaError,
+        gas_coin::GasCoin,
+        transaction::TransactionAPI,
+        transaction_executor::VmChecks,
+        utils::{assert_size_limit_err, ptb_above_max_tx_size},
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -1261,5 +1265,24 @@ mod tests {
 
         assert_eq!(&checkpoint.epoch_rolling_gas_cost_summary, gas_summary);
         assert_eq!(checkpoint.network_total_transactions, 2); // genesis + 1 txn
+    }
+
+    #[test]
+    fn simulate_rejects_a_transaction_above_the_size_limit() {
+        let sim = Simulacrum::new();
+        let pt = {
+            let inner = sim.inner.read().unwrap();
+            ptb_above_max_tx_size(inner.epoch_state.protocol_config())
+        };
+        let transaction =
+            Transaction::new_programmable(Address::random(), vec![], pt, 10_000_000, 1000);
+
+        let Err(err) = sim.simulate_transaction(transaction, VmChecks::Enabled) else {
+            panic!("a transaction above the size limit must be rejected");
+        };
+        let IotaError::UserInput { error } = &err else {
+            panic!("got {err:?}");
+        };
+        assert_size_limit_err(error, "serialized transaction size exceeded maximum");
     }
 }

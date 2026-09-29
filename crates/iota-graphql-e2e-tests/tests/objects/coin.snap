@@ -54,7 +54,7 @@ Response: {
       "coins": {
         "edges": [
           {
-            "cursor": "INNUgLY/0naiwb5be28kr+hOzRhK6O/eRpeRYJaPdg7rAQAAAAAAAAA=",
+            "cursor": "INNUgLY/0naiwb5be28kr+hOzRhK6O/eRpeRYJaPdg7rAgAAAAAAAAABAAAAAAAAAA==",
             "node": {
               "coinBalance": "299999983382000",
               "contents": {
@@ -84,7 +84,7 @@ Response: {
     "fakeCoins": {
       "edges": [
         {
-          "cursor": "IGTQkzLYvf6IeIFSqxnStvUjx+SpGkWIVh0SJasNdEFgAQAAAAAAAAA=",
+          "cursor": "IGTQkzLYvf6IeIFSqxnStvUjx+SpGkWIVh0SJasNdEFgAgAAAAAAAAABAAAAAAAAAA==",
           "node": {
             "coinBalance": "1",
             "contents": {
@@ -95,7 +95,7 @@ Response: {
           }
         },
         {
-          "cursor": "IJCciOCIiKOVgRANnkv2Ek+63tGQRaRvBTdoC5n6uBeKAQAAAAAAAAA=",
+          "cursor": "IJCciOCIiKOVgRANnkv2Ek+63tGQRaRvBTdoC5n6uBeKAgAAAAAAAAABAAAAAAAAAA==",
           "node": {
             "coinBalance": "3",
             "contents": {
@@ -106,7 +106,7 @@ Response: {
           }
         },
         {
-          "cursor": "IMgdXp2TGN2R8SESmdKnbHB97gHQlsVG1EhT1QBdKAjgAQAAAAAAAAA=",
+          "cursor": "IMgdXp2TGN2R8SESmdKnbHB97gHQlsVG1EhT1QBdKAjgAgAAAAAAAAABAAAAAAAAAA==",
           "node": {
             "coinBalance": "2",
             "contents": {
@@ -121,7 +121,7 @@ Response: {
     "iotaCoins": {
       "edges": [
         {
-          "cursor": "IHQYRhDrG+U4Mtk7XANbay/D7RiOuc6/tqZtP2CrXkzWAQAAAAAAAAA=",
+          "cursor": "IHQYRhDrG+U4Mtk7XANbay/D7RiOuc6/tqZtP2CrXkzWAQAAAAAAAAABAAAAAAAAAA==",
           "node": {
             "coinBalance": "300000000000000",
             "contents": {
@@ -132,7 +132,7 @@ Response: {
           }
         },
         {
-          "cursor": "INNUgLY/0naiwb5be28kr+hOzRhK6O/eRpeRYJaPdg7rAQAAAAAAAAA=",
+          "cursor": "INNUgLY/0naiwb5be28kr+hOzRhK6O/eRpeRYJaPdg7rAgAAAAAAAAABAAAAAAAAAA==",
           "node": {
             "coinBalance": "299999983382000",
             "contents": {
@@ -143,7 +143,7 @@ Response: {
           }
         },
         {
-          "cursor": "IN1dw8JSMZ3fTkObz72dmGJuhvfZkEEkgWwbSuqY+X4/AQAAAAAAAAA=",
+          "cursor": "IN1dw8JSMZ3fTkObz72dmGJuhvfZkEEkgWwbSuqY+X4/AQAAAAAAAAABAAAAAAAAAA==",
           "node": {
             "coinBalance": "30000000000000000",
             "contents": {

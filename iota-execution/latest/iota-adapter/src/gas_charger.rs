@@ -9,7 +9,7 @@ pub use checked::*;
 pub mod checked {
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        ObjectData, ObjectId, ObjectReference, TransactionDigest, gas::GasCostSummary,
+        GasCostSummary, ObjectData, ObjectId, ObjectReference, TransactionDigest,
     };
     use iota_types::{
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,

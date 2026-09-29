@@ -9,7 +9,7 @@ use iota_sdk_types::{
 };
 use serde::Serialize;
 
-use crate::error::{IotaError, IotaResult};
+use crate::error::{ErrorChain, IotaError, IotaResult};
 
 #[derive(Default, Debug, Clone)]
 pub struct VerifyParams {
@@ -83,7 +83,7 @@ impl AuthenticatorTrait for SimpleSignature {
         SimpleVerifier
             .verify(&value.signing_digest(), self)
             .map_err(|e| IotaError::InvalidSignature {
-                error: format!("Fail to verify user sig {e}"),
+                error: format!("Fail to verify user sig {}", ErrorChain(&e)),
             })
     }
 }

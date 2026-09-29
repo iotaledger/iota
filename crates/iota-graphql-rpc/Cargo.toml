@@ -31,6 +31,7 @@ http-body-util.workspace = true
 hyper.workspace = true
 once_cell.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tap.workspace = true
@@ -64,6 +65,7 @@ iota-network-stack.workspace = true
 iota-node-storage.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-types.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true

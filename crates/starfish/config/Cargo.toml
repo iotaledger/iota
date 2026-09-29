@@ -13,7 +13,7 @@ workspace = true
 # external dependencies
 blake3 = "1.8.2"
 fastcrypto = { workspace = true, features = ["copy_key"] }
-rand.workspace = true
+rand08.workspace = true
 rs_merkle.workspace = true
 serde.workspace = true
 tracing.workspace = true

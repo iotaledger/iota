@@ -55,4 +55,12 @@ impl BalanceChange {
             checkpoint_viewed_at,
         })
     }
+
+    /// Build from an already-decoded balance change.
+    pub(crate) fn from_stored(stored: IndexedBalanceChange, checkpoint_viewed_at: u64) -> Self {
+        Self {
+            stored,
+            checkpoint_viewed_at,
+        }
+    }
 }

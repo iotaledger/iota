@@ -7,14 +7,25 @@ use std::fmt;
 use async_graphql::*;
 use iota_sdk_types::Version;
 use iota_types::iota_serde::BigInt;
+use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
 /// The largest value that a `UInt53` can hold, 2^53 - 1.
-const MAX_UINT53: u64 = (1 << 53) - 1;
+pub(crate) const MAX_UINT53: u64 = (1 << 53) - 1;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(try_from = "u64", into = "u64")]
 pub(crate) struct UInt53(u64);
+
+impl UInt53 {
+    /// Creates a new value without checking the range.
+    ///
+    /// Use this only when other code verifies the limit of 2^53 - 1.
+    pub(crate) fn new_unchecked(value: u64) -> Self {
+        Self(value)
+    }
+}
 
 /// An unsigned integer that can hold values up to 2^53 - 1. This can be treated
 /// similarly to `Int`, but it is guaranteed to be non-negative, and it may be

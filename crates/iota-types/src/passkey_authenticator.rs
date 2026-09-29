@@ -10,7 +10,7 @@ use iota_sdk_types::{
 use serde::Serialize;
 
 use crate::{
-    error::{IotaError, IotaResult},
+    error::{ErrorChain, IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
 };
 
@@ -35,7 +35,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
             .with_address(author)
             .verify(&digest, self)
             .map_err(|e| IotaError::InvalidSignature {
-                error: format!("Invalid passkey authentication: {e}"),
+                error: format!("Invalid passkey authentication: {}", ErrorChain(&e)),
             })
     }
 }

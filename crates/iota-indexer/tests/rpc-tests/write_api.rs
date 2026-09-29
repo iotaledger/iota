@@ -10,8 +10,12 @@ use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl};
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_indexer::{
-    config::RetentionConfig, errors::IndexerError, read_only_blocking, schema::objects,
-    store::indexer_store::IndexerStore, types::IndexerResult,
+    config::RetentionConfig,
+    errors::IndexerError,
+    read_only_blocking,
+    schema::objects,
+    store::{diesel_macro::spawn_blocking_task, indexer_store::IndexerStore},
+    types::IndexerResult,
 };
 use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
@@ -623,8 +627,9 @@ fn optimistic_objects_are_finalized() {
             .await
             .unwrap()
             .unwrap() as i64;
-        let non_finalized_count: i64 = (|| -> Result<_, IndexerError> {
-            read_only_blocking!(&store.blocking_cp(), |conn| {
+        let blocking_cp = store.blocking_cp();
+        let non_finalized_count: i64 = spawn_blocking_task(move || {
+            read_only_blocking!(&blocking_cp, |conn| {
                 objects::table
                     .filter(objects::object_id.eq_any(&changed_object_ids))
                     .filter(
@@ -635,7 +640,9 @@ fn optimistic_objects_are_finalized() {
                     .count()
                     .get_result::<i64>(conn)
             })
-        })()
+        })
+        .await
+        .expect("failed to join Tokio blocking task")
         .unwrap();
 
         assert_eq!(

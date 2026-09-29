@@ -55,6 +55,7 @@ feature_flags:
   consensus_enable_absolute_score_leader_schedule: true
   max_ptb_value_size_v2: true
   allow_unbounded_system_objects: true
+  reject_immutable_account_objects: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -353,12 +354,3 @@ min_validator_joining_stake: 2000000000000000
 validator_low_stake_threshold: 1500000000000000
 validator_very_low_stake_threshold: 1000000000000000
 validator_low_stake_grace_period: 7
-builtin_move_authenticator_cost_base: 0
-ed25519_ed25519_validate_pubkey_cost_base: 52
-ecdsa_k1_secp256k1_validate_pubkey_cost_base: 52
-ecdsa_r1_secp256r1_validate_pubkey_cost_base: 52
-multisig_multisig_validate_pubkey_cost_base: 52
-multisig_multisig_validate_pubkey_cost_per_ed25519_member: 52
-multisig_multisig_validate_pubkey_cost_per_secp256k1_member: 52
-multisig_multisig_validate_pubkey_cost_per_secp256r1_member: 52
-public_key_to_iota_address_impl_cost_base: 52

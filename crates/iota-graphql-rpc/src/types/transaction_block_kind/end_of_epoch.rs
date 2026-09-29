@@ -203,7 +203,7 @@ impl EndOfEpochTransaction {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let tx = EndOfEpochTransactionKind::from(self.native[c.ix].clone(), c.c);
+            let tx = EndOfEpochTransactionKind::from(self.native[c.ix].clone(), c.c.into());
             connection.edges.push(Edge::new(c.encode_cursor(), tx));
         }
 
@@ -301,7 +301,8 @@ impl ChangeEpochTransaction {
             );
 
             let runtime_id = native.id();
-            let object = Object::from_native(IotaAddress::from(runtime_id), native, cursor.c, None);
+            let object =
+                Object::from_native(IotaAddress::from(runtime_id), native, cursor.c.into(), None);
             let package = MovePackage::try_from(&object)
                 .map_err(|_| Error::Internal("Failed to create system package".to_string()))
                 .extend()?;
@@ -409,7 +410,8 @@ impl ChangeEpochTransactionV2 {
             );
 
             let runtime_id = native.id();
-            let object = Object::from_native(IotaAddress::from(runtime_id), native, cursor.c, None);
+            let object =
+                Object::from_native(IotaAddress::from(runtime_id), native, cursor.c.into(), None);
             let package = MovePackage::try_from(&object)
                 .map_err(|_| Error::Internal("Failed to create system package".to_string()))
                 .extend()?;

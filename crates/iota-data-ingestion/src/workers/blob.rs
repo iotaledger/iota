@@ -10,7 +10,7 @@ use bytes::Bytes;
 use futures::{StreamExt, stream};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
-use iota_grpc_client::Client;
+use iota_grpc_client::GrpcClient;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,
@@ -54,7 +54,7 @@ where
 
 pub struct BlobWorker {
     remote_store: Arc<DynObjectStore>,
-    grpc_client: Client,
+    grpc_client: GrpcClient,
     checkpoint_chunk_size_mb: u64,
     current_epoch: Arc<Mutex<EpochId>>,
 }
@@ -62,7 +62,7 @@ pub struct BlobWorker {
 impl BlobWorker {
     pub fn new(
         config: BlobTaskConfig,
-        grpc_client: Client,
+        grpc_client: GrpcClient,
         current_epoch: EpochId,
     ) -> anyhow::Result<Self> {
         Ok(Self {

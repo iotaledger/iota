@@ -15,6 +15,7 @@ pub mod code_unit_tests;
 pub mod constants_tests;
 pub mod control_flow_graph_tests;
 pub mod control_flow_tests;
+pub mod cyclic_dependencies_tests;
 pub mod duplication_tests;
 pub mod generic_ops_tests;
 pub mod large_type_test;
@@ -50,10 +51,12 @@ pub(crate) fn production_config() -> (VerifierConfig, MeterConfig) {
 
             max_constant_vector_len: Some(DEFAULT_MAX_CONSTANT_VECTOR_LEN),
             max_identifier_len: Some(DEFAULT_MAX_IDENTIFIER_LENGTH),
+            disallow_self_identifier: true,
             bytecode_version: VERSION_MAX,
             max_variants_in_enum: Some(DEFAULT_MAX_VARIANTS),
             additional_borrow_checks: true,
             sanity_check_with_regex_reference_safety: Some(2_200_000),
+            check_cyclic_dependencies: true,
         },
         MeterConfig::old_default(),
     )

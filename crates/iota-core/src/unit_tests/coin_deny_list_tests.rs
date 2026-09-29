@@ -53,7 +53,7 @@ async fn test_regulated_coin_v1_types() {
     for created in env.publish_effects.created() {
         let object = env
             .authority
-            .get_object(&created.reference.object_id)
+            .get_object(&created.reference().object_id)
             .unwrap();
         if object.is_package() {
             package_id = Some(object.id());
@@ -444,7 +444,7 @@ impl RegulatedCoinEnv {
         for created in env.publish_effects.created() {
             let object = env
                 .authority
-                .get_object(&created.reference.object_id)
+                .get_object(&created.reference().object_id)
                 .unwrap();
             if object.is_package() {
                 package_id = Some(object.id());

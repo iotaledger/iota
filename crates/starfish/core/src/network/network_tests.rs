@@ -92,3 +92,72 @@ async fn subscribe_and_receive_block_bundles() {
         .unwrap();
     assert!(receive_stream_1.next().await.is_none());
 }
+
+#[tokio::test]
+async fn a_peer_at_its_subscription_cap_is_rejected_on_another_connection() {
+    let (context, keys) = Context::new_for_test(4);
+    let mut parameters = context.parameters.clone();
+    parameters.tonic.admission.max_subscriptions_per_peer = 1;
+    let context = context.with_parameters(parameters);
+    let server_index = context.committee.to_authority_index(0).unwrap();
+
+    let server_context = Arc::new(context.clone().with_authority_index(server_index));
+    let mut server = TonicManager::new(server_context, keys[0].0.clone());
+    server
+        .install_service(Arc::new(Mutex::new(TestService {
+            endless_subscriptions: true,
+            ..TestService::new()
+        })))
+        .await;
+
+    let client_for = |authority: usize| {
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(authority).unwrap()),
+        );
+        TonicManager::<Mutex<TestService>>::new(client_context, keys[authority].0.clone()).client()
+    };
+    // Two clients for the same authority, so each opens its own connection.
+    let first = client_for(1);
+    let second = client_for(1);
+
+    let held = first
+        .subscribe_block_bundles(server_index, 0, Duration::from_secs(5))
+        .await
+        .unwrap();
+
+    let Err(rejected) = second
+        .subscribe_block_bundles(server_index, 0, Duration::from_secs(5))
+        .await
+    else {
+        panic!("the peer holds its only subscription slot");
+    };
+    assert!(
+        format!("{rejected:?}").contains("ResourceExhausted"),
+        "{rejected:?}"
+    );
+
+    // Another authority has its own budget.
+    let _other_peer = client_for(2)
+        .subscribe_block_bundles(server_index, 0, Duration::from_secs(5))
+        .await
+        .unwrap();
+
+    // The slot comes back once the subscription is dropped, which the server
+    // sees as the response body ending.
+    drop(held);
+    let mut resubscribed = false;
+    for _ in 0..50 {
+        if second
+            .subscribe_block_bundles(server_index, 0, Duration::from_secs(5))
+            .await
+            .is_ok()
+        {
+            resubscribed = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(resubscribed, "dropping a subscription should free its slot");
+}

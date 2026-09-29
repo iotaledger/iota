@@ -368,6 +368,14 @@ pub enum UserInputError {
         "Mutable shared object {object_id} is in the `MoveAuthenticator` input that is unsupported"
     )]
     MutableSharedIsInMoveAuthenticatorInput { object_id: ObjectId },
+    #[error(
+        "Immutable account object {object_id} cannot authenticate a transaction, only a shared account object is supported"
+    )]
+    ImmutableAccountObjectNotSupported { object_id: ObjectId },
+    #[error(
+        "Randomness state object {object_id} is in the `MoveAuthenticator` input that is unsupported"
+    )]
+    RandomnessStateIsInMoveAuthenticatorInput { object_id: ObjectId },
     #[error("Unable to get a PublicKey object ID for account {account_object_id:?}")]
     UnableToGetAccountPublicKeyId { account_object_id: ObjectId },
     #[error(
@@ -756,6 +764,33 @@ pub enum VMMemoryLimitExceededSubStatusCode {
     OBJECT_RUNTIME_CACHE_LIMIT_EXCEEDED = 5,
     OBJECT_RUNTIME_STORE_LIMIT_EXCEEDED = 6,
     TOTAL_EVENT_SIZE_LIMIT_EXCEEDED = 7,
+}
+
+/// Formats `error` followed by each error in its `source()` chain, separated
+/// by `": "`.
+///
+/// Use this instead of `Display` for errors such as `signature::Error`, whose
+/// `Display` output omits the underlying cause.
+pub struct ErrorChain<'a>(pub &'a dyn std::error::Error);
+
+impl<'a> std::fmt::Display for ErrorChain<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)?;
+        let mut source = self.0.source();
+        while let Some(cause) = source {
+            write!(f, ": ")?;
+            write!(f, "{cause}")?;
+            source = cause.source();
+        }
+        Ok(())
+    }
+}
+
+impl<'a> std::fmt::Debug for ErrorChain<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0)?;
+        Ok(())
+    }
 }
 
 pub type IotaResult<T = ()> = Result<T, IotaError>;

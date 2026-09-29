@@ -6,6 +6,19 @@ use std::{path::PathBuf, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
+/// Ceiling on the number of headers, and on the number of shards, a bundle may
+/// declare. Enforced while decoding, before the entries are materialised, so a
+/// peer cannot make the decoder build a vector far larger than the configured
+/// caps allow it to keep. Both caps are validated against it at startup.
+pub const MAX_HEADERS_OR_SHARDS_PER_BUNDLE: usize = 1024;
+
+/// Ceiling on the headers a header-sync fetch response may carry. The server
+/// truncates its response to its own `max_headers_per_header_sync_fetch`,
+/// validated against this at startup, so a client can reject a response past
+/// it as misbehaviour while still accepting a peer configured above its own
+/// cap.
+pub const MAX_HEADERS_PER_HEADER_SYNC_FETCH: usize = 1024;
+
 /// Operational configurations of a consensus authority.
 ///
 /// All fields should tolerate inconsistencies among authorities, without
@@ -126,10 +139,11 @@ pub struct Parameters {
     #[serde(default = "TonicParameters::default")]
     pub tonic: TonicParameters,
 
-    // Number of commits to fetch in a batch for fast commit syncer, also the maximum number of
-    // commits returned per fetch. If this value is set too small, fetching becomes
-    // inefficient. If this value is set too large, it can result in load imbalance and
-    // stragglers.
+    /// Number of commits requested per fast commit sync fetch. A response may
+    /// carry up to twice this many, since it extends past the requested end to
+    /// reach a certifiable commit. Set too small, fetching is inefficient and
+    /// the server has little room to reach one; set too large, it causes load
+    /// imbalance and stragglers.
     #[serde(default = "Parameters::default_fast_commit_sync_batch_size")]
     pub fast_commit_sync_batch_size: u32,
 
@@ -213,6 +227,14 @@ pub struct Parameters {
     /// regardless of how far commits run ahead of solidification.
     #[serde(default = "Parameters::default_shard_budget_per_authority")]
     pub shard_budget_per_authority: u32,
+
+    /// Maximum transaction payload bytes one fast commit-sync response carries.
+    /// A fetch covering more commits than this is answered with the commits
+    /// whose payloads fit, and the requester asks for the rest in its next
+    /// fetch. When the range's first commit exceeds this on its own it is
+    /// still served whole, one such response at a time.
+    #[serde(default = "Parameters::default_max_fast_commit_sync_transaction_bytes")]
+    pub max_fast_commit_sync_transaction_bytes: usize,
 }
 
 impl Parameters {
@@ -329,6 +351,10 @@ impl Parameters {
                 self.fast_commit_sync_batch_size as u128,
             ),
             (
+                "max_fast_commit_sync_transaction_bytes",
+                self.max_fast_commit_sync_transaction_bytes as u128,
+            ),
+            (
                 "tonic.connection_buffer_size",
                 self.tonic.connection_buffer_size as u128,
             ),
@@ -353,6 +379,22 @@ impl Parameters {
             if value == 0 {
                 return Err(format!("{name} must be positive"));
             }
+        }
+        let bundle_fields = [
+            ("max_headers_per_bundle", self.max_headers_per_bundle),
+            ("max_shards_per_bundle", self.max_shards_per_bundle),
+        ];
+        for (name, value) in bundle_fields {
+            if value > MAX_HEADERS_OR_SHARDS_PER_BUNDLE {
+                return Err(format!(
+                    "{name} must not exceed {MAX_HEADERS_OR_SHARDS_PER_BUNDLE}"
+                ));
+            }
+        }
+        if self.max_headers_per_header_sync_fetch > MAX_HEADERS_PER_HEADER_SYNC_FETCH {
+            return Err(format!(
+                "max_headers_per_header_sync_fetch must not exceed {MAX_HEADERS_PER_HEADER_SYNC_FETCH}"
+            ));
         }
         Ok(())
     }
@@ -512,6 +554,10 @@ impl Parameters {
         500
     }
 
+    pub(crate) fn default_max_fast_commit_sync_transaction_bytes() -> usize {
+        64 * 1024 * 1024
+    }
+
     pub(crate) fn default_shard_budget_per_authority() -> u32 {
         // Honest need per authority is one shard per slot times a few rounds
         // until decode, well under the budget at any realistic committee size.
@@ -564,6 +610,8 @@ impl Default for Parameters {
             dag_visualizer_port: None,
             solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
             shard_budget_per_authority: Parameters::default_shard_budget_per_authority(),
+            max_fast_commit_sync_transaction_bytes:
+                Parameters::default_max_fast_commit_sync_transaction_bytes(),
         }
     }
 }
@@ -582,7 +630,8 @@ pub struct TonicParameters {
     #[serde(default = "TonicParameters::default_connection_buffer_size")]
     pub connection_buffer_size: usize,
 
-    /// Messages over this size threshold will increment a counter.
+    /// Response messages over this wire size, prefix plus compressed payload,
+    /// increment a counter.
     ///
     /// If unspecified, this will default to 16MiB.
     #[serde(default = "TonicParameters::default_excessive_message_size")]
@@ -592,7 +641,7 @@ pub struct TonicParameters {
     /// This value is higher than strictly necessary, to allow overheads.
     /// Message size targets and soft limits are computed based on this value.
     ///
-    /// If unspecified, this will default to 1GiB.
+    /// If unspecified, this will default to 64MiB.
     #[serde(default = "TonicParameters::default_message_size_limit")]
     pub message_size_limit: usize,
 
@@ -612,15 +661,19 @@ pub struct TonicParameters {
     #[serde(default = "TonicParameters::default_request_timeout")]
     pub request_timeout: Duration,
 
-    /// Hard size limit for inbound (decoded) requests. Consensus requests are
-    /// small (ref lists); large payloads belong to responses, bounded by
-    /// `message_size_limit`. A smaller inbound bound shrinks the memory a
+    /// Hard size limit for request messages: inbound requests when decoding
+    /// and outbound requests when encoding. Consensus requests are small (ref
+    /// lists); large payloads belong to responses, bounded by
+    /// `message_size_limit`. A smaller request bound shrinks the memory a
     /// single in-flight request can pin before its handler runs.
     ///
     /// If unspecified, this will default to 1MiB. `0` falls back to
     /// `message_size_limit`.
-    #[serde(default = "TonicParameters::default_max_inbound_message_size")]
-    pub max_inbound_message_size: usize,
+    #[serde(
+        default = "TonicParameters::default_max_request_message_size",
+        alias = "max_inbound_message_size"
+    )]
+    pub max_request_message_size: usize,
 
     /// Per-peer, per-RPC admission caps for the inbound consensus server.
     #[serde(default)]
@@ -638,6 +691,16 @@ pub struct TonicParameters {
 }
 
 impl TonicParameters {
+    /// Hard size limit for request messages, `message_size_limit` when
+    /// `max_request_message_size` is `0`.
+    pub fn request_message_size_limit(&self) -> usize {
+        if self.max_request_message_size == 0 {
+            self.message_size_limit
+        } else {
+            self.max_request_message_size
+        }
+    }
+
     fn default_keepalive_interval() -> Duration {
         Duration::from_secs(5)
     }
@@ -662,7 +725,7 @@ impl TonicParameters {
         Duration::from_secs(120)
     }
 
-    fn default_max_inbound_message_size() -> usize {
+    fn default_max_request_message_size() -> usize {
         1 << 20
     }
 
@@ -680,7 +743,7 @@ impl Default for TonicParameters {
             message_size_limit: TonicParameters::default_message_size_limit(),
             max_concurrent_streams: TonicParameters::default_max_concurrent_streams(),
             request_timeout: TonicParameters::default_request_timeout(),
-            max_inbound_message_size: TonicParameters::default_max_inbound_message_size(),
+            max_request_message_size: TonicParameters::default_max_request_message_size(),
             admission: AdmissionParameters::default(),
             subscribe_request_timeout: TonicParameters::default_subscribe_request_timeout(),
         }
@@ -696,8 +759,8 @@ impl Default for TonicParameters {
 /// so they can be rolled out and tuned per node.
 ///
 /// The defaults are sized for ~100-validator committees and the local
-/// synchronizer fan-out toward one server. `0` disables admission for that
-/// group.
+/// synchronizer fan-out toward one server. `0` turns a cap off; each cap is
+/// checked on its own.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdmissionParameters {
     /// Max concurrent block-subscription streams per peer.
@@ -725,6 +788,14 @@ pub struct AdmissionParameters {
     /// If unspecified, this will default to 8.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
+
+    /// Max concurrent commit fetches across all peers. A fast commit-sync
+    /// response is held in memory until it has been sent, so this caps what
+    /// serving them can cost the node at once.
+    ///
+    /// If unspecified, this will default to 16.
+    #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
+    pub max_commit_fetches_total: u32,
 }
 
 impl AdmissionParameters {
@@ -743,6 +814,10 @@ impl AdmissionParameters {
     fn default_max_commit_fetches_per_peer() -> u32 {
         Parameters::default_commit_sync_parallel_fetches() as u32
     }
+
+    fn default_max_commit_fetches_total() -> u32 {
+        2 * AdmissionParameters::default_max_commit_fetches_per_peer()
+    }
 }
 
 impl Default for AdmissionParameters {
@@ -753,6 +828,7 @@ impl Default for AdmissionParameters {
             max_transaction_fetches_per_peer:
                 AdmissionParameters::default_max_transaction_fetches_per_peer(),
             max_commit_fetches_per_peer: AdmissionParameters::default_max_commit_fetches_per_peer(),
+            max_commit_fetches_total: AdmissionParameters::default_max_commit_fetches_total(),
         }
     }
 }

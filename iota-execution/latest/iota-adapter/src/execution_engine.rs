@@ -19,11 +19,11 @@ mod checked {
     use iota_sdk_types::{
         AccountClaimKind, Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
         ChangeEpochV4, ClaimAccountTransaction, Command, EndOfEpochTransactionKind,
-        ExecutionStatus, GasPayment, GenesisTransaction, Identifier, MoveAuthenticator, ObjectId,
-        ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference, SignatureScheme,
-        SmartAccountBuildKind, StructTag, SystemPackage, TransactionDenyRulesUpdate,
-        TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
-        gas::GasCostSummary,
+        ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction, Identifier,
+        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        SharedObjectReference, SignatureScheme, SmartAccountBuildKind, StructTag, SystemPackage,
+        TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionKind,
+        TypeTag, Version,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -1968,7 +1968,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) {
-        let binary_config = to_binary_config(protocol_config);
+        let binary_config = to_binary_config(protocol_config, None);
         for SystemPackage {
             version,
             modules,

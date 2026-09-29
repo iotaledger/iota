@@ -17,7 +17,7 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::sync::{Mutex, broadcast, mpsc::Sender};
+use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, error, info, warn};
 
@@ -41,9 +41,9 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{
-        BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
-        StreamPosition, TransactionFetchMode,
+        BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlock,
+        SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
+        SerializedTransactionsV2, StreamPosition,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -142,6 +142,9 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// useful information such as which headers and shards are needed to a
     /// specific peer
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
+    /// Reserved while a fast commit-sync fetch reads one commit without a byte
+    /// budget, so only one such response is ever held in memory.
+    oversized_commit_slot: Arc<Semaphore>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -179,15 +182,17 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             misbehavior_store,
             transaction_message_sender,
             cordial_knowledge,
+            oversized_commit_slot: Arc::new(Semaphore::new(1)),
         }
     }
-    fn create_verified_block_and_shard(
+    /// Verifies the header of a bundle's primary block and returns it with the
+    /// transactions it carries, still unverified.
+    fn verify_primary_block_header(
         &self,
         peer: AuthorityIndex,
         peer_hostname: &str,
         serialized_block: Bytes,
-        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
-    ) -> ConsensusResult<(VerifiedBlock, Option<ShardWithProof>)> {
+    ) -> ConsensusResult<(VerifiedBlockHeader, Bytes)> {
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
@@ -231,6 +236,22 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             return Err(e);
         }
 
+        Ok((
+            VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header),
+            serialized_transactions,
+        ))
+    }
+
+    /// Verifies the transactions of a bundle's primary block against the
+    /// commitment in its header and returns the block with our shard of it.
+    fn verify_block_payload_and_shard(
+        &self,
+        peer: AuthorityIndex,
+        peer_hostname: &str,
+        verified_block_header: &VerifiedBlockHeader,
+        serialized_transactions: Bytes,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    ) -> ConsensusResult<(VerifiedBlock, Option<ShardWithProof>)> {
         let transactions = self
             .block_verifier
             .check_and_parse_transactions(&serialized_transactions)
@@ -241,18 +262,15 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 &self.context,
                 encoder,
             )?;
-        if signed_block_header.transactions_commitment() != transaction_commitment {
+        if verified_block_header.transactions_commitment() != transaction_commitment {
             let e = ConsensusError::TransactionCommitmentFailure {
-                round: signed_block_header.round(),
-                author: signed_block_header.author(),
+                round: verified_block_header.round(),
+                author: verified_block_header.author(),
                 peer,
             };
             self.record_invalid_transactions(peer, peer_hostname, &e);
             return Err(e);
         }
-
-        let verified_block_header =
-            VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
 
         let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
@@ -265,8 +283,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .inspect_err(|e| self.record_invalid_transactions(peer, peer_hostname, e))?;
 
         let has_transactions = verified_transactions.has_transactions();
-        let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
-        let block_ref = verified_block.reference();
+        let block_ref = verified_block_header.reference();
+        let verified_block =
+            VerifiedBlock::new(verified_block_header.clone(), verified_transactions);
         debug!("Received block {} via stream block bundle.", block_ref);
         let shard_for_core = if has_transactions {
             Some(ShardWithProof::new(
@@ -328,13 +347,14 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     /// Deserializes and verifies the additional headers of a bundle. Returns
     /// the fresh headers to accept into the DAG, plus the info of the already
     /// received ones — still deliveries for the responsiveness sampling, but
-    /// not to be re-accepted.
+    /// not to be re-accepted. Headers above `far_future_ceiling` are left out.
     fn extract_additional_block_headers_from_bundle(
         &self,
         peer: AuthorityIndex,
         peer_hostname: &str,
         mut serialized_headers: Vec<Bytes>,
         block_ref: BlockRef,
+        far_future_ceiling: Round,
     ) -> ConsensusResult<(Vec<VerifiedBlockHeader>, Vec<FilteredHeaderInfo>)> {
         let block_round = block_ref.round;
         if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
@@ -371,6 +391,20 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 signed_block_header.round(),
                 block_round,
             )?;
+
+            // Keeping a header this far above the accepted frontier means holding
+            // it in the suspender until the frontier climbs to meet it; a node
+            // that far behind catches up through commit sync instead. So it is
+            // skipped before its signature is verified.
+            if signed_block_header.round() > far_future_ceiling {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .dropped_far_future_headers_total
+                    .with_label_values(&[DataSource::BlockBundleStream.as_str(), peer_hostname])
+                    .inc();
+                continue;
+            }
 
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
                 self.context
@@ -766,6 +800,183 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     }
 }
 
+/// Reads the payloads for `refs`, taking those at or above the GC round from
+/// the DAG state and leaving the rest to `read_below_gc`, which the caller
+/// picks so its store access matches the refs it asks for. A result missing
+/// some of `refs` is normal: `read_below_gc` may stop short, and a payload can
+/// be absent.
+fn read_transaction_payloads(
+    dag_state: &RwLock<DagState>,
+    refs: &[TransactionRef],
+    read_below_gc: impl FnOnce(
+        BTreeSet<TransactionRef>,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>>,
+) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+    let mut below_gc = BTreeSet::new();
+    let mut payloads = BTreeMap::new();
+    {
+        // Payloads at or above the GC round are handed out as clones of buffers
+        // the DAG state already holds, so they cost no new memory. They are
+        // taken under the same lock as the GC round, before eviction can drop
+        // them and send the read to the store with no budget.
+        let dag_state = dag_state.read();
+        let gc_round = dag_state.gc_round_for_last_solid_commit();
+        let mut above_gc = Vec::new();
+        for transaction_ref in refs {
+            if transaction_ref.round < gc_round {
+                below_gc.insert(*transaction_ref);
+            } else {
+                above_gc.push(*transaction_ref);
+            }
+        }
+        if !above_gc.is_empty() {
+            let generic_refs: Vec<GenericTransactionRef> =
+                above_gc.iter().copied().map(Into::into).collect();
+            payloads.extend(
+                dag_state
+                    .get_serialized_transactions(&generic_refs)
+                    .into_iter()
+                    .zip(above_gc)
+                    .filter_map(|(payload, transaction_ref)| {
+                        payload.map(|payload| (transaction_ref, payload))
+                    }),
+            );
+        }
+    }
+
+    payloads.extend(read_below_gc(below_gc)?);
+    Ok(payloads)
+}
+
+/// Takes a payload out of `payloads`, falling back to the empty payload that
+/// every authority can reconstruct from the ref alone.
+fn take_payload(
+    context: &Context,
+    payloads: &mut BTreeMap<TransactionRef, Bytes>,
+    transaction_ref: TransactionRef,
+) -> Option<Bytes> {
+    payloads.remove(&transaction_ref).or_else(|| {
+        context
+            .empty_transactions_for_ref(transaction_ref.into())
+            .map(|empty| empty.serialized().clone())
+    })
+}
+
+/// Serializes the payloads of `commits_transaction_refs` into response entries,
+/// keeping the longest prefix of commits whose entries fit
+/// `max_fast_commit_sync_transaction_bytes`. A commit only partly covered is
+/// dropped, since the requester discards it anyway.
+///
+/// The first commit is served whole however large it is, since a response
+/// covering no commit lets the requester make no progress. Going past the
+/// budget for it takes the node-wide slot, so only one response at a time
+/// holds more than the budget. Fails when this node lacks one of its payloads.
+fn fetch_commit_transactions_within_budget(
+    context: &Context,
+    store: &dyn Store,
+    dag_state: &RwLock<DagState>,
+    oversized_commit_slot: &Arc<Semaphore>,
+    commits_transaction_refs: &[Vec<TransactionRef>],
+) -> ConsensusResult<(Vec<Bytes>, Option<OwnedSemaphorePermit>)> {
+    let byte_budget = context.parameters.max_fast_commit_sync_transaction_bytes;
+    let all_refs: Vec<TransactionRef> =
+        commits_transaction_refs.iter().flatten().copied().collect();
+    let mut payloads = read_transaction_payloads(dag_state, &all_refs, |below_gc| {
+        store.scan_serialized_transactions(&below_gc, byte_budget)
+    })?;
+
+    let mut result = Vec::new();
+    let mut total_bytes = 0;
+    let mut permit = None;
+
+    for (index, transaction_refs) in commits_transaction_refs.iter().enumerate() {
+        let commit_start = result.len();
+        let mut covered = true;
+        for (position, transaction_ref) in transaction_refs.iter().enumerate() {
+            // An absent payload was either not reached by the budgeted scan or
+            // has not arrived at this node yet, when the commit is past the last
+            // solid one.
+            let payload = match take_payload(context, &mut payloads, *transaction_ref) {
+                Some(payload) => payload,
+                None if index == 0 => {
+                    // Read what is left of the first commit without a budget,
+                    // reusing everything already read.
+                    take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
+                    let unread: Vec<TransactionRef> = transaction_refs[position..]
+                        .iter()
+                        .copied()
+                        .filter(|transaction_ref| !payloads.contains_key(transaction_ref))
+                        .collect();
+                    payloads.extend(read_transaction_payloads(dag_state, &unread, |below_gc| {
+                        store.scan_serialized_transactions(&below_gc, usize::MAX)
+                    })?);
+                    // Without the first commit the response lets the requester
+                    // make no progress, so nothing is served.
+                    take_payload(context, &mut payloads, *transaction_ref).ok_or(
+                        ConsensusError::TransactionsNotAvailable {
+                            transaction_ref: *transaction_ref,
+                        },
+                    )?
+                }
+                None => {
+                    covered = false;
+                    break;
+                }
+            };
+            // Charged by the entry rather than the payload, since the ref, the
+            // length prefixes around it and its `Bytes` descriptor are held too.
+            let entry = serialize_transactions_entry(*transaction_ref, payload)?;
+            let charge = entry.len() + size_of::<Bytes>();
+            if total_bytes + charge > byte_budget {
+                if index == 0 {
+                    take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
+                } else {
+                    covered = false;
+                    break;
+                }
+            }
+            total_bytes += charge;
+            result.push(entry);
+        }
+        if !covered {
+            result.truncate(commit_start);
+            break;
+        }
+    }
+    Ok((result, permit))
+}
+
+/// Reserves the node-wide slot for holding more than the budget, unless this
+/// response already holds it.
+fn take_oversized_commit_slot(
+    oversized_commit_slot: &Arc<Semaphore>,
+    permit: &mut Option<OwnedSemaphorePermit>,
+) -> ConsensusResult<()> {
+    if permit.is_none() {
+        *permit = Some(
+            oversized_commit_slot
+                .clone()
+                .try_acquire_owned()
+                .map_err(|_| ConsensusError::OversizedCommitAlreadyServed)?,
+        );
+    }
+    Ok(())
+}
+
+/// Wraps a payload and its ref into the entry a transaction-fetch response
+/// carries.
+fn serialize_transactions_entry(
+    transaction_ref: TransactionRef,
+    serialized_transactions: Bytes,
+) -> ConsensusResult<Bytes> {
+    let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
+        transaction_ref,
+        serialized_transactions,
+    })
+    .map_err(ConsensusError::SerializationFailure)?;
+    Ok(Bytes::from(serialized))
+}
+
 /// Rejects a deserialized `ShardWithProof` that is not the current `V2`
 /// variant. The variant is uniform across the network within an epoch, so a
 /// legacy `V1` shard implies either a malicious peer or a misconfigured upgrade
@@ -830,16 +1041,31 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Err(e);
         }
 
-        // 1. Create a verified block and make some preliminary checks
-        let (verified_block, shard_for_core) = self.create_verified_block_and_shard(
+        // 1. Verify the header of the primary block and make some preliminary checks.
+        // Its round is checked before its transactions are verified in step 5, so a
+        // block too far ahead to ever be accepted costs only the header.
+        let (verified_block_header, serialized_transactions) = self.verify_primary_block_header(
             peer,
             peer_hostname,
             serialized_block_bundle_parts.serialized_block.clone(),
-            encoder,
         )?;
-        let block_ref = verified_block.reference();
-        let transaction_ref = verified_block.transaction_ref();
+        let block_ref = verified_block_header.reference();
+        let transaction_ref = verified_block_header.transaction_ref();
         let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
+        let far_future_ceiling = self.dag_state.read().far_future_round_ceiling();
+        let primary_block_far_future = block_ref.round > far_future_ceiling;
+        if primary_block_far_future {
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_far_future_headers_total
+                .with_label_values(&[DataSource::BlockStreaming.as_str(), peer_hostname.as_str()])
+                .inc();
+            debug!(
+                "Dropped far-future streamed block {block_ref} from peer {peer}; round {} is above the far-future ceiling {far_future_ceiling}",
+                block_ref.round
+            );
+        }
         // 1b. The stream carries the peer's own blocks in proposal order, so the
         // round must strictly increase over one connection, starting above the
         // round the subscription asked for. A same-round block with another
@@ -901,7 +1127,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
-        let block_timestamp_ms = verified_block.timestamp_ms();
+        let block_timestamp_ms = verified_block_header.timestamp_ms();
         let forward_time_drift = Duration::from_millis(block_timestamp_ms.saturating_sub(now));
         self.context
             .metrics
@@ -936,43 +1162,34 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 peer_hostname,
                 serialized_headers,
                 block_ref,
+                far_future_ceiling,
             )?;
 
         // 4. Observe headers and the block for the commit votes. When local commit is
-        // lagging too much, commit sync loop will trigger fetching. Done before the
-        // far-future check below so quorum-commit tracking keeps progressing even
-        // for bundles we drop.
+        // lagging too much, commit sync loop will trigger fetching. Done for a
+        // far-future primary block too, so quorum-commit tracking keeps progressing
+        // even for bundles we drop.
         for block_header in additional_block_headers.iter() {
             self.commit_vote_monitor.observe_block(block_header);
         }
-        self.commit_vote_monitor.observe_block(&verified_block);
+        self.commit_vote_monitor
+            .observe_block(&verified_block_header);
 
-        // 5. Bound the far-future parts of the bundle, reusing the block-manager
-        // helper as the synchronizer does. Additional headers above the connect
-        // ceiling are dropped; a far-future primary block is dropped here too, so
-        // it is neither processed for shards (the reconstructor bypasses the
-        // block manager) nor forwarded to the core.
-        additional_block_headers = crate::block_manager::drop_far_future(
-            &self.context,
-            &self.dag_state,
-            additional_block_headers,
-            DataSource::BlockBundleStream,
-            |header| header.round(),
-        );
-        let verified_blocks = crate::block_manager::drop_far_future(
-            &self.context,
-            &self.dag_state,
-            vec![verified_block],
-            DataSource::BlockStreaming,
-            |block| block.round(),
-        );
-        let primary_block_far_future = verified_blocks.is_empty();
-        if primary_block_far_future {
-            debug!(
-                "Dropped far-future streamed block {block_ref} from peer {peer}; round {} exceeds the connect ceiling",
-                block_ref.round
-            );
-        }
+        // 5. Verify the transactions of the primary block, unless it was dropped
+        // above: a far-future block is neither processed for shards (the
+        // reconstructor bypasses the block manager) nor forwarded to the core.
+        let (verified_block, shard_for_core) = if primary_block_far_future {
+            (None, None)
+        } else {
+            let (verified_block, shard_for_core) = self.verify_block_payload_and_shard(
+                peer,
+                peer_hostname,
+                &verified_block_header,
+                serialized_transactions,
+                encoder,
+            )?;
+            (Some(verified_block), shard_for_core)
+        };
 
         // 6. Collect shards from a bundle and check their proofs. Skipped for a
         // dropped primary block so its shards never reach the reconstructor. The
@@ -1040,9 +1257,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
         // Skipped for a dropped primary block (no shards were collected).
-        if !primary_block_far_future {
+        if let Some(verified_block) = &verified_block {
             let transaction_messages = TransactionMessage::create_transaction_messages(
-                &verified_blocks[0],
+                verified_block,
                 &verified_shards,
                 peer.value(),
             );
@@ -1075,10 +1292,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 11. Add the block to dag, add its missing ancestors to the set. A
         // block dropped above is not forwarded to the core.
-        if !primary_block_far_future {
+        if let Some(verified_block) = verified_block {
             let (missing_block_ancestors, missing_block_committed_transactions) = self
                 .core_dispatcher
-                .add_blocks(verified_blocks, DataSource::BlockStreaming)
+                .add_blocks(vec![verified_block], DataSource::BlockStreaming)
                 .await
                 .map_err(|_| ConsensusError::Shutdown)?;
             self.context
@@ -1102,7 +1319,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 12. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions and the block was not dropped.
-        if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_far_future) {
+        if let Some(shard_for_core) = shard_for_core {
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();
@@ -1405,19 +1622,23 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             });
         }
 
-        // Bound the range based on sync type.
+        // Bound the range based on sync type. `start` is peer-controlled, so the bound
+        // saturates; a range at the top of the index space then matches no commits.
         let batch_size = commit_sync_type.commit_sync_batch_size(&self.context);
-        let inclusive_bound = commit_range
-            .end()
-            .min(commit_range.start() + batch_size as CommitIndex - 1);
+        let inclusive_bound = commit_range.end().min(
+            commit_range
+                .start()
+                .saturating_add(batch_size as CommitIndex - 1),
+        );
+
+        let fast_search_up_to = fast_sync_search_bound(&commit_range, inclusive_bound, batch_size);
 
         // Find certifiable commit based on sync type
         let find_certifiable_commit = |commit_sync_type: &CommitSyncType| -> ConsensusResult<Option<(CommitIndex, Vec<BlockRef>)>> {
             match commit_sync_type {
                 CommitSyncType::Regular => self.find_highest_certifiable_commit_in_range(&commit_range, inclusive_bound, commit_sync_type),
                 CommitSyncType::Fast => {
-                    let search_up_to = inclusive_bound + batch_size as CommitIndex;
-                    self.find_lowest_certifiable_commit_from(inclusive_bound, search_up_to, commit_sync_type)
+                    self.find_lowest_certifiable_commit_from(inclusive_bound, fast_search_up_to, commit_sync_type)
                 }
             }
         };
@@ -1443,15 +1664,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 }
             }
             CommitSyncType::Fast => {
-                if commit_range_length > 2 * batch_size as CommitIndex {
+                let limit = fast_search_up_to - commit_range.start() + 1;
+                if commit_range_length > limit {
                     error!(
                         "Commit range exceeded limit after scanning during fast sync: {} > {}",
-                        commit_range_length,
-                        2 * batch_size
+                        commit_range_length, limit
                     );
                     return Err(ConsensusError::CommitRangeExceededAfterScanning {
                         count: commit_range_length,
-                        limit: 2 * batch_size as CommitIndex,
+                        limit,
                         sync_type: "fast",
                     });
                 }
@@ -1516,7 +1737,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+    ) -> ConsensusResult<FetchedCommitsAndTransactions> {
         fail_point_async!("consensus-rpc-response");
 
         let (commits, certifier_block_headers) = self
@@ -1526,15 +1747,25 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // The `BlockRef` arm exists only for `CommitV1`, which is no longer
         // produced and never enters the per-epoch store these commits are read
         // from.
-        let transaction_refs: Vec<TransactionRef> = commits
+        let commits_transaction_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .flat_map(|commit| commit.committed_transactions())
-            .map(GenericTransactionRef::expect_transaction_ref)
+            .map(|commit| {
+                commit
+                    .committed_transactions()
+                    .into_iter()
+                    .map(GenericTransactionRef::expect_transaction_ref)
+                    .collect::<ConsensusResult<Vec<_>>>()
+            })
             .collect::<ConsensusResult<_>>()?;
 
-        let serialized_transactions = self
-            .handle_fetch_transactions(peer, transaction_refs, TransactionFetchMode::FastCommitSync)
-            .await?;
+        let (serialized_transactions, oversized_commit_permit) =
+            fetch_commit_transactions_within_budget(
+                &self.context,
+                self.store.as_ref(),
+                &self.dag_state,
+                &self.oversized_commit_slot,
+                &commits_transaction_refs,
+            )?;
 
         let serialized_commits: Vec<Bytes> = commits
             .into_iter()
@@ -1546,11 +1777,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map(|h| h.serialized().clone())
             .collect();
 
-        Ok((
-            serialized_commits,
-            serialized_headers,
-            serialized_transactions,
-        ))
+        Ok(FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_headers,
+            transactions: serialized_transactions,
+            oversized_commit_permit,
+        })
     }
 
     async fn handle_fetch_latest_block_headers(
@@ -1600,7 +1832,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         mut committed_transactions_refs: Vec<TransactionRef>,
-        fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
@@ -1608,26 +1839,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Ok(Vec::new());
         }
 
-        // Apply truncation based on fetch mode
-        match fetch_mode {
-            TransactionFetchMode::FastCommitSync => {
-                // No truncation for fast commit sync - all transactions
-                // referenced by commits must be fetched.
-            }
-            TransactionFetchMode::TransactionSync => {
-                let max_transactions = max(
-                    self.context
-                        .parameters
-                        .max_transactions_per_commit_sync_fetch,
-                    self.context
-                        .parameters
-                        .max_transactions_per_transaction_sync_fetch,
-                );
-
-                if committed_transactions_refs.len() > max_transactions {
-                    committed_transactions_refs.truncate(max_transactions);
-                }
-            }
+        let max_transactions = max(
+            self.context
+                .parameters
+                .max_transactions_per_commit_sync_fetch,
+            self.context
+                .parameters
+                .max_transactions_per_transaction_sync_fetch,
+        );
+        if committed_transactions_refs.len() > max_transactions {
+            committed_transactions_refs.truncate(max_transactions);
         }
 
         // Some quick validation of the requested transactions refs
@@ -1637,68 +1858,38 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &self.context.committee,
         )?;
 
-        // Optimize by reading from store for transactions below GC round
-        let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
-
-        // Partition committed_transactions_refs into those below and at-or-above GC
-        // round
-        let (below_gc, above_gc): (Vec<_>, Vec<_>) = committed_transactions_refs
-            .iter()
-            .cloned()
-            .partition(|tx_ref| tx_ref.round < gc_round);
-
-        // Fetch transactions below GC from store
-        let store_transactions = if !below_gc.is_empty() {
-            let refs: Vec<GenericTransactionRef> =
-                below_gc.iter().copied().map(Into::into).collect();
-            let transactions = self.store.read_serialized_transactions(&refs)?;
-            transactions
-                .into_iter()
-                .zip(below_gc)
-                .map(|(transaction, transaction_ref)| {
-                    let transaction = transaction.or_else(|| {
-                        self.context
-                            .empty_transactions_for_ref(transaction_ref.into())
-                            .map(|empty| empty.serialized().clone())
-                    });
-                    (transaction, transaction_ref)
-                })
-                .collect::<Vec<_>>()
-        } else {
-            vec![]
-        };
-
-        // Fetch transactions at-or-above GC from dag_state
-        let dag_transactions = if !above_gc.is_empty() {
-            let refs: Vec<GenericTransactionRef> =
-                above_gc.iter().copied().map(Into::into).collect();
-            self.dag_state
-                .read()
-                .get_serialized_transactions(&refs)
-                .into_iter()
-                .zip(above_gc)
-                .collect::<Vec<_>>()
-        } else {
-            vec![]
-        };
-
-        let transactions_by_ref: BTreeMap<_, _> = store_transactions
-            .into_iter()
-            .chain(dag_transactions)
-            .filter_map(|(transaction, transaction_ref)| {
-                transaction.map(|transaction| (transaction_ref, transaction))
-            })
-            .collect();
+        // Refs below the GC round are looked up one by one: they are whatever
+        // the requester asked for, so a scan over the range they span would
+        // read entries no one wants.
+        let mut transactions_by_ref =
+            read_transaction_payloads(&self.dag_state, &committed_transactions_refs, |below_gc| {
+                let refs: Vec<GenericTransactionRef> =
+                    below_gc.iter().copied().map(Into::into).collect();
+                Ok(self
+                    .store
+                    .read_serialized_transactions(&refs)?
+                    .into_iter()
+                    .zip(below_gc)
+                    .filter_map(|(payload, transaction_ref)| {
+                        payload
+                            .or_else(|| {
+                                self.context
+                                    .empty_transactions_for_ref(transaction_ref.into())
+                                    .map(|empty| empty.serialized().clone())
+                            })
+                            .map(|payload| (transaction_ref, payload))
+                    })
+                    .collect())
+            })?;
 
         let mut result = Vec::new();
         for transaction_ref in committed_transactions_refs {
-            if let Some(serialized_tx) = transactions_by_ref.get(&transaction_ref) {
-                let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
+            // Drained, so a payload is freed as soon as its envelope is built.
+            if let Some(serialized_tx) = transactions_by_ref.remove(&transaction_ref) {
+                result.push(serialize_transactions_entry(
                     transaction_ref,
-                    serialized_transactions: serialized_tx.clone(),
-                })
-                .map_err(ConsensusError::SerializationFailure)?;
-                result.push(Bytes::from(serialized));
+                    serialized_tx,
+                )?);
             }
         }
 
@@ -1925,6 +2116,26 @@ async fn make_recv_future<T: Clone>(
     (result, rx)
 }
 
+/// Highest commit index a fast sync response may reach. The scan runs past
+/// `inclusive_bound` to find a certifiable commit, bounded both by the local
+/// batch size and by twice the requested range, which is what the requester
+/// accepts. Taking the second bound from the request keeps the two sides
+/// agreed when their batch sizes differ.
+fn fast_sync_search_bound(
+    commit_range: &CommitRange,
+    inclusive_bound: CommitIndex,
+    batch_size: u32,
+) -> CommitIndex {
+    let requester_bound = commit_range.start().saturating_add(
+        (commit_range.size() as CommitIndex)
+            .saturating_mul(2)
+            .saturating_sub(1),
+    );
+    inclusive_bound
+        .saturating_add(batch_size as CommitIndex)
+        .min(requester_bound)
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -1942,15 +2153,15 @@ mod tests {
     use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
-        sync::{broadcast, mpsc},
+        sync::{Semaphore, broadcast, mpsc},
         time::sleep,
     };
 
     use crate::{
-        CommitConsumer, Round, Transaction, TransactionClient,
+        CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
-            SubscriptionCounter, filtered_header_info,
+            SubscriptionCounter, fast_sync_search_bound, filtered_header_info,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -1980,7 +2191,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV2, StreamPosition, TransactionFetchMode,
+            SerializedTransactionsV2, StreamPosition,
         },
         shard_reconstructor::TransactionMessage,
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -2159,13 +2370,16 @@ mod tests {
 
     /// A signed far-future bundle is dropped at ingress: the block is counted,
     /// not forwarded to the core, and not sent to the shard reconstructor, so
-    /// it cannot grow shard/transaction state.
+    /// it cannot grow shard/transaction state. Its commit votes are still
+    /// observed, which is what lets commit sync start while we are this far
+    /// behind.
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_drops_far_future() {
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let observed_commit_votes = commit_vote_monitor.clone();
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, mut tx_message_receiver) = mpsc::channel(100);
@@ -2210,14 +2424,17 @@ mod tests {
 
         // One round past the acceptance ceiling (frontier is genesis round 0).
         let far_round = context.parameters.far_future_round_ceiling(0) + 1;
+        let peer = context.committee.to_authority_index(0).unwrap();
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new_with_commitment(far_round, 0, &context, &mut encoder).build(),
+            TestBlockHeader::new_with_commitment(far_round, 0, &context, &mut encoder)
+                .set_commit_votes(vec![CommitRef::new(7, CommitDigest::MIN)])
+                .build(),
         );
         let bundle = SerializedBlockBundle::try_from(input_block).unwrap();
 
         authority_service
             .handle_subscribed_block_bundle(
-                context.committee.to_authority_index(0).unwrap(),
+                peer,
                 bundle,
                 &mut encoder,
                 &mut StreamPosition::default(),
@@ -2240,10 +2457,71 @@ mod tests {
                 .metrics
                 .node_metrics
                 .dropped_far_future_headers_total
-                .with_label_values(&[DataSource::BlockStreaming.as_str()])
+                .with_label_values(&[
+                    DataSource::BlockStreaming.as_str(),
+                    context.committee.authority(peer).hostname.as_str(),
+                ])
                 .get(),
             1,
-            "the dropped far-future block is counted"
+            "the dropped far-future block is counted against the peer"
+        );
+        assert!(
+            observed_commit_votes.has_voted_for_commit(peer, 7),
+            "commit votes of a dropped far-future block are still observed"
+        );
+    }
+
+    /// The transactions of a far-future primary block are never verified: the
+    /// block is dropped for its round alone, so a bundle whose transactions do
+    /// not match the commitment in its header is accepted without complaint
+    /// above the ceiling and rejected below it.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_skips_far_future_payload() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let mut fixture = stream_fixture(context.clone());
+        let mut encoder = create_encoder(&context);
+        let peer = context.committee.to_authority_index(0).unwrap();
+
+        // `TestBlockHeader::new` leaves the default commitment in the header, so
+        // recomputing it over these transactions fails.
+        let mismatched_block = |round| {
+            VerifiedBlock::new_with_transaction_for_test(TestBlockHeader::new(round, 0).build(), 1)
+        };
+        let far_round = context.parameters.far_future_round_ceiling(0) + 1;
+
+        fixture
+            .authority_service
+            .handle_subscribed_block_bundle(
+                peer,
+                SerializedBlockBundle::try_from(mismatched_block(far_round)).unwrap(),
+                &mut encoder,
+                &mut StreamPosition::default(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            fixture.core_dispatcher.get_blocks().is_empty(),
+            "a far-future block must not be forwarded to the core"
+        );
+        assert!(
+            fixture.tx_message_receiver.try_recv().is_err(),
+            "a far-future bundle must not feed the shard reconstructor"
+        );
+
+        let error = fixture
+            .authority_service
+            .handle_subscribed_block_bundle(
+                peer,
+                SerializedBlockBundle::try_from(mismatched_block(1)).unwrap(),
+                &mut encoder,
+                &mut StreamPosition::default(),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(error, ConsensusError::TransactionCommitmentFailure { .. }),
+            "below the ceiling the transactions are verified: {error}"
         );
     }
 
@@ -4908,6 +5186,19 @@ mod tests {
             rounds - 2,
             result.0.len() as u32
         );
+
+        // A range at the top of the index space overflows the batch bound unless it
+        // saturates. Both sync types must answer with an empty response.
+        let top_range = CommitRange::new(CommitIndex::MAX - 1..=CommitIndex::MAX);
+        for commit_sync_type in [CommitSyncType::Regular, CommitSyncType::Fast] {
+            let label = commit_sync_type.as_str();
+            let result = authority_service
+                .handle_fetch_commits(peer, top_range.clone(), commit_sync_type)
+                .await
+                .unwrap();
+            assert!(result.0.is_empty(), "{label} returned commits");
+            assert!(result.1.is_empty(), "{label} returned headers");
+        }
     }
 
     #[tokio::test]
@@ -5045,11 +5336,7 @@ mod tests {
 
         let peer = context.committee.to_authority_index(1).unwrap();
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(
-                peer,
-                tx_refs_to_request_first_batch.clone(),
-                TransactionFetchMode::TransactionSync,
-            )
+            .handle_fetch_transactions(peer, tx_refs_to_request_first_batch.clone())
             .await
             .expect("We should expect a correct return of serialized transactions");
 
@@ -5096,11 +5383,7 @@ mod tests {
         );
 
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(
-                peer,
-                tx_refs_to_request_second_batch.clone(),
-                TransactionFetchMode::TransactionSync,
-            )
+            .handle_fetch_transactions(peer, tx_refs_to_request_second_batch.clone())
             .await
             .expect("Should return an empty vector");
 
@@ -5129,7 +5412,7 @@ mod tests {
         assert!(empty_ref.round < dag_state.read().gc_round_for_last_solid_commit());
 
         let serialized_transactions = authority_service
-            .handle_fetch_transactions(peer, vec![empty_ref], TransactionFetchMode::FastCommitSync)
+            .handle_fetch_transactions(peer, vec![empty_ref])
             .await
             .unwrap();
         let returned: SerializedTransactionsV2 =
@@ -5356,11 +5639,7 @@ mod tests {
             .map(|block_ref| transaction_refs_by_block[block_ref])
             .collect();
         let returned_transactions = authority_service
-            .handle_fetch_transactions(
-                peer,
-                transaction_refs.clone(),
-                TransactionFetchMode::FastCommitSync,
-            )
+            .handle_fetch_transactions(peer, transaction_refs.clone())
             .await
             .unwrap();
         let returned_refs: Vec<TransactionRef> = returned_transactions
@@ -5545,5 +5824,344 @@ mod tests {
             matches!(result, Err(ConsensusError::IncorrectShardProof { .. })),
             "a maximum-length shard must pass the size gate, got {result:?}"
         );
+    }
+
+    /// A server whose batch size exceeds the requester's still stops at twice
+    /// the requested range, which is all the requester accepts.
+    #[test]
+    fn fast_sync_scan_stops_at_twice_the_requested_range() {
+        let requested: CommitRange = (101..=200).into();
+        // The requested end, reached because the server serves the whole range.
+        let inclusive_bound = 200;
+
+        assert_eq!(
+            fast_sync_search_bound(&requested, inclusive_bound, 400),
+            300,
+            "the scan must not pass twice the 100 commits asked for"
+        );
+    }
+
+    /// With both sides on the same batch size the scan reaches a full batch
+    /// past the requested end.
+    #[test]
+    fn fast_sync_scan_reaches_a_full_batch_past_a_matching_request() {
+        let requested: CommitRange = (101..=500).into();
+        let inclusive_bound = 500;
+
+        assert_eq!(
+            fast_sync_search_bound(&requested, inclusive_bound, 400),
+            900
+        );
+    }
+
+    /// A server whose batch size is below the requester's keeps its own limit:
+    /// the requester accepts more, but serving it is the server's own call.
+    #[test]
+    fn fast_sync_scan_keeps_the_local_batch_when_it_is_the_lower_bound() {
+        let requested: CommitRange = (101..=500).into();
+        // A server with a batch size of 100 serves only the first 100 commits.
+        let inclusive_bound = 200;
+
+        assert_eq!(
+            fast_sync_search_bound(&requested, inclusive_bound, 100),
+            300
+        );
+    }
+
+    #[tokio::test]
+    async fn fast_sync_transactions_stop_at_an_uncovered_commit() {
+        use crate::authority_service::fetch_commit_transactions_within_budget;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=2).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+        let refs_by_round: Vec<Vec<TransactionRef>> = (1..=2)
+            .map(|round| {
+                dag_builder
+                    .block_headers(round..=round)
+                    .iter()
+                    .map(|header| header.transaction_ref())
+                    .collect()
+            })
+            .collect();
+
+        // A ref no authority can serve: it is in neither store nor DAG state,
+        // and its commitment is not the one an empty payload has.
+        let unknown_ref = TransactionRef {
+            round: 1,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
+        };
+
+        let commits_transaction_refs = vec![
+            refs_by_round[0].clone(),
+            refs_by_round[1].clone(),
+            vec![refs_by_round[0][0], unknown_ref],
+        ];
+        let oversized_commit_slot = Arc::new(Semaphore::new(1));
+        let (served, _) = fetch_commit_transactions_within_budget(
+            &context,
+            store.as_ref(),
+            &dag_state,
+            &oversized_commit_slot,
+            &commits_transaction_refs,
+        )
+        .unwrap();
+
+        // The last commit is missing a payload, so none of its entries are
+        // served: the requester would discard a partly covered commit anyway.
+        let served_refs: Vec<TransactionRef> = served
+            .iter()
+            .map(|entry| {
+                bcs::from_bytes::<SerializedTransactionsV2>(entry)
+                    .unwrap()
+                    .transaction_ref
+            })
+            .collect();
+        let expected: Vec<TransactionRef> = commits_transaction_refs[..2]
+            .iter()
+            .flatten()
+            .copied()
+            .collect();
+        assert_eq!(served_refs, expected);
+    }
+
+    #[tokio::test]
+    async fn fast_sync_transactions_stop_at_the_budget() {
+        use crate::authority_service::{
+            fetch_commit_transactions_within_budget, serialize_transactions_entry,
+        };
+
+        let (context, _) = Context::new_for_test(4);
+        let store = Arc::new(MemStore::new());
+
+        // Two rounds of blocks, each block carrying a payload, so the payloads
+        // of one round are a known number of bytes.
+        let written_blocks: Vec<VerifiedBlock> = (1..=2)
+            .flat_map(|round| {
+                (0..4).map(move |author| {
+                    let header = VerifiedBlockHeader::new_for_test(
+                        TestBlockHeader::new(round, author).build(),
+                    );
+                    let transactions = CommitmentVerifiedTransactions::new_for_test(
+                        &header,
+                        vec![Transaction::new(vec![author; 64])],
+                    );
+                    VerifiedBlock::new(header, transactions)
+                })
+            })
+            .collect();
+        store
+            .write(
+                WriteBatch::default().transactions(
+                    written_blocks
+                        .iter()
+                        .map(|b| b.verified_transactions.clone())
+                        .collect(),
+                ),
+            )
+            .unwrap();
+        let commits_transaction_refs: Vec<Vec<TransactionRef>> = written_blocks
+            .chunks(4)
+            .map(|round| {
+                round
+                    .iter()
+                    .map(|b| b.verified_block_header.transaction_ref())
+                    .collect()
+            })
+            .collect();
+
+        // A budget that holds the first commit's entries exactly, so the
+        // response stops on the commit boundary between the two.
+        let commit_bytes: usize = written_blocks[..4]
+            .iter()
+            .map(|b| {
+                serialize_transactions_entry(
+                    b.verified_block_header.transaction_ref(),
+                    b.verified_transactions.serialized().clone(),
+                )
+                .unwrap()
+                .len()
+                    + size_of::<Bytes>()
+            })
+            .sum();
+        let mut context = Context {
+            parameters: Parameters {
+                max_fast_commit_sync_transaction_bytes: commit_bytes,
+                ..context.parameters
+            },
+            ..context
+        };
+        context.protocol_config.set_gc_depth_for_testing(5);
+        let context = Arc::new(context);
+
+        // Put the GC round above both rounds, so the payloads are read from the
+        // store rather than the DAG state.
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let leader = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(20, 0).build());
+        dag_state.write().update_last_solid_subdag_base(SubDagBase {
+            leader: leader.reference(),
+            headers: vec![],
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(1, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        });
+        assert!(dag_state.read().gc_round_for_last_solid_commit() > 2);
+
+        let oversized_commit_slot = Arc::new(Semaphore::new(1));
+        let (served, permit) = fetch_commit_transactions_within_budget(
+            &context,
+            store.as_ref(),
+            &dag_state,
+            &oversized_commit_slot,
+            &commits_transaction_refs,
+        )
+        .unwrap();
+
+        // Only the first commit is served, and serving it needed no exemption
+        // from the budget.
+        let served_refs: Vec<TransactionRef> = served
+            .iter()
+            .map(|entry| {
+                bcs::from_bytes::<SerializedTransactionsV2>(entry)
+                    .unwrap()
+                    .transaction_ref
+            })
+            .collect();
+        assert_eq!(served_refs, commits_transaction_refs[0]);
+        assert!(permit.is_none());
+    }
+
+    #[tokio::test]
+    async fn an_oversized_first_commit_takes_the_slot_whatever_it_is_read_from() {
+        use crate::authority_service::fetch_commit_transactions_within_budget;
+
+        let (context, _) = Context::new_for_test(4);
+        let store = Arc::new(MemStore::new());
+
+        // Nothing moves the GC round, so every ref is served from the DAG state
+        // rather than the budgeted store scan.
+        let context = Arc::new(context);
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=2).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+        assert_eq!(
+            dag_state.read().gc_round_for_last_solid_commit(),
+            GENESIS_ROUND
+        );
+
+        let commits_transaction_refs: Vec<Vec<TransactionRef>> = (1..=2)
+            .map(|round| {
+                dag_builder
+                    .block_headers(round..=round)
+                    .iter()
+                    .map(|header| header.transaction_ref())
+                    .collect()
+            })
+            .collect();
+
+        let oversized_commit_slot = Arc::new(Semaphore::new(1));
+        let served_with_budget = |byte_budget| {
+            let context = Arc::new(Context {
+                parameters: Parameters {
+                    max_fast_commit_sync_transaction_bytes: byte_budget,
+                    ..context.parameters.clone()
+                },
+                ..Context::clone(&context)
+            });
+            fetch_commit_transactions_within_budget(
+                &context,
+                store.as_ref(),
+                &dag_state,
+                &oversized_commit_slot,
+                &commits_transaction_refs,
+            )
+        };
+
+        // The first commit's entries alone pass a budget of one entry, so it is
+        // served whole and holding more than the budget takes the slot.
+        let (served, permit) = served_with_budget(1).unwrap();
+        assert_eq!(served.len(), commits_transaction_refs[0].len());
+        assert!(permit.is_some());
+
+        // A second response cannot pass the budget while the first holds it.
+        assert!(matches!(
+            served_with_budget(1),
+            Err(ConsensusError::OversizedCommitAlreadyServed)
+        ));
+
+        // The slot frees up once the response holding it has been sent.
+        drop(permit);
+        assert!(served_with_budget(1).unwrap().1.is_some());
+
+        // Under a budget that fits both commits, no slot is needed.
+        let (served, permit) = served_with_budget(usize::MAX).unwrap();
+        assert_eq!(
+            served.len(),
+            commits_transaction_refs.iter().flatten().count()
+        );
+        assert!(permit.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_first_commit_missing_a_payload_is_not_served() {
+        use crate::authority_service::fetch_commit_transactions_within_budget;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=2).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+        let unknown_ref = TransactionRef {
+            round: 1,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
+        };
+
+        // The first commit holds a payload this node does not have, while the
+        // commit after it is fully available.
+        let commits_transaction_refs = vec![
+            vec![
+                dag_builder.block_headers(1..=1)[0].transaction_ref(),
+                unknown_ref,
+            ],
+            dag_builder
+                .block_headers(2..=2)
+                .iter()
+                .map(|header| header.transaction_ref())
+                .collect(),
+        ];
+        let oversized_commit_slot = Arc::new(Semaphore::new(1));
+        let fetch = || {
+            fetch_commit_transactions_within_budget(
+                &context,
+                store.as_ref(),
+                &dag_state,
+                &oversized_commit_slot,
+                &commits_transaction_refs,
+            )
+        };
+
+        assert!(matches!(
+            fetch(),
+            Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
+                if transaction_ref == unknown_ref
+        ));
+        // The slot taken for the unbudgeted read is released with the error.
+        assert_eq!(oversized_commit_slot.available_permits(), 1);
+        assert!(matches!(
+            fetch(),
+            Err(ConsensusError::TransactionsNotAvailable { .. })
+        ));
     }
 }

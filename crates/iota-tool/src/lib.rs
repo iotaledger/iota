@@ -44,8 +44,8 @@ use iota_multiaddr::Multiaddr;
 use iota_network::default_iota_network_config;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
-    CheckpointContentsDigest, ObjectDigest, ObjectId, Owner, TransactionDigest, Version,
-    checkpoint::CheckpointCommitment,
+    CheckpointCommitment, CheckpointContentsDigest, ObjectDigest, ObjectId, Owner,
+    TransactionDigest, Version,
 };
 use iota_snapshot::{
     VerifiedEpochInfo,
@@ -878,6 +878,7 @@ pub async fn download_formal_snapshot(
     )?;
     let verified_epoch_info = iota_snapshot::verify_epoch_info_chain(
         epoch_info,
+        epoch,
         genesis_committee.clone(),
         genesis.iota_system_object(),
         snapshot_chain_id,

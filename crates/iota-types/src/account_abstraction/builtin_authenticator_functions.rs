@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticator, ObjectId, SignatureScheme, StructTag, Transaction,
     UserSignature,
@@ -15,7 +16,7 @@ use crate::{
         authenticator_function::AuthenticatorFunctionRefV1, public_key::MovePublicKey,
         signature_scheme::MoveSignatureScheme,
     },
-    dynamic_field::{self, Field},
+    dynamic_field,
     error::{IotaError, IotaResult, UserInputError},
     execution::DynamicallyLoadedObjectMetadata,
     move_authenticator::MoveAuthenticatorExt,

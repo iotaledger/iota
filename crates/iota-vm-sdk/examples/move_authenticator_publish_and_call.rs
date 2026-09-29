@@ -396,9 +396,9 @@ fn created_shared(result: &ExecutionResult) -> Result<(ObjectId, Version)> {
         .effects
         .created()
         .into_iter()
-        .find_map(|created| match created.owner {
+        .find_map(|created| match created.owner() {
             Owner::Shared(initial_shared_version) => {
-                Some((created.reference.object_id, initial_shared_version))
+                Some((created.reference().object_id, *initial_shared_version))
             }
             _ => None,
         })
