@@ -36,6 +36,8 @@ use crate::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 
+/// Reads a trusted HTTP key-value store. Its checks catch data stored under the
+/// wrong key, not forged data: signatures are not verified.
 pub struct HttpKVStore {
     base_url: Url,
     client: Client,
@@ -465,7 +467,7 @@ where
             Some(o)
         } else {
             error!(
-                "Digest mismatch - expected: {:?}, got: {:?}",
+                "Key mismatch - expected: {:?}, got: {:?}",
                 digest, expected_digest,
             );
             None
@@ -571,6 +573,15 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
                 })
             })
             .collect::<Vec<_>>();
+        // A rejected summary would otherwise stay cached and keep being rejected.
+        self.evict(
+            result_slices[0]
+                .iter()
+                .zip(checkpoint_summaries)
+                .zip(&summaries_results)
+                .filter(|((fetch, _), summary)| matches!(fetch, Ok(Some(_))) && summary.is_none())
+                .map(|((_, seq), _)| Key::CheckpointSummary(*seq)),
+        );
 
         let contents_results = result_slices[1]
             .iter()
