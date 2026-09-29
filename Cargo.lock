@@ -14152,7 +14152,6 @@ dependencies = [
  "prometheus-filtered",
  "prost 0.14.3",
  "rand 0.10.3",
- "rand 0.8.6",
  "reed-solomon-simd",
  "rs_merkle",
  "rstest",
