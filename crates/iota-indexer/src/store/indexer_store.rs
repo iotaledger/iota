@@ -16,11 +16,11 @@ use crate::{
     },
     models::{
         account_key_links::StoredAccountKeyLink,
-        claimed_accounts::StoredClaimedAccount,
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
         packages::StoredPackage,
+        smart_accounts::StoredSmartAccount,
         transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
@@ -73,10 +73,12 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         links: Vec<StoredAccountKeyLink>,
     ) -> Result<(), IndexerError>;
 
-    /// Upserts the accounts created by a `ClaimAccount` transaction.
-    async fn persist_claimed_accounts(
+    /// Upserts the framework `SmartAccount`s announced by
+    /// `SmartAccountCreated`. Not prunable: see
+    /// [`crate::pruning::pruner::PrunableTable`].
+    async fn persist_smart_accounts(
         &self,
-        claimed_accounts: Vec<StoredClaimedAccount>,
+        smart_accounts: Vec<StoredSmartAccount>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_event_indices(

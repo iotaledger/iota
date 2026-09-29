@@ -99,16 +99,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    claimed_accounts (account_id) {
-        account_id -> Bytea,
-        key_id -> Bytea,
-        immutable -> Bool,
-        claim_tx_sequence_number -> Int8,
-        claim_epoch -> Int8,
-    }
-}
-
-diesel::table! {
     display (object_type) {
         object_type -> Text,
         id -> Bytea,
@@ -352,6 +342,15 @@ diesel::table! {
 }
 
 diesel::table! {
+    smart_accounts (account_id) {
+        account_id -> Bytea,
+        immutable -> Bool,
+        created_tx_sequence_number -> Int8,
+        created_epoch -> Int8,
+    }
+}
+
+diesel::table! {
     transactions (tx_sequence_number) {
         tx_sequence_number -> Int8,
         transaction_digest -> Bytea,
@@ -484,7 +483,6 @@ macro_rules! for_all_tables {
             chain_identifier,
             checkpointed_objects,
             checkpoints,
-            claimed_accounts,
             display,
             epoch_peak_tps,
             epochs,
@@ -506,6 +504,7 @@ macro_rules! for_all_tables {
             packages,
             protocol_configs,
             pruner_cp_watermark,
+            smart_accounts,
             transactions,
             tx_calls_fun,
             tx_calls_mod,

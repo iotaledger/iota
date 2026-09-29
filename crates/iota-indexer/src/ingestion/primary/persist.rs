@@ -16,11 +16,11 @@ use crate::{
     metrics::IndexerMetrics,
     models::{
         account_key_links::StoredAccountKeyLink,
-        claimed_accounts::StoredClaimedAccount,
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
+        smart_accounts::StoredSmartAccount,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
@@ -42,7 +42,7 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) packages: Vec<IndexedPackage>,
     pub(crate) epoch: Option<EpochToCommit>,
     pub(crate) account_key_link_ops: Vec<AccountKeyLinkOp>,
-    pub(crate) claimed_accounts: Vec<StoredClaimedAccount>,
+    pub(crate) smart_accounts: Vec<StoredSmartAccount>,
 }
 
 /// Collapses `rows` to the last one seen per key.
@@ -130,7 +130,7 @@ impl PrimaryWriter {
         let mut object_versions_batch = Vec::with_capacity(batch_len);
         let mut packages_batch = Vec::with_capacity(batch_len);
         let mut account_key_link_ops = Vec::new();
-        let mut claimed_accounts = Vec::new();
+        let mut smart_accounts = Vec::new();
 
         for indexed_checkpoint in indexed_checkpoint_batch {
             let CheckpointDataToCommit {
@@ -145,7 +145,7 @@ impl PrimaryWriter {
                 object_versions,
                 packages,
                 account_key_link_ops: checkpoint_link_ops,
-                claimed_accounts: checkpoint_claimed_accounts,
+                smart_accounts: checkpoint_smart_accounts,
                 ..
             } = indexed_checkpoint;
             checkpoint_batch.push(checkpoint);
@@ -159,20 +159,19 @@ impl PrimaryWriter {
             object_versions_batch.push(object_versions);
             packages_batch.push(packages);
             account_key_link_ops.extend(checkpoint_link_ops);
-            claimed_accounts.extend(checkpoint_claimed_accounts);
+            smart_accounts.extend(checkpoint_smart_accounts);
         }
 
         // Both tables hold the latest state per key, so collapse the batch to
         // one row per key before writing: the result must not depend on how the
         // batch is chunked. Ops arrive in (checkpoint, transaction, event)
-        // order, so the last write wins — which is what makes a claim's
-        // `attach` and `claim` ops land as a single row sourced `claim`.
+        // order, so the last write per key is its final state.
         let account_key_links = collapse_last_write_wins(
             account_key_link_ops.iter().map(StoredAccountKeyLink::from),
             |link| (link.key_id.clone(), link.account_id.clone()),
         );
-        let claimed_accounts = collapse_last_write_wins(claimed_accounts.into_iter(), |claimed| {
-            claimed.account_id.clone()
+        let smart_accounts = collapse_last_write_wins(smart_accounts.into_iter(), |account| {
+            account.account_id.clone()
         });
 
         let first_checkpoint_seq = checkpoint_batch.first().as_ref().unwrap().sequence_number;
@@ -206,7 +205,7 @@ impl PrimaryWriter {
                 self.state.persist_tx_indices(tx_indices_batch),
                 self.state.persist_events(events_batch),
                 self.state.persist_account_key_links(account_key_links),
-                self.state.persist_claimed_accounts(claimed_accounts),
+                self.state.persist_smart_accounts(smart_accounts),
                 self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(displays_batch),
                 self.state
@@ -381,16 +380,14 @@ mod tests {
     }
 
     #[test]
-    fn an_attach_then_claim_in_one_batch_yields_one_claim_row() {
-        // The shape of a claim transaction: claim_builder attaches the key and
-        // the entry point then emits the claim, both for the same pair.
+    fn a_detach_then_reattach_in_one_batch_ends_active() {
         let rows = collapse(vec![
-            op(KEY, LinkSource::Attach, LinkOpKind::Link, 5),
-            op(KEY, LinkSource::Claim, LinkOpKind::Link, 5),
+            op(KEY, LinkSource::Detach, LinkOpKind::Unlink, 5),
+            op(KEY, LinkSource::Attach, LinkOpKind::Link, 6),
         ]);
 
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].source, LinkSource::Claim as i16);
+        assert_eq!(rows[0].source, LinkSource::Attach as i16);
         assert_eq!(rows[0].status, LINK_STATUS_ACTIVE);
     }
 

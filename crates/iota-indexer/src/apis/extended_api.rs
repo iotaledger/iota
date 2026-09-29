@@ -22,7 +22,7 @@ use crate::{
     errors::IndexerError,
     models::{
         account_key_links::{LINK_STATUS_ACTIVE, StoredAccountKeyLink},
-        claimed_accounts::StoredClaimedAccount,
+        smart_accounts::StoredSmartAccount,
     },
     read::IndexerReader,
 };
@@ -132,7 +132,7 @@ impl ExtendedApiServer for ExtendedApi {
 
         Ok(rows
             .into_iter()
-            .map(|(link, claimed)| to_account_key_link(link, claimed))
+            .map(|(link, smart_account)| to_account_key_link(link, smart_account))
             .collect::<Result<Vec<_>, _>>()?)
     }
 
@@ -213,10 +213,11 @@ impl IotaRpcModule for ExtendedApi {
     }
 }
 
-/// Shapes one stored link, and its claim record if it has one, for the RPC.
+/// Shapes one stored link, and the `SmartAccount` row of its account if it has
+/// one, for the RPC.
 fn to_account_key_link(
     link: StoredAccountKeyLink,
-    claimed: Option<StoredClaimedAccount>,
+    smart_account: Option<StoredSmartAccount>,
 ) -> Result<AccountKeyLink, IndexerError> {
     let address = Address::from_bytes(&link.account_id).map_err(|e| {
         IndexerError::PersistentStorageDataCorruption(format!("invalid account id: {e}"))
@@ -225,7 +226,6 @@ fn to_account_key_link(
         Some(LinkSource::Attach) => AccountKeyLinkSource::Attach,
         Some(LinkSource::Rotate) => AccountKeyLinkSource::Rotate,
         Some(LinkSource::Detach) => AccountKeyLinkSource::Detach,
-        Some(LinkSource::Claim) => AccountKeyLinkSource::Claim,
         None => {
             return Err(IndexerError::PersistentStorageDataCorruption(format!(
                 "unknown account key link source {}",
@@ -242,8 +242,7 @@ fn to_account_key_link(
             AccountKeyLinkStatus::Unlinked
         },
         source,
-        claimed: claimed.is_some(),
-        immutable: claimed.map(|claimed| claimed.immutable),
+        smart_account: smart_account.is_some(),
         scheme: link.scheme as u8,
         last_change_epoch: link.last_change_epoch as u64,
     })

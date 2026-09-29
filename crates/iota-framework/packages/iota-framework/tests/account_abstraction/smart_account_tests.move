@@ -5,11 +5,10 @@
 module iota::smart_account_tests;
 
 use iota::authenticator_function;
-use iota::builtin_authenticator_functions::PublicKeyAttached;
 use iota::event;
 use iota::public_key;
 use iota::signature_scheme;
-use iota::smart_account::{Self, SmartAccount, SmartAccountClaimed};
+use iota::smart_account::{Self, SmartAccount, SmartAccountCreated};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use std::ascii;
@@ -121,76 +120,51 @@ fun claim_immutable_account_v1_aborts_on_address_mismatch() {
     scenario.end();
 }
 
-// === SmartAccountClaimed ===
+// === SmartAccountCreated ===
 
 #[test]
-fun claim_account_v1_emits_smart_account_claimed() {
+fun claim_account_v1_emits_smart_account_created() {
     let public_key = ed25519_public_key();
     let sender = public_key.to_iota_address();
     let mut scenario = test_scenario::begin(sender);
 
     smart_account::claim_account_v1_for_testing(public_key, scenario.ctx());
 
-    let events = event::events_by_type<SmartAccountClaimed>();
-    assert_eq(events.length(), 1);
-    let (account_id, claiming_key, immutable) = smart_account::smart_account_claimed_fields_for_testing(
-        &events[0],
-    );
-    assert_eq(account_id.to_address(), sender);
-    assert_eq(claiming_key, public_key);
-    assert_eq(immutable, false);
-
+    assert_single_created_event(sender, option::some(public_key), false);
     scenario.end();
 }
 
 #[test]
-fun claim_immutable_account_v1_emits_smart_account_claimed() {
+fun claim_immutable_account_v1_emits_smart_account_created() {
     let public_key = ed25519_public_key();
     let sender = public_key.to_iota_address();
     let mut scenario = test_scenario::begin(sender);
 
     smart_account::claim_immutable_account_v1_for_testing(public_key, scenario.ctx());
 
-    let events = event::events_by_type<SmartAccountClaimed>();
-    assert_eq(events.length(), 1);
-    let (account_id, claiming_key, immutable) = smart_account::smart_account_claimed_fields_for_testing(
-        &events[0],
-    );
-    assert_eq(account_id.to_address(), sender);
-    assert_eq(claiming_key, public_key);
-    assert_eq(immutable, true);
-
+    assert_single_created_event(sender, option::some(public_key), true);
     scenario.end();
 }
 
 #[test]
-fun claim_account_v1_also_emits_the_plain_attachment() {
-    // The key->account binding a claim establishes is on the wire twice: once
-    // as an ordinary attachment, once as the claim. An indexer folds both and
-    // the claim wins, so the account is not recorded as a plain attach.
-    let public_key = ed25519_public_key();
-    let mut scenario = test_scenario::begin(public_key.to_iota_address());
-
-    smart_account::claim_account_v1_for_testing(public_key, scenario.ctx());
-
-    assert_eq(event::events_by_type<PublicKeyAttached>().length(), 1);
-    assert_eq(event::events_by_type<SmartAccountClaimed>().length(), 1);
-
-    scenario.end();
-}
-
-#[test]
-fun builtin_auth_builder_v1_emits_no_claim_event() {
-    // An account built through the public builder is an attachment, never a
-    // claim. This is the shape a gifted account has, and absence of the claim
-    // event is what makes it distinguishable.
+fun builtin_auth_builder_v1_emits_smart_account_created_with_the_key() {
     let mut scenario = test_scenario::begin(@0x0);
 
-    make_account(&mut scenario);
+    let addr = make_account(&mut scenario);
 
-    assert_eq(event::events_by_type<PublicKeyAttached>().length(), 1);
-    assert_eq(event::events_by_type<SmartAccountClaimed>().length(), 0);
+    assert_single_created_event(addr, option::some(ed25519_public_key()), false);
+    scenario.end();
+}
 
+#[test]
+fun builder_v1_emits_smart_account_created_without_a_key() {
+    // A custom-authenticator account has no built-in key, but it is still a
+    // SmartAccount and must still be announced.
+    let mut scenario = test_scenario::begin(@0x0);
+
+    let addr = smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_immutable_v1();
+
+    assert_single_created_event(addr, option::none(), true);
     scenario.end();
 }
 
@@ -491,6 +465,23 @@ fun secp256k1_public_key(): public_key::PublicKey {
         signature_scheme::secp256k1(),
         x"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
     )
+}
+
+/// Asserts that exactly one `SmartAccountCreated` was emitted, with these
+/// fields.
+fun assert_single_created_event(
+    account: address,
+    public_key: Option<public_key::PublicKey>,
+    immutable: bool,
+) {
+    let events = event::events_by_type<SmartAccountCreated>();
+    assert_eq(events.length(), 1);
+    let (account_id, emitted_key, emitted_immutable) = smart_account::smart_account_created_fields_for_testing(
+        &events[0],
+    );
+    assert_eq(account_id.to_address(), account);
+    assert_eq(emitted_key, public_key);
+    assert_eq(emitted_immutable, immutable);
 }
 
 fun test_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<SmartAccount> {

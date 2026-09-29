@@ -62,7 +62,7 @@ pub struct Pruner {
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
-/// `account_key_links` and `claimed_accounts` are deliberately absent: they
+/// `account_key_links` and `smart_accounts` are deliberately absent: they
 /// hold materialized state folded from the event stream, not history, and a
 /// pruned row could only be rebuilt by replaying events this node may itself
 /// have pruned.

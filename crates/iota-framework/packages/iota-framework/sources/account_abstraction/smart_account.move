@@ -47,10 +47,10 @@ const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
 
 // === Events ===
 
-/// Event emitted when a `SmartAccount` is claimed.
-public struct SmartAccountClaimed has copy, drop {
+/// Event emitted when a `SmartAccount` is created.
+public struct SmartAccountCreated has copy, drop {
     account_id: ID,
-    public_key: PublicKey,
+    public_key: Option<PublicKey>,
     immutable: bool,
 }
 
@@ -138,6 +138,10 @@ public fun build_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
     let account_address = account.account_address();
 
+    emit_smart_account_event(
+        &account,
+        false,
+    );
     account::create_account_v1(account, authenticator);
 
     account_address
@@ -152,8 +156,11 @@ public fun build_immutable_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
     let account_address = account.account_address();
 
+    emit_smart_account_event(
+        &account,
+        true,
+    );
     account::create_immutable_account_v1(account, authenticator);
-
     account_address
 }
 
@@ -350,13 +357,7 @@ public fun rotate_auth_function_ref_v1(
 /// signature scheme has no built-in authenticator.
 #[allow(unused_function)]
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    let account_address = claim_builder(public_key, ctx).build_v1();
-    let event = SmartAccountClaimed {
-        account_id: account_address.to_id(),
-        public_key,
-        immutable: false,
-    };
-    event::emit(event);
+    claim_builder(public_key, ctx).build_v1();
 }
 
 /// Claims the sender's address and creates an immutable `SmartAccount` at it,
@@ -371,13 +372,7 @@ fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
 /// signature scheme has no built-in authenticator.
 #[allow(unused_function)]
 fun claim_immutable_account_v1(public_key: PublicKey, ctx: &TxContext) {
-    let account_address = claim_builder(public_key, ctx).build_immutable_v1();
-    let event = SmartAccountClaimed {
-        account_id: account_address.to_id(),
-        public_key,
-        immutable: true,
-    };
-    event::emit(event);
+    claim_builder(public_key, ctx).build_immutable_v1();
 }
 
 /// Creates a `SmartAccountBuilder` whose account ID is the claimed sender
@@ -391,6 +386,20 @@ fun claim_builder(public_key: PublicKey, ctx: &TxContext): SmartAccountBuilder {
         account,
         authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
     }
+}
+
+fun emit_smart_account_event(account: &SmartAccount, immutable: bool) {
+    let public_key = if (account.has_builtin_auth_public_key()) {
+        option::some(*account.borrow_builtin_auth_public_key())
+    } else {
+        option::none()
+    };
+    let event = SmartAccountCreated {
+        account_id: *account.id.as_inner(),
+        public_key,
+        immutable,
+    };
+    event::emit(event);
 }
 
 /// Check that the sender of this transaction is the account itself.
@@ -414,11 +423,11 @@ public fun claim_immutable_account_v1_for_testing(public_key: PublicKey, ctx: &T
     claim_immutable_account_v1(public_key, ctx)
 }
 
-/// The fields of a `SmartAccountClaimed` event, which are private to this
+/// The fields of a `SmartAccountCreated` event, which are private to this
 /// module.
 #[test_only]
-public fun smart_account_claimed_fields_for_testing(
-    event: &SmartAccountClaimed,
-): (ID, PublicKey, bool) {
+public fun smart_account_created_fields_for_testing(
+    event: &SmartAccountCreated,
+): (ID, Option<PublicKey>, bool) {
     (event.account_id, event.public_key, event.immutable)
 }

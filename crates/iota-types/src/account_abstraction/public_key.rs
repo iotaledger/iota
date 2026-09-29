@@ -140,7 +140,8 @@ impl MovePublicKey {
 /// two coincide for Secp256k1, Secp256r1 and Passkey, so `key_id == address` is
 /// never a usable test for anything.
 ///
-/// Must stay in sync with `iota::public_key::key_id` in the Move framework.
+/// Nothing on chain computes it: the framework has no counterpart, and
+/// consumers derive it from the `PublicKey` carried by the events.
 pub fn key_id(scheme_flag: u8, raw_key_bytes: &[u8]) -> [u8; 32] {
     let mut hasher = Blake2b256::default();
     hasher.update([scheme_flag]);

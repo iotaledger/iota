@@ -74,7 +74,6 @@ use crate::{
         account_key_links::{LINK_STATUS_ACTIVE, StoredAccountKeyLink},
         address_metrics::StoredAddressMetrics,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint},
-        claimed_accounts::StoredClaimedAccount,
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
@@ -83,6 +82,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         participation_metrics::StoredParticipationMetrics,
+        smart_accounts::StoredSmartAccount,
         system_state::StoredSystemState,
         transactions::{
             OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
@@ -92,9 +92,9 @@ use crate::{
     },
     pruning::watermark_task::WatermarkCache,
     schema::{
-        account_key_links, address_metrics, addresses, chain_identifier, checkpoints,
-        claimed_accounts, display, epochs, events, objects, objects_version,
-        optimistic_transactions, packages, pruner_cp_watermark, transactions, tx_global_order,
+        account_key_links, address_metrics, addresses, chain_identifier, checkpoints, display,
+        epochs, events, objects, objects_version, optimistic_transactions, packages,
+        pruner_cp_watermark, smart_accounts, transactions, tx_global_order,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -405,17 +405,17 @@ impl IndexerReader {
         &self,
         key_id: Vec<u8>,
         include_unlinked: bool,
-    ) -> Result<Vec<(StoredAccountKeyLink, Option<StoredClaimedAccount>)>, IndexerError> {
+    ) -> Result<Vec<(StoredAccountKeyLink, Option<StoredSmartAccount>)>, IndexerError> {
         run_query!(&self.pool, |conn| {
             let mut query = account_key_links::table
                 .left_join(
-                    claimed_accounts::table
-                        .on(claimed_accounts::account_id.eq(account_key_links::account_id)),
+                    smart_accounts::table
+                        .on(smart_accounts::account_id.eq(account_key_links::account_id)),
                 )
                 .filter(account_key_links::key_id.eq(key_id.clone()))
                 .select((
                     StoredAccountKeyLink::as_select(),
-                    Option::<StoredClaimedAccount>::as_select(),
+                    Option::<StoredSmartAccount>::as_select(),
                 ))
                 .order(account_key_links::last_change_tx_sequence_number.desc())
                 .into_boxed();
@@ -430,7 +430,7 @@ impl IndexerReader {
         &self,
         key_id: Vec<u8>,
         include_unlinked: bool,
-    ) -> Result<Vec<(StoredAccountKeyLink, Option<StoredClaimedAccount>)>, IndexerError> {
+    ) -> Result<Vec<(StoredAccountKeyLink, Option<StoredSmartAccount>)>, IndexerError> {
         self.spawn_blocking(move |this| this.get_accounts_by_key_id(key_id, include_unlinked))
             .await
     }

@@ -241,7 +241,7 @@ Tables not listed here are never pruned by the indexer.
 
 Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
 
-`account_key_links` and `claimed_accounts` are also never pruned, for a different reason: see [Account discoverability index](#account-discoverability-index).
+`account_key_links` and `smart_accounts` are also never pruned, for a different reason: see [Account discoverability index](#account-discoverability-index).
 
 ## Account discoverability index
 
@@ -261,16 +261,18 @@ The scheme flag is included for every scheme. This is deliberately **not** the a
 
 A `key_id` has **no protocol role**. Authentication verifies a signature against the address derived from the account's stored public key. `key_id` is an index identity and nothing else; it is a hash of bytes, so it is defined for every key, including one whose scheme a given indexer build does not recognize.
 
+The framework does not compute `key_id`, and no event carries it. An indexer computes it from the `PublicKey` in each event, using the formula above.
+
 ### Events consumed
 
-Only events carrying key material can establish a link.
+The three `PublicKey*` events establish and remove links. `SmartAccountCreated` records the account itself.
 
 | Event | Module | Fields |
 | --- | --- | --- |
-| `SmartAccountClaimed` | `iota::smart_account` | `account_id: ID, public_key: PublicKey, immutable: bool` |
 | `PublicKeyAttached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` |
 | `PublicKeyDetached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` |
 | `PublicKeyRotated` | `iota::builtin_authenticator_functions` | `account_id: ID, from: PublicKey, to: PublicKey` |
+| `SmartAccountCreated` | `iota::smart_account` | `account_id: ID, public_key: Option<PublicKey>, immutable: bool` |
 
 The `iota::account` lifecycle events (`MutableAccountCreated`, `ImmutableAccountCreated`, `AuthenticatorFunctionRefV1Rotated`) carry no key material and are not consumed.
 
@@ -285,24 +287,23 @@ The index is a left-fold of those events in total order `(checkpoint, transactio
 | `PublicKeyAttached(account, pk)` | link `(key_id(pk), account)`, source `attach`, active |
 | `PublicKeyRotated(account, from, to)` | tombstone `(key_id(from), account)`, **then** link `(key_id(to), account)`, source `rotate` |
 | `PublicKeyDetached(account, pk)` | tombstone `(key_id(pk), account)`, source `detach` |
-| `SmartAccountClaimed(account, pk, immutable)` | link `(key_id(pk), account)`, source `claim`; **and** a `claimed_accounts` row |
+| `SmartAccountCreated(account, _, immutable)` | a `smart_accounts` row; no link |
 
-Two orderings are load-bearing. Within a rotation the tombstone precedes the link, so rotating a key onto itself leaves the link active. Within a claim transaction `PublicKeyAttached` precedes `SmartAccountClaimed`, and a batch collapses last-write-wins per `(key_id, account_id)`, so a claim produces exactly one row, sourced `claim`, rather than two.
+Within a rotation the tombstone precedes the link, so rotating a key onto itself leaves the link active. A batch collapses last-write-wins per `(key_id, account_id)`.
+
+`SmartAccountCreated` never creates a link, even when it carries a key: the key of a new account is announced by the `PublicKeyAttached` of the same transaction, and the link comes from that.
 
 The fold is total: no address is derived anywhere, and an event whose type matches but whose payload does not decode contributes nothing — that is an indexer build older than the framework it is reading, not an error. Re-ingesting a checkpoint rewrites identical values, and both upserts are guarded on the transaction sequence number, so a replayed or out-of-order write cannot move a row backwards.
 
 After the first public-network activation the four event structs are additive-only: new event types may be added, existing fields never change.
 
-### Claimed versus attached
+### Smart accounts
 
-`claimed_accounts` records the accounts created by a `ClaimAccount` transaction, whose object id is the address the claiming key derives. Absence of a row means the account was not claimed.
+`smart_accounts` has one row per framework `SmartAccount`, with or without a built-in key, written from `SmartAccountCreated`. The RPC reports it as `smartAccount` on each result.
 
-This distinction is what a wallet needs to rank results, and it cannot be computed client-side from an address list:
+A link to an address with no `smart_accounts` row is not a framework `SmartAccount`. `attach_public_key` is public over any object's `UID`, so a package can attach a key to its own account type, which is a real account, or to an object that cannot act as an account at all. Treat `smartAccount = false` results with care, and verify on chain when it matters.
 
-- A **claimed** account is one the key holder created for themselves. Every later change to it is self-authorized, because the account's own address must be the transaction sender — nobody else can attach a key to it.
-- An **attached** link may have been created by anyone. Creating an account whose authenticator is someone else's public key is permitted and the resulting link is true, so this is the shape that dust-gifting takes. Such an account never appears in `claimed_accounts`.
-
-Claimed status is a property of the account, not of any one link, and it outlives a rotation: an account claimed with one key and later rotated to another is still a claimed account.
+A link does not mean the key holder created the account. Anyone can create a `SmartAccount` whose built-in key is someone else's public key; only the key holder can then use it, but it appears in that key's results.
 
 ### Retention and bootstrapping
 
@@ -310,7 +311,7 @@ Both tables are materialized state folded from the event stream, not history, so
 
 Event retention therefore only affects **bootstrapping**. An indexer syncing from genesis builds both tables with no backfill step, since the fold starts at the first emitted event. An indexer starting against a pruned source cannot rebuild them and must bootstrap from an unpruned archive fullnode or import a table snapshot from a verified peer.
 
-An indexer must also not be pointed at a network whose framework predates the `SmartAccountClaimed` event: claims on such a network are indexed as plain attachments, with no `claimed_accounts` row.
+An indexer pointed at a network whose framework predates `SmartAccountCreated` still builds every link, but records no `smart_accounts` rows for accounts created before that framework version, so their results report `smartAccount = false`.
 
 ### Privacy
 

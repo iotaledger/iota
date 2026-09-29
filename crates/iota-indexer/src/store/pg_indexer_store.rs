@@ -40,7 +40,6 @@ use crate::{
     models::{
         account_key_links::StoredAccountKeyLink,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
-        claimed_accounts::StoredClaimedAccount,
         display::StoredDisplay,
         epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
         events::StoredEvent,
@@ -50,6 +49,7 @@ use crate::{
             StoredObject, StoredObjects,
         },
         packages::StoredPackage,
+        smart_accounts::StoredSmartAccount,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::TxIndexSplit,
         watermarks::StoredWatermark,
@@ -59,14 +59,13 @@ use crate::{
     pruning::pruner::PrunableTable,
     read_only_blocking, run_query_with_retry,
     schema::{
-        account_key_links, chain_identifier, checkpointed_objects, checkpoints, claimed_accounts,
-        display, epochs, event_emit_module, event_emit_package, event_senders,
-        event_struct_instantiation, event_struct_module, event_struct_name, event_struct_package,
-        events, feature_flags, objects, objects_backward_history, objects_version,
-        optimistic_transactions, packages, protocol_configs, pruner_cp_watermark, transactions,
-        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_global_order,
-        tx_input_objects, tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
-        watermarks,
+        account_key_links, chain_identifier, checkpointed_objects, checkpoints, display, epochs,
+        event_emit_module, event_emit_package, event_senders, event_struct_instantiation,
+        event_struct_module, event_struct_name, event_struct_package, events, feature_flags,
+        objects, objects_backward_history, objects_version, optimistic_transactions, packages,
+        protocol_configs, pruner_cp_watermark, smart_accounts, transactions, tx_calls_fun,
+        tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects,
+        tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
     store::{IndexerStore, diesel_macro},
     transactional_blocking_with_retry,
@@ -869,31 +868,30 @@ impl PgIndexerStore {
         )
     }
 
-    /// Upserts the claim record for each account, under the same monotonic
-    /// guard as [`Self::persist_account_key_links`]. A second claim of the same
-    /// address keeps the later one.
-    fn persist_claimed_accounts(
+    /// Upserts one row per `SmartAccount`, under the same monotonic guard as
+    /// [`Self::persist_account_key_links`]. An account created again at the
+    /// same address, as a repeated claim does, keeps the later creation.
+    fn persist_smart_accounts(
         &self,
-        claimed_accounts: &[StoredClaimedAccount],
+        smart_accounts: &[StoredSmartAccount],
     ) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                for chunk in claimed_accounts.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                for chunk in smart_accounts.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
                     on_conflict_do_update_with_condition!(
-                        claimed_accounts::table,
+                        smart_accounts::table,
                         chunk,
-                        claimed_accounts::account_id,
+                        smart_accounts::account_id,
                         (
-                            claimed_accounts::key_id.eq(excluded(claimed_accounts::key_id)),
-                            claimed_accounts::immutable.eq(excluded(claimed_accounts::immutable)),
-                            claimed_accounts::claim_tx_sequence_number
-                                .eq(excluded(claimed_accounts::claim_tx_sequence_number)),
-                            claimed_accounts::claim_epoch
-                                .eq(excluded(claimed_accounts::claim_epoch)),
+                            smart_accounts::immutable.eq(excluded(smart_accounts::immutable)),
+                            smart_accounts::created_tx_sequence_number
+                                .eq(excluded(smart_accounts::created_tx_sequence_number)),
+                            smart_accounts::created_epoch
+                                .eq(excluded(smart_accounts::created_epoch)),
                         ),
-                        excluded(claimed_accounts::claim_tx_sequence_number)
-                            .ge(claimed_accounts::claim_tx_sequence_number),
+                        excluded(smart_accounts::created_tx_sequence_number)
+                            .ge(smart_accounts::created_tx_sequence_number),
                         conn
                     );
                 }
@@ -2013,24 +2011,22 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_claimed_accounts(
+    async fn persist_smart_accounts(
         &self,
-        claimed_accounts: Vec<StoredClaimedAccount>,
+        smart_accounts: Vec<StoredSmartAccount>,
     ) -> Result<(), IndexerError> {
-        if claimed_accounts.is_empty() {
+        if smart_accounts.is_empty() {
             return Ok(());
         }
-        let len = claimed_accounts.len();
+        let len = smart_accounts.len();
         let guard = self
             .metrics
-            .checkpoint_db_commit_latency_claimed_accounts
+            .checkpoint_db_commit_latency_smart_accounts
             .start_timer();
-        self.execute_in_blocking_worker(move |this| {
-            this.persist_claimed_accounts(&claimed_accounts)
-        })
-        .await?;
+        self.execute_in_blocking_worker(move |this| this.persist_smart_accounts(&smart_accounts))
+            .await?;
         let elapsed = guard.stop_and_record();
-        info!(elapsed, "Persisted {len} claimed accounts");
+        info!(elapsed, "Persisted {len} smart accounts");
         Ok(())
     }
 
