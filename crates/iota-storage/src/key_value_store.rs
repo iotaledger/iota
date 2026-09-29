@@ -354,7 +354,8 @@ impl TransactionKeyValueStore {
     }
 }
 
-/// Records the same metrics as the inherent methods.
+/// `multi_get` and `multi_get_checkpoints` record the same metrics as the
+/// inherent methods; the other methods go straight to the inner store.
 #[async_trait]
 impl TransactionKeyValueStoreTrait for TransactionKeyValueStore {
     async fn multi_get(
@@ -384,7 +385,9 @@ impl TransactionKeyValueStoreTrait for TransactionKeyValueStore {
         &self,
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        Self::get_transaction_perpetual_checkpoint(self, digest).await
+        self.inner
+            .get_transaction_perpetual_checkpoint(digest)
+            .await
     }
 
     async fn get_object(
@@ -392,28 +395,30 @@ impl TransactionKeyValueStoreTrait for TransactionKeyValueStore {
         object_id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
-        Self::get_object(self, object_id, version).await
+        self.inner.get_object(object_id, version).await
     }
 
     async fn multi_get_objects(
         &self,
         object_keys: &[ObjectKey],
     ) -> IotaResult<Vec<Option<Object>>> {
-        Self::multi_get_objects(self, object_keys).await
+        self.inner.multi_get_objects(object_keys).await
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
-        Self::multi_get_transactions_perpetual_checkpoints(self, digests).await
+        self.inner
+            .multi_get_transactions_perpetual_checkpoints(digests)
+            .await
     }
 
     async fn multi_get_events_by_tx_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        Self::multi_get_events_by_tx_digests(self, digests).await
+        self.inner.multi_get_events_by_tx_digests(digests).await
     }
 }
 
