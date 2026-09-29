@@ -32,8 +32,8 @@ impl SerializeAs<NativeSystemStateSummary> for IotaSystemStateSummary {
     where
         S: serde::Serializer,
     {
-        let schema = IotaSystemStateSummary::try_from(source.clone())
-            .map_err(serde::ser::Error::custom)?;
+        let schema =
+            IotaSystemStateSummary::try_from(source.clone()).map_err(serde::ser::Error::custom)?;
         schema.serialize(serializer)
     }
 }

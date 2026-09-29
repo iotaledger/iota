@@ -167,8 +167,8 @@ impl SerializeAs<EndOfEpochData> for EndOfEpochDataSchema {
     where
         S: serde::Serializer,
     {
-        let iota_data = EndOfEpochDataSchema::try_from(source.clone())
-            .map_err(serde::ser::Error::custom)?;
+        let iota_data =
+            EndOfEpochDataSchema::try_from(source.clone()).map_err(serde::ser::Error::custom)?;
         iota_data.serialize(serializer)
     }
 }
