@@ -14,7 +14,6 @@ use iota_sdk::{
         IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     },
     types::{
-        coin_manager::CoinManagerTreasuryCap,
         dynamic_field::DynamicFieldName,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
@@ -111,16 +110,16 @@ async fn main() -> Result<(), anyhow::Error> {
         .data
         .into_iter()
         .filter(|object| {
-            CoinManagerTreasuryCap::is_coin_manager_treasury_cap(
-                &object
+            StructTag::try_from(
+                object
                     .data
                     .as_ref()
                     .expect("the query should request the data")
                     .object_type()
-                    .expect("should contain the type")
-                    .try_into()
-                    .expect("should convert into a struct tag"),
+                    .expect("should contain the type"),
             )
+            .expect("should convert into a struct tag")
+            .is_coin_manager_treasury_cap()
         })
         .collect::<Vec<_>>();
 
