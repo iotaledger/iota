@@ -1489,10 +1489,8 @@ impl AuthorityState {
             None
         };
         let payload = match gas_vector {
-            Some(vector) => AttestationData::V2 {
-                cpu_time: vector.cpu_time,
-                moved_bytes: vector.moved_bytes,
-                write_bytes: vector.write_bytes,
+            Some(gas_vector) => AttestationData::V2 {
+                gas_vector,
                 object_versions,
             },
             None => AttestationData::V1 {

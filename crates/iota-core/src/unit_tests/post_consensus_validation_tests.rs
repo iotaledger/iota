@@ -20,6 +20,7 @@ use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
+    gas_model::gas_vector::GasVector,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -2860,9 +2861,11 @@ fn make_user_tx_v2_gas_vector(
 ) -> VerifiedSequencedConsensusTransaction {
     let attestation = Attestation::Validator {
         payload: AttestationData::V2 {
-            cpu_time,
-            moved_bytes: 4096,
-            write_bytes: 512,
+            gas_vector: GasVector {
+                cpu_time,
+                moved_bytes: 4096,
+                write_bytes: 512,
+            },
             object_versions: vec![],
         },
         attestor_index,

@@ -9,6 +9,7 @@
 //! integer and checked, and divisions round up.
 
 use iota_protocol_config::{GasVectorCoefficientsV1, ProtocolConfig};
+use serde::{Deserialize, Serialize};
 
 use super::resource_profile::ResourceProfile;
 
@@ -153,8 +154,10 @@ pub fn min_cpu_time_ns(moved_bytes: u64, bandwidth_bytes_per_sec: u64) -> Option
 }
 
 /// The attested triple: predicted execution time in reference-machine
-/// nanoseconds, weighted moved bytes, and write-cost bytes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// nanoseconds, weighted moved bytes, and write-cost bytes. Carried in
+/// `AttestationData::V2`, so changing its fields changes that variant's BCS
+/// encoding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GasVector {
     pub cpu_time: u64,
     pub moved_bytes: u64,
