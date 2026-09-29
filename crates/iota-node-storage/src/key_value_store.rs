@@ -28,6 +28,9 @@ pub type KVStoreCheckpointData = (
 
 /// Immutable key/value store trait for reading transactions, effects, events,
 /// checkpoints and objects, mostly with batched `multi_get*` methods.
+///
+/// Each batched method returns one entry per key, in key order, with `None` for
+/// a missing key.
 #[async_trait]
 pub trait TransactionKeyValueStoreTrait {
     /// Generic multi_get, allows implementors to get heterogenous values with a
