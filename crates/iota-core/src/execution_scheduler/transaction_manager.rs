@@ -97,20 +97,15 @@ impl VerifiedExecutableAttestedTransaction {
     }
 
     /// Returns the attestor's estimated computation units, or `None` if the
-    /// transaction was not attested — or was attested with the gas vector
-    /// (`AttestationData::V2`), whose `cpu_time` is nanoseconds, not units;
-    /// mixing the two in the unit-denominated congestion tracker would be
-    /// meaningless. V2 falls back to the unattested path until admission is
-    /// time-denominated.
+    /// transaction was not attested or was attested with `AttestationData::V2`.
     pub fn attested_computation_units(&self) -> Option<u64> {
         self.attestation
             .as_ref()
             .and_then(|a| a.computation_units())
     }
 
-    /// Returns the attested gas vector's lane-time in reference-hardware
-    /// nanoseconds, or `None` for unattested or V1-attested transactions.
-    /// The consumer is the time-denominated admission check when it lands.
+    /// Returns the attested `cpu_time` in nanoseconds, or `None` if the
+    /// transaction was not attested with `AttestationData::V2`.
     pub fn attested_cpu_time(&self) -> Option<u64> {
         self.attestation
             .as_ref()

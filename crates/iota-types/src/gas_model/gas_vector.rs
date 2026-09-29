@@ -140,10 +140,8 @@ pub fn cpu_time_covers_moved_bytes(
     (moved_bytes as u128) * NS_PER_SEC <= (cpu_time_ns as u128) * (bandwidth_bytes_per_sec as u128)
 }
 
-/// The shortest `cpu_time` a transaction moving `moved_bytes` may declare at
-/// the given bandwidth: `ceil(moved_bytes / bandwidth)` in nanoseconds.
-/// [`cpu_time_covers_moved_bytes`] holds at this value by construction.
-/// `None` when the bandwidth is zero or the floor exceeds `u64`.
+/// The shortest `cpu_time` in nanoseconds that covers `moved_bytes` at the
+/// given bandwidth. `None` if the bandwidth is zero or the result overflows.
 pub fn min_cpu_time_ns(moved_bytes: u64, bandwidth_bytes_per_sec: u64) -> Option<u64> {
     if bandwidth_bytes_per_sec == 0 {
         return None;
@@ -153,10 +151,8 @@ pub fn min_cpu_time_ns(moved_bytes: u64, bandwidth_bytes_per_sec: u64) -> Option
     u64::try_from(floor_ns).ok()
 }
 
-/// The attested triple: predicted execution time in reference-machine
-/// nanoseconds, weighted moved bytes, and write-cost bytes. Carried in
-/// `AttestationData::V2`, so changing its fields changes that variant's BCS
-/// encoding.
+/// Carried in `AttestationData::V2`; changing its fields changes that
+/// variant's BCS encoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GasVector {
     pub cpu_time: u64,
@@ -164,20 +160,11 @@ pub struct GasVector {
     pub write_bytes: u64,
 }
 
-/// The gas vector a dry-run's resource profile declares under `config`'s
-/// constants — the payload of `AttestationData::V2`.
+/// The gas vector for `profile` under `config`. `cpu_time` is raised to
+/// [`min_cpu_time_ns`] when a memory bandwidth is configured.
 ///
-/// `cpu_time` is [`predicted_cpu_time_ns`] raised — when the memory-bandwidth
-/// ceiling is configured — to [`min_cpu_time_ns`]: a declared duration can
-/// never be shorter than the time the memory path needs for the declared
-/// bytes. `write_bytes` is written-object bytes plus event bytes (a
-/// deletion's write-cost equivalent joins when its constant ships).
-///
-/// `None` when the config carries no coefficient table, the table cannot
-/// price the profile, or the arithmetic overflows; the caller then attests
-/// the previous payload version instead. Deterministic: every validator
-/// computing this from the same profile and config gets the same vector,
-/// which is what makes attested-vs-actual divergence checkable.
+/// `None` if the config has no coefficient table, the table cannot price the
+/// profile, or the arithmetic overflows.
 pub fn declared_gas_vector(
     profile: &ResourceProfile,
     config: &ProtocolConfig,
@@ -185,8 +172,7 @@ pub fn declared_gas_vector(
     let table = config.gas_vector_coefficients()?;
     let moved_bytes = self::moved_bytes(profile, table)?;
     let mut cpu_time = predicted_cpu_time_ns(profile, table)?;
-    // A zero bandwidth in the table means no ceiling is calibrated, so the
-    // rate rule is not applied.
+    // Zero bandwidth means no ceiling is configured.
     let bandwidth = table.memory_bandwidth_bytes_per_sec;
     if bandwidth != 0 {
         cpu_time = cpu_time.max(min_cpu_time_ns(moved_bytes, bandwidth)?);
@@ -199,31 +185,19 @@ pub fn declared_gas_vector(
     })
 }
 
-/// The outcome of recomputing the gas vector from a transaction's actual
-/// execution counters and comparing it to the attested one.
-///
-/// Deterministic: the actual counters and the config are identical on every
-/// validator, so every validator reaches the same outcome for the same
-/// commit. Anything other than [`Self::Match`] is evidence about the
-/// attestation — either the attestor mispriced its dry-run, or shared-object
-/// state changed between the dry-run and execution (the attested object
-/// versions adjudicate which) — and never grounds to abort the user's
-/// transaction.
+/// The result of comparing the attested gas vector with the one recomputed
+/// from the actual execution counters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GasVectorComparison {
-    /// Recomputation reproduces the attested vector exactly.
     Match,
-    /// Recomputation succeeded but differs from the attested vector.
-    Divergent { recomputed: GasVector },
-    /// The actual profile cannot be priced by the coefficient table (for
-    /// example, execution reached a native function the table does not
-    /// list), so no vector can be recomputed. The attestor priced *its*
-    /// dry-run, so this too marks a difference between the two runs.
+    Divergent {
+        recomputed: GasVector,
+    },
+    /// The actual profile cannot be priced by the coefficient table.
     Unpriceable,
 }
 
 impl GasVectorComparison {
-    /// Label for the comparison-outcome metric.
     pub fn metric_label(&self) -> &'static str {
         match self {
             Self::Match => "match",
@@ -233,8 +207,8 @@ impl GasVectorComparison {
     }
 }
 
-/// Recomputes the gas vector from `actual_profile` with the same function the
-/// attestor used on its dry-run profile, and compares it to `attested`.
+/// Recomputes the gas vector from `actual_profile` and compares it with
+/// `attested`.
 pub fn compare_attested_gas_vector(
     attested: GasVector,
     actual_profile: &ResourceProfile,
@@ -412,7 +386,6 @@ mod tests {
         let table = table_pricing_instructions_and_one_hash();
         let config = config_with(Some(table.clone()), Some(1_000_000_000));
         let vector = declared_gas_vector(&profile, &config).unwrap();
-        // Prediction dominates the bandwidth floor here (nothing moved).
         assert_eq!(
             Some(vector.cpu_time),
             predicted_cpu_time_ns(&profile, &table)
@@ -423,9 +396,7 @@ mod tests {
 
     #[test]
     fn declared_cpu_time_is_raised_to_the_bandwidth_floor() {
-        // A cheap prediction moving many bytes: 1 MB at 1 GB/s needs 1 ms,
-        // far above the ~38 µs prediction, so the floor wins and the rate
-        // comparison holds by construction.
+        // 1 MB at 1 GB/s needs 1 ms, above the ~38 µs prediction.
         let profile = ResourceProfile {
             interp_instruction_count: 1_000,
             input_object_bytes: 1_000_000,
@@ -445,7 +416,6 @@ mod tests {
             vector.moved_bytes,
             1_000_000_000
         ));
-        // Without the bandwidth constant the floor is dormant.
         let config = config_with(Some(table_pricing_instructions_and_one_hash()), None);
         let raw = declared_gas_vector(&profile, &config).unwrap();
         assert!(raw.cpu_time < vector.cpu_time);
@@ -524,9 +494,6 @@ mod tests {
 
     #[test]
     fn comparison_reports_unpriceable_actual_profiles() {
-        // The actual run reached a native function the table does not list,
-        // so no vector can be recomputed — itself a divergence signal, since
-        // the attestor priced its dry-run.
         let actual_profile = ResourceProfile {
             interp_instruction_count: 1_000,
             native_calls_by_function: BTreeMap::from([(
