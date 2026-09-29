@@ -575,11 +575,11 @@ mod simtests {
             let (item_type, key) = Key::CheckpointSummary(seq).to_path_elements();
             format!("{item_type}/{key}")
         };
-        let mut data = HashMap::new();
-        data.insert(path(seq), bcs::to_bytes(&summary).unwrap());
-        data.insert(path(other_seq), bcs::to_bytes(&summary).unwrap());
-
-        test_server(Arc::new(Mutex::new(data))).await;
+        let data = Arc::new(Mutex::new(HashMap::from([
+            (path(seq), bcs::to_bytes(&summary).unwrap()),
+            (path(other_seq), bcs::to_bytes(&summary).unwrap()),
+        ])));
+        test_server(data.clone()).await;
         let store = HttpKVStore::new(
             "http://10.10.10.10:8080",
             1000,
@@ -596,6 +596,22 @@ mod simtests {
             .map(|summary| summary.as_ref().map(|summary| *summary.digest()))
             .collect::<Vec<_>>();
         assert_eq!(digests, vec![Some(*summary.digest()), None]);
+
+        // Once the server holds the right summary, the rejected entry is read again.
+        let (next, _) = checkpoints.add_random_checkpoint();
+        assert_eq!(next.data().sequence_number, other_seq);
+        data.lock()
+            .unwrap()
+            .insert(path(other_seq), bcs::to_bytes(&next).unwrap());
+        let (summaries, _, _) = store
+            .multi_get_checkpoints(&[other_seq], &[], &[])
+            .await
+            .unwrap();
+        let digests = summaries
+            .iter()
+            .map(|summary| summary.as_ref().map(|summary| *summary.digest()))
+            .collect::<Vec<_>>();
+        assert_eq!(digests, vec![Some(*next.digest())]);
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]
@@ -617,7 +633,7 @@ mod simtests {
             bcs::to_bytes(&cached).unwrap(),
         )])));
         test_server(data.clone()).await;
-        let store = HttpKVStore::new(
+        let store = HttpKVStore::new_kv(
             "http://10.10.10.10:8080",
             1000,
             KeyValueStoreMetrics::new_for_tests(),
@@ -633,6 +649,47 @@ mod simtests {
         assert_eq!(fetch().await, vec![Some(cached)]);
 
         store.evict_objects(&[key]).await;
+        assert_eq!(fetch().await, vec![Some(updated)]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn evicted_events_are_fetched_again() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let digest = TransactionDigest::random();
+        let cached = random_events();
+        let updated = random_events();
+        let (item_type, encoded_key) = Key::EventsByTransactionDigest(digest).to_path_elements();
+        let path = format!("{item_type}/{encoded_key}");
+
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            path.clone(),
+            bcs::to_bytes(&cached).unwrap(),
+        )])));
+        test_server(data.clone()).await;
+        let store = HttpKVStore::new_kv(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let fetch = || async {
+            store
+                .multi_get_events_by_tx_digests(&[digest])
+                .await
+                .unwrap()
+        };
+        assert_eq!(fetch().await, vec![Some(cached.clone())]);
+
+        data.lock()
+            .unwrap()
+            .insert(path, bcs::to_bytes(&updated).unwrap());
+        assert_eq!(fetch().await, vec![Some(cached)]);
+
+        store.evict_events_by_tx_digests(&[digest]).await;
         assert_eq!(fetch().await, vec![Some(updated)]);
     }
 }
