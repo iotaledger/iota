@@ -66,9 +66,10 @@ pub struct NodeConfig {
     /// uses to establish TLS connections.
     #[serde(default = "default_key_pair")]
     pub network_key_pair: KeyPairWithPath,
-    /// The registered attestor signing key. When set, this fullnode attests
-    /// the transactions it submits while the key is active on chain.
-    /// Rejected on a validator.
+    /// The registered attestor signing key. Under P-COOL a fullnode with this
+    /// key attests every transaction it submits and rejects what it cannot
+    /// attest; the certificate-based flow ignores the key. Rejected on a
+    /// validator.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attestor_key_pair: Option<KeyPairWithPath>,
     pub db_path: PathBuf,

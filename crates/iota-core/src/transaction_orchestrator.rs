@@ -240,6 +240,16 @@ where
         let attestor = node_config
             .and_then(NodeConfig::attestor_key_pair)
             .map(|keypair| Arc::new(FullnodeAttestor::new(keypair.clone())));
+        if attestor.is_some() {
+            let epoch_store = validator_state.load_epoch_store_one_call_per_task();
+            if !epoch_store.protocol_config().enable_external_attestation() {
+                warn!(
+                    epoch = epoch_store.epoch(),
+                    "attestor key configured but external attestation is disabled in this \
+                     protocol version: every submission is rejected until it is enabled"
+                );
+            }
+        }
 
         Self {
             quorum_driver,
@@ -934,8 +944,9 @@ where
 
     /// The transaction to drive. Without an attestor key, the transaction as
     /// signed. With one, the transaction with this fullnode's explicit
-    /// attestation: it is never submitted unattested, so an inactive key or a
-    /// failed dry run rejects it back to the client.
+    /// attestation: the transaction-driver flow never submits it unattested,
+    /// so an inactive key or a failed dry run rejects it back to the client.
+    /// The certificate-based flow does not call this and ignores the key.
     async fn attest_if_configured(
         attestor: Option<&FullnodeAttestor>,
         validator_state: &Arc<AuthorityState>,
@@ -948,9 +959,13 @@ where
         let tx_digest = transaction.digest();
         let epoch_store = validator_state.load_epoch_store_one_call_per_task();
         let attestor_address = attestor.active_address(&epoch_store).map_err(|e| {
+            let reason = match e {
+                IotaError::UnsupportedFeature { .. } => "external_attestation_disabled",
+                _ => "key_inactive",
+            };
             metrics
                 .attestation_rejections
-                .with_label_values(&["attestor_inactive"])
+                .with_label_values(&[reason])
                 .inc();
             QuorumDriverError::RejectedByAttestor(e)
         })?;
