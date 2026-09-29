@@ -7,7 +7,11 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_move_types::iota_framework::{
+    deny_list::{AddressKey, ConfigKey, GlobalPauseKey},
+    dynamic_object_field::Wrapper,
+};
+use iota_sdk_types::{Address, Identifier, ObjectId, Version};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
@@ -15,7 +19,7 @@ use crate::{
     IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
     base_types::EpochId,
     config::{Config, Setting},
-    dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
+    dynamic_field::get_dynamic_field_from_store,
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::{ID, UID},
     object::Object,
@@ -42,47 +46,6 @@ pub struct RegulatedCoinMetadata {
 pub struct DenyCapV1 {
     pub id: UID,
     pub allow_global_pause: bool,
-}
-
-/// Rust representation of the Move type 0x2::deny_list::ConfigKey.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct ConfigKey {
-    per_type_index: u64,
-    per_type_key: Vec<u8>,
-}
-
-impl MoveTypeTagTrait for ConfigKey {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(StructTag::new_deny_list_config_key()))
-    }
-}
-
-/// Rust representation of the Move type 0x2::deny_list::AddressKey.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct AddressKey(Address);
-
-impl MoveTypeTagTrait for AddressKey {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(StructTag::new_deny_list_address_key()))
-    }
-}
-
-/// Rust representation of the Move type 0x2::deny_list::GlobalPauseKey.
-/// There is no u8 in the Move definition, however empty structs in Move
-/// are represented as a single byte 0 in the serialized data.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct GlobalPauseKey(bool);
-
-impl GlobalPauseKey {
-    pub fn new() -> Self {
-        Self(false)
-    }
-}
-
-impl MoveTypeTagTrait for GlobalPauseKey {
-    fn get_type_tag() -> TypeTag {
-        TypeTag::Struct(Box::new(StructTag::new_deny_list_global_pause_key()))
-    }
 }
 
 /// Returns `Ok(())` if no input or receiving object's coin type is on a deny
@@ -203,7 +166,7 @@ pub fn get_per_type_coin_deny_list_v1(
     coin_type: &String,
     object_store: &dyn ObjectStore,
 ) -> Option<Config> {
-    let config_key = DOFWrapper {
+    let config_key = Wrapper {
         name: ConfigKey {
             per_type_index: DENY_LIST_COIN_TYPE_INDEX,
             per_type_key: coin_type.as_bytes().to_vec(),
@@ -232,7 +195,7 @@ pub fn check_global_pause(
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
 ) -> bool {
-    let global_pause_key = GlobalPauseKey::new();
+    let global_pause_key = GlobalPauseKey::default();
     read_config_setting(object_store, deny_config, global_pause_key, cur_epoch).unwrap_or(false)
 }
 

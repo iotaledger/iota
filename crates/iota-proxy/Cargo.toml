@@ -40,6 +40,7 @@ tracing.workspace = true
 # internal dependencies
 iota-metrics.workspace = true
 iota-sdk.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-types.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true

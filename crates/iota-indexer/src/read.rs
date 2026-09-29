@@ -36,6 +36,7 @@ use iota_json_rpc_types::{
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, Resolver, error::Error as PackageResolverError,
 };
+use iota_sdk_move_types::iota_framework::vec_map::VecMap;
 use iota_sdk_types::{
     Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEvents, TypeTag,
     Version,
@@ -46,7 +47,6 @@ use iota_types::{
     base_types::VersionNumber,
     coin::TreasuryCap,
     coin_manager::CoinManager,
-    collection_types::VecMap,
     committee::EpochId,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},

@@ -28,12 +28,12 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_move_types::iota_framework::vec_map::VecMap;
 use iota_sdk_types::{
     Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    collection_types::VecMap,
     display::DisplayVersionUpdatedEvent,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
