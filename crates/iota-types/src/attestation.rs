@@ -67,21 +67,9 @@ pub enum AttestationData {
     /// feature flag is on (old nodes cannot decode an unknown variant, so
     /// production and acceptance are gated together).
     V2 {
-        /// Predicted lane-time in reference-hardware nanoseconds: the
-        /// dry-run's resource-profile counters priced by the protocol
-        /// config's calibrated coefficients. Every validator can recompute
-        /// the same value from the same counters, which is what makes
-        /// attested-vs-actual divergence checkable.
-        cpu_time: u64,
-        /// Bytes moved through the shared memory/store path during the
-        /// dry-run, as the weighted sum over the profile's moved-bytes
-        /// counters (reads at their per-operation byte-equivalent, hash
-        /// input at its per-byte weight, plain moved bytes at 1).
-        moved_bytes: u64,
-        /// Write-cost bytes from the dry-run effects (object bytes + event
-        /// bytes + the per-deletion constant). Recorded now; consumed by the
-        /// write budget when it ships.
-        write_bytes: u64,
+        /// The dry-run's resource profile priced by the protocol config's
+        /// gas-vector coefficients.
+        gas_vector: GasVector,
         /// Same role as in `V1`: the misbehavior-detection evidence base.
         object_versions: Vec<ObjectReference>,
     },
@@ -119,42 +107,24 @@ impl Attestation {
 
     /// Attested lane-time in reference-hardware nanoseconds (V2 only).
     pub fn declared_cpu_time(&self) -> Option<u64> {
-        match self.payload() {
-            AttestationData::V1 { .. } => None,
-            AttestationData::V2 { cpu_time, .. } => Some(*cpu_time),
-        }
+        self.declared_gas_vector().map(|v| v.cpu_time)
     }
 
     /// Attested weighted moved bytes (V2 only).
     pub fn declared_moved_bytes(&self) -> Option<u64> {
-        match self.payload() {
-            AttestationData::V1 { .. } => None,
-            AttestationData::V2 { moved_bytes, .. } => Some(*moved_bytes),
-        }
+        self.declared_gas_vector().map(|v| v.moved_bytes)
     }
 
     /// Attested write-cost bytes (V2 only).
     pub fn declared_write_bytes(&self) -> Option<u64> {
-        match self.payload() {
-            AttestationData::V1 { .. } => None,
-            AttestationData::V2 { write_bytes, .. } => Some(*write_bytes),
-        }
+        self.declared_gas_vector().map(|v| v.write_bytes)
     }
 
     /// The full attested gas vector (V2 only).
     pub fn declared_gas_vector(&self) -> Option<GasVector> {
         match self.payload() {
             AttestationData::V1 { .. } => None,
-            AttestationData::V2 {
-                cpu_time,
-                moved_bytes,
-                write_bytes,
-                ..
-            } => Some(GasVector {
-                cpu_time: *cpu_time,
-                moved_bytes: *moved_bytes,
-                write_bytes: *write_bytes,
-            }),
+            AttestationData::V2 { gas_vector, .. } => Some(*gas_vector),
         }
     }
 
@@ -202,9 +172,11 @@ mod tests {
 
     fn make_attestation_data_v2() -> AttestationData {
         AttestationData::V2 {
-            cpu_time: 1_500_000,
-            moved_bytes: 64 * 1024,
-            write_bytes: 2_048,
+            gas_vector: GasVector {
+                cpu_time: 1_500_000,
+                moved_bytes: 64 * 1024,
+                write_bytes: 2_048,
+            },
             object_versions: vec![random_object_ref()],
         }
     }
@@ -250,6 +222,25 @@ mod tests {
         assert_eq!(encoded[0], 0, "V1 must keep BCS variant index 0");
         let v2 = make_attestation_data_v2();
         assert_eq!(bcs::to_bytes(&v2).unwrap()[0], 1, "V2 is variant index 1");
+    }
+
+    #[test]
+    fn v2_gas_vector_encodes_as_three_u64s_after_the_variant_index() {
+        let data = AttestationData::V2 {
+            gas_vector: GasVector {
+                cpu_time: 1,
+                moved_bytes: 2,
+                write_bytes: 3,
+            },
+            object_versions: vec![],
+        };
+        let mut expected = vec![1];
+        for field in [1u64, 2, 3] {
+            expected.extend_from_slice(&field.to_le_bytes());
+        }
+        // Length prefix of the empty `object_versions`.
+        expected.push(0);
+        assert_eq!(bcs::to_bytes(&data).unwrap(), expected);
     }
 
     #[test]

@@ -68,7 +68,7 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     gas::check_gas_bounds,
-    gas_model::gas_vector::cpu_time_covers_moved_bytes,
+    gas_model::gas_vector::{GasVector, cpu_time_covers_moved_bytes},
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction,
     },
@@ -313,8 +313,12 @@ pub async fn validate_and_resolve_conflicts(
                     }
                 }
                 AttestationData::V2 {
-                    cpu_time,
-                    moved_bytes,
+                    gas_vector:
+                        GasVector {
+                            cpu_time,
+                            moved_bytes,
+                            ..
+                        },
                     ..
                 } => {
                     if !protocol_config.attestation_gas_vector() {
