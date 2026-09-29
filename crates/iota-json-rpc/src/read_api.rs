@@ -1379,7 +1379,8 @@ async fn convert_to_response<S: PackageStore>(
     if opts.show_effects {
         if let Some(effects) = cache.effects {
             let effects =
-                IotaTransactionBlockEffects::from_native_with_clever_error(effects, resolver).await;
+                IotaTransactionBlockEffects::from_native_with_clever_error(effects, resolver)
+                    .await?;
             response.effects = Some(effects);
         }
     }

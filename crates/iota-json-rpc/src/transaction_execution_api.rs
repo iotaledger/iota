@@ -294,7 +294,7 @@ impl TransactionExecutionApi {
                     response.effects.effects,
                     &resolver,
                 )
-                .await,
+                .await?,
             )
         } else {
             None
@@ -455,7 +455,7 @@ impl TransactionExecutionApi {
             simulation.effects,
             &resolver,
         )
-        .await;
+        .await?;
 
         Ok(DryRunTransactionBlockResponse {
             effects,
