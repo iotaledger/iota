@@ -240,6 +240,11 @@ pub struct AccountKeyLink {
     /// was attached to some other object, which may not be usable as an
     /// account at all.
     pub smart_account: bool,
+    /// The kind of the account's current authenticator. A built-in one means
+    /// the IOTA wallet can authenticate the account with this key; `custom`
+    /// means it cannot. `null` when the address is not a framework
+    /// `SmartAccount`.
+    pub authenticator: Option<AccountAuthenticatorKind>,
     /// The signature scheme flag of the key, as recorded on chain. Not resolved
     /// to a named scheme: a link stays indexable under a flag this build does
     /// not recognize.
@@ -248,6 +253,20 @@ pub struct AccountKeyLink {
     #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
     pub last_change_epoch: EpochId,
+}
+
+/// The authenticator of an account in an [`AccountKeyLink`]: one of the
+/// built-in authenticators, or a custom one.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountAuthenticatorKind {
+    Ed25519,
+    Secp256k1,
+    Secp256r1,
+    Multisig,
+    Passkey,
+    /// Any authenticator other than the built-in ones.
+    Custom,
 }
 
 /// Whether an [`AccountKeyLink`] is current.

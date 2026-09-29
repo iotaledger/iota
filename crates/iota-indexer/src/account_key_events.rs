@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Rust mirrors of the account-discoverability Move events, and the fold that
-//! turns them into `account_key_links` and `smart_accounts` rows.
+//! turns them into `account_key_links`, `smart_accounts` and
+//! `account_authenticators` rows.
 //!
 //! These types mirror BCS layouts frozen in the iota-framework
 //! (`builtin_authenticator_functions.move`, `smart_account.move`). Once the
@@ -14,19 +15,51 @@
 //! decode yields nothing — this build predates a framework change and cannot
 //! interpret it. There is no other failure path.
 
-use iota_sdk_types::{Address, Event, ObjectId};
+use iota_sdk_types::{Address, Event, ObjectId, TypeTag};
 use iota_types::account_abstraction::public_key::MovePublicKey;
 use serde::Deserialize;
 
-use crate::models::smart_accounts::StoredSmartAccount;
+use crate::models::{
+    account_authenticators::StoredAccountAuthenticator, smart_accounts::StoredSmartAccount,
+};
 
+const ACCOUNT_MODULE: &str = "account";
 const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE: &str = "builtin_authenticator_functions";
 const SMART_ACCOUNT_MODULE: &str = "smart_account";
+const SMART_ACCOUNT_STRUCT: &str = "SmartAccount";
 
 const PUBLIC_KEY_ATTACHED: &str = "PublicKeyAttached";
 const PUBLIC_KEY_DETACHED: &str = "PublicKeyDetached";
 const PUBLIC_KEY_ROTATED: &str = "PublicKeyRotated";
 const SMART_ACCOUNT_CREATED: &str = "SmartAccountCreated";
+const MUTABLE_ACCOUNT_CREATED: &str = "MutableAccountCreated";
+const IMMUTABLE_ACCOUNT_CREATED: &str = "ImmutableAccountCreated";
+const AUTHENTICATOR_ROTATED: &str = "AuthenticatorFunctionRefV1Rotated";
+
+/// The built-in authenticators, as named by the `*_AUTHENTICATOR_FUN_NAME_V1`
+/// constants in `builtin_authenticator_functions.move`.
+const BUILTIN_AUTHENTICATORS: [(&str, AuthenticatorKind); 5] = [
+    (
+        "ed25519_authenticator_function_ref_v1",
+        AuthenticatorKind::Ed25519,
+    ),
+    (
+        "secp256k1_authenticator_function_ref_v1",
+        AuthenticatorKind::Secp256k1,
+    ),
+    (
+        "secp256r1_authenticator_function_ref_v1",
+        AuthenticatorKind::Secp256r1,
+    ),
+    (
+        "multisig_authenticator_function_ref_v1",
+        AuthenticatorKind::Multisig,
+    ),
+    (
+        "passkey_authenticator_function_ref_v1",
+        AuthenticatorKind::Passkey,
+    ),
+];
 
 /// Mirror of `iota::builtin_authenticator_functions::PublicKeyAttached`.
 #[derive(Debug, Clone, Deserialize)]
@@ -60,6 +93,74 @@ pub struct SmartAccountCreatedEvent {
     pub account_id: ObjectId,
     pub public_key: Option<MovePublicKey>,
     pub immutable: bool,
+}
+
+/// Mirror of `iota::authenticator_function::AuthenticatorFunctionRefV1`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AuthenticatorFunctionRefV1Event {
+    pub package: ObjectId,
+    pub module_name: String,
+    pub function_name: String,
+}
+
+/// Mirror of `iota::account::MutableAccountCreated` and
+/// `iota::account::ImmutableAccountCreated`, which share this layout.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AccountCreatedEvent {
+    pub account_id: ObjectId,
+    pub authenticator: AuthenticatorFunctionRefV1Event,
+}
+
+/// Mirror of `iota::account::AuthenticatorFunctionRefV1Rotated`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AuthenticatorRotatedEvent {
+    pub account_id: ObjectId,
+    pub from: AuthenticatorFunctionRefV1Event,
+    pub to: AuthenticatorFunctionRefV1Event,
+}
+
+/// The authenticator of an account: one of the five built-in ones, which the
+/// IOTA wallet can drive, or a custom one.
+///
+/// Discriminants are persisted in the `kind` column: never renumber them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthenticatorKind {
+    Ed25519 = 1,
+    Secp256k1 = 2,
+    Secp256r1 = 3,
+    Multisig = 4,
+    Passkey = 5,
+    Custom = 6,
+}
+
+impl AuthenticatorKind {
+    /// The variant a persisted `kind` value stands for, or `None` if it was
+    /// written by a build that knows a kind this one does not.
+    pub fn from_stored(value: i16) -> Option<Self> {
+        match value {
+            1 => Some(Self::Ed25519),
+            2 => Some(Self::Secp256k1),
+            3 => Some(Self::Secp256r1),
+            4 => Some(Self::Multisig),
+            5 => Some(Self::Passkey),
+            6 => Some(Self::Custom),
+            _ => None,
+        }
+    }
+
+    /// Classifies `authenticator` by comparing its location with the built-in
+    /// authenticators; anything else is `Custom`.
+    pub fn of(authenticator: &AuthenticatorFunctionRefV1Event) -> Self {
+        let is_builtin_module = Address::from(authenticator.package) == Address::FRAMEWORK
+            && authenticator.module_name == BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE;
+        if !is_builtin_module {
+            return Self::Custom;
+        }
+        BUILTIN_AUTHENTICATORS
+            .iter()
+            .find(|(name, _)| *name == authenticator.function_name)
+            .map_or(Self::Custom, |(_, kind)| *kind)
+    }
 }
 
 /// Whether a fold step establishes a link or tombstones one.
@@ -132,6 +233,22 @@ fn is_framework_event(event: &Event, module: &str, name: &str) -> bool {
     event.struct_tag.address() == Address::FRAMEWORK
         && event.struct_tag.module().as_str() == module
         && event.struct_tag.name().as_str() == name
+}
+
+/// Whether `event`'s type is
+/// `0x2::account::<name><0x2::smart_account::SmartAccount>`.
+///
+/// The `iota::account` events are generic over the account type; only those
+/// about framework `SmartAccount`s are indexed.
+fn is_smart_account_lifecycle_event(event: &Event, name: &str) -> bool {
+    let [TypeTag::Struct(account_type)] = event.struct_tag.type_params() else {
+        return false;
+    };
+    is_framework_event(event, ACCOUNT_MODULE, name)
+        && account_type.address() == Address::FRAMEWORK
+        && account_type.module().as_str() == SMART_ACCOUNT_MODULE
+        && account_type.name().as_str() == SMART_ACCOUNT_STRUCT
+        && account_type.type_params().is_empty()
 }
 
 /// Decodes `event` into the link operations it contributes, in the order they
@@ -230,9 +347,36 @@ pub fn smart_account_row(
     })
 }
 
+/// The `account_authenticators` row `event` contributes: the authenticator a
+/// `SmartAccount` is created with, or the one it rotates to.
+pub fn account_authenticator_row(
+    event: &Event,
+    tx_sequence_number: u64,
+    epoch: u64,
+) -> Option<StoredAccountAuthenticator> {
+    let (account_id, authenticator) =
+        if is_smart_account_lifecycle_event(event, MUTABLE_ACCOUNT_CREATED)
+            || is_smart_account_lifecycle_event(event, IMMUTABLE_ACCOUNT_CREATED)
+        {
+            let created = bcs::from_bytes::<AccountCreatedEvent>(&event.contents).ok()?;
+            (created.account_id, created.authenticator)
+        } else if is_smart_account_lifecycle_event(event, AUTHENTICATOR_ROTATED) {
+            let rotated = bcs::from_bytes::<AuthenticatorRotatedEvent>(&event.contents).ok()?;
+            (rotated.account_id, rotated.to)
+        } else {
+            return None;
+        };
+    Some(StoredAccountAuthenticator {
+        account_id: account_id.as_bytes().to_vec(),
+        kind: AuthenticatorKind::of(&authenticator) as i16,
+        last_change_tx_sequence_number: tx_sequence_number as i64,
+        last_change_epoch: epoch as i64,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, SignatureScheme, StructTag};
+    use iota_sdk_types::{Identifier, SignatureScheme, StructTag, TypeTag};
 
     use super::*;
 
@@ -409,6 +553,149 @@ mod tests {
         assert_eq!(ops[0].scheme, unknown_flag);
     }
 
+    // === Authenticator kind ===
+
+    #[test]
+    fn authenticator_kind_discriminants_round_trip() {
+        // Persisted, so pinned against a renumbering.
+        for kind in [
+            AuthenticatorKind::Ed25519,
+            AuthenticatorKind::Secp256k1,
+            AuthenticatorKind::Secp256r1,
+            AuthenticatorKind::Multisig,
+            AuthenticatorKind::Passkey,
+            AuthenticatorKind::Custom,
+        ] {
+            assert_eq!(AuthenticatorKind::from_stored(kind as i16), Some(kind));
+        }
+        assert_eq!(AuthenticatorKind::from_stored(0), None);
+        assert_eq!(AuthenticatorKind::from_stored(7), None);
+    }
+
+    #[test]
+    fn each_builtin_authenticator_has_its_own_kind() {
+        for (function, kind) in [
+            (
+                "ed25519_authenticator_function_ref_v1",
+                AuthenticatorKind::Ed25519,
+            ),
+            (
+                "secp256k1_authenticator_function_ref_v1",
+                AuthenticatorKind::Secp256k1,
+            ),
+            (
+                "secp256r1_authenticator_function_ref_v1",
+                AuthenticatorKind::Secp256r1,
+            ),
+            (
+                "multisig_authenticator_function_ref_v1",
+                AuthenticatorKind::Multisig,
+            ),
+            (
+                "passkey_authenticator_function_ref_v1",
+                AuthenticatorKind::Passkey,
+            ),
+        ] {
+            assert_eq!(
+                AuthenticatorKind::of(&authenticator(
+                    Address::FRAMEWORK,
+                    BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE,
+                    function
+                )),
+                kind
+            );
+        }
+    }
+
+    #[test]
+    fn anything_but_a_builtin_authenticator_is_custom() {
+        let builtin_function = "ed25519_authenticator_function_ref_v1";
+        for custom in [
+            // Right module and function, another package.
+            authenticator(
+                Address::new([0x99; 32]),
+                BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE,
+                builtin_function,
+            ),
+            // Framework package, another module.
+            authenticator(Address::FRAMEWORK, "my_module", builtin_function),
+            // Built-in module, a function that is not one of the five.
+            authenticator(
+                Address::FRAMEWORK,
+                BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE,
+                "authenticate",
+            ),
+        ] {
+            assert_eq!(AuthenticatorKind::of(&custom), AuthenticatorKind::Custom);
+        }
+    }
+
+    #[test]
+    fn account_creation_records_the_authenticator_kind() {
+        for name in [MUTABLE_ACCOUNT_CREATED, IMMUTABLE_ACCOUNT_CREATED] {
+            let row = account_authenticator_row(
+                &account_created_event(name, ed25519_authenticator()),
+                9,
+                4,
+            )
+            .unwrap();
+            assert_eq!(row.account_id, ACCOUNT.to_vec());
+            assert_eq!(row.kind, AuthenticatorKind::Ed25519 as i16);
+            assert_eq!(row.last_change_tx_sequence_number, 9);
+            assert_eq!(row.last_change_epoch, 4);
+        }
+    }
+
+    #[test]
+    fn an_authenticator_rotation_records_the_new_kind() {
+        let custom = authenticator(Address::new([0x99; 32]), "my_module", "authenticate");
+        let row = account_authenticator_row(
+            &authenticator_rotated_event(ed25519_authenticator(), custom),
+            9,
+            4,
+        )
+        .unwrap();
+        assert_eq!(row.kind, AuthenticatorKind::Custom as i16);
+    }
+
+    #[test]
+    fn lifecycle_events_of_other_account_types_are_ignored() {
+        let mut event = account_created_event(MUTABLE_ACCOUNT_CREATED, ed25519_authenticator());
+        event.struct_tag = StructTag::new(
+            Address::FRAMEWORK,
+            Identifier::new(ACCOUNT_MODULE).unwrap(),
+            Identifier::new(MUTABLE_ACCOUNT_CREATED).unwrap(),
+            vec![TypeTag::Struct(Box::new(StructTag::new(
+                Address::new([0x99; 32]),
+                Identifier::new("my_account").unwrap(),
+                Identifier::new("MyAccount").unwrap(),
+                Vec::new(),
+            )))],
+        );
+        assert!(account_authenticator_row(&event, 1, 1).is_none());
+
+        event.struct_tag = framework_struct_tag(ACCOUNT_MODULE, MUTABLE_ACCOUNT_CREATED);
+        assert!(
+            account_authenticator_row(&event, 1, 1).is_none(),
+            "a lifecycle event without its type parameter is not one the framework emits"
+        );
+    }
+
+    #[test]
+    fn only_lifecycle_events_write_an_authenticator_row() {
+        assert!(account_authenticator_row(&attached_event(), 1, 1).is_none());
+        assert!(
+            account_authenticator_row(&created_event(Some(&ed25519_raw()), false), 1, 1).is_none()
+        );
+    }
+
+    #[test]
+    fn an_authenticator_payload_this_build_cannot_decode_yields_nothing() {
+        let mut event = account_created_event(MUTABLE_ACCOUNT_CREATED, ed25519_authenticator());
+        event.contents.truncate(40);
+        assert!(account_authenticator_row(&event, 1, 1).is_none());
+    }
+
     // === Helpers ===
 
     fn ed25519_raw() -> Vec<u8> {
@@ -433,6 +720,68 @@ mod tests {
             Identifier::new(name).unwrap(),
             Vec::new(),
         )
+    }
+
+    fn authenticator(
+        package: Address,
+        module_name: &str,
+        function_name: &str,
+    ) -> AuthenticatorFunctionRefV1Event {
+        AuthenticatorFunctionRefV1Event {
+            package: package.into(),
+            module_name: module_name.to_owned(),
+            function_name: function_name.to_owned(),
+        }
+    }
+
+    fn ed25519_authenticator() -> AuthenticatorFunctionRefV1Event {
+        authenticator(
+            Address::FRAMEWORK,
+            BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE,
+            "ed25519_authenticator_function_ref_v1",
+        )
+    }
+
+    /// The Move `AuthenticatorFunctionRefV1` wire layout: a 32-byte package id,
+    /// then the module and function names as BCS strings.
+    fn authenticator_bcs(authenticator: &AuthenticatorFunctionRefV1Event) -> Vec<u8> {
+        let mut bytes = Address::from(authenticator.package).as_bytes().to_vec();
+        bytes.extend(bcs::to_bytes(&authenticator.module_name).unwrap());
+        bytes.extend(bcs::to_bytes(&authenticator.function_name).unwrap());
+        bytes
+    }
+
+    /// `0x2::account::<name><0x2::smart_account::SmartAccount>`.
+    fn smart_account_lifecycle_struct_tag(name: &str) -> StructTag {
+        StructTag::new(
+            Address::FRAMEWORK,
+            Identifier::new(ACCOUNT_MODULE).unwrap(),
+            Identifier::new(name).unwrap(),
+            vec![TypeTag::Struct(Box::new(framework_struct_tag(
+                SMART_ACCOUNT_MODULE,
+                SMART_ACCOUNT_STRUCT,
+            )))],
+        )
+    }
+
+    fn account_created_event(name: &str, authenticator: AuthenticatorFunctionRefV1Event) -> Event {
+        let mut contents = ACCOUNT.to_vec();
+        contents.extend(authenticator_bcs(&authenticator));
+        let mut event = framework_event(ACCOUNT_MODULE, name, contents);
+        event.struct_tag = smart_account_lifecycle_struct_tag(name);
+        event
+    }
+
+    fn authenticator_rotated_event(
+        from: AuthenticatorFunctionRefV1Event,
+        to: AuthenticatorFunctionRefV1Event,
+    ) -> Event {
+        let mut contents = ACCOUNT.to_vec();
+        contents.extend(authenticator_bcs(&from));
+        contents.extend(authenticator_bcs(&to));
+        let mut event = framework_event(ACCOUNT_MODULE, AUTHENTICATOR_ROTATED, contents);
+        event.struct_tag = smart_account_lifecycle_struct_tag(AUTHENTICATOR_ROTATED);
+        event
     }
 
     fn framework_event(module: &str, name: &str, contents: Vec<u8>) -> Event {

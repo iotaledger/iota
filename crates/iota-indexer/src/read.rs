@@ -71,6 +71,7 @@ use crate::{
     historical_fallback::reader::HistoricalFallbackReader,
     ingestion::common::persist::CommitterTables,
     models::{
+        account_authenticators::StoredAccountAuthenticator,
         account_key_links::{LINK_STATUS_ACTIVE, StoredAccountKeyLink},
         address_metrics::StoredAddressMetrics,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint},
@@ -92,9 +93,9 @@ use crate::{
     },
     pruning::watermark_task::WatermarkCache,
     schema::{
-        account_key_links, address_metrics, addresses, chain_identifier, checkpoints, display,
-        epochs, events, objects, objects_version, optimistic_transactions, packages,
-        pruner_cp_watermark, smart_accounts, transactions, tx_global_order,
+        account_authenticators, account_key_links, address_metrics, addresses, chain_identifier,
+        checkpoints, display, epochs, events, objects, objects_version, optimistic_transactions,
+        packages, pruner_cp_watermark, smart_accounts, transactions, tx_global_order,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -119,6 +120,14 @@ pub enum InputObjectsStatus {
 ///
 /// Provides a set of methods to perform read operations,
 /// including resolution of packages.
+/// One key link, with the `smart_accounts` and `account_authenticators` rows of
+/// its account if it has them.
+pub type AccountKeyLinkRow = (
+    StoredAccountKeyLink,
+    Option<StoredSmartAccount>,
+    Option<StoredAccountAuthenticator>,
+);
+
 #[derive(Clone)]
 pub struct IndexerReader {
     pool: ConnectionPool,
@@ -399,23 +408,28 @@ impl IndexerReader {
         Ok(Some(object))
     }
 
-    /// The accounts `key_id` controls, newest change first, each paired with
-    /// its claim record if it has one.
+    /// The accounts `key_id` controls, newest change first, each with its
+    /// `smart_accounts` and `account_authenticators` rows if it has them.
     fn get_accounts_by_key_id(
         &self,
         key_id: Vec<u8>,
         include_unlinked: bool,
-    ) -> Result<Vec<(StoredAccountKeyLink, Option<StoredSmartAccount>)>, IndexerError> {
+    ) -> Result<Vec<AccountKeyLinkRow>, IndexerError> {
         run_query!(&self.pool, |conn| {
             let mut query = account_key_links::table
                 .left_join(
                     smart_accounts::table
                         .on(smart_accounts::account_id.eq(account_key_links::account_id)),
                 )
+                .left_join(
+                    account_authenticators::table
+                        .on(account_authenticators::account_id.eq(account_key_links::account_id)),
+                )
                 .filter(account_key_links::key_id.eq(key_id.clone()))
                 .select((
                     StoredAccountKeyLink::as_select(),
                     Option::<StoredSmartAccount>::as_select(),
+                    Option::<StoredAccountAuthenticator>::as_select(),
                 ))
                 .order(account_key_links::last_change_tx_sequence_number.desc())
                 .into_boxed();
@@ -430,7 +444,7 @@ impl IndexerReader {
         &self,
         key_id: Vec<u8>,
         include_unlinked: bool,
-    ) -> Result<Vec<(StoredAccountKeyLink, Option<StoredSmartAccount>)>, IndexerError> {
+    ) -> Result<Vec<AccountKeyLinkRow>, IndexerError> {
         self.spawn_blocking(move |this| this.get_accounts_by_key_id(key_id, include_unlinked))
             .await
     }

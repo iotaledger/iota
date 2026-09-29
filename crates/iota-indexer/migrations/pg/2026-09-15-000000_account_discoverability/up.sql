@@ -25,3 +25,15 @@ CREATE TABLE smart_accounts (
     created_tx_sequence_number  BIGINT   NOT NULL,
     created_epoch               BIGINT   NOT NULL
 );
+
+-- The current authenticator kind of every framework SmartAccount, with or
+-- without a built-in key: 1 ed25519, 2 secp256k1, 3 secp256r1, 4 multisig,
+-- 5 passkey (the built-in authenticators), 6 custom. Written from the
+-- iota::account creation and authenticator-rotation events. Not prunable, for
+-- the same reason as account_key_links.
+CREATE TABLE account_authenticators (
+    account_id                      BYTEA    NOT NULL PRIMARY KEY,
+    kind                            SMALLINT NOT NULL,
+    last_change_tx_sequence_number  BIGINT   NOT NULL,
+    last_change_epoch               BIGINT   NOT NULL
+);

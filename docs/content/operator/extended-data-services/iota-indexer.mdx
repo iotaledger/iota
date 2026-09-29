@@ -241,7 +241,7 @@ Tables not listed here are never pruned by the indexer.
 
 Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
 
-`account_key_links` and `smart_accounts` are also never pruned, for a different reason: see [Account discoverability index](#account-discoverability-index).
+`account_key_links`, `smart_accounts` and `account_authenticators` are also never pruned, for a different reason: see [Account discoverability index](#account-discoverability-index).
 
 ## Account discoverability index
 
@@ -265,7 +265,7 @@ The framework does not compute `key_id`, and no event carries it. An indexer com
 
 ### Events consumed
 
-The three `PublicKey*` events establish and remove links. `SmartAccountCreated` records the account itself.
+The three `PublicKey*` events establish and remove links. `SmartAccountCreated` records the account itself, and the `iota::account` lifecycle events record its authenticator.
 
 | Event | Module | Fields |
 | --- | --- | --- |
@@ -273,10 +273,12 @@ The three `PublicKey*` events establish and remove links. `SmartAccountCreated` 
 | `PublicKeyDetached` | `iota::builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` |
 | `PublicKeyRotated` | `iota::builtin_authenticator_functions` | `account_id: ID, from: PublicKey, to: PublicKey` |
 | `SmartAccountCreated` | `iota::smart_account` | `account_id: ID, public_key: Option<PublicKey>, immutable: bool` |
+| `MutableAccountCreated<SmartAccount>`, `ImmutableAccountCreated<SmartAccount>` | `iota::account` | `account_id: ID, authenticator: AuthenticatorFunctionRefV1` |
+| `AuthenticatorFunctionRefV1Rotated<SmartAccount>` | `iota::account` | `account_id: ID, from: AuthenticatorFunctionRefV1, to: AuthenticatorFunctionRefV1` |
 
-The `iota::account` lifecycle events (`MutableAccountCreated`, `ImmutableAccountCreated`, `AuthenticatorFunctionRefV1Rotated`) carry no key material and are not consumed.
+The `iota::account` events are generic over the account type. Only those whose type parameter is `0x2::smart_account::SmartAccount` are consumed.
 
-Note that the events live in two modules, so a client subscribing over `iota_subscribeEvent` needs two `MoveEventModule` filters — `builtin_authenticator_functions` and `smart_account` — or one broader filter.
+Note that the events live in three modules, so a client subscribing over `iota_subscribeEvent` needs three `MoveEventModule` filters — `builtin_authenticator_functions`, `smart_account` and `account` — or one broader filter.
 
 ### Fold semantics
 
@@ -288,14 +290,16 @@ The index is a left-fold of those events in total order `(checkpoint, transactio
 | `PublicKeyRotated(account, from, to)` | tombstone `(key_id(from), account)`, **then** link `(key_id(to), account)`, source `rotate` |
 | `PublicKeyDetached(account, pk)` | tombstone `(key_id(pk), account)`, source `detach` |
 | `SmartAccountCreated(account, _, immutable)` | a `smart_accounts` row; no link |
+| `{Mutable,Immutable}AccountCreated<SmartAccount>(account, authenticator)` | the `account_authenticators` row of `account`, with the kind of `authenticator` |
+| `AuthenticatorFunctionRefV1Rotated<SmartAccount>(account, _, to)` | the `account_authenticators` row of `account`, with the kind of `to` |
 
-Within a rotation the tombstone precedes the link, so rotating a key onto itself leaves the link active. A batch collapses last-write-wins per `(key_id, account_id)`.
+Within a rotation the tombstone precedes the link, so rotating a key onto itself leaves the link active. A batch collapses last-write-wins per `(key_id, account_id)` for links, and per account for the two per-account tables.
 
 `SmartAccountCreated` never creates a link, even when it carries a key: the key of a new account is announced by the `PublicKeyAttached` of the same transaction, and the link comes from that.
 
-The fold is total: no address is derived anywhere, and an event whose type matches but whose payload does not decode contributes nothing — that is an indexer build older than the framework it is reading, not an error. Re-ingesting a checkpoint rewrites identical values, and both upserts are guarded on the transaction sequence number, so a replayed or out-of-order write cannot move a row backwards.
+The fold is total: no address is derived anywhere, and an event whose type matches but whose payload does not decode contributes nothing — that is an indexer build older than the framework it is reading, not an error. Re-ingesting a checkpoint rewrites identical values, and every upsert is guarded on the transaction sequence number, so a replayed or out-of-order write cannot move a row backwards.
 
-After the first public-network activation the four event structs are additive-only: new event types may be added, existing fields never change.
+After the first public-network activation the consumed event structs are additive-only: new event types may be added, existing fields never change.
 
 ### Smart accounts
 
@@ -304,6 +308,15 @@ After the first public-network activation the four event structs are additive-on
 A link to an address with no `smart_accounts` row is not a framework `SmartAccount`. `attach_public_key` is public over any object's `UID`, so a package can attach a key to its own account type, which is a real account, or to an object that cannot act as an account at all. Treat `smartAccount = false` results with care, and verify on chain when it matters.
 
 A link does not mean the key holder created the account. Anyone can create a `SmartAccount` whose built-in key is someone else's public key; only the key holder can then use it, but it appears in that key's results.
+
+### Authenticator kind
+
+`account_authenticators` records the current authenticator of every `SmartAccount`, with or without a key, and the RPC reports it as `authenticator` on each result. An account's authenticator is one of:
+
+- **Built-in**: `ed25519`, `secp256k1`, `secp256r1`, `multisig` or `passkey`. This means the authenticator is one of the five `*_authenticator_function_ref_v1` functions of `0x2::builtin_authenticator_functions`. The IOTA wallet can authenticate such an account with its key.
+- **Custom**: any other authenticator. The account is still found by its key, but the IOTA wallet cannot authenticate it.
+
+The kind is decided by comparing the authenticator's package, module and function names with those five; nothing is parsed or resolved. Accounts without a key are recorded too, so that when a key is attached later the kind is already known: `PublicKeyAttached` does not carry it. `authenticator` is `null` for an address that is not a framework `SmartAccount`.
 
 ### Retention and bootstrapping
 

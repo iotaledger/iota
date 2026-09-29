@@ -4,6 +4,15 @@
 // @generated automatically by scripts/indexer-schema/generate.sh
 
 diesel::table! {
+    account_authenticators (account_id) {
+        account_id -> Bytea,
+        kind -> Int2,
+        last_change_tx_sequence_number -> Int8,
+        last_change_epoch -> Int8,
+    }
+}
+
+diesel::table! {
     account_key_links (key_id, account_id) {
         key_id -> Bytea,
         account_id -> Bytea,
@@ -476,6 +485,7 @@ diesel::table! {
 macro_rules! for_all_tables {
     ($action:path) => {
         $action!(
+            account_authenticators,
             account_key_links,
             active_addresses,
             address_metrics,

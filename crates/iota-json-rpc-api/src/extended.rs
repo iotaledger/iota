@@ -53,7 +53,12 @@ pub trait ExtendedApi {
 
     /// Return the accounts controlled by the given public key, folded from the
     /// on-chain account-discoverability event stream (`PublicKeyAttached`,
-    /// `PublicKeyRotated`, `PublicKeyDetached`, `SmartAccountCreated`).
+    /// `PublicKeyRotated`, `PublicKeyDetached`, `SmartAccountCreated`, and the
+    /// `iota::account` creation and authenticator-rotation events).
+    ///
+    /// Each result says which authenticator the account has: with a built-in
+    /// one the IOTA wallet can authenticate the account using this key, with a
+    /// `custom` one it cannot.
     ///
     /// Results are not authenticated by this call: anyone can create an account
     /// with someone else's public key, or attach a key to an object that is not
