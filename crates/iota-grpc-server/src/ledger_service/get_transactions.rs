@@ -63,8 +63,8 @@ pub(crate) fn validate_get_transaction_requests(
 /// Data the node has pruned is read from the configured key-value store. A
 /// store read that returns an error or times out gives that transaction an
 /// `UNAVAILABLE` error, except the checkpoint lookup, which counts as a miss;
-/// once the request's store reads have taken 30 s in total, every further store
-/// read is `UNAVAILABLE`. Data that does not match the effects gives
+/// once the store reads of the request have taken 30 s in total, every further
+/// store read is `UNAVAILABLE`. Data that does not match the effects gives
 /// `INTERNAL`.
 ///
 /// The `get_transactions` function supports the following `read_mask` fields to
@@ -160,14 +160,14 @@ pub(crate) fn get_transactions(
 
     let (digests, read_mask) = validate_get_transaction_requests(requests, read_mask)?;
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
-    let store_deadline = tokio::time::Instant::now() + crate::types::STORE_READ_BUDGET;
+    let store_budget = crate::types::StoreReadBudget::default();
 
     Ok(crate::create_batching_stream!(
         digests.into_iter(),
         digest,
         {
             let tx_result =
-                match get_transaction_impl(&reader, &config, digest, &read_mask, store_deadline)
+                match get_transaction_impl(&reader, &config, digest, &read_mask, &store_budget)
                     .await
                 {
                     Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
@@ -192,14 +192,14 @@ async fn get_transaction_impl(
     config: &iota_config::node::GrpcApiConfig,
     digest: TransactionDigest,
     read_mask: &FieldMaskTree,
-    store_deadline: tokio::time::Instant,
+    store_budget: &crate::types::StoreReadBudget,
 ) -> Result<ExecutedTransaction, RpcError> {
     // Derive which optional fields to fetch based on the read_mask
     let fields = TransactionReadFields::from_mask(read_mask);
 
     // Get transaction data from storage, skipping unrequested fields
     let tx_read = reader
-        .get_transaction_read(&digest, &fields, store_deadline)
+        .get_transaction_read(&digest, &fields, store_budget)
         .await?;
 
     // Create a source for the merge
