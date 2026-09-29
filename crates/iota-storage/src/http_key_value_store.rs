@@ -466,24 +466,18 @@ fn rejected_keys<'a, K: Copy, T>(
         .map(|((_, key), _)| *key)
 }
 
-fn deser_check_digest<T, D>(
-    digest: &D,
-    bytes: &Bytes,
-    get_expected_digest: impl FnOnce(&T) -> D,
-) -> Option<T>
+/// Decodes `bytes` and keeps the value only if `key_of` gives back `key`.
+fn deser_check_key<T, K>(key: &K, bytes: &Bytes, key_of: impl FnOnce(&T) -> K) -> Option<T>
 where
-    D: std::fmt::Debug + PartialEq,
+    K: std::fmt::Debug + PartialEq,
     T: for<'de> Deserialize<'de>,
 {
-    deser(digest, bytes).and_then(|o: T| {
-        let expected_digest = get_expected_digest(&o);
-        if expected_digest == *digest {
+    deser(key, bytes).and_then(|o: T| {
+        let actual = key_of(&o);
+        if actual == *key {
             Some(o)
         } else {
-            error!(
-                "Key mismatch - expected: {:?}, got: {:?}",
-                digest, expected_digest,
-            );
+            error!("Key mismatch - expected: {key:?}, got: {actual:?}");
             None
         }
     })
@@ -517,7 +511,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
+                    deser_check_key(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
                 })
             })
             .collect::<Vec<_>>();
@@ -529,7 +523,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |fx: &TransactionEffects| {
+                    deser_check_key(digest, bytes, |fx: &TransactionEffects| {
                         *fx.transaction_digest()
                     })
                 })
@@ -581,7 +575,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, seq)| {
-                    deser_check_digest(seq, bytes, |s: &CertifiedCheckpointSummary| {
+                    deser_check_key(seq, bytes, |s: &CertifiedCheckpointSummary| {
                         s.data().sequence_number
                     })
                 })
@@ -602,7 +596,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |s: &CertifiedCheckpointSummary| *s.digest())
+                    deser_check_key(digest, bytes, |s: &CertifiedCheckpointSummary| *s.digest())
                 })
             })
             .collect::<Vec<_>>();
