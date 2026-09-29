@@ -2852,8 +2852,6 @@ async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_di
 // Gas-vector attestation (`AttestationData::V2`) validation
 // ---------------------------------------------------------------------------
 
-/// Wraps a `Transaction` in a `UserTransactionV2` whose attestation carries
-/// the gas vector.
 fn make_user_tx_v2_gas_vector(
     tx: TransactionEnvelope,
     attestor_index: u8,
@@ -2878,8 +2876,7 @@ fn make_user_tx_v2_gas_vector(
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
 }
 
-/// Runs validation over one gas-vector-attested transfer under the given
-/// protocol overrides and returns (kept, dropped-errors, digests).
+/// Returns (kept, dropped errors, digests).
 async fn run_gas_vector_case(
     enable_gas_vector: bool,
     cpu_time: u64,
@@ -2933,10 +2930,6 @@ async fn run_gas_vector_case(
     )
 }
 
-/// A V2 payload is rejected while the `attestation_gas_vector` flag is off —
-/// acceptance is version-gated exactly like production, because old nodes
-/// cannot decode the variant at all. The digest still surfaces for soft-lock
-/// release.
 #[sim_test]
 async fn test_gas_vector_attestation_rejected_when_flag_off() {
     let (kept, dropped, digests) = run_gas_vector_case(false, 1_000_000, None).await;
@@ -2950,8 +2943,6 @@ async fn test_gas_vector_attestation_rejected_when_flag_off() {
     assert_eq!(digests, 1, "digest still collected for soft-lock release");
 }
 
-/// With the flag on, a structurally valid gas-vector attestation passes
-/// Check #3 and the transaction is kept.
 #[sim_test]
 async fn test_gas_vector_attestation_passes_when_flag_on() {
     let (kept, dropped, digests) = run_gas_vector_case(true, 1_000_000, None).await;
@@ -2960,8 +2951,6 @@ async fn test_gas_vector_attestation_passes_when_flag_on() {
     assert_eq!(digests, 1);
 }
 
-/// `cpu_time = 0` is structurally invalid — no dry-run of a valid transaction
-/// executes in zero lane-time — and is dropped even with the flag on.
 #[sim_test]
 async fn test_gas_vector_attestation_zero_cpu_time_dropped() {
     let (kept, dropped, digests) = run_gas_vector_case(true, 0, None).await;
@@ -2975,9 +2964,7 @@ async fn test_gas_vector_attestation_zero_cpu_time_dropped() {
     assert_eq!(digests, 1, "digest still collected for soft-lock release");
 }
 
-/// With the memory-bandwidth ceiling configured, a declared rate above it is
-/// dropped: the helper's payload moves 4096 bytes, and 4096 bytes in 1000 ns
-/// is ~4 GB/s against a 1 GB/s ceiling.
+/// 4096 bytes in 1000 ns is ~4 GB/s, above the 1 GB/s ceiling.
 #[sim_test]
 async fn test_gas_vector_attestation_rate_above_bandwidth_dropped() {
     let (kept, dropped, digests) = run_gas_vector_case(true, 1_000, Some(1_000_000_000)).await;
@@ -2991,16 +2978,12 @@ async fn test_gas_vector_attestation_rate_above_bandwidth_dropped() {
     assert_eq!(digests, 1, "digest still collected for soft-lock release");
 }
 
-/// The same declaration passes when the cpu_time covers the moved bytes at
-/// the ceiling (4096 bytes in 1 ms is ~4 MB/s), and also when the ceiling is
-/// absent from the config — the rule activates with its constant.
 #[sim_test]
 async fn test_gas_vector_attestation_rate_within_bandwidth_kept() {
     let (kept, dropped, _) = run_gas_vector_case(true, 1_000_000, Some(1_000_000_000)).await;
     assert_eq!(kept, 1, "rate within the ceiling must be kept: {dropped:?}");
     assert!(dropped.is_empty());
-    // Dormant without the constant: the violating declaration from the test
-    // above is accepted when no ceiling is configured.
+    // No ceiling configured.
     let (kept, dropped, _) = run_gas_vector_case(true, 1_000, None).await;
     assert_eq!(kept, 1, "rule must be dormant without B_mem: {dropped:?}");
     assert!(dropped.is_empty());

@@ -267,11 +267,8 @@ pub async fn validate_and_resolve_conflicts(
             let block_author = tx.0.certificate_author_index as u8;
             let protocol_config = epoch_store.protocol_config();
             let txn = transaction.data().transaction();
-            // Two independent checks: who the attestor is (the
-            // `Attestation` variant: Validator vs. Explicit) and whether the
-            // attested payload is well-formed (the `AttestationData`
-            // version: V1 vs. V2). They are matched separately so adding a
-            // payload version can never bypass the authorship check.
+            // Attestor and payload are checked separately so that a new payload
+            // version cannot bypass the attestor check.
             let error = match attestation {
                 Attestation::Validator { attestor_index, .. }
                     if *attestor_index != block_author =>
@@ -336,29 +333,15 @@ pub async fn validate_and_resolve_conflicts(
                                 )
                         })
                     {
-                        // A declared duration can never be shorter than the
-                        // time the memory path needs for the declared bytes.
-                        // The default producer raises its declared cpu_time
-                        // to exactly this floor, so under a shared protocol
-                        // config this branch only catches hand-crafted
-                        // payloads (or nodes running divergent config
-                        // overrides).
                         Some(IotaError::AttestationRateAboveBandwidth {
                             cpu_time: *cpu_time,
                             moved_bytes: *moved_bytes,
                         })
                     } else {
-                        // The remaining constant-dependent bounds — the
-                        // cpu_time cap, the moved_bytes/write_bytes caps, and
-                        // the budget-implied lane-time maximum — activate
-                        // with their constants in the protocol config.
                         None
                     }
                 }
-                // `AttestationData` is non_exhaustive; a payload version this
-                // node does not understand cannot be validated, so it is
-                // rejected. (Unreachable in practice: an unknown variant
-                // already fails BCS decoding upstream.)
+                // Unreachable in practice: an unknown variant fails BCS decoding.
                 _ => Some(IotaError::UnsupportedFeature {
                     error: "unknown attestation payload version".into(),
                 }),

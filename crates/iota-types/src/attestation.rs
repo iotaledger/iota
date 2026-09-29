@@ -61,16 +61,11 @@ pub enum AttestationData {
         /// during execution.
         object_versions: Vec<ObjectReference>,
     },
-    /// The gas vector: per-resource demand computed from the attestor's
-    /// dry-run resource profile, replacing the single `computation_units`
-    /// number. Produced and accepted only when the `attestation_gas_vector`
-    /// feature flag is on (old nodes cannot decode an unknown variant, so
-    /// production and acceptance are gated together).
+    /// Replaces `computation_units` with the gas vector. Only valid when the
+    /// `attestation_gas_vector` feature flag is on.
     V2 {
-        /// The dry-run's resource profile priced by the protocol config's
-        /// gas-vector coefficients.
         gas_vector: GasVector,
-        /// Same role as in `V1`: the misbehavior-detection evidence base.
+        /// Same as in `V1`.
         object_versions: Vec<ObjectReference>,
     },
 }
@@ -92,10 +87,7 @@ impl Attestation {
         }
     }
 
-    /// The V1 scheduling estimate. `None` for a V2 payload: the gas vector
-    /// is not a unit count, and pretending otherwise would mix units in the
-    /// congestion tracker — V2 consumers use [`Self::declared_cpu_time`]
-    /// once admission is time-denominated.
+    /// `None` for a V2 payload.
     pub fn computation_units(&self) -> Option<u64> {
         match self.payload() {
             AttestationData::V1 {
@@ -105,7 +97,7 @@ impl Attestation {
         }
     }
 
-    /// Attested lane-time in reference-hardware nanoseconds (V2 only).
+    /// Attested `cpu_time` in nanoseconds (V2 only).
     pub fn declared_cpu_time(&self) -> Option<u64> {
         self.declared_gas_vector().map(|v| v.cpu_time)
     }
@@ -120,7 +112,7 @@ impl Attestation {
         self.declared_gas_vector().map(|v| v.write_bytes)
     }
 
-    /// The full attested gas vector (V2 only).
+    /// The attested gas vector (V2 only).
     pub fn declared_gas_vector(&self) -> Option<GasVector> {
         match self.payload() {
             AttestationData::V1 { .. } => None,
@@ -128,8 +120,6 @@ impl Attestation {
         }
     }
 
-    /// The run-time-resolved object versions the attestor read — present in
-    /// every payload version.
     pub fn object_versions(&self) -> &[ObjectReference] {
         match self.payload() {
             AttestationData::V1 {
@@ -212,8 +202,6 @@ mod tests {
 
     #[test]
     fn v1_byte_layout_is_unchanged_by_the_new_variant() {
-        // Adding V2 must not disturb V1's wire format: variant index 0 plus
-        // the same fields. A golden prefix guards the variant tag.
         let data = AttestationData::V1 {
             computation_units: 7,
             object_versions: vec![],
@@ -238,7 +226,7 @@ mod tests {
         for field in [1u64, 2, 3] {
             expected.extend_from_slice(&field.to_le_bytes());
         }
-        // Length prefix of the empty `object_versions`.
+        // Empty `object_versions`.
         expected.push(0);
         assert_eq!(bcs::to_bytes(&data).unwrap(), expected);
     }
