@@ -57,6 +57,12 @@ use crate::{
     },
     transaction_ref::{SERIALIZED_TRANSACTION_REF_BYTES, TransactionRef},
 };
+#[cfg(not(test))]
+use crate::{
+    commit_syncer::MAX_FETCH_ATTEMPT_TIMEOUT,
+    header_synchronizer::FETCH_FROM_PEERS_TIMEOUT as HEADER_SYNC_FETCH_TIMEOUT,
+    transactions_synchronizer::FETCH_REQUEST_TIMEOUT as TRANSACTION_SYNC_FETCH_TIMEOUT,
+};
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
@@ -1242,10 +1248,20 @@ const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
 /// peer that stops reading leaves the stream parked with the built response,
 /// the encoder buffer and the admission permits in it; past this the body
 /// gives them up, keeping only the peer's own slot until the stream ends. The
-/// block-subscription stream is exempt. Any working link drains a response in
-/// seconds, and a requester gives up on its own after at most 120 s.
+/// block-subscription stream is exempt. It equals the longest any requester
+/// waits for one fetch attempt, so a read the peer still waits for is never
+/// cut.
 #[cfg(not(test))]
-pub(crate) const RESPONSE_SEND_TIMEOUT: Duration = Duration::from_secs(60);
+pub(crate) const RESPONSE_SEND_TIMEOUT: Duration = longer(
+    MAX_FETCH_ATTEMPT_TIMEOUT,
+    longer(HEADER_SYNC_FETCH_TIMEOUT, TRANSACTION_SYNC_FETCH_TIMEOUT),
+);
+
+/// The longer of two durations, usable in a constant.
+#[cfg(not(test))]
+const fn longer(a: Duration, b: Duration) -> Duration {
+    if a.as_millis() >= b.as_millis() { a } else { b }
+}
 #[cfg(test)]
 pub(crate) const RESPONSE_SEND_TIMEOUT: Duration = Duration::from_secs(2);
 

@@ -27,7 +27,7 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, Inner,
+        CommitSyncType, CommitSyncerHandle, Inner, REGULAR_FETCH_ATTEMPT_MULTIPLIER,
         fast::{FastSyncPauseSource, paused_by_fast_sync},
         fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
         schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
@@ -492,7 +492,13 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         // - Fetching block headers referenced by the commits
         // - Time spent on pipelining requests
         // - Headroom to allow fetch_once() to timeout gracefully
-        shared_fetch_loop(inner, commit_range, 4, Self::fetch_once).await
+        shared_fetch_loop(
+            inner,
+            commit_range,
+            REGULAR_FETCH_ATTEMPT_MULTIPLIER,
+            Self::fetch_once,
+        )
+        .await
     }
 
     // Fetches commits and blocks from a single authority. At a high level, first

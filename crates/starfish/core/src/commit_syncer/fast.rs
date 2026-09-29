@@ -32,10 +32,10 @@ use crate::{
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, FetchedCommits, Inner, fetch_loop as shared_fetch_loop,
-        handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
-        try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
-        verify_transactions_commitments,
+        CommitSyncType, CommitSyncerHandle, FAST_FETCH_ATTEMPT_MULTIPLIER, FetchedCommits, Inner,
+        fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
+        schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
+        verify_fetched_headers, verify_transactions_commitments,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -590,7 +590,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         inner: Arc<Inner<C>>,
         commit_range: CommitRange,
     ) -> (CommitIndex, FastSyncOutput) {
-        shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await
+        shared_fetch_loop(
+            inner,
+            commit_range,
+            FAST_FETCH_ATTEMPT_MULTIPLIER,
+            Self::fetch_once,
+        )
+        .await
     }
 
     // Fetches commits and transactions from a single authority. When the

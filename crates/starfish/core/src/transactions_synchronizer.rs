@@ -63,7 +63,7 @@ const MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH: usize = 4;
 const TRANSACTIONS_SYNCHRONIZER_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// Timeout that is given to fetch transactions from a given peer.
-const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2000);
+pub(crate) const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2000);
 
 /// Maximum number of authorities that can concurrently fetch transactions for a
 /// given block ref.
