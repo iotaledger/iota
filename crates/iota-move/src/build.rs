@@ -197,19 +197,26 @@ impl Build {
 
     /// The size limit the network holds `pkg` to. System packages are published
     /// by the network rather than by users, and are bound by
-    /// `max_move_system_package_size` on a protocol version that sets it.
+    /// `max_move_system_package_size` on a protocol version that sets it, and
+    /// by `max_move_package_size` like any other package otherwise.
     ///
-    /// Both limits are protocol-gated: they come from the target network when
-    /// one was resolved, and from the newest protocol version this binary knows
-    /// otherwise.
+    /// Both limits come from the target network when one was resolved, and from
+    /// the newest protocol version this binary knows otherwise. A bound set
+    /// explicitly on `config` wins either way.
     fn max_package_size(pkg: &CompiledPackage, config: &ProtocolBuildConfig) -> u64 {
         let (max_size, max_system_size) = match config.max_move_package_size {
+            // A resolved network sets both bounds, and leaves the system bound
+            // unset only when its protocol version holds system packages to the
+            // user bound. That `None` is the network's rule, not a gap for the
+            // compiled-in bound to fill.
             Some(max_size) => (max_size, config.max_move_system_package_size),
             None => {
                 let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
                 (
                     protocol_config.max_move_package_size(),
-                    protocol_config.max_move_system_package_size_as_option(),
+                    config
+                        .max_move_system_package_size
+                        .or(protocol_config.max_move_system_package_size_as_option()),
                 )
             }
         };

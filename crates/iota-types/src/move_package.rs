@@ -859,8 +859,10 @@ pub struct ProtocolBuildConfig {
     /// case the real limit is unknown.
     pub max_move_package_size: Option<u64>,
     /// Maximum size (in bytes) a published system package may occupy on-chain.
-    /// `None` when the config was not derived from a network protocol config,
-    /// or when that config holds system packages to `max_move_package_size`.
+    /// Set together with `max_move_package_size`: `None` next to a known user
+    /// bound means the network's protocol version holds system packages to
+    /// `max_move_package_size`, while `None` next to an unknown user bound
+    /// means the real limit is unknown too.
     pub max_move_system_package_size: Option<u64>,
 }
 

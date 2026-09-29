@@ -320,6 +320,12 @@ mod tests {
     /// raises the bound and adds a package over the old one under the same
     /// version cannot be adopted -- validators vote that upgrade down rather
     /// than admit the package.
+    ///
+    /// Genesis holds every package to the bound of the version it starts at.
+    /// Once the framework outgrows the bound of an older version, a network
+    /// can no longer start at that version with the built-in framework, and a
+    /// test that does so fails with `PackageTooBig`: it has to start at a
+    /// version whose bound fits, or use that version's framework snapshot.
     #[test]
     fn system_packages_fit_the_size_limit() {
         let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
