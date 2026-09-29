@@ -83,9 +83,8 @@ pub mod checked {
             Self::V1(IotaGasStatusV1::new_unmetered())
         }
 
-        /// The per-transaction [`ResourceProfile`].
-        /// Complete only after execution and storage collection have
-        /// finished.
+        /// The per-transaction [`ResourceProfile`]. Complete only after
+        /// storage collection.
         pub fn resource_profile(&self) -> ResourceProfile {
             match self {
                 Self::V1(status) => status.resource_profile(),

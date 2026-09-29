@@ -102,9 +102,6 @@ impl GasMeter for IotaGasMeter<'_> {
             })
             .unwrap_or_else(AbstractMemorySize::zero);
         self.0.record_native_call();
-        // Capture gas before the native's charges so the resource profile can
-        // attribute the gas actually deducted (tiering-correct) to this native
-        // rather than the pre-tiering declared amount.
         let gas_before = self.0.gas_left;
         let threshold_exceeded =
             native_function_threshold_exceeded(self.0.gas_model_version, self.0.num_native_calls);
@@ -128,9 +125,6 @@ impl GasMeter for IotaGasMeter<'_> {
                 .and_then(|()| self.0.deduct_gas(amount))
         };
         self.0.record_native_gas_deducted(gas_before);
-        // The native's charges routed through `charge`, which added to the
-        // interpreter component flows; subtract that share so those flows stay
-        // interpreter-only. `num_instructions` matches the branch above.
         let native_instructions = if threshold_exceeded { amount.into() } else { 0 };
         self.0
             .discount_native_flows(native_instructions, pushes, size_increase.into());
@@ -145,14 +139,6 @@ impl GasMeter for IotaGasMeter<'_> {
         // Determine the number of pops that are going to be needed for this function
         // call, and charge for them.
         let pops = args.len() as u64;
-        // One fold over the arguments, two sums: the stack-size decrease the
-        // charge below needs (references at their constant size, matching how
-        // the stack was charged when they were pushed), and the input bytes
-        // the resource profile records. Input sizing follows references only
-        // into primitive data (the byte-priced natives all read primitive
-        // vectors); a reference to structured data counts at its constant
-        // size, so the sizing itself never does work that no gas charge
-        // covers. Recording is profile-only and charges nothing.
         let (arg_sizes, input_bytes) = args.fold(
             (AbstractMemorySize::zero(), AbstractMemorySize::zero()),
             |(charge_size, input_size), elem| {
@@ -169,10 +155,6 @@ impl GasMeter for IotaGasMeter<'_> {
     }
 
     fn record_native_function_identity(&mut self, module_id: &ModuleId, function_name: &str) {
-        // Key by the full module id (`0x2::hash`), not the bare name: same-
-        // named modules in different packages must stay distinct for
-        // calibration. The function name is included because per-call cost
-        // varies more within a module than the charged gas reflects.
         self.0
             .set_pending_native_function(&module_id.short_str_lossless(), function_name);
     }
@@ -238,21 +220,14 @@ impl GasMeter for IotaGasMeter<'_> {
     }
 
     fn charge_move_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the move of the local on to the stack. Charging is unchanged
-        // (locals are not part of the charged size), but the locals size is
-        // recorded for the resource profile, where this move is net-zero
-        // memory-wise.
+        // Charge for the move of the local on to the stack.
         let size = abstract_memory_size(val);
         self.0.record_move_loc(size.into());
         self.0.charge(1, 1, 0, size.into(), 0)
     }
 
     fn charge_store_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the storing of the value on the stack into a local. Charging is
-        // unchanged (locals are not part of the charged size), but the locals
-        // size is recorded for the resource profile. Storing over an occupied
-        // local over-counts (the displaced value is not visible here), which
-        // is conservative for a high-water mark.
+        // Charge for the storing of the value on the stack into a local.
         let size = abstract_memory_size(val);
         self.0.record_store_loc(size.into());
         self.0.charge(1, 0, 1, 0, size.into())
@@ -404,10 +379,6 @@ impl GasMeter for IotaGasMeter<'_> {
         &mut self,
         locals: impl Iterator<Item = impl ValueView>,
     ) -> PartialVMResult<()> {
-        // No charge; the values dropped with the frame are removed from the
-        // locals size tracked for the resource profile. Any excess over the
-        // frame's tracked additions is in-place growth through references,
-        // recorded late so the high-water mark includes it.
         let dropped = locals.fold(AbstractMemorySize::zero(), |acc, val| {
             acc + abstract_memory_size(val)
         });

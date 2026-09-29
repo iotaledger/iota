@@ -182,11 +182,9 @@ pub trait GasMeter {
         args: impl ExactSizeIterator<Item = impl ValueView>,
     ) -> PartialVMResult<()>;
 
-    /// Identifies the native function about to execute, so that the meter can
-    /// attribute the cost passed to the subsequent
-    /// [`charge_native_function`](Self::charge_native_function) call.
-    /// Observability only: implementations must not charge here, and metering
-    /// must not depend on it.
+    /// Identifies the native function whose cost the next
+    /// [`charge_native_function`](Self::charge_native_function) call charges.
+    /// Implementations must not charge gas here.
     fn record_native_function_identity(&mut self, _module_id: &ModuleId, _function_name: &str) {}
 
     fn charge_drop_frame(

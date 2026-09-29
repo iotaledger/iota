@@ -240,7 +240,6 @@ fn abstract_input_size_follows_refs_into_primitive_data_only() -> PartialVMResul
 
     use super::values_impl::{LEGACY_CONST_SIZE, LEGACY_REFERENCE_SIZE, LEGACY_STRUCT_SIZE};
 
-    // An owned value is sized in full, exactly like `abstract_memory_size`.
     let owned = Value::struct_(Struct::pack([Value::u64(1), Value::u64(2)]));
     assert_eq!(
         owned.abstract_input_size(),
@@ -253,9 +252,6 @@ fn abstract_input_size_follows_refs_into_primitive_data_only() -> PartialVMResul
 
     let mut locals = Locals::new(4);
 
-    // A reference to a primitive vector is sized in full — the input of the
-    // byte-priced natives (hashing, signature verification) — at O(1) cost,
-    // since the payload size is read off the vector, not walked.
     locals.store_loc(0, Value::vector_u8(vec![0u8; 100]), true)?;
     let vec_ref = locals.borrow_loc(0)?;
     assert_eq!(
@@ -267,7 +263,6 @@ fn abstract_input_size_follows_refs_into_primitive_data_only() -> PartialVMResul
         vec_ref.abstract_memory_size(true)
     );
 
-    // A reference to a scalar is followed too.
     locals.store_loc(1, Value::u64(7), true)?;
     let scalar_ref = locals.borrow_loc(1)?;
     assert_eq!(
@@ -275,9 +270,7 @@ fn abstract_input_size_follows_refs_into_primitive_data_only() -> PartialVMResul
         LEGACY_REFERENCE_SIZE + LEGACY_CONST_SIZE
     );
 
-    // A reference to structured data counts at its constant reference size:
-    // the target is not walked, so the size cannot grow with the value
-    // behind the reference.
+    // A reference to structured data is not followed.
     locals.store_loc(
         2,
         Value::struct_(Struct::pack([Value::u64(1), Value::u64(2)])),
@@ -300,10 +293,8 @@ fn abstract_input_size_follows_refs_into_primitive_data_only() -> PartialVMResul
     Ok(())
 }
 
-/// The pair returned by `abstract_memory_and_input_size` must agree with the
-/// two sizes computed separately — its first component feeds the stack-size
-/// gas charge for native calls, so any divergence from
-/// `abstract_memory_size(false)` would change what is charged.
+/// The first component feeds the native-call stack-size charge, so it must
+/// match `abstract_memory_size(false)` exactly.
 #[test]
 fn abstract_memory_and_input_size_agrees_with_separate_sizes() -> PartialVMResult<()> {
     fn check(value: &Value) {
@@ -339,7 +330,6 @@ fn abstract_memory_and_input_size_agrees_with_separate_sizes() -> PartialVMResul
         check(value);
     }
 
-    // The same values seen through a reference, where the two sizes diverge.
     let mut locals = Locals::new(owned.len());
     for (i, value) in owned.iter().enumerate() {
         locals.store_loc(i, value.copy_value()?, true)?;

@@ -869,15 +869,8 @@ mod checked {
                 .remove()
                 .map_err(|e| convert_vm_error(e.finish(Location::Undefined), vm, &linkage_view))?;
 
-            // Copy the object runtime's read and event counters, and the
-            // linkage view's package-load counters, into the gas status
-            // before those are consumed. System transactions that execute
-            // Move (consensus-commit prologue, randomness update,
-            // advance-epoch) run through this same path via
-            // `execution_mode::System`; the ones that bypass the VM entirely
-            // (genesis, advance-epoch safe mode) have no reads, events, or
-            // package loads to record, and their writes are captured by
-            // storage tracking at the end of execution.
+            // Copy the resource profile counters before the object runtime and
+            // linkage view are consumed.
             let read_stats = object_runtime.read_stats();
             let (packages_loaded, package_bytes_loaded) = linkage_view.package_load_counters();
             let move_gas_status = gas_charger.move_gas_status_mut();

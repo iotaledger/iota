@@ -230,30 +230,17 @@ pub trait ValueView {
         acc.0
     }
 
-    /// Returns the abstract memory size of the value as consumed by a
-    /// byte-reading native function: references are followed only when they
-    /// point at primitive data (a scalar, or a vector of scalars, whose size
-    /// is known without walking its elements); a reference to a struct,
-    /// variant, or vector of containers counts at its constant reference
-    /// size, like in [`abstract_memory_size`](Self::abstract_memory_size)
-    /// without traversal.
-    ///
-    /// This bounds the cost of computing the size itself: sizing structured
-    /// data through a reference would visit every value in it on every call,
-    /// work that no gas charge covers. The natives whose cost scales with
-    /// their input read primitive byte vectors, so their inputs are still
-    /// sized in full.
+    /// Returns the abstract memory size of the value, following references
+    /// only into primitive data (a scalar or a vector of scalars). A reference
+    /// to a struct, variant, or vector of containers counts at its constant
+    /// reference size, so the cost of computing the size stays bounded.
     fn abstract_input_size(&self) -> AbstractMemorySize {
         self.abstract_memory_and_input_size().1
     }
 
-    /// Returns the value's
-    /// [`abstract_memory_size`](Self::abstract_memory_size) without traversal
-    /// and its [`abstract_input_size`](Self::abstract_input_size) as a pair,
-    /// accumulated in a single visit of the value instead of one visit per
-    /// size. The two sums differ only for data behind a reference: the first
-    /// counts the reference at its constant size, the second follows it into
-    /// primitive data.
+    /// Returns [`abstract_memory_size`](Self::abstract_memory_size) without
+    /// traversal and [`abstract_input_size`](Self::abstract_input_size),
+    /// computed in a single visit of the value.
     fn abstract_memory_and_input_size(&self) -> (AbstractMemorySize, AbstractMemorySize) {
         use crate::values::{LEGACY_CONST_SIZE, LEGACY_REFERENCE_SIZE, LEGACY_STRUCT_SIZE};
 
@@ -370,8 +357,6 @@ pub trait ValueView {
             }
 
             fn visit_ref(&mut self, _depth: usize, _is_global: bool) -> bool {
-                // The reference itself is part of both sums; only what lies
-                // behind it is treated differently.
                 self.memory += LEGACY_REFERENCE_SIZE;
                 self.input += LEGACY_REFERENCE_SIZE;
                 self.behind_ref = true;

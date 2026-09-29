@@ -84,15 +84,13 @@ pub struct RuntimeResults {
 }
 
 /// Child-object load counters for the per-transaction resource profile.
-/// Reading them does not change the gas charged or limit checks.
 pub struct ObjectRuntimeReadStats {
     /// Number of loads issued to the store, including loads that found no
     /// object and received objects.
     pub reads: u64,
     /// Serialized bytes of the objects those loads fetched.
     pub read_bytes: u64,
-    /// Serialized bytes retained in the child-object cache (monotonic within
-    /// a transaction).
+    /// Bytes retained in the child-object cache.
     pub cached_bytes: u64,
 }
 
@@ -343,9 +341,6 @@ impl<'a> ObjectRuntime<'a> {
         std::mem::take(&mut self.state.events)
     }
 
-    /// Counters for the per-transaction resource profile: child-object loads
-    /// issued to the store, the serialized bytes they fetched, and the
-    /// serialized bytes retained in the object cache.
     pub fn read_stats(&self) -> ObjectRuntimeReadStats {
         let (reads, read_bytes, cached_bytes) = self.child_object_store.read_counters();
         ObjectRuntimeReadStats {
