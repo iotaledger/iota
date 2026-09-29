@@ -11,7 +11,7 @@
 //! fixture and unacceptable for a permutation every validator has to agree on.
 //!
 //! The routines here reproduce `rand` 0.8's algorithms and are fixed by
-//! [`tests`] against captured vectors, so callers that need a permutation to
+//! tests against captured vectors, so callers that need a permutation to
 //! stay the same forever can bump `rand` freely.
 //!
 //! Two rules for callers:
