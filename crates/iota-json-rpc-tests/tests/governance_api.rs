@@ -31,7 +31,7 @@ use iota_types::{
     },
     utils::to_sender_signed_transaction,
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Execute a sequence of transactions to add a validator, including adding
@@ -152,7 +152,7 @@ async fn execute_add_validator_transactions(
 #[sim_test]
 async fn get_stakes_with_new_validator() {
     // Create the keypair for the new validator candidate
-    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut UnwrapErr(SysRng));
     let address = new_validator.account_key_pair.public_key().derive_address();
 
     let mut test_cluster = TestClusterBuilder::new()

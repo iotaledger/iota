@@ -160,6 +160,7 @@ pub async fn request_tokens_from_faucet_with_url(
     }];
 
     // make the request to the faucet JSON RPC API for coin
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let reqwest_client = Client::new();
     let resp = reqwest_client
         .post(format!("{faucet_url}/v1/gas"))

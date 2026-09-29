@@ -16,7 +16,7 @@ axum.workspace = true
 axum-server.workspace = true
 ed25519 = { version = "2.2", features = ["pkcs8", "alloc", "zeroize"] }
 pkcs8 = { version = "0.10", features = ["std"] }
-rcgen = "0.13"
+rcgen.workspace = true
 # reqwest support
 reqwest.workspace = true
 rustls.workspace = true
@@ -31,9 +31,6 @@ iota-sdk-crypto = { workspace = true, features = ["ed25519"] }
 iota-sdk-types = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-# external dependencies
-rand.workspace = true
-
 # internal dependencies
 iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
 

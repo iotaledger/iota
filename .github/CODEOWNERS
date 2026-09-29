@@ -125,11 +125,11 @@
 /.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn @muXxer
 
 # Scripts
-/scripts/cargo_sort/ @muXxer
+/scripts/cargo_sort/ @alexsporn @muXxer
 /scripts/ci_tests/ @iotaledger/node
-/scripts/codesearch/ @muXxer
-/scripts/generate_files/ @muXxer
-/scripts/utils/ @muXxer
+/scripts/codesearch/ @alexsporn @muXxer
+/scripts/generate_files/ @alexsporn @muXxer
+/scripts/utils/ @alexsporn @muXxer
 /scripts/release_notes/ @iotaledger/dev-tools
 
 # Other

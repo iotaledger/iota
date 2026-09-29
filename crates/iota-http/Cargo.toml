@@ -30,6 +30,7 @@ iota-tls.workspace = true
 # external dependencies
 axum.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 
 # internal dependencies
 iota-sdk-crypto = { workspace = true, features = ["ed25519"] }

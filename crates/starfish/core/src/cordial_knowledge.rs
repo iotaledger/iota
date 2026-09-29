@@ -11,7 +11,7 @@ use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
 use iota_metrics::monitored_mpsc::{self, Receiver, Sender};
 use parking_lot::RwLock;
-use rand::{Rng as _, SeedableRng, prelude::StdRng};
+use rand::{RngExt as _, SeedableRng, prelude::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{Mutex, mpsc::error::TrySendError},
@@ -306,7 +306,7 @@ impl CordialKnowledge {
                 missing_authors: vec![None; num_authorities],
                 latest_own_block_round: Round::MIN,
                 has_useful_headers_from_peer: vec![false; num_authorities],
-                rng: StdRng::from_entropy(),
+                rng: StdRng::from_rng(&mut rand::rng()),
                 requested_shard_authors: vec![BTreeMap::new(); num_authorities],
             },
             connection_knowledges,
@@ -735,7 +735,7 @@ impl CordialKnowledge {
         if candidates.is_empty() {
             return;
         }
-        let peer = candidates[rng.gen_range(0..candidates.len())];
+        let peer = candidates[rng.random_range(0..candidates.len())];
         let selected_peers: Vec<_> = missing_author.selected_peers.iter().copied().collect();
         let Some((slowest_peer, _)) = context
             .peer_responsiveness

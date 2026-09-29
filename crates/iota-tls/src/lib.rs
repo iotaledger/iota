@@ -32,9 +32,12 @@ pub fn create_rustls_server_config_from_pem(
 
     let certs = CertificateDer::pem_file_iter(cert_file)?.collect::<Result<_, _>>()?;
     let private_key = PrivateKeyDer::from_pem_file(private_key_file)?;
-    let tls_config = rustls::ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(certs, private_key)?;
+    let tls_config = rustls::ServerConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()?
+    .with_no_client_auth()
+    .with_single_cert(certs, private_key)?;
 
     Ok(tls_config)
 }
@@ -281,8 +284,9 @@ mod tests {
         let server_private_key = Ed25519PrivateKey::random();
         let server_certificate = SelfSignedCertificate::new(server_private_key, "localhost");
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
-            .add_root_certificate(server_certificate.reqwest_certificate())
+            .tls_certs_only([server_certificate.reqwest_certificate()])
             .identity(client_certificate.reqwest_identity())
             .https_only(true)
             .build()

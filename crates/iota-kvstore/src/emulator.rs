@@ -86,18 +86,26 @@ impl Drop for BigTableEmulator {
     }
 }
 
-/// Binds to an ephemeral port and return it.
+/// Binds to an ephemeral port and returns it.
 ///
-/// The port is moved into `TIME_WAIT` so the OS reserves it briefly, allowing
-/// the caller to reuse it with `SO_REUSEADDR`.
+/// The port is left in `TIME_WAIT`, so the kernel will not give it to another
+/// test asking for a free port, while `cbtemulator` can still bind it because
+/// Go's TCP listener implementation uses `SO_REUSEADDR` by default.
 fn get_available_port() -> Result<u16> {
     let listener = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .context("failed to bind to ephemeral port")?;
     let addr = listener
         .local_addr()
         .context("failed to get local address")?;
-    _ = std::net::TcpStream::connect(addr).context("failed to connect to ephemeral port")?;
-    _ = listener.accept().context("failed to accept connection")?;
+    let sender =
+        std::net::TcpStream::connect(addr).context("failed to connect to ephemeral port")?;
+    let incoming = listener.accept().context("failed to accept connection")?;
+    // In TCP the side that closes first is the one that enters TIME_WAIT.
+    // `incoming` shares the listener's local port, `sender` uses a different
+    // ephemeral port. So `incoming` must close first, otherwise TIME_WAIT
+    // lands on the wrong port and reserves nothing.
+    drop(incoming);
+    drop(sender);
     Ok(addr.port())
 }
 

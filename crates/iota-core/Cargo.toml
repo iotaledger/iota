@@ -37,6 +37,7 @@ parking_lot.workspace = true
 pin-project-lite.workspace = true
 quinn-proto = "0.11.15"
 rand.workspace = true
+rand08.workspace = true
 roaring.workspace = true
 scopeguard.workspace = true
 serde.workspace = true
@@ -101,7 +102,6 @@ clap.workspace = true
 criterion.workspace = true
 expect-test.workspace = true
 fs_extra.workspace = true
-iota-sdk-move-types = { workspace = true, features = ["serde"] }
 more-asserts = "0.3.1"
 num-bigint = "0.4.4"
 pretty_assertions.workspace = true
@@ -117,6 +117,7 @@ iota-genesis-builder.workspace = true
 iota-move.workspace = true
 iota-move-build.workspace = true
 iota-sdk-crypto = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1"] }
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-test-transaction-builder.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dev-dependencies]

@@ -6,7 +6,7 @@
 use iota_config::genesis::TokenDistributionScheduleBuilder;
 use iota_genesis_builder::Builder;
 use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
 fn main() -> anyhow::Result<()> {
     // Create the builder
@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<()> {
     // Create validators
     let mut validators = Vec::new();
     let mut key_pairs = Vec::new();
-    let mut rng = OsRng;
+    let mut rng = UnwrapErr(SysRng);
     for i in 0..4 {
         let validator_config = ValidatorGenesisConfigBuilder::default().build(&mut rng);
         let validator_info = validator_config.to_validator_info(format!("validator-{i}"));
