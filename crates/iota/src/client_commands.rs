@@ -2978,6 +2978,7 @@ pub async fn request_tokens_from_faucet(
     }];
 
     // make the request to the faucet JSON RPC API for coin
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let client = reqwest::Client::new();
     let resp = client
         .post(&url)

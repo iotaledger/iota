@@ -23,7 +23,7 @@ use move_vm_types::{
     pop_arg,
     values::{self, Value, VectorRef},
 };
-use rand::{SeedableRng, rngs::StdRng};
+use rand08::{SeedableRng, rngs::StdRng};
 use smallvec::smallvec;
 
 use crate::NativesCostTable;

@@ -39,7 +39,7 @@ iota-multiaddr.workspace = true
 # external dependencies
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http2"] }
-rand.workspace = true
+rand08.workspace = true
 
 # internal dependencies
 iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }

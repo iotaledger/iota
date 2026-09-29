@@ -83,7 +83,7 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
 
                 use std::sync::Arc;
                 use ::iota_simulator::fastcrypto::traits::KeyPair;
-                use ::iota_simulator::rand_crate::rngs::{StdRng, OsRng};
+                use ::iota_simulator::rand::rand::rngs::{StdRng, OsRng};
                 use ::iota_simulator::rand::SeedableRng;
                 use ::iota_simulator::tower::ServiceBuilder;
 

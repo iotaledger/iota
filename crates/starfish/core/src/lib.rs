@@ -38,6 +38,7 @@ mod header_synchronizer;
 mod stake_aggregator;
 mod storage;
 mod subscriber;
+mod task;
 mod threshold_clock;
 #[cfg(not(msim))]
 mod transaction;

@@ -57,10 +57,10 @@ impl NetworkKeyPair {
         Self(keypair)
     }
 
-    pub fn generate<R: rand::RngCore + rand::CryptoRng>(rng: &mut R) -> Self {
-        Self(iota_sdk_crypto::ed25519::Ed25519PrivateKey::random_with(
-            rng,
-        ))
+    pub fn generate<R: rand08::RngCore + rand08::CryptoRng>(rng: &mut R) -> Self {
+        let mut seed = [0u8; 32];
+        rng.fill_bytes(&mut seed);
+        Self(iota_sdk_crypto::ed25519::Ed25519PrivateKey::new(seed))
     }
 
     pub fn public(&self) -> NetworkPublicKey {
@@ -116,7 +116,7 @@ impl ProtocolKeyPair {
         Ok(Self(ed25519::Ed25519KeyPair::from_bytes(bytes)?))
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
+    pub fn generate<R: fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
         Self(ed25519::Ed25519KeyPair::generate(rng))
     }
 
@@ -171,7 +171,7 @@ impl AuthorityKeyPair {
         Self(keypair)
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
+    pub fn generate<R: fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
         Self(bls12381::min_sig::BLS12381KeyPair::generate(rng))
     }
 

@@ -112,7 +112,7 @@ impl PersistedStore {
         path: Option<PathBuf>,
     ) -> (Simulacrum<R, Self>, PersistedStoreInnerReadOnlyWrapper)
     where
-        R: rand::RngCore + rand::CryptoRng,
+        R: rand::CryptoRng,
     {
         let store_directory: PathBuf = path.unwrap_or(iota_common::tempdir().keep());
 
@@ -150,7 +150,7 @@ impl PersistedStore {
         path: Option<PathBuf>,
     ) -> Simulacrum<R, Self>
     where
-        R: rand::RngCore + rand::CryptoRng,
+        R: rand::CryptoRng,
     {
         Self::new_sim_replica_with_protocol_version_and_accounts(
             rng,

@@ -42,8 +42,10 @@ use iota_sdk_types::{
 };
 use rand::{
     SeedableRng,
-    rngs::{OsRng, StdRng},
+    rand_core::UnwrapErr,
+    rngs::{StdRng, SysRng},
 };
+use rand08::SeedableRng as _;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
@@ -464,12 +466,14 @@ impl IotaAuthoritySignature for AuthoritySignature {
 /// Random key-pair generation for the `get_key_pair` helpers, implemented for
 /// the fastcrypto authority/network keypairs and the SDK account keys.
 pub trait RandomKeyPair: Sized {
-    fn generate_with_address(rng: &mut StdRng) -> (Address, Self);
+    fn generate_with_address(seed: [u8; 32]) -> (Address, Self);
 }
 
 impl RandomKeyPair for BLS12381KeyPair {
-    fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-        let kp = <BLS12381KeyPair as KeypairTraits>::generate(rng);
+    fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
+        let kp = <BLS12381KeyPair as KeypairTraits>::generate(
+            &mut rand08::rngs::StdRng::from_seed(seed),
+        );
         // Authority keys have no on-chain account; this address only labels
         // key files and `keytool` output.
         let mut hasher = DefaultHash::default();
@@ -482,8 +486,8 @@ impl RandomKeyPair for BLS12381KeyPair {
 macro_rules! random_key_pair_from_sdk {
     ($private_key:ty, $variant:ident) => {
         impl RandomKeyPair for $private_key {
-            fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-                let key = <$private_key>::random_with(rng);
+            fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
+                let key = <$private_key>::random_with(StdRng::from_seed(seed));
                 let public =
                     PublicKey::$variant(BytesRepresentation(key.public_key().into_bytes()));
                 (Address::from(&public), key)
@@ -499,7 +503,7 @@ random_key_pair_from_sdk!(Secp256r1PrivateKey, Secp256r1);
 // TODO: get_key_pair() should return KeyPair only.
 // TODO: rename to random_key_pair
 pub fn get_key_pair<KP: RandomKeyPair>() -> (Address, KP) {
-    get_key_pair_from_rng(&mut OsRng)
+    get_key_pair_from_rng(&mut UnwrapErr(SysRng))
 }
 
 /// Generate a random committee key pairs with a given committee size
@@ -538,9 +542,11 @@ pub fn get_authority_key_pair() -> (Address, AuthorityKeyPair) {
 /// rngs).
 pub fn get_key_pair_from_rng<KP: RandomKeyPair, R>(csprng: &mut R) -> (Address, KP)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
-    KP::generate_with_address(&mut StdRng::from_rng(csprng).unwrap())
+    let mut seed = [0u8; 32];
+    csprng.fill_bytes(&mut seed);
+    KP::generate_with_address(seed)
 }
 
 /// An all-zero ed25519 [`SimpleSignature`] placeholder, used for system

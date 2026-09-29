@@ -19,7 +19,6 @@ const-str.workspace = true
 git-version.workspace = true
 hex.workspace = true
 hyper.workspace = true
-iota-sdk-move-types = { workspace = true, features = ["serde"] }
 itertools.workspace = true
 multiaddr.workspace = true
 once_cell.workspace = true
@@ -40,6 +39,7 @@ tracing.workspace = true
 iota-metrics.workspace = true
 iota-sdk.workspace = true
 iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-types = { workspace = true, features = ["serde"] }
 iota-tls.workspace = true
 iota-types.workspace = true
