@@ -75,6 +75,7 @@ pub struct ReqwestClient {
 }
 
 pub fn make_reqwest_client(settings: RemoteWriteConfig, user_agent: &str) -> ReqwestClient {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     ReqwestClient {
         client: reqwest::Client::builder()
             .user_agent(user_agent)
@@ -174,7 +175,7 @@ pub struct CertKeyPair(pub SelfSignedCertificate, pub Ed25519PublicKey);
 
 /// Generate server certs for use with peer verification
 pub fn generate_self_cert(hostname: String) -> CertKeyPair {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand08::thread_rng();
     let keypair = Ed25519KeyPair::generate(&mut rng);
     CertKeyPair(
         SelfSignedCertificate::new(keypair.copy().private(), &hostname),

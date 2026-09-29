@@ -40,7 +40,7 @@ iota-multiaddr.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 http-body-util.workspace = true
 hyper = { workspace = true, features = ["client", "http2"] }
-rand.workspace = true
+rand08.workspace = true
 
 # internal dependencies
 iota-tls.workspace = true

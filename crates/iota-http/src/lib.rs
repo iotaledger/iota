@@ -459,6 +459,7 @@ mod tests {
 
         let url = format!("http://{}", handle.local_addr());
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let response = reqwest::get(url).await.unwrap().bytes().await.unwrap();
 
         assert_eq!(response, MESSAGE.as_bytes());
@@ -474,6 +475,7 @@ mod tests {
 
         let url = format!("http://{}", handle.local_addr());
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let response = reqwest::get(url).await.unwrap().bytes().await.unwrap();
 
         // a request was just made so we should have 1 active connection

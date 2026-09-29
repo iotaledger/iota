@@ -20,13 +20,12 @@ fastcrypto.workspace = true
 git-version.workspace = true
 hex.workspace = true
 hyper.workspace = true
-iota-sdk-move-types = { workspace = true, features = ["serde"] }
 itertools.workspace = true
 multiaddr.workspace = true
 once_cell.workspace = true
 prost.workspace = true
 protobuf = { version = "3.7.2", features = ["with-bytes"] }
-rand.workspace = true
+rand08.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
 serde.workspace = true
@@ -41,6 +40,7 @@ tracing.workspace = true
 # internal dependencies
 iota-metrics.workspace = true
 iota-sdk.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-types.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true

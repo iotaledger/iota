@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use rand::{Rng, rngs::ThreadRng, thread_rng};
+use rand::{RngExt, rng, rngs::ThreadRng};
 
 /// A list of adjectives
 const LEFT_NAMES: [&str; 108] = [
@@ -187,7 +187,7 @@ const RIGHT_LENGTH: usize = RIGHT_NAMES.len();
 /// The main purpose of this function is to generate random aliases for
 /// addresses.
 pub fn random_name(conflicts: &HashSet<String>) -> String {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     // as long as the generated name is in the list of conflicts,
     // we try to find a different name that is not in the list yet
     loop {
@@ -211,8 +211,8 @@ pub fn random_names(mut conflicts: HashSet<String>, output_size: usize) -> Vec<S
 
 // Generate a random name as a pair from left and right string arrays
 fn generate(rng: &mut ThreadRng) -> String {
-    let left_idx = rng.gen_range(0..LEFT_LENGTH);
-    let right_idx = rng.gen_range(0..RIGHT_LENGTH);
+    let left_idx = rng.random_range(0..LEFT_LENGTH);
+    let right_idx = rng.random_range(0..RIGHT_LENGTH);
     format!(
         "{}-{}",
         LEFT_NAMES.get(left_idx).unwrap(),

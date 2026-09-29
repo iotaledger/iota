@@ -16,7 +16,7 @@ use iota_metrics::{
     monitored_scope,
 };
 use parking_lot::{Mutex, RwLock};
-use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom, thread_rng};
+use rand::{SeedableRng, rng, rngs::StdRng, seq::SliceRandom};
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{Semaphore, mpsc::error::TrySendError, oneshot},
@@ -759,7 +759,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // The number of requests to each peer is limited by the parameters.
 
         // Randomness for ordering the authorities below.
-        let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
+        let mut rng = StdRng::from_rng(&mut rng());
 
         // Create an iterator over authorities with their corresponding
         // transaction refs.
@@ -1256,7 +1256,7 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use rand::{Rng, thread_rng};
+    use rand::{RngExt, rng};
     use tokio::{sync::Mutex, time::sleep};
 
     use super::*;
@@ -1304,13 +1304,13 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1586,12 +1586,12 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_authors.len());
         let mut verified_transactions = Vec::with_capacity(block_round_authors.len());
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions with high latency to ensure saturation
         for (round, author) in &block_round_authors {
             // Create a dummy transaction
-            let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
             let serialized_vec = bcs::to_bytes(&transactions).unwrap();
             let serialized = Bytes::from(serialized_vec);
             let commitment = TransactionsCommitment::compute_transactions_commitment(
@@ -1710,14 +1710,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1838,14 +1838,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -1955,14 +1955,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -2074,14 +2074,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -2198,14 +2198,14 @@ mod tests {
             Arc::new(NoopBlockVerifier),
         );
         let mut encoder = create_encoder(&context);
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // The refs we actually request, backed by accepted headers.
         let requested: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
         let mut block_headers = Vec::new();
         let mut missing_transactions = BTreeMap::new();
         for (round, author) in requested {
-            let txs = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let txs = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&txs).unwrap());
             let commitment = TransactionsCommitment::compute_transactions_commitment(
                 &serialized,
@@ -2229,7 +2229,7 @@ mod tests {
 
         // The peer instead returns a self-consistent payload for a ref we never
         // requested (round 9, author 3).
-        let unrequested_txs = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+        let unrequested_txs = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
         let unrequested_serialized = Bytes::from(bcs::to_bytes(&unrequested_txs).unwrap());
         let unrequested_commitment = TransactionsCommitment::compute_transactions_commitment(
             &unrequested_serialized,
@@ -2318,14 +2318,14 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         let mut transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
                 // Create a dummy transaction
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
@@ -2432,12 +2432,12 @@ mod tests {
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Create verified transactions
         for (round, author) in &block_round_author {
             // Create a dummy transaction
-            let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+            let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
             let commitment = TransactionsCommitment::compute_transactions_commitment(
                 &serialized,
@@ -2533,11 +2533,11 @@ mod tests {
         // Transactions acknowledged by peer 1 (errors) and peer 2 (succeeds).
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
         let mut block_headers = Vec::with_capacity(block_round_author.len());
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let transactions = block_round_author
             .into_iter()
             .map(|(round, author)| {
-                let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
+                let transactions = vec![Transaction::new((0..32).map(|_| rng.random()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
