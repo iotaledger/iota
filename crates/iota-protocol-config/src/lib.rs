@@ -763,13 +763,8 @@ impl ConsensusNetwork {
     }
 }
 
-/// The calibrated cost of one native function in each gas-vector dimension.
-/// Native execution is opaque to the bytecode-level counters, so its only
-/// deterministic observables are the call count and the abstract size of the
-/// argument values; each function is priced directly on those two — per call
-/// plus per input byte — independent of the gas cost parameters the meter
-/// charges with, so repricing those parameters never invalidates these
-/// coefficients.
+/// The calibrated cost of one native function, per call and per abstract
+/// input byte.
 #[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 #[serde(default, deny_unknown_fields)]
 pub struct NativeFunctionCostV1 {
@@ -778,28 +773,17 @@ pub struct NativeFunctionCostV1 {
     /// Femtoseconds of execution time per abstract input byte.
     pub cpu_time_input_byte_fs: u64,
     /// Moved-bytes equivalent per abstract input byte, in basis points
-    /// (10_000 = 1 byte per byte). Nonzero only for natives that stream
-    /// their input through the shared memory path (hashing); zero for the
-    /// rest.
+    /// (10_000 = 1 byte per byte).
     pub moved_bytes_per_input_byte_bps: u64,
 }
 
-/// The calibrated cost of each resource-profile counter, in femtoseconds
-/// (10⁻⁶ ns) of execution time on the reference machine, plus the weights of
-/// the moved-bytes sum. Femtoseconds so that costs well below a nanosecond
-/// per unit — a fraction of a nanosecond per byte — stay representable as
-/// integers; no floats participate in any consensus-visible computation.
+/// The calibrated cost of each resource-profile counter, in femtoseconds of
+/// execution time on the reference machine, plus the moved-bytes weights.
 ///
-/// A transaction's predicted execution time in nanoseconds is
+/// Predicted execution time is
 /// `(fixed_overhead_fs + Σ counter × coefficient) × safety_multiplier_bps`,
-/// divided back down by 10_000 (basis points) and 10⁶ (fs → ns), each
-/// division rounded up. Scalar fields are named after the resource-profile
-/// counter they price. `native_functions` prices native calls, keyed by full
-/// module id plus function name (e.g. `0x2::ed25519::ed25519_verify`); a
-/// profile that touches a native function missing from the map cannot be
-/// priced by this table. A function the calibration found to cost nothing
-/// beyond its counted instructions is listed with zero coefficients —
-/// present-but-zero means "priced", absent means "unknown".
+/// converted to nanoseconds with each division rounded up. Scalar fields are
+/// named after the counter they price.
 #[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 #[serde(default, deny_unknown_fields)]
 pub struct GasVectorCoefficientsV1 {
@@ -820,33 +804,25 @@ pub struct GasVectorCoefficientsV1 {
     pub deleted_object_count_fs: u64,
     pub event_count_fs: u64,
     pub event_bytes_fs: u64,
-    /// Per-native-function costs across the gas-vector dimensions.
+    /// Keyed by module id plus function name (e.g.
+    /// `0x2::ed25519::ed25519_verify`). A profile calling a function missing
+    /// from the map cannot be priced; a zero-cost function is listed with
+    /// zero coefficients.
     pub native_functions: BTreeMap<String, NativeFunctionCostV1>,
-    /// Moved-bytes equivalent charged per storage-read operation
-    /// (input-object load or child-object load). Read operations saturate
-    /// the store path at a far lower byte rate than plain data movement, so
-    /// each operation enters `moved_bytes` at this weight on top of its
-    /// payload bytes.
+    /// Moved-bytes equivalent added per input-object or child-object load,
+    /// on top of its payload bytes.
     pub moved_bytes_per_read_op: u64,
-    /// Sustained memory/store bandwidth of the reference machine, in bytes
-    /// per second: the admission ceiling on the summed declared rates
-    /// (`moved_bytes / cpu_time`) of concurrently executing transactions, and
-    /// the bound in the per-transaction validity rule
-    /// `cpu_time ≥ moved_bytes / bandwidth`. Part of the table because it is
-    /// a calibrated property of the same reference machine as the
-    /// coefficients: a recalibration replaces the whole table, this value
-    /// included.
+    /// Sustained memory bandwidth of the reference machine, in bytes per
+    /// second; the bound in `cpu_time ≥ moved_bytes / bandwidth`.
     pub memory_bandwidth_bytes_per_sec: u64,
-    /// Per-transaction fixed overhead (the regression intercept).
+    /// Per-transaction fixed overhead.
     pub fixed_overhead_fs: u64,
-    /// Multiplier applied to the whole cpu_time prediction, in basis points
-    /// (10_000 = ×1.0); calibration chooses it on held-out data so that
-    /// predictions cover measured time at the required rate.
+    /// Multiplier on the whole cpu_time prediction, in basis points
+    /// (10_000 = ×1.0).
     pub safety_multiplier_bps: u64,
 }
 
-/// Versioned wrapper for [`GasVectorCoefficientsV1`]: `None` in protocol
-/// versions that carry no table; a changed table layout adds a variant.
+/// `None` in protocol versions that carry no table.
 #[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum GasVectorCoefficients {
     #[default]
@@ -1720,11 +1696,7 @@ pub struct ProtocolConfig {
     consensus_leader_schedule_window_size: Option<u32>,
 
     // ==== Gas vector constants (multidimensional gas metering) ====
-    /// Calibrated per-counter costs of the reference machine: the cpu_time
-    /// coefficients and the moved-bytes weights.
-    /// `GasVectorCoefficients::None` until a version ships calibrated
-    /// values. The number of concurrent execution workers the derived
-    /// admission constants assume is `max_concurrent_execution_workers`.
+    /// Calibrated resource-profile costs of the reference machine.
     #[serde(skip_serializing_if = "GasVectorCoefficients::is_none")]
     gas_vector_coefficients: GasVectorCoefficients,
 }
@@ -2253,9 +2225,8 @@ impl ProtocolConfig {
         res
     }
 
-    /// The calibrated table pricing a transaction's resource profile into
-    /// the gas vector (predicted execution time and moved bytes), or `None`
-    /// when this protocol version carries no table.
+    /// The gas-vector coefficients, or `None` if this protocol version has
+    /// none.
     pub fn gas_vector_coefficients(&self) -> Option<&GasVectorCoefficientsV1> {
         match &self.gas_vector_coefficients {
             GasVectorCoefficients::None => None,
