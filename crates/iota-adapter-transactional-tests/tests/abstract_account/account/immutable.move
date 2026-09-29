@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // an immutable abstract account cannot authenticate a transaction
+// pinned to the last protocol version where such an account can still be created
 
-//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A
+//# init --addresses test=0x0 simple_abstract_account=0x0 --accounts A --protocol-version 37
 
 //# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
 
