@@ -5,6 +5,7 @@
 module iota::smart_account_tests;
 
 use iota::authenticator_function;
+use iota::builtin_authenticator_functions;
 use iota::event;
 use iota::public_key;
 use iota::signature_scheme;
@@ -46,6 +47,26 @@ fun builder_v1_builds_immutable_account() {
     assert_ref_eq(account.borrow_auth_function_ref_v1(), &authenticator);
 
     test_scenario::return_immutable(account);
+    scenario.end();
+}
+
+#[test]
+#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
+
+fun builder_v1_builds_mutable_account_with_builtin_authenticator() {
+    let mut scenario = test_scenario::begin(@0x0);
+
+    let authenticator = builtin_authenticator_functions::ed25519_authenticator_function_ref_v1();
+    let addr = smart_account::builder_v1(authenticator, scenario.ctx()).build_v1();
+
+    scenario.next_tx(@0x0);
+    let mut account = scenario.take_shared<SmartAccount>();
+
+    assert_eq(account.account_address(), addr);
+
+    account.attach_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
+
+    test_scenario::return_shared(account);
     scenario.end();
 }
 
@@ -476,7 +497,11 @@ fun assert_single_created_event(
 ) {
     let events = event::events_by_type<SmartAccountCreated>();
     assert_eq(events.length(), 1);
-    let (account_id, emitted_key, emitted_immutable) = smart_account::smart_account_created_fields_for_testing(
+    let (
+        account_id,
+        emitted_key,
+        emitted_immutable,
+    ) = smart_account::smart_account_created_fields_for_testing(
         &events[0],
     );
     assert_eq(account_id.to_address(), account);
