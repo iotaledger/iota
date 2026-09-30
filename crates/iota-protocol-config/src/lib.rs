@@ -248,6 +248,14 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             dependencies.
 // Version 38: Bound system Move packages by `max_move_system_package_size`
 //             rather than the limit that applies to user packages.
+//             Enable built-in Move authenticators in devnet.
+//             Accept the `ClaimAccount` transaction kind in devnet, which
+//             creates an account object at the sender's address.
+//             Introduce Move native functions for validating public keys for
+//             Ed25519, Secp256k1, Secp256r1, and MultiSig signature schemes,
+//             and deriving IOTA addresses from public keys.
+//             Set the gas costs of those natives and of the built-in Move
+//             authenticators on all networks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -725,6 +733,16 @@ struct FeatureFlags {
     // If true, deprecate global storage ops during Move module deserialization
     #[serde(skip_serializing_if = "is_false")]
     deprecate_global_storage_ops_during_deserialization: bool,
+
+    // If true, enables the authentication with built-in Move authenticators.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_builtin_move_authenticators: bool,
+
+    // If true, the `ClaimAccount` user transaction kind is accepted. It creates an
+    // account object whose id is the sender's address, so a usable account also
+    // requires `enable_builtin_move_authenticators`.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_claim_account_transaction: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1677,6 +1695,30 @@ pub struct ProtocolConfig {
     /// larger bound than `max_move_package_size`. When unset, system packages
     /// are bound by `max_move_package_size` like any other package.
     max_move_system_package_size: Option<u64>,
+
+    // Cost params for built-in Move authenticators
+    builtin_move_authenticator_cost_base: Option<u64>,
+
+    // Cost param for the Move native function `ed25519::ed25519_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    ed25519_ed25519_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `ecdsa_k1::secp256k1_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    ecdsa_k1_secp256k1_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `ecdsa_r1::secp256r1_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    ecdsa_r1_secp256r1_validate_pubkey_cost_base: Option<u64>,
+    // Cost param for the Move native function `multisig::multisig_validate_pubkey(public_key:
+    // &vector<u8>): bool`
+    multisig_multisig_validate_pubkey_cost_base: Option<u64>,
+    // Per-member cost params for `multisig::multisig_validate_pubkey`, charged once per committee
+    // member according to its key scheme (Passkey members reuse the secp256r1 cost).
+    multisig_multisig_validate_pubkey_cost_per_ed25519_member: Option<u64>,
+    multisig_multisig_validate_pubkey_cost_per_secp256k1_member: Option<u64>,
+    multisig_multisig_validate_pubkey_cost_per_secp256r1_member: Option<u64>,
+    // Cost param for the Move native function `public_key::to_iota_address_impl(flag: u8,
+    // raw_bytes: &vector<u8>): address`
+    public_key_to_iota_address_impl_cost_base: Option<u64>,
 }
 
 // feature flags
@@ -2222,6 +2264,26 @@ impl ProtocolConfig {
     pub fn deprecate_global_storage_ops_during_deserialization(&self) -> bool {
         self.feature_flags
             .deprecate_global_storage_ops_during_deserialization
+    }
+
+    pub fn enable_builtin_move_authenticators(&self) -> bool {
+        let enable_builtin_move_authenticators =
+            self.feature_flags.enable_builtin_move_authenticators;
+        if enable_builtin_move_authenticators {
+            assert!(
+                self.enable_move_authentication(),
+                "enable_builtin_move_authenticators requires enable_move_authentication to be set"
+            );
+            assert!(
+                self.builtin_move_authenticator_cost_base.is_some(),
+                "enable_builtin_move_authenticators requires builtin_move_authenticator_cost_base to be set"
+            );
+        }
+        enable_builtin_move_authenticators
+    }
+
+    pub fn enable_claim_account_transaction(&self) -> bool {
+        self.feature_flags.enable_claim_account_transaction
     }
 }
 
@@ -2889,6 +2951,19 @@ impl ProtocolConfig {
             consensus_leader_schedule_window_size: None,
 
             max_move_system_package_size: None,
+
+            // Built-in Move authenticators
+            builtin_move_authenticator_cost_base: None,
+
+            ed25519_ed25519_validate_pubkey_cost_base: None,
+            ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
+            ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
+            multisig_multisig_validate_pubkey_cost_base: None,
+            multisig_multisig_validate_pubkey_cost_per_ed25519_member: None,
+            multisig_multisig_validate_pubkey_cost_per_secp256k1_member: None,
+            multisig_multisig_validate_pubkey_cost_per_secp256r1_member: None,
+            public_key_to_iota_address_impl_cost_base: None,
+
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3623,6 +3698,26 @@ impl ProtocolConfig {
                     // publish (genesis, or a newly added system package) is
                     // checked against it.
                     cfg.max_move_system_package_size = Some(200 * 1024);
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable built-in Move authenticators in devnet.
+                        cfg.feature_flags.enable_builtin_move_authenticators = true;
+                        // Enable claiming an account for the sender's address in
+                        // devnet only.
+                        cfg.feature_flags.enable_claim_account_transaction = true;
+                    }
+
+                    // Set the cost for built-in Move authenticators to 0 for now.
+                    cfg.builtin_move_authenticator_cost_base = Some(0);
+
+                    cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
+                    cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
+                    cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_base = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_per_ed25519_member = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_per_secp256k1_member = Some(52);
+                    cfg.multisig_multisig_validate_pubkey_cost_per_secp256r1_member = Some(52);
+                    cfg.public_key_to_iota_address_impl_cost_base = Some(52);
                 }
                 // Use this template when making changes:
                 //
@@ -3765,6 +3860,10 @@ impl ProtocolConfig {
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {
         self.feature_flags.passkey_auth = val
+    }
+
+    pub fn set_enable_claim_account_transaction_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_claim_account_transaction = val;
     }
 
     pub fn set_disallow_new_modules_in_deps_only_packages_for_testing(&mut self, val: bool) {
@@ -3979,6 +4078,10 @@ impl ProtocolConfig {
     pub fn set_consensus_enable_absolute_score_leader_schedule_for_testing(&mut self, val: bool) {
         self.feature_flags
             .consensus_enable_absolute_score_leader_schedule = val;
+    }
+
+    pub fn set_enable_builtin_move_authenticators_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_builtin_move_authenticators = val;
     }
 }
 
