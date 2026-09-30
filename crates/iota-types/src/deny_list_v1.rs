@@ -8,7 +8,8 @@ use std::{
 };
 
 use iota_sdk_move_types::iota_framework::{
-    deny_list::{AddressKey, ConfigKey, GlobalPauseKey},
+    config::Config,
+    deny_list::{AddressKey, ConfigKey, ConfigWriteCap, GlobalPauseKey},
     dynamic_object_field::Wrapper,
 };
 use iota_sdk_types::{Address, Identifier, ObjectId, Version};
@@ -18,7 +19,7 @@ use tracing::{error, instrument};
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
     base_types::EpochId,
-    config::{Config, Setting},
+    config::Setting,
     dynamic_field::get_dynamic_field_from_store,
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::{ID, UID},
@@ -135,7 +136,7 @@ pub fn check_coin_deny_list_v1_during_execution(
 }
 
 fn check_new_regulated_coin_owners(
-    new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<Address>)>,
+    new_regulated_coin_owners: BTreeMap<String, (Config<ConfigWriteCap>, BTreeSet<Address>)>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> Result<(), ExecutionError> {
@@ -165,7 +166,7 @@ fn check_new_regulated_coin_owners(
 pub fn get_per_type_coin_deny_list_v1(
     coin_type: &String,
     object_store: &dyn ObjectStore,
-) -> Option<Config> {
+) -> Option<Config<ConfigWriteCap>> {
     let config_key = Wrapper {
         name: ConfigKey {
             per_type_index: DENY_LIST_COIN_TYPE_INDEX,
@@ -173,14 +174,14 @@ pub fn get_per_type_coin_deny_list_v1(
         },
     };
     // TODO: Consider caching the config object UID to avoid repeat deserialization.
-    let config: Config =
+    let config: Config<ConfigWriteCap> =
         get_dynamic_field_from_store(object_store, IOTA_DENY_LIST_OBJECT_ID, &config_key).ok()?;
     Some(config)
 }
 
 #[instrument(level = "trace", skip_all)]
 pub fn check_address_denied_by_config(
-    deny_config: &Config,
+    deny_config: &Config<ConfigWriteCap>,
     address: Address,
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
@@ -191,7 +192,7 @@ pub fn check_address_denied_by_config(
 
 #[instrument(level = "trace", skip_all)]
 pub fn check_global_pause(
-    deny_config: &Config,
+    deny_config: &Config<ConfigWriteCap>,
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
 ) -> bool {
@@ -225,7 +226,7 @@ pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) 
 /// If `cur_epoch` is `None`, the `newer_value` is always returned.
 fn read_config_setting<K, V>(
     object_store: &dyn ObjectStore,
-    config: &Config,
+    config: &Config<ConfigWriteCap>,
     setting_name: K,
     cur_epoch: Option<EpochId>,
 ) -> Option<V>

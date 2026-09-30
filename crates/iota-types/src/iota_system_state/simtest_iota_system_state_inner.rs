@@ -4,6 +4,7 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
+use iota_sdk_move_types::iota_framework::system_admin_cap::IotaSystemAdminCap;
 use iota_sdk_types::Address;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -21,7 +22,6 @@ use crate::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     storage::ObjectStore,
-    system_admin_cap::IotaSystemAdminCap,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]

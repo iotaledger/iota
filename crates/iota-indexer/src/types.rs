@@ -6,6 +6,9 @@ use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
 };
+use iota_sdk_move_types::iota_system::iota_system_state_inner::{
+    SystemEpochInfoEventV1, SystemEpochInfoEventV2,
+};
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
     EndOfEpochData, MovePackage, ObjectDigest, ObjectId, Owner, SenderSignedTransaction, StructTag,
@@ -14,7 +17,7 @@ use iota_sdk_types::{
 use iota_types::{
     crypto::AggregateAuthoritySignature,
     dynamic_field::DynamicFieldType,
-    event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
+    event::SystemEpochInfoEvent,
     iota_serde::{IotaStructTag, IotaTypeTag},
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
