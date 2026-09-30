@@ -73,6 +73,11 @@ pub struct AttestedTransaction {
     pub attestation: Attestation,
 }
 
+// TODO: sign an `IntentMessage` under a dedicated `IntentScope` (an
+// iota-rust-sdk change) and bind the epoch, so the signature is
+// domain-separated like every other one and cannot be carried into a later
+// epoch. Both change the signed bytes and must land before
+// `enable_external_attestation` is enabled on any network.
 /// Digest an external attestor signs:
 /// `hash(tx_digest || BCS(payload) || attestor_address)`.
 pub fn external_attestation_digest(
