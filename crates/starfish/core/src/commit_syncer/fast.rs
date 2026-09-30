@@ -56,8 +56,10 @@ const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
 /// one, whether it errored, timed out, or returned headers that did not verify.
 fn record_headers_for_reinitialization_failure<C: NetworkClient>(
     inner: &Inner<C>,
+    failed_authorities: &mut BTreeSet<AuthorityIndex>,
     authority: AuthorityIndex,
 ) {
+    failed_authorities.insert(authority);
     inner
         .context
         .peer_responsiveness
@@ -879,6 +881,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // Fetch headers in chunks to avoid overwhelming the network
         let mut all_headers = Vec::new();
+        let mut failed_authorities = BTreeSet::new();
         for chunk in block_refs.chunks(max_headers_per_fetch) {
             let chunk_refs: Vec<_> = chunk.to_vec();
 
@@ -895,6 +898,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             // A peer that voted for the last commit holds these headers, while
             // one with no observed vote may be down and cost the full timeout.
             inner.order_voters_first(&mut target_authorities, last_commit_index);
+            // A peer that failed an earlier chunk goes last, voter or not, so a
+            // down peer costs the timeout only once.
+            target_authorities.sort_by_key(|authority| failed_authorities.contains(authority));
 
             // Try fetching from different authorities until successful
             let mut fetched = false;
@@ -934,7 +940,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 inner
                                     .misbehavior_store
                                     .record_faulty_block(authority, authority, &e);
-                                record_headers_for_reinitialization_failure(&inner, authority);
+                                record_headers_for_reinitialization_failure(
+                                    &inner,
+                                    &mut failed_authorities,
+                                    authority,
+                                );
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),
@@ -946,7 +956,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     }
                     Ok(Err(e)) => {
                         inner.misbehavior_store.record_fetch_fault(authority, &e);
-                        record_headers_for_reinitialization_failure(&inner, authority);
+                        record_headers_for_reinitialization_failure(
+                            &inner,
+                            &mut failed_authorities,
+                            authority,
+                        );
                         warn!(
                             "[{}] Failed to fetch headers from {}: {}",
                             inner.sync_type.as_str(),
@@ -955,7 +969,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         );
                     }
                     Err(_) => {
-                        record_headers_for_reinitialization_failure(&inner, authority);
+                        record_headers_for_reinitialization_failure(
+                            &inner,
+                            &mut failed_authorities,
+                            authority,
+                        );
                         warn!(
                             "[{}] Timed out fetching headers from {}",
                             inner.sync_type.as_str(),
@@ -1735,6 +1753,65 @@ mod tests {
             let asked = network_client.requested_header_peers.lock().clone();
             assert_eq!(asked.len(), 3);
             assert_eq!(asked[0], AuthorityIndex::new_for_test(3));
+        }
+
+        /// A voter that fails one chunk of the reinitialization header fetch
+        /// is asked after every other peer for the remaining chunks.
+        #[tokio::test(start_paused = true)]
+        async fn reinitialization_demotes_a_failed_voter() {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context.parameters.enable_peer_responsiveness_ranking = true;
+            context.parameters.max_headers_per_commit_sync_fetch = 1;
+            let context = Arc::new(context);
+            let headers: Vec<_> = (0..2)
+                .map(|author| {
+                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, author).build())
+                })
+                .collect();
+            let block_refs: Vec<_> = headers.iter().map(|header| header.reference()).collect();
+            let voter = AuthorityIndex::new_for_test(3);
+            let network_client = Arc::new(FakeNetworkClient {
+                stored_block_headers: headers
+                    .iter()
+                    .map(|header| (header.reference(), header.serialized().clone()))
+                    .collect(),
+                unreachable_header_peers: vec![voter],
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+            {
+                let mut dag_state = inner.dag_state.write();
+                dag_state.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    1,
+                    CommitDigest::MIN,
+                    0,
+                    block_refs[0],
+                    block_refs.clone(),
+                    vec![],
+                ));
+                dag_state.flush();
+            }
+            inner
+                .commit_vote_monitor
+                .observe_block(&VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(3, 3)
+                        .set_commit_votes(vec![CommitRef::new(1, CommitDigest::MIN)])
+                        .build(),
+                ));
+
+            let fetched = FastCommitSyncer::fetch_headers_for_reinitialization(inner)
+                .await
+                .unwrap();
+
+            assert_eq!(fetched.len(), 2);
+            let asked = network_client.requested_header_peers.lock().clone();
+            assert_eq!(asked.len(), 3);
+            assert_eq!(asked[0], voter);
+            assert!(!asked[1..].contains(&voter));
         }
     }
 

@@ -953,7 +953,8 @@ pub(crate) mod tests {
 
     /// Fake `NetworkClient` for commit syncer tests, serving preset responses.
     /// With no preset response, `fetch_commits_and_transactions` fails the
-    /// fetch, while the other fetch endpoints panic as unimplemented.
+    /// fetch, `fetch_block_headers` answers from `stored_block_headers`, while
+    /// the other fetch endpoints panic as unimplemented.
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
@@ -973,6 +974,11 @@ pub(crate) mod tests {
         pub(crate) transactions: Option<Vec<Bytes>>,
         /// Every peer asked for block headers, in the order it was asked.
         pub(crate) requested_header_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
+        /// Headers `fetch_block_headers` serves by requested ref when no preset
+        /// response is set; a ref without an entry is left out of the answer.
+        pub(crate) stored_block_headers: BTreeMap<BlockRef, Bytes>,
+        /// Peers whose `fetch_block_headers` fails as a connection error.
+        pub(crate) unreachable_header_peers: Vec<AuthorityIndex>,
     }
 
     #[async_trait::async_trait]
@@ -1001,14 +1007,22 @@ pub(crate) mod tests {
         async fn fetch_block_headers(
             &self,
             peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             self.requested_header_peers.lock().push(peer);
+            if self.unreachable_header_peers.contains(&peer) {
+                return Err(ConsensusError::NetworkClientConnection(format!(
+                    "{peer} is unreachable"
+                )));
+            }
             match &self.block_headers {
                 Some(response) => Ok(response.clone()),
-                None => unimplemented!("Unimplemented"),
+                None => Ok(block_refs
+                    .iter()
+                    .filter_map(|block_ref| self.stored_block_headers.get(block_ref).cloned())
+                    .collect()),
             }
         }
 
