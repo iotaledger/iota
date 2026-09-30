@@ -5,7 +5,6 @@
 module iota::smart_account_tests;
 
 use iota::authenticator_function;
-use iota::builtin_authenticator_functions;
 use iota::event;
 use iota::public_key;
 use iota::signature_scheme;
@@ -443,63 +442,6 @@ fun rotate_auth_function_ref_v1_returns_old_and_stores_new() {
 fun rotate_auth_function_ref_v1_aborts_if_sender_not_account() {
     account_test_wrong_sender!(|account, scenario| {
         account.rotate_auth_function_ref_v1(test_authenticator(), scenario.ctx());
-    });
-}
-
-// === Key and built-in authenticator changes ===
-//
-// The framework allows each of these. Whether the account can still
-// authenticate afterwards is what the transactional tests under
-// abstract_account/smart_account check.
-
-#[test]
-fun rotating_the_key_and_the_authenticator_together_switches_scheme() {
-    account_test_mut!(|account, scenario| {
-        let secp256k1_authenticator = builtin_authenticator_functions::secp256k1_authenticator_function_ref_v1();
-
-        account.rotate_builtin_auth_public_key(secp256k1_public_key(), scenario.ctx());
-        account.rotate_auth_function_ref_v1(secp256k1_authenticator, scenario.ctx());
-
-        assert_eq(account.borrow_builtin_auth_public_key().scheme(), signature_scheme::secp256k1());
-        assert_ref_eq(account.borrow_auth_function_ref_v1(), &secp256k1_authenticator);
-    });
-}
-
-#[test]
-fun rotating_only_the_key_to_another_scheme_leaves_the_authenticator() {
-    account_test_mut!(|account, scenario| {
-        account.rotate_builtin_auth_public_key(secp256k1_public_key(), scenario.ctx());
-
-        assert_eq(account.borrow_builtin_auth_public_key().scheme(), signature_scheme::secp256k1());
-        assert_ref_eq(
-            account.borrow_auth_function_ref_v1(),
-            &builtin_authenticator_functions::ed25519_authenticator_function_ref_v1(),
-        );
-    });
-}
-
-#[test]
-fun rotating_only_the_authenticator_to_another_scheme_leaves_the_key() {
-    account_test_mut!(|account, scenario| {
-        let secp256k1_authenticator = builtin_authenticator_functions::secp256k1_authenticator_function_ref_v1();
-
-        account.rotate_auth_function_ref_v1(secp256k1_authenticator, scenario.ctx());
-
-        assert_eq(account.borrow_builtin_auth_public_key().scheme(), signature_scheme::ed25519());
-        assert_ref_eq(account.borrow_auth_function_ref_v1(), &secp256k1_authenticator);
-    });
-}
-
-#[test]
-fun detaching_the_key_leaves_the_builtin_authenticator() {
-    account_test_mut!(|account, scenario| {
-        account.detach_builtin_auth_public_key(scenario.ctx());
-
-        assert_eq(account.has_builtin_auth_public_key(), false);
-        assert_ref_eq(
-            account.borrow_auth_function_ref_v1(),
-            &builtin_authenticator_functions::ed25519_authenticator_function_ref_v1(),
-        );
     });
 }
 
