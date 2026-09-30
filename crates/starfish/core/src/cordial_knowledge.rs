@@ -1148,14 +1148,11 @@ impl ConnectionKnowledge {
 
         // Remove the taken refs from the corresponding authorities
         for item_ref in &taken {
-            let authority = get_author(item_ref);
-            let round = get_round(item_ref);
-            if let Some(refs_from_authority_in_round) = maps[authority].get_mut(&round) {
-                // Remove empty rounds to keep map small
-                if refs_from_authority_in_round.remove_ref(item_ref) {
-                    maps[authority].remove(&round);
-                }
-            }
+            S::remove_ref(
+                &mut maps[get_author(item_ref)],
+                get_round(item_ref),
+                item_ref,
+            );
         }
 
         taken
@@ -1457,33 +1454,31 @@ impl ConnectionKnowledge {
 
     /// Handles removing a header that this peer now knows.
     fn handle_remove_header(&mut self, block_ref: BlockRef) {
-        let refs_by_round = &mut self.headers_not_known[block_ref.author.value()];
-        if refs_by_round.get(&block_ref.round) == Some(&block_ref) {
-            refs_by_round.remove(&block_ref.round);
-        }
+        SlotRefs::remove_ref(
+            &mut self.headers_not_known[block_ref.author.value()],
+            block_ref.round,
+            &block_ref,
+        );
     }
 
     /// Handles removing a shard that this peer now knows.
     fn handle_remove_shard(&mut self, gen_tx_ref: GenericTransactionRef) {
-        let authority = gen_tx_ref.author().value();
-        let round = gen_tx_ref.round();
-
-        if let Some(set) = self.shards_not_known[authority].get_mut(&round) {
-            set.remove(&gen_tx_ref);
-            if set.is_empty() {
-                self.shards_not_known[authority].remove(&round);
-            }
-        }
+        SlotRefs::remove_ref(
+            &mut self.shards_not_known[gen_tx_ref.author().value()],
+            gen_tx_ref.round(),
+            &gen_tx_ref,
+        );
     }
 }
 
 /// The refs a `ConnectionKnowledge` slot holds: a single header, or a set of
 /// shards.
-trait SlotRefs<T> {
+trait SlotRefs<T>: Sized {
     fn refs(&self) -> impl Iterator<Item = T> + '_;
 
-    /// Removes `item_ref` and returns whether the slot is now empty.
-    fn remove_ref(&mut self, item_ref: &T) -> bool;
+    /// Removes `item_ref` from the slot at `round`, and drops the slot once it
+    /// holds no refs.
+    fn remove_ref(slots: &mut BTreeMap<Round, Self>, round: Round, item_ref: &T);
 }
 
 impl SlotRefs<BlockRef> for BlockRef {
@@ -1491,8 +1486,10 @@ impl SlotRefs<BlockRef> for BlockRef {
         std::iter::once(*self)
     }
 
-    fn remove_ref(&mut self, item_ref: &BlockRef) -> bool {
-        self == item_ref
+    fn remove_ref(slots: &mut BTreeMap<Round, Self>, round: Round, item_ref: &BlockRef) {
+        if slots.get(&round) == Some(item_ref) {
+            slots.remove(&round);
+        }
     }
 }
 
@@ -1501,9 +1498,13 @@ impl<T: Copy + Eq + std::hash::Hash> SlotRefs<T> for AHashSet<T> {
         self.iter().copied()
     }
 
-    fn remove_ref(&mut self, item_ref: &T) -> bool {
-        self.remove(item_ref);
-        self.is_empty()
+    fn remove_ref(slots: &mut BTreeMap<Round, Self>, round: Round, item_ref: &T) {
+        if let Some(refs) = slots.get_mut(&round) {
+            refs.remove(item_ref);
+            if refs.is_empty() {
+                slots.remove(&round);
+            }
+        }
     }
 }
 
