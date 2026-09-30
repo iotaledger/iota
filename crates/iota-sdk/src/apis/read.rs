@@ -16,10 +16,9 @@ use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, DevInspectArgs, DevInspectResults,
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
     IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
-    TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockEffects, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage,
+    PastObjectResponse, ProtocolConfigResponse, TransactionBlocksPage, TransactionFilter,
 };
 use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest, TransactionKind, Version};
 use iota_types::{
@@ -227,7 +226,7 @@ impl ReadApi {
         object_id: ObjectId,
         version: Version,
         options: IotaObjectDataOptions,
-    ) -> IotaRpcResult<IotaPastObjectResponse> {
+    ) -> IotaRpcResult<PastObjectResponse> {
         Ok(self
             .api
             .http
@@ -312,7 +311,7 @@ impl ReadApi {
         &self,
         past_objects: Vec<IotaGetPastObjectRequest>,
         options: IotaObjectDataOptions,
-    ) -> IotaRpcResult<Vec<IotaPastObjectResponse>> {
+    ) -> IotaRpcResult<Vec<PastObjectResponse>> {
         Ok(self
             .api
             .http
@@ -727,7 +726,7 @@ impl ReadApi {
         &self,
         object_id: ObjectId,
         version: Version,
-    ) -> IotaRpcResult<IotaPastObjectResponse> {
+    ) -> IotaRpcResult<PastObjectResponse> {
         Ok(self
             .api
             .http

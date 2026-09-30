@@ -21,6 +21,7 @@ use iota_types::{
     base_types::{ObjectInfo, ObjectType},
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
+    iota_serde::BigInt,
     messages_checkpoint::CheckpointSequenceNumber,
     object::{MoveStructExt, Object, ObjectInner, ObjectRead},
 };
@@ -1226,6 +1227,58 @@ pub enum IotaPastObjectResponse {
         asked_version: SequenceNumberU64,
         latest_version: SequenceNumberU64,
     },
+}
+
+/// The result of a past object lookup, together with the oldest checkpoint the
+/// lookup could have found the object in.
+///
+/// The lookup result is flattened, so the `status` and `details` fields sit
+/// next to `oldestAvailableCheckpoint` in the response.
+#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PastObjectResponse {
+    #[serde(flatten)]
+    pub object_read: IotaPastObjectResponse,
+    /// The oldest checkpoint this response can contain data from.
+    ///
+    /// Anything before it has been pruned and may be missing from the
+    /// response.
+    ///
+    /// Only reported when the answer cannot be told apart from data that was
+    /// pruned, and absent on servers that do not report it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub oldest_available_checkpoint: Option<BigInt<u64>>,
+}
+
+impl PastObjectResponse {
+    /// Wraps a lookup result that was served without consulting pruned tables.
+    pub fn new(object_read: IotaPastObjectResponse) -> Self {
+        Self {
+            object_read,
+            oldest_available_checkpoint: None,
+        }
+    }
+
+    /// Wraps a lookup result, reporting `oldest_available_checkpoint` when the
+    /// answer cannot be told apart from data that was pruned.
+    ///
+    /// A deleted object and a version above the latest one are answers in their
+    /// own right, and a found object needs no bound, so none of them report it.
+    pub fn with_oldest_available_checkpoint(
+        object_read: IotaPastObjectResponse,
+        oldest_available_checkpoint: u64,
+    ) -> Self {
+        let may_be_pruned = matches!(
+            object_read,
+            IotaPastObjectResponse::ObjectNotExists(_)
+                | IotaPastObjectResponse::VersionNotFound(..)
+        );
+        Self {
+            object_read,
+            oldest_available_checkpoint: may_be_pruned.then(|| oldest_available_checkpoint.into()),
+        }
+    }
 }
 
 impl IotaPastObjectResponse {

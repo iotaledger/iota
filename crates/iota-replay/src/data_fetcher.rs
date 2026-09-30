@@ -396,7 +396,7 @@ impl DataFetcher for RemoteFetcher {
             .map_err(ReplayEngineError::from)?
             .iter()
             .flatten()
-            .map(|q| convert_past_obj_response(q.clone()))
+            .map(|q| convert_past_obj_response(q.object_read.clone()))
             .collect::<Result<Vec<_>, _>>()
             .map(|mut x| {
                 // Add the cached objects to the result
@@ -423,7 +423,7 @@ impl DataFetcher for RemoteFetcher {
             .try_get_object_before_version(*object_id, version_upper_bound)
             .await
             .map_err(|q| ReplayEngineError::IotaRpcError { err: q.to_string() })?;
-        convert_past_obj_response(response)
+        convert_past_obj_response(response.object_read)
     }
 
     async fn multi_get_latest(

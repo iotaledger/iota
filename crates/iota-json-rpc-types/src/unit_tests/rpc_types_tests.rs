@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use anyhow::anyhow;
-use iota_sdk_types::{Address, ObjectDigest, ObjectId, Owner, Version};
+use iota_sdk_types::{Address, ObjectDigest, ObjectId, ObjectReference, Owner, Version};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, gas_coin::GasCoin, object::MoveStructExt,
     parse_iota_struct_tag,
@@ -18,7 +18,9 @@ use move_core_types::{
 };
 use serde_json::json;
 
-use crate::{IotaMoveStruct, IotaMoveValue, ObjectChange};
+use crate::{
+    IotaMoveStruct, IotaMoveValue, IotaPastObjectResponse, ObjectChange, PastObjectResponse,
+};
 
 #[test]
 fn test_move_value_to_iota_coin() {
@@ -196,4 +198,88 @@ fn test_type_tag_struct_tag_devnet_inc_222() {
         let deser: ObjectChange = serde_json::from_str(&serde_json).unwrap();
         assert_eq!(oc, deser);
     }
+}
+
+#[test]
+fn past_object_response_reports_the_oldest_available_checkpoint_next_to_the_status() {
+    let object_id = ObjectId::random();
+    let response = PastObjectResponse::with_oldest_available_checkpoint(
+        IotaPastObjectResponse::ObjectNotExists(object_id),
+        42,
+    );
+
+    assert_eq!(
+        serde_json::to_value(&response).unwrap(),
+        json!({
+            "status": "ObjectNotExists",
+            "details": object_id.to_string(),
+            "oldestAvailableCheckpoint": "42",
+        })
+    );
+}
+
+#[test]
+fn past_object_response_reports_the_oldest_available_checkpoint_only_when_pruning_could_explain_it()
+{
+    let object_id = ObjectId::random();
+    let version = Version::from_u64(1);
+    let reports = |object_read| {
+        PastObjectResponse::with_oldest_available_checkpoint(object_read, 42)
+            .oldest_available_checkpoint
+            .is_some()
+    };
+
+    // A pruned table looks the same as an object that was never written.
+    assert!(reports(IotaPastObjectResponse::ObjectNotExists(object_id)));
+    assert!(reports(IotaPastObjectResponse::VersionNotFound(
+        object_id,
+        version.into()
+    )));
+
+    // These answers stand on their own, so there is nothing to explain.
+    assert!(!reports(IotaPastObjectResponse::VersionTooHigh {
+        object_id,
+        asked_version: version.into(),
+        latest_version: version.into(),
+    }));
+    assert!(!reports(IotaPastObjectResponse::ObjectDeleted(
+        ObjectReference::new(object_id, version, ObjectDigest::ZERO)
+    )));
+}
+
+#[test]
+fn past_object_response_without_a_checkpoint_serializes_as_the_lookup_result_alone() {
+    let object_id = ObjectId::random();
+    let unreported = PastObjectResponse::new(IotaPastObjectResponse::ObjectNotExists(object_id));
+    assert_eq!(
+        serde_json::to_value(&unreported).unwrap(),
+        json!({ "status": "ObjectNotExists", "details": object_id.to_string() })
+    );
+}
+
+#[test]
+fn past_object_response_stays_readable_by_clients_that_do_not_know_the_new_field() {
+    let object_id = ObjectId::random();
+    let with_checkpoint =
+        serde_json::to_string(&PastObjectResponse::with_oldest_available_checkpoint(
+            IotaPastObjectResponse::ObjectNotExists(object_id),
+            42,
+        ))
+        .unwrap();
+
+    // A client deserializing the lookup result alone ignores the added field.
+    assert_eq!(
+        serde_json::from_str::<IotaPastObjectResponse>(&with_checkpoint).unwrap(),
+        IotaPastObjectResponse::ObjectNotExists(object_id)
+    );
+
+    // A response from a server that does not report the field still reads.
+    let without_checkpoint =
+        serde_json::to_string(&IotaPastObjectResponse::ObjectNotExists(object_id)).unwrap();
+    let response: PastObjectResponse = serde_json::from_str(&without_checkpoint).unwrap();
+    assert_eq!(
+        response.object_read,
+        IotaPastObjectResponse::ObjectNotExists(object_id)
+    );
+    assert!(response.oldest_available_checkpoint.is_none());
 }

@@ -20,7 +20,7 @@ use iota_json_rpc_types::{
     IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError,
     IotaPastObjectResponse, IotaTransactionBlock, IotaTransactionBlockEffects,
     IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ObjectChange, ProtocolConfigResponse, iota_primitives::SequenceNumberU64,
+    ObjectChange, PastObjectResponse, ProtocolConfigResponse, iota_primitives::SequenceNumberU64,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
@@ -588,7 +588,7 @@ impl ReadApiServer for ReadApi {
         object_id: ObjectId,
         version: SequenceNumberU64,
         options: Option<IotaObjectDataOptions>,
-    ) -> RpcResult<IotaPastObjectResponse> {
+    ) -> RpcResult<PastObjectResponse> {
         async move {
             let version: Version = version.into();
             let state = self.state.clone();
@@ -638,6 +638,8 @@ impl ReadApiServer for ReadApi {
                     latest_version: latest_version.into(),
                 }),
             }
+            // The fullnode serves no pruned tables, so it reports no checkpoint.
+            .map(PastObjectResponse::new)
         }
         .trace()
         .await
@@ -648,7 +650,7 @@ impl ReadApiServer for ReadApi {
         &self,
         object_id: ObjectId,
         version: Version,
-    ) -> RpcResult<IotaPastObjectResponse> {
+    ) -> RpcResult<PastObjectResponse> {
         let version = self
             .state
             .find_object_lt_or_eq_version(&object_id, &version)
@@ -669,7 +671,7 @@ impl ReadApiServer for ReadApi {
         &self,
         past_objects: Vec<IotaGetPastObjectRequest>,
         options: Option<IotaObjectDataOptions>,
-    ) -> RpcResult<Vec<IotaPastObjectResponse>> {
+    ) -> RpcResult<Vec<PastObjectResponse>> {
         async move {
             if past_objects.len() <= *QUERY_MAX_RESULT_LIMIT {
                 let mut futures = vec![];

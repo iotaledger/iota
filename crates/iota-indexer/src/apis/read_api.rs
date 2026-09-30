@@ -11,8 +11,8 @@ use iota_json_rpc_api::{ReadApiServer, internal_error};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseError, IotaPastObjectResponse,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
-    iota_primitives::SequenceNumberU64,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, PastObjectResponse,
+    ProtocolConfigResponse, iota_primitives::SequenceNumberU64,
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
@@ -47,9 +47,11 @@ impl ReadApi {
         }
     }
 
-    async fn get_checkpoint(&self, id: CheckpointId) -> Result<Checkpoint, IndexerError> {
+    async fn get_checkpoint(&self, id: CheckpointId) -> IndexerResult<Checkpoint> {
         match self.inner.get_checkpoint_with_fallback(id).await {
             Ok(Some(checkpoint)) => Ok(checkpoint),
+            // A checkpoint that was pruned already failed in the reader, so
+            // nothing here means it is not part of the chain.
             Ok(None) => Err(IndexerError::InvalidArgument(format!(
                 "Checkpoint {id} not found"
             ))),
@@ -270,16 +272,16 @@ impl ReadApiServer for ReadApi {
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
         let options = options.unwrap_or_default();
-        let txn = self
+        let (txn, oldest_available_cp) = self
             .inner
             .get_single_transaction_block_response_with_fallback(digest, options)
             .await?;
 
-        let txn = txn.ok_or_else(|| {
-            IndexerError::InvalidArgument(format!("Transaction {digest} not found"))
-        })?;
-
-        Ok(txn)
+        txn.ok_or_else(|| IndexerError::DataPruned {
+            message: format!("Transaction {digest} not found"),
+            oldest_available_checkpoint: oldest_available_cp,
+        })
+        .map_err(Into::into)
     }
 
     async fn multi_get_transaction_blocks(
@@ -303,52 +305,65 @@ impl ReadApiServer for ReadApi {
         object_id: ObjectId,
         version: SequenceNumberU64,
         options: Option<IotaObjectDataOptions>,
-    ) -> RpcResult<IotaPastObjectResponse> {
-        let past_object_read = self
+    ) -> RpcResult<PastObjectResponse> {
+        let (past_object_read, oldest_available_cp) = self
             .inner
             .get_past_object_read_with_fallback(object_id, version.into(), false)
             .await?;
+        let object_read = self
+            .past_object_read_to_response(options, past_object_read)
+            .await?;
 
-        self.past_object_read_to_response(options, past_object_read)
-            .await
+        Ok(PastObjectResponse::with_oldest_available_checkpoint(
+            object_read,
+            oldest_available_cp,
+        ))
     }
 
     async fn try_get_object_before_version(
         &self,
         object_id: ObjectId,
         version: Version,
-    ) -> RpcResult<IotaPastObjectResponse> {
-        let past_object_read = self
+    ) -> RpcResult<PastObjectResponse> {
+        let (past_object_read, oldest_available_cp) = self
             .inner
             .get_past_object_read_with_fallback(object_id, version, true)
             .await?;
+        let object_read = self
+            .past_object_read_to_response(
+                Some(IotaObjectDataOptions::bcs_lossless()),
+                past_object_read,
+            )
+            .await?;
 
-        self.past_object_read_to_response(
-            Some(IotaObjectDataOptions::bcs_lossless()),
-            past_object_read,
-        )
-        .await
+        Ok(PastObjectResponse::with_oldest_available_checkpoint(
+            object_read,
+            oldest_available_cp,
+        ))
     }
 
     async fn try_multi_get_past_objects(
         &self,
         past_objects: Vec<IotaGetPastObjectRequest>,
         options: Option<IotaObjectDataOptions>,
-    ) -> RpcResult<Vec<IotaPastObjectResponse>> {
+    ) -> RpcResult<Vec<PastObjectResponse>> {
         common::validate_input_limit(past_objects.len())?;
 
         let mut responses = Vec::with_capacity(past_objects.len());
 
         for request in past_objects {
-            let past_object_read = self
+            let (past_object_read, oldest_available_cp) = self
                 .inner
                 .get_past_object_read_with_fallback(request.object_id, request.version, false)
                 .await?;
+            let object_read = self
+                .past_object_read_to_response(options.clone(), past_object_read)
+                .await?;
 
-            responses.push(
-                self.past_object_read_to_response(options.clone(), past_object_read)
-                    .await?,
-            );
+            responses.push(PastObjectResponse::with_oldest_available_checkpoint(
+                object_read,
+                oldest_available_cp,
+            ));
         }
 
         Ok(responses)

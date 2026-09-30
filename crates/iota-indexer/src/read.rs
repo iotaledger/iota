@@ -193,6 +193,21 @@ impl IndexerReader {
     const EVENTS_BY_DIGEST_TABLES: &[CommitterTables] =
         &[CommitterTables::Events, CommitterTables::TxGlobalOrder];
 
+    /// Tables consulted when a transaction is looked up by its digest.
+    const TRANSACTIONS_BY_DIGEST_TABLES: &[CommitterTables] = &[
+        CommitterTables::Transactions,
+        CommitterTables::TxGlobalOrder,
+    ];
+
+    /// Table consulted when a checkpoint is looked up.
+    const CHECKPOINT_TABLES: &[CommitterTables] = &[CommitterTables::Checkpoints];
+
+    /// Tables consulted when a past object is looked up.
+    const PAST_OBJECT_TABLES: &[CommitterTables] = &[
+        CommitterTables::ObjectsVersion,
+        CommitterTables::ObjectsBackwardHistory,
+    ];
+
     /// Tables consulted when transactions are looked up by their checkpoint.
     const TRANSACTIONS_BY_CHECKPOINT_TABLES: &[CommitterTables] = &[
         CommitterTables::Transactions,
@@ -286,9 +301,12 @@ impl IndexerReader {
             .get_lowest_available_cp_for_tables(tables)
         {
             if (checkpoint_seq as i64) < min_available_cp {
-                return Err(IndexerError::DataPruned(format!(
-                    "checkpoint {checkpoint_seq} has been pruned (min available: {min_available_cp})"
-                )));
+                return Err(IndexerError::DataPruned {
+                    message: format!(
+                        "checkpoint {checkpoint_seq} has been pruned (min available: {min_available_cp})"
+                    ),
+                    oldest_available_checkpoint: min_available_cp as CheckpointSequenceNumber,
+                });
             }
         }
         Ok(())
@@ -302,14 +320,17 @@ impl IndexerReader {
         tx_seq: i64,
         tables: &[CommitterTables],
     ) -> IndexerResult<()> {
-        if let Some(min_available_tx) = self
+        if let Some((min_available_cp, min_available_tx)) = self
             .watermark_cache
-            .get_lowest_available_tx_for_tables(tables)
+            .get_lowest_available_cp_and_tx_for_tables(tables)
         {
             if tx_seq < min_available_tx {
-                return Err(IndexerError::DataPruned(format!(
-                    "transaction {tx_seq} has been pruned (min available: {min_available_tx})"
-                )));
+                return Err(IndexerError::DataPruned {
+                    message: format!(
+                        "transaction {tx_seq} has been pruned (min available: {min_available_tx})"
+                    ),
+                    oldest_available_checkpoint: min_available_cp as CheckpointSequenceNumber,
+                });
             }
         }
         Ok(())
@@ -326,25 +347,47 @@ impl IndexerReader {
             .unwrap_or(0)
     }
 
-    /// Returns the oldest checkpoint and transaction available across `tables`.
+    /// Returns the oldest checkpoint and transaction a lookup reading `tables`
+    /// can serve.
+    ///
+    /// Takes `served_by_fallback` as [`Self::oldest_available_cp`] does.
     ///
     /// A table absent from the cache has not been written yet, and so has not
     /// been pruned either: it is skipped, and when no table has a watermark the
     /// result is 0. This relies on the cache being filled before the RPC server
     /// starts serving.
-    fn oldest_available_cp_and_tx(&self, tables: &[CommitterTables]) -> (i64, i64) {
+    fn oldest_available_cp_and_tx(
+        &self,
+        tables: &[CommitterTables],
+        served_by_fallback: bool,
+    ) -> (i64, i64) {
+        if served_by_fallback && self.is_fallback_enabled() {
+            return (0, 0);
+        }
+
         self.watermark_cache
             .get_lowest_available_cp_and_tx_for_tables(tables)
             .unwrap_or((0, 0))
     }
 
-    /// Returns the oldest checkpoint available across `tables`.
+    /// Returns the oldest checkpoint a lookup reading `tables` can serve.
+    ///
+    /// Pass `served_by_fallback` for a lookup the historical fallback can
+    /// serve, e.g. transaction by digest.
     ///
     /// A table absent from the cache has not been written yet, and so has not
     /// been pruned either: it is skipped, and when no table has a watermark the
     /// result is 0. This relies on the cache being filled before the RPC server
     /// starts serving.
-    fn oldest_available_cp(&self, tables: &[CommitterTables]) -> CheckpointSequenceNumber {
+    fn oldest_available_cp(
+        &self,
+        tables: &[CommitterTables],
+        served_by_fallback: bool,
+    ) -> CheckpointSequenceNumber {
+        if served_by_fallback && self.is_fallback_enabled() {
+            return 0;
+        }
+
         self.watermark_cache
             .get_lowest_available_cp_for_tables(tables)
             .unwrap_or(0) as CheckpointSequenceNumber
@@ -523,10 +566,16 @@ impl IndexerReader {
 
         match history_object {
             Some(obj) => obj.try_into_past_object_read(&self.package_resolver).await,
-            None => Err(IndexerError::DataPruned(format!(
-                "Object version {} not found in checkpointed_objects or objects_backward_history for object {object_id}",
-                object_version_info.object_version
-            ))),
+            None => Err(IndexerError::DataPruned {
+                message: format!(
+                    "Object version {} not found in checkpointed_objects or objects_backward_history for object {object_id}",
+                    object_version_info.object_version
+                ),
+                oldest_available_checkpoint: self.oldest_available_cp(
+                    Self::PAST_OBJECT_TABLES,
+                    false, // the fallback has not been consulted yet
+                ),
+            }),
         }
     }
 
@@ -548,6 +597,21 @@ impl IndexerReader {
         object_id: ObjectId,
         object_version: Version,
         before_version: bool,
+    ) -> IndexerResult<(PastObjectRead, CheckpointSequenceNumber)> {
+        let oldest_available_cp =
+            self.oldest_available_cp(Self::PAST_OBJECT_TABLES, true /* served by fallback */);
+        let past_object_read = self
+            .get_past_object_read_from_db_or_fallback(object_id, object_version, before_version)
+            .await?;
+
+        Ok((past_object_read, oldest_available_cp))
+    }
+
+    async fn get_past_object_read_from_db_or_fallback(
+        &self,
+        object_id: ObjectId,
+        object_version: Version,
+        before_version: bool,
     ) -> IndexerResult<PastObjectRead> {
         let past_object_read_result = self
             .get_past_object_read(object_id, object_version, before_version)
@@ -556,7 +620,9 @@ impl IndexerReader {
         let Some(fallback) = self.fallback_reader().filter(|_| {
             matches!(
                 past_object_read_result,
-                Err(IndexerError::DataPruned(_)) | Ok(PastObjectRead::ObjectNotExists(_))
+                Err(IndexerError::DataPruned { .. })
+                    | Ok(PastObjectRead::ObjectNotExists(_))
+                    | Ok(PastObjectRead::VersionNotFound(..))
             )
         }) else {
             return past_object_read_result;
@@ -787,22 +853,22 @@ impl IndexerReader {
     ) -> IndexerResult<Option<iota_json_rpc_types::Checkpoint>> {
         let stored_checkpoint = match self.db().get_checkpoint(checkpoint_id).await {
             Ok(res) => res,
-            Err(IndexerError::DataPruned(_)) => {
-                // Data is pruned, fallback to historical storage
+            Err(IndexerError::DataPruned {
+                oldest_available_checkpoint,
+                ..
+            }) => {
+                // Data is pruned, fallback to historical storage. The fallback
+                // holds the full history, so nothing found there means the
+                // checkpoint does not exist rather than that it was pruned.
                 self.fallback_reader()
-                    .ok_or_else(|| {
-                        IndexerError::DataPruned(format!(
+                    .ok_or_else(|| IndexerError::DataPruned {
+                        message: format!(
                             "checkpoint {checkpoint_id:?} has been pruned and fallback storage is not available"
-                        ))
+                        ),
+                        oldest_available_checkpoint,
                     })?
                     .checkpoint(checkpoint_id)
                     .await?
-                    .ok_or_else(|| {
-                        IndexerError::DataPruned(format!(
-                            "checkpoint {checkpoint_id:?} has been pruned and is not available in fallback storage"
-                        ))
-                    })
-                    .map(Some)?
             }
             Err(e) => return Err(e),
         };
@@ -872,22 +938,46 @@ impl IndexerReader {
     /// 2. Historical fallback storage (if enabled)
     ///
     /// Returns [`IndexerError::DataPruned`] if the requested checkpoint range
-    /// is not available and fallback is not enabled.
+    /// is not available and fallback is not enabled, alongside the oldest
+    /// checkpoint the read could have returned.
     pub async fn get_checkpoints_with_fallback(
         &self,
         cursor: Option<u64>,
         limit: NonZeroUsize,
         descending_order: bool,
-    ) -> Result<
-        (
-            Vec<iota_json_rpc_types::Checkpoint>,
-            CheckpointSequenceNumber,
-        ),
-        IndexerError,
-    > {
-        let (stored_checkpoints, min_available_cp) = self
+    ) -> IndexerResult<(
+        Vec<iota_json_rpc_types::Checkpoint>,
+        CheckpointSequenceNumber,
+    )> {
+        // The query filters on the watermark itself, while a server with a
+        // historical fallback reports that it serves checkpoints since genesis.
+        let min_available_cp = self
+            .watermark_cache
+            .get_lowest_available_cp_for_tables(Self::CHECKPOINT_TABLES)
+            .unwrap_or(0);
+        let oldest_available_cp = if self.is_fallback_enabled() {
+            0
+        } else {
+            min_available_cp as CheckpointSequenceNumber
+        };
+
+        let checkpoints = self
+            .get_checkpoints_from_db_or_fallback(cursor, limit, descending_order, min_available_cp)
+            .await?;
+
+        Ok((checkpoints, oldest_available_cp))
+    }
+
+    async fn get_checkpoints_from_db_or_fallback(
+        &self,
+        cursor: Option<u64>,
+        limit: NonZeroUsize,
+        descending_order: bool,
+        min_available_cp: i64,
+    ) -> IndexerResult<Vec<iota_json_rpc_types::Checkpoint>> {
+        let stored_checkpoints = self
             .db()
-            .get_checkpoints(cursor, limit.get(), descending_order)
+            .get_checkpoints(cursor, limit.get(), descending_order, min_available_cp)
             .await?;
 
         let checkpoints = stored_checkpoints
@@ -895,20 +985,13 @@ impl IndexerReader {
             .map(iota_json_rpc_types::Checkpoint::try_from)
             .collect::<IndexerResult<Vec<_>>>()?;
 
-        // With historical fallback configured we can serve checkpoints since genesis
-        let oldest_available_cp = if self.is_fallback_enabled() {
-            0
-        } else {
-            min_available_cp
-        };
-
         if !Self::should_fetch_checkpoints_from_fallback(
             cursor,
             descending_order,
             limit,
             &checkpoints,
         ) {
-            return Ok((checkpoints, oldest_available_cp));
+            return Ok(checkpoints);
         }
 
         // resolve the expected range of checkpoint sequence numbers
@@ -934,7 +1017,7 @@ impl IndexerReader {
             (None, true) => {
                 let Some(latest_checkpoint) = checkpoints.first() else {
                     // checkpoints not synced yet.
-                    return Ok((vec![], oldest_available_cp));
+                    return Ok(vec![]);
                 };
                 let start = latest_checkpoint
                     .sequence_number
@@ -945,9 +1028,10 @@ impl IndexerReader {
 
         // fallback to historical storage
         let Some(fallback) = self.fallback_reader() else {
-            return Err(IndexerError::DataPruned(
-                "requested checkpoint range not available".into(),
-            ));
+            return Err(IndexerError::DataPruned {
+                message: "requested checkpoint range not available".into(),
+                oldest_available_checkpoint: min_available_cp as CheckpointSequenceNumber,
+            });
         };
 
         let checkpoints = fallback
@@ -958,7 +1042,7 @@ impl IndexerReader {
             .map(iota_json_rpc_types::Checkpoint::try_from)
             .collect::<IndexerResult<Vec<_>>>()?;
 
-        Ok((checkpoints, oldest_available_cp))
+        Ok(checkpoints)
     }
 
     /// Fetches a batch of checkpoints by sequence number. Each requested seq
@@ -1341,6 +1425,8 @@ impl IndexerReader {
         })
     }
 
+    /// Returns a page of transactions, along with the oldest checkpoint the
+    /// page can contain data from.
     pub async fn query_transaction_blocks_in_blocking_task(
         &self,
         filter: Option<TransactionFilter>,
@@ -1359,6 +1445,8 @@ impl IndexerReader {
         .await
     }
 
+    /// Returns a page of transactions, along with the oldest checkpoint the
+    /// page can contain data from.
     pub async fn query_transaction_blocks_in_blocking_task_v2(
         &self,
         filter: Option<TransactionFilterV2>,
@@ -1385,27 +1473,26 @@ impl IndexerReader {
         is_descending: bool,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
-        // Fallback stores checkpoints since genesis
-        let oldest_available_cp = if self.is_fallback_enabled() {
-            0
-        } else {
-            self.oldest_available_cp(Self::TRANSACTIONS_BY_CHECKPOINT_TABLES)
-        };
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::TRANSACTIONS_BY_CHECKPOINT_TABLES,
+            true, // served by fallback
+        );
 
         let db_res = self
             .db()
             .query_transactions_by_checkpoint_seq(checkpoint_seq, cursor, limit, is_descending)
             .await;
-        let stored_txs = if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
-            (db_res.as_ref(), self.fallback_reader())
-        {
-            kv_reader
-                .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
-                .await
-                .context(&format!("fallback triggered by {err}"))?
-        } else {
-            db_res?
-        };
+        let stored_txs =
+            if let (Err(IndexerError::DataPruned { message: err, .. }), Some(kv_reader)) =
+                (db_res.as_ref(), self.fallback_reader())
+            {
+                kv_reader
+                    .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
+                    .await
+                    .context(&format!("fallback triggered by {err}"))?
+            } else {
+                db_res?
+            };
         let transactions = self
             .stored_transaction_to_transaction_block(stored_txs, options)
             .await?;
@@ -1433,7 +1520,7 @@ impl IndexerReader {
                 is_descending,
             )
             .await;
-        if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
+        if let (Err(IndexerError::DataPruned { message: err, .. }), Some(kv_reader)) =
             (db_res.as_ref(), self.fallback_reader())
         {
             return kv_reader
@@ -1485,7 +1572,7 @@ impl IndexerReader {
         };
 
         let (mut rows, id_db_pruned) = match db_res {
-            Err(IndexerError::DataPruned(_)) => (vec![], true),
+            Err(IndexerError::DataPruned { .. }) => (vec![], true),
             res => (res?, false),
         };
 
@@ -1522,12 +1609,11 @@ impl IndexerReader {
         is_descending: bool,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
-        // Fallback stores transactions by address since genesis
-        let oldest_available_cp = if self.is_fallback_enabled() {
-            0
-        } else {
-            self.oldest_available_cp(Self::TRANSACTIONS_BY_ADDRESS_TABLES)
-        };
+        let (oldest_available_cp, min_available_tx) = self.oldest_available_cp_and_tx(
+            Self::TRANSACTIONS_BY_ADDRESS_TABLES,
+            true, // served by fallback
+        );
+        let oldest_available_cp = oldest_available_cp as CheckpointSequenceNumber;
 
         let cursor_tx_seq = match cursor {
             None => None,
@@ -1545,10 +1631,15 @@ impl IndexerReader {
                             Some(kv_reader) => {
                                 kv_reader.resolve_cursor_tx_sequence_number(digest).await?
                             }
-                            None if self.affected_addresses_tx_watermark() > 0 => {
-                                return Err(IndexerError::DataPruned(format!(
-                                    "unable to resolve cursor digest: {digest} potentially pruned"
-                                )));
+                            // Reached only without a fallback, so the
+                            // watermarks are the database's own.
+                            None if min_available_tx > 0 => {
+                                return Err(IndexerError::DataPruned {
+                                    message: format!(
+                                        "unable to resolve cursor digest: {digest} potentially pruned"
+                                    ),
+                                    oldest_available_checkpoint: oldest_available_cp,
+                                });
                             }
                             None => {
                                 return Err(IndexerError::InvalidArgument(format!(
@@ -1588,7 +1679,7 @@ impl IndexerReader {
         if let Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
         | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) = filter
         {
-            return self
+            let (transactions, oldest_available_cp) = self
                 .query_transactions_by_checkpoint_seq_with_fallback(
                     seq,
                     cursor,
@@ -1596,13 +1687,14 @@ impl IndexerReader {
                     is_descending,
                     options,
                 )
-                .await;
+                .await?;
+            return Ok((transactions, oldest_available_cp));
         };
 
         if let Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
         | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) = filter
         {
-            return self
+            let (transactions, oldest_available_cp) = self
                 .query_transactions_by_affected_addresses_with_fallback(
                     addr,
                     cursor,
@@ -1610,19 +1702,24 @@ impl IndexerReader {
                     is_descending,
                     options,
                 )
-                .await;
+                .await?;
+            return Ok((transactions, oldest_available_cp));
         };
 
         // scope the watermarks and the cursor pruning check to only the tables this
         // filter reads. The transaction contents have to be read from `transactions`,
         // unless a fallback is configured.
-        let mut tx_tables = self.tx_tables_for_filter(filter.as_ref())?.to_vec();
+        let mut tx_tables = match self.tx_tables_for_filter(filter.as_ref()) {
+            Ok(tables) => tables.to_vec(),
+            Err(e) => return Err(e),
+        };
         if !self.is_fallback_enabled() {
             tx_tables.push(CommitterTables::Transactions);
         }
         let tx_tables = tx_tables.as_slice();
 
-        let (oldest_available_cp, min_available_tx) = self.oldest_available_cp_and_tx(tx_tables);
+        let (oldest_available_cp, min_available_tx) =
+            self.oldest_available_cp_and_tx(tx_tables, false /* not served by fallback */);
         let oldest_available_cp = oldest_available_cp as CheckpointSequenceNumber;
 
         let cursor_tx_seq = if let Some(cursor) = cursor {
@@ -2003,6 +2100,25 @@ impl IndexerReader {
         &self,
         digest: TransactionDigest,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<(
+        Option<IotaTransactionBlockResponse>,
+        CheckpointSequenceNumber,
+    )> {
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::TRANSACTIONS_BY_DIGEST_TABLES,
+            true, // served by fallback
+        );
+        let transaction = self
+            .get_single_transaction_from_db_or_fallback(digest, options)
+            .await?;
+
+        Ok((transaction, oldest_available_cp))
+    }
+
+    async fn get_single_transaction_from_db_or_fallback(
+        &self,
+        digest: TransactionDigest,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> IndexerResult<Option<IotaTransactionBlockResponse>> {
         let stored_tx = match self.db().get_single_transaction(digest).await? {
             Some(tx) => Some(tx),
@@ -2196,9 +2312,13 @@ impl IndexerReader {
             return fallback.all_events(digest).await;
         }
 
-        Err(IndexerError::DataPruned(
-            "requested events not available".into(),
-        ))
+        Err(IndexerError::DataPruned {
+            message: "requested events not available".into(),
+            oldest_available_checkpoint: self.oldest_available_cp(
+                Self::EVENTS_BY_DIGEST_TABLES,
+                false, // reached only when no fallback is configured
+            ),
+        })
     }
 
     /// Converts [`StoredTransactionEvents`] into
@@ -2231,7 +2351,7 @@ impl IndexerReader {
             .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
             .await;
 
-        if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
+        if let (Err(IndexerError::DataPruned { message: err, .. }), Some(kv_reader)) =
             (db_res.as_ref(), self.fallback_reader())
         {
             return kv_reader
@@ -2251,6 +2371,11 @@ impl IndexerReader {
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<(Vec<IotaEvent>, CheckpointSequenceNumber)> {
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::EVENTS_BY_DIGEST_TABLES,
+            true, // served by fallback
+        );
+
         let stored_events = self
             .query_stored_events_by_tx_digest_with_fallback(
                 tx_digest,
@@ -2259,16 +2384,6 @@ impl IndexerReader {
                 descending_order,
             )
             .await?;
-
-        // The historical fallback serves transactions the indexer has pruned,
-        // so with one configured the lookup reaches the genesis checkpoint.
-        let oldest_available_cp = if self.is_fallback_enabled() {
-            0
-        } else {
-            let (oldest_available_cp, _min_available_tx) =
-                self.oldest_available_cp_and_tx(Self::EVENTS_BY_DIGEST_TABLES);
-            oldest_available_cp as CheckpointSequenceNumber
-        };
 
         let mut iota_event_futures = vec![];
         for stored_event in stored_events {
@@ -2289,8 +2404,8 @@ impl IndexerReader {
         Ok((events, oldest_available_cp))
     }
 
-    /// Returns a page of events, along with the oldest checkpoint from which
-    /// that page is complete.
+    /// Returns a page of events, along with the oldest checkpoint the page can
+    /// contain data from.
     pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
         &self,
         filter: EventFilter,
@@ -2299,13 +2414,15 @@ impl IndexerReader {
         descending_order: bool,
     ) -> IndexerResult<(Vec<IotaEvent>, CheckpointSequenceNumber)> {
         if let EventFilter::Transaction(tx_digest) = filter {
-            return self
+            let (events, oldest_available_cp) = self
                 .query_events_by_tx_digest_with_fallback(tx_digest, cursor, limit, descending_order)
-                .await;
+                .await?;
+            return Ok((events, oldest_available_cp));
         }
 
         let event_tables = Self::event_tables_for_filter(&filter)?;
-        let (oldest_available_cp, min_available_tx) = self.oldest_available_cp_and_tx(event_tables);
+        let (oldest_available_cp, min_available_tx) =
+            self.oldest_available_cp_and_tx(event_tables, false /* not served by fallback */);
 
         let (tx_seq, event_seq) = if let Some(cursor) = cursor {
             let EventID {
@@ -2444,6 +2561,7 @@ impl IndexerReader {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
+
         Ok((iota_events, oldest_available_cp as CheckpointSequenceNumber))
     }
 
@@ -3269,9 +3387,13 @@ impl<'a> DBReader<'a> {
         let query = query.limit(limit as i64);
         let db_events = run_query_async!(&pool, move |conn| { query.load::<StoredEvent>(conn) })?;
         if db_events.is_empty() && self.check_tx_pruned(tx_digest).await? {
-            return Err(IndexerError::DataPruned(format!(
-                "data for tx {tx_digest} potentially pruned"
-            )));
+            return Err(IndexerError::DataPruned {
+                message: format!("data for tx {tx_digest} potentially pruned"),
+                oldest_available_checkpoint: self.main_reader.oldest_available_cp(
+                    IndexerReader::EVENTS_BY_DIGEST_TABLES,
+                    false, // not served by fallback
+                ),
+            });
         }
 
         Ok(db_events)
@@ -3363,7 +3485,7 @@ impl<'a> DBReader<'a> {
         // Check if checkpoint is pruned when querying by sequence number
         if let CheckpointId::SequenceNumber(seq) = checkpoint_id {
             self.main_reader
-                .ensure_data_not_pruned_for_checkpoint(seq, &[CommitterTables::Checkpoints])?;
+                .ensure_data_not_pruned_for_checkpoint(seq, IndexerReader::CHECKPOINT_TABLES)?;
         }
 
         let pool = self.main_reader.get_pool();
@@ -3380,14 +3502,29 @@ impl<'a> DBReader<'a> {
             }
         })?;
 
-        // When querying by digest, check if the returned checkpoint is in the pruned
-        // range
+        // A digest cannot be checked against the watermark before the query, the way
+        // a sequence number can, so the check happens here instead.
         if let CheckpointId::Digest(_) = checkpoint_id {
-            if let Some(ref cp) = checkpoint {
-                self.main_reader.ensure_data_not_pruned_for_checkpoint(
+            match &checkpoint {
+                Some(cp) => self.main_reader.ensure_data_not_pruned_for_checkpoint(
                     cp.sequence_number as u64,
-                    &[CommitterTables::Checkpoints],
-                )?;
+                    IndexerReader::CHECKPOINT_TABLES,
+                )?,
+                // if we didn't find the checkpoint but pruning is not enabled then we can certainly
+                // return None, otherwise the checkpoint may have been pruned so we
+                // return DataPruned
+                None => {
+                    let oldest_available_db_cp = self.main_reader.oldest_available_cp(
+                        IndexerReader::CHECKPOINT_TABLES,
+                        false, // not served by fallback
+                    );
+                    if oldest_available_db_cp > 0 {
+                        return Err(IndexerError::DataPruned {
+                            message: format!("checkpoint {checkpoint_id:?} not found"),
+                            oldest_available_checkpoint: oldest_available_db_cp,
+                        });
+                    }
+                }
             }
         }
 
@@ -3440,13 +3577,8 @@ impl<'a> DBReader<'a> {
         cursor: Option<u64>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<(Vec<StoredCheckpoint>, CheckpointSequenceNumber)> {
-        let min_available_cp = self
-            .main_reader
-            .watermark_cache
-            .get_lowest_available_cp_for_tables(&[CommitterTables::Checkpoints])
-            .unwrap_or(0);
-
+        min_available_cp: i64,
+    ) -> IndexerResult<Vec<StoredCheckpoint>> {
         let pool = self.main_reader.get_pool();
         let checkpoints = run_query_async!(&pool, |conn| {
             let mut boxed_query = checkpoints::table.into_boxed();
@@ -3472,7 +3604,7 @@ impl<'a> DBReader<'a> {
                 .load::<StoredCheckpoint>(conn)
         })?;
 
-        Ok((checkpoints, min_available_cp as CheckpointSequenceNumber))
+        Ok(checkpoints)
     }
 
     async fn get_object_version(
@@ -3799,7 +3931,11 @@ impl<'a> DBReader<'a> {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
-        let min_available_tx = self.main_reader.affected_addresses_tx_watermark();
+        let (oldest_available_checkpoint, min_available_tx) =
+            self.main_reader.oldest_available_cp_and_tx(
+                IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES,
+                false, // not served by fallback
+            );
 
         if let Some(cursor_tx_seq) = cursor_tx_seq {
             // The page starts right after/before cursor in the pagination direction.
@@ -3816,9 +3952,13 @@ impl<'a> DBReader<'a> {
         }
 
         if !is_descending && cursor_tx_seq.is_none() && min_available_tx > 0 {
-            return Err(IndexerError::DataPruned(format!(
-                "DB may be missing earliest history for address {addr} due to pruning"
-            )));
+            return Err(IndexerError::DataPruned {
+                message: format!(
+                    "DB may be missing earliest history for address {addr} due to pruning"
+                ),
+                oldest_available_checkpoint: oldest_available_checkpoint
+                    as CheckpointSequenceNumber,
+            });
         }
 
         let address_hex = Hex::encode(addr.as_bytes());

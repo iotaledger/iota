@@ -93,6 +93,29 @@ impl<T, C> Page<T, C> {
     }
 }
 
+/// Data attached to a JSON-RPC error raised for data that may have been pruned.
+///
+/// Carries the same checkpoint that a successful response reports in its
+/// `oldestAvailableCheckpoint` field, so a caller that cannot find what it
+/// asked for learns how far back the server still holds data.
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OldestAvailableCheckpointData {
+    /// The oldest checkpoint the request could have found data in.
+    ///
+    /// Anything before it has been pruned and is no longer served.
+    #[schemars(with = "String")]
+    pub oldest_available_checkpoint: BigInt<u64>,
+}
+
+impl OldestAvailableCheckpointData {
+    pub fn new(oldest_available_checkpoint: u64) -> Self {
+        Self {
+            oldest_available_checkpoint: oldest_available_checkpoint.into(),
+        }
+    }
+}
+
 #[serde_as]
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", rename = "DynamicFieldName")]

@@ -4,9 +4,8 @@
 
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, Page,
-    ProtocolConfigResponse,
+    IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, Page, PastObjectResponse, ProtocolConfigResponse,
     iota_primitives::{Base58 as Base58Schema, ObjectId as ObjectIdSchema, SequenceNumberU64},
 };
 use iota_open_rpc_macros::open_rpc;
@@ -96,7 +95,7 @@ pub trait ReadApi {
         version: SequenceNumberU64,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
-    ) -> RpcResult<IotaPastObjectResponse>;
+    ) -> RpcResult<PastObjectResponse>;
 
     /// Note there is no software-level guarantee/SLA that objects with past
     /// versions can be retrieved by this API, even if the object and
@@ -117,7 +116,7 @@ pub trait ReadApi {
         object_id: ObjectId,
         /// the version of the queried object
         version: Version,
-    ) -> RpcResult<IotaPastObjectResponse>;
+    ) -> RpcResult<PastObjectResponse>;
 
     /// Note there is no software-level guarantee/SLA that objects with past
     /// versions can be retrieved by this API, even if the object and version
@@ -131,7 +130,7 @@ pub trait ReadApi {
         past_objects: Vec<IotaGetPastObjectRequest>,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
-    ) -> RpcResult<Vec<IotaPastObjectResponse>>;
+    ) -> RpcResult<Vec<PastObjectResponse>>;
 
     /// Return a checkpoint
     #[rustfmt::skip]

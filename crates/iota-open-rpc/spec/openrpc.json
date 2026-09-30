@@ -3187,10 +3187,10 @@
         }
       ],
       "result": {
-        "name": "IotaPastObjectResponse",
+        "name": "PastObjectResponse",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/ObjectRead"
+          "$ref": "#/components/schemas/PastObjectResponse"
         }
       },
       "examples": [
@@ -3277,12 +3277,12 @@
         }
       ],
       "result": {
-        "name": "Vec<IotaPastObjectResponse>",
+        "name": "Vec<PastObjectResponse>",
         "required": true,
         "schema": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/ObjectRead"
+            "$ref": "#/components/schemas/PastObjectResponse"
           }
         }
       },
@@ -10339,131 +10339,6 @@
         "type": "string",
         "format": "hex"
       },
-      "ObjectRead": {
-        "oneOf": [
-          {
-            "description": "The object exists and is found with this version",
-            "type": "object",
-            "required": [
-              "details",
-              "status"
-            ],
-            "properties": {
-              "details": {
-                "$ref": "#/components/schemas/ObjectData"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "VersionFound"
-                ]
-              }
-            }
-          },
-          {
-            "description": "The object does not exist",
-            "type": "object",
-            "required": [
-              "details",
-              "status"
-            ],
-            "properties": {
-              "details": {
-                "$ref": "#/components/schemas/ObjectID"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "ObjectNotExists"
-                ]
-              }
-            }
-          },
-          {
-            "description": "The object is found to be deleted with this version",
-            "type": "object",
-            "required": [
-              "details",
-              "status"
-            ],
-            "properties": {
-              "details": {
-                "$ref": "#/components/schemas/ObjectRef"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "ObjectDeleted"
-                ]
-              }
-            }
-          },
-          {
-            "description": "The object exists but not found with this version",
-            "type": "object",
-            "required": [
-              "details",
-              "status"
-            ],
-            "properties": {
-              "details": {
-                "type": "array",
-                "items": [
-                  {
-                    "$ref": "#/components/schemas/ObjectID"
-                  },
-                  {
-                    "$ref": "#/components/schemas/SequenceNumberU64"
-                  }
-                ],
-                "maxItems": 2,
-                "minItems": 2
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "VersionNotFound"
-                ]
-              }
-            }
-          },
-          {
-            "description": "The asked object version is higher than the latest",
-            "type": "object",
-            "required": [
-              "details",
-              "status"
-            ],
-            "properties": {
-              "details": {
-                "type": "object",
-                "required": [
-                  "asked_version",
-                  "latest_version",
-                  "object_id"
-                ],
-                "properties": {
-                  "asked_version": {
-                    "$ref": "#/components/schemas/SequenceNumberU64"
-                  },
-                  "latest_version": {
-                    "$ref": "#/components/schemas/SequenceNumberU64"
-                  },
-                  "object_id": {
-                    "$ref": "#/components/schemas/ObjectID"
-                  }
-                }
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "VersionTooHigh"
-                ]
-              }
-            }
-          }
-        ]
-      },
       "ObjectRef": {
         "type": "object",
         "required": [
@@ -11010,6 +10885,142 @@
             "type": "integer",
             "format": "uint64",
             "minimum": 0.0
+          }
+        }
+      },
+      "PastObjectResponse": {
+        "description": "The result of a past object lookup, together with the oldest checkpoint the lookup could have found the object in.\n\nThe lookup result is flattened, so the `status` and `details` fields sit next to `oldestAvailableCheckpoint` in the response.",
+        "type": "object",
+        "oneOf": [
+          {
+            "description": "The object exists and is found with this version",
+            "type": "object",
+            "required": [
+              "details",
+              "status"
+            ],
+            "properties": {
+              "details": {
+                "$ref": "#/components/schemas/ObjectData"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "VersionFound"
+                ]
+              }
+            }
+          },
+          {
+            "description": "The object does not exist",
+            "type": "object",
+            "required": [
+              "details",
+              "status"
+            ],
+            "properties": {
+              "details": {
+                "$ref": "#/components/schemas/ObjectID"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ObjectNotExists"
+                ]
+              }
+            }
+          },
+          {
+            "description": "The object is found to be deleted with this version",
+            "type": "object",
+            "required": [
+              "details",
+              "status"
+            ],
+            "properties": {
+              "details": {
+                "$ref": "#/components/schemas/ObjectRef"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ObjectDeleted"
+                ]
+              }
+            }
+          },
+          {
+            "description": "The object exists but not found with this version",
+            "type": "object",
+            "required": [
+              "details",
+              "status"
+            ],
+            "properties": {
+              "details": {
+                "type": "array",
+                "items": [
+                  {
+                    "$ref": "#/components/schemas/ObjectID"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SequenceNumberU64"
+                  }
+                ],
+                "maxItems": 2,
+                "minItems": 2
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "VersionNotFound"
+                ]
+              }
+            }
+          },
+          {
+            "description": "The asked object version is higher than the latest",
+            "type": "object",
+            "required": [
+              "details",
+              "status"
+            ],
+            "properties": {
+              "details": {
+                "type": "object",
+                "required": [
+                  "asked_version",
+                  "latest_version",
+                  "object_id"
+                ],
+                "properties": {
+                  "asked_version": {
+                    "$ref": "#/components/schemas/SequenceNumberU64"
+                  },
+                  "latest_version": {
+                    "$ref": "#/components/schemas/SequenceNumberU64"
+                  },
+                  "object_id": {
+                    "$ref": "#/components/schemas/ObjectID"
+                  }
+                }
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "VersionTooHigh"
+                ]
+              }
+            }
+          }
+        ],
+        "properties": {
+          "oldestAvailableCheckpoint": {
+            "description": "The oldest checkpoint this response can contain data from.\n\nAnything before it has been pruned and may be missing from the response.\n\nOnly reported when the object was not found, and absent on servers that do not report it.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

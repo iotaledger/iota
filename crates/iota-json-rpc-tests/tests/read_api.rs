@@ -259,6 +259,7 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
         .await
         .unwrap();
 
+    let rpc_past_obj = rpc_past_obj.object_read;
     assert!(rpc_past_obj.matches_response_options(&options));
     assert_eq!(object_data, rpc_past_obj.object().unwrap());
 
@@ -296,6 +297,7 @@ async fn try_get_past_object_with_options(options: IotaObjectDataOptions) {
         .await
         .unwrap();
 
+    let rpc_past_obj = rpc_past_obj.object_read;
     assert!(rpc_past_obj.matches_response_options(&options));
 
     let obj_data = rpc_past_obj.into_object().unwrap();
@@ -330,6 +332,10 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
         .try_multi_get_past_objects(past_obj_requests, Some(options.clone()))
         .await
         .unwrap();
+    let rpc_past_objs = rpc_past_objs
+        .into_iter()
+        .map(|past_obj| past_obj.object_read)
+        .collect::<Vec<_>>();
     assert!(rpc_past_objs.as_slice().match_response_options(&options));
 
     let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
@@ -367,6 +373,10 @@ async fn try_multi_get_past_objects_with_options(options: IotaObjectDataOptions)
         .await
         .unwrap();
 
+    let rpc_past_objs = rpc_past_objs
+        .into_iter()
+        .map(|past_obj| past_obj.object_read)
+        .collect::<Vec<_>>();
     assert!(rpc_past_objs.as_slice().match_response_options(&options));
 }
 
@@ -1449,7 +1459,7 @@ async fn try_get_past_object_not_exists() {
         .unwrap();
 
     assert!(
-        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectId::ZERO)
+        matches!(rpc_past_obj.object_read, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectId::ZERO)
     );
 }
 
@@ -1471,7 +1481,7 @@ async fn try_get_past_object_version_too_high() {
             .unwrap();
 
         assert!(
-            matches!(rpc_past_obj, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && Version::from(asked_version) == seq_num && Version::from(latest_version) == 1)
+            matches!(rpc_past_obj.object_read, IotaPastObjectResponse::VersionTooHigh{object_id: obj_id, asked_version, latest_version} if obj_id == object_id && Version::from(asked_version) == seq_num && Version::from(latest_version) == 1)
         );
     }
 }
@@ -1530,7 +1540,7 @@ async fn try_get_past_object_version_not_found() {
                 .unwrap();
 
             assert!(
-                matches!(rpc_past_obj, IotaPastObjectResponse::VersionNotFound(obj_id, seq_number) if obj_id == mutated_obj_id && Version::from(seq_number) == seq_num)
+                matches!(rpc_past_obj.object_read, IotaPastObjectResponse::VersionNotFound(obj_id, seq_number) if obj_id == mutated_obj_id && Version::from(seq_number) == seq_num)
             );
 
             at_least_one_version_not_found = true;
@@ -1629,7 +1639,7 @@ async fn try_get_past_object_deleted() {
         .unwrap();
 
     assert!(
-        matches!(rpc_past_obj, IotaPastObjectResponse::ObjectDeleted(obj) if obj.object_id == created_object_id && obj.version == seq_num)
+        matches!(rpc_past_obj.object_read, IotaPastObjectResponse::ObjectDeleted(obj) if obj.object_id == created_object_id && obj.version == seq_num)
     );
 }
 
@@ -1651,7 +1661,8 @@ async fn try_get_object_before_version() {
     let rpc_obj_before_ver = http_client
         .try_get_object_before_version(object.object_id, object.version)
         .await
-        .unwrap();
+        .unwrap()
+        .object_read;
 
     assert!(rpc_obj_before_ver.matches_response_options(&options));
     assert_eq!(object, rpc_obj_before_ver.object().unwrap());
@@ -1684,7 +1695,8 @@ async fn try_get_object_before_version() {
     let rpc_obj_before_ver = http_client
         .try_get_object_before_version(mutated_obj_id, mutated_obj_version)
         .await
-        .unwrap();
+        .unwrap()
+        .object_read;
 
     assert!(rpc_obj_before_ver.matches_response_options(&options));
 
@@ -1704,7 +1716,7 @@ async fn try_get_object_before_version_not_exists() {
         .unwrap();
 
     assert!(
-        matches!(rpc_obj_before_ver, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectId::ZERO)
+        matches!(rpc_obj_before_ver.object_read, IotaPastObjectResponse::ObjectNotExists(ref obj_id) if obj_id == &ObjectId::ZERO)
     );
 }
 

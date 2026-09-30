@@ -98,7 +98,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("{past_object:?}");
     println!(" *** Past Object ***\n");
 
-    let iota_get_past_object_request = past_object.clone().into_object()?;
+    let iota_get_past_object_request = past_object.object_read.clone().into_object()?;
     let multi_past_object = client
         .read_api()
         .try_multi_get_parsed_past_object(

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc};
+use std::{fs::File, future::Future, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
@@ -19,7 +19,7 @@ use iota_json_rpc_types::{
     IotaObjectResponseError, IotaObjectResponseQuery, IotaPastObjectResponse,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
-    TransactionFilterV2,
+    OldestAvailableCheckpointData, TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
@@ -39,7 +39,7 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
-use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::{http_client::HttpClient, types::ErrorObjectOwned};
 use rand::{SeedableRng, rngs::StdRng};
 use serde_json::Value;
 
@@ -1175,7 +1175,7 @@ fn get_transaction_block_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Invalid argument with error: `Transaction 11111111111111111111111111111111 not found`"}"#,
+            r#"{"code":-32603,"message":"Missing data due to pruning: `Transaction 11111111111111111111111111111111 not found`"}"#,
         ));
     });
 }
@@ -1497,7 +1497,8 @@ fn try_get_past_object_object_not_exists() {
         let result = client
             .try_get_past_object(object_id, version.into(), None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         assert_eq!(
             result,
@@ -1534,7 +1535,8 @@ fn try_get_past_object_version_found() {
         let result = client
             .try_get_past_object(gas_ref.object_id, gas_ref.version.into(), None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
@@ -1578,7 +1580,8 @@ fn try_get_past_object_version_not_found() {
         let result = client
             .try_get_past_object(gas_ref.object_id, missing_version.into(), None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         assert_eq!(
             result,
@@ -1618,7 +1621,8 @@ fn try_get_past_object_version_too_high() {
         let result = client
             .try_get_past_object(gas_ref.object_id, asked_version.into(), None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         assert_eq!(
             result,
@@ -1662,7 +1666,8 @@ fn try_get_past_object_object_deleted() {
         let result = client
             .try_get_object_before_version(nft_object_id, Version::MAX_VALID_EXCL)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         assert_eq!(
             result,
@@ -1678,7 +1683,8 @@ fn try_get_past_object_object_deleted() {
         let result = client
             .try_get_past_object(nft_object_id, deleted_version.into(), None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         assert_eq!(
             result,
@@ -1698,7 +1704,8 @@ fn try_get_past_object_object_deleted() {
                 None,
             )
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
@@ -1750,7 +1757,10 @@ fn try_multi_get_past_objects() {
         let results = client
             .try_multi_get_past_objects(requests, None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .into_iter()
+            .map(|past_object| past_object.object_read)
+            .collect::<Vec<_>>();
 
         assert_eq!(results.len(), 3, "expected results for all objects");
 
@@ -1804,17 +1814,22 @@ fn try_multi_get_past_objects() {
         let results = client
             .try_multi_get_past_objects(requests, None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .into_iter()
+            .map(|past_object| past_object.object_read)
+            .collect::<Vec<_>>();
 
         let past_object_response_1 = client
             .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version.into(), None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         let past_object_response_2 = client
             .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version.into(), None)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         match past_object_response_1 {
             IotaPastObjectResponse::VersionFound(ref data) => {
@@ -1910,7 +1925,8 @@ fn try_get_object_before_version() {
         let result = client
             .try_get_object_before_version(gas_ref.object_id, object_ref.version)
             .await
-            .expect("rpc call should succeed");
+            .expect("rpc call should succeed")
+            .object_read;
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
@@ -2762,4 +2778,127 @@ fn try_multi_get_past_objects_at_and_above_limit() {
             &input_size_limit_exceeded_msg()
         ));
     });
+}
+
+/// Returns the JSON-RPC error object `result` failed with, when it failed with
+/// one.
+fn error_object<T>(result: Result<T, jsonrpsee::core::ClientError>) -> Option<ErrorObjectOwned> {
+    match result {
+        Err(jsonrpsee::core::ClientError::Call(error)) => Some(error),
+        _ => None,
+    }
+}
+
+/// Reads the oldest available checkpoint `error` reports, when it reports one.
+fn oldest_available_cp_in(error: &ErrorObjectOwned) -> Option<u64> {
+    serde_json::from_str::<OldestAvailableCheckpointData>(error.data()?.get())
+        .ok()
+        .map(|data| data.oldest_available_checkpoint.into_inner())
+}
+
+/// Returns the error a pruned lookup reports, once it reports a checkpoint
+/// above the pruned genesis one.
+async fn pruned_lookup_error<F, Fut, T>(method: &str, mut call: F) -> ErrorObjectOwned
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, jsonrpsee::core::ClientError>>,
+{
+    let error = retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || {
+        let lookup = call();
+        async move {
+            error_object(lookup.await)
+                .filter(|error| oldest_available_cp_in(error).is_some_and(|cp| cp > 0))
+        }
+    })
+    .await
+    .unwrap_or_else(|_| {
+        panic!("timeout waiting for {method} to report a checkpoint above the pruned genesis one")
+    });
+
+    assert!(
+        error.message().contains("Missing data due to pruning"),
+        "expected {method} to report the pruned data as such, got {error}"
+    );
+    error
+}
+
+#[tokio::test]
+async fn point_lookups_report_the_oldest_available_cp() {
+    let (cluster, store, client) = start_test_cluster_with_read_write_indexer(
+        Some("test_point_lookups_report_the_oldest_available_cp"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(&store, 1).await;
+
+    let digest = client
+        .query_transaction_blocks_v2(
+            IotaTransactionBlockResponseQueryV2 {
+                filter: None,
+                options: None,
+            },
+            None,
+            Some(1),
+            None,
+        )
+        .await
+        .unwrap()
+        .data
+        .first()
+        .expect("the indexer has at least one transaction")
+        .digest;
+
+    let checkpoint = CheckpointId::SequenceNumber(0);
+    // Taken before pruning, since pruning deletes the row the digest resolves
+    // through.
+    let checkpoint_by_digest = CheckpointId::Digest(
+        client
+            .get_checkpoint(checkpoint)
+            .await
+            .expect("the genesis checkpoint is still there")
+            .digest,
+    );
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_checkpoint_pruned(&store, 0).await;
+
+    // A lookup that fails because the data it asks for is pruned reports how
+    // far back the data goes, in the error.
+    pruned_lookup_error("iota_getCheckpoint", || client.get_checkpoint(checkpoint)).await;
+    pruned_lookup_error("iota_getEvents", || client.get_events(digest)).await;
+    // Ascending from the start, so the pruned genesis checkpoint is the first
+    // one the page asks for.
+    pruned_lookup_error("iota_getCheckpoints", || {
+        client.get_checkpoints(None, Some(5), false)
+    })
+    .await;
+    // Pruning deleted the row this digest resolves through, so the lookup
+    // cannot tell the checkpoint apart from one that never existed.
+    pruned_lookup_error("iota_getCheckpoint by digest", || {
+        client.get_checkpoint(checkpoint_by_digest)
+    })
+    .await;
+
+    // A past object lookup answers `ObjectNotExists` rather than failing, so it
+    // reports the checkpoint in the response instead of in an error.
+    let response = client
+        .try_get_past_object(ObjectId::random(), Version::from_u64(1).into(), None)
+        .await
+        .expect("a missing object is not an error");
+    assert!(
+        matches!(
+            response.object_read,
+            IotaPastObjectResponse::ObjectNotExists(_)
+        ),
+        "expected a missing object, got {:?}",
+        response.object_read
+    );
+    assert!(
+        response
+            .oldest_available_checkpoint
+            .is_some_and(|cp| cp.into_inner() > 0),
+        "expected a checkpoint above the pruned genesis one"
+    );
 }
