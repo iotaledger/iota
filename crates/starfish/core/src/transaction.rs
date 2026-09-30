@@ -402,6 +402,24 @@ mod tests {
         transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
     };
 
+    #[tokio::test]
+    async fn has_transactions_keeps_them_for_next() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let (client, tx_receiver) = TransactionClient::new(context.clone());
+        let mut consumer = TransactionConsumer::new(tx_receiver, context);
+        assert!(!consumer.has_transactions());
+
+        for i in 0..2 {
+            let transaction = bcs::to_bytes(&format!("transaction {i}")).unwrap();
+            let _waiter = client.submit_no_wait(vec![transaction]).await.unwrap();
+        }
+        assert!(consumer.has_transactions());
+        assert!(consumer.has_transactions());
+        let (transactions, _ack, _limit_reached) = consumer.next();
+        assert_eq!(transactions.len(), 2);
+        assert!(!consumer.has_transactions());
+    }
+
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_submit_and_consume() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
