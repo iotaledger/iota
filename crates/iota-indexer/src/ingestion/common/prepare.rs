@@ -23,6 +23,46 @@ use crate::{
     types::{IndexedDeletedObject, IndexedObject},
 };
 
+pub(crate) type TransactionCheckResult<'chk> = IndexerResult<(u64, &'chk CheckpointTransaction)>;
+
+/// Enumerates checkpoint transactions while checking their integrity.
+///
+/// # Errors
+///
+/// Fails before enumeration if the checkpoint contents and the transactions
+/// differ in length.
+pub(crate) fn enumerate_checked_transactions(
+    checkpoint: &CheckpointData,
+) -> IndexerResult<impl Iterator<Item = TransactionCheckResult<'_>>> {
+    fp_ensure!(
+        checkpoint.checkpoint_contents.len() == checkpoint.transactions.len(),
+        IndexerError::FullNodeReading(format!(
+            "checkpointContents has different size {} compared to Transactions {} \
+            for checkpoint {}",
+            checkpoint.checkpoint_contents.len(),
+            checkpoint.transactions.len(),
+            checkpoint.checkpoint_summary.sequence_number()
+        ))
+    );
+    Ok(checkpoint
+        .checkpoint_contents
+        .enumerate_transactions(&checkpoint.checkpoint_summary)
+        .zip(checkpoint.transactions.iter())
+        .map(|((sequence_number, execution_digest), transaction)| {
+            let from_contents = execution_digest.transaction;
+            let from_transactions = *transaction.transaction.digest();
+            fp_ensure!(
+                from_contents == from_transactions,
+                IndexerError::FullNodeReading(format!(
+                    "transactions has different ordering from CheckpointContents, \
+                    for checkpoint {}, Mismatch found at {from_contents} v.s. {from_transactions}",
+                    checkpoint.checkpoint_summary.sequence_number()
+                ))
+            );
+            Ok((sequence_number, transaction))
+        }))
+}
+
 #[derive(Clone, Debug, Copy)]
 pub(crate) struct ValidatedCheckpoint<'chk> {
     inner: &'chk CheckpointData,
@@ -33,19 +73,10 @@ impl<'chk> ValidatedCheckpoint<'chk> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the checkpoint contents and the transactions differ
-    /// in length or in the order of the transactions.
-    pub fn new(checkpoint: &'chk CheckpointData) -> IndexerResult<Self> {
-        fp_ensure!(
-            checkpoint.checkpoint_contents.len() == checkpoint.transactions.len(),
-            IndexerError::FullNodeReading(format!(
-                "checkpointContents has different size {} compared to Transactions {} for checkpoint {}",
-                checkpoint.checkpoint_contents.len(),
-                checkpoint.transactions.len(),
-                checkpoint.checkpoint_summary.sequence_number()
-            ))
-        );
-        Self::validate_transactions_order(checkpoint)?;
+    /// Fails if the checkpoint contents and the transactions differ in length
+    /// or in the order of the transactions.
+    pub(crate) fn new(checkpoint: &'chk CheckpointData) -> IndexerResult<Self> {
+        Self::check_transactions_integrity(checkpoint)?;
         Ok(Self { inner: checkpoint })
     }
 
@@ -54,37 +85,23 @@ impl<'chk> ValidatedCheckpoint<'chk> {
     ///
     /// # Errors
     ///
-    /// Returns an error at the first transaction whose digest does not match
-    /// the digest at the same position in the checkpoint contents.
-    fn validate_transactions_order(checkpoint: &CheckpointData) -> IndexerResult<()> {
-        for (execution_digest, transaction) in checkpoint
-            .checkpoint_contents
-            .iter()
-            .zip(&checkpoint.transactions)
-        {
-            let from_contents = execution_digest.transaction;
-            let from_transactions = *transaction.transaction.digest();
-            fp_ensure!(
-                from_contents == from_transactions,
-                IndexerError::FullNodeReading(format!(
-                    "transactions has different ordering from CheckpointContents, for checkpoint {}, \
-                     Mismatch found at {from_contents} v.s. {from_transactions}",
-                    checkpoint.checkpoint_summary.sequence_number()
-                ))
-            );
-        }
-        Ok(())
+    /// Fails if the checkpoint contents and the transactions differ in length,
+    /// or at the first transaction whose digest does not match the digest
+    /// at the same position in the checkpoint contents.
+    fn check_transactions_integrity(checkpoint: &CheckpointData) -> IndexerResult<()> {
+        enumerate_checked_transactions(checkpoint)?
+            .try_for_each(|check_result| check_result.map(|_| ()))
     }
 
-    pub fn data(self) -> &'chk CheckpointData {
+    pub(crate) fn data(self) -> &'chk CheckpointData {
         self.inner
     }
 
-    pub fn sequence_number(self) -> CheckpointSequenceNumber {
+    pub(crate) fn sequence_number(self) -> CheckpointSequenceNumber {
         self.inner.checkpoint_summary.sequence_number()
     }
 
-    pub fn timestamp_ms(self) -> CheckpointTimestamp {
+    pub(crate) fn timestamp_ms(self) -> CheckpointTimestamp {
         self.inner.checkpoint_summary.timestamp_ms()
     }
 

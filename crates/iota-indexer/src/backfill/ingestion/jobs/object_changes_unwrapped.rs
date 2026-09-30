@@ -12,7 +12,9 @@ use crate::{
     backfill::ingestion::IngestionBackfill,
     db::ConnectionPool,
     errors::IndexerError,
-    ingestion::{common::prepare::ValidatedCheckpoint, primary::prepare::index_transaction},
+    ingestion::{
+        common::prepare::enumerate_checked_transactions, primary::prepare::index_transaction,
+    },
     models::transactions::StoredTransaction,
     schema::transactions,
     store::diesel_macro::spawn_blocking_task,
@@ -33,16 +35,16 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
         let mut results = Vec::new();
         let metrics = IndexerMetrics::new(&Registry::new());
 
-        let checkpoint = ValidatedCheckpoint::new(&checkpoint)?;
-        for (sequence_number, checkpoint_transaction) in checkpoint.enumerate_transactions() {
+        for check_result in enumerate_checked_transactions(&checkpoint)? {
+            let (sequence_number, checkpoint_transaction) = check_result?;
             if checkpoint_transaction.effects.unwrapped().is_empty() {
                 continue;
             }
             let indexed_tx = index_transaction(
                 checkpoint_transaction,
                 sequence_number,
-                checkpoint.sequence_number(),
-                checkpoint.timestamp_ms(),
+                checkpoint.checkpoint_summary.sequence_number(),
+                checkpoint.checkpoint_summary.timestamp_ms(),
                 metrics.clone(),
             )
             .await?;
