@@ -3066,6 +3066,28 @@ impl DagState {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 
+    /// Replaces the samples of `voter` acknowledging `author` with
+    /// `ACK_STATS_MIN_SAMPLES` samples at `depth`.
+    #[cfg(test)]
+    pub(crate) fn set_acknowledgment_depth(
+        &mut self,
+        voter: AuthorityIndex,
+        author: AuthorityIndex,
+        depth: Round,
+    ) {
+        let mut counts = [0; ACK_DEPTH_BUCKETS];
+        counts[depth as usize - 1] = ACK_STATS_MIN_SAMPLES as u16;
+        self.acknowledgment_stats.depths[voter][author] = counts;
+    }
+
+    /// Sets how many of `voter`'s blocks referenced our previous-round block
+    /// with transactions (`saw`) and also acknowledged it (`had`).
+    #[cfg(test)]
+    pub(crate) fn set_our_data_samples(&mut self, voter: AuthorityIndex, had: u16, saw: u16) {
+        self.acknowledgment_stats.had_our_data[voter] = had;
+        self.acknowledgment_stats.saw_our_block[voter] = saw;
+    }
+
     pub(crate) fn misbehavior_store(&self) -> &Arc<MisbehaviorStore> {
         &self.misbehavior_store
     }
@@ -3174,6 +3196,7 @@ mod test {
     use std::vec;
 
     use parking_lot::RwLock;
+    use starfish_config::Stake;
 
     use super::*;
     use crate::{
@@ -5079,5 +5102,454 @@ mod test {
         unset.update_pending_commit_votes(votes);
         unset.evict_pending_commit_votes();
         assert_eq!(unset.pending_commit_votes.len(), 10);
+    }
+
+    /// 4-authority context with StarfishSpeed on and gc depth 20; adaptive
+    /// acknowledgments are on by default.
+    fn adaptive_ack_context() -> Arc<Context> {
+        let (mut ctx, _) = Context::new_for_test(4);
+        ctx.protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        ctx.protocol_config.set_gc_depth_for_testing(20);
+        Arc::new(ctx)
+    }
+
+    fn block_ref(round: Round, author: u8) -> BlockRef {
+        BlockRef::new(round, author.into(), BlockHeaderDigest::MIN)
+    }
+
+    /// Header of `author` at `round` that follows its own block of the previous
+    /// round, also references `parents` of the previous round, and
+    /// acknowledges `acknowledgments`.
+    fn header_with_acknowledgments(
+        round: Round,
+        author: u8,
+        parents: &[u8],
+        acknowledgments: Vec<BlockRef>,
+    ) -> VerifiedBlockHeader {
+        let ancestors = std::iter::once(author)
+            .chain(parents.iter().copied().filter(|&parent| parent != author))
+            .map(|parent| block_ref(round - 1, parent))
+            .collect();
+        VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(round, author)
+                .set_ancestors(ancestors)
+                .set_acknowledgments(acknowledgments)
+                .build(),
+        )
+    }
+
+    /// DagState whose threshold clock is at `round`.
+    fn dag_state_at_round(context: Arc<Context>, round: Round) -> DagState {
+        let mut dag_state = DagState::new(context, Arc::new(MemStore::new()));
+        for author in 0..4u8 {
+            dag_state
+                .threshold_clock
+                .add_block_header(block_ref(round - 1, author));
+        }
+        assert_eq!(dag_state.threshold_clock_round(), round);
+        dag_state
+    }
+
+    #[tokio::test]
+    async fn acknowledgment_stats_record_depths_and_references() {
+        let mut stats = AcknowledgmentStats::new(&adaptive_ack_context());
+
+        // Voter 1 acknowledges author 2 at depth 2, author 3 at depth 1,
+        // author 0 at depth 15 (shares the last bucket) and its own block (not
+        // counted).
+        let acknowledgments = vec![
+            block_ref(5, 0),
+            block_ref(18, 2),
+            block_ref(19, 3),
+            block_ref(19, 1),
+        ];
+        stats.record(
+            &header_with_acknowledgments(20, 1, &[], acknowledgments),
+            false,
+            None,
+        );
+        assert_eq!(stats.depths[1][2][1], 1);
+        assert_eq!(stats.depths[1][3][0], 1);
+        assert_eq!(stats.depths[1][0][ACK_DEPTH_BUCKETS - 1], 1);
+        assert_eq!(stats.depths[1][1], [0; ACK_DEPTH_BUCKETS]);
+
+        // A header at the 2n cap and a header after a skipped round add
+        // nothing.
+        let capped = (10..18).map(|round| block_ref(round, 3)).collect();
+        stats.record(
+            &header_with_acknowledgments(20, 2, &[], capped),
+            false,
+            None,
+        );
+        assert_eq!(stats.depths[2][3], [0; ACK_DEPTH_BUCKETS]);
+        let after_skipped_round = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(20, 3)
+                .set_ancestors(vec![block_ref(18, 3)])
+                .set_acknowledgments(vec![block_ref(19, 1)])
+                .build(),
+        );
+        stats.record(&after_skipped_round, false, None);
+        assert_eq!(stats.depths[3][1], [0; ACK_DEPTH_BUCKETS]);
+
+        // Our own block references voters 1 and 2 of the previous round, not
+        // 3, and its acknowledgments are not counted.
+        let own_header = header_with_acknowledgments(20, 0, &[1, 2], vec![block_ref(19, 3)]);
+        stats.record(&own_header, false, None);
+        assert_eq!(stats.referenced, vec![1, 1, 1, 0]);
+        assert_eq!(stats.own_blocks, 1);
+        assert_eq!(stats.depths[0][3], [0; ACK_DEPTH_BUCKETS]);
+
+        // Voters 1 and 2 reference our round-20 block; only voter 1 also
+        // acknowledges it. Voter 3 does not reference it.
+        let ours = block_ref(20, 0);
+        stats.record(
+            &header_with_acknowledgments(21, 1, &[0], vec![ours]),
+            false,
+            Some(ours),
+        );
+        stats.record(
+            &header_with_acknowledgments(21, 2, &[0], vec![]),
+            false,
+            Some(ours),
+        );
+        stats.record(
+            &header_with_acknowledgments(21, 3, &[], vec![]),
+            false,
+            Some(ours),
+        );
+        assert_eq!(stats.saw_our_block, vec![0, 1, 1, 0]);
+        assert_eq!(stats.had_our_data, vec![0, 1, 0, 0]);
+
+        // A leader block chooses its acknowledgments, so it adds no samples.
+        stats.record(
+            &header_with_acknowledgments(22, 2, &[0], vec![block_ref(20, 3)]),
+            true,
+            Some(block_ref(21, 0)),
+        );
+        assert_eq!(stats.depths[2][3], [0; ACK_DEPTH_BUCKETS]);
+        assert_eq!(stats.saw_our_block, vec![0, 1, 1, 0]);
+    }
+
+    #[tokio::test]
+    async fn acknowledgment_stats_halve_once_per_period() {
+        let mut stats = AcknowledgmentStats::new(&adaptive_ack_context());
+        stats.depths[1][3] = [8; ACK_DEPTH_BUCKETS];
+        stats.referenced[1] = 8;
+        stats.own_blocks = 8;
+        stats.saw_our_block[1] = 8;
+        stats.had_our_data[1] = 8;
+        stats.halve_if_due(ACK_STATS_HALVING_ROUNDS - 1);
+        assert_eq!(stats.depths[1][3], [8; ACK_DEPTH_BUCKETS]);
+        stats.halve_if_due(ACK_STATS_HALVING_ROUNDS);
+        assert_eq!(stats.depths[1][3], [4; ACK_DEPTH_BUCKETS]);
+        assert_eq!((stats.referenced[1], stats.own_blocks), (4, 4));
+        assert_eq!((stats.saw_our_block[1], stats.had_our_data[1]), (4, 4));
+        stats.halve_if_due(2 * ACK_STATS_HALVING_ROUNDS - 1);
+        assert_eq!(stats.depths[1][3], [4; ACK_DEPTH_BUCKETS]);
+    }
+
+    #[tokio::test]
+    async fn acknowledgment_stats_count_our_data_only_for_blocks_with_transactions() {
+        for (with_transactions, counted) in [(true, 1), (false, 0)] {
+            let context = adaptive_ack_context();
+            let mut dag_state = dag_state_at_round(context.clone(), 10);
+            let mut own = TestBlockHeader::new(9, 0);
+            if !with_transactions {
+                own = own.set_commitment(context.empty_transactions_commitment);
+            }
+            let own = VerifiedBlockHeader::new_for_test(own.build());
+            dag_state.accept_block_header(own.clone(), DataSource::Test);
+            let voter = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(10, 1)
+                    .set_ancestors(vec![block_ref(9, 1), own.reference()])
+                    .set_acknowledgments(vec![own.reference()])
+                    .build(),
+            );
+            dag_state.record_acknowledgment_stats(&voter, false);
+            let stats = &dag_state.acknowledgment_stats;
+            assert_eq!(
+                (stats.saw_our_block[1], stats.had_our_data[1]),
+                (counted, counted),
+                "with_transactions={with_transactions}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn acknowledgment_stats_count_ninety_five_percent_as_on_time() {
+        let mut stats = AcknowledgmentStats::new(&adaptive_ack_context());
+        let voter = AuthorityIndex::from(1u8);
+        let author = AuthorityIndex::from(3u8);
+        let set = |stats: &mut AcknowledgmentStats, counts: [u16; 4]| {
+            let mut all = [0; ACK_DEPTH_BUCKETS];
+            all[..4].copy_from_slice(&counts);
+            stats.depths[1][3] = all;
+        };
+
+        // Too few samples: on time.
+        set(&mut stats, [0, 0, 0, 7]);
+        assert!(stats.is_on_time(voter, author, 1));
+        // 19 of 20 samples at depth 1.
+        set(&mut stats, [19, 0, 0, 1]);
+        assert!(stats.is_on_time(voter, author, 1));
+        // 19 of 21 samples at depth 1, all within depth 4.
+        set(&mut stats, [19, 0, 0, 2]);
+        assert!(!stats.is_on_time(voter, author, 1));
+        assert!(!stats.is_on_time(voter, author, 3));
+        assert!(stats.is_on_time(voter, author, 4));
+        assert!(stats.is_on_time(voter, author, 60));
+        // Samples in the last bucket are never on time, however old the ref.
+        let mut late = [0; ACK_DEPTH_BUCKETS];
+        late[0] = 19;
+        late[ACK_DEPTH_BUCKETS - 1] = 2;
+        stats.depths[1][3] = late;
+        assert!(!stats.is_on_time(voter, author, ACK_DEPTH_BUCKETS as Round));
+        assert!(!stats.is_on_time(voter, author, 60));
+
+        (stats.had_our_data[1], stats.saw_our_block[1]) = (0, 7);
+        assert!(stats.has_our_data(voter));
+        (stats.had_our_data[1], stats.saw_our_block[1]) = (18, 20);
+        assert!(!stats.has_our_data(voter));
+    }
+
+    #[tokio::test]
+    async fn leader_defers_refs_most_voters_would_lack() {
+        let mut dag_state = dag_state_at_round(adaptive_ack_context(), 10);
+        dag_state.set_pending_acknowledgments(vec![
+            block_ref(7, 3),
+            block_ref(9, 0),
+            block_ref(9, 2),
+            block_ref(9, 3),
+        ]);
+        // Without history every voter counts as on time.
+        assert_eq!(
+            dag_state.acknowledgments_to_defer(false),
+            (BTreeSet::new(), false)
+        );
+
+        // Voters 1 and 2 get author 3's data 4 rounds late. Voting at round 11,
+        // they lack its round-9 block but hold its round-7 block.
+        dag_state.set_acknowledgment_depth(1.into(), 3.into(), 4);
+        dag_state.set_acknowledgment_depth(2.into(), 3.into(), 4);
+        assert_eq!(
+            dag_state.acknowledgments_to_defer(false),
+            (BTreeSet::from([block_ref(9, 3)]), false)
+        );
+    }
+
+    #[tokio::test]
+    async fn leader_keeps_one_of_two_refs_lacked_by_different_voters() {
+        let mut dag_state = dag_state_at_round(adaptive_ack_context(), 10);
+        let late_digest = BlockRef::new(9, 2.into(), BlockHeaderDigest::MAX);
+        dag_state.set_pending_acknowledgments(vec![late_digest, block_ref(9, 3)]);
+        dag_state.set_acknowledgment_depth(1.into(), 2.into(), 4);
+        dag_state.set_acknowledgment_depth(2.into(), 3.into(), 4);
+        // Each ref alone leaves 3 of 4 stake; both together leave 2. The tie
+        // goes by digest, not by author.
+        assert_eq!(
+            dag_state.acknowledgments_to_defer(false).0,
+            BTreeSet::from([late_digest])
+        );
+    }
+
+    #[tokio::test]
+    async fn leader_keeps_everything_when_halved_counts_fall_below_a_quorum() {
+        let mut dag_state = dag_state_at_round(adaptive_ack_context(), 10);
+        dag_state.set_pending_acknowledgments(vec![block_ref(9, 2)]);
+        // 16 own blocks referencing [16, 11, 11, 11] halve to 8 and
+        // [8, 5, 5, 5]: 23 against a quorum of 3 * 8.
+        dag_state.acknowledgment_stats.own_blocks = 8;
+        dag_state.acknowledgment_stats.referenced = vec![8, 5, 5, 5];
+        assert_eq!(
+            dag_state.acknowledgments_to_defer(true),
+            (BTreeSet::new(), false)
+        );
+    }
+
+    #[tokio::test]
+    async fn leader_counts_a_voter_lacking_several_refs_once() {
+        let mut dag_state = dag_state_at_round(adaptive_ack_context(), 10);
+        dag_state.set_pending_acknowledgments(vec![block_ref(9, 2), block_ref(9, 3)]);
+        dag_state.set_acknowledgment_depth(1.into(), 2.into(), 4);
+        dag_state.set_acknowledgment_depth(1.into(), 3.into(), 4);
+        assert!(dag_state.acknowledgments_to_defer(false).0.is_empty());
+    }
+
+    #[tokio::test]
+    async fn leader_weighs_voters_by_how_often_our_blocks_reference_them() {
+        let mut dag_state = dag_state_at_round(adaptive_ack_context(), 10);
+        dag_state.set_pending_acknowledgments(vec![block_ref(9, 2)]);
+        // Our blocks reference voter 3 half the time: the voters weigh
+        // 8 + 8 + 8 + 4 against a quorum of 3 * 8.
+        dag_state.acknowledgment_stats.own_blocks = 8;
+        dag_state.acknowledgment_stats.referenced = vec![8, 8, 8, 4];
+
+        dag_state.set_acknowledgment_depth(3.into(), 2.into(), 4);
+        assert!(dag_state.acknowledgments_to_defer(false).0.is_empty());
+
+        dag_state.set_acknowledgment_depth(1.into(), 2.into(), 4);
+        dag_state.set_acknowledgment_depth(3.into(), 2.into(), 1);
+        assert_eq!(
+            dag_state.acknowledgments_to_defer(false).0,
+            BTreeSet::from([block_ref(9, 2)])
+        );
+    }
+
+    #[tokio::test]
+    async fn take_acknowledgments_skips_deferred_refs() {
+        let mut dag_state = dag_state_at_round(adaptive_ack_context(), 5);
+
+        // Eligible: rounds 1..=4 × 4 authors (16). Above clock: round 6 × 4 authors.
+        let mut seeded = Vec::new();
+        for round in 1..=4u32 {
+            for author in 0..4u8 {
+                seeded.push(block_ref(round, author));
+            }
+        }
+        for author in 0..4u8 {
+            seeded.push(block_ref(6, author));
+        }
+        dag_state.set_pending_acknowledgments(seeded);
+
+        // Defer the refs of authors 1 and 3.
+        let deferred: BTreeSet<BlockRef> = (1..=4u32)
+            .flat_map(|round| [block_ref(round, 1), block_ref(round, 3)])
+            .collect();
+        let taken = dag_state.take_acknowledgments(1024, &deferred);
+        assert_eq!(taken.len(), 8, "2 authors × 4 eligible rounds");
+        assert!(
+            taken
+                .iter()
+                .all(|ack| !deferred.contains(ack) && ack.round < 5)
+        );
+        assert_eq!(
+            dag_state
+                .context
+                .metrics
+                .node_metrics
+                .adaptive_ack_acks_dropped
+                .get(),
+            8
+        );
+
+        // Deferred refs and round-6 refs stay pending.
+        for ack in &deferred {
+            assert!(dag_state.pending_acknowledgments.contains(ack));
+        }
+        for author in 0..4u8 {
+            assert!(
+                dag_state
+                    .pending_acknowledgments
+                    .contains(&block_ref(6, author))
+            );
+        }
+
+        // Nothing deferred + capped limit: exactly `limit` returned.
+        let taken_limited = dag_state.take_acknowledgments(3, &BTreeSet::new());
+        assert_eq!(taken_limited.len(), 3);
+
+        // Nothing deferred, no cap: drains the remaining 5 deferred refs;
+        // round-6 refs stay pending (above clock_round).
+        let taken_rest = dag_state.take_acknowledgments(1024, &BTreeSet::new());
+        assert_eq!(taken_rest.len(), 5);
+        for author in 0..4u8 {
+            assert!(
+                dag_state
+                    .pending_acknowledgments
+                    .contains(&block_ref(6, author))
+            );
+        }
+    }
+
+    /// DagState at round 10 on a 1000-stake committee where voter 1 holds
+    /// `voter_stake`, voter 2 holds 3 and author 3 holds 300.
+    fn weighted_dag_state(voter_stake: Stake) -> DagState {
+        let stakes = vec![1000 - 300 - 3 - voter_stake, voter_stake, 3, 300];
+        let (context, _) = Context::new_for_test(4);
+        let mut context =
+            context.with_committee(starfish_config::local_committee_and_keys(0, stakes).0);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        context.protocol_config.set_gc_depth_for_testing(20);
+        dag_state_at_round(Arc::new(context), 10)
+    }
+
+    #[tokio::test]
+    async fn leader_keeps_a_quorum_of_stake() {
+        // Total stake 1000, quorum threshold 667: voter 1 lacking author 3's
+        // block leaves 1000 minus its stake.
+        for (voter_stake, deferred) in [(333, false), (334, true)] {
+            let mut dag_state = weighted_dag_state(voter_stake);
+            dag_state.set_pending_acknowledgments(vec![block_ref(9, 3)]);
+            dag_state.set_acknowledgment_depth(1.into(), 3.into(), 4);
+            assert_eq!(
+                dag_state
+                    .acknowledgments_to_defer(false)
+                    .0
+                    .contains(&block_ref(9, 3)),
+                deferred,
+                "voter stake {voter_stake}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn leader_weighs_our_transactions_like_a_ref() {
+        let mut dag_state = dag_state_at_round(adaptive_ack_context(), 10);
+        dag_state.set_pending_acknowledgments(vec![block_ref(9, 0), block_ref(9, 2)]);
+        // Voter 1 rarely has our transactions and voter 2 our round-9 block:
+        // each alone leaves 3 of 4 stake, both together 2.
+        dag_state.set_our_data_samples(1.into(), 0, 8);
+        dag_state.set_acknowledgment_depth(2.into(), 0.into(), 4);
+        let (deferred, leave_out_transactions) = dag_state.acknowledgments_to_defer(true);
+        assert_eq!(deferred.len() + usize::from(leave_out_transactions), 1);
+        assert!(!deferred.contains(&block_ref(9, 2)));
+        assert!(dag_state.acknowledgments_to_defer(false).0.is_empty());
+
+        // With voter 2 also lacking our transactions they no longer fit, and
+        // both refs are kept.
+        dag_state.set_our_data_samples(2.into(), 0, 8);
+        assert_eq!(
+            dag_state.acknowledgments_to_defer(true),
+            (BTreeSet::new(), true)
+        );
+    }
+
+    #[tokio::test]
+    async fn leader_leaves_out_its_transactions_below_a_quorum() {
+        // Total stake 1000, quorum threshold 667: voter 1 lacking our
+        // transactions leaves 1000 minus its stake.
+        for (voter_stake, leave_out) in [(333, false), (334, true)] {
+            let mut dag_state = weighted_dag_state(voter_stake);
+            dag_state.set_our_data_samples(1.into(), 0, 8);
+            assert_eq!(
+                dag_state.acknowledgments_to_defer(true),
+                (BTreeSet::new(), leave_out),
+                "voter stake {voter_stake}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn acknowledgment_stats_recorded_only_when_enabled() {
+        for (starfish_speed, adaptive_acks) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            let (mut ctx, _) = Context::new_for_test(4);
+            ctx.protocol_config
+                .set_consensus_starfish_speed_for_testing(starfish_speed);
+            ctx.parameters
+                .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
+            let mut dag_state = DagState::new(Arc::new(ctx), Arc::new(MemStore::new()));
+            let header = header_with_acknowledgments(2, 1, &[], vec![block_ref(1, 2)]);
+            dag_state.record_acknowledgment_stats(&header, false);
+            assert_eq!(
+                dag_state.acknowledgment_stats.depths[1][2][0],
+                u16::from(starfish_speed && adaptive_acks),
+                "starfish_speed={starfish_speed}, adaptive_acks={adaptive_acks}"
+            );
+        }
     }
 }
