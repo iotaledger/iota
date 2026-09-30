@@ -21571,7 +21571,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Number of authorities currently in the adaptive-ack exclusion set, as observed at the most recent leader block proposal.",
+          "description": "Rate of leader blocks proposed without this node's transactions because the voters expected to have them, weighted by how often this node's blocks reference them, would weigh less than a quorum.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21592,7 +21592,7 @@
                   "viz": false
                 },
                 "insertNulls": false,
-                "lineInterpolation": "stepBefore",
+                "lineInterpolation": "linear",
                 "lineWidth": 1,
                 "pointSize": 5,
                 "scaleDistribution": {
@@ -21617,7 +21617,7 @@
                   }
                 ]
               },
-              "unit": "short"
+              "unit": "cps"
             },
             "overrides": []
           },
@@ -21647,13 +21647,13 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_adaptive_ack_excluded_authorities",
+              "expr": "rate(consensus_adaptive_ack_leader_blocks_without_transactions[5m])",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Adaptive-ack excluded authorities",
+          "title": "Adaptive-ack leader blocks without transactions",
           "type": "timeseries"
         },
         {
@@ -21661,7 +21661,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Rate of pending acknowledgments skipped because their author was in the adaptive-ack exclusion set at leader proposal time.",
+          "description": "Rate of pending acknowledgments left out of leader blocks because the voters expected to hold their data, weighted by how often this node's blocks reference them, would weigh less than a quorum.",
           "fieldConfig": {
             "defaults": {
               "color": {
