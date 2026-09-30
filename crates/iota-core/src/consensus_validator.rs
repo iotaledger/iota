@@ -18,7 +18,7 @@ use tap::TapFallible;
 use tracing::{info, instrument, warn};
 
 use crate::{
-    attestation_checks::verify_explicit_attestation,
+    attestation_checks::verify_attestor,
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     checkpoints::CheckpointServiceNotify,
 };
@@ -151,7 +151,7 @@ impl IotaTxValidator {
 
                     // A validator attestation is authenticated by the block
                     // signature; an explicit one carries its own.
-                    verify_explicit_attestation(
+                    verify_attestor(
                         &self.epoch_store,
                         attested_tx.digest(),
                         &attested_tx.attestation,

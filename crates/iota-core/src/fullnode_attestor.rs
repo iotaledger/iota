@@ -135,7 +135,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        attestation_checks::verify_explicit_attestation,
+        attestation_checks::verify_attestor,
         authority::test_authority_builder::TestAuthorityBuilder,
     };
 
@@ -207,7 +207,6 @@ mod tests {
             )
             .await
             .unwrap();
-        verify_explicit_attestation(&epoch_store, attested.digest(), &attested.attestation)
-            .unwrap();
+        verify_attestor(&epoch_store, attested.digest(), &attested.attestation).unwrap();
     }
 }

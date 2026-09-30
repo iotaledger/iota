@@ -70,10 +70,11 @@ pub(crate) fn explicit_attestor_entry<'a>(
         })
 }
 
-/// Verifies an explicit attestation for `tx_digest`: its attestor must be in
-/// this epoch's set and its signature must verify with the registered key. A
-/// validator attestation is authenticated by the block signature and passes.
-pub(crate) fn verify_explicit_attestation(
+/// Verifies the attestor of `attestation` for `tx_digest`. An explicit
+/// attestor must be in this epoch's set and its signature must verify with
+/// the registered key; a validator attestor is authenticated by the block
+/// signature and passes.
+pub(crate) fn verify_attestor(
     epoch_store: &AuthorityPerEpochStore,
     tx_digest: &TransactionDigest,
     attestation: &Attestation,

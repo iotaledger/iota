@@ -29,7 +29,7 @@ use iota_types::{
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    attestation_checks::verify_explicit_attestation,
+    attestation_checks::verify_attestor,
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     authority_server::{
         StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
@@ -563,7 +563,7 @@ impl ValidatorService {
                 error: "SubmitExternallyAttestedTx accepts explicit attestations only".into(),
             });
         }
-        if let Err(e) = verify_explicit_attestation(epoch_store, &tx_digest, &attestation) {
+        if let Err(e) = verify_attestor(epoch_store, &tx_digest, &attestation) {
             metrics
                 .num_rejected_externally_attested_tx
                 .with_label_values(&[e.as_ref()])
@@ -571,8 +571,6 @@ impl ValidatorService {
             return rejected(e);
         }
 
-        // The same input checks execution runs, so a false attestation is
-        // rejected here rather than sequenced.
         let owned_objects = match state.check_attested_transaction_inputs(&verified_tx, epoch_store)
         {
             Ok(owned_objects) => owned_objects,
