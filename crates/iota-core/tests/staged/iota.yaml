@@ -822,8 +822,7 @@ SmartAccountBuildKind:
 SmartAccountClaim:
   STRUCT:
     - public_key_scheme: U8
-    - public_key_raw_bytes:
-        SEQ: U8
+    - public_key_raw_bytes: BYTES
     - build_kind:
         TYPENAME: SmartAccountBuildKind
 SplitCoins:

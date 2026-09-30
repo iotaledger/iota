@@ -1333,6 +1333,8 @@
                 "disallow_new_modules_in_deps_only_packages": true,
                 "disallow_randomness_in_move_authenticator": true,
                 "disallow_self_identifier": true,
+                "enable_builtin_move_authenticators": true,
+                "enable_claim_account_transaction": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
@@ -1496,6 +1498,9 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
+                "builtin_move_authenticator_cost_base": {
+                  "u64": "0"
+                },
                 "check_zklogin_id_cost_base": null,
                 "check_zklogin_issuer_cost_base": null,
                 "checkpoint_rate_window_size": {
@@ -1614,6 +1619,9 @@
                 "ecdsa_k1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_k1_secp256k1_validate_pubkey_cost_base": {
+                  "u64": "52"
+                },
                 "ecdsa_k1_secp256k1_verify_keccak256_cost_base": {
                   "u64": "1470"
                 },
@@ -1650,6 +1658,9 @@
                 "ecdsa_r1_ecrecover_sha256_msg_cost_per_byte": {
                   "u64": "2"
                 },
+                "ecdsa_r1_secp256r1_validate_pubkey_cost_base": {
+                  "u64": "52"
+                },
                 "ecdsa_r1_secp256r1_verify_keccak256_cost_base": {
                   "u64": "4225"
                 },
@@ -1676,6 +1687,9 @@
                 },
                 "ecvrf_ecvrf_verify_cost_base": {
                   "u64": "4848"
+                },
+                "ed25519_ed25519_validate_pubkey_cost_base": {
+                  "u64": "52"
                 },
                 "ed25519_ed25519_verify_cost_base": {
                   "u64": "1802"
@@ -2082,6 +2096,18 @@
                 "move_binary_format_version": {
                   "u32": "7"
                 },
+                "multisig_multisig_validate_pubkey_cost_base": {
+                  "u64": "52"
+                },
+                "multisig_multisig_validate_pubkey_cost_per_ed25519_member": {
+                  "u64": "52"
+                },
+                "multisig_multisig_validate_pubkey_cost_per_secp256k1_member": {
+                  "u64": "52"
+                },
+                "multisig_multisig_validate_pubkey_cost_per_secp256r1_member": {
+                  "u64": "52"
+                },
                 "obj_access_cost_delete_per_byte": {
                   "u64": "40"
                 },
@@ -2132,6 +2158,9 @@
                 },
                 "poseidon_bn254_cost_per_block": {
                   "u64": "388"
+                },
+                "public_key_to_iota_address_impl_cost_base": {
+                  "u64": "52"
                 },
                 "random_beacon_dkg_timeout_round": {
                   "u32": "3000"
@@ -7633,6 +7662,51 @@
           }
         ]
       },
+      "IotaAccountClaimKind": {
+        "description": "The type of account created by an `IotaClaimAccountTransaction`.",
+        "oneOf": [
+          {
+            "description": "Parameters the claimed `SmartAccount` was created with.",
+            "type": "object",
+            "required": [
+              "build_kind",
+              "public_key_raw_bytes",
+              "public_key_scheme",
+              "type"
+            ],
+            "properties": {
+              "build_kind": {
+                "description": "Whether the created account object is mutable or immutable.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IotaSmartAccountBuildKind"
+                  }
+                ]
+              },
+              "public_key_raw_bytes": {
+                "description": "Raw public key bytes of the claimed address, without the scheme flag prefix. For MultiSig this is a BCS-encoded multisig public key.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Base64"
+                  }
+                ]
+              },
+              "public_key_scheme": {
+                "description": "Signature scheme flag of the public key of the claimed address (0=Ed25519, 1=Secp256k1, 2=Secp256r1, 3=MultiSig, 6=Passkey).",
+                "type": "integer",
+                "format": "uint8",
+                "minimum": 0.0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "smartAccount"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "IotaArgument": {
         "description": "An argument to a transaction in a programmable transaction block",
         "oneOf": [
@@ -8700,6 +8774,14 @@
           }
         }
       },
+      "IotaSmartAccountBuildKind": {
+        "description": "Whether a claimed account object can be changed after the claim.",
+        "type": "string",
+        "enum": [
+          "Mutable",
+          "Immutable"
+        ]
+      },
       "IotaSystemStateSummary": {
         "description": "This is the JSON-RPC type for IOTA system state objects. It is an enum type that can represent either V1 or V2 system state objects.",
         "oneOf": [
@@ -9397,7 +9479,7 @@
         ]
       },
       "IotaTransactionKind": {
-        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` are considered system transactions.",
+        "description": "Represents the type of a transaction. All transactions except `ProgrammableTransaction` and `ClaimAccount` are considered system transactions.",
         "oneOf": [
           {
             "type": "string",
@@ -9407,7 +9489,8 @@
               "ConsensusCommitPrologueV1",
               "RandomnessStateUpdate",
               "EndOfEpochTransaction",
-              "TransactionDenyRulesUpdate"
+              "TransactionDenyRulesUpdate",
+              "ClaimAccount"
             ]
           },
           {
@@ -11826,6 +11909,30 @@
                 "items": {
                   "$ref": "#/components/schemas/IotaEndOfEpochTransactionKind"
                 }
+              }
+            }
+          },
+          {
+            "description": "A transaction that claims an on-chain account object",
+            "type": "object",
+            "required": [
+              "account_kind",
+              "kind"
+            ],
+            "properties": {
+              "account_kind": {
+                "description": "The type of account created by the claim.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/IotaAccountClaimKind"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ClaimAccount"
+                ]
               }
             }
           }
