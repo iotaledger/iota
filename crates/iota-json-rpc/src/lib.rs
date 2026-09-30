@@ -45,6 +45,7 @@ use tower_http::{
 use tracing::{debug, info};
 
 use crate::{
+    available_range::OLDEST_AVAILABLE_CHECKPOINT_HEADER,
     axum_router::{json_rpc_handler, ws::ws_json_rpc_upgrade},
     error::Error,
     metrics::MetricsLogger,
@@ -52,6 +53,7 @@ use crate::{
 };
 
 pub mod authority_state;
+pub mod available_range;
 pub mod axum_router;
 mod balance_changes;
 pub mod coin_api;
@@ -137,7 +139,9 @@ impl JsonRpcServerBuilder {
                 HeaderName::from_static(CLIENT_SDK_VERSION_HEADER),
                 HeaderName::from_static(CLIENT_TARGET_API_VERSION_HEADER),
                 HeaderName::from_static(APP_NAME_HEADER),
-            ]);
+            ])
+            // Let browser clients read the reported available range.
+            .expose_headers([HeaderName::from_static(OLDEST_AVAILABLE_CHECKPOINT_HEADER)]);
         Ok(cors)
     }
 

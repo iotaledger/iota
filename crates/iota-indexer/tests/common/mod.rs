@@ -155,6 +155,22 @@ pub async fn start_test_cluster_with_read_write_indexer(
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
     retention_config: Option<RetentionConfig>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
+    let (cluster, store, client, _url) = start_test_cluster_with_read_write_indexer_url(
+        database_name,
+        builder_modifier,
+        retention_config,
+    )
+    .await;
+    (cluster, store, client)
+}
+
+/// Same as [`start_test_cluster_with_read_write_indexer`], additionally
+/// returning the indexer's JSON-RPC URL for tests that query HTTP directly.
+pub async fn start_test_cluster_with_read_write_indexer_url(
+    database_name: impl Into<Option<&str>>,
+    builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
+    retention_config: Option<RetentionConfig>,
+) -> (TestCluster, PgIndexerStore, HttpClient, String) {
     let database_name = database_name.into();
     let mut builder = TestClusterBuilder::new().disable_fullnode_pruning();
 
@@ -180,11 +196,10 @@ pub async fn start_test_cluster_with_read_write_indexer(
     let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name);
 
     // create an RPC client by using the indexer url
-    let rpc_client = HttpClientBuilder::default()
-        .build(format!("http://{DEFAULT_INDEXER_IP}:{indexer_port}"))
-        .unwrap();
+    let url = format!("http://{DEFAULT_INDEXER_IP}:{indexer_port}");
+    let rpc_client = HttpClientBuilder::default().build(&url).unwrap();
 
-    (cluster, pg_store, rpc_client)
+    (cluster, pg_store, rpc_client, url)
 }
 
 /// Calls `f` every 100 ms until it returns `Some`, returning an error if

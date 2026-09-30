@@ -6,7 +6,9 @@ use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 
 use async_trait::async_trait;
 use iota_grpc_client::{GrpcClient, read_mask_fields::TransactionField};
-use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
+use iota_json_rpc::{
+    IotaRpcModule, available_range::report_oldest_available_checkpoint, error::IotaRpcInputError,
+};
 use iota_json_rpc_api::{ReadApiServer, internal_error};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
@@ -20,9 +22,10 @@ use iota_sdk_types::{ObjectId, TransactionDigest, Version};
 use iota_types::{
     digests::ChainIdentifier,
     iota_serde::BigInt,
+    messages_checkpoint::CheckpointSequenceNumber,
     object::{ObjectRead, PastObjectRead},
 };
-use jsonrpsee::{RpcModule, core::RpcResult};
+use jsonrpsee::{Extensions, RpcModule, core::RpcResult};
 
 use crate::{
     apis::common,
@@ -47,14 +50,21 @@ impl ReadApi {
         }
     }
 
-    async fn get_checkpoint(&self, id: CheckpointId) -> Result<Checkpoint, IndexerError> {
-        match self.inner.get_checkpoint_with_fallback(id).await {
+    async fn get_checkpoint(
+        &self,
+        id: CheckpointId,
+    ) -> (IndexerResult<Checkpoint>, CheckpointSequenceNumber) {
+        let (checkpoint, oldest_available_cp) = self.inner.get_checkpoint_with_fallback(id).await;
+
+        let checkpoint = match checkpoint {
             Ok(Some(checkpoint)) => Ok(checkpoint),
             Ok(None) => Err(IndexerError::InvalidArgument(format!(
                 "Checkpoint {id} not found"
             ))),
             Err(e) => Err(e),
-        }
+        };
+
+        (checkpoint, oldest_available_cp)
     }
 
     async fn get_latest_checkpoint(&self) -> Result<Checkpoint, IndexerError> {
@@ -266,16 +276,18 @@ impl ReadApiServer for ReadApi {
 
     async fn get_transaction_block(
         &self,
+        extensions: &Extensions,
         digest: TransactionDigest,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
         let options = options.unwrap_or_default();
-        let txn = self
+        let (txn, oldest_available_cp) = self
             .inner
             .get_single_transaction_block_response_with_fallback(digest, options)
-            .await?;
+            .await;
+        report_oldest_available_checkpoint(extensions, oldest_available_cp);
 
-        let txn = txn.ok_or_else(|| {
+        let txn = txn?.ok_or_else(|| {
             IndexerError::InvalidArgument(format!("Transaction {digest} not found"))
         })?;
 
@@ -284,54 +296,61 @@ impl ReadApiServer for ReadApi {
 
     async fn multi_get_transaction_blocks(
         &self,
+        extensions: &Extensions,
         digests: Vec<TransactionDigest>,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> RpcResult<Vec<IotaTransactionBlockResponse>> {
         common::validate_input_limit(digests.len())?;
 
         let options = options.unwrap_or_default();
-        let txns = self
+        let (txns, oldest_available_cp) = self
             .inner
             .multi_get_transaction_block_response_in_blocking_task(digests, options)
-            .await?;
+            .await;
+        report_oldest_available_checkpoint(extensions, oldest_available_cp);
 
-        Ok(txns)
+        Ok(txns?)
     }
 
     async fn try_get_past_object(
         &self,
+        extensions: &Extensions,
         object_id: ObjectId,
         version: SequenceNumberU64,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
-        let past_object_read = self
+        let (past_object_read, oldest_available_cp) = self
             .inner
             .get_past_object_read_with_fallback(object_id, version.into(), false)
-            .await?;
+            .await;
+        report_oldest_available_checkpoint(extensions, oldest_available_cp);
 
-        self.past_object_read_to_response(options, past_object_read)
+        self.past_object_read_to_response(options, past_object_read?)
             .await
     }
 
     async fn try_get_object_before_version(
         &self,
+        extensions: &Extensions,
         object_id: ObjectId,
         version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
-        let past_object_read = self
+        let (past_object_read, oldest_available_cp) = self
             .inner
             .get_past_object_read_with_fallback(object_id, version, true)
-            .await?;
+            .await;
+        report_oldest_available_checkpoint(extensions, oldest_available_cp);
 
         self.past_object_read_to_response(
             Some(IotaObjectDataOptions::bcs_lossless()),
-            past_object_read,
+            past_object_read?,
         )
         .await
     }
 
     async fn try_multi_get_past_objects(
         &self,
+        extensions: &Extensions,
         past_objects: Vec<IotaGetPastObjectRequest>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>> {
@@ -340,13 +359,14 @@ impl ReadApiServer for ReadApi {
         let mut responses = Vec::with_capacity(past_objects.len());
 
         for request in past_objects {
-            let past_object_read = self
+            let (past_object_read, oldest_available_cp) = self
                 .inner
                 .get_past_object_read_with_fallback(request.object_id, request.version, false)
-                .await?;
+                .await;
+            report_oldest_available_checkpoint(extensions, oldest_available_cp);
 
             responses.push(
-                self.past_object_read_to_response(options.clone(), past_object_read)
+                self.past_object_read_to_response(options.clone(), past_object_read?)
                     .await?,
             );
         }
@@ -359,12 +379,20 @@ impl ReadApiServer for ReadApi {
         Ok(BigInt::from(checkpoint.sequence_number))
     }
 
-    async fn get_checkpoint(&self, id: CheckpointId) -> RpcResult<Checkpoint> {
-        Ok(self.get_checkpoint(id).await?)
+    async fn get_checkpoint(
+        &self,
+        extensions: &Extensions,
+        id: CheckpointId,
+    ) -> RpcResult<Checkpoint> {
+        let (checkpoint, oldest_available_cp) = self.get_checkpoint(id).await;
+        report_oldest_available_checkpoint(extensions, oldest_available_cp);
+
+        Ok(checkpoint?)
     }
 
     async fn get_checkpoints(
         &self,
+        extensions: &Extensions,
         cursor: Option<BigInt<u64>>,
         limit: Option<usize>,
         descending_order: bool,
@@ -387,6 +415,8 @@ impl ReadApiServer for ReadApi {
 
         let next_cursor = checkpoints.last().map(|d| d.sequence_number.into());
 
+        report_oldest_available_checkpoint(extensions, oldest_available_checkpoint);
+
         Ok(CheckpointPage {
             data: checkpoints,
             next_cursor,
@@ -395,11 +425,18 @@ impl ReadApiServer for ReadApi {
         })
     }
 
-    async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {
-        self.inner
+    async fn get_events(
+        &self,
+        extensions: &Extensions,
+        transaction_digest: TransactionDigest,
+    ) -> RpcResult<Vec<IotaEvent>> {
+        let (events, oldest_available_cp) = self
+            .inner
             .get_transaction_events_with_fallback(transaction_digest)
-            .await
-            .map_err(Into::into)
+            .await;
+        report_oldest_available_checkpoint(extensions, oldest_available_cp);
+
+        Ok(events?)
     }
 
     async fn get_protocol_config(

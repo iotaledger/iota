@@ -43,7 +43,7 @@ use iota_types::{
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
-use jsonrpsee::{RpcModule, core::RpcResult};
+use jsonrpsee::{Extensions, RpcModule, core::RpcResult};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveValue};
 use tap::TapFallible;
@@ -585,6 +585,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_past_object(
         &self,
+        _extensions: &Extensions,
         object_id: ObjectId,
         version: SequenceNumberU64,
         options: Option<IotaObjectDataOptions>,
@@ -646,6 +647,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, object_id), fields(object_id = %object_id))]
     async fn try_get_object_before_version(
         &self,
+        _extensions: &Extensions,
         object_id: ObjectId,
         version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
@@ -657,6 +659,7 @@ impl ReadApiServer for ReadApi {
             .map(|obj| obj.version())
             .unwrap_or_default();
         self.try_get_past_object(
+            _extensions,
             object_id,
             version.into(),
             Some(IotaObjectDataOptions::bcs_lossless()),
@@ -667,6 +670,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, past_objects), fields(num_past_objects = past_objects.len()))]
     async fn try_multi_get_past_objects(
         &self,
+        _extensions: &Extensions,
         past_objects: Vec<IotaGetPastObjectRequest>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<Vec<IotaPastObjectResponse>> {
@@ -675,6 +679,7 @@ impl ReadApiServer for ReadApi {
                 let mut futures = vec![];
                 for past_object in past_objects {
                     futures.push(self.try_get_past_object(
+                        _extensions,
                         past_object.object_id,
                         past_object.version.into(),
                         options.clone(),
@@ -749,6 +754,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, digest), fields(digest = %digest))]
     async fn get_transaction_block(
         &self,
+        _extensions: &Extensions,
         digest: TransactionDigest,
         opts: Option<IotaTransactionBlockResponseOptions>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
@@ -910,6 +916,7 @@ impl ReadApiServer for ReadApi {
     #[instrument(skip(self, digests), fields(digests = digests.iter().map(|d| d.to_string()).collect::<Vec<String>>().join(", ")))]
     async fn multi_get_transaction_blocks(
         &self,
+        _extensions: &Extensions,
         digests: Vec<TransactionDigest>,
         opts: Option<IotaTransactionBlockResponseOptions>,
     ) -> RpcResult<Vec<IotaTransactionBlockResponse>> {
@@ -924,7 +931,11 @@ impl ReadApiServer for ReadApi {
     }
 
     #[instrument(skip(self, transaction_digest), fields(transaction_digest = %transaction_digest))]
-    async fn get_events(&self, transaction_digest: TransactionDigest) -> RpcResult<Vec<IotaEvent>> {
+    async fn get_events(
+        &self,
+        _extensions: &Extensions,
+        transaction_digest: TransactionDigest,
+    ) -> RpcResult<Vec<IotaEvent>> {
         async move {
             let state = self.state.clone();
             let transaction_kv_store = self.transaction_kv_store.clone();
@@ -978,13 +989,18 @@ impl ReadApiServer for ReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_checkpoint(&self, id: CheckpointId) -> RpcResult<Checkpoint> {
+    async fn get_checkpoint(
+        &self,
+        _extensions: &Extensions,
+        id: CheckpointId,
+    ) -> RpcResult<Checkpoint> {
         self.get_checkpoint_internal(id).trace().await
     }
 
     #[instrument(skip(self))]
     async fn get_checkpoints(
         &self,
+        _extensions: &Extensions,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<BigInt<u64>>,
         limit: Option<usize>,

@@ -193,6 +193,18 @@ impl IndexerReader {
     const EVENTS_BY_DIGEST_TABLES: &[CommitterTables] =
         &[CommitterTables::Events, CommitterTables::TxGlobalOrder];
 
+    /// Tables consulted when a transaction is looked up by its digest.
+    const TRANSACTIONS_BY_DIGEST_TABLES: &[CommitterTables] = &[
+        CommitterTables::Transactions,
+        CommitterTables::TxGlobalOrder,
+    ];
+
+    /// Tables consulted when a past object is looked up.
+    const PAST_OBJECT_TABLES: &[CommitterTables] = &[
+        CommitterTables::ObjectsVersion,
+        CommitterTables::ObjectsBackwardHistory,
+    ];
+
     /// Tables consulted when transactions are looked up by their checkpoint.
     const TRANSACTIONS_BY_CHECKPOINT_TABLES: &[CommitterTables] = &[
         CommitterTables::Transactions,
@@ -326,25 +338,47 @@ impl IndexerReader {
             .unwrap_or(0)
     }
 
-    /// Returns the oldest checkpoint and transaction available across `tables`.
+    /// Returns the oldest checkpoint and transaction a lookup reading `tables`
+    /// can serve.
+    ///
+    /// Takes `served_by_fallback` as [`Self::oldest_available_cp`] does.
     ///
     /// A table absent from the cache has not been written yet, and so has not
     /// been pruned either: it is skipped, and when no table has a watermark the
     /// result is 0. This relies on the cache being filled before the RPC server
     /// starts serving.
-    fn oldest_available_cp_and_tx(&self, tables: &[CommitterTables]) -> (i64, i64) {
+    fn oldest_available_cp_and_tx(
+        &self,
+        tables: &[CommitterTables],
+        served_by_fallback: bool,
+    ) -> (i64, i64) {
+        if served_by_fallback && self.is_fallback_enabled() {
+            return (0, 0);
+        }
+
         self.watermark_cache
             .get_lowest_available_cp_and_tx_for_tables(tables)
             .unwrap_or((0, 0))
     }
 
-    /// Returns the oldest checkpoint available across `tables`.
+    /// Returns the oldest checkpoint a lookup reading `tables` can serve.
+    ///
+    /// Pass `served_by_fallback` for a lookup the historical fallback can
+    /// serve, e.g. transaction by digest.
     ///
     /// A table absent from the cache has not been written yet, and so has not
     /// been pruned either: it is skipped, and when no table has a watermark the
     /// result is 0. This relies on the cache being filled before the RPC server
     /// starts serving.
-    fn oldest_available_cp(&self, tables: &[CommitterTables]) -> CheckpointSequenceNumber {
+    fn oldest_available_cp(
+        &self,
+        tables: &[CommitterTables],
+        served_by_fallback: bool,
+    ) -> CheckpointSequenceNumber {
+        if served_by_fallback && self.is_fallback_enabled() {
+            return 0;
+        }
+
         self.watermark_cache
             .get_lowest_available_cp_for_tables(tables)
             .unwrap_or(0) as CheckpointSequenceNumber
@@ -544,6 +578,21 @@ impl IndexerReader {
     ///    `objects_backward_history`)
     /// 2. Historical fallback storage (if enabled)
     pub(crate) async fn get_past_object_read_with_fallback(
+        &self,
+        object_id: ObjectId,
+        object_version: Version,
+        before_version: bool,
+    ) -> (IndexerResult<PastObjectRead>, CheckpointSequenceNumber) {
+        let oldest_available_cp =
+            self.oldest_available_cp(Self::PAST_OBJECT_TABLES, true /* served by fallback */);
+        let past_object_read = self
+            .get_past_object_read_from_db_or_fallback(object_id, object_version, before_version)
+            .await;
+
+        (past_object_read, oldest_available_cp)
+    }
+
+    async fn get_past_object_read_from_db_or_fallback(
         &self,
         object_id: ObjectId,
         object_version: Version,
@@ -782,6 +831,22 @@ impl IndexerReader {
     /// 1. Postgres database
     /// 2. Historical fallback storage (if enabled)
     pub async fn get_checkpoint_with_fallback(
+        &self,
+        checkpoint_id: CheckpointId,
+    ) -> (
+        IndexerResult<Option<iota_json_rpc_types::Checkpoint>>,
+        CheckpointSequenceNumber,
+    ) {
+        let oldest_available_cp = self.oldest_available_cp(
+            &[CommitterTables::Checkpoints],
+            true, // served by fallback
+        );
+        let checkpoint = self.get_checkpoint_from_db_or_fallback(checkpoint_id).await;
+
+        (checkpoint, oldest_available_cp)
+    }
+
+    async fn get_checkpoint_from_db_or_fallback(
         &self,
         checkpoint_id: CheckpointId,
     ) -> IndexerResult<Option<iota_json_rpc_types::Checkpoint>> {
@@ -1341,6 +1406,11 @@ impl IndexerReader {
         })
     }
 
+    /// Returns a page of transactions, along with the oldest checkpoint the
+    /// page can contain data from.
+    ///
+    /// Reports no checkpoint for a filter the indexer cannot serve, which reads
+    /// no table.
     pub async fn query_transaction_blocks_in_blocking_task(
         &self,
         filter: Option<TransactionFilter>,
@@ -1348,7 +1418,10 @@ impl IndexerReader {
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
+    ) -> (
+        IndexerResult<Vec<IotaTransactionBlockResponse>>,
+        Option<CheckpointSequenceNumber>,
+    ) {
         self.query_transaction_blocks_impl_with_checkpointed_data_only(
             filter.map(TransactionFilterKind::V1),
             options,
@@ -1359,6 +1432,11 @@ impl IndexerReader {
         .await
     }
 
+    /// Returns a page of transactions, along with the oldest checkpoint the
+    /// page can contain data from.
+    ///
+    /// Reports no checkpoint for a filter the indexer cannot serve, which reads
+    /// no table.
     pub async fn query_transaction_blocks_in_blocking_task_v2(
         &self,
         filter: Option<TransactionFilterV2>,
@@ -1366,7 +1444,10 @@ impl IndexerReader {
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
+    ) -> (
+        IndexerResult<Vec<IotaTransactionBlockResponse>>,
+        Option<CheckpointSequenceNumber>,
+    ) {
         self.query_transaction_blocks_impl_with_checkpointed_data_only(
             filter.map(TransactionFilterKind::V2),
             options,
@@ -1384,33 +1465,36 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
-        // Fallback stores checkpoints since genesis
-        let oldest_available_cp = if self.is_fallback_enabled() {
-            0
-        } else {
-            self.oldest_available_cp(Self::TRANSACTIONS_BY_CHECKPOINT_TABLES)
-        };
+    ) -> (
+        IndexerResult<Vec<IotaTransactionBlockResponse>>,
+        CheckpointSequenceNumber,
+    ) {
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::TRANSACTIONS_BY_CHECKPOINT_TABLES,
+            true, // served by fallback
+        );
 
-        let db_res = self
-            .db()
-            .query_transactions_by_checkpoint_seq(checkpoint_seq, cursor, limit, is_descending)
-            .await;
-        let stored_txs = if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
-            (db_res.as_ref(), self.fallback_reader())
-        {
-            kv_reader
-                .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
+        let transactions = async {
+            let db_res = self
+                .db()
+                .query_transactions_by_checkpoint_seq(checkpoint_seq, cursor, limit, is_descending)
+                .await;
+            let stored_txs = if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
+                (db_res.as_ref(), self.fallback_reader())
+            {
+                kv_reader
+                    .checkpoint_transactions(cursor, checkpoint_seq, limit, is_descending)
+                    .await
+                    .context(&format!("fallback triggered by {err}"))?
+            } else {
+                db_res?
+            };
+            self.stored_transaction_to_transaction_block(stored_txs, options)
                 .await
-                .context(&format!("fallback triggered by {err}"))?
-        } else {
-            db_res?
-        };
-        let transactions = self
-            .stored_transaction_to_transaction_block(stored_txs, options)
-            .await?;
+        }
+        .await;
 
-        Ok((transactions, oldest_available_cp))
+        (transactions, oldest_available_cp)
     }
 
     /// Fetches transactions belonging to a checkpoint whose
@@ -1521,13 +1605,16 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
-        // Fallback stores transactions by address since genesis
-        let oldest_available_cp = if self.is_fallback_enabled() {
-            0
-        } else {
-            self.oldest_available_cp(Self::TRANSACTIONS_BY_ADDRESS_TABLES)
-        };
+    ) -> (
+        IndexerResult<Vec<IotaTransactionBlockResponse>>,
+        CheckpointSequenceNumber,
+    ) {
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::TRANSACTIONS_BY_ADDRESS_TABLES,
+            true, // served by fallback
+        );
+
+        let transactions = async {
 
         let cursor_tx_seq = match cursor {
             None => None,
@@ -1570,11 +1657,12 @@ impl IndexerReader {
             )
             .await?;
 
-        let transactions = self
-            .stored_transaction_to_transaction_block(rows, options)
-            .await?;
+        self.stored_transaction_to_transaction_block(rows, options)
+            .await
+        }
+        .await;
 
-        Ok((transactions, oldest_available_cp))
+        (transactions, oldest_available_cp)
     }
 
     async fn query_transaction_blocks_impl_with_checkpointed_data_only(
@@ -1584,11 +1672,14 @@ impl IndexerReader {
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<(Vec<IotaTransactionBlockResponse>, CheckpointSequenceNumber)> {
+    ) -> (
+        IndexerResult<Vec<IotaTransactionBlockResponse>>,
+        Option<CheckpointSequenceNumber>,
+    ) {
         if let Some(TransactionFilterKind::V1(TransactionFilter::Checkpoint(seq)))
         | Some(TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(seq))) = filter
         {
-            return self
+            let (transactions, oldest_available_cp) = self
                 .query_transactions_by_checkpoint_seq_with_fallback(
                     seq,
                     cursor,
@@ -1597,12 +1688,13 @@ impl IndexerReader {
                     options,
                 )
                 .await;
+            return (transactions, Some(oldest_available_cp));
         };
 
         if let Some(TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { addr }))
         | Some(TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { addr })) = filter
         {
-            return self
+            let (transactions, oldest_available_cp) = self
                 .query_transactions_by_affected_addresses_with_fallback(
                     addr,
                     cursor,
@@ -1611,20 +1703,27 @@ impl IndexerReader {
                     options,
                 )
                 .await;
+            return (transactions, Some(oldest_available_cp));
         };
 
         // scope the watermarks and the cursor pruning check to only the tables this
         // filter reads. The transaction contents have to be read from `transactions`,
         // unless a fallback is configured.
-        let mut tx_tables = self.tx_tables_for_filter(filter.as_ref())?.to_vec();
+        let mut tx_tables = match self.tx_tables_for_filter(filter.as_ref()) {
+            Ok(tables) => tables.to_vec(),
+            // We do not report lowest available cp for unsupported filter
+            Err(e) => return (Err(e), None),
+        };
         if !self.is_fallback_enabled() {
             tx_tables.push(CommitterTables::Transactions);
         }
         let tx_tables = tx_tables.as_slice();
 
-        let (oldest_available_cp, min_available_tx) = self.oldest_available_cp_and_tx(tx_tables);
+        let (oldest_available_cp, min_available_tx) =
+            self.oldest_available_cp_and_tx(tx_tables, false /* not served by fallback */);
         let oldest_available_cp = oldest_available_cp as CheckpointSequenceNumber;
 
+        let transactions = async {
         let cursor_tx_seq = if let Some(cursor) = cursor {
             let tx_seq = self
                 .db()
@@ -1854,15 +1953,16 @@ impl IndexerReader {
         .into_iter()
         .map(|tsn| tsn.tx_sequence_number)
         .collect::<Vec<i64>>();
-        let transactions = self
-            .multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
-                tx_sequence_numbers,
-                options,
-                Some(is_descending),
-            )
-            .await?;
+        self.multi_get_transaction_block_response_by_sequence_numbers_with_fallback(
+            tx_sequence_numbers,
+            options,
+            Some(is_descending),
+        )
+        .await
+        }
+        .await;
 
-        Ok((transactions, oldest_available_cp))
+        (transactions, Some(oldest_available_cp))
     }
 
     /// Returns the set of tables read by [`EventFilter`], used for data
@@ -2003,6 +2103,25 @@ impl IndexerReader {
         &self,
         digest: TransactionDigest,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> (
+        IndexerResult<Option<IotaTransactionBlockResponse>>,
+        CheckpointSequenceNumber,
+    ) {
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::TRANSACTIONS_BY_DIGEST_TABLES,
+            true, // served by fallback
+        );
+        let transaction = self
+            .get_single_transaction_from_db_or_fallback(digest, options)
+            .await;
+
+        (transaction, oldest_available_cp)
+    }
+
+    async fn get_single_transaction_from_db_or_fallback(
+        &self,
+        digest: TransactionDigest,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> IndexerResult<Option<IotaTransactionBlockResponse>> {
         let stored_tx = match self.db().get_single_transaction(digest).await? {
             Some(tx) => Some(tx),
@@ -2085,9 +2204,19 @@ impl IndexerReader {
         &self,
         digests: Vec<TransactionDigest>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-    ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
-        self.multi_get_transaction_block_response_in_blocking_task_impl(&digests, options)
-            .await
+    ) -> (
+        Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError>,
+        CheckpointSequenceNumber,
+    ) {
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::TRANSACTIONS_BY_DIGEST_TABLES,
+            true, // served by fallback
+        );
+        let transactions = self
+            .multi_get_transaction_block_response_in_blocking_task_impl(&digests, options)
+            .await;
+
+        (transactions, oldest_available_cp)
     }
 
     /// Returns `true` when all basic data for the transaction (objects,
@@ -2174,6 +2303,22 @@ impl IndexerReader {
     pub async fn get_transaction_events_with_fallback(
         &self,
         digest: TransactionDigest,
+    ) -> (
+        Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError>,
+        CheckpointSequenceNumber,
+    ) {
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::EVENTS_BY_DIGEST_TABLES,
+            true, // served by fallback
+        );
+        let events = self.get_transaction_events(digest).await;
+
+        (events, oldest_available_cp)
+    }
+
+    async fn get_transaction_events(
+        &self,
+        digest: TransactionDigest,
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
         if let Some((timestamp_ms, serialized_events)) = self
             .db()
@@ -2250,62 +2395,76 @@ impl IndexerReader {
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<(Vec<IotaEvent>, CheckpointSequenceNumber)> {
-        let stored_events = self
-            .query_stored_events_by_tx_digest_with_fallback(
-                tx_digest,
-                cursor,
-                limit,
-                descending_order,
-            )
-            .await?;
+    ) -> (IndexerResult<Vec<IotaEvent>>, CheckpointSequenceNumber) {
+        let oldest_available_cp = self.oldest_available_cp(
+            Self::EVENTS_BY_DIGEST_TABLES,
+            true, // served by fallback
+        );
 
-        // The historical fallback serves transactions the indexer has pruned,
-        // so with one configured the lookup reaches the genesis checkpoint.
-        let oldest_available_cp = if self.is_fallback_enabled() {
-            0
-        } else {
-            let (oldest_available_cp, _min_available_tx) =
-                self.oldest_available_cp_and_tx(Self::EVENTS_BY_DIGEST_TABLES);
-            oldest_available_cp as CheckpointSequenceNumber
-        };
+        let events = async {
+            let stored_events = self
+                .query_stored_events_by_tx_digest_with_fallback(
+                    tx_digest,
+                    cursor,
+                    limit,
+                    descending_order,
+                )
+                .await?;
 
-        let mut iota_event_futures = vec![];
-        for stored_event in stored_events {
-            iota_event_futures.push(tokio::task::spawn(
-                stored_event.try_into_iota_event(self.package_resolver.clone()),
-            ));
+            let mut iota_event_futures = vec![];
+            for stored_event in stored_events {
+                iota_event_futures.push(tokio::task::spawn(
+                    stored_event.try_into_iota_event(self.package_resolver.clone()),
+                ));
+            }
+
+            let events = futures::future::join_all(iota_event_futures)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+                .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
+
+            Ok(events)
         }
+        .await;
 
-        let events = futures::future::join_all(iota_event_futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
-
-        Ok((events, oldest_available_cp))
+        (events, oldest_available_cp)
     }
 
-    /// Returns a page of events, along with the oldest checkpoint from which
-    /// that page is complete.
+    /// Returns a page of events, along with the oldest checkpoint the page can
+    /// contain data from.
+    ///
+    /// Reports no checkpoint for a filter the indexer cannot serve, which reads
+    /// no table.
     pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
         &self,
         filter: EventFilter,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<(Vec<IotaEvent>, CheckpointSequenceNumber)> {
+    ) -> (
+        IndexerResult<Vec<IotaEvent>>,
+        Option<CheckpointSequenceNumber>,
+    ) {
         if let EventFilter::Transaction(tx_digest) = filter {
-            return self
+            let (events, oldest_available_cp) = self
                 .query_events_by_tx_digest_with_fallback(tx_digest, cursor, limit, descending_order)
                 .await;
+            return (events, Some(oldest_available_cp));
         }
 
-        let event_tables = Self::event_tables_for_filter(&filter)?;
-        let (oldest_available_cp, min_available_tx) = self.oldest_available_cp_and_tx(event_tables);
+        let event_tables = match Self::event_tables_for_filter(&filter) {
+            Ok(tables) => tables,
+            // We do not report lowest available cp for unsupported filter.
+            Err(e) => return (Err(e), None),
+        };
+        let (oldest_available_cp, min_available_tx) =
+            self.oldest_available_cp_and_tx(event_tables, false /* not served by fallback */);
+
+        let events = async {
 
         let (tx_seq, event_seq) = if let Some(cursor) = cursor {
             let EventID {
@@ -2444,7 +2603,14 @@ impl IndexerReader {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
-        Ok((iota_events, oldest_available_cp as CheckpointSequenceNumber))
+        Ok(iota_events)
+        }
+        .await;
+
+        (
+            events,
+            Some(oldest_available_cp as CheckpointSequenceNumber),
+        )
     }
 
     pub async fn get_dynamic_fields_in_blocking_task(
