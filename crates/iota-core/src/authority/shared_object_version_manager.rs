@@ -198,18 +198,17 @@ impl SharedObjVerManager {
             let address_being_claimed = assignable
                 .as_tx()
                 .and_then(|tx| account_address_being_claimed(tx.data()));
-            if !assignable.contains_shared_object() && address_being_claimed.is_none() {
-                // A transaction without shared inputs has no version
-                // assignments, except when it is cancelled (execution-worker
-                // congestion): the cancellation version is then carried on
-                // its gas object.
-                let cancelled = assignable
-                    .key()
-                    .as_digest()
-                    .is_some_and(|digest| cancelled_txns.contains_key(digest));
-                if !cancelled {
-                    continue;
-                }
+            let cancelled = assignable
+                .key()
+                .as_digest()
+                .is_some_and(|digest| cancelled_txns.contains_key(digest));
+            // A transaction without shared inputs has no version assignments,
+            // except when it is cancelled (execution-worker congestion): the
+            // cancellation version is then carried on its gas object. A
+            // scheduled claim is walked for its staging below.
+            if !assignable.contains_shared_object() && !cancelled && address_being_claimed.is_none()
+            {
+                continue;
             }
             let (tx_assigned_versions, lamport_version) = Self::assign_versions_for_transaction(
                 epoch_store,
@@ -220,7 +219,7 @@ impl SharedObjVerManager {
                     .protocol_config()
                     .congestion_control_gas_price_feedback_mechanism(),
             );
-            if assignable.contains_shared_object() {
+            if assignable.contains_shared_object() || cancelled {
                 assigned_versions.push((assignable.key(), tx_assigned_versions));
             }
 
@@ -1651,7 +1650,7 @@ mod tests {
 
         let ConsensusSharedObjVerAssignment {
             shared_input_next_versions,
-            assigned_versions: _,
+            assigned_versions,
             claimed_accounts,
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
@@ -1665,6 +1664,19 @@ mod tests {
         // claimable.
         assert!(claimed_accounts.is_empty());
         assert!(shared_input_next_versions.is_empty());
+        // The cancellation still reaches execution the way it does for any
+        // other transaction without shared inputs: on the gas object.
+        let gas_object_id = claim_tx.transaction().gas()[0].object_id;
+        assert_eq!(
+            assigned_versions.0,
+            vec![(
+                claim_tx.key(),
+                vec![VersionAssignment::new(
+                    gas_object_id,
+                    Version::new_congested_with_suggested_gas_price(1_000).unwrap(),
+                )]
+            )]
+        );
     }
 
     /// Generate a transaction that uses shared objects as specified in the
