@@ -33,6 +33,7 @@ use serde_json::value::RawValue;
 use tracing::error;
 
 use crate::{
+    available_range::{OLDEST_AVAILABLE_CHECKPOINT_HEADER, OldestAvailableCheckpoint},
     logger::{Logger, TransportProtocol},
     routing_layer::RpcRouter,
 };
@@ -76,12 +77,12 @@ impl<L> JsonRpcService<L> {
 }
 
 impl<L: Logger> JsonRpcService<L> {
-    fn call_data(&self) -> CallData<'_, L> {
+    fn call_data<'a>(&'a self, extensions: &'a Extensions) -> CallData<'a, L> {
         CallData {
             logger: &self.logger,
             methods: &self.methods,
             rpc_router: &self.rpc_router,
-            extensions: &self.extensions,
+            extensions,
             max_response_body_size: MAX_RESPONSE_SIZE,
             request_start: self.logger.on_request(TransportProtocol::Http),
         }
@@ -129,6 +130,17 @@ pub(crate) fn ok_response(body: String) -> Response {
     from_template(hyper::StatusCode::OK, body, JSON)
 }
 
+/// Create a valid JSON response reporting the oldest checkpoint it can contain
+/// data from.
+fn ok_response_with_available_range(body: String, oldest_available_checkpoint: u64) -> Response {
+    let mut response = ok_response(body);
+    response.headers_mut().insert(
+        hyper::header::HeaderName::from_static(OLDEST_AVAILABLE_CHECKPOINT_HEADER),
+        hyper::header::HeaderValue::from(oldest_available_checkpoint),
+    );
+    response
+}
+
 pub async fn json_rpc_handler<L: Logger>(
     ConnectInfo(client_addr): ConnectInfo<SocketAddr>,
     State(service): State<JsonRpcService<L>>,
@@ -149,7 +161,16 @@ pub async fn json_rpc_handler<L: Logger>(
     )
     .await;
 
-    ok_response(response.into_result())
+    // If the handler does not report the value then `None` is read here.
+    let reported = response
+        .extensions()
+        .get::<OldestAvailableCheckpoint>()
+        .and_then(OldestAvailableCheckpoint::get);
+
+    match reported {
+        Some(oldest) => ok_response_with_available_range(response.into_result(), oldest),
+        None => ok_response(response.into_result()),
+    }
 }
 
 async fn process_raw_request<L: Logger>(
@@ -175,8 +196,13 @@ async fn process_raw_request<L: Logger>(
             return blocked_response;
         }
     }
+    // Fresh `OldestAvailableCheckpoint`, since we need a separate one for every
+    // request.
+    let mut extensions = service.extensions.clone();
+    extensions.insert(OldestAvailableCheckpoint::default());
+
     let response = if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
-        process_request(request, api_version, service.call_data()).await
+        process_request(request, api_version, service.call_data(&extensions)).await
     } else if let Ok(_batch) = serde_json::from_str::<Vec<&RawValue>>(raw_request) {
         MethodResponse::error(
             Id::Null,

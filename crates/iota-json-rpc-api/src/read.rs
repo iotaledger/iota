@@ -33,7 +33,7 @@ pub trait ReadApi {
 
     /// Return the transaction response object.
     #[rustfmt::skip]
-    #[method(name = "getTransactionBlock")]
+    #[method(name = "getTransactionBlock", with_extensions)]
     async fn get_transaction_block(
         &self,
         /// the digest of the queried transaction
@@ -47,7 +47,7 @@ pub trait ReadApi {
     /// The method will throw an error if the input contains any duplicate or
     /// the input size exceeds QUERY_MAX_RESULT_LIMIT
     #[rustfmt::skip]
-    #[method(name = "multiGetTransactionBlocks")]
+    #[method(name = "multiGetTransactionBlocks", with_extensions)]
     async fn multi_get_transaction_blocks(
         &self,
         /// A list of transaction digests.
@@ -86,7 +86,7 @@ pub trait ReadApi {
     /// exists/existed. The result may vary across nodes depending on their
     /// pruning policies. Return the object information for a specified version
     #[rustfmt::skip]
-    #[method(name = "tryGetPastObject")]
+    #[method(name = "tryGetPastObject", with_extensions)]
     async fn try_get_past_object(
         &self,
         /// the ID of the queried object
@@ -110,7 +110,11 @@ pub trait ReadApi {
     // `try_get_object_before_version` to get the object with the versions <=
     // the given version. We have the `deprecated` flag here to not expose it in
     // the generated spec file, and it should be only for internal usage.
-    #[method(name = "tryGetObjectBeforeVersion", deprecated = "true")]
+    #[method(
+        name = "tryGetObjectBeforeVersion",
+        deprecated = "true",
+        with_extensions
+    )]
     async fn try_get_object_before_version(
         &self,
         /// the ID of the queried object
@@ -124,7 +128,7 @@ pub trait ReadApi {
     /// exists/existed. The result may vary across nodes depending on their
     /// pruning policies. Return the object information for a specified version
     #[rustfmt::skip]
-    #[method(name = "tryMultiGetPastObjects")]
+    #[method(name = "tryMultiGetPastObjects", with_extensions)]
     async fn try_multi_get_past_objects(
         &self,
         /// a vector of object and versions to be queried
@@ -135,7 +139,7 @@ pub trait ReadApi {
 
     /// Return a checkpoint
     #[rustfmt::skip]
-    #[method(name = "getCheckpoint")]
+    #[method(name = "getCheckpoint", with_extensions)]
     async fn get_checkpoint(
         &self,
         /// Checkpoint identifier, can use either checkpoint digest, or checkpoint sequence number as input.
@@ -144,7 +148,7 @@ pub trait ReadApi {
 
     /// Return paginated list of checkpoints
     #[rustfmt::skip]
-    #[method(name = "getCheckpoints")]
+    #[method(name = "getCheckpoints", with_extensions)]
     #[schemars(with = "Page<Checkpoint, String>")]
     async fn get_checkpoints(
         &self,
@@ -158,7 +162,7 @@ pub trait ReadApi {
     ) -> RpcResult<CheckpointPage>;
 
     /// Return transaction events.
-    #[method(name = "getEvents")]
+    #[method(name = "getEvents", with_extensions)]
     async fn get_events(
         &self,
         /// the event query criteria.

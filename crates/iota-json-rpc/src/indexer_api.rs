@@ -34,7 +34,7 @@ use iota_types::{
     iota_sdk_types_conversions::type_tag_sdk_to_core,
 };
 use jsonrpsee::{
-    PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
+    Extensions, PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult},
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
@@ -261,6 +261,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     #[instrument(skip(self))]
     async fn query_transaction_blocks(
         &self,
+        _extensions: &Extensions,
         query: IotaTransactionBlockResponseQuery,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<TransactionDigest>,
@@ -302,7 +303,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                     .collect()
             } else {
                 self.read_api
-                    .multi_get_transaction_blocks(digests, Some(opts))
+                    .multi_get_transaction_blocks(_extensions, digests, Some(opts))
                     .await
                     .map_err(|e| Error::Internal(anyhow!(e)))?
             };
@@ -327,6 +328,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     #[instrument(skip(self))]
     async fn query_transaction_blocks_v2(
         &self,
+        _extensions: &Extensions,
         query: IotaTransactionBlockResponseQueryV2,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<TransactionDigest>,
@@ -348,13 +350,14 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             filter: v1_filter,
             options: query.options,
         };
-        self.query_transaction_blocks(v1_query, cursor, limit, descending_order)
+        self.query_transaction_blocks(_extensions, v1_query, cursor, limit, descending_order)
             .await
     }
 
     #[instrument(skip(self))]
     async fn query_events(
         &self,
+        _extensions: &Extensions,
         query: EventFilter,
         // exclusive cursor if `Some`, otherwise start from the beginning
         cursor: Option<EventID>,

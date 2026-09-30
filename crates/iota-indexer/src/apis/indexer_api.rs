@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc::{IotaRpcModule, available_range::report_oldest_available_checkpoint};
 use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc, internal_error};
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
@@ -22,7 +22,7 @@ use iota_sdk_move_types::iota_framework::dynamic_field::Field;
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_types::{dynamic_field::DynamicFieldName, event::EventID, object::ObjectRead};
 use jsonrpsee::{
-    PendingSubscriptionSink, RpcModule,
+    Extensions, PendingSubscriptionSink, RpcModule,
     core::{RpcResult, SubscriptionResult, client::Error as RpcClientError},
 };
 use tap::TapFallible;
@@ -217,6 +217,7 @@ impl IndexerApiServer for IndexerApi {
 
     async fn query_transaction_blocks(
         &self,
+        extensions: &Extensions,
         query: IotaTransactionBlockResponseQuery,
         cursor: Option<TransactionDigest>,
         limit: Option<usize>,
@@ -226,7 +227,7 @@ impl IndexerApiServer for IndexerApi {
         if limit == 0 {
             return Ok(TransactionBlocksPage::empty());
         }
-        let (mut results, oldest_available_checkpoint) = self
+        let (results, oldest_available_checkpoint) = self
             .inner
             .query_transaction_blocks_in_blocking_task(
                 query.filter,
@@ -235,21 +236,27 @@ impl IndexerApiServer for IndexerApi {
                 limit + 1,
                 descending_order.unwrap_or(false),
             )
-            .await?;
+            .await;
+        if let Some(oldest_available_checkpoint) = oldest_available_checkpoint {
+            report_oldest_available_checkpoint(extensions, oldest_available_checkpoint);
+        }
 
+        let mut results = results?;
         let has_next_page = results.len() > limit;
         results.truncate(limit);
         let next_cursor = results.last().map(|o| o.digest);
+
         Ok(Page {
             data: results,
             next_cursor,
             has_next_page,
-            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
+            oldest_available_checkpoint: oldest_available_checkpoint.map(Into::into),
         })
     }
 
     async fn query_transaction_blocks_v2(
         &self,
+        extensions: &Extensions,
         query: IotaTransactionBlockResponseQueryV2,
         cursor: Option<TransactionDigest>,
         limit: Option<usize>,
@@ -259,7 +266,7 @@ impl IndexerApiServer for IndexerApi {
         if limit == 0 {
             return Ok(TransactionBlocksPage::empty());
         }
-        let (mut results, oldest_available_checkpoint) = self
+        let (results, oldest_available_checkpoint) = self
             .inner
             .query_transaction_blocks_in_blocking_task_v2(
                 query.filter,
@@ -268,21 +275,27 @@ impl IndexerApiServer for IndexerApi {
                 limit + 1,
                 descending_order.unwrap_or(false),
             )
-            .await?;
+            .await;
+        if let Some(oldest_available_checkpoint) = oldest_available_checkpoint {
+            report_oldest_available_checkpoint(extensions, oldest_available_checkpoint);
+        }
 
+        let mut results = results?;
         let has_next_page = results.len() > limit;
         results.truncate(limit);
         let next_cursor = results.last().map(|o| o.digest);
+
         Ok(Page {
             data: results,
             next_cursor,
             has_next_page,
-            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
+            oldest_available_checkpoint: oldest_available_checkpoint.map(Into::into),
         })
     }
 
     async fn query_events(
         &self,
+        extensions: &Extensions,
         query: EventFilter,
         // exclusive cursor if `Some`, otherwise start from the beginning
         cursor: Option<EventID>,
@@ -294,7 +307,7 @@ impl IndexerApiServer for IndexerApi {
             return Ok(EventPage::empty());
         }
         let descending_order = descending_order.unwrap_or(false);
-        let (mut results, oldest_available_checkpoint) = self
+        let (results, oldest_available_checkpoint) = self
             .inner
             .query_only_checkpointed_events_in_blocking_task(
                 query,
@@ -302,16 +315,21 @@ impl IndexerApiServer for IndexerApi {
                 limit + 1,
                 descending_order,
             )
-            .await?;
+            .await;
+        if let Some(oldest_available_checkpoint) = oldest_available_checkpoint {
+            report_oldest_available_checkpoint(extensions, oldest_available_checkpoint);
+        }
 
+        let mut results = results?;
         let has_next_page = results.len() > limit;
         results.truncate(limit);
         let next_cursor = results.last().map(|o| o.id);
+
         Ok(Page {
             data: results,
             next_cursor,
             has_next_page,
-            oldest_available_checkpoint: Some(oldest_available_checkpoint.into()),
+            oldest_available_checkpoint: oldest_available_checkpoint.map(Into::into),
         })
     }
 

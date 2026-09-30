@@ -51,6 +51,7 @@ use crate::{
         indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
         input_size_limit_exceeded_msg, publish_test_move_package, retry_with_timeout,
         rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+        start_test_cluster_with_read_write_indexer_url,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
 };
@@ -2762,4 +2763,155 @@ fn try_multi_get_past_objects_at_and_above_limit() {
             &input_size_limit_exceeded_msg()
         ));
     });
+}
+
+/// Posts `request` to the indexer and returns the JSON body along with the
+/// oldest available checkpoint the response reports, when it reports one.
+async fn get_response_with_oldest_available_cp(
+    url: &str,
+    request: serde_json::Value,
+) -> (Value, Option<u64>) {
+    let response = reqwest::Client::new()
+        .post(url)
+        .json(&request)
+        .send()
+        .await
+        .expect("the indexer should answer");
+
+    let oldest_available_cp = response
+        .headers()
+        .get("x-iota-oldest-available-checkpoint")
+        .map(|value| {
+            value
+                .to_str()
+                .expect("the header should be ascii")
+                .parse::<u64>()
+                .expect("the header should be a checkpoint")
+        });
+
+    (
+        response.json().await.expect("a json body"),
+        oldest_available_cp,
+    )
+}
+
+/// Builds a JSON-RPC request for `method` with `params`.
+fn json_rpc_request(method: &str, params: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+}
+
+#[tokio::test]
+async fn point_lookups_report_the_oldest_available_cp() {
+    let (cluster, store, client, url) = start_test_cluster_with_read_write_indexer_url(
+        Some("test_point_lookups_report_the_oldest_available_cp"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
+
+    indexer_wait_for_checkpoint(&store, 1).await;
+
+    let digest = client
+        .query_transaction_blocks_v2(
+            IotaTransactionBlockResponseQueryV2 {
+                filter: None,
+                options: None,
+            },
+            None,
+            Some(1),
+            None,
+        )
+        .await
+        .unwrap()
+        .data
+        .first()
+        .expect("the indexer has at least one transaction")
+        .digest;
+
+    let digest = serde_json::to_value(digest).unwrap();
+    let checkpoint = serde_json::to_value(CheckpointId::SequenceNumber(0)).unwrap();
+    // The checkpoint comes from the tables the lookup reads, so it does not
+    // matter whether this object is found.
+    let object_id = serde_json::to_value(ObjectId::from_str("0x5").unwrap()).unwrap();
+
+    let lookups = [
+        json_rpc_request("iota_getCheckpoint", serde_json::json!([checkpoint])),
+        json_rpc_request(
+            "iota_getTransactionBlock",
+            serde_json::json!([digest, null]),
+        ),
+        json_rpc_request(
+            "iota_multiGetTransactionBlocks",
+            serde_json::json!([[digest], null]),
+        ),
+        json_rpc_request("iota_getEvents", serde_json::json!([digest])),
+        json_rpc_request(
+            "iota_tryGetPastObject",
+            serde_json::json!([object_id, 1, null]),
+        ),
+        json_rpc_request(
+            "iota_tryGetObjectBeforeVersion",
+            serde_json::json!([object_id, "1"]),
+        ),
+        json_rpc_request(
+            "iota_tryMultiGetPastObjects",
+            serde_json::json!([[{"objectId": object_id, "version": "1"}], null]),
+        ),
+    ];
+
+    // Nothing is pruned yet, so every lookup reaches the genesis checkpoint.
+    for request in &lookups {
+        let (body, oldest) = get_response_with_oldest_available_cp(&url, request.clone()).await;
+        assert_eq!(
+            oldest,
+            Some(0),
+            "{} should reach the genesis checkpoint, body: {body}",
+            request["method"]
+        );
+    }
+
+    // A method that reads no pruned table reports nothing at all.
+    let (_, oldest) = get_response_with_oldest_available_cp(
+        &url,
+        json_rpc_request("iota_getChainIdentifier", serde_json::json!([])),
+    )
+    .await;
+    assert_eq!(oldest, None);
+
+    cluster.force_new_epoch().await;
+    indexer_wait_for_checkpoint_pruned(&store, 0).await;
+
+    // A lookup that fails because the data it asks for is pruned still reports
+    // how far back the data goes.
+    let (body, oldest) = get_response_with_oldest_available_cp(
+        &url,
+        json_rpc_request("iota_getCheckpoint", serde_json::json!([checkpoint])),
+    )
+    .await;
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("pruned")),
+        "expected the pruned checkpoint to be reported as such, got {body}"
+    );
+    assert!(
+        oldest > Some(0),
+        "expected a checkpoint above the pruned one"
+    );
+
+    // Once the genesis checkpoint is pruned, each lookup reports a checkpoint
+    // above it.
+    for request in &lookups {
+        retry_with_timeout(WATERMARK_REFRESH_TIMEOUT, || async {
+            let (_, oldest) = get_response_with_oldest_available_cp(&url, request.clone()).await;
+            oldest.filter(|cp| *cp > 0)
+        })
+        .await
+        .unwrap_or_else(|_| {
+            panic!(
+                "timeout waiting for {} to report a checkpoint above the pruned genesis one",
+                request["method"]
+            )
+        });
+    }
 }

@@ -49,7 +49,7 @@ pub trait IndexerApi {
 
     /// Return list of transactions for a specified query criteria.
     #[rustfmt::skip]
-    #[method(name = "queryTransactionBlocks", version <= "1.2.10")]
+    #[method(name = "queryTransactionBlocks", version <= "1.2.10", with_extensions)]
     #[schemars(with = "Page<IotaTransactionBlockResponse, Base58>")]
     async fn query_transaction_blocks(
         &self,
@@ -65,7 +65,7 @@ pub trait IndexerApi {
 
     /// Return list of transactions for a specified query criteria.
     #[rustfmt::skip]
-    #[method(name = "queryTransactionBlocks")]
+    #[method(name = "queryTransactionBlocks", with_extensions)]
     #[schemars(with = "Page<IotaTransactionBlockResponse, Base58Schema>")]
     async fn query_transaction_blocks_v2(
         &self,
@@ -82,7 +82,7 @@ pub trait IndexerApi {
 
     /// Return list of events for a specified query criteria.
     #[rustfmt::skip]
-    #[method(name = "queryEvents")]
+    #[method(name = "queryEvents", with_extensions)]
     #[schemars(with = "Page<IotaEvent, IotaEventID>")]
     async fn query_events(
         &self,
