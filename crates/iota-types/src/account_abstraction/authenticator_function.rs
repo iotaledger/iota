@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    Address, Identifier, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionDigest, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TypeTag,
 };
 use serde::{Deserialize, Serialize};
 
@@ -68,13 +67,10 @@ impl AuthenticatorFunctionRefV1 {
 impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(o.struct_tag()) {
-                    return AuthenticatorFunctionRefV1::from_bcs_bytes(o.contents());
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(o.struct_tag()) {
+                return AuthenticatorFunctionRefV1::from_bcs_bytes(o.contents());
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

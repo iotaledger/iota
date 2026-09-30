@@ -18,9 +18,8 @@ use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
-    Address, TransactionExpiration,
+    Address, GasCostSummary, TransactionExpiration,
     crypto::{Intent, IntentMessage, IntentScope},
-    gas::GasCostSummary,
 };
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
@@ -1119,7 +1118,7 @@ async fn safe_mode_reconfig_test() {
 
     let system_state = test_cluster
         .grpc_client()
-        .get_epoch(None, EpochField::BCS_SYSTEM_STATE)
+        .epoch(None, EpochField::BCS_SYSTEM_STATE)
         .await
         .unwrap()
         .into_inner()
@@ -1189,7 +1188,7 @@ async fn test_authority_capabilities_invalid_signature_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
+    let binary_config = to_binary_config(config, None);
 
     // Create the capability notification
     let available_system_packages = test_cluster
@@ -1263,7 +1262,7 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
         .with(|node| node.state().epoch_store_for_testing());
 
     let config = epoch_store.protocol_config();
-    let binary_config = to_binary_config(config);
+    let binary_config = to_binary_config(config, None);
     let available_system_packages = test_cluster
         .fullnode_handle
         .iota_node

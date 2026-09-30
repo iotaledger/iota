@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus_filtered::{
-    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry,
+    IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 #[derive(Clone)]
 pub struct TrafficControllerMetrics {
     pub tallies: IntCounter,
+    pub unresolved_client_requests: IntCounter,
     pub connection_ip_blocklist_len: IntGauge,
     pub proxy_ip_blocklist_len: IntGauge,
     pub requests_blocked_at_protocol: IntCounter,
@@ -27,6 +29,8 @@ pub struct TrafficControllerMetrics {
     pub spam_proxied_client_threshold: IntGauge,
     pub error_proxied_client_threshold: IntGauge,
     pub dry_run_enabled: IntGauge,
+    pub connection_blocklist_ttl_sec: IntGauge,
+    pub proxy_blocklist_ttl_sec: IntGauge,
 }
 
 impl TrafficControllerMetrics {
@@ -34,6 +38,13 @@ impl TrafficControllerMetrics {
         Self {
             tallies: register_int_counter_with_registry!("tallies", "Number of tallies", registry)
                 .unwrap(),
+            unresolved_client_requests: register_int_counter_with_registry!(
+                "traffic_control_unresolved_client_requests",
+                "Number of requests whose client IP the node could not resolve",
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
             connection_ip_blocklist_len: register_int_gauge_with_registry!(
                 "connection_ip_blocklist_len",
                 // make the below a multiline string
@@ -142,6 +153,18 @@ impl TrafficControllerMetrics {
             dry_run_enabled: register_int_gauge_with_registry!(
                 "dry_run_enabled",
                 "If 1, dry run mode is enabled and traffic will not be blocked",
+                registry
+            )
+            .unwrap(),
+            connection_blocklist_ttl_sec: register_int_gauge_with_registry!(
+                "connection_blocklist_ttl_sec",
+                "Seconds a blocked direct client stays in the blocklist",
+                registry
+            )
+            .unwrap(),
+            proxy_blocklist_ttl_sec: register_int_gauge_with_registry!(
+                "proxy_blocklist_ttl_sec",
+                "Seconds a blocked proxied client stays in the blocklist",
                 registry
             )
             .unwrap(),

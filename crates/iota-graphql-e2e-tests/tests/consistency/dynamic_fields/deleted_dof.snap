@@ -83,7 +83,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "INQuQ3jyFzV95bwyIcRosrx+zzxFrc0vzVBfpgtDrfn2AQAAAAAAAAA=",
+            "cursor": "INQuQ3jyFzV95bwyIcRosrx+zzxFrc0vzVBfpgtDrfn2AwAAAAAAAAABAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -119,7 +119,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "INQuQ3jyFzV95bwyIcRosrx+zzxFrc0vzVBfpgtDrfn2AQAAAAAAAAA=",
+            "cursor": "INQuQ3jyFzV95bwyIcRosrx+zzxFrc0vzVBfpgtDrfn2AwAAAAAAAAABAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="

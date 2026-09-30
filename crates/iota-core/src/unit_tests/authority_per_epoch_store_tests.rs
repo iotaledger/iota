@@ -1816,3 +1816,174 @@ async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
     assert_eq!(asserted.load(Ordering::SeqCst), 1);
     assert_eq!(store.metrics.deny_rule_update_execution_failures.get(), 1);
 }
+
+/// Every consensus transaction kind that can be built well-formed and
+/// authored by the authority it names passes `verify_consensus_transaction`
+/// exactly when its feature gate is enabled, matching what `IotaTxValidator`
+/// enforces before a block is voted for. Every gating flag is set explicitly
+/// and the test runs with them all off and all on, so each gated kind is seen
+/// rejected and accepted regardless of the chain defaults.
+///
+/// `CertifiedTransaction` and `CheckpointSignature` are left out: building
+/// them needs a certificate or a signed checkpoint summary, and the function
+/// checks nothing flag-related for either.
+#[rstest::rstest]
+#[tokio::test]
+async fn verify_consensus_transaction_mirrors_feature_gates(
+    #[values(false, true)] gated_features_enabled: bool,
+) {
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+    use iota_types::{
+        base_types::random_object_ref,
+        crypto::{
+            AccountPrivateKey, AuthoritySignature, IotaAuthoritySignature as _,
+            deterministic_random_account_private_key,
+        },
+        messages_consensus::{
+            AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
+            MisbehaviorObservationsV1, MisbehaviorObservationsV2, SignedAuthorityCapabilitiesV1,
+            VersionedMisbehaviorReport,
+        },
+        supported_protocol_versions::SupportedProtocolVersions,
+    };
+
+    use crate::{
+        authority::authority_per_epoch_store::misbehavior::MisbehaviorReportVersion,
+        consensus_handler::{SequencedConsensusTransaction, SequencedConsensusTransactionKind},
+        test_utils::{consensus_transaction_feature_gate, make_transfer_iota_transaction},
+    };
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_enable_pcool_flow_for_testing(gated_features_enabled);
+    protocol_config.set_calculate_validator_scores_for_testing(gated_features_enabled);
+    protocol_config.set_deny_rule_governance_for_testing(gated_features_enabled);
+    let authority = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let config = epoch_store.protocol_config();
+    let me = epoch_store.name;
+    assert_eq!(epoch_store.committee().authority_by_index(0), Some(&me));
+    let committee_size = epoch_store.committee().num_members();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = deterministic_random_account_private_key();
+    let user_tx = make_transfer_iota_transaction(
+        random_object_ref(),
+        Address::random(),
+        None,
+        sender,
+        &sender_key,
+        epoch_store.reference_gas_price(),
+    );
+    let capabilities = || {
+        AuthorityCapabilitiesV1::new(
+            me,
+            Chain::Unknown,
+            SupportedProtocolVersions::SYSTEM_DEFAULT,
+            vec![],
+        )
+    };
+    let signed_capabilities = {
+        let capabilities = capabilities();
+        let signature = AuthoritySignature::new_secure(
+            &IntentMessage::new(
+                Intent::iota_app(IntentScope::AuthorityCapabilities),
+                &capabilities,
+            ),
+            &epoch_store.epoch(),
+            &*authority.secret,
+        );
+        SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature)
+    };
+    let report = match MisbehaviorReportVersion::from_protocol(config) {
+        MisbehaviorReportVersion::V1 => VersionedMisbehaviorReport::new_v1(
+            me,
+            0,
+            MisbehaviorObservationsV1 {
+                faulty_blocks_provable: vec![0; committee_size],
+                faulty_blocks_unprovable: vec![0; committee_size],
+                missing_proposals: vec![0; committee_size],
+                equivocations: vec![0; committee_size],
+            },
+        ),
+        MisbehaviorReportVersion::V2 => VersionedMisbehaviorReport::new_v2(
+            me,
+            0,
+            MisbehaviorObservationsV2 {
+                faulty_blocks_provable: vec![0; committee_size],
+                faulty_blocks_unprovable: vec![0; committee_size],
+                missing_proposals: vec![0; committee_size],
+                equivocations: vec![0; committee_size],
+                invalid_bundle_parts: vec![0; committee_size],
+            },
+        ),
+    };
+
+    #[allow(deprecated)]
+    let kinds = vec![
+        (
+            "UserTransactionV1",
+            ConsensusTransactionKind::UserTransactionV1(Box::new(user_tx)),
+        ),
+        ("EndOfPublish", ConsensusTransactionKind::EndOfPublish(me)),
+        (
+            "CapabilityNotificationV1",
+            ConsensusTransactionKind::CapabilityNotificationV1(capabilities()),
+        ),
+        (
+            "SignedCapabilityNotificationV1",
+            ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
+        ),
+        (
+            "RandomnessDkgMessage",
+            ConsensusTransactionKind::RandomnessDkgMessage(me, vec![]),
+        ),
+        (
+            "RandomnessDkgConfirmation",
+            ConsensusTransactionKind::RandomnessDkgConfirmation(me, vec![]),
+        ),
+        (
+            "MisbehaviorReport",
+            ConsensusTransactionKind::MisbehaviorReport(report),
+        ),
+        (
+            "NewJWKFetchedDeprecated",
+            ConsensusTransactionKind::NewJWKFetchedDeprecated,
+        ),
+        (
+            "OverloadNotificationV1",
+            ConsensusTransactionKind::OverloadNotificationV1(me, 0, 50),
+        ),
+        (
+            "TransactionDenyRuleProposal",
+            ConsensusTransactionKind::TransactionDenyRuleProposal(TransactionDenyRuleProposal {
+                authority: me,
+                generation: 1,
+                proposed_rules: Default::default(),
+            }),
+        ),
+    ];
+
+    for (name, kind) in kinds {
+        let expected = consensus_transaction_feature_gate(&kind, config).unwrap_or(true);
+        let sequenced = SequencedConsensusTransaction {
+            certificate_author_index: 0,
+            certificate_author: me,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                tracking_id: [0; 8],
+                kind,
+            }),
+        };
+        let verified = epoch_store
+            .verify_consensus_transaction(sequenced, &authority.metrics.skipped_consensus_txns);
+        assert_eq!(
+            verified.is_some(),
+            expected,
+            "{name} with gated features enabled: {gated_features_enabled}",
+        );
+    }
+}

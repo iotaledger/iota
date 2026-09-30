@@ -67,7 +67,7 @@ pub(crate) struct BalanceCursor {
     coin_type: String,
     /// The checkpoint sequence number this was viewed at.
     #[serde(rename = "c")]
-    checkpoint_viewed_at: u64,
+    checkpoint_viewed_at: UInt53,
 }
 
 impl Balance {
@@ -178,14 +178,14 @@ impl Target<Cursor> for StoredBalance {
     fn cursor(&self, checkpoint_viewed_at: u64) -> Cursor {
         Cursor::new(BalanceCursor {
             coin_type: self.coin_type.clone(),
-            checkpoint_viewed_at,
+            checkpoint_viewed_at: UInt53::new_unchecked(checkpoint_viewed_at),
         })
     }
 }
 
 impl Checkpointed for Cursor {
     fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
+        self.checkpoint_viewed_at.into()
     }
 }
 

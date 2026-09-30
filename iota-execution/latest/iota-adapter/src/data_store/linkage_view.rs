@@ -9,10 +9,7 @@ use std::{
     str::FromStr,
 };
 
-use iota_sdk_types::{
-    ObjectId,
-    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-};
+use iota_sdk_types::{MovePackage, ObjectId, TypeOrigin, UpgradeInfo};
 use iota_types::{
     error::{ExecutionError, IotaError, IotaResult},
     iota_sdk_types_conversions::identifier_core_to_sdk,

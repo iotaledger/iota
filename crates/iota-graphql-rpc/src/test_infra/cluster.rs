@@ -58,7 +58,7 @@ pub async fn start_cluster(
     service_config: ServiceConfig,
 ) -> Cluster {
     let data_ingestion_path = iota_common::tempdir().keep();
-    let db_url = graphql_connection_config.db_url.clone();
+    let db_url = graphql_connection_config.db_url();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode
     let test_cluster =
@@ -120,7 +120,7 @@ pub async fn serve_executor(
     epochs_to_keep: Option<u64>,
     data_ingestion_path: PathBuf,
 ) -> ExecutorCluster {
-    let db_url = graphql_connection_config.db_url.clone();
+    let db_url = graphql_connection_config.db_url();
     // Creates a cancellation token and adds this to the ExecutorCluster, so that we
     // can send a cancellation token on cleanup
     let cancellation_token = CancellationToken::new();
@@ -392,7 +392,7 @@ impl ExecutorCluster {
     pub async fn cleanup_resources(self) {
         self.cancellation_token.cancel();
         let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
-        let db_url = self.graphql_connection_config.db_url.clone();
+        let db_url = self.graphql_connection_config.db_url();
         force_delete_database(db_url).await;
     }
 }

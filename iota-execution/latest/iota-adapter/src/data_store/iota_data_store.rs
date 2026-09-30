@@ -4,7 +4,7 @@
 
 use std::rc::Rc;
 
-use iota_sdk_types::{ObjectId, move_package::MovePackage};
+use iota_sdk_types::{MovePackage, ObjectId};
 use iota_types::{error::IotaResult, iota_sdk_types_conversions::identifier_core_to_sdk};
 use move_binary_format::errors::{Location, PartialVMError, PartialVMResult, VMResult};
 use move_core_types::{

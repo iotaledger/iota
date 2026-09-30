@@ -20,8 +20,8 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        Address, Argument, CommandArgumentError, Event, MoveStruct, ObjectData, ObjectId, Owner,
-        SharedObjectReference, StructTag, TypeTag, move_package::MovePackage,
+        Address, Argument, CommandArgumentError, Event, MovePackage, MoveStruct, ObjectData,
+        ObjectId, Owner, SharedObjectReference, StructTag, TypeTag,
     };
     use iota_types::{
         balance::Balance,

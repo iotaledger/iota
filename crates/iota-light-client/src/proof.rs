@@ -4,8 +4,8 @@
 
 use anyhow::{anyhow, bail};
 use iota_sdk_types::{
-    Event, ObjectReference, TransactionEffects, TransactionEvents,
-    checkpoint::{CheckpointContents, EndOfEpochData},
+    CheckpointContents, EndOfEpochData, Event, ObjectReference, TransactionEffects,
+    TransactionEvents,
 };
 use iota_types::{
     committee::Committee,
@@ -219,7 +219,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
             // Has this object been created in these effects?
             changed_objects
                 .iter()
-                .find(|(changed, _)| &changed.reference == object_ref)
+                .find(|(changed, _)| changed.reference() == object_ref)
                 .ok_or_else(|| anyhow!("Object not found"))?;
         }
 

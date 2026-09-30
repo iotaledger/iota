@@ -312,6 +312,8 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
                 error_threshold: None,
                 spam_threshold: None,
                 dry_run: Some(false),
+                connection_blocklist_ttl_sec: None,
+                proxy_blocklist_ttl_sec: None,
             })
             .await
             .unwrap();

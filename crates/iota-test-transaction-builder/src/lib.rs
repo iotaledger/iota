@@ -803,9 +803,12 @@ pub async fn delete_nft(
 /// [`TransactionBuilder::finish`](iota_sdk_transaction_builder::TransactionBuilder::finish) auto-adds
 /// every IOTA coin the sender owns as gas inputs and merges the leftover into
 /// one output coin, breaking tests that observe the sender's coin count.
-pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Address) -> ObjectId {
+pub async fn select_gas_coin(
+    grpc_client: &iota_grpc_client::GrpcClient,
+    sender: Address,
+) -> ObjectId {
     let gas_coin = grpc_client
-        .list_owned_objects(
+        .owned_objects(
             sender,
             Some(StructTag::new_gas_coin()),
             Some(1),
@@ -833,7 +836,7 @@ pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Add
 /// shared mutable objects, `u64`/`Address` and other pure values), or an
 /// array/`Vec` of a single argument type.
 pub async fn move_call_tx<A: PTBArgumentList>(
-    grpc_client: &iota_grpc_client::Client,
+    grpc_client: &iota_grpc_client::GrpcClient,
     sender: Address,
     package_id: ObjectId,
     module: &str,
@@ -862,7 +865,7 @@ pub async fn move_call_tx<A: PTBArgumentList>(
 /// `gas_coin` must differ from `coin_to_split`; when `None`, the builder
 /// selects gas automatically from the sender's IOTA coins.
 pub async fn split_coin_equal_tx(
-    grpc_client: &iota_grpc_client::Client,
+    grpc_client: &iota_grpc_client::GrpcClient,
     sender: Address,
     coin_to_split: ObjectId,
     num_coins: u64,
@@ -870,7 +873,7 @@ pub async fn split_coin_equal_tx(
     gas_budget: u64,
 ) -> Transaction {
     let coin_object = grpc_client
-        .get_objects([coin_to_split], ObjectReadMask::default())
+        .objects([coin_to_split], ObjectReadMask::default())
         .await
         .expect("failed to fetch coin")
         .into_inner()

@@ -12,8 +12,7 @@ use std::{
 };
 
 use iota_sdk_types::{
-    Address, ObjectId, Owner, StructTag, TransactionDigest, TypeTag, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointContents, ObjectId, Owner, StructTag, TransactionDigest, TypeTag, Version,
 };
 use iota_types::{
     committee::EpochId,
@@ -1382,7 +1381,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{GasCostSummary, MovePackage, checkpoint::CheckpointSummary};
+    use iota_sdk_types::{CheckpointSummary, GasCostSummary, MovePackage};
     use iota_types::{
         crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
         message_envelope::Envelope, messages_checkpoint::VerifiedCheckpoint,

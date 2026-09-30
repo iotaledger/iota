@@ -171,7 +171,7 @@ impl StressTestRunner {
         for created in effects.created() {
             let object_opt = state
                 .get_object_store()
-                .get_object_by_key(&created.reference.object_id, created.reference.version);
+                .get_object_by_key(&created.reference().object_id, created.reference().version);
             let Some(object) = object_opt else { continue };
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =
@@ -183,7 +183,7 @@ impl StressTestRunner {
         for mutated in effects.mutated() {
             let object = state
                 .get_object_store()
-                .get_object_by_key(&mutated.reference.object_id, mutated.reference.version)
+                .get_object_by_key(&mutated.reference().object_id, mutated.reference().version)
                 .unwrap();
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =
@@ -268,7 +268,7 @@ impl StressTestRunner {
             .iter()
             .filter_map(|owned| {
                 let object = db
-                    .get_object_by_key(&owned.reference.object_id, owned.reference.version)
+                    .get_object_by_key(&owned.reference().object_id, owned.reference().version)
                     .unwrap();
                 let struct_tag = object.struct_tag().unwrap();
                 if struct_tag.name().as_str() == name {

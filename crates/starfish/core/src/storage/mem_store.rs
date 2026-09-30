@@ -11,7 +11,7 @@ use bytes::Bytes;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
-use super::{Store, WriteBatch};
+use super::{Store, WriteBatch, collect_transactions_within_budget, transaction_scan_bounds};
 use crate::{
     block_header::{
         BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, Round,
@@ -511,5 +511,24 @@ impl Store for MemStore {
 
     fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool> {
         Ok(self.inner.read().fast_sync_ongoing)
+    }
+
+    fn scan_serialized_transactions(
+        &self,
+        refs: &BTreeSet<TransactionRef>,
+        byte_budget: usize,
+    ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+        let Some((lower, upper)) = transaction_scan_bounds(refs) else {
+            return Ok(BTreeMap::new());
+        };
+        let inner = self.inner.read();
+        collect_transactions_within_budget(
+            refs,
+            byte_budget,
+            inner
+                .transactions_by_tx_refs
+                .range((Included(lower), Included(upper)))
+                .map(|(key, transactions)| Ok((*key, transactions.serialized().clone()))),
+        )
     }
 }

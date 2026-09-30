@@ -125,10 +125,15 @@ impl SingleValidator {
         let package = effects
             .all_changed_objects()
             .into_iter()
-            .filter_map(|(changed, _)| changed.owner.is_immutable().then_some(changed.reference))
+            .filter_map(|(changed, _)| {
+                changed
+                    .owner()
+                    .is_immutable()
+                    .then_some(*changed.reference())
+            })
             .next()
             .unwrap();
-        let updated_gas = effects.gas_object().reference;
+        let updated_gas = *effects.gas_object().reference();
         (package, updated_gas)
     }
 

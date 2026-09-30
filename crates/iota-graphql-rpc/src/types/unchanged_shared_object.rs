@@ -77,21 +77,25 @@ impl UnchangedSharedObject {
             })),
 
             I::ReadDeleted(object) => Some(U::Delete(SharedObjectDelete {
-                address: object.object_id.into(),
-                version: object.version.as_u64().try_into()?,
+                address: (*object.object_id()).into(),
+                version: object.version().as_u64().try_into()?,
                 mutable: false,
             })),
 
             I::MutateDeleted(object) => Some(U::Delete(SharedObjectDelete {
-                address: object.object_id.into(),
-                version: object.version.as_u64().try_into()?,
+                address: (*object.object_id()).into(),
+                version: object.version().as_u64().try_into()?,
                 mutable: true,
             })),
 
             I::Canceled(object) => Some(U::Cancelled(SharedObjectCancelled {
-                address: object.object_id.into(),
-                version: object.version.as_u64().try_into()?,
+                address: (*object.object_id()).into(),
+                version: object.version().as_u64().try_into()?,
             })),
+
+            _ => unimplemented!(
+                "a new InputSharedObject enum variant was added and needs to be handled"
+            ),
         })
     }
 }

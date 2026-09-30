@@ -6,9 +6,8 @@ use std::sync::Arc;
 
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, StructTag, TransactionDigest, TransactionEffects,
-    TransactionEvents,
-    checkpoint::{CheckpointContents, EndOfEpochData},
+    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, EndOfEpochData, StructTag,
+    TransactionDigest, TransactionEffects, TransactionEvents,
 };
 use iota_types::{
     committee::{Committee, EpochId},
@@ -212,12 +211,12 @@ impl ReadStore for RocksDbStore {
                         >::Ok(None);
                     }
                 }
-                Ok(Some(
-                    FullCheckpointContents::from_contents_and_execution_data(
-                        contents,
-                        transactions.into_iter(),
-                    ),
-                ))
+                FullCheckpointContents::from_contents_and_execution_data(
+                    contents,
+                    transactions.into_iter(),
+                )
+                .map(Some)
+                .map_err(iota_types::storage::error::Error::custom)
             })
             .transpose()
             .map(|contents| contents.flatten())

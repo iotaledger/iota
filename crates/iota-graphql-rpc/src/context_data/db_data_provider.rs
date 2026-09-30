@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use iota_indexer::{
     apis::GovernanceReadApi,
-    db::ConnectionPoolConfig,
+    db::{ConnectionPoolConfig, DbUrl},
     historical_fallback::HistoricalFallbackReader,
     metrics::IndexerMetrics,
     pruning::watermark_task::{WatermarkCache, WatermarkTask},
@@ -38,7 +38,7 @@ impl PgManager {
     /// fallback reader is attached so reads can be served from the REST KV
     /// store if Postgres data is pruned.
     pub(crate) fn reader_with_config(
-        db_url: impl Into<String>,
+        db_url: &DbUrl,
         pool_size: u32,
         timeout_ms: u64,
         indexer_metrics: IndexerMetrics,
@@ -51,7 +51,7 @@ impl PgManager {
         config.set_statement_timeout(Duration::from_millis(timeout_ms));
 
         // Create connection pool
-        let connection_pool = iota_indexer::db::new_connection_pool(&db_url.into(), &config)
+        let connection_pool = iota_indexer::db::new_connection_pool(db_url, &config)
             .map_err(|e| Error::Internal(format!("Failed to create connection pool: {e}")))?;
 
         // Create store and watermark cache for pruning support

@@ -520,13 +520,18 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         let (serialized_commits, serialized_voting_block_headers) = inner
             .network_client
             .fetch_commits(target_authority, commit_range.clone(), timeout)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                inner
+                    .misbehavior_store
+                    .record_fetch_fault(target_authority, e);
+            })?;
 
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
+        let max_commits = inner.sync_type.max_commits_per_response(&commit_range);
         let (commits, _) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
@@ -588,7 +593,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             vec![],
                             timeout,
                         )
-                        .await?;
+                        .await
+                        .inspect_err(|e| {
+                            inner
+                                .misbehavior_store
+                                .record_fetch_fault(target_authority, e);
+                        })?;
                     // 5. Verify the returned headers are the requested ones.
                     verify_fetched_headers(
                         target_authority,
@@ -634,7 +644,12 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         let serialized_transactions = inner
                             .network_client
                             .fetch_transactions(target_authority, request_tx_refs.to_vec(), timeout)
-                            .await?;
+                            .await
+                            .inspect_err(|e| {
+                                inner
+                                    .misbehavior_store
+                                    .record_fetch_fault(target_authority, e);
+                            })?;
 
                         // 10. Verify that the number of returned transactions is not greater than
                         //     the number of requested transactions. It's OK if not all requested

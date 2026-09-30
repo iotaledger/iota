@@ -13,8 +13,8 @@ use iota_json::{
 use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    StructTag, TypeTag, move_package::MovePackage,
+    Address, Argument, Identifier, MovePackage, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, StructTag, TypeTag,
 };
 use iota_types::{
     base_types::{ObjectType, TxContext, TxContextKind},

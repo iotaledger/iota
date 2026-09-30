@@ -52,9 +52,10 @@ impl ObjectLocks {
 
     /// Attempts to atomically test-and-set a transaction lock on an object.
     /// If the lock is already set to a conflicting transaction, an error is
-    /// returned. If the lock is not set, or is already set to the same
-    /// transaction, the lock is set.
-    pub(crate) fn try_set_transaction_lock(
+    /// returned and the cached state is left untouched. If the lock is not
+    /// set, or is already set to the same transaction, the lock is set and the
+    /// caller must release it with `clear_cached_locks`.
+    fn try_set_transaction_lock(
         &self,
         obj_ref: &ObjectReference,
         new_lock: LockDetails,
@@ -80,37 +81,40 @@ impl ObjectLocks {
         // Solving this is not terribly important as it is not in the execution path,
         // and hence only improves the latency of transaction signing, not
         // transaction execution
-        let prev_lock = match entry {
-            DashMapEntry::Vacant(vacant) => {
-                let tables = epoch_store.tables()?;
-                if let Some(lock_details) = tables.get_locked_transaction(obj_ref)? {
-                    trace!("read lock from db: {:?}", lock_details);
-                    vacant.insert((1, lock_details));
-                    lock_details
-                } else {
-                    trace!("set lock: {:?}", new_lock);
-                    vacant.insert((1, new_lock));
-                    new_lock
-                }
-            }
-            DashMapEntry::Occupied(mut occupied) => {
-                occupied.get_mut().0 += 1;
-                occupied.get().1
-            }
-        };
-
-        if prev_lock != new_lock {
+        let conflict = |prev_lock: LockDetails| {
             debug!(
                 "lock conflict detected for {:?}: {:?} != {:?}",
                 obj_ref, prev_lock, new_lock
             );
-            Err(IotaError::ObjectLockConflict {
+            IotaError::ObjectLockConflict {
                 obj_ref: *obj_ref,
                 pending_transaction: prev_lock,
-            })
-        } else {
-            Ok(())
+            }
+        };
+
+        // A rejected caller never calls `clear_cached_locks` for this object, so
+        // the entry must only be created or counted once the lock is known to be
+        // compatible.
+        match entry {
+            DashMapEntry::Vacant(vacant) => {
+                let tables = epoch_store.tables()?;
+                match tables.get_locked_transaction(obj_ref)? {
+                    Some(prev_lock) if prev_lock != new_lock => return Err(conflict(prev_lock)),
+                    Some(prev_lock) => trace!("read lock from db: {:?}", prev_lock),
+                    None => trace!("set lock: {:?}", new_lock),
+                }
+                vacant.insert((1, new_lock));
+            }
+            DashMapEntry::Occupied(mut occupied) => {
+                let prev_lock = occupied.get().1;
+                if prev_lock != new_lock {
+                    return Err(conflict(prev_lock));
+                }
+                occupied.get_mut().0 += 1;
+            }
         }
+
+        Ok(())
     }
 
     pub(crate) fn clear(&self) {
@@ -286,9 +290,49 @@ impl ObjectLocks {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_types::TransactionDigest;
+
+    use super::ObjectLocks;
     use crate::execution_cache::{
         ExecutionCacheWrite, writeback_cache::writeback_cache_tests::Scenario,
     };
+
+    #[tokio::test]
+    async fn test_lock_conflict_does_not_count_against_pending_lock() {
+        telemetry_subscribers::init_for_testing();
+        Scenario::iterate(|mut s| async move {
+            s.with_created(&[1]);
+            s.do_tx().await;
+            let obj = s.obj_ref(1);
+
+            let holder = TransactionDigest::random();
+            let contender = TransactionDigest::random();
+
+            // A signer of `holder` is mid-flight: its entry is set but not yet
+            // written to the db and released.
+            let locks = ObjectLocks::new();
+            locks
+                .try_set_transaction_lock(&obj, holder, &s.epoch_store)
+                .expect("first lock on a fresh object");
+            assert_eq!(*locks.locked_transactions.get(&obj).unwrap(), (1, holder));
+
+            locks
+                .try_set_transaction_lock(&obj, contender, &s.epoch_store)
+                .unwrap_err();
+            assert_eq!(
+                *locks.locked_transactions.get(&obj).unwrap(),
+                (1, holder),
+                "a rejected contender must not be counted as a holder"
+            );
+
+            // Another signer of the same transaction still shares the entry.
+            locks
+                .try_set_transaction_lock(&obj, holder, &s.epoch_store)
+                .expect("same transaction may lock again");
+            assert_eq!(*locks.locked_transactions.get(&obj).unwrap(), (2, holder));
+        })
+        .await;
+    }
 
     #[tokio::test]
     async fn test_transaction_locks_are_exclusive() {
@@ -312,6 +356,18 @@ mod tests {
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new1, new2], tx1)
                 .expect("locks should be available");
+            // Entries are staged only until the locks are written, and a
+            // rejected conflict must leave the map exactly as it found it.
+            let cache = s.cache.clone();
+            let assert_no_staged_locks = || {
+                assert!(
+                    cache
+                        .object_locks_for_testing()
+                        .locked_transactions
+                        .is_empty()
+                )
+            };
+            assert_no_staged_locks();
 
             // this tx doesn't use the actual objects in question, but we just need
             // something to insert into the table.
@@ -323,16 +379,19 @@ mod tests {
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new1, new2], tx2.clone())
                 .unwrap_err();
+            assert_no_staged_locks();
 
             // new3 is lockable, but new2 is not, so this should fail
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new3, new2], tx2.clone())
                 .unwrap_err();
+            assert_no_staged_locks();
 
             // new3 is unlocked
             s.cache
                 .try_acquire_transaction_locks(&s.epoch_store, &[new3], tx2)
                 .expect("new3 should be unlocked");
+            assert_no_staged_locks();
         })
         .await;
     }

@@ -79,42 +79,33 @@ impl Listener for tokio::net::TcpListener {
 #[derive(Debug)]
 pub struct TcpListenerWithOptions {
     inner: tokio::net::TcpListener,
-    nodelay: bool,
     keepalive: Option<Duration>,
 }
 
 impl TcpListenerWithOptions {
     pub fn new<A: std::net::ToSocketAddrs>(
         addr: A,
-        nodelay: bool,
         keepalive: Option<Duration>,
     ) -> Result<Self, crate::BoxError> {
         let std_listener = std::net::TcpListener::bind(addr)?;
         std_listener.set_nonblocking(true)?;
         let listener = tokio::net::TcpListener::from_std(std_listener)?;
 
-        Ok(Self::from_listener(listener, nodelay, keepalive))
+        Ok(Self::from_listener(listener, keepalive))
     }
 
     /// Creates a new `TcpIncoming` from an existing `tokio::net::TcpListener`.
-    pub fn from_listener(
-        listener: tokio::net::TcpListener,
-        nodelay: bool,
-        keepalive: Option<Duration>,
-    ) -> Self {
+    pub fn from_listener(listener: tokio::net::TcpListener, keepalive: Option<Duration>) -> Self {
         Self {
             inner: listener,
-            nodelay,
             keepalive,
         }
     }
 
     // Consistent with hyper-0.14, this function does not return an error.
     fn set_accepted_socket_options(&self, stream: &tokio::net::TcpStream) {
-        if self.nodelay {
-            if let Err(e) = stream.set_nodelay(true) {
-                tracing::warn!("error trying to set TCP nodelay: {}", e);
-            }
+        if let Err(e) = stream.set_nodelay(true) {
+            tracing::warn!("error trying to set TCP nodelay: {}", e);
         }
 
         if let Some(timeout) = self.keepalive {

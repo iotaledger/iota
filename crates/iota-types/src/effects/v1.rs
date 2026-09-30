@@ -205,7 +205,7 @@ fn check_invariant(v1: &TransactionEffectsV1) {
     // A gas object, where there is one, is address-owned and among the changed
     // objects. A system transaction pays no gas and names none.
     if let Some(gas) = TransactionEffectsV1::gas_object(v1) {
-        assert!(matches!(gas.owner, Owner::Address(_)));
+        assert!(matches!(gas.owner(), Owner::Address(_)));
     }
 
     for unchanged in &v1.unchanged_shared_objects {

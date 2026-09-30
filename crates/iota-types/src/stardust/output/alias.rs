@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Identifier, ObjectData, StructTag};
+use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -69,13 +69,10 @@ impl AliasOutput {
 impl TryFrom<&Object> for AliasOutput {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        match &object.data {
-            ObjectData::Struct(o) => {
-                if AliasOutput::is_alias_output(o.struct_tag()) {
-                    return AliasOutput::from_bcs_bytes(o.contents());
-                }
+        if let Some(o) = object.data.as_opt_struct() {
+            if AliasOutput::is_alias_output(o.struct_tag()) {
+                return AliasOutput::from_bcs_bytes(o.contents());
             }
-            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

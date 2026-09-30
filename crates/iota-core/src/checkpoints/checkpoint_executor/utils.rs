@@ -9,7 +9,7 @@ use std::{
 
 use futures::{Stream, future::Either};
 use iota_common::fatal;
-use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest, checkpoint::CheckpointSummary};
+use iota_sdk_types::{CheckpointSummary, TransactionDigest, TransactionEffectsDigest};
 use iota_types::messages_checkpoint::{
     CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint,
 };

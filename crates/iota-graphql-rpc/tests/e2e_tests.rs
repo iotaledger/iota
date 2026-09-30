@@ -978,6 +978,130 @@ mod tests {
         );
     }
 
+    // A dry run returns balance changes, object changes with resolvable object
+    // state, and the unsigned transaction bytes.
+    #[tokio::test]
+    #[serial]
+    async fn test_transaction_dry_run_returns_balance_and_object_changes() {
+        let _guard = telemetry_subscribers::TelemetryConfig::new()
+            .with_env()
+            .init();
+
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+
+        let tx = cluster.build_transfer_iota_for_test().await;
+        let tx_bytes = tx.to_base64();
+
+        let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
+                transaction {
+                    bcsUnsigned
+                    effects {
+                        balanceChanges {
+                            nodes {
+                                amount
+                                coinType { repr }
+                                owner { address }
+                            }
+                        }
+                        objectChanges {
+                            nodes {
+                                address
+                                idCreated
+                                inputState {
+                                    address
+                                    asMoveObject {
+                                        contents { type { repr } }
+                                    }
+                                }
+                                outputState {
+                                    address
+                                    asMoveObject {
+                                        contents { type { repr } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                error
+            }
+        }"#;
+        let variables = vec![GraphqlQueryVariable {
+            name: "tx".to_string(),
+            ty: "String!".to_string(),
+            value: json!(tx_bytes),
+        }];
+        let res = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, variables, vec![])
+            .await
+            .unwrap();
+        let binding = res.response_body().data.clone().into_json().unwrap();
+        let res = binding.get("dryRunTransactionBlock").unwrap();
+        assert!(res.get("error").unwrap().is_null());
+
+        let tx = res.get("transaction").unwrap();
+
+        // The unsigned transaction bytes are available even though a dry run has no
+        // signatures.
+        let bcs_unsigned = tx.get("bcsUnsigned").unwrap().as_str().unwrap();
+        assert!(!bcs_unsigned.is_empty());
+
+        let effects = tx.get("effects").unwrap();
+
+        // The transfer moves IOTA, so there is at least one balance change.
+        let balance_changes = effects
+            .get("balanceChanges")
+            .unwrap()
+            .get("nodes")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert!(!balance_changes.is_empty());
+        assert!(balance_changes.iter().any(|change| {
+            change
+                .get("coinType")
+                .and_then(|t| t.get("repr"))
+                .and_then(|r| r.as_str())
+                .is_some_and(|repr| repr.contains("iota::IOTA"))
+        }));
+
+        // Objects the dry run writes are not indexed, but their output state is
+        // resolved from the simulation, including the Move type.
+        let object_changes = effects
+            .get("objectChanges")
+            .unwrap()
+            .get("nodes")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert!(!object_changes.is_empty());
+        let move_object_type = |change: &serde_json::Value, state: &str| -> Option<String> {
+            change
+                .get(state)
+                .and_then(|state| state.get("asMoveObject"))
+                .and_then(|obj| obj.get("contents"))
+                .and_then(|contents| contents.get("type"))
+                .and_then(|ty| ty.get("repr"))
+                .and_then(|repr| repr.as_str())
+                .map(|repr| repr.to_string())
+        };
+        // A created object resolves its output state, including the Move type.
+        assert!(object_changes.iter().any(|change| {
+            move_object_type(change, "outputState").is_some_and(|repr| repr.contains("coin::Coin"))
+        }));
+        // A mutated object (the gas coin) resolves its prior input state from the
+        // simulation's input objects, which the database does not hold.
+        assert!(object_changes.iter().any(|change| {
+            move_object_type(change, "inputState").is_some_and(|repr| repr.contains("coin::Coin"))
+        }));
+    }
+
     #[tokio::test]
     #[serial]
     async fn test_epoch_data() {
@@ -1271,5 +1395,90 @@ mod tests {
             .unwrap();
 
         assert!(res.errors().is_empty());
+    }
+
+    /// A transaction that has been executed but is not in a checkpoint yet is
+    /// viewed at `UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER`, and the cursors its
+    /// effects hand out carry that value. The server has to read those cursors
+    /// back.
+    #[tokio::test]
+    #[serial]
+    async fn test_optimistic_transaction_effects_pagination() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+
+        // Optimistic indexing is skipped while a transaction's inputs are
+        // themselves unindexed, so we wait for the objects to be there.
+        cluster
+            .wait_for_checkpoint_catchup(1, Duration::from_secs(30))
+            .await;
+
+        let tx = cluster.build_transfer_iota_for_test().await;
+        let signed_tx = cluster.sign_transaction(&tx);
+        let digest = signed_tx.digest().to_string();
+
+        // The transfer mutates the gas coin and creates the recipient's coin,
+        // so a page of one leaves a second page to fetch.
+        let response_fields = r#"
+            effects {
+              checkpoint { sequenceNumber }
+              objectChanges(first: 1) {
+                pageInfo { hasNextPage endCursor }
+                edges { node { idCreated } }
+              }
+            }
+        "#;
+
+        let executed =
+            mutation_execute_transaction(&cluster.graphql_client, &signed_tx, response_fields)
+                .await
+                .response_body_json();
+        let effects = &executed["data"]["executeTransactionBlock"]["effects"];
+
+        let page_info = &effects["objectChanges"]["pageInfo"];
+        assert_eq!(page_info["hasNextPage"], json!(true), "{executed}");
+        let end_cursor = page_info["endCursor"].as_str().unwrap().to_string();
+
+        let query = r#"
+            {
+              transactionBlock(digest: $dig) {
+                effects {
+                  objectChanges(first: 1, after: $cursor) {
+                    edges { node { idCreated } }
+                  }
+                }
+              }
+            }
+        "#;
+        let variables = vec![
+            GraphqlQueryVariable {
+                name: "dig".to_string(),
+                ty: "String!".to_string(),
+                value: json!(digest),
+            },
+            GraphqlQueryVariable {
+                name: "cursor".to_string(),
+                ty: "String!".to_string(),
+                value: json!(end_cursor),
+            },
+        ];
+
+        let next_page = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, variables, vec![])
+            .await
+            .unwrap();
+
+        assert!(next_page.errors().is_empty(), "{:#?}", next_page.errors());
+
+        let body = next_page.response_body_json();
+        let edges = body["data"]["transactionBlock"]["effects"]["objectChanges"]["edges"]
+            .as_array()
+            .unwrap();
+        assert_eq!(edges.len(), 1, "{body}");
     }
 }
