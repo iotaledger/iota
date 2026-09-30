@@ -965,6 +965,9 @@ fn validity_check_rejects_versions_in_or_below_canceled_range() {
     assert!(config.validate_input_object_versions());
     let mut flag_off = config.clone();
     flag_off.set_validate_input_object_versions_for_testing(false);
+    // A declared initial shared version is also checked on its own; turn that
+    // off too so the flag-off half exercises only the version range check.
+    flag_off.set_check_declared_initial_shared_versions_for_testing(false);
 
     let object_ref_at =
         |version| ObjectReference::new(ObjectId::random(), version, ObjectDigest::new([0; 32]));

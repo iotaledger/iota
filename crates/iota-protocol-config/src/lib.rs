@@ -4106,6 +4106,10 @@ impl ProtocolConfig {
         self.feature_flags.validate_input_object_versions = val;
     }
 
+    pub fn set_check_declared_initial_shared_versions_for_testing(&mut self, val: bool) {
+        self.feature_flags.check_declared_initial_shared_versions = val;
+    }
+
     pub fn set_disallow_randomness_in_move_authenticator_for_testing(&mut self, val: bool) {
         self.feature_flags.disallow_randomness_in_move_authenticator = val;
     }
