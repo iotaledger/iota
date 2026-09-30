@@ -100,6 +100,92 @@ async fn test_claim_account_mutable_succeeds() {
     );
 }
 
+/// A `ClaimAccount` at exactly the budget floor the validity check demands
+/// must not run out of gas: the sequencer stages the claim entry before the
+/// claim executes, so an aborting claim would leave the address explicit with
+/// no account object behind it. The floor scales with the gas price and the
+/// key size, so the largest MultiSig committee at the highest admissible gas
+/// price is the most expensive claim the floor has to cover.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_account_at_the_gas_floor_succeeds() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+        TransactionKind, UserSignature,
+        crypto::{
+            MULTISIG_COMMITTEE_SIZE_MAX, MultisigAggregatedSignature, MultisigCommittee,
+            MultisigMember, SimpleSignature,
+        },
+    };
+    use iota_types::transaction::{TransactionAPI, TransactionEnvelope};
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
+    let gas_price = protocol_config.max_gas_price();
+
+    // The largest committee the chain accepts, with a threshold one member
+    // meets.
+    let keys: Vec<Ed25519PrivateKey> = (0..MULTISIG_COMMITTEE_SIZE_MAX)
+        .map(|_| Ed25519PrivateKey::random())
+        .collect();
+    let committee = MultisigCommittee::new(
+        keys.iter()
+            .map(|key| MultisigMember::new(key.public_key(), 1))
+            .collect(),
+        1,
+    )
+    .expect("a valid committee");
+    let sender = Address::from(&committee);
+    let claim = SmartAccountClaim::new_multisig(&committee, SmartAccountBuildKind::Mutable);
+    let budget = protocol_config
+        .claim_account_min_gas_budget(gas_price, claim.public_key_raw_bytes.len() as u64);
+
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(2 * budget), sender)
+        .await;
+    let tx_data = Transaction::new(
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+        sender,
+        gas,
+        budget,
+        gas_price,
+    );
+    let signer: SimpleKeypair = keys[0].clone().into();
+    let signature: SimpleSignature = signer.sign(&tx_data.signing_digest());
+    let multisig = UserSignature::Multisig(MultisigAggregatedSignature::new_unchecked(
+        vec![signature.into()],
+        0b1,
+        committee,
+    ));
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![multisig]);
+
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .expect("a claim at the floor must execute");
+    let effects = response.effects.expect("response must include effects");
+    assert!(
+        effects.status().is_ok(),
+        "a claim at the floor must not run out of gas; got {:?}",
+        effects.status(),
+    );
+    let object_changes = response
+        .object_changes
+        .expect("response must include object changes");
+    assert_eq!(
+        created_smart_accounts(&object_changes).len(),
+        1,
+        "the claim must create the account object"
+    );
+}
+
 /// Verify that a `TransactionKind::ClaimAccount` with
 /// `SmartAccountBuildKind::Immutable` succeeds and creates an immutable
 /// `SmartAccount` object.
@@ -185,19 +271,14 @@ async fn test_claim_account_immutable_succeeds() {
     );
 }
 
-/// Pins the current, incorrect behaviour of claiming an address twice: the
-/// second `ClaimAccount` succeeds and re-creates the account object under the
-/// same id with a bumped version, even though that object was never a
-/// transaction input.
-///
-/// `claim::claim_address` leaves double-claim prevention to its caller
-/// and `smart_account::claim_builder` does not implement it, so nothing rejects
-/// the second claim. Once prevention lands, both pins below have to flip: the
-/// second claim must fail, and the account object must keep the version the
-/// first claim gave it.
+/// Claiming an address twice: the second `ClaimAccount` is dropped by the
+/// sequencer's duplicate-claim guard before it executes, and the account
+/// object keeps the version the first claim gave it. Nothing on the Move side
+/// prevents a double claim, so the guard is the only thing standing between a
+/// second claim and a second object under the same id.
 #[cfg(msim)]
 #[sim_test]
-async fn test_claim_account_twice_is_not_yet_prevented() {
+async fn test_claim_account_twice_is_rejected() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk_crypto::simple::SimpleKeypair;
@@ -236,9 +317,7 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
         .clone();
 
     let rgp = test_cluster.get_reference_gas_price().await;
-    let mut claimed = Vec::new();
-
-    for attempt in 1..=2 {
+    let claim_tx = |gas| {
         let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
         let claim = SmartAccountClaim {
             public_key_scheme,
@@ -248,50 +327,58 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
         let tx_data = Transaction::new(
             TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
             owner,
-            first_gas_coin(&test_cluster.wallet, owner).await,
+            gas,
             rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
             rgp,
         );
-        let response = test_cluster
-            .wallet
-            .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
-            .await
-            .expect("ClaimAccount transaction must execute");
-        let effects = response.effects.expect("response must include effects");
+        test_cluster.wallet.sign_transaction(&tx_data)
+    };
 
-        assert!(
-            effects.status().is_ok(),
-            "claim attempt {attempt} was expected to be accepted today; got {:?}",
-            effects.status(),
-        );
-
-        let object_changes = response
-            .object_changes
-            .expect("response must include object changes");
-        let (account_id, _) = created_smart_accounts(&object_changes)
-            .into_iter()
-            .next()
-            .expect("the claim must create a SmartAccount");
-        let version = effects
-            .created()
-            .iter()
-            .find(|o| o.reference.object_id == account_id)
-            .map(|o| o.reference.version)
-            .expect("the SmartAccount must be reported as created");
-        claimed.push((account_id, version));
-    }
-
-    let (first_id, first_version) = claimed[0];
-    let (second_id, second_version) = claimed[1];
-
-    assert_eq!(
-        first_id, second_id,
-        "both claims derive the account id from the sender address",
-    );
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(claim_tx(first_gas_coin(&test_cluster.wallet, owner).await))
+        .await
+        .expect("the first claim must execute");
+    let effects = response.effects.expect("response must include effects");
     assert!(
-        second_version > first_version,
-        "the immutable account object was expected to be overwritten today; got \
-         {second_version:?} after {first_version:?}",
+        effects.status().is_ok(),
+        "the first claim must succeed; got {:?}",
+        effects.status(),
+    );
+    let object_changes = response
+        .object_changes
+        .expect("response must include object changes");
+    let (account_id, _) = created_smart_accounts(&object_changes)
+        .into_iter()
+        .next()
+        .expect("the claim must create a SmartAccount");
+    let first_version = effects
+        .created()
+        .iter()
+        .find(|o| o.reference.object_id == account_id)
+        .map(|o| o.reference.version)
+        .expect("the SmartAccount must be reported as created");
+
+    // The second claim is dropped by the sequencer, so the client sees an
+    // error instead of effects.
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(claim_tx(first_gas_coin(&test_cluster.wallet, owner).await))
+        .await
+        .expect_err("a second claim for an explicit address must be rejected");
+    assert!(
+        format!("{error:#}").contains("already explicit"),
+        "unexpected error for the second claim: {error:#}",
+    );
+
+    let account = test_cluster
+        .get_object_from_fullnode_store(&account_id)
+        .await
+        .expect("the account object must exist");
+    assert_eq!(
+        account.version(),
+        first_version,
+        "the account object must keep the version the first claim created it at",
     );
 }
 

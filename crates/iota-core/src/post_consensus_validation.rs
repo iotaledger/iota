@@ -28,9 +28,12 @@
 //!    with error, except a lock held by the same transaction (a deferred tx's
 //!    own prior-round lock), which is exempt. Cheap; performed before expensive
 //!    checks.
-//! 6. `handle_transaction_validation_checks()` — drop with error. Only reached
+//! 6. Account rules (`account_rules`): a duplicate claim or a plain signature
+//!    for an explicit account — drop with error. Decided before any lock is
+//!    taken, so the drop leaves none behind.
+//! 7. `handle_transaction_validation_checks()` — drop with error. Only reached
 //!    when all locks are free.
-//! 7. All passed — acquire locks in the local tracking map, keep transaction.
+//! 8. All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
 //!
@@ -62,6 +65,7 @@ use tracing::{debug, warn};
 use crate::{
     authority::{
         AuthorityState,
+        account_rules::AccountRulesState,
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
     },
     consensus_handler::{
@@ -124,6 +128,9 @@ pub async fn validate_and_resolve_conflicts(
     // All UserTransactionV1 digests seen in this commit (both kept and dropped),
     // used by the caller to release pre-consensus soft locks.
     let mut all_user_tx_digests = Vec::with_capacity(transactions.len());
+    // The account rules are decided here, before a transaction takes any lock,
+    // so a dropped transaction cannot hold an account's objects for the epoch.
+    let mut account_rules = AccountRulesState::new();
 
     // One deny-rule snapshot for the whole commit, so every transaction in it
     // is judged by the same set. With governance enabled this must be the
@@ -219,6 +226,9 @@ pub async fn validate_and_resolve_conflicts(
                 num_owned_inputs = owned_inputs.len(),
                 "Transaction already executed; retained as checkpoint root, skipping re-validation"
             );
+            // A retained claim counts as kept: a later claim for the same
+            // address in this commit is a duplicate.
+            account_rules.record_kept(transaction.data());
             // keep[i] stays true so the transaction remains in the sequence.
             continue;
         }
@@ -306,6 +316,28 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
+        // Account rules: a duplicate claim, or a plain signature for an
+        // explicit account. Decided from the claim entries and settled state,
+        // and before Check #5 loads anything.
+        if let Some(e) = account_rules.check_transaction(
+            epoch_store,
+            authority_state.get_object_cache_reader().as_ref(),
+            transaction.data(),
+        )? {
+            debug!(
+                ?digest,
+                error = ?e,
+                "Transaction violates the account rules, dropping"
+            );
+            authority_state
+                .metrics
+                .consensus_handler_account_rules_dropped_transactions
+                .inc();
+            dropped.push((digest, e));
+            keep[i] = false;
+            continue;
+        }
+
         // Check #5: Deny list, gas, ownership, coin deny list, Move
         // authenticator. Only reached if all locks are free — skips the
         // expensive object loading for transactions that would be dropped
@@ -362,6 +394,7 @@ pub async fn validate_and_resolve_conflicts(
         for obj_ref in &locked_inputs {
             current_commit_locks.insert(*obj_ref, digest);
         }
+        account_rules.record_kept(transaction.data());
         // Log the acquired refs, not just their count, so the winner's locks
         // are attributable per (object_id, version).
         debug!(

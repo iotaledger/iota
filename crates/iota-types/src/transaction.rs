@@ -77,6 +77,10 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
 
+#[cfg(test)]
+#[path = "unit_tests/claim_account_validity_tests.rs"]
+mod claim_account_validity_tests;
+
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
 
@@ -331,14 +335,26 @@ impl CallArgExt for CallArg {
                 );
             }
             CallArg::ImmutableOrOwned(ObjectReference { version, .. })
-            | CallArg::Receiving(ObjectReference { version, .. })
-            | CallArg::Shared(SharedObjectReference {
-                initial_shared_version: version,
-                ..
-            }) => {
+            | CallArg::Receiving(ObjectReference { version, .. }) => {
                 if config.validate_input_object_versions() {
                     input_object_version_validity_check(*version)?;
                 }
+            }
+            CallArg::Shared(shared) => {
+                if config.validate_input_object_versions() {
+                    input_object_version_validity_check(shared.initial_shared_version)?;
+                }
+                // A declared initial shared version is never checked against anything for an
+                // object that does not exist yet: `get_or_init_next_object_versions` seeds the
+                // version chain from the declared value in that case. A sentinel or
+                // out-of-range value would then flow into the version-assignment walk, where
+                // `lamport_increment` errors on an invalid version and the walk unwraps it.
+                // Reject those here, where the check is a pure function of the bytes.
+                fp_ensure!(
+                    !config.check_declared_initial_shared_versions()
+                        || shared.initial_shared_version.is_valid(),
+                    UserInputError::InvalidSequenceNumber
+                );
             }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
         }
@@ -1516,6 +1532,7 @@ impl TransactionAPI for Transaction {
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        check_claimed_key_derives_sender(self)?;
         self.check_sponsorship()
     }
 
@@ -1527,6 +1544,29 @@ impl TransactionAPI for Transaction {
                 value: config.max_gas_payment_objects().to_string()
             }
         );
+        if config.enable_claim_account_transaction() {
+            if let TransactionKind::ClaimAccount(claim) = self.kind() {
+                let AccountClaimKind::SmartAccount(smart) = &claim.kind else {
+                    unimplemented!(
+                        "a new AccountClaimKind enum variant was added and needs to be handled"
+                    )
+                };
+                // A claim the sequencer schedules must not run out of gas. Its
+                // cost scales with the declared gas price and the key bytes it
+                // stores, so the floor does too.
+                let min_budget = config.claim_account_min_gas_budget(
+                    self.gas_price(),
+                    smart.public_key_raw_bytes.len() as u64,
+                );
+                fp_ensure!(
+                    self.gas_budget() >= min_budget,
+                    UserInputError::GasBudgetTooLow {
+                        gas_budget: self.gas_budget(),
+                        min_budget,
+                    }
+                );
+            }
+        }
         Ok(())
     }
 
@@ -2611,6 +2651,54 @@ impl VerifiedSignedTransaction {
             authority,
         ))
     }
+}
+
+/// Requires a `ClaimAccount`'s public key to derive the transaction sender,
+/// which is the id the claim mints the account object at. A no-op for every
+/// other transaction kind.
+///
+/// The sequencer stages a claim entry for the address *before* the claim
+/// executes, so a claim it schedules must not be able to abort: the address
+/// would be treated as explicit with no account object behind it. Move asserts
+/// this too, but only at execution - too late, once the entry is staged. Must
+/// run after `TransactionKind::validity_check`, which already rejects a
+/// disabled claim kind, an unknown scheme, and malformed key bytes.
+fn check_claimed_key_derives_sender(data: &Transaction) -> UserInputResult {
+    let TransactionKind::ClaimAccount(claim) = data.kind() else {
+        return Ok(());
+    };
+    let AccountClaimKind::SmartAccount(smart) = &claim.kind else {
+        unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+    };
+
+    // Infallible here: the kind-level check has already validated both.
+    let scheme = SignatureScheme::from_byte(smart.public_key_scheme).map_err(|error| {
+        UserInputError::IncorrectUserSignature {
+            error: format!("invalid claimed public key: {error}"),
+        }
+    })?;
+    let public_key =
+        MovePublicKey::new(scheme, smart.public_key_raw_bytes.clone()).map_err(|error| {
+            UserInputError::IncorrectUserSignature {
+                error: format!("invalid claimed public key: {error}"),
+            }
+        })?;
+    let derived = public_key
+        .address()
+        .map_err(|error| UserInputError::IncorrectUserSignature {
+            error: format!("invalid claimed public key: {error}"),
+        })?;
+    fp_ensure!(
+        derived == data.sender(),
+        UserInputError::IncorrectUserSignature {
+            error: format!(
+                "claimed public key derives {} but the sender is {}",
+                derived,
+                data.sender()
+            ),
+        }
+    );
+    Ok(())
 }
 
 /// A transaction that is signed by a sender but not yet by an authority.
