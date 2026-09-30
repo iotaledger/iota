@@ -383,7 +383,7 @@ impl PrimaryWorker {
         let tx = sender_signed_data.transaction();
         let events = events.clone().unwrap_or_default();
 
-        let transaction_kind = IotaTransactionKind::from(tx.kind());
+        let transaction_kind = IotaTransactionKind::try_from(tx.kind())?;
 
         let db_events = events
             .iter()
@@ -523,7 +523,7 @@ impl PrimaryWorker {
             .map(|TransactionEvents(events)| events.clone())
             .unwrap_or_default();
 
-        let transaction_kind = IotaTransactionKind::from(txn.kind());
+        let transaction_kind = IotaTransactionKind::try_from(txn.kind())?;
 
         let objects = tx
             .input_objects
