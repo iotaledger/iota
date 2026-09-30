@@ -150,13 +150,13 @@ impl IotaTxValidator {
                     }
 
                     // A validator attestation is authenticated by the block
-                    // signature; an explicit one carries its own.
+                    // signature; an external one carries its own.
                     verify_attestor(
                         &self.epoch_store,
                         attested_tx.digest(),
                         &attested_tx.attestation,
                     )
-                    .tap_err(|e| warn!("explicit attestation verification failed: {}", e))?;
+                    .tap_err(|e| warn!("external attestation verification failed: {}", e))?;
                     self.epoch_store
                         .signature_verifier
                         .verify_tx(attested_tx.transaction.data())
@@ -493,7 +493,7 @@ mod tests {
                 ConsensusTransactionKind::UserTransactionV2(attested_tx) => {
                     Some(match attested_tx.attestation {
                         Attestation::Validator { .. } => config.enable_validator_attestation(),
-                        Attestation::Explicit { .. } => config.enable_external_attestation(),
+                        Attestation::External { .. } => config.enable_external_attestation(),
                     })
                 }
 
@@ -576,15 +576,15 @@ mod tests {
                             computation_units: 0,
                             object_versions: vec![],
                         },
-                        attestor_index: 0,
+                        validator_index: 0,
                     },
                 ))),
             ),
             (
-                "UserTransactionV2 (Explicit attestation)",
+                "UserTransactionV2 (External attestation)",
                 ConsensusTransactionKind::UserTransactionV2(Box::new(AttestedTransaction::new(
                     signed_tx.clone(),
-                    Attestation::Explicit {
+                    Attestation::External {
                         payload: AttestationData::V1 {
                             computation_units: 0,
                             object_versions: vec![],
@@ -641,11 +641,11 @@ mod tests {
         }
     }
 
-    /// An explicit attestation passes the block verifier only when its
+    /// An external attestation passes the block verifier only when its
     /// attestor is in the epoch-start set and its signature was made with the
     /// registered key; anything else rejects the whole batch.
     #[sim_test]
-    async fn explicit_attestation_is_verified_against_the_attestor_set() {
+    async fn external_attestation_is_verified_against_the_attestor_set() {
         use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
         use iota_sdk_types::Address;
         use iota_types::{
@@ -717,7 +717,7 @@ mod tests {
             bcs::to_bytes(&ConsensusTransaction::new_user_transaction_v2(
                 AttestedTransaction::new(
                     signed_tx.clone(),
-                    Attestation::new_explicit(
+                    Attestation::new_external(
                         signed_tx.digest(),
                         payload(),
                         attestor_address,

@@ -73,10 +73,10 @@ fn make_user_tx_v1_verified(tx: VerifiedTransaction) -> VerifiedSequencedConsens
 }
 
 /// Wraps a `Transaction` in a `UserTransactionV2` consensus transaction with
-/// the given `attestor_index` and `computation_units`.
+/// the given `validator_index` and `computation_units`.
 fn make_user_tx_v2(
     tx: TransactionEnvelope,
-    attestor_index: u8,
+    validator_index: u8,
     computation_units: u64,
 ) -> VerifiedSequencedConsensusTransaction {
     let attestation = Attestation::Validator {
@@ -84,7 +84,7 @@ fn make_user_tx_v2(
             computation_units,
             object_versions: vec![],
         },
-        attestor_index,
+        validator_index,
     };
     let attested = AttestedTransaction::new(tx, attestation);
     let consensus_tx = ConsensusTransaction {
@@ -95,8 +95,8 @@ fn make_user_tx_v2(
 }
 
 /// Wraps a `Transaction` in a `UserTransactionV2` consensus transaction with
-/// an explicit attestation by `attestor_address`, signed with `keypair`.
-fn make_user_tx_v2_explicit(
+/// an external attestation by `attestor_address`, signed with `keypair`.
+fn make_user_tx_v2_external(
     tx: TransactionEnvelope,
     attestor_address: Address,
     keypair: &SimpleKeypair,
@@ -106,7 +106,7 @@ fn make_user_tx_v2_explicit(
         computation_units,
         object_versions: vec![],
     };
-    let attestation = Attestation::new_explicit(tx.digest(), payload, attestor_address, keypair);
+    let attestation = Attestation::new_external(tx.digest(), payload, attestor_address, keypair);
     let consensus_tx = ConsensusTransaction {
         kind: ConsensusTransactionKind::UserTransactionV2(Box::new(AttestedTransaction::new(
             tx,
@@ -117,7 +117,7 @@ fn make_user_tx_v2_explicit(
     VerifiedSequencedConsensusTransaction::new_test(consensus_tx)
 }
 
-/// Enables the flags an explicit attestation needs to pass Check #3.
+/// Enables the flags an external attestation needs to pass Check #3.
 fn enable_external_attestation() -> OverrideGuard {
     ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
@@ -1925,7 +1925,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     .await;
 }
 
-/// A `UserTransactionV2` whose `attestor_index` matches the block's
+/// A `UserTransactionV2` whose `validator_index` matches the block's
 /// `certificate_author_index` (both `0`) passes attestor verification (Check
 /// #3) and is treated the same as a valid V1 transaction.
 #[sim_test]
@@ -1956,7 +1956,7 @@ async fn test_v2_passes() {
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let digest = *tx.digest();
 
-    // attestor_index 0 == certificate_author_index 0 set by new_test → match.
+    // validator_index 0 == certificate_author_index 0 set by new_test → match.
     let protocol_config = epoch_store.protocol_config();
     let min_units = protocol_config
         .base_tx_cost_fixed()
@@ -1986,7 +1986,7 @@ async fn test_v2_passes() {
     assert_eq!(user_tx_digests, vec![digest]);
 }
 
-/// A `UserTransactionV2` whose `attestor_index` does not match the block's
+/// A `UserTransactionV2` whose `validator_index` does not match the block's
 /// `certificate_author_index` is dropped via Check #3. Critically, its digest
 /// must still appear in `all_user_tx_digests` so the caller can release the
 /// pre-consensus soft lock — this is the invariant the loop restructure
@@ -2019,7 +2019,7 @@ async fn test_v2_attestor_mismatch() {
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let digest = *tx.digest();
 
-    // attestor_index 1 != certificate_author_index 0 → mismatch.
+    // validator_index 1 != certificate_author_index 0 → mismatch.
     // Cost is also below the protocol floor (`min_units - 1`), so BOTH the
     // mismatch and the floor checks would fire. This pins the check order:
     // mismatch must be reported before the floor.
@@ -2065,11 +2065,11 @@ async fn test_v2_attestor_mismatch() {
     );
 }
 
-/// A `UserTransactionV2` with an explicit attestation from an attestor of this
+/// A `UserTransactionV2` with an external attestation from an attestor of this
 /// epoch's set passes Check #3 like a validator attestation, and its attested
 /// units are held to the same ceiling.
 #[sim_test]
-async fn test_v2_explicit_known_attestor_passes() {
+async fn test_v2_external_known_attestor_passes() {
     let _guard = enable_external_attestation();
 
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -2093,7 +2093,7 @@ async fn test_v2_explicit_known_attestor_passes() {
     let tx =
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let digest = *tx.digest();
-    let mut transactions = vec![make_user_tx_v2_explicit(
+    let mut transactions = vec![make_user_tx_v2_external(
         tx,
         attestor_address,
         &keypair,
@@ -2107,7 +2107,7 @@ async fn test_v2_explicit_known_attestor_passes() {
         )
         .await
         .unwrap();
-    assert_eq!(transactions.len(), 1, "explicit attestation should be kept");
+    assert_eq!(transactions.len(), 1, "external attestation should be kept");
     assert!(dropped.is_empty(), "no errors expected");
     assert_eq!(
         locks.len(),
@@ -2120,7 +2120,7 @@ async fn test_v2_explicit_known_attestor_passes() {
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let ref_data = tx.data().transaction();
     let max_units = ref_data.gas_budget() / ref_data.gas_price();
-    let mut transactions = vec![make_user_tx_v2_explicit(
+    let mut transactions = vec![make_user_tx_v2_external(
         tx,
         attestor_address,
         &keypair,
@@ -2146,11 +2146,11 @@ async fn test_v2_explicit_known_attestor_passes() {
     );
 }
 
-/// An explicit attestation naming an address outside this epoch's attestor
+/// An external attestation naming an address outside this epoch's attestor
 /// set is dropped via Check #3 before the units check; its digest must still
 /// surface in `all_user_tx_digests` for soft-lock release.
 #[sim_test]
-async fn test_v2_explicit_unknown_attestor_dropped() {
+async fn test_v2_external_unknown_attestor_dropped() {
     let _guard = enable_external_attestation();
 
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -2175,7 +2175,7 @@ async fn test_v2_explicit_unknown_attestor_dropped() {
         make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
     let digest = *tx.digest();
     // Below the floor as well, which pins the check order: identity first.
-    let mut transactions = vec![make_user_tx_v2_explicit(
+    let mut transactions = vec![make_user_tx_v2_external(
         tx,
         Address::random(),
         &keypair,
@@ -2196,9 +2196,9 @@ async fn test_v2_explicit_unknown_attestor_dropped() {
     assert!(
         matches!(
             dropped.as_slice(),
-            [(_, IotaError::ExplicitAttestationUnknownAttestor { .. })]
+            [(_, IotaError::ExternalAttestationUnknownAttestor { .. })]
         ),
-        "expected ExplicitAttestationUnknownAttestor, got {dropped:?}"
+        "expected ExternalAttestationUnknownAttestor, got {dropped:?}"
     );
     assert!(locks.is_empty(), "no locks for a dropped transaction");
     assert_eq!(user_tx_digests, vec![digest]);

@@ -745,22 +745,22 @@ pub enum IotaError {
     AttestationUnitsAboveBudget { actual: u64, maximum: u64 },
 
     #[error(
-        "Explicit attestation names attestor {attestor_address}, which is not in the \
+        "External attestation names attestor {attestor_address}, which is not in the \
          active attestor set of epoch {epoch}"
     )]
-    ExplicitAttestationUnknownAttestor {
+    ExternalAttestationUnknownAttestor {
         attestor_address: Address,
         epoch: EpochId,
     },
 
     #[error(
-        "Explicit attestation from {attestor_address} is signed with a key other than \
+        "External attestation from {attestor_address} is signed with a key other than \
          the one registered for this epoch"
     )]
-    ExplicitAttestationKeyMismatch { attestor_address: Address },
+    ExternalAttestationKeyMismatch { attestor_address: Address },
 
-    #[error("Explicit attestation from {attestor_address} has an invalid signature: {error}")]
-    ExplicitAttestationSignatureInvalid {
+    #[error("External attestation from {attestor_address} has an invalid signature: {error}")]
+    ExternalAttestationSignatureInvalid {
         attestor_address: Address,
         error: String,
     },

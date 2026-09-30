@@ -36,8 +36,8 @@ use crate::{
 /// Submits a transaction to `submit_single_tx` with
 /// `enable_validator_attestation` on and asserts that the message reaching the
 /// consensus adapter is a `UserTransactionV2` carrying an
-/// `Attestation::Validator` whose `attestor_index` matches this validator's own
-/// position in the consensus committee.
+/// `Attestation::Validator` whose `validator_index` matches this validator's
+/// own position in the consensus committee.
 #[tokio::test]
 async fn test_submit_single_tx_produces_user_transaction_v2_with_validator_attestation() {
     telemetry_subscribers::init_for_testing();
@@ -124,21 +124,24 @@ async fn test_submit_single_tx_produces_user_transaction_v2_with_validator_attes
     let ConsensusTransactionKind::UserTransactionV2(attested) = consensus_tx.kind else {
         panic!("expected UserTransactionV2, got {:?}", consensus_tx.kind);
     };
-    let Attestation::Validator { attestor_index, .. } = &attested.attestation else {
+    let Attestation::Validator {
+        validator_index, ..
+    } = &attested.attestation
+    else {
         panic!(
             "expected Attestation::Validator, got {:?}",
             attested.attestation
         );
     };
 
-    // The attestor_index must match this validator's position in the consensus
+    // The validator_index must match this validator's position in the consensus
     // committee — mirrors the lookup performed in submit_single_tx.
     let expected_index = epoch_store
         .committee()
         .authority_index(&authority_state.name)
         .map(|i| i as u8)
         .expect("authority must be present in the consensus committee");
-    assert_eq!(*attestor_index, expected_index);
+    assert_eq!(*validator_index, expected_index);
 }
 
 /// Submits a transaction to `submit_single_tx` with
@@ -285,7 +288,7 @@ fn consensus_adapter_with(
     ))
 }
 
-/// A signed transfer of `object_id` paid with `gas_id`, explicitly attested by
+/// A signed transfer of `object_id` paid with `gas_id`, externally attested by
 /// `attestor_address` with `keypair`, claiming the protocol floor in units.
 fn attested_transfer(
     authority_state: &Arc<AuthorityState>,
@@ -318,11 +321,11 @@ fn attested_transfer(
             .min(protocol_config.gas_rounding_step()),
         object_versions: vec![],
     };
-    let attestation = Attestation::new_explicit(tx.digest(), payload, attestor_address, keypair);
+    let attestation = Attestation::new_external(tx.digest(), payload, attestor_address, keypair);
     AttestedTransaction::new(tx, attestation)
 }
 
-/// An explicit attestation from an attestor of this epoch's set reaches
+/// An external attestation from an attestor of this epoch's set reaches
 /// consensus as a `UserTransactionV2` without a dry-run on the validator.
 #[tokio::test]
 async fn test_submit_single_externally_attested_tx_reaches_consensus() {
@@ -375,14 +378,14 @@ async fn test_submit_single_externally_attested_tx_reaches_consensus() {
     assert!(
         matches!(
             forwarded.attestation,
-            Attestation::Explicit { attestor_address, .. } if attestor_address == attestor.attestor_address
+            Attestation::External { attestor_address, .. } if attestor_address == attestor.attestor_address
         ),
-        "expected the explicit attestation to be forwarded, got {:?}",
+        "expected the external attestation to be forwarded, got {:?}",
         forwarded.attestation
     );
 }
 
-/// Explicit attestations naming an attestor outside this epoch's set, or
+/// External attestations naming an attestor outside this epoch's set, or
 /// signed with a key other than the registered one, are rejected before
 /// reaching consensus.
 #[tokio::test]
@@ -422,10 +425,10 @@ async fn test_submit_single_externally_attested_tx_rejects_unknown_attestor_and_
         matches!(
             update,
             TxStatusUpdate::Rejected {
-                error: IotaError::ExplicitAttestationUnknownAttestor { .. }
+                error: IotaError::ExternalAttestationUnknownAttestor { .. }
             }
         ),
-        "expected ExplicitAttestationUnknownAttestor, got {update:?}",
+        "expected ExternalAttestationUnknownAttestor, got {update:?}",
     );
 
     let wrong_key = attested_transfer(
@@ -449,10 +452,10 @@ async fn test_submit_single_externally_attested_tx_rejects_unknown_attestor_and_
         matches!(
             update,
             TxStatusUpdate::Rejected {
-                error: IotaError::ExplicitAttestationKeyMismatch { .. }
+                error: IotaError::ExternalAttestationKeyMismatch { .. }
             }
         ),
-        "expected ExplicitAttestationKeyMismatch, got {update:?}",
+        "expected ExternalAttestationKeyMismatch, got {update:?}",
     );
 }
 

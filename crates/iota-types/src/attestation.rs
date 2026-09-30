@@ -23,16 +23,16 @@ pub(super) type AuthorityIndex = u8;
 /// - [`Attestation::Validator`]: produced by the block-proposing validator.
 ///   Authenticated implicitly by the block signature — no separate attestor
 ///   signature is needed.
-/// - [`Attestation::Explicit`]: produced by a registered third-party attestor.
-///   Requires a signature binding the attestation to the transaction.
+/// - [`Attestation::External`]: produced by an attestor from the on-chain
+///   registry. Requires a signature binding the attestation to the transaction.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Attestation {
     Validator {
         payload: AttestationData,
         /// Index of the attesting validator in the current epoch's committee
-        attestor_index: AuthorityIndex,
+        validator_index: AuthorityIndex,
     },
-    Explicit {
+    External {
         payload: AttestationData,
         attestor_address: Address,
         /// Signs over `hash(transaction.digest() || BCS(payload) ||
@@ -45,7 +45,7 @@ pub enum Attestation {
 /// The attested content carried by all [`Attestation`] variants.
 ///
 /// Versioned to allow new fields to be introduced without breaking existing
-/// match arms. Both `Validator` and `Explicit` share the same `AttestationData`
+/// match arms. Both `Validator` and `External` share the same `AttestationData`
 /// so any extension applies uniformly across attestation types.
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,9 +73,9 @@ pub struct AttestedTransaction {
     pub attestation: Attestation,
 }
 
-/// Digest an explicit attestor signs:
+/// Digest an external attestor signs:
 /// `hash(tx_digest || BCS(payload) || attestor_address)`.
-pub fn explicit_attestation_digest(
+pub fn external_attestation_digest(
     tx_digest: &TransactionDigest,
     payload: &AttestationData,
     attestor_address: Address,
@@ -89,25 +89,25 @@ pub fn explicit_attestation_digest(
 }
 
 impl Attestation {
-    /// An attestation by the block-proposing validator at `attestor_index`.
-    pub fn new_validator(payload: AttestationData, attestor_index: AuthorityIndex) -> Self {
+    /// An attestation by the block-proposing validator at `validator_index`.
+    pub fn new_validator(payload: AttestationData, validator_index: AuthorityIndex) -> Self {
         Self::Validator {
             payload,
-            attestor_index,
+            validator_index,
         }
     }
 
     /// An attestation by the registered attestor `attestor_address`, signed
     /// with `keypair` for `tx_digest`.
-    pub fn new_explicit(
+    pub fn new_external(
         tx_digest: &TransactionDigest,
         payload: AttestationData,
         attestor_address: Address,
         keypair: &SimpleKeypair,
     ) -> Self {
-        let digest = explicit_attestation_digest(tx_digest, &payload, attestor_address);
+        let digest = external_attestation_digest(tx_digest, &payload, attestor_address);
         let signature: SimpleSignature = keypair.sign(&digest);
-        Self::Explicit {
+        Self::External {
             payload,
             attestor_address,
             signature: Box::new(UserSignature::Simple(signature)),
@@ -116,7 +116,7 @@ impl Attestation {
 
     pub fn computation_units(&self) -> u64 {
         let payload = match self {
-            Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
+            Attestation::Validator { payload, .. } | Attestation::External { payload, .. } => {
                 payload
             }
         };
@@ -172,7 +172,7 @@ mod tests {
     fn attestation_validator_bcs_round_trip() {
         let attestation = Attestation::Validator {
             payload: make_attestation_data(),
-            attestor_index: 3,
+            validator_index: 3,
         };
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
@@ -180,8 +180,8 @@ mod tests {
     }
 
     #[test]
-    fn attestation_explicit_bcs_round_trip() {
-        let attestation = Attestation::Explicit {
+    fn attestation_external_bcs_round_trip() {
+        let attestation = Attestation::External {
             payload: make_attestation_data(),
             attestor_address: Address::random(),
             signature: Box::new(UserSignature::Simple(zero_ed25519_signature())),
@@ -192,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn new_explicit_signs_the_documented_digest() {
+    fn new_external_signs_the_documented_digest() {
         let keypair = SimpleKeypair::from(
             get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut StdRng::from_seed([3; 32])).1,
         );
@@ -200,18 +200,18 @@ mod tests {
         let tx = create_fake_transaction();
         let payload = make_attestation_data();
         let attestation =
-            Attestation::new_explicit(tx.digest(), payload.clone(), attestor_address, &keypair);
-        let Attestation::Explicit { signature, .. } = &attestation else {
-            panic!("expected an explicit attestation");
+            Attestation::new_external(tx.digest(), payload.clone(), attestor_address, &keypair);
+        let Attestation::External { signature, .. } = &attestation else {
+            panic!("expected an external attestation");
         };
         let UserSignature::Simple(signature) = signature.as_ref() else {
             panic!("expected a simple signature");
         };
         let registered_key = attestor_pubkey_bytes(&keypair);
-        let digest = explicit_attestation_digest(tx.digest(), &payload, attestor_address);
+        let digest = external_attestation_digest(tx.digest(), &payload, attestor_address);
         verify_attestor_signature(&registered_key, signature, &digest).unwrap();
         // The digest binds the attestor address: another address is refuted.
-        let other = explicit_attestation_digest(tx.digest(), &payload, Address::random());
+        let other = external_attestation_digest(tx.digest(), &payload, Address::random());
         assert!(verify_attestor_signature(&registered_key, signature, &other).is_err());
     }
 
@@ -221,7 +221,7 @@ mod tests {
             create_fake_transaction(),
             Attestation::Validator {
                 payload: make_attestation_data(),
-                attestor_index: 0,
+                validator_index: 0,
             },
         );
         let encoded = bcs::to_bytes(&attested).unwrap();

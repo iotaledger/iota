@@ -2182,7 +2182,7 @@ impl AuthorityState {
         tx.validity_check(protocol_config)?;
 
         // The user signature of an attested (`UserTransactionV2`) transaction and,
-        // for an explicit attestation, the attestor signature are verified
+        // for an external attestation, the attestor signature are verified
         // pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`), exactly as for
         // `UserTransactionV1`, and are not re-checked here.

@@ -322,9 +322,9 @@ pub(super) fn normalize(err: &IotaError) -> Weight {
                 | UserInputError::MutableSharedIsInMoveAuthenticatorInput { .. },
         } => Weight::one(),
         IotaError::InvalidSignature { .. }
-        | IotaError::ExplicitAttestationUnknownAttestor { .. }
-        | IotaError::ExplicitAttestationKeyMismatch { .. }
-        | IotaError::ExplicitAttestationSignatureInvalid { .. }
+        | IotaError::ExternalAttestationUnknownAttestor { .. }
+        | IotaError::ExternalAttestationKeyMismatch { .. }
+        | IotaError::ExternalAttestationSignatureInvalid { .. }
         | IotaError::SignerSignatureAbsent { .. }
         | IotaError::SignerSignatureNumberMismatch { .. }
         | IotaError::IncorrectSigner { .. }

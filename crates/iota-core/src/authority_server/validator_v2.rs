@@ -501,7 +501,7 @@ impl ValidatorService {
         let consensus_tx = if let Some(attestation_data) = attestation_data {
             // submit_single_tx runs on a validator, so it must be present in its
             // own committee. Treat absence as a fatal bug, not a user error.
-            let attestor_index = epoch_store
+            let validator_index = epoch_store
                 .committee()
                 .authority_index(&state.name)
                 .map(|i| i as u8)
@@ -509,7 +509,7 @@ impl ValidatorService {
 
             ConsensusTransaction::new_user_transaction_v2(AttestedTransaction::new(
                 verified_tx.into_inner(),
-                Attestation::new_validator(attestation_data, attestor_index),
+                Attestation::new_validator(attestation_data, validator_index),
             ))
         } else {
             ConsensusTransaction::new_user_transaction_v1(verified_tx.into_inner())
@@ -558,9 +558,9 @@ impl ValidatorService {
 
         // A validator attestation is authenticated by the block author, so
         // accepting one here would let a client speak for this validator.
-        if !matches!(attestation, Attestation::Explicit { .. }) {
+        if !matches!(attestation, Attestation::External { .. }) {
             return rejected(IotaError::UnsupportedFeature {
-                error: "SubmitExternallyAttestedTx accepts explicit attestations only".into(),
+                error: "SubmitExternallyAttestedTx accepts external attestations only".into(),
             });
         }
         if let Err(e) = verify_attestor(epoch_store, &tx_digest, &attestation) {

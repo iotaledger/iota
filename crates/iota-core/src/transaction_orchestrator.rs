@@ -124,8 +124,8 @@ pub struct TransactionOrchestrator<A: Clone> {
     notifier: Arc<NotifyRead<TransactionDigest, QuorumDriverResult>>,
     metrics: Arc<TransactionOrchestratorMetrics>,
     /// Present when the node config carries an attestor key: transactions
-    /// driven by the TransactionDriver then carry this fullnode's explicit
-    /// attestation while the key is active.
+    /// driven by the TransactionDriver then carry an external attestation
+    /// signed with it while the key is active.
     attestor: Option<Arc<FullnodeAttestor>>,
 }
 
@@ -841,9 +841,8 @@ where
     /// See `corroborate_single_validator_error` for the per-submission
     /// fetch-failure recovery flow inside the driver.
     ///
-    /// With an attestor key configured, the transaction is submitted with this
-    /// fullnode's explicit attestation or rejected (see
-    /// `attest_if_configured`).
+    /// With an attestor key configured, the transaction is submitted with an
+    /// external attestation or rejected (see `attest_if_configured`).
     ///
     /// Run inside a detached task so a client disconnect cannot cancel a
     /// `drive_transaction` call that may already be in consensus.
@@ -943,8 +942,8 @@ where
     }
 
     /// The transaction to drive. Without an attestor key, the transaction as
-    /// signed. With one, the transaction with this fullnode's explicit
-    /// attestation: the transaction-driver flow never submits it unattested,
+    /// signed. With one, the transaction with an external attestation signed
+    /// by that key: the transaction-driver flow never submits it unattested,
     /// so an inactive key or a failed dry run rejects it back to the client.
     /// The certificate-based flow does not call this and ignores the key.
     async fn attest_if_configured(
@@ -1724,7 +1723,8 @@ pub struct TransactionOrchestratorMetrics {
     // the local cache.
     skip_effect_cert_checkpoint_overrode_driver: GenericCounter<AtomicU64>,
 
-    /// Transactions submitted with this fullnode's explicit attestation.
+    /// Transactions submitted with an external attestation by the configured
+    /// attestor key.
     attested_submissions: GenericCounter<AtomicU64>,
     /// Transactions rejected because this fullnode could not attest them, by
     /// reason.
@@ -1875,7 +1875,7 @@ impl TransactionOrchestratorMetrics {
                 .unwrap(),
             attested_submissions: register_int_counter_with_registry!(
                 "tx_orchestrator_attested_submissions",
-                "Number of transactions submitted with this fullnode's explicit attestation",
+                "Number of transactions submitted with an external attestation by the configured attestor key",
                 registry,
             )
                 .unwrap(),

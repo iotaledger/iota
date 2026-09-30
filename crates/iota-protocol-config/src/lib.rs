@@ -681,8 +681,8 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_validator_attestation: bool,
 
-    // If true, enables the external (third-party) attestation feature: the
-    // on-chain attestor registry, attestor activity tracking, and explicit
+    // If true, enables the external attestation feature: the
+    // on-chain attestor registry, attestor activity tracking, and external
     // attestation verification.
     #[serde(skip_serializing_if = "is_false")]
     enable_external_attestation: bool,

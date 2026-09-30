@@ -26,7 +26,7 @@
 //!   (registers its locks, skips re-validation); not dropped. See issue #11649.
 //! - Check #2: `validity_check()` — drop with error.
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — a validator
-//!   attestation must name the block author; an explicit attestation must name
+//!   attestation must name the block author; an external attestation must name
 //!   an attestor of this epoch's set (its signature was verified in the block
 //!   verifier); the attested computation units must fall within the valid range
 //!   (cost floor and ceiling). Drop with error otherwise.
@@ -75,7 +75,7 @@ use iota_types::{
 use tracing::{debug, warn};
 
 use crate::{
-    attestation_checks::{check_attested_units, explicit_attestor_entry},
+    attestation_checks::{check_attested_units, external_attestor_entry},
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
@@ -261,23 +261,25 @@ pub async fn validate_and_resolve_conflicts(
 
         // Check #3: Attestor verification (UserTransactionV2 only). The block
         // signature authenticates a validator attestation, so its claimed index
-        // must be the block author. An explicit attestation's signature was
+        // must be the block author. An external attestation's signature was
         // verified in the block verifier; its attestor must still be in this
         // epoch's set. Then the attested units must be within bounds.
         if let Some(attestation) = attestation {
             let identity_error = match attestation {
-                Attestation::Validator { attestor_index, .. } => {
+                Attestation::Validator {
+                    validator_index, ..
+                } => {
                     let block_author = tx.0.certificate_author_index as u8;
-                    (*attestor_index != block_author).then_some(
+                    (*validator_index != block_author).then_some(
                         IotaError::AttestationAuthorMismatch {
-                            expected: *attestor_index,
+                            expected: *validator_index,
                             actual: block_author,
                         },
                     )
                 }
-                Attestation::Explicit {
+                Attestation::External {
                     attestor_address, ..
-                } => explicit_attestor_entry(epoch_store, attestor_address).err(),
+                } => external_attestor_entry(epoch_store, attestor_address).err(),
             };
             let error = identity_error.or_else(|| {
                 check_attested_units(epoch_store.protocol_config(), transaction, attestation).err()
@@ -294,7 +296,7 @@ pub async fn validate_and_resolve_conflicts(
             }
             let attestation_kind = match attestation {
                 Attestation::Validator { .. } => "validator",
-                Attestation::Explicit { .. } => "explicit",
+                Attestation::External { .. } => "external",
             };
             authority_state
                 .metrics
@@ -402,7 +404,7 @@ pub async fn validate_and_resolve_conflicts(
         //     view resolves to a failed effect charged to the issuer instead of a free
         //     drop.
         //
-        // The user signature, and for an explicit attestation the attestor
+        // The user signature, and for an external attestation the attestor
         // signature, are verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
         // and `UserTransactionV2`, and are not re-checked here. Re-verifying would

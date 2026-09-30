@@ -76,7 +76,7 @@ pub struct SubmitTransactionOptions {
 }
 
 /// What the driver submits to a validator: the user's transaction as signed,
-/// or the same transaction carrying this fullnode's explicit attestation.
+/// or the same transaction carrying an external attestation.
 #[derive(Clone, Debug)]
 pub enum TransactionToSubmit {
     Unattested(TransactionEnvelope),

@@ -98,7 +98,7 @@
 96: AttestationAuthorMismatch
 97: AttestationUnitsBelowMinimum
 98: AttestationUnitsAboveBudget
-99: ExplicitAttestationUnknownAttestor
-100: ExplicitAttestationKeyMismatch
-101: ExplicitAttestationSignatureInvalid
+99: ExternalAttestationUnknownAttestor
+100: ExternalAttestationKeyMismatch
+101: ExternalAttestationSignatureInvalid
 102: AttestorKeyInactive

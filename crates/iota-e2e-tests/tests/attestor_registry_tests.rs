@@ -118,7 +118,7 @@ async fn attested_transfer(
         computation_units: floor,
         object_versions: vec![],
     };
-    let attestation = Attestation::new_explicit(tx.digest(), payload, attestor_address, keypair);
+    let attestation = Attestation::new_external(tx.digest(), payload, attestor_address, keypair);
     AttestedTransaction::new(tx, attestation)
 }
 
@@ -161,9 +161,9 @@ async fn wait_for_effects(
         .await
 }
 
-/// Explicit attestations that passed post-consensus verification, summed over
+/// External attestations that passed post-consensus verification, summed over
 /// the validators.
-fn explicit_attestations_sequenced(test_cluster: &TestCluster) -> u64 {
+fn external_attestations_sequenced(test_cluster: &TestCluster) -> u64 {
     test_cluster
         .all_validator_handles()
         .iter()
@@ -172,7 +172,7 @@ fn explicit_attestations_sequenced(test_cluster: &TestCluster) -> u64 {
                 node.state()
                     .metrics
                     .post_consensus_attested_tx
-                    .with_label_values(&["explicit"])
+                    .with_label_values(&["external"])
                     .get()
             })
         })
@@ -220,10 +220,10 @@ async fn test_attestor_fullnode_attests_submitted_transactions() {
     );
     test_cluster.force_new_epoch().await;
 
-    let sequenced_before = explicit_attestations_sequenced(&test_cluster);
+    let sequenced_before = external_attestations_sequenced(&test_cluster);
     let tx = transfer(&test_cluster, 2_000).await;
     test_cluster.execute_transaction(tx).await;
-    assert!(explicit_attestations_sequenced(&test_cluster) > sequenced_before);
+    assert!(external_attestations_sequenced(&test_cluster) > sequenced_before);
 }
 
 /// A transaction attested by an active attestor goes through the ingress,
@@ -285,7 +285,7 @@ async fn test_externally_attested_tx_is_sequenced_and_executed() {
             [(
                 _,
                 TxStatusUpdate::Rejected {
-                    error: IotaError::ExplicitAttestationUnknownAttestor { .. }
+                    error: IotaError::ExternalAttestationUnknownAttestor { .. }
                 }
             )]
         ),

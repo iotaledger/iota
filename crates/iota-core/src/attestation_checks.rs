@@ -7,7 +7,7 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, TransactionDigest, UserSignature};
 use iota_types::{
-    attestation::{Attestation, explicit_attestation_digest},
+    attestation::{Attestation, external_attestation_digest},
     error::{IotaError, IotaResult},
     iota_system_state::attestor_registry::{
         AttestorSignatureError, EpochStartAttestorInfoV1, verify_attestor_signature,
@@ -48,29 +48,28 @@ pub(crate) fn check_attested_units(
     Ok(())
 }
 
-/// The epoch-start registry entry of an explicit attestation's attestor.
-/// Fails when external attestation is disabled or the attestor is not in
-/// this epoch's active set.
-pub(crate) fn explicit_attestor_entry<'a>(
+/// The epoch-start registry entry of an attestor. Fails when external
+/// attestation is disabled or the attestor is not in this epoch's active set.
+pub(crate) fn external_attestor_entry<'a>(
     epoch_store: &'a AuthorityPerEpochStore,
     attestor_address: &Address,
 ) -> IotaResult<&'a EpochStartAttestorInfoV1> {
     if !epoch_store.protocol_config().enable_external_attestation() {
         return Err(IotaError::UnsupportedFeature {
-            error: "Explicit attestation not supported at current protocol version".into(),
+            error: "External attestation not supported at current protocol version".into(),
         });
     }
     let attestor_set = epoch_store.attestor_set();
     attestor_set
         .by_address(attestor_address)
         .map(|(_, entry)| entry)
-        .ok_or_else(|| IotaError::ExplicitAttestationUnknownAttestor {
+        .ok_or_else(|| IotaError::ExternalAttestationUnknownAttestor {
             attestor_address: *attestor_address,
             epoch: attestor_set.epoch(),
         })
 }
 
-/// Verifies the attestor of `attestation` for `tx_digest`. An explicit
+/// Verifies the attestor of `attestation` for `tx_digest`. An external
 /// attestor must be in this epoch's set and its signature must verify with
 /// the registered key; a validator attestor is authenticated by the block
 /// signature and passes.
@@ -79,7 +78,7 @@ pub(crate) fn verify_attestor(
     tx_digest: &TransactionDigest,
     attestation: &Attestation,
 ) -> IotaResult {
-    let Attestation::Explicit {
+    let Attestation::External {
         payload,
         attestor_address,
         signature,
@@ -87,20 +86,20 @@ pub(crate) fn verify_attestor(
     else {
         return Ok(());
     };
-    let attestor = explicit_attestor_entry(epoch_store, attestor_address)?;
+    let attestor = external_attestor_entry(epoch_store, attestor_address)?;
     let attestor_address = *attestor_address;
     let UserSignature::Simple(signature) = signature.as_ref() else {
-        return Err(IotaError::ExplicitAttestationSignatureInvalid {
+        return Err(IotaError::ExternalAttestationSignatureInvalid {
             attestor_address,
             error: format!("unsupported signature scheme {:?}", signature.scheme()),
         });
     };
-    let digest = explicit_attestation_digest(tx_digest, payload, attestor_address);
+    let digest = external_attestation_digest(tx_digest, payload, attestor_address);
     verify_attestor_signature(&attestor.attestor_pubkey, signature, &digest).map_err(|e| match e {
         AttestorSignatureError::KeyMismatch => {
-            IotaError::ExplicitAttestationKeyMismatch { attestor_address }
+            IotaError::ExternalAttestationKeyMismatch { attestor_address }
         }
-        AttestorSignatureError::Invalid(error) => IotaError::ExplicitAttestationSignatureInvalid {
+        AttestorSignatureError::Invalid(error) => IotaError::ExternalAttestationSignatureInvalid {
             attestor_address,
             error,
         },

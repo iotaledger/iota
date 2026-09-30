@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! The attestor role of a fullnode: dry-runs the transactions it submits and
-//! attaches an explicit attestation signed with its configured key.
+//! attaches an external attestation signed with its configured key.
 
 use std::sync::Arc;
 
@@ -52,7 +52,7 @@ impl FullnodeAttestor {
         let epoch = epoch_store.epoch();
         let error = if !epoch_store.protocol_config().enable_external_attestation() {
             IotaError::UnsupportedFeature {
-                error: "Explicit attestation not supported at current protocol version".into(),
+                error: "External attestation not supported at current protocol version".into(),
             }
         } else if let Some((_, entry)) = epoch_store.attestor_set().by_pubkey(&self.pubkey) {
             return Ok(entry.attestor_address);
@@ -69,7 +69,7 @@ impl FullnodeAttestor {
     }
 
     /// Dry-runs `transaction` as a validator would and wraps it with an
-    /// explicit attestation by `attestor_address`.
+    /// external attestation by `attestor_address`.
     pub(crate) async fn attest(
         &self,
         state: Arc<AuthorityState>,
@@ -110,7 +110,7 @@ impl FullnodeAttestor {
         // The owned objects only matter to a validator's soft locks.
         let (payload, _owned_objects) = result?;
         let attestation =
-            Attestation::new_explicit(&tx_digest, payload, attestor_address, &self.keypair);
+            Attestation::new_external(&tx_digest, payload, attestor_address, &self.keypair);
         Ok(AttestedTransaction::new(
             transaction.into_inner(),
             attestation,
