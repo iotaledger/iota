@@ -601,10 +601,14 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             })
             .collect::<Vec<_>>();
 
-        // A rejected summary would otherwise stay cached and keep being rejected.
+        // A rejected entry would otherwise stay cached and keep being rejected.
         self.evict(
             rejected_keys(result_slices[0], checkpoint_summaries, &summaries_results)
                 .map(Key::CheckpointSummary)
+                .chain(
+                    rejected_keys(result_slices[1], checkpoint_contents, &contents_results)
+                        .map(Key::CheckpointContents),
+                )
                 .chain(
                     rejected_keys(
                         result_slices[2],
