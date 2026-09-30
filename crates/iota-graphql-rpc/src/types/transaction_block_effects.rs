@@ -120,14 +120,17 @@ impl TransactionBlockEffects {
 
     /// Whether the transaction executed successfully or not.
     #[graphql(complexity = 0)]
-    async fn status(&self) -> Option<ExecutionStatus> {
-        Some(match self.native().status() {
+    async fn status(&self) -> Result<Option<ExecutionStatus>> {
+        Ok(Some(match self.native().status() {
             NativeExecutionStatus::Success => ExecutionStatus::Success,
             NativeExecutionStatus::Failure { .. } => ExecutionStatus::Failure,
-            _ => unimplemented!(
-                "a new ExecutionStatus enum variant was added and needs to be handled"
-            ),
-        })
+            _ => {
+                return Err(Error::Internal(
+                    "unknown ExecutionStatus variant".to_string(),
+                ))
+                .extend();
+            }
+        }))
     }
 
     /// The latest version of all objects (apart from packages) that have been
