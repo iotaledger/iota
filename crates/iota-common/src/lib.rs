@@ -5,6 +5,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 pub mod backoff;
 pub mod logging;
+pub mod portable_random;
 pub mod random;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod random_util;

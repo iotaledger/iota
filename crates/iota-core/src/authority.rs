@@ -4940,7 +4940,7 @@ impl AuthorityState {
     /// packages on-chain.
     pub async fn get_available_system_packages(
         &self,
-        binary_config: &BinaryConfig,
+        protocol_config: &ProtocolConfig,
     ) -> Vec<ObjectReference> {
         let mut results = vec![];
 
@@ -4968,7 +4968,7 @@ impl AuthorityState {
                 &system_package.id,
                 &modules,
                 system_package.dependencies.to_vec(),
-                binary_config,
+                protocol_config,
             )
             .await
             else {
@@ -6333,15 +6333,13 @@ pub mod framework_injection {
         name: AuthorityName,
     ) -> Option<SystemPackage> {
         let bytes = get_override_bytes(package_id, name)?;
-        let dependencies = if package_id.is_system_package() {
-            BuiltInFramework::get_package_by_id(package_id)
-                .dependencies
-                .to_vec()
-        } else {
-            // Assume that entirely new injected packages depend on all existing system
-            // packages.
-            BuiltInFramework::all_package_ids()
-        };
+        // A built-in package keeps the dependencies it declares. Anything else is a
+        // package being added -- including one at a system address that is not built in
+        // yet -- and is assumed to depend on all existing system packages.
+        let dependencies = BuiltInFramework::try_get_package_by_id(package_id)
+            .map_or_else(BuiltInFramework::all_package_ids, |package| {
+                package.dependencies.to_vec()
+            });
         Some(SystemPackage {
             id: *package_id,
             bytes,

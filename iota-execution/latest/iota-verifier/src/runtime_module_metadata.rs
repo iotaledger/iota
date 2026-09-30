@@ -246,6 +246,7 @@ mod tests {
             &ProtocolBuildConfig {
                 allow_view_function: true,
                 max_move_package_size: None,
+                max_move_system_package_size: None,
             },
         )
         .unwrap();
@@ -264,6 +265,7 @@ mod tests {
             &ProtocolBuildConfig {
                 allow_view_function: true,
                 max_move_package_size: None,
+                max_move_system_package_size: None,
             },
         );
     }
@@ -285,6 +287,7 @@ mod tests {
             &ProtocolBuildConfig {
                 allow_view_function: false,
                 max_move_package_size: None,
+                max_move_system_package_size: None,
             },
         )
         .unwrap_err();
