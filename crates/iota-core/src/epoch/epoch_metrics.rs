@@ -148,6 +148,12 @@ pub struct EpochMetrics {
     /// is only possible adversarially - the claim's seed is authoritative and
     /// overwrites it, so this is observability rather than an error.
     pub claim_seed_displaced_version_entry: IntCounter,
+
+    /// The number of scheduled claims that reached version assignment for an
+    /// address already claimed earlier in the same commit and were left
+    /// unstaged. The duplicate-claim guard keeps this at zero unless a
+    /// transaction bypassed it by being retained as already executed.
+    pub duplicate_scheduled_claim_ignored: IntCounter,
 }
 
 impl EpochMetrics {
@@ -312,6 +318,12 @@ impl EpochMetrics {
             claim_seed_displaced_version_entry: register_int_counter_with_registry!(
                 "claim_seed_displaced_version_entry",
                 "Number of times a claim's version-chain seed displaced an existing entry",
+                registry
+            )
+            .unwrap(),
+            duplicate_scheduled_claim_ignored: register_int_counter_with_registry!(
+                "duplicate_scheduled_claim_ignored",
+                "Number of scheduled claims left unstaged because an earlier claim of the same commit already covered the address",
                 registry
             )
             .unwrap(),

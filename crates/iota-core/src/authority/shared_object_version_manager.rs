@@ -18,7 +18,7 @@ use iota_types::{
     },
     transaction::{SenderSignedTransactionAPI, TransactionAPI, TransactionKey},
 };
-use tracing::{trace, warn};
+use tracing::{error, trace, warn};
 
 use crate::{
     authority::{
@@ -239,29 +239,41 @@ impl SharedObjVerManager {
             // same version out twice.
             if let Some(address) = address_being_claimed {
                 let digest = *assignable.key().as_digest().unwrap();
-                if !cancelled_txns.contains_key(&digest) {
-                    // The seed is authoritative, so it overwrites whatever is
-                    // there. An entry can only pre-exist adversarially; count it
-                    // so that case is visible.
-                    if let Some(previous) =
-                        shared_input_next_versions.insert(address, lamport_version)
-                    {
-                        warn!(
-                            ?address,
-                            ?previous,
-                            ?lamport_version,
-                            ?digest,
-                            "claim seed displaced an existing version-chain entry"
-                        );
-                        epoch_store.metrics.claim_seed_displaced_version_entry.inc();
-                    }
-                    let previous = claimed_accounts.insert(address, (digest, lamport_version));
-                    assert!(
-                        previous.is_none(),
-                        "two scheduled claims for account {address} in one commit; \
-                         the duplicate-claim guard must prevent this"
-                    );
+                if cancelled {
+                    continue;
                 }
+                // The duplicate-claim guard lets one scheduled claim per
+                // address into a commit, except for a transaction retained as
+                // already executed, which skips the guard. The first claim
+                // keeps its staging; a later one stages nothing, so it can
+                // neither rewind the chain nor halt the validator.
+                if let Some((first_digest, first_version)) = claimed_accounts.get(&address) {
+                    error!(
+                        ?address,
+                        ?digest,
+                        ?first_digest,
+                        ?first_version,
+                        "later scheduled claim for an address already claimed in this commit; \
+                         staging nothing for it"
+                    );
+                    epoch_store.metrics.duplicate_scheduled_claim_ignored.inc();
+                    continue;
+                }
+                // The seed is authoritative, so it overwrites whatever is
+                // there. An entry can only pre-exist adversarially; count it
+                // so that case is visible.
+                if let Some(previous) = shared_input_next_versions.insert(address, lamport_version)
+                {
+                    warn!(
+                        ?address,
+                        ?previous,
+                        ?lamport_version,
+                        ?digest,
+                        "claim seed displaced an existing version-chain entry"
+                    );
+                    epoch_store.metrics.claim_seed_displaced_version_entry.inc();
+                }
+                claimed_accounts.insert(address, (digest, lamport_version));
             }
         }
 
@@ -1580,6 +1592,64 @@ mod tests {
             tx,
             CertificateProof::new_system(0),
         ))
+    }
+
+    /// Two scheduled claims for one address can reach the walk only when the
+    /// duplicate-claim guard was bypassed, which post-consensus validation
+    /// does for a transaction that already executed. The first claim keeps its
+    /// staging; the later one must stage nothing, so it can neither rewind the
+    /// account's version chain nor take the validator down.
+    #[tokio::test]
+    async fn test_later_scheduled_claim_for_same_account_stages_nothing() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let (account, first_claim) =
+            crate::authority::account_rules::generate_claim_account_tx_with_gas_version(5);
+        let later_claim = {
+            let mut transaction = first_claim.transaction().clone();
+            transaction.gas_data_mut().objects = vec![ObjectReference::new(
+                ObjectId::random(),
+                Version::from_u64(9),
+                ObjectDigest::random(),
+            )];
+            VerifiedExecutableTransaction::new_unchecked(
+                ExecutableTransaction::new_from_data_and_sig(
+                    SenderSignedTransaction::new(transaction, vec![]),
+                    CertificateProof::new_system(0),
+                ),
+            )
+        };
+
+        let ConsensusSharedObjVerAssignment {
+            shared_input_next_versions,
+            assigned_versions: _,
+            claimed_accounts,
+        } = SharedObjVerManager::assign_versions_from_consensus(
+            &epoch_store,
+            authority.get_object_cache_reader().as_ref(),
+            [
+                Schedulable::Transaction(&first_claim),
+                Schedulable::Transaction(&later_claim),
+            ]
+            .iter(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+
+        // Gas version 5 + 1: the first claim's lamport version.
+        let first_version = Version::from_u64(6);
+        assert_eq!(
+            claimed_accounts,
+            HashMap::from([(account, (*first_claim.digest(), first_version))])
+        );
+        assert_eq!(
+            shared_input_next_versions,
+            HashMap::from([(account, first_version)])
+        );
+        assert_eq!(
+            epoch_store.metrics.duplicate_scheduled_claim_ignored.get(),
+            1
+        );
     }
 
     #[tokio::test]
