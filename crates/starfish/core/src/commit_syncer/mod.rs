@@ -520,13 +520,17 @@ pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(test)]
 pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_millis(500);
 /// Cap on the escalation: at the extreme a request waits 120 s.
+#[cfg(not(test))]
 pub(crate) const MAX_FETCH_TIMEOUT_MULTIPLIER: u32 = 12;
+/// Keeps the deadlines derived from the escalation short under test.
+#[cfg(test)]
+pub(crate) const MAX_FETCH_TIMEOUT_MULTIPLIER: u32 = 2;
 /// A whole fetch attempt may take this many request timeouts: the regular
 /// syncer pipelines several requests per attempt, the fast syncer sends one.
 pub(crate) const REGULAR_FETCH_ATTEMPT_MULTIPLIER: u32 = 4;
 pub(crate) const FAST_FETCH_ATTEMPT_MULTIPLIER: u32 = 2;
-/// The longest any commit syncer waits for one fetch attempt, 480 s.
-#[cfg(not(test))]
+/// The longest any commit syncer waits for one fetch attempt, 480 s in the
+/// node.
 pub(crate) const MAX_FETCH_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(
     FETCH_TIMEOUT.as_millis() as u64
         * (MAX_FETCH_TIMEOUT_MULTIPLIER * REGULAR_FETCH_ATTEMPT_MULTIPLIER) as u64,

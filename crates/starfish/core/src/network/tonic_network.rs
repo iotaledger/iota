@@ -48,19 +48,17 @@ use crate::{
     block_header::{BlockRef, max_signed_block_header_bytes},
     block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
     commit::{CommitRange, max_commit_bytes},
-    commit_syncer::{CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY},
+    commit_syncer::{
+        CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY, MAX_FETCH_ATTEMPT_TIMEOUT,
+    },
     context::Context,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::FETCH_FROM_PEERS_TIMEOUT as HEADER_SYNC_FETCH_TIMEOUT,
     network::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
     },
     transaction_ref::{SERIALIZED_TRANSACTION_REF_BYTES, TransactionRef},
-};
-#[cfg(not(test))]
-use crate::{
-    commit_syncer::MAX_FETCH_ATTEMPT_TIMEOUT,
-    header_synchronizer::FETCH_FROM_PEERS_TIMEOUT as HEADER_SYNC_FETCH_TIMEOUT,
     transactions_synchronizer::FETCH_REQUEST_TIMEOUT as TRANSACTION_SYNC_FETCH_TIMEOUT,
 };
 
@@ -1251,19 +1249,11 @@ const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
 /// block-subscription stream is exempt. It equals the longest any requester
 /// waits for one fetch attempt, so a read the peer still waits for is never
 /// cut.
-#[cfg(not(test))]
-pub(crate) const RESPONSE_SEND_TIMEOUT: Duration = longer(
-    MAX_FETCH_ATTEMPT_TIMEOUT,
-    longer(HEADER_SYNC_FETCH_TIMEOUT, TRANSACTION_SYNC_FETCH_TIMEOUT),
-);
-
-/// The longer of two durations, usable in a constant.
-#[cfg(not(test))]
-const fn longer(a: Duration, b: Duration) -> Duration {
-    if a.as_millis() >= b.as_millis() { a } else { b }
+pub(crate) fn response_send_timeout() -> Duration {
+    MAX_FETCH_ATTEMPT_TIMEOUT
+        .max(HEADER_SYNC_FETCH_TIMEOUT)
+        .max(TRANSACTION_SYNC_FETCH_TIMEOUT)
 }
-#[cfg(test)]
-pub(crate) const RESPONSE_SEND_TIMEOUT: Duration = Duration::from_secs(2);
 
 impl<S: NetworkService> TonicManager<S> {
     pub(crate) fn new(context: Arc<Context>, network_keypair: NetworkKeyPair) -> Self {
@@ -1344,7 +1334,10 @@ impl<S: NetworkService> TonicManager<S> {
             // Innermost, so a rejected request is still counted and traced by
             // the layers above, and a request stalled in decode has its permit
             // released when the timeout above fires.
-            .layer(AdmissionLayer::new(self.context.clone()));
+            .layer(AdmissionLayer::new(
+                self.context.clone(),
+                response_send_timeout(),
+            ));
 
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
@@ -2736,8 +2729,8 @@ mod tests {
         use parking_lot::Mutex;
 
         use super::{
-            FetchCommitsAndTransactionsRequest, FetchCommitsAndTransactionsResponse,
-            RESPONSE_SEND_TIMEOUT, TonicManager,
+            FetchCommitsAndTransactionsRequest, FetchCommitsAndTransactionsResponse, TonicManager,
+            response_send_timeout,
         };
         use crate::network::test_network::TestService;
 
@@ -2833,7 +2826,7 @@ mod tests {
         drop((unread, admitted));
         settles("the reset streams keep their slots", &|| in_use.get() == 0).await;
         // The deadline fired once, for the response that was never read.
-        tokio::time::sleep(RESPONSE_SEND_TIMEOUT).await;
+        tokio::time::sleep(response_send_timeout()).await;
         assert_eq!(reclaimed.get(), 1);
     }
 

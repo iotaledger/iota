@@ -38,7 +38,6 @@ use crate::{
     context::Context,
     network::tonic_network::{
         CONSENSUS_SERVICE_PATH_PREFIX, DEPRECATED_METHOD, DEPRECATED_METHOD_MESSAGE, PeerInfo,
-        RESPONSE_SEND_TIMEOUT,
     },
 };
 
@@ -297,17 +296,23 @@ impl Drop for AdmissionGuard {
 }
 
 /// Tower layer charging an inbound request to its peer's budget before tonic
-/// reads the request body, and holding the permit until the response ends.
+/// reads the request body, and holding the permit until the response ends or
+/// `send_timeout` passes with the peer not reading it.
 #[derive(Clone)]
 pub(crate) struct AdmissionLayer {
     context: Arc<Context>,
     admission: Arc<PerPeerAdmission>,
+    send_timeout: Duration,
 }
 
 impl AdmissionLayer {
-    pub(crate) fn new(context: Arc<Context>) -> Self {
+    pub(crate) fn new(context: Arc<Context>, send_timeout: Duration) -> Self {
         let admission = Arc::new(PerPeerAdmission::new(&context));
-        Self { context, admission }
+        Self {
+            context,
+            admission,
+            send_timeout,
+        }
     }
 }
 
@@ -319,6 +324,7 @@ impl<S> Layer<S> for AdmissionLayer {
             inner,
             context: self.context.clone(),
             admission: self.admission.clone(),
+            send_timeout: self.send_timeout,
         }
     }
 }
@@ -331,6 +337,7 @@ pub(crate) struct AdmissionService<S> {
     inner: S,
     context: Arc<Context>,
     admission: Arc<PerPeerAdmission>,
+    send_timeout: Duration,
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for AdmissionService<S>
@@ -368,7 +375,7 @@ where
         // A subscription stream is open for as long as the peer is subscribed.
         let send_deadline = (!matches!(group, RpcGroup::Subscribe)).then(|| {
             (
-                RESPONSE_SEND_TIMEOUT,
+                self.send_timeout,
                 metrics
                     .admission_reclaimed
                     .with_label_values(&[group.as_str()]),
