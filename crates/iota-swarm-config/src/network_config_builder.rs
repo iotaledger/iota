@@ -26,7 +26,7 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
 use crate::{
     genesis_config::{
@@ -100,7 +100,7 @@ pub enum GlobalStateHashV1EnabledConfig {
     PerValidator(GlobalStateHashV1EnabledCallback),
 }
 
-pub struct ConfigBuilder<R = OsRng> {
+pub struct ConfigBuilder<R = UnwrapErr<SysRng>> {
     rng: Option<R>,
     config_directory: PathBuf,
     supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
@@ -127,7 +127,7 @@ pub struct ConfigBuilder<R = OsRng> {
 impl ConfigBuilder {
     pub fn new<P: AsRef<Path>>(config_directory: P) -> Self {
         Self {
-            rng: Some(OsRng),
+            rng: Some(UnwrapErr(SysRng)),
             config_directory: config_directory.as_ref().into(),
             supported_protocol_versions_config: None,
             chain_override: None,
@@ -345,7 +345,7 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn rng<N: rand::RngCore + rand::CryptoRng>(self, rng: N) -> ConfigBuilder<N> {
+    pub fn rng<N: rand::CryptoRng>(self, rng: N) -> ConfigBuilder<N> {
         ConfigBuilder {
             rng: Some(rng),
             config_directory: self.config_directory,
@@ -388,7 +388,7 @@ impl<R> ConfigBuilder<R> {
     }
 }
 
-impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
+impl<R: rand::CryptoRng> ConfigBuilder<R> {
     // TODO right now we always randomize ports, we may want to have a default port
     // configuration
     pub fn build(self) -> NetworkConfig {

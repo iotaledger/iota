@@ -24,13 +24,12 @@ use iota_names::{
 };
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest, TypeTag};
-use iota_types::{
-    collection_types::{Entry, VecMap},
-    digests::ChainIdentifier,
+use iota_sdk_move_types::iota_framework::{
     dynamic_field::Field,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
+    vec_map::{Entry, VecMap},
 };
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest, TypeTag};
+use iota_types::{digests::ChainIdentifier, iota_sdk_types_conversions::struct_tag_sdk_to_core};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,

@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::ensure;
-use iota_sdk_types::{Address, Identifier, StructTag};
+use iota_sdk_types::{Address, Identifier, SignatureScheme, StructTag};
 use serde::{Deserialize, Serialize};
-
-use crate::crypto::SignatureScheme;
 
 pub const SIGNATURE_SCHEME_MODULE_NAME: Identifier = Identifier::from_static("signature_scheme");
 pub const SIGNATURE_SCHEME_STRUCT_NAME: Identifier = Identifier::from_static("SignatureScheme");
@@ -39,29 +37,29 @@ impl TryFrom<SignatureScheme> for MoveSignatureScheme {
     /// Converts a `SignatureScheme` to a `MoveSignatureScheme`.
     ///
     /// Returns an error for schemes that are not valid for account public keys:
-    /// BLS12381, ZkLoginAuthenticatorDeprecated, and MoveAuthenticator.
+    /// BLS12381 and MoveAuthenticator.
     fn try_from(scheme: SignatureScheme) -> Result<Self, eyre::Report> {
         ensure!(
             matches!(
                 scheme,
-                SignatureScheme::ED25519
+                SignatureScheme::Ed25519
                     | SignatureScheme::Secp256k1
                     | SignatureScheme::Secp256r1
-                    | SignatureScheme::MultiSig
+                    | SignatureScheme::Multisig
                     | SignatureScheme::PasskeyAuthenticator
             ),
             "Unsupported signature scheme for account public key: {scheme:?}"
         );
 
         Ok(Self {
-            flag: scheme.flag(),
+            flag: scheme.to_u8(),
         })
     }
 }
 
 impl From<MoveSignatureScheme> for SignatureScheme {
     fn from(move_scheme: MoveSignatureScheme) -> Self {
-        SignatureScheme::from_flag_byte(&move_scheme.flag).expect("invariant: scheme flag valid")
+        SignatureScheme::from_byte(move_scheme.flag).expect("invariant: scheme flag valid")
     }
 }
 

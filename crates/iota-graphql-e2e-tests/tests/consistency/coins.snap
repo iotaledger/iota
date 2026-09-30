@@ -1,6 +1,5 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
-assertion_line: 818
 ---
 processed 15 tasks
 
@@ -268,7 +267,7 @@ Response: {
 }
 
 task 12, lines 138-164:
-//# run-graphql --cursors bcs(@{obj_1_1},2)
+//# run-graphql --cursors bcs(@{obj_1_1},4,2)
 Response: {
   "data": {
     "availableRange": {
@@ -319,7 +318,7 @@ Response: {
 }
 
 task 13, lines 166-192:
-//# run-graphql --cursors bcs(@{obj_1_1},1)
+//# run-graphql --cursors bcs(@{obj_1_1},2,1)
 Response: {
   "data": {
     "availableRange": {
@@ -370,7 +369,7 @@ Response: {
 }
 
 task 14, lines 194-220:
-//# run-graphql --cursors bcs(@{obj_1_1},0)
+//# run-graphql --cursors bcs(@{obj_1_1},2,0)
 Response: {
   "data": {
     "availableRange": {

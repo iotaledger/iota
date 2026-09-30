@@ -101,7 +101,7 @@ task 10, line 61:
 Checkpoint created: 3
 
 task 11, lines 63-72:
-//# run-graphql --cursors bcs(@{obj_0_0},2)
+//# run-graphql --cursors bcs(@{obj_0_0},3,2)
 Response: {
   "data": {
     "objects": {

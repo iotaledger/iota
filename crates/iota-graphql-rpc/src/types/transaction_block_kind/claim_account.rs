@@ -30,6 +30,9 @@ impl ClaimAccountTransaction {
                     build_kind: match smart.build_kind {
                         NativeSmartAccountBuildKind::Mutable => SmartAccountBuildKind::Mutable,
                         NativeSmartAccountBuildKind::Immutable => SmartAccountBuildKind::Immutable,
+                        _ => unimplemented!(
+                            "a new SmartAccountBuildKind enum variant was added and needs to be handled"
+                        ),
                     },
                 })
             }

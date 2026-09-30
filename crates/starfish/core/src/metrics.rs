@@ -281,6 +281,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) subscribed_block_bundles: IntCounterVec,
     pub(crate) verified_blocks: IntCounterVec,
     pub(crate) decided_leaders_total: IntCounterVec,
+    pub(crate) decision_cache_hits_total: IntCounter,
+    pub(crate) decision_cache_misses_total: IntCounter,
     pub(crate) last_committed_authority_round: IntGaugeVec,
     pub(crate) last_committed_leader_round: IntGauge,
     pub(crate) last_commit_index: IntGauge,
@@ -993,6 +995,18 @@ impl NodeMetrics {
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
+            decision_cache_hits_total: register_int_counter_with_registry!(
+                "decision_cache_hits_total",
+                "Commit-rule predicates answered from the per-block cache",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            decision_cache_misses_total: register_int_counter_with_registry!(
+                "decision_cache_misses_total",
+                "Commit-rule predicates computed and added to the per-block cache",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
             last_committed_authority_round: register_int_gauge_vec_with_registry!(
                 "last_committed_authority_round",
                 "The last round committed by authority.",
@@ -1219,8 +1233,8 @@ impl NodeMetrics {
             ).unwrap(),
             dropped_far_future_headers_total: register_int_counter_vec_with_registry!(
                 "dropped_far_future_headers_total",
-                "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source",
-                &["source"],
+                "Number of block headers dropped because their round is too far above the accepted frontier to ever connect, by source and sending peer",
+                &["source", "peer"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

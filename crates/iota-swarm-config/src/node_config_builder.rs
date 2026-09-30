@@ -276,7 +276,7 @@ impl ValidatorConfigBuilder {
         config
     }
 
-    pub fn build_new_validator<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_new_validator<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -460,7 +460,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build_from_parts`] returns an error.
-    pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -474,7 +474,7 @@ impl FullnodeConfigBuilder {
     /// the fullnode freshly generated key pairs and addresses.
     ///
     /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
-    pub fn try_build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -680,7 +680,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build`] returns an error.
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -692,7 +692,7 @@ impl FullnodeConfigBuilder {
     /// Build the fullnode config against the given network config.
     ///
     /// Fails and panics as [`Self::try_build_from_genesis_config`] does.
-    pub fn try_build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -740,7 +740,7 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
 
 #[cfg(test)]
 mod tests {
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::{FullnodeConfigBuilder, Genesis, ValidatorGenesisConfigBuilder};
 
@@ -751,7 +751,7 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let mut genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
         genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
         genesis_config.p2p_address = "/ip4/127.0.0.1/udp/9186/http".parse().unwrap();
@@ -793,7 +793,7 @@ mod tests {
     fn an_address_set_on_the_builder_wins_over_the_genesis_config() {
         let mut genesis_config = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
-            .build(&mut OsRng);
+            .build(&mut UnwrapErr(SysRng));
         genesis_config.metrics_address = ([127, 0, 0, 1], 9184).into();
         genesis_config.admin_interface_address = ([127, 0, 0, 1], 9185).into();
 

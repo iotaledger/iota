@@ -8,9 +8,9 @@ use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, Identifier, ObjectId, ObjectReference,
-    Owner, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, Identifier, ObjectId,
+    ObjectReference, Owner, StructTag, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version,
 };
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
@@ -112,7 +112,7 @@ impl PersistedStore {
         path: Option<PathBuf>,
     ) -> (Simulacrum<R, Self>, PersistedStoreInnerReadOnlyWrapper)
     where
-        R: rand::RngCore + rand::CryptoRng,
+        R: rand::CryptoRng,
     {
         let store_directory: PathBuf = path.unwrap_or(iota_common::tempdir().keep());
 
@@ -150,7 +150,7 @@ impl PersistedStore {
         path: Option<PathBuf>,
     ) -> Simulacrum<R, Self>
     where
-        R: rand::RngCore + rand::CryptoRng,
+        R: rand::CryptoRng,
     {
         Self::new_sim_replica_with_protocol_version_and_accounts(
             rng,

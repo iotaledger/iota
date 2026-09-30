@@ -12,9 +12,9 @@ use std::{
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ChangedObject, ExecutionStatus, IdOperation, ObjectId, ObjectIn, ObjectOut,
-    ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    gas::GasCostSummary,
+    Address, ChangedObject, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
+    ObjectOut, ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version,
 };
 use iota_types::{
     auth_context::AuthContext,
@@ -169,7 +169,7 @@ impl<'backing> TemporaryStore<'backing> {
             loaded_runtime_objects: self.loaded_runtime_objects,
             runtime_packages_loaded_from_db: self.runtime_packages_loaded_from_db.into_inner(),
             lamport_version: self.lamport_timestamp,
-            binary_config: to_binary_config(self.protocol_config),
+            binary_config: to_binary_config(self.protocol_config, None),
         }
     }
 

@@ -5,9 +5,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_sdk_types::{
-    Address, CheckpointContentsDigest, CheckpointDigest, MoveObjectType, ObjectId,
-    TransactionDigest, TransactionEffects, TransactionEvents, Version,
-    checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointContentsDigest, CheckpointDigest, MoveObjectType,
+    ObjectId, TransactionDigest, TransactionEffects, TransactionEvents, Version,
 };
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;

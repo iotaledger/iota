@@ -23,7 +23,7 @@ use iota_types::{
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
     transaction::CallArg,
 };
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
@@ -220,8 +220,8 @@ async fn shared_object_deletion_multi_certs() {
     // cause random delay just before tx is executed
     register_fail_point_async("transaction_execution_delay", move || async move {
         let delay = {
-            let dist = rand::distributions::Uniform::new(0, 1000);
-            let mut rng = rand::thread_rng();
+            let dist = rand::distr::Uniform::new(0, 1000).unwrap();
+            let mut rng = rand::rng();
             dist.sample(&mut rng)
         };
         sleep(Duration::from_millis(delay)).await;
@@ -577,7 +577,7 @@ async fn shared_object_sync() {
         .await
         .unwrap();
     assert!(effects.status().is_success());
-    let counter_ref = effects.created()[0].reference;
+    let counter_ref = *effects.created()[0].reference();
 
     // Check that the counter object exists in at least one of the validators the
     // transaction was sent to.
@@ -660,7 +660,7 @@ async fn replay_shared_object_transaction() {
             .await;
 
         // Ensure the sequence number of the shared object did not change.
-        let curr = effects.created()[0].reference.version;
+        let curr = effects.created()[0].reference().version;
         if let Some(prev) = version {
             assert_eq!(prev, curr, "Version of shared object did not change.");
         }

@@ -1,13 +1,15 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{account_abstraction::signature_scheme::MoveSignatureScheme, crypto::SignatureScheme};
+use iota_sdk_types::SignatureScheme;
+
+use crate::account_abstraction::signature_scheme::MoveSignatureScheme;
 
 // === TryFrom<SignatureScheme> ===
 
 #[test]
 fn try_from_ed25519_flag() {
-    let scheme = MoveSignatureScheme::try_from(SignatureScheme::ED25519).unwrap();
+    let scheme = MoveSignatureScheme::try_from(SignatureScheme::Ed25519).unwrap();
     assert_eq!(scheme.flag(), 0x00);
 }
 
@@ -25,7 +27,7 @@ fn try_from_secp256r1_flag() {
 
 #[test]
 fn try_from_multisig_flag() {
-    let scheme = MoveSignatureScheme::try_from(SignatureScheme::MultiSig).unwrap();
+    let scheme = MoveSignatureScheme::try_from(SignatureScheme::Multisig).unwrap();
     assert_eq!(scheme.flag(), 0x03);
 }
 
@@ -37,12 +39,9 @@ fn try_from_passkey_flag() {
 
 #[test]
 fn try_from_unsupported_schemes_error() {
-    // BLS12381, ZkLoginAuthenticatorDeprecated, and MoveAuthenticator are not
-    // valid for account public keys.
+    // BLS12381 and MoveAuthenticator are not valid for account public keys.
     for scheme in [
-        SignatureScheme::BLS12381,
-        #[allow(deprecated)]
-        SignatureScheme::ZkLoginAuthenticatorDeprecated,
+        SignatureScheme::Bls12381,
         SignatureScheme::MoveAuthenticator,
     ] {
         let err = MoveSignatureScheme::try_from(scheme)
@@ -60,10 +59,10 @@ fn try_from_unsupported_schemes_error() {
 #[test]
 fn roundtrip_supported_schemes() {
     for scheme in [
-        SignatureScheme::ED25519,
+        SignatureScheme::Ed25519,
         SignatureScheme::Secp256k1,
         SignatureScheme::Secp256r1,
-        SignatureScheme::MultiSig,
+        SignatureScheme::Multisig,
         SignatureScheme::PasskeyAuthenticator,
     ] {
         let move_scheme = MoveSignatureScheme::try_from(scheme).unwrap();
@@ -78,10 +77,10 @@ fn bcs_layout_is_single_flag_byte() {
     // MoveSignatureScheme BCS-encodes as exactly 1 byte (the flag), matching
     // the Move struct `SignatureScheme { flag: u8 }`.
     for (scheme, expected_flag) in [
-        (SignatureScheme::ED25519, 0x00u8),
+        (SignatureScheme::Ed25519, 0x00u8),
         (SignatureScheme::Secp256k1, 0x01),
         (SignatureScheme::Secp256r1, 0x02),
-        (SignatureScheme::MultiSig, 0x03),
+        (SignatureScheme::Multisig, 0x03),
         (SignatureScheme::PasskeyAuthenticator, 0x06),
     ] {
         let move_scheme = MoveSignatureScheme::try_from(scheme).unwrap();
@@ -93,10 +92,10 @@ fn bcs_layout_is_single_flag_byte() {
 #[test]
 fn bcs_roundtrip() {
     for scheme in [
-        SignatureScheme::ED25519,
+        SignatureScheme::Ed25519,
         SignatureScheme::Secp256k1,
         SignatureScheme::Secp256r1,
-        SignatureScheme::MultiSig,
+        SignatureScheme::Multisig,
         SignatureScheme::PasskeyAuthenticator,
     ] {
         let original = MoveSignatureScheme::try_from(scheme).unwrap();

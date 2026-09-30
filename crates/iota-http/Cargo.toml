@@ -30,6 +30,7 @@ iota-tls.workspace = true
 axum.workspace = true
 fastcrypto.workspace = true
 reqwest.workspace = true
+rustls.workspace = true
 
 [lints]
 workspace = true

@@ -399,7 +399,7 @@ mod tests {
 
         // Fetch the dependency
         let checkout_path = git_repo
-            .fetch_to_folder(temp_folder.into_path())
+            .fetch_to_folder(temp_folder.keep())
             .await
             .unwrap();
 
@@ -418,7 +418,7 @@ mod tests {
 
         // Fetch the dependency
         let checkout_path = git_dep
-            .fetch_to_folder(temp_folder.into_path())
+            .fetch_to_folder(temp_folder.keep())
             .await
             .unwrap();
 
@@ -439,7 +439,7 @@ mod tests {
         };
 
         // Fetch the dependency
-        let result = git_dep.fetch_to_folder(temp_folder.into_path()).await;
+        let result = git_dep.fetch_to_folder(temp_folder.keep()).await;
         assert!(result.is_err());
     }
 
@@ -455,7 +455,7 @@ mod tests {
         };
 
         // Fetch the dependency
-        let result = git_dep.fetch_to_folder(temp_folder.into_path()).await;
+        let result = git_dep.fetch_to_folder(temp_folder.keep()).await;
         assert!(result.is_err());
     }
 
@@ -471,7 +471,7 @@ mod tests {
         };
 
         let checkout_path = git_dep
-            .fetch_to_folder(temp_folder.into_path())
+            .fetch_to_folder(temp_folder.keep())
             .await
             .unwrap();
         // Delete a file in the repo to make it dirty

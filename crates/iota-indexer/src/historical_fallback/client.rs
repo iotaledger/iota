@@ -11,8 +11,8 @@ use futures::{
     stream::{self, StreamExt},
 };
 use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
-    Version, checkpoint::CheckpointContents,
+    Address, CheckpointContents, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents, Version,
 };
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
@@ -198,6 +198,7 @@ impl HttpRestKVClient {
             "creating HttpRestKVClient with base_url: {base_url}, batch_size: {batch_size}, max_concurrent_batches: {max_concurrent_batches}",
         );
 
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let client = Client::builder().http2_prior_knowledge().build()?;
 
         let base_url = if base_url.ends_with('/') {

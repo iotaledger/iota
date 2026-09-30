@@ -8,8 +8,9 @@ use std::{
     sync::Arc,
 };
 
+use iota_common::portable_random;
 use parking_lot::{Mutex, RwLock};
-use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
+use rand::{SeedableRng, rngs::ChaCha12Rng};
 use starfish_config::{AuthorityIndex, Stake};
 
 use crate::{
@@ -207,7 +208,11 @@ impl LeaderSchedule {
         // TODO: use a cache in case this proves to be computationally expensive
         let mut seed_bytes = [0u8; 32];
         seed_bytes[32 - 4..].copy_from_slice(&(round).to_le_bytes());
-        let mut rng = StdRng::from_seed(seed_bytes);
+        // Every authority has to elect the same leader from this seed, so both
+        // the generator and the sampling below are named rather than left to
+        // `rand`: `StdRng` and `rand`'s own samplers are free to change between
+        // versions, and 0.9 did change them.
+        let mut rng = ChaCha12Rng::from_seed(seed_bytes);
 
         let choices = self
             .context
@@ -216,15 +221,16 @@ impl LeaderSchedule {
             .map(|(index, authority)| (index, authority.stake as f32))
             .collect::<Vec<_>>();
 
-        let leader_index = *choices
-            .choose_multiple_weighted(&mut rng, self.context.committee.size(), |item| item.1)
-            .expect("Weighted choice error: stake values incorrect!")
-            .skip(offset as usize)
-            .map(|(index, _)| index)
-            .next()
-            .unwrap();
-
-        leader_index
+        portable_random::sample_weighted(
+            &mut rng,
+            choices.len(),
+            |i| choices[i].1 as f64,
+            self.context.committee.size(),
+        )
+        .into_iter()
+        .nth(offset as usize)
+        .map(|i| choices[i].0)
+        .unwrap()
     }
 
     fn range_validation(&self, new_table: &LeaderSwapTable, old_table: &LeaderSwapTable) {
@@ -480,16 +486,17 @@ impl LeaderSchedule {
         assert!((offset as usize) < self.context.committee.size());
         let mut seed_bytes = [0u8; 32];
         seed_bytes[32 - 4..].copy_from_slice(&round.to_le_bytes());
-        let mut rng = StdRng::from_seed(seed_bytes);
+        let mut rng = ChaCha12Rng::from_seed(seed_bytes);
         let choices = self
             .context
             .committee
             .authorities()
             .map(|(index, _)| index)
             .collect::<Vec<_>>();
-        *choices
-            .choose_multiple(&mut rng, self.context.committee.size())
+        portable_random::sample_indices(&mut rng, choices.len(), self.context.committee.size())
+            .into_iter()
             .nth(offset as usize)
+            .map(|i| choices[i])
             .unwrap()
     }
 
@@ -610,10 +617,10 @@ impl LeaderSwapTable {
         // to avoid bias in the selection of the good and bad nodes.
         let mut seed_bytes = [0u8; 32];
         seed_bytes[28..32].copy_from_slice(&commit_index.to_le_bytes());
-        let mut rng = StdRng::from_seed(seed_bytes);
+        let mut rng = ChaCha12Rng::from_seed(seed_bytes);
         let mut authorities_by_score = reputation_scores.authorities_by_score(context.clone());
         assert_eq!(authorities_by_score.len(), context.committee.size());
-        authorities_by_score.shuffle(&mut rng);
+        portable_random::shuffle(&mut rng, &mut authorities_by_score);
         // Stable sort the authorities by score descending. Order of authorities with
         // the same score is preserved.
         authorities_by_score.sort_by_key(|a2| std::cmp::Reverse(a2.1));
@@ -679,11 +686,9 @@ impl LeaderSwapTable {
             let mut seed_bytes = [0u8; 32];
             seed_bytes[24..28].copy_from_slice(&leader_round.to_le_bytes());
             seed_bytes[28..32].copy_from_slice(&leader_offset.to_le_bytes());
-            let mut rng = StdRng::from_seed(seed_bytes);
+            let mut rng = ChaCha12Rng::from_seed(seed_bytes);
 
-            let (idx, _hostname, _stake) = self
-                .good_nodes
-                .choose(&mut rng)
+            let (idx, _hostname, _stake) = portable_random::choose(&mut rng, &self.good_nodes)
                 .expect("There should be at least one good node available");
 
             tracing::trace!(
@@ -964,6 +969,32 @@ mod tests {
         );
     }
 
+    // Every authority must elect the same leader for a round, so the exact
+    // result of the stake-weighted draw is checked, with uneven stakes so that
+    // the weights matter.
+    // If this fails, don't update the values: gate the change behind a
+    // protocol feature flag.
+    #[tokio::test]
+    async fn test_elect_leader_stake_based_uneven_stake_exact_values() {
+        let (committee, _) =
+            starfish_config::local_committee_and_keys(0, vec![1, 2, 3, 5, 10, 25, 54]);
+        let context = Arc::new(Context::new_for_test(7).0.with_committee(committee));
+        let leader_schedule = LeaderSchedule::new(context, LeaderSwapTable::default());
+
+        for (round, expected) in [
+            (0, [4, 5, 6, 1, 3, 2, 0]),
+            (1, [5, 6, 1, 4, 2, 3, 0]),
+            (7, [5, 6, 2, 4, 3, 0, 1]),
+            (1000, [6, 5, 4, 0, 2, 3, 1]),
+        ] {
+            let leaders = (0..7)
+                .map(|offset| leader_schedule.elect_leader_stake_based(round, offset))
+                .collect::<Vec<_>>();
+            let expected = expected.map(AuthorityIndex::new_for_test).to_vec();
+            assert_eq!(leaders, expected, "round {round}");
+        }
+    }
+
     #[tokio::test]
     async fn test_elect_leader_uniform() {
         let context = Arc::new(Context::new_for_test(4).0);
@@ -985,6 +1016,30 @@ mod tests {
             leader_schedule.elect_leader_uniform(round, 0),
             leader_schedule.elect_leader_uniform(round, 0)
         );
+    }
+
+    // Every authority must elect the same leader for a round, so a change in the
+    // values drawn from the seeded RNG (for example from a `rand` upgrade) must
+    // not go unnoticed: validators on the old and new code would disagree.
+    // If this fails, don't update the values: gate the change behind a
+    // protocol feature flag.
+    #[tokio::test]
+    async fn test_elect_leader_uniform_exact_values() {
+        let context = Arc::new(Context::new_for_test(10).0);
+        let leader_schedule = LeaderSchedule::new(context, LeaderSwapTable::default());
+
+        for (round, expected) in [
+            (0, [1, 8, 4, 9, 7, 6, 3, 0, 5, 2]),
+            (1, [6, 2, 4, 1, 7, 5, 9, 0, 8, 3]),
+            (7, [3, 9, 8, 7, 0, 2, 1, 5, 6, 4]),
+            (1000, [6, 5, 1, 0, 9, 8, 4, 7, 3, 2]),
+        ] {
+            let leaders = (0..10)
+                .map(|offset| leader_schedule.elect_leader_uniform(round, offset))
+                .collect::<Vec<_>>();
+            let expected = expected.map(AuthorityIndex::new_for_test).to_vec();
+            assert_eq!(leaders, expected, "round {round}");
+        }
     }
 
     #[tokio::test]
@@ -1498,6 +1553,67 @@ mod tests {
         let leader_offset = 0;
         let swapped_leader = leader_swap_table.swap(leader, leader_round, leader_offset);
         assert_eq!(swapped_leader, None);
+    }
+
+    // Authorities with equal scores are ordered by a shuffle seeded with the
+    // commit index. Every authority must get the same order, so the exact result
+    // is checked.
+    // If this fails, don't update the values: gate the change behind a
+    // protocol feature flag.
+    #[tokio::test]
+    async fn test_leader_swap_table_tied_scores_exact_order() {
+        let context = Arc::new(Context::new_for_test(10).0);
+
+        for (commit_index, expected) in [
+            (0, [6, 8, 3, 0, 1, 9, 2, 5, 7, 4]),
+            (1, [3, 7, 4, 0, 9, 5, 2, 8, 6, 1]),
+            (1000, [0, 2, 7, 9, 5, 8, 6, 1, 3, 4]),
+        ] {
+            let reputation_scores = ReputationScores::new((0..=10).into(), vec![5; 10]);
+            let leader_swap_table =
+                LeaderSwapTable::new_inner(context.clone(), 33, commit_index, reputation_scores);
+            let order = leader_swap_table
+                .reputation_scores_desc
+                .iter()
+                .map(|(index, _)| *index)
+                .collect::<Vec<_>>();
+            let expected = expected.map(AuthorityIndex::new_for_test).to_vec();
+            assert_eq!(order, expected, "commit index {commit_index}");
+        }
+    }
+
+    // The good node that replaces a bad leader is drawn from an RNG seeded with
+    // the round. Every authority must draw the same one, so the exact result is
+    // checked, with more than one good node so that the draw matters.
+    // If this fails, don't update the values: gate the change behind a
+    // protocol feature flag.
+    #[tokio::test]
+    async fn test_leader_swap_table_swap_exact_values() {
+        let context = Arc::new(Context::new_for_test(10).0);
+        let reputation_scores = ReputationScores::new((0..=10).into(), (0..10).collect());
+        let leader_swap_table = LeaderSwapTable::new_inner(context, 33, 0, reputation_scores);
+
+        let good_nodes = leader_swap_table
+            .good_nodes
+            .iter()
+            .map(|(index, _, _)| *index)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            good_nodes,
+            [9, 8].map(AuthorityIndex::new_for_test).to_vec()
+        );
+
+        let bad_leader = AuthorityIndex::new_for_test(0);
+        assert!(leader_swap_table.bad_nodes.contains_key(&bad_leader));
+        let swapped = (1..=10)
+            .map(|round| leader_swap_table.swap(bad_leader, round, 0).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            swapped,
+            [8, 9, 8, 8, 8, 8, 8, 8, 9, 8]
+                .map(AuthorityIndex::new_for_test)
+                .to_vec()
+        );
     }
 
     #[tokio::test]

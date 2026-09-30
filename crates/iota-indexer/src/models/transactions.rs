@@ -79,7 +79,6 @@ pub struct StoredTransaction {
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = optimistic_transactions)]
 pub struct OptimisticTransaction {
-    pub global_sequence_number: i64,
     pub optimistic_sequence_number: i64,
     pub transaction_digest: Vec<u8>,
     pub raw_transaction: Vec<u8>,
@@ -110,9 +109,8 @@ impl From<OptimisticTransaction> for StoredTransaction {
 }
 
 impl OptimisticTransaction {
-    pub fn from_stored(global_sequence_number: i64, stored: StoredTransaction) -> Self {
+    pub fn from_stored(stored: StoredTransaction) -> Self {
         OptimisticTransaction {
-            global_sequence_number,
             optimistic_sequence_number: stored.tx_sequence_number,
             transaction_digest: stored.transaction_digest,
             raw_transaction: stored.raw_transaction,

@@ -1136,7 +1136,7 @@ impl TransactionQueue {
 #[cfg(test)]
 mod test {
     use prometheus_filtered::Registry;
-    use rand::{Rng, RngCore};
+    use rand::{Rng, RngExt};
 
     use super::*;
 
@@ -1324,7 +1324,7 @@ mod test {
     #[test]
     #[cfg_attr(msim, ignore)]
     fn transaction_queue_random_test() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut digests = Vec::new();
         for _ in 0..100 {
             let mut digest = [0; 32];
@@ -1341,7 +1341,7 @@ mod test {
         // out well-populated
         for _ in 0..70 {
             now += Duration::from_secs(1);
-            let digest = digests[rng.gen_range(0..digests.len())];
+            let digest = digests[rng.random_range(0..digests.len())];
             let time = now;
             queue.insert(digest, time);
             verifier.entry(digest).or_insert(time);
@@ -1354,10 +1354,10 @@ mod test {
             now += Duration::from_secs(1);
 
             // pick a random digest
-            let digest = digests[rng.gen_range(0..digests.len())];
+            let digest = digests[rng.random_range(0..digests.len())];
 
             // either insert or remove it
-            if rng.gen_bool(0.5) {
+            if rng.random_bool(0.5) {
                 let time = now;
                 queue.insert(digest, time);
                 verifier.entry(digest).or_insert(time);

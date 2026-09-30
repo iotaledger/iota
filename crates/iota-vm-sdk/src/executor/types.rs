@@ -8,8 +8,8 @@ use std::collections::BTreeMap;
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_types::{
-    BalanceChange, DeriveChangesError, Event, ObjectChange, ObjectId, Transaction,
-    TransactionEffects, TransactionEvents, gas::GasCostSummary,
+    BalanceChange, DeriveChangesError, Event, GasCostSummary, ObjectChange, ObjectId, Transaction,
+    TransactionEffects, TransactionEvents,
 };
 use iota_types::{
     error::{ExecutionError, IotaError},

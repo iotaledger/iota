@@ -3,11 +3,8 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::Address as IotaAddress;
-use iota_types::{
-    crypto::{PublicKey, SignatureScheme},
-    multisig::MultiSigPublicKey,
-};
+use iota_sdk_types::{Address as IotaAddress, SignatureScheme, crypto::MultisigCommittee};
+use iota_types::crypto::PublicKey;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, vm_status::StatusCode,
@@ -69,11 +66,11 @@ pub fn to_iota_address_impl(
     let flag = pop_arg!(args, u8);
     let cost = context.gas_used();
 
-    let address = match SignatureScheme::from_flag_byte(&flag) {
+    let address = match SignatureScheme::from_byte(flag) {
         // MultiSig is not part of the `PublicKey` enum; derive from its committee bytes.
-        Ok(SignatureScheme::MultiSig) => bcs::from_bytes::<MultiSigPublicKey>(&raw_bytes_ref)
+        Ok(SignatureScheme::Multisig) => bcs::from_bytes::<MultisigCommittee>(&raw_bytes_ref)
             .ok()
-            .map(|committee| IotaAddress::from(&committee)),
+            .map(|committee| committee.derive_address()),
         Ok(scheme) => PublicKey::try_from_bytes(scheme, &raw_bytes_ref)
             .ok()
             .map(|public_key| IotaAddress::from(&public_key)),

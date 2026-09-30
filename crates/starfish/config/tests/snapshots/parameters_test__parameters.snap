@@ -40,12 +40,13 @@ tonic:
   request_timeout:
     secs: 120
     nanos: 0
-  max_inbound_message_size: 1048576
+  max_request_message_size: 1048576
   admission:
     max_subscriptions_per_peer: 2
     max_header_fetches_per_peer: 32
     max_transaction_fetches_per_peer: 16
     max_commit_fetches_per_peer: 8
+    max_commit_fetches_total: 16
   subscribe_request_timeout:
     secs: 30
     nanos: 0
@@ -61,3 +62,4 @@ enable_shard_peer_selection: true
 dag_visualizer_port: ~
 solid_commit_lag_threshold: 500
 shard_budget_per_authority: 1000
+max_fast_commit_sync_transaction_bytes: 67108864

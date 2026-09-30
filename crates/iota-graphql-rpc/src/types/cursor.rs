@@ -21,6 +21,7 @@ use crate::{
     data::{Conn, DbConnection, DieselBackend, DieselConn, Query},
     error::Error,
     raw_query::RawQuery,
+    types::uint53::UInt53,
 };
 
 /// Cursor that hides its value by encoding it as JSON and then Base64.
@@ -263,6 +264,16 @@ impl Page<JsonCursor<ConsistentIndexCursor>> {
     /// two booleans indicating whether there is a previous or next page in
     /// the range, the `checkpoint_viewed_at` to set for consistency, and an
     /// iterator of cursors within that Page.
+    ///
+    /// The caller indexes a collection of `total` elements with the cursors
+    /// that the iterator gives, so each cursor index must be below `total`.
+    /// A cursor that carries `total` itself is a bound, not an element, and
+    /// gives the same page as an absent cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Client`] if the cursors are taken from different
+    /// checkpoints, or if a cursor index is above `total`.
     pub(crate) fn paginate_consistent_indices(
         &self,
         total: usize,
@@ -271,7 +282,31 @@ impl Page<JsonCursor<ConsistentIndexCursor>> {
         let cursor_viewed_at = self.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
-        let mut lo = self.after().map_or(0, |a| a.ix + 1);
+        if let Some(after) = self.after() {
+            if after.ix > total {
+                return Err(Error::Client(format!(
+                    "`after` cursor (index {}) is above the number of elements, {total}.",
+                    after.ix
+                )));
+            }
+        }
+
+        if let Some(before) = self.before() {
+            if before.ix > total {
+                return Err(Error::Client(format!(
+                    "`before` cursor (index {}) is above the number of elements, {total}.",
+                    before.ix
+                )));
+            }
+        }
+
+        let mut lo = match self.after() {
+            Some(a) => a.ix.checked_add(1).ok_or_else(|| {
+                Error::Client(format!("`after` cursor (index {}) is out of range.", a.ix))
+            })?,
+            None => 0,
+        };
+
         let mut hi = self.before().map_or(total, |b| b.ix);
 
         if hi <= lo {
@@ -291,7 +326,7 @@ impl Page<JsonCursor<ConsistentIndexCursor>> {
             cursors: (lo..hi).map(move |ix| {
                 JsonCursor::new(ConsistentIndexCursor {
                     ix,
-                    c: checkpoint_viewed_at,
+                    c: UInt53::new_unchecked(checkpoint_viewed_at),
                 })
             }),
         }))
@@ -531,7 +566,7 @@ where
             return Err(InputValueError::expected_type(value));
         };
 
-        Ok(JsonCursor(OpaqueCursor::decode_cursor(&s)?))
+        Ok(Self::decode_cursor(&s)?)
     }
 
     /// Just check that the value is a string, as we'll do more involved tests
@@ -666,6 +701,102 @@ mod tests {
     use expect_test::expect;
 
     use super::*;
+    use crate::types::uint53::MAX_UINT53;
+
+    /// A cursor index that is larger than the number of elements it refers to
+    /// must be rejected.
+    #[test]
+    fn test_consistent_indices_rejects_index_past_end() {
+        let config = ServiceConfig::default();
+        let total = 2;
+
+        let past_end = JsonCursor::new(ConsistentIndexCursor {
+            ix: 5,
+            c: UInt53::new_unchecked(0),
+        });
+        let max = JsonCursor::new(ConsistentIndexCursor {
+            ix: usize::MAX,
+            c: UInt53::new_unchecked(0),
+        });
+
+        for (first, after, last, before) in [
+            (None, None, None, Some(past_end.clone())),
+            (None, None, Some(1), Some(past_end.clone())),
+            (None, Some(past_end), None, None),
+            (None, None, None, Some(max.clone())),
+            (None, Some(max), None, None),
+        ] {
+            let page = Page::from_params(&config, first, after, last, before).unwrap();
+            assert!(matches!(
+                page.paginate_consistent_indices(total, 0),
+                Err(Error::Client(_))
+            ));
+        }
+    }
+
+    /// An index equal to the number of elements is a bound, not an element, so
+    /// a `before` cursor that holds it covers the same page as an absent one.
+    #[test]
+    fn test_consistent_indices_full_page() {
+        let config = ServiceConfig::default();
+        let at_end = JsonCursor::new(ConsistentIndexCursor {
+            ix: 3,
+            c: UInt53::new_unchecked(0),
+        });
+
+        for before in [None, Some(at_end)] {
+            let page: Page<JsonCursor<ConsistentIndexCursor>> =
+                Page::from_params(&config, None, None, None, before).unwrap();
+
+            let consistent = page.paginate_consistent_indices(3, 7).unwrap().unwrap();
+            let indices: Vec<usize> = consistent.cursors.map(|c| c.ix).collect();
+
+            assert_eq!(indices, vec![0, 1, 2]);
+        }
+    }
+
+    /// A cursor that points at the last element gives an empty page, not an
+    /// error: the client reached the end of the collection.
+    #[test]
+    fn test_consistent_indices_after_last_element() {
+        let config = ServiceConfig::default();
+        let last = JsonCursor::new(ConsistentIndexCursor {
+            ix: 2,
+            c: UInt53::new_unchecked(0),
+        });
+
+        let page = Page::from_params(&config, None, Some(last), None, None).unwrap();
+        assert!(page.paginate_consistent_indices(3, 0).unwrap().is_none());
+    }
+
+    /// A JSON cursor keeps the largest value a field holds, and loses one
+    /// above it.
+    #[test]
+    fn test_json_decode_limits_field() {
+        for (value, accepted) in [(MAX_UINT53, true), (MAX_UINT53 + 1, false)] {
+            let encoded = JsonCursor::new(ConsistentIndexCursor {
+                ix: 0,
+                c: UInt53::new_unchecked(value),
+            })
+            .encode_cursor();
+
+            let decoded =
+                <JsonCursor<ConsistentIndexCursor> as CursorType>::decode_cursor(&encoded);
+            assert_eq!(decoded.is_ok(), accepted, "value {value}");
+        }
+    }
+
+    /// The limit belongs to the field, not to the data format, so a BCS cursor
+    /// gets the same check as a JSON one.
+    #[test]
+    fn test_bcs_decode_limits_field() {
+        for (value, accepted) in [(MAX_UINT53, true), (MAX_UINT53 + 1, false)] {
+            let encoded = BcsCursor::new(UInt53::new_unchecked(value)).encode_cursor();
+
+            let decoded = <BcsCursor<UInt53> as CursorType>::decode_cursor(&encoded);
+            assert_eq!(decoded.is_ok(), accepted, "value {value}");
+        }
+    }
 
     #[test]
     fn test_default_page() {

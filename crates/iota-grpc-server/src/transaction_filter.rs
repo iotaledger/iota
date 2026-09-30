@@ -330,7 +330,6 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
         | TransactionKind::EndOfEpoch
         | TransactionKind::RandomnessStateUpdate => true,
         TransactionKind::Programmable | TransactionKind::ClaimAccount => false,
-        _ => panic!("Unhandled transaction kind"),
     }
 }
 
@@ -361,7 +360,7 @@ impl TransactionFilter {
                 .mutated()
                 .iter()
                 .chain(item.effects.unwrapped().iter())
-                .any(|changed| matches!(changed.owner, Owner::Address(addr) if addr == *a)),
+                .any(|changed| matches!(changed.owner(), Owner::Address(addr) if addr == a)),
 
             TransactionFilter::AffectedObject(o) => item
                 .effects

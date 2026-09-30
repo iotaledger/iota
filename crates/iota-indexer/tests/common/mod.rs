@@ -5,6 +5,7 @@ pub mod backward_history;
 pub mod object_versions;
 
 use std::{
+    future::Future,
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -21,18 +22,19 @@ use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_t
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
     config::{IotaNamesOptions, JsonRpcConfig, RetentionConfig},
-    db::{ConnectionPoolConfig, new_connection_pool},
+    db::{ConnectionPoolConfig, DbUrl, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
     metrics::IndexerMetrics,
     models::checkpoints::StoredCheckpoint,
     read_only_blocking,
     schema::{checkpoints, optimistic_transactions},
-    store::{PgIndexerStore, indexer_store::IndexerStore},
+    store::{PgIndexerStore, diesel_macro::spawn_blocking_task, indexer_store::IndexerStore},
     test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
 use iota_json_rpc_api::{
-    CoinReadApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+    CoinReadApiClient, QUERY_MAX_RESULT_LIMIT, ReadApiClient, TransactionBuilderClient,
+    WriteApiClient,
 };
 use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
@@ -55,6 +57,7 @@ use tokio::{
     runtime::Runtime,
     sync::{Mutex, OnceCell},
     task::JoinHandle,
+    time::error::Elapsed,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -177,6 +180,36 @@ pub async fn start_test_cluster_with_read_write_indexer(
     (cluster, pg_store, rpc_client)
 }
 
+/// Calls `f` every 100 ms until it returns `Some`, returning an error if
+/// the given `timeout` is reached first.
+///
+/// Returns `Ok(value)` upon success, or `Err(Elapsed)` if the timeout expires.
+///
+/// # Example
+///
+/// ```ignore
+/// let first_row = retry_with_timeout(Duration::from_secs(60), || async move {
+///     read_first_row(store).await
+/// })
+/// .await
+/// .expect("timeout waiting for the first row");
+/// ```
+pub async fn retry_with_timeout<T, F, Fut>(timeout: Duration, mut f: F) -> Result<T, Elapsed>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Option<T>>,
+{
+    tokio::time::timeout(timeout, async {
+        loop {
+            if let Some(value) = f().await {
+                return value;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+}
+
 /// Wait for the indexer to catch up to the given checkpoint sequence number
 ///
 /// Indexer starts storing data after checkpoint 0
@@ -217,7 +250,7 @@ pub async fn indexer_wait_for_epoch(pg_store: &PgIndexerStore, expected_epoch: u
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let blocking_cp = pg_store.blocking_cp();
-            let result = tokio::task::spawn_blocking(move || {
+            let result = spawn_blocking_task(move || {
                 read_only_blocking!(&blocking_cp, |conn| {
                     checkpoints::table
                         .order(checkpoints::sequence_number.desc())
@@ -297,7 +330,7 @@ pub async fn node_wait_for_object(cluster: &TestCluster, object_id: ObjectId, ve
 
 pub async fn get_optimistic_transactions_count(pg_store: &PgIndexerStore) -> u64 {
     let blocking_cp = pg_store.blocking_cp();
-    tokio::task::spawn_blocking(move || {
+    spawn_blocking_task(move || {
         read_only_blocking!(&blocking_cp, |conn| {
             optimistic_transactions::table
                 .count()
@@ -433,7 +466,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
     };
 
     let pool = new_connection_pool(
-        &db_url,
+        &DbUrl::from(db_url.as_str()),
         &ConnectionPoolConfig {
             pool_size: 5,
             ..Default::default()
@@ -475,6 +508,15 @@ pub fn rpc_call_error_msg_matches<T>(
         }
         _ => false,
     })
+}
+
+/// The error an RPC method returns when its input has more entries than
+/// [`QUERY_MAX_RESULT_LIMIT`], as expected by [`rpc_call_error_msg_matches`].
+pub fn input_size_limit_exceeded_msg() -> String {
+    format!(
+        r#"{{"code":-32602,"message":"Input exceeds limit of {}"}}"#,
+        *QUERY_MAX_RESULT_LIMIT
+    )
 }
 
 /// Set up a test indexer fetching from a gRPC endpoint served by the given

@@ -18,11 +18,13 @@
 use std::{
     convert::Infallible,
     num::NonZeroUsize,
+    pin::Pin,
     sync::Arc,
     task::{Context, Poll},
 };
 
 use futures::future::BoxFuture;
+use pin_project_lite::pin_project;
 use tokio::sync::Semaphore;
 use tonic::{
     body::Body,
@@ -119,10 +121,58 @@ impl<S: NamedService> NamedService for ServiceConcurrencyLimit<S> {
     const NAME: &'static str = S::NAME;
 }
 
+pin_project! {
+    /// Response body owning a guard, typically a semaphore permit, that is
+    /// released when the body is dropped: once the response has been written,
+    /// reset, or abandoned.
+    pub struct PermitGuardedBody<B, G> {
+        #[pin]
+        inner: B,
+        _guard: Option<G>,
+    }
+}
+
+impl<B, G> PermitGuardedBody<B, G> {
+    /// `guard` is `None` when the caller holds no permit for this response.
+    pub fn new(inner: B, guard: Option<G>) -> Self {
+        Self {
+            inner,
+            _guard: guard,
+        }
+    }
+}
+
+impl<B, G> http_body::Body for PermitGuardedBody<B, G>
+where
+    B: http_body::Body,
+{
+    type Data = B::Data;
+    type Error = B::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+        self.project().inner.poll_frame(cx)
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+
+    fn size_hint(&self) -> http_body::SizeHint {
+        self.inner.size_hint()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{
+        sync::atomic::{AtomicBool, Ordering},
+        time::Duration,
+    };
 
+    use http_body::Body as _;
     use tower::ServiceExt;
 
     use super::*;
@@ -240,5 +290,59 @@ mod tests {
                 .get("grpc-status")
                 .is_none()
         );
+    }
+
+    /// Guard recording whether it has been dropped.
+    struct DropFlag(Arc<AtomicBool>);
+
+    impl Drop for DropFlag {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    /// Body that never yields a frame, standing in for a response still being
+    /// streamed.
+    struct PendingBody;
+
+    impl http_body::Body for PendingBody {
+        type Data = bytes::Bytes;
+        type Error = Infallible;
+
+        fn poll_frame(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+            Poll::Pending
+        }
+    }
+
+    #[tokio::test]
+    async fn the_guard_survives_the_end_of_the_stream() {
+        let dropped = Arc::new(AtomicBool::new(false));
+        let mut body = PermitGuardedBody::new(Body::default(), Some(DropFlag(dropped.clone())));
+
+        let end = std::future::poll_fn(|cx| Pin::new(&mut body).poll_frame(cx)).await;
+        assert!(end.is_none());
+        assert!(!dropped.load(Ordering::SeqCst));
+
+        drop(body);
+        assert!(dropped.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn dropping_an_unfinished_body_releases_the_guard() {
+        let dropped = Arc::new(AtomicBool::new(false));
+        let mut body = PermitGuardedBody::new(PendingBody, Some(DropFlag(dropped.clone())));
+
+        let polled = tokio::time::timeout(
+            Duration::from_millis(10),
+            std::future::poll_fn(|cx| Pin::new(&mut body).poll_frame(cx)),
+        )
+        .await;
+        assert!(polled.is_err());
+
+        drop(body);
+        assert!(dropped.load(Ordering::SeqCst));
     }
 }

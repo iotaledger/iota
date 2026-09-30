@@ -16,10 +16,9 @@ use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 #[cfg(not(test))]
 use rand::prelude::SliceRandom as _;
-use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
+use rand::{SeedableRng as _, rng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
-    runtime::Handle,
     sync::{oneshot, watch},
     task::JoinSet,
     time::{Instant, MissedTickBehavior},
@@ -46,6 +45,7 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
     sliding_window_schedule::SlidingWindowSchedule,
+    task::spawn_blocking,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
@@ -621,27 +621,30 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         ) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
-            .await?;
+            .await
+            .inspect_err(|e| {
+                inner
+                    .misbehavior_store
+                    .record_fetch_fault(target_authority, e);
+            })?;
 
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
         // so earlier commits are certified as well.
-        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
-        let (mut commits, voting_block_headers) = Handle::current()
-            .spawn_blocking({
-                let inner = inner.clone();
-                move || {
-                    inner.verify_commits(
-                        target_authority,
-                        commit_range,
-                        serialized_commits,
-                        serialized_proof_for_last_commit,
-                        max_commits,
-                    )
-                }
-            })
-            .await
-            .expect("Spawn blocking should not fail")?;
+        let max_commits = inner.sync_type.max_commits_per_response(&commit_range);
+        let (mut commits, voting_block_headers) = spawn_blocking({
+            let inner = inner.clone();
+            move || {
+                inner.verify_commits(
+                    target_authority,
+                    commit_range,
+                    serialized_commits,
+                    serialized_proof_for_last_commit,
+                    max_commits,
+                )
+            }
+        })
+        .await??;
 
         // 3. Collect the committed transaction refs of each commit. Commits passing
         //    verify_commits are V2/V3, which only carry `TransactionRef`s, so the
@@ -719,29 +722,27 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
         // 5. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
-            Handle::current()
-                .spawn_blocking({
-                    let context = inner.context.clone();
+            spawn_blocking({
+                let context = inner.context.clone();
 
-                    move || {
-                        verify_transactions_commitments(
-                            &context,
-                            target_authority,
-                            fetched_transactions,
-                        )
-                    }
-                })
-                .await
-                .expect("Spawn blocking should not fail")
-                .inspect_err(|_| {
-                    // Not provable against the author, whose commitment the
-                    // peer may have forged.
-                    inner.misbehavior_store.record_faulty_transactions(
+                move || {
+                    verify_transactions_commitments(
+                        &context,
                         target_authority,
-                        false,
-                        [target_authority],
-                    );
-                })?
+                        fetched_transactions,
+                    )
+                }
+            })
+            .await?
+            .inspect_err(|_| {
+                // Not provable against the author, whose commitment the
+                // peer may have forged.
+                inner.misbehavior_store.record_faulty_transactions(
+                    target_authority,
+                    false,
+                    [target_authority],
+                );
+            })?
         } else {
             BTreeMap::new()
         };
@@ -865,7 +866,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
             })
             .collect();
-        let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
+        let mut rng = StdRng::from_rng(&mut rng());
         // Without ranking, one shuffle for load balancing covers every chunk.
         #[cfg(not(test))]
         if !inner.context.parameters.enable_peer_responsiveness_ranking {
@@ -937,6 +938,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         }
                     }
                     Ok(Err(e)) => {
+                        inner.misbehavior_store.record_fetch_fault(authority, &e);
                         record_headers_for_reinitialization_failure(&inner, authority);
                         warn!(
                             "[{}] Failed to fetch headers from {}: {}",

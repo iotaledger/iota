@@ -16,6 +16,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
     TransactionFilterV2,
 };
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
     Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionDigest, TypeTag,
 };
@@ -37,7 +38,7 @@ use crate::{
     common::{
         ApiTestSetup, execute_tx_and_wait_for_indexer_checkpoint, execute_tx_must_succeed,
         indexer_wait_for_checkpoint, indexer_wait_for_latest_checkpoint, indexer_wait_for_object,
-        indexer_wait_for_transaction, rpc_call_error_msg_matches,
+        indexer_wait_for_transaction, publish_test_move_package, rpc_call_error_msg_matches,
         start_test_cluster_with_read_write_indexer,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
@@ -1625,4 +1626,214 @@ async fn assert_paginated_events_descending(
     }
 
     Ok(())
+}
+
+#[test]
+fn query_transaction_blocks_move_function_rejects_non_identifier() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let package = ObjectId::FRAMEWORK;
+
+        let invalid_payloads = [
+            "coin' OR 1=1) --",
+            "coin'; SELECT 1",
+            "coin)",
+            "coin%",
+            "coin--",
+            "",
+        ];
+
+        for invalid_payload in invalid_payloads {
+            let module_filter = TransactionFilterV2::MoveFunction {
+                package,
+                module: Some(invalid_payload.to_string()),
+                function: None,
+            };
+            let res = client
+                .query_transaction_blocks_v2(
+                    IotaTransactionBlockResponseQueryV2::new_with_filter(module_filter),
+                    None,
+                    Some(20),
+                    Some(true),
+                )
+                .await;
+            assert!(
+                res.is_err(),
+                "module payload {invalid_payload:?} was not rejected"
+            );
+            let err = res.unwrap_err().to_string();
+            assert!(
+                err.contains("Invalid module name"),
+                "module payload {invalid_payload:?} failed with an unexpected error: {err}"
+            );
+
+            let function_filter = TransactionFilterV2::MoveFunction {
+                package,
+                module: Some("coin".to_string()),
+                function: Some(invalid_payload.to_string()),
+            };
+            let res = client
+                .query_transaction_blocks_v2(
+                    IotaTransactionBlockResponseQueryV2::new_with_filter(function_filter),
+                    None,
+                    Some(20),
+                    Some(true),
+                )
+                .await;
+            assert!(
+                res.is_err(),
+                "function payload {invalid_payload:?} was not rejected"
+            );
+            let err = res.unwrap_err().to_string();
+            assert!(
+                err.contains("Invalid function name"),
+                "function payload {invalid_payload:?} failed with an unexpected error: {err}"
+            );
+        }
+
+        let valid_filter = TransactionFilterV2::MoveFunction {
+            package,
+            module: Some("coin".to_string()),
+            function: Some("split".to_string()),
+        };
+        client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2::new_with_filter(valid_filter),
+                None,
+                Some(20),
+                Some(true),
+            )
+            .await
+            .expect("valid MoveFunction filter must succeed");
+    })
+}
+
+/// The types in the `type_filter` test package differ only in ways that an
+/// unsecaped `LIKE` prefix match cannot tell apart, so a filter for one of them
+/// must not return the others.
+#[test]
+fn get_owned_objects_matches_struct_type_exactly() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        cluster,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
+        let keypair = SimpleKeypair::from(key);
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas.object_id, gas.version).await;
+
+        let (package_ref, publish_resp) =
+            publish_test_move_package(client, address, &keypair, "type_filter")
+                .await
+                .expect("publishing the test package should succeed");
+        indexer_wait_for_transaction(publish_resp.digest, store, client).await;
+
+        let package_id = package_ref.object_id;
+        let struct_tag = |name: &str| {
+            StructTag::from_str(&format!("{package_id}::type_filter::{name}"))
+                .expect("valid struct tag")
+        };
+        let owned_types = async |filter: IotaObjectDataFilter| {
+            let objects: ObjectsPage = client
+                .get_owned_objects(
+                    address,
+                    Some(IotaObjectResponseQuery::new(
+                        Some(filter),
+                        Some(IotaObjectDataOptions::new().with_type()),
+                    )),
+                    None,
+                    None,
+                )
+                .await
+                .expect("querying owned objects should succeed");
+
+            objects
+                .data
+                .iter()
+                .map(|object| {
+                    object
+                        .object()
+                        .expect("object data")
+                        .object_type()
+                        .expect("object type")
+                        .to_string()
+                })
+                .sorted()
+                .collect_vec()
+        };
+
+        let my_type = format!("{package_id}::type_filter::My_Type");
+        let my_x_type = format!("{package_id}::type_filter::MyXType");
+        let my_type_extra = format!("{package_id}::type_filter::My_TypeExtra");
+
+        // `_` is the `LIKE` wildcard for any single character, and `MyXType`
+        // and `My_TypeExtra` both share a prefix with `My_Type`.
+        assert_eq!(
+            owned_types(IotaObjectDataFilter::StructType(struct_tag("My_Type"))).await,
+            vec![my_type.clone()]
+        );
+
+        assert_eq!(
+            owned_types(IotaObjectDataFilter::MatchAny(vec![
+                IotaObjectDataFilter::StructType(struct_tag("My_Type")),
+                IotaObjectDataFilter::StructType(struct_tag("MyXType")),
+            ]))
+            .await,
+            vec![my_type.clone(), my_x_type.clone()]
+                .into_iter()
+                .sorted()
+                .collect_vec()
+        );
+
+        let without_my_type = owned_types(IotaObjectDataFilter::MatchNone(vec![
+            IotaObjectDataFilter::StructType(struct_tag("My_Type")),
+        ]))
+        .await;
+        assert!(!without_my_type.contains(&my_type));
+        assert!(without_my_type.contains(&my_x_type));
+        assert!(without_my_type.contains(&my_type_extra));
+
+        // A filter that carries type parameters only matches that exact
+        // instantiation.
+        let gas_coin = "0x2::coin::Coin<0x2::iota::IOTA>";
+        assert!(
+            !owned_types(IotaObjectDataFilter::StructType(
+                StructTag::from_str(gas_coin).expect("valid struct tag")
+            ))
+            .await
+            .is_empty()
+        );
+        assert!(
+            owned_types(IotaObjectDataFilter::StructType(
+                StructTag::from_str("0x2::coin::Coin<0x2::iota::NOT_IOTA>")
+                    .expect("valid struct tag")
+            ))
+            .await
+            .is_empty()
+        );
+
+        // Matching any of no types matches nothing.
+        assert!(
+            owned_types(IotaObjectDataFilter::MatchAny(vec![]))
+                .await
+                .is_empty()
+        );
+    })
 }

@@ -89,9 +89,9 @@ impl TransactionBlockKind {
                 native: claim,
                 checkpoint_viewed_at,
             })),
-            _ => unimplemented!(
-                "a new TransactionKind enum variant was added and needs to be handled"
-            ),
+            _ => Err(Error::Internal(
+                "unknown TransactionKind variant".to_string(),
+            )),
         }
     }
 }

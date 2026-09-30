@@ -28,8 +28,8 @@ use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
-    RandomnessRound, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionKind, checkpoint::CheckpointContents,
+    CheckpointContents, RandomnessRound, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionKind,
 };
 use iota_types::{
     base_types::ExecutionData,
@@ -845,7 +845,10 @@ impl CheckpointExecutor {
                 let full_contents = FullCheckpointContents::from_contents_and_execution_data(
                     checkpoint_contents.clone(),
                     execution_data,
-                );
+                )
+                // Both were loaded for this checkpoint's own contents above,
+                // one transaction and one effects entry per digest.
+                .expect("checkpoint has one executed transaction per pinned signature set");
                 self.checkpoint_store.cache_full_checkpoint_contents(
                     seq,
                     checkpoint.contents_digest,

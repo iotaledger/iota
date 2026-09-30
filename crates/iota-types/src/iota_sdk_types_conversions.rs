@@ -12,13 +12,10 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
-    address::Address,
-    checkpoint::{CheckpointData, CheckpointTransaction, SignedCheckpointSummary},
+    Address, CheckpointData, CheckpointTransaction, Identifier, Object, SignedCheckpointSummary,
+    SignedTransaction, StructTag, TypeParseError, TypeTag, ValidatorAggregatedSignature,
+    ValidatorCommittee, ValidatorCommitteeMember,
     crypto::{Bls12381PublicKey, Bls12381Signature},
-    move_core::{Identifier, StructTag, TypeParseError, TypeTag},
-    object::Object,
-    transaction::SignedTransaction,
-    validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use tap::Pipe;
 
@@ -192,11 +189,11 @@ impl<const T: bool> From<crate::crypto::AuthorityQuorumSignInfo<T>>
             signers_map,
         } = value;
 
-        Self {
+        Self::new(
             epoch,
-            signature: Bls12381Signature::from_bytes(signature.as_ref()).unwrap(),
-            bitmap: signers_map,
-        }
+            Bls12381Signature::from_bytes(signature.as_ref()).unwrap(),
+            signers_map,
+        )
     }
 }
 
@@ -204,17 +201,15 @@ impl<const T: bool> From<ValidatorAggregatedSignature>
     for crate::crypto::AuthorityQuorumSignInfo<T>
 {
     fn from(value: ValidatorAggregatedSignature) -> Self {
-        let ValidatorAggregatedSignature {
-            epoch,
-            signature,
-            bitmap,
-        } = value;
+        let signers_map = value.signer_indices().collect();
 
         Self {
-            epoch,
-            signature: crate::crypto::AggregateAuthoritySignature::from_bytes(signature.bytes())
-                .unwrap(),
-            signers_map: bitmap,
+            epoch: value.epoch,
+            signature: crate::crypto::AggregateAuthoritySignature::from_bytes(
+                value.signature.bytes(),
+            )
+            .unwrap(),
+            signers_map,
         }
     }
 }

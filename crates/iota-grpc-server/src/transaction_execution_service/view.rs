@@ -26,8 +26,7 @@ use iota_json::{
 use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::{
-    Address, GasPayment, Identifier, ObjectId, TransactionExpiration, TypeTag,
-    transaction::TransactionV1,
+    Address, GasPayment, Identifier, ObjectId, TransactionExpiration, TransactionV1, TypeTag,
 };
 use iota_types::{
     error::IotaError,

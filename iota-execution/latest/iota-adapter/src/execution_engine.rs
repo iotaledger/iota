@@ -19,11 +19,11 @@ mod checked {
     use iota_sdk_types::{
         AccountClaimKind, Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
         ChangeEpochV4, ClaimAccountTransaction, Command, EndOfEpochTransactionKind,
-        ExecutionStatus, GasPayment, GenesisTransaction, Identifier, MoveAuthenticator, ObjectId,
-        ProgrammableTransaction, RandomnessStateUpdate, SharedObjectReference,
-        SmartAccountBuildKind, StructTag, SystemPackage, TransactionDenyRulesUpdate,
-        TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
-        gas::GasCostSummary,
+        ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction, Identifier,
+        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        SharedObjectReference, SignatureScheme, SmartAccountBuildKind, StructTag, SystemPackage,
+        TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionKind,
+        TypeTag, Version,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -41,7 +41,6 @@ mod checked {
         base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
-        crypto::SignatureScheme,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
             ExecutionResults, ExecutionResultsV1, ExecutionTiming, ResultWithTimings, SharedInput,
@@ -1504,8 +1503,9 @@ mod checked {
                     protocol_config,
                     metrics,
                     trace_builder_opt,
-                )?;
-                Ok(Mode::empty_results())
+                )
+                .map_err(|e| (e, vec![]))?;
+                Ok((Mode::empty_results(), vec![]))
             }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
@@ -1968,7 +1968,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) {
-        let binary_config = to_binary_config(protocol_config);
+        let binary_config = to_binary_config(protocol_config, None);
         for SystemPackage {
             version,
             modules,
@@ -2101,6 +2101,9 @@ mod checked {
             SmartAccountBuildKind::Immutable => {
                 Identifier::from_static("claim_immutable_account_v1")
             }
+            _ => unimplemented!(
+                "a new SmartAccountBuildKind enum variant was added and needs to be handled"
+            ),
         };
 
         let pt = {
@@ -2109,7 +2112,7 @@ mod checked {
             // `signature_scheme::from_flag` and `public_key::create`.
             // `TransactionKind::validity_check` already applied the same
             // validation, so a failure at this point is a bug.
-            let Some(public_key) = SignatureScheme::from_flag_byte(&claim.public_key_scheme)
+            let Some(public_key) = SignatureScheme::from_byte(claim.public_key_scheme)
                 .ok()
                 .and_then(|scheme| {
                     MovePublicKey::new(scheme, claim.public_key_raw_bytes.clone()).ok()
@@ -2141,6 +2144,8 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+        .map_err(|(e, _)| e)?;
+        Ok(())
     }
 
     /// The function constructs a transaction that invokes

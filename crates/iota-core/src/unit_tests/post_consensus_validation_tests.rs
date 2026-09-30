@@ -139,6 +139,102 @@ async fn test_valid_user_transaction_passes() {
     );
 }
 
+/// Runs post-consensus validation on a transfer whose gas object is named one
+/// version below the range assigned to canceled transactions, checks that it is
+/// dropped, and returns the error it was dropped with.
+async fn drop_error_for_gas_version_below_canceled_range(
+    validate_input_object_versions: bool,
+) -> IotaError {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_validate_input_object_versions_for_testing(validate_input_object_versions);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = Address::random();
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let stored_gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+    let gas_ref = ObjectReference::new(
+        stored_gas_ref.object_id,
+        Version::MAX_VALID_EXCL - 1,
+        stored_gas_ref.digest,
+    );
+
+    let tx =
+        make_transfer_object_transaction(object_ref, gas_ref, sender, &sender_key, recipient, rgp);
+    let digest = *tx.digest();
+    let mut transactions = vec![make_user_tx_v1(tx)];
+
+    let (mut dropped, locks, user_tx_digests) =
+        post_consensus_validation::validate_and_resolve_conflicts(
+            &authority,
+            &epoch_store,
+            &mut transactions,
+        )
+        .await
+        .unwrap();
+
+    assert!(transactions.is_empty(), "The transaction should be dropped");
+    assert!(locks.is_empty(), "A dropped transaction acquires no locks");
+    assert_eq!(
+        user_tx_digests,
+        vec![digest],
+        "A dropped transaction still releases its pre-consensus lock"
+    );
+    assert_eq!(dropped.len(), 1);
+    let (dropped_digest, error) = dropped.pop().unwrap();
+    assert_eq!(dropped_digest, digest);
+
+    error
+}
+
+/// With the version bound on, the drop comes from the structural check and
+/// reads nothing but the transaction bytes, so it does not depend on what the
+/// local store holds.
+#[tokio::test]
+async fn test_gas_version_below_canceled_range_dropped_before_load() {
+    let error = drop_error_for_gas_version_below_canceled_range(true).await;
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::InvalidSequenceNumber
+            }
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
+/// With the version bound off, the same transaction is dropped only once the
+/// gas object fails to load at the named version.
+#[tokio::test]
+async fn test_gas_version_below_canceled_range_dropped_at_load_when_flag_disabled() {
+    let error = drop_error_for_gas_version_below_canceled_range(false).await;
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::ObjectNotFound { .. }
+            }
+        ),
+        "unexpected error: {error:?}"
+    );
+}
+
 /// Test that non-UserTransactionV1 transactions (e.g. EndOfPublish) pass
 /// through validation unchanged.
 #[sim_test]

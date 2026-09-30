@@ -56,7 +56,7 @@ impl NetworkKeyPair {
         Self(keypair)
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
+    pub fn generate<R: fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
         Self(ed25519::Ed25519KeyPair::generate(rng))
     }
 
@@ -109,7 +109,7 @@ impl ProtocolKeyPair {
         Self(keypair)
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
+    pub fn generate<R: fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
         Self(ed25519::Ed25519KeyPair::generate(rng))
     }
 
@@ -164,7 +164,7 @@ impl AuthorityKeyPair {
         Self(keypair)
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
+    pub fn generate<R: fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
         Self(bls12381::min_sig::BLS12381KeyPair::generate(rng))
     }
 

@@ -77,17 +77,17 @@ use iota_data_ingestion_core::{
     ShimProgressStore, Worker, WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
-use iota_sdk_types::{CheckpointDigest, checkpoint::EndOfEpochData};
+use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_types::{
     committee::Committee,
     messages_checkpoint::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, CheckpointSummaryExt,
-        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+        FullCheckpointContents, VerifiedCheckpoint,
     },
     storage::WriteStore,
 };
 use prometheus_filtered::Registry;
-use rand::Rng;
+use rand::RngExt;
 use tap::{Pipe, TapFallible, TapOptional};
 use tokio::{
     sync::{broadcast, mpsc, oneshot, watch},
@@ -401,8 +401,8 @@ impl Iterator for PeerBalancer {
 
     fn next(&mut self) -> Option<Self::Item> {
         while !self.peers.is_empty() {
-            let idx = rand::thread_rng()
-                .gen_range(0..std::cmp::min(PEER_BALANCER_SELECTION_WINDOW, self.peers.len()));
+            let idx = rand::rng()
+                .random_range(0..std::cmp::min(PEER_BALANCER_SELECTION_WINDOW, self.peers.len()));
 
             // Remove the selected peer
             let (peer, info) = self.peers.remove(idx).unwrap();
@@ -1873,12 +1873,11 @@ where
             .and_then(Response::into_inner)
             .tap_none(|| trace!("peer unable to help sync"))
         {
-            if contents.verify_digests(digest).is_ok() {
-                let verified_contents = VerifiedCheckpointContents::new_unchecked(contents.clone());
+            if let Ok(verified_contents) = contents.verify(digest) {
                 store
-                    .try_insert_checkpoint_contents(checkpoint, verified_contents)
+                    .try_insert_checkpoint_contents(checkpoint, verified_contents.clone())
                     .expect("store operation should not fail");
-                return Some(contents);
+                return Some(verified_contents.into_inner());
             }
         }
     }

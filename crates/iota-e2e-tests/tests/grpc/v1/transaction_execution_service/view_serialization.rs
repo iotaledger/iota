@@ -64,7 +64,7 @@ fn view_demo_package_path() -> PathBuf {
 /// land in a checkpoint, since the endpoint reads checkpoint-indexed state.
 async fn publish_view_demo(
     test_cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_grpc_client::GrpcClient,
 ) -> ObjectId {
     let sender = first_sender(test_cluster);
     let compiled_package = BuildConfig::new_for_testing()
@@ -93,7 +93,7 @@ async fn publish_view_demo(
     // back from the store.
     let mut package_id = None;
     for object in &effects.created() {
-        let object_id = object.reference.object_id;
+        let object_id = object.reference().object_id;
         let stored = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await

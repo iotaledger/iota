@@ -20,13 +20,13 @@ async fn wallet_context_get_grpc_client() {
         .get_grpc_client()
         .await
         .unwrap()
-        .get_service_info(ServiceInfoReadMask::default())
+        .service_info(ServiceInfoReadMask::default())
         .await
         .unwrap();
 
     assert!(
         info.body().chain_id.is_some(),
-        "get_service_info returned no chain id: {:?}",
+        "service_info returned no chain id: {:?}",
         info.body()
     );
 }

@@ -26,9 +26,9 @@ impl From<DeriveChangesError> for crate::error::RpcError {
 /// Convert a balance change into its proto form.
 pub fn balance_change_to_proto(change: BalanceChange) -> grpc_tx::BalanceChange {
     grpc_tx::BalanceChange::default()
-        .with_owner(change.owner)
-        .with_coin_type(&change.coin_type)
-        .with_amount(change.amount.to_be_bytes().to_vec())
+        .with_owner(*change.owner())
+        .with_coin_type(change.coin_type())
+        .with_amount(change.amount().to_be_bytes().to_vec())
 }
 
 /// A Move object's type is always a struct; the proto carries it as the more

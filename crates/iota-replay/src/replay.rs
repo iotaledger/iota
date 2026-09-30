@@ -37,7 +37,7 @@ use iota_types::{
     committee::EpochId,
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
-    execution::{DynamicallyLoadedObjectMetadata, SharedInput},
+    execution::SharedInput,
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,

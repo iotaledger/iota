@@ -8,9 +8,8 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, SharedObjectReference, Transaction,
-    checkpoint::{CheckpointContents, CheckpointSummary},
-    gas::GasCostSummary,
+    CheckpointContents, CheckpointSummary, GasCostSummary, Identifier, ObjectId,
+    SharedObjectReference, Transaction,
 };
 use iota_types::{
     base_types::ExecutionDigests,
@@ -27,7 +26,7 @@ use iota_types::{
 };
 use move_core_types::account_address::AccountAddress;
 use parking_lot::Mutex;
-use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 use starfish_core::{BlockRef, BlockStatus};
 use tokio::time::sleep;
 
@@ -405,7 +404,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
         let verified_checkpoint_summary = verified_checkpoint_summary.clone();
 
         async move {
-            let delay = Duration::from_millis(thread_rng().gen_range(0..1000));
+            let delay = Duration::from_millis(rand::rng().random_range(0..1000));
             sleep(delay).await;
             state
                 .checkpoint_store

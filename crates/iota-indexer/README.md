@@ -193,19 +193,22 @@ Options:
 It supports following backfill options:
 
 - `sql`: Executes a SQL statement directly against the database in chunks, filtering on a specified column (typically a sequence number). Conflict resolution is handled automatically with `ON CONFLICT DO NOTHING`.
-- `ingestion`: Fetches and buffers checkpoint data from a provided ingestion source, then slices the buffered checkpoint data into chunks to backfill the database. Supported ingestion sources:
-  - `--data-ingestion-path <DIR>`: Path to a directory containing checkpoint (`.chk`) files.
-  - `--remote-store-url <REMOTE_STORE_URL>`: Remote store URL to fetch checkpoint data from, e.g., `http://0.0.0.0:50051`.
+- `ingestion`: Fetches and buffers checkpoint data from a provided ingestion source, then slices the buffered checkpoint data into chunks to backfill the database. It needs a checkpoint source, at least one of:
+  - `--remote-store-url` pointing at a fullnode gRPC endpoint (e.g. `http://0.0.0.0:50051`).
+  - `--remote-store-url` pointing at a historical checkpoint store hosting batched checkpoint files (e.g. `https://checkpoints.mainnet.iota.cafe/ingestion/historical`).
+  - `--data-ingestion-path` pointing at a local directory containing checkpoint (`.chk`) files.
+
+  Optionally a live checkpoint store (`--live-checkpoints-store-url`) that serves the latest checkpoints not yet in the historical archive. Combine it with a historical `--remote-store-url` when the backfill range reaches the network tip.
 
 #### Backfill job: `tx-wrapped-or-deleted-objects`
 
 This job backfills the `tx_wrapped_or_deleted_objects` table, which indexes transactions that either wrapped or deleted given objects.
-Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode gRPC API URL used to fetch checkpoint data.
+Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode gRPC URL or historical checkpoint store URL used to fetch checkpoint data.
 
 #### Backfill job: `object-changes-unwrapped`
 
 This job backfills the information about unwrapped objects to the `transactions` table.
-Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode REST API URL used to fetch checkpoint data.
+Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode gRPC URL or historical checkpoint store URL used to fetch checkpoint data.
 
 ```sh
 cargo run --bin iota-indexer -- --database-url <DATABASE_URL> run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects --remote-store-url <REMOTE_STORE_URL>

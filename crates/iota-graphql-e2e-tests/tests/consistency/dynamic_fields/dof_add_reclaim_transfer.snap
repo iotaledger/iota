@@ -60,7 +60,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAQAAAAAAAAA=",
+            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAwAAAAAAAAABAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -96,7 +96,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAQAAAAAAAAA=",
+            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAwAAAAAAAAABAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="
@@ -132,7 +132,7 @@ Response: {
       "dynamicFields": {
         "edges": [
           {
-            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAQAAAAAAAAA=",
+            "cursor": "IMpvIL9ggW4aSwO6KfzZSHN5JlxYk5eaN0MF7y0VOZufAwAAAAAAAAABAAAAAAAAAA==",
             "node": {
               "name": {
                 "bcs": "KgAAAAAAAAA="

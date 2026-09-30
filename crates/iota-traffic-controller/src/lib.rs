@@ -17,9 +17,10 @@ use std::{
     fmt::Debug,
     fs,
     net::{IpAddr, SocketAddr},
+    str,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant, SystemTime},
 };
@@ -59,6 +60,31 @@ type Blocklist = Arc<DashMap<IpAddr, SystemTime>>;
 struct Blocklists {
     clients: Blocklist,
     proxied_clients: Blocklist,
+}
+
+/// The blocklist TTLs in force, which the admin API can change at runtime.
+struct BlocklistTtls {
+    connection_blocklist_ttl_sec: AtomicU64,
+    proxy_blocklist_ttl_sec: AtomicU64,
+}
+
+impl BlocklistTtls {
+    fn from_config(policy_config: &PolicyConfig) -> Self {
+        Self {
+            connection_blocklist_ttl_sec: AtomicU64::new(
+                policy_config.connection_blocklist_ttl_sec,
+            ),
+            proxy_blocklist_ttl_sec: AtomicU64::new(policy_config.proxy_blocklist_ttl_sec),
+        }
+    }
+
+    fn connection_blocklist_ttl_sec(&self) -> u64 {
+        self.connection_blocklist_ttl_sec.load(Ordering::Relaxed)
+    }
+
+    fn proxy_blocklist_ttl_sec(&self) -> u64 {
+        self.proxy_blocklist_ttl_sec.load(Ordering::Relaxed)
+    }
 }
 
 #[derive(Clone)]
@@ -119,6 +145,8 @@ pub struct TrafficController {
     metrics: Arc<TrafficControllerMetrics>,
     // Read on the request path in `check` and toggled by the admin API.
     dry_run: Arc<AtomicBool>,
+    // Read whenever a block is applied and changed by the admin API.
+    blocklist_ttls: Arc<BlocklistTtls>,
 }
 
 impl Debug for TrafficController {
@@ -149,6 +177,13 @@ impl TrafficController {
     ) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
         let dry_run = Arc::new(AtomicBool::new(policy_config.dry_run));
+        metrics
+            .connection_blocklist_ttl_sec
+            .set(policy_config.connection_blocklist_ttl_sec as i64);
+        metrics
+            .proxy_blocklist_ttl_sec
+            .set(policy_config.proxy_blocklist_ttl_sec as i64);
+        let blocklist_ttls = Arc::new(BlocklistTtls::from_config(&policy_config));
 
         let acl = match &policy_config.allow_list {
             Some(allow_list) => Acl::Allowlist(parse_allowlist(allow_list)),
@@ -163,6 +198,7 @@ impl TrafficController {
             policy_config: Arc::new(policy_config),
             metrics,
             dry_run,
+            blocklist_ttls,
         }
     }
 
@@ -193,6 +229,8 @@ impl TrafficController {
                 .tally_state()
                 .and_then(|state| state.spam_policy.client_threshold()),
             dry_run: Some(self.dry_run.load(Ordering::Relaxed)),
+            connection_blocklist_ttl_sec: Some(self.blocklist_ttls.connection_blocklist_ttl_sec()),
+            proxy_blocklist_ttl_sec: Some(self.blocklist_ttls.proxy_blocklist_ttl_sec()),
         }
     }
 
@@ -206,6 +244,8 @@ impl TrafficController {
             error_threshold,
             spam_threshold,
             dry_run,
+            connection_blocklist_ttl_sec,
+            proxy_blocklist_ttl_sec,
         } = params;
         let updates = [
             (
@@ -236,6 +276,24 @@ impl TrafficController {
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
             self.dry_run.store(dry_run, Ordering::Relaxed);
+        }
+        let ttls = [
+            (
+                connection_blocklist_ttl_sec,
+                &self.blocklist_ttls.connection_blocklist_ttl_sec,
+                &self.metrics.connection_blocklist_ttl_sec,
+            ),
+            (
+                proxy_blocklist_ttl_sec,
+                &self.blocklist_ttls.proxy_blocklist_ttl_sec,
+                &self.metrics.proxy_blocklist_ttl_sec,
+            ),
+        ];
+        for (ttl_sec, live_ttl_sec, gauge) in ttls {
+            if let Some(ttl_sec) = ttl_sec {
+                live_ttl_sec.store(ttl_sec, Ordering::Relaxed);
+                gauge.set(ttl_sec as i64);
+            }
         }
 
         Ok(self.get_current_state())
@@ -290,7 +348,7 @@ impl TrafficController {
             Some(delegation) => self.delegate_policy_response(&response, state, delegation),
             None => block_locally(
                 &response,
-                &self.policy_config,
+                &self.blocklist_ttls,
                 &state.blocklists,
                 &self.metrics,
             ),
@@ -304,7 +362,7 @@ impl TrafficController {
         delegation: &FirewallDelegation,
     ) {
         let blocks: Vec<_> =
-            block_addresses(response, &self.policy_config, delegation.destination_port)
+            block_addresses(response, &self.blocklist_ttls, delegation.destination_port)
                 .into_iter()
                 .filter(|block| delegation.pending.lock().insert(block.client))
                 .collect();
@@ -329,18 +387,23 @@ impl TrafficController {
         );
         block_locally(
             response,
-            &self.policy_config,
+            &self.blocklist_ttls,
             &state.blocklists,
             &self.metrics,
         );
     }
 
-    /// Handle check with dry-run mode considered
+    /// Handle check with dry-run mode considered. A request whose client IP the
+    /// node could not resolve is refused in allowlist mode, and admitted in the
+    /// rate-limiting modes, where it is charged to no client.
     pub fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
         let dry_run = self.dry_run.load(Ordering::Relaxed);
+        if client.is_none() {
+            self.metrics.unresolved_client_requests.inc();
+        }
         let allowed = match &self.acl {
             Acl::Allowlist(allowlist) => {
-                client.is_none_or(|client| allowlist.binary_search(&client).is_ok())
+                client.is_some_and(|client| allowlist.binary_search(&client).is_ok())
             }
             Acl::Tally(state) => check_blocklists(&state.blocklists, client, proxied_client),
         };
@@ -522,22 +585,19 @@ fn blocked(client: &Option<IpAddr>, blocklist: &Blocklist) -> bool {
 
 /// The client to block and the TTL of that block, for the direct and the
 /// proxied client in that order.
-fn blocks(response: &PolicyResponse, policy_config: &PolicyConfig) -> [(Option<IpAddr>, u64); 2] {
+fn blocks(response: &PolicyResponse, ttls: &BlocklistTtls) -> [(Option<IpAddr>, u64); 2] {
     [
-        (
-            response.block_client,
-            policy_config.connection_blocklist_ttl_sec,
-        ),
+        (response.block_client, ttls.connection_blocklist_ttl_sec()),
         (
             response.block_proxied_client,
-            policy_config.proxy_blocklist_ttl_sec,
+            ttls.proxy_blocklist_ttl_sec(),
         ),
     ]
 }
 
 fn block_locally(
     response: &PolicyResponse,
-    policy_config: &PolicyConfig,
+    ttls: &BlocklistTtls,
     blocklists: &Blocklists,
     metrics: &TrafficControllerMetrics,
 ) {
@@ -546,7 +606,7 @@ fn block_locally(
         (&blocklists.proxied_clients, &metrics.proxy_ip_blocklist_len),
     ];
     for ((client, ttl_secs), (blocklist, len_gauge)) in
-        blocks(response, policy_config).into_iter().zip(targets)
+        blocks(response, ttls).into_iter().zip(targets)
     {
         let Some(client) = client else { continue };
         insert_block(blocklist, len_gauge, client, ttl_secs);
@@ -567,10 +627,10 @@ fn insert_block(blocklist: &Blocklist, len_gauge: &IntGauge, client: IpAddr, ttl
 
 fn block_addresses(
     response: &PolicyResponse,
-    policy_config: &PolicyConfig,
+    ttls: &BlocklistTtls,
     destination_port: u16,
 ) -> Vec<DelegatedBlock> {
-    blocks(response, policy_config)
+    blocks(response, ttls)
         .into_iter()
         .zip([false, true])
         .filter_map(|((client, ttl), proxied)| {
@@ -729,19 +789,86 @@ pub enum ClientIpStatus {
     SocketAddrMissing,
     /// `XForwardedFor` source but no `x-forwarded-for` header on the request.
     XForwardedForHeaderMissing,
-    /// `XForwardedFor` source but the header value was not valid UTF-8.
+    /// `XForwardedFor` source but the entry this node selects was not valid
+    /// UTF-8. Bytes in the rest of the header do not reach this case.
     XForwardedForInvalidUtf8,
     /// `XForwardedFor` configured with `num_hops == 0` (operator misconfig).
-    XForwardedForZeroHops,
+    /// Carries the header entries, which the operator counts to get the hop
+    /// count.
+    XForwardedForZeroHops {
+        entries: Vec<String>,
+    },
     /// `XForwardedFor` configured with `expected` hops but the header
     /// only had `actual` entries.
     XForwardedForConfigMismatch {
         expected: usize,
         actual: usize,
     },
-    /// `XForwardedFor` header was present and well-formed but the chosen hop
-    /// position did not parse as an IP address.
+    /// `XForwardedFor` source but the entry this node selects did not parse as
+    /// an IP address. Entries the node does not select do not reach this case.
     XForwardedForUnparsable,
+}
+
+/// Reports what the node read, in the words an operator needs to act on it.
+/// The three servers share this text, and the hop-count procedure in the
+/// operator guide reads the entries out of the zero-hop line.
+impl std::fmt::Display for ClientIpStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ok(client) => write!(f, "The client IP is {client}."),
+            Self::SocketAddrMissing => write!(
+                f,
+                "The request carries no peer address. Check the transport, or use the \
+                `x-forwarded-for` client-id-source if a proxy serves this node."
+            ),
+            Self::XForwardedForHeaderMissing => write!(
+                f,
+                "The request carries no x-forwarded-for header, although this node reads the \
+                client IP from that header. The request reached the node without its proxy."
+            ),
+            Self::XForwardedForInvalidUtf8 => write!(
+                f,
+                "The x-forwarded-for entry this node selects is not valid UTF-8."
+            ),
+            Self::XForwardedForZeroHops { entries } => write!(
+                f,
+                "x-forwarded-for: 0 specified. x-forwarded-for contents: {entries:?}. Please \
+                assign a nonzero number of hops, or use the `socket-addr` client-id-source if \
+                requests do not reach this node through a proxy. Until then the node reads no \
+                client IP."
+            ),
+            Self::XForwardedForConfigMismatch { expected, actual } => write!(
+                f,
+                "The x-forwarded-for header holds {actual} entries, but {expected} hops are \
+                configured. Please set the `x-forwarded-for` value under `client-id-source` to \
+                the number of proxies in front of this node."
+            ),
+            Self::XForwardedForUnparsable => write!(
+                f,
+                "The x-forwarded-for entry this node selects is not an IP address."
+            ),
+        }
+    }
+}
+
+/// The entries of the `x-forwarded-for` header, over every field of it and in
+/// order. Empty when the request carries no such header.
+fn forwarded_entries(headers: &http::HeaderMap) -> Vec<&[u8]> {
+    headers
+        .get_all("x-forwarded-for")
+        .iter()
+        .flat_map(|field| field.as_bytes().split(|byte| *byte == b','))
+        .map(|entry| entry.trim_ascii())
+        .collect()
+}
+
+/// How many proxies the `x-forwarded-for` header of a request reports, or
+/// `None` when it carries no such header. Reported whatever the client-id
+/// source is, so that an operator can tell a misconfigured proxy from a
+/// correct one.
+pub fn forwarded_hop_depth(headers: &http::HeaderMap) -> Option<usize> {
+    let entries = forwarded_entries(headers);
+    (!entries.is_empty()).then(|| entries.len().saturating_sub(1))
 }
 
 /// Resolve the client IP for an incoming request.
@@ -756,28 +883,31 @@ pub fn get_client_ip(
             None => ClientIpStatus::SocketAddrMissing,
         },
         ClientIdSource::XForwardedFor(num_hops) => {
-            let header = match headers
-                .get("x-forwarded-for")
-                .or_else(|| headers.get("X-Forwarded-For"))
-            {
-                Some(h) => h,
-                None => return ClientIpStatus::XForwardedForHeaderMissing,
-            };
-            let value = match header.to_str() {
-                Ok(v) => v,
-                Err(_) => return ClientIpStatus::XForwardedForInvalidUtf8,
-            };
-            if *num_hops == 0 {
-                return ClientIpStatus::XForwardedForZeroHops;
+            // A proxy either appends to the value the client sent or adds a
+            // field of its own, so a client could otherwise hide the entry its
+            // proxy wrote.
+            let raw_entries = forwarded_entries(headers);
+            if raw_entries.is_empty() {
+                return ClientIpStatus::XForwardedForHeaderMissing;
             }
-            let contents: Vec<&str> = value.split(',').map(str::trim).collect();
-            if contents.len() < *num_hops {
-                return ClientIpStatus::XForwardedForConfigMismatch {
-                    expected: *num_hops,
-                    actual: contents.len(),
+            if *num_hops == 0 {
+                return ClientIpStatus::XForwardedForZeroHops {
+                    entries: raw_entries
+                        .iter()
+                        .map(|entry| String::from_utf8_lossy(entry).into_owned())
+                        .collect(),
                 };
             }
-            match parse_ip(contents[contents.len() - num_hops]) {
+            if raw_entries.len() < *num_hops {
+                return ClientIpStatus::XForwardedForConfigMismatch {
+                    expected: *num_hops,
+                    actual: raw_entries.len(),
+                };
+            }
+            let Ok(entry) = str::from_utf8(raw_entries[raw_entries.len() - num_hops]) else {
+                return ClientIpStatus::XForwardedForInvalidUtf8;
+            };
+            match parse_ip(entry) {
                 Some(ip) => ClientIpStatus::Ok(ip),
                 None => ClientIpStatus::XForwardedForUnparsable,
             }
@@ -790,7 +920,7 @@ mod tests {
     use std::{net::Ipv4Addr, path::PathBuf};
 
     use iota_macros::sim_test;
-    use iota_types::traffic_control::{FreqThresholdConfig, Weight};
+    use iota_types::traffic_control::{FreqThresholdConfig, Weight, default_blocklist_ttl_sec};
 
     use super::*;
 
@@ -919,6 +1049,8 @@ mod tests {
                 error_threshold: None,
                 spam_threshold: None,
                 dry_run: Some(false),
+                connection_blocklist_ttl_sec: None,
+                proxy_blocklist_ttl_sec: None,
             })
             .expect("the request changes only the dry-run flag");
 
@@ -931,6 +1063,39 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         panic!("the node delegated no block after the admin API turned dry run off");
+    }
+
+    #[tokio::test]
+    async fn test_the_admin_api_changes_the_blocklist_ttl() {
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                spam_policy_type: PolicyType::TestNConnIP(1),
+                spam_sample_rate: Weight::one(),
+                connection_blocklist_ttl_sec: 0,
+                dry_run: false,
+                ..Default::default()
+            },
+            None,
+        );
+
+        // A TTL of zero expires the block at once, thus the client gets through.
+        controller.tally(breach(PolicyKind::Spam));
+        assert!(controller.check(&Some(CLIENT), &None));
+
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: None,
+                connection_blocklist_ttl_sec: Some(120),
+                proxy_blocklist_ttl_sec: None,
+            })
+            .expect("the request changes only the connection blocklist TTL");
+
+        // The next block must take the new TTL, not the TTL at startup.
+        controller.tally(breach(PolicyKind::Spam));
+        assert!(!controller.check(&Some(CLIENT), &None));
+        assert_eq!(controller.metrics.connection_blocklist_ttl_sec.get(), 120);
     }
 
     #[tokio::test]
@@ -1034,6 +1199,104 @@ mod tests {
         );
     }
 
+    /// The tallies the shipped default policy tolerates from one client before
+    /// its error policy blocks that client.
+    fn default_policy_error_budget() -> u64 {
+        let PolicyType::FreqThreshold(config) =
+            PolicyConfig::default_dos_protection_policy().error_policy_type
+        else {
+            panic!("the default policy rate limits errors");
+        };
+        config.client_threshold * config.burst_secs
+    }
+
+    #[tokio::test]
+    async fn test_the_default_policy_blocks_a_breaching_client_without_dry_run() {
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                dry_run: false,
+                ..PolicyConfig::default_dos_protection_policy()
+            },
+            None,
+        );
+        let budget = default_policy_error_budget();
+
+        // Within its budget the client is never blocked.
+        for _ in 0..budget {
+            controller.tally(breach(PolicyKind::Error));
+        }
+        assert!(controller.check(&Some(CLIENT), &None));
+
+        // Over the budget the shipped blocklist TTL keeps the block in place,
+        // thus a later check rejects the client. The bound leaves room for the
+        // cells the limiter replenishes while the test runs.
+        for _ in 0..budget {
+            controller.tally(breach(PolicyKind::Error));
+            if !controller.check(&Some(CLIENT), &None) {
+                return;
+            }
+        }
+        panic!(
+            "the default policy blocked no client after {} error tallies",
+            2 * budget
+        );
+    }
+
+    /// Polls `condition` for one second, naming it if it never holds.
+    async fn wait_until(condition_name: &str, mut condition: impl FnMut() -> bool) {
+        for _ in 0..100 {
+            if condition() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("{condition_name} in one second");
+    }
+
+    /// Tallies one breaching request and waits for the local block that the
+    /// failed delegation to the closed firewall port falls back to.
+    async fn wait_for_local_block_after_failed_delegation(kind: PolicyKind) {
+        let (_tmp_dir, controller) = delegating_controller(false, kind);
+        controller.tally(breach(kind));
+        wait_until("the node blocked no client", || {
+            !controller.check(&Some(CLIENT), &None)
+        })
+        .await;
+
+        // The firewall took no block, thus the node keeps the client out itself.
+        assert_eq!(controller.metrics.firewall_delegation_request_fail.get(), 1);
+        assert_eq!(controller.metrics.connection_ip_blocklist_len.get(), 1);
+        assert!(!controller.check(&Some(CLIENT), &None));
+    }
+
+    #[tokio::test]
+    async fn test_a_failed_spam_delegation_blocks_locally() {
+        wait_for_local_block_after_failed_delegation(PolicyKind::Spam).await;
+    }
+
+    #[tokio::test]
+    async fn test_a_failed_error_delegation_blocks_locally() {
+        wait_for_local_block_after_failed_delegation(PolicyKind::Error).await;
+    }
+
+    #[tokio::test]
+    async fn test_a_failed_delegation_releases_the_pending_client() {
+        let (_tmp_dir, controller) = delegating_controller(false, PolicyKind::Spam);
+        controller.tally(breach(PolicyKind::Spam));
+        wait_until("the first delegation did not fail", || {
+            controller.metrics.firewall_delegation_request_fail.get() >= 1
+        })
+        .await;
+
+        // A client left pending after a failed delegation would never reach the
+        // firewall again, however many times it breaches the policy.
+        wait_until("the node delegated no second block", || {
+            controller.tally(breach(PolicyKind::Spam));
+            controller.metrics.blocks_delegated_to_firewall.get() >= 2
+        })
+        .await;
+    }
+
     fn freq_threshold(client_threshold: u64) -> PolicyType {
         PolicyType::FreqThreshold(FreqThresholdConfig {
             client_threshold,
@@ -1053,12 +1316,15 @@ mod tests {
             },
             None,
         );
-        // The spam threshold is too large. The error threshold and the dry-run
-        // flag are valid, but the controller must apply neither of them.
+        // The spam threshold is too large. The error threshold, the dry-run
+        // flag and the TTLs are valid, but the controller must apply none of
+        // them.
         let result = controller.admin_reconfigure(TrafficControlReconfigParams {
             error_threshold: Some(10),
             spam_threshold: Some(MAX_CLIENT_THRESHOLD + 1),
             dry_run: Some(true),
+            connection_blocklist_ttl_sec: Some(5),
+            proxy_blocklist_ttl_sec: Some(5),
         });
 
         assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
@@ -1066,6 +1332,14 @@ mod tests {
         assert_eq!(state.error_threshold, Some(50));
         assert_eq!(state.spam_threshold, Some(100));
         assert_eq!(state.dry_run, Some(false));
+        assert_eq!(
+            state.connection_blocklist_ttl_sec,
+            Some(default_blocklist_ttl_sec())
+        );
+        assert_eq!(
+            state.proxy_blocklist_ttl_sec,
+            Some(default_blocklist_ttl_sec())
+        );
     }
 
     fn controller_with_delegation_queue(
@@ -1108,6 +1382,7 @@ mod tests {
         };
         let controller = TrafficController {
             acl: Acl::Tally(Arc::new(state)),
+            blocklist_ttls: Arc::new(BlocklistTtls::from_config(&policy_config)),
             policy_config: Arc::new(policy_config),
             metrics,
             dry_run: Arc::new(AtomicBool::new(false)),
@@ -1151,6 +1426,174 @@ mod tests {
         // The second client is no longer pending. A new breach queues a block.
         spam(&controller, overflow);
         assert_eq!(controller.metrics.firewall_delegation_overflow.get(), 2);
+    }
+
+    /// The headers of a request carrying `value` as its `x-forwarded-for`
+    /// header.
+    fn forwarded(value: &[u8]) -> http::HeaderMap {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            http::HeaderValue::from_bytes(value).expect("a valid header value"),
+        );
+        headers
+    }
+
+    fn one_hop() -> ClientIdSource {
+        ClientIdSource::XForwardedFor(1)
+    }
+
+    #[test]
+    fn a_byte_the_client_sent_does_not_hide_the_entry_the_proxy_wrote() {
+        // The client sent a byte that is not readable as text, and the proxy
+        // appended its own entry after it.
+        let headers = forwarded(b"\x80, 10.0.0.1");
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::Ok(client) if client == CLIENT
+        ));
+    }
+
+    #[test]
+    fn the_hop_depth_survives_a_byte_the_client_sent() {
+        assert_eq!(forwarded_hop_depth(&forwarded(b"\x80, 10.0.0.1")), Some(1));
+        assert_eq!(forwarded_hop_depth(&forwarded(b"10.0.0.1")), Some(0));
+        assert_eq!(forwarded_hop_depth(&http::HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn a_second_header_field_does_not_hide_the_entry_the_proxy_wrote() {
+        // A proxy that adds a field of its own rather than appending to the
+        // client's leaves the client's field first.
+        let mut headers = forwarded(b"10.0.0.9");
+        headers.append(
+            "x-forwarded-for",
+            http::HeaderValue::from_bytes(b"10.0.0.1").expect("a valid header value"),
+        );
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::Ok(client) if client == CLIENT
+        ));
+    }
+
+    #[test]
+    fn a_client_cannot_move_the_selected_entry_by_adding_its_own() {
+        let headers = forwarded(b"1.2.3.4, 5.6.7.8, 10.0.0.1");
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::Ok(client) if client == CLIENT
+        ));
+    }
+
+    #[test]
+    fn an_unreadable_selected_entry_resolves_no_client() {
+        let headers = forwarded(b"10.0.0.1, \x80");
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::XForwardedForInvalidUtf8
+        ));
+    }
+
+    #[test]
+    fn a_selected_entry_that_is_not_an_address_resolves_no_client() {
+        let headers = forwarded(b"10.0.0.1, not-an-address");
+        assert!(matches!(
+            get_client_ip(&headers, None, &one_hop()),
+            ClientIpStatus::XForwardedForUnparsable
+        ));
+    }
+
+    #[test]
+    fn the_first_entry_is_selected_when_the_hop_count_equals_the_entry_count() {
+        let headers = forwarded(b"10.0.0.1, 5.6.7.8");
+        assert!(matches!(
+            get_client_ip(&headers, None, &ClientIdSource::XForwardedFor(2)),
+            ClientIpStatus::Ok(client) if client == CLIENT
+        ));
+    }
+
+    #[test]
+    fn a_header_shorter_than_the_hop_count_reports_the_mismatch() {
+        let headers = forwarded(b"1.2.3.4, 10.0.0.1");
+        assert!(matches!(
+            get_client_ip(&headers, None, &ClientIdSource::XForwardedFor(3)),
+            ClientIpStatus::XForwardedForConfigMismatch {
+                expected: 3,
+                actual: 2
+            }
+        ));
+    }
+
+    #[test]
+    fn zero_hops_reports_the_header_entries() {
+        let headers = forwarded(b"1.2.3.4, 10.0.0.1");
+        let ClientIpStatus::XForwardedForZeroHops { entries } =
+            get_client_ip(&headers, None, &ClientIdSource::XForwardedFor(0))
+        else {
+            panic!("zero hops names no client");
+        };
+        // The operator counts the entries after their own address to get the
+        // hop count, so every entry has to be reported, in order.
+        assert_eq!(entries, vec!["1.2.3.4", "10.0.0.1"]);
+    }
+
+    #[test]
+    fn the_zero_hop_message_is_the_one_the_operator_script_reads() {
+        let headers = forwarded(b"1.2.3.4, 10.0.0.1");
+        let status = get_client_ip(&headers, None, &ClientIdSource::XForwardedFor(0));
+        // The same pattern `setups/validator/config-traffic-control.sh` greps
+        // for. The script counts the entries after the operator's own address,
+        // so it needs them in order and inside one pair of brackets.
+        let message = status.to_string();
+        let start = message
+            .find("x-forwarded-for contents: [")
+            .expect("the script looks for this prefix");
+        let entries = message[start..]
+            .split_once("].")
+            .expect("the script looks for a closing bracket and a period")
+            .0;
+        assert!(entries.ends_with(r#"["1.2.3.4", "10.0.0.1""#), "{message}");
+    }
+
+    #[test]
+    fn an_allowlist_refuses_a_request_with_an_unresolved_client_ip() {
+        let allow_list = Some(vec![CLIENT.to_string()]);
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                allow_list: allow_list.clone(),
+                dry_run: false,
+                ..Default::default()
+            },
+            None,
+        );
+        assert!(!controller.check(&None, &None));
+        assert_eq!(controller.metrics.requests_blocked_at_protocol.get(), 1);
+        assert_eq!(controller.metrics.unresolved_client_requests.get(), 1);
+
+        // Dry run reports the refusal without applying it.
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                allow_list,
+                dry_run: true,
+                ..Default::default()
+            },
+            None,
+        );
+        assert!(controller.check(&None, &None));
+        assert_eq!(controller.metrics.num_dry_run_blocked_requests.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn rate_limiting_admits_a_request_with_an_unresolved_client_ip() {
+        let controller =
+            TrafficController::init_for_test(policy_config(false, PolicyKind::Spam), None);
+        // The policy blocks every client it is charged, and a request with no
+        // resolved client IP is charged to none of them.
+        controller.tally(breach(PolicyKind::Spam));
+        assert!(!controller.check(&Some(CLIENT), &None));
+        assert!(controller.check(&None, &None));
+        // Only the request with no resolved client IP is counted.
+        assert_eq!(controller.metrics.unresolved_client_requests.get(), 1);
     }
 
     #[test]

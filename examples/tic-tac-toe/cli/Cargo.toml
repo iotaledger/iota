@@ -19,9 +19,11 @@ time = "=0.3.47"
 tokio = { version = "1.49.0", features = ["time"] }
 
 # internal dependencies
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "cd3f503c6cfa668901b36c4a90032a64d72c94da" }
 iota-keys = { path = "../../../crates/iota-keys" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "8ae07b2897331e313b4231cafe1add6327511fa1" }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "cd3f503c6cfa668901b36c4a90032a64d72c94da", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "cd3f503c6cfa668901b36c4a90032a64d72c94da" }
 iota-types = { path = "../../../crates/iota-types" }
 
 [package.metadata.cargo-machete]

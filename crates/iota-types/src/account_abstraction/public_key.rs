@@ -6,14 +6,14 @@ use fastcrypto::{
     ed25519::Ed25519PublicKey, secp256k1::Secp256k1PublicKey, secp256r1::Secp256r1PublicKey,
     traits::ToFromBytes,
 };
-use iota_sdk_types::{Address, Identifier, StructTag, crypto::PublicKey as SdkPublicKey};
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_types::{
+    Address, Identifier, SignatureScheme, StructTag,
+    crypto::{MultisigCommittee, PublicKey as SdkPublicKey},
+};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    account_abstraction::signature_scheme::MoveSignatureScheme,
-    crypto::{IotaKeyPair, PublicKey, SignatureScheme},
-    multisig::MultiSigPublicKey,
-};
+use crate::{account_abstraction::signature_scheme::MoveSignatureScheme, crypto::PublicKey};
 
 pub const PUBLIC_KEY_MODULE_NAME: Identifier = Identifier::from_static("public_key");
 pub const PUBLIC_KEY_STRUCT_NAME: Identifier = Identifier::from_static("PublicKey");
@@ -36,7 +36,7 @@ pub struct MovePublicKey {
     scheme: MoveSignatureScheme,
     /// Raw key material without the scheme flag prefix.
     ///
-    /// For `MultiSig` keys `raw_bytes` is BCS-decoded as a `MultiSigPublicKey`.
+    /// For `MultiSig` keys `raw_bytes` is BCS-decoded as a `MultisigCommittee`.
     /// For all other schemes `raw_bytes` is the raw public key bytes.
     raw_bytes: Vec<u8>,
 }
@@ -53,17 +53,17 @@ impl MovePublicKey {
         // Rejects the schemes that are not valid for account public keys, as
         // the Move function's `EUnknownPublicKeyScheme` branch does.
         let move_scheme: MoveSignatureScheme = scheme.try_into()?;
-        if scheme == SignatureScheme::MultiSig {
+        if scheme == SignatureScheme::Multisig {
             // Mirrors the `iota::multisig::multisig_validate_pubkey` native: a
             // canonical BCS decode (which rejects trailing bytes and
             // unsupported member schemes), then committee validation, then each
             // member key against its curve. Committee validation alone does not
             // check curve points.
-            let committee = bcs::from_bytes::<MultiSigPublicKey>(&raw_bytes)
-                .map_err(|e| eyre!("Invalid MultiSigPublicKey: {e}"))?;
+            let committee = bcs::from_bytes::<MultisigCommittee>(&raw_bytes)
+                .map_err(|e| eyre!("Invalid MultisigCommittee: {e}"))?;
             committee
                 .validate()
-                .map_err(|e| eyre!("Invalid MultiSigPublicKey: {e}"))?;
+                .map_err(|e| eyre!("Invalid MultisigCommittee: {e}"))?;
             for member in committee.members() {
                 if !member_public_key_is_on_curve(member.public_key()) {
                     return Err(eyre!("Invalid MultiSig member public key"));
@@ -96,10 +96,10 @@ impl MovePublicKey {
     /// Derives the `Address` for this public key.
     pub fn address(&self) -> Result<Address, eyre::Report> {
         let scheme = self.scheme();
-        if scheme == SignatureScheme::MultiSig {
-            let multisig_public_key = bcs::from_bytes::<MultiSigPublicKey>(&self.raw_bytes)
-                .map_err(|e| eyre!("Invalid MultiSigPublicKey bytes: {e}"))?;
-            Ok(Address::from(&multisig_public_key))
+        if scheme == SignatureScheme::Multisig {
+            let multisig_public_key = bcs::from_bytes::<MultisigCommittee>(&self.raw_bytes)
+                .map_err(|e| eyre!("Invalid MultisigCommittee bytes: {e}"))?;
+            Ok(multisig_public_key.derive_address())
         } else {
             let public_key = PublicKey::try_from_bytes(scheme, &self.raw_bytes)
                 .map_err(|e| eyre!("Invalid public key bytes: {e}"))?;
@@ -108,11 +108,11 @@ impl MovePublicKey {
     }
 }
 
-impl From<&IotaKeyPair> for MovePublicKey {
-    fn from(key_pair: &IotaKeyPair) -> Self {
-        let public_key = key_pair.public();
+impl From<&SimpleKeypair> for MovePublicKey {
+    fn from(key_pair: &SimpleKeypair) -> Self {
+        let public_key = key_pair.public_key();
         Self::new(public_key.scheme(), public_key.as_ref().to_vec())
-            .expect("IotaKeyPair always yields valid MovePublicKey")
+            .expect("SimpleKeypair always yields valid MovePublicKey")
     }
 }
 
@@ -125,10 +125,10 @@ impl From<&IotaKeyPair> for MovePublicKey {
 /// the on-chain check and [`MovePublicKey::new`] cannot disagree.
 pub fn member_public_key_is_on_curve(public_key: &SdkPublicKey) -> bool {
     match public_key {
-        SdkPublicKey::Ed25519(pk) => Ed25519PublicKey::from_bytes(pk.inner()).is_ok(),
-        SdkPublicKey::Secp256k1(pk) => Secp256k1PublicKey::from_bytes(pk.inner()).is_ok(),
-        SdkPublicKey::Secp256r1(pk) => Secp256r1PublicKey::from_bytes(pk.inner()).is_ok(),
-        SdkPublicKey::Passkey(pk) => Secp256r1PublicKey::from_bytes(pk.inner().inner()).is_ok(),
+        SdkPublicKey::Ed25519(pk) => Ed25519PublicKey::from_bytes(pk.as_ref()).is_ok(),
+        SdkPublicKey::Secp256k1(pk) => Secp256k1PublicKey::from_bytes(pk.as_ref()).is_ok(),
+        SdkPublicKey::Secp256r1(pk) => Secp256r1PublicKey::from_bytes(pk.as_ref()).is_ok(),
+        SdkPublicKey::Passkey(pk) => Secp256r1PublicKey::from_bytes(pk.as_ref()).is_ok(),
         _ => false,
     }
 }

@@ -1099,33 +1099,9 @@ transfer
 transfer_multiple
 	fun
 	0x3::timelocked_staking
-secp256k1_ecrecover
-	public fun
-	0x2::ecdsa_k1
-decompress_pubkey
-	public fun
-	0x2::ecdsa_k1
-secp256k1_verify
-	public fun
-	0x2::ecdsa_k1
-secp256r1_ecrecover
-	public fun
-	0x2::ecdsa_r1
-secp256r1_verify
-	public fun
-	0x2::ecdsa_r1
 ecvrf_verify
 	public fun
 	0x2::ecvrf
-ed25519_verify
-	public fun
-	0x2::ed25519
-is_feature_enabled
-	public(package) fun
-	0x2::protocol_config
-get_attr
-	public(package) fun
-	0x2::protocol_config
 hash_to_input
 	public fun
 	0x2::vdf
@@ -2467,6 +2443,36 @@ from_flag
 flag
 	public fun
 	0x2::signature_scheme
+multisig_validate_pubkey
+	public fun
+	0x2::multisig
+ed25519_validate_pubkey
+	public fun
+	0x2::ed25519
+ed25519_verify
+	public fun
+	0x2::ed25519
+secp256r1_ecrecover
+	public fun
+	0x2::ecdsa_r1
+secp256r1_validate_pubkey
+	public fun
+	0x2::ecdsa_r1
+secp256r1_verify
+	public fun
+	0x2::ecdsa_r1
+secp256k1_ecrecover
+	public fun
+	0x2::ecdsa_k1
+secp256k1_validate_pubkey
+	public fun
+	0x2::ecdsa_k1
+decompress_pubkey
+	public fun
+	0x2::ecdsa_k1
+secp256k1_verify
+	public fun
+	0x2::ecdsa_k1
 PublicKey
 	public struct
 	0x2::public_key
@@ -2491,6 +2497,12 @@ validate_public_key
 to_iota_address_impl
 	fun
 	0x2::public_key
+is_feature_enabled
+	public(package) fun
+	0x2::protocol_config
+get_attr
+	public(package) fun
+	0x2::protocol_config
 PublicKeyAttached
 	public struct
 	0x2::builtin_authenticator_functions
@@ -2545,48 +2557,6 @@ check_builtin_authenticators_enabled
 claim_address
 	public(package) fun
 	0x2::claim
-Receiving
-	public struct
-	0x2::transfer
-transfer
-	public fun
-	0x2::transfer
-public_transfer
-	public fun
-	0x2::transfer
-freeze_object
-	public fun
-	0x2::transfer
-public_freeze_object
-	public fun
-	0x2::transfer
-share_object
-	public fun
-	0x2::transfer
-public_share_object
-	public fun
-	0x2::transfer
-receive
-	public fun
-	0x2::transfer
-public_receive
-	public fun
-	0x2::transfer
-receiving_object_id
-	public fun
-	0x2::transfer
-freeze_object_impl
-	public(package) fun
-	0x2::transfer
-share_object_impl
-	public(package) fun
-	0x2::transfer
-transfer_impl
-	public(package) fun
-	0x2::transfer
-receive_impl
-	fun
-	0x2::transfer
 Clock
 	public struct
 	0x2::clock
@@ -3826,12 +3796,6 @@ builder_v1
 builtin_auth_builder_v1
 	public fun
 	0x2::smart_account
-claim_account_v1
-	fun
-	0x2::smart_account
-claim_immutable_account_v1
-	fun
-	0x2::smart_account
 with_field
 	public fun
 	0x2::smart_account
@@ -3883,10 +3847,16 @@ rotate_builtin_auth_public_key
 rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
-ensure_tx_sender_is_smart_account
+claim_account_v1
+	fun
+	0x2::smart_account
+claim_immutable_account_v1
 	fun
 	0x2::smart_account
 claim_builder
+	fun
+	0x2::smart_account
+ensure_tx_sender_is_smart_account
 	fun
 	0x2::smart_account
 IotaSystemAdminCap
