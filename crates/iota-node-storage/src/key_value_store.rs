@@ -33,16 +33,12 @@ pub type KVStoreCheckpointData = (
 /// a missing key.
 #[async_trait]
 pub trait TransactionKeyValueStoreTrait {
-    /// Generic multi_get, allows implementors to get heterogenous values with a
-    /// single round trip.
     async fn multi_get(
         &self,
         transaction_keys: &[TransactionDigest],
         effects_keys: &[TransactionDigest],
     ) -> IotaResult<KVStoreTransactionData>;
 
-    /// Generic multi_get to allow implementors to get heterogenous values with
-    /// a single round trip.
     async fn multi_get_checkpoints(
         &self,
         checkpoint_summaries: &[CheckpointSequenceNumber],
