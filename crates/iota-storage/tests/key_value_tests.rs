@@ -657,6 +657,39 @@ mod simtests {
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]
+    async fn checkpoint_contents_that_fail_to_decode_are_read_again_once_fixed() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let mut checkpoints = MockTxStore::new();
+        let (summary, contents) = checkpoints.add_random_checkpoint();
+        let seq = summary.data().sequence_number;
+        let (item_type, key) = Key::CheckpointContents(seq).to_path_elements();
+        let path = format!("{item_type}/{key}");
+
+        let data = Arc::new(Mutex::new(HashMap::from([(path.clone(), vec![0xff])])));
+        test_server(data.clone()).await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let read = || async {
+            let (_, contents, _) = store.multi_get_checkpoints(&[], &[seq], &[]).await.unwrap();
+            contents
+        };
+        assert_eq!(read().await, vec![None]);
+
+        data.lock()
+            .unwrap()
+            .insert(path, bcs::to_bytes(&contents).unwrap());
+        assert_eq!(read().await, vec![Some(contents)]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
     async fn evicted_object_is_fetched_again() {
         if CryptoProvider::get_default().is_none() {
             ring::default_provider().install_default().ok();
