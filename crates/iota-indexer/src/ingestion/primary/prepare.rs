@@ -4,7 +4,6 @@
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    slice,
     sync::Arc,
 };
 
@@ -13,16 +12,13 @@ use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
 use iota_sdk_types::{
-    CheckpointContents, ObjectId, Owner, Transaction, TransactionDigest, TransactionEffects,
-    TransactionEvents, Version,
+    CheckpointSequenceNumber, CheckpointTimestamp, Event, ObjectId, Owner, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, Version,
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
-    },
     object::Object,
     transaction::TransactionAPI,
 };
@@ -33,7 +29,7 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
-        common::prepare::{CheckpointObjectChanges, extract_df_kind},
+        common::prepare::{CheckpointObjectChanges, ValidatedCheckpoint, extract_df_kind},
         primary::persist::{CheckpointDataToCommit, EpochToCommit},
     },
     metrics::IndexerMetrics,
@@ -57,14 +53,6 @@ pub struct PrimaryWorker {
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
 }
-
-pub type IndexedTransactionComponents = (
-    IndexedTransaction,
-    TxIndex,
-    Vec<IndexedEvent>,
-    Vec<EventIndex>,
-    BTreeMap<String, StoredDisplay>,
-);
 
 #[async_trait]
 impl Worker for PrimaryWorker {
@@ -98,14 +86,10 @@ impl Worker for PrimaryWorker {
             checkpoint.checkpoint_summary.timestamp_ms
         );
 
-        let checkpoint_data = Self::index_checkpoint(
-            &checkpoint,
-            Arc::new(self.metrics.clone()),
-            Self::index_packages(slice::from_ref(&checkpoint), &self.metrics),
-        )
-        .await?;
+        let validated_checkpoint = ValidatedCheckpoint::new(&checkpoint)?;
+        let transformer = Transformer::new(validated_checkpoint, &self.metrics);
         self.indexed_checkpoint_sender
-            .send(checkpoint_data)
+            .send(transformer.transform().await?)
             .await
             .map_err(|_| {
                 IndexerError::MpscChannel(
@@ -127,14 +111,113 @@ impl PrimaryWorker {
         }
     }
 
-    async fn index_epoch(data: &CheckpointData) -> Result<Option<EpochToCommit>, IndexerError> {
-        let checkpoint_object_store = EpochEndIndexingObjectStore::new(data);
+    pub(crate) fn pg_blocking_cp(state: PgIndexerStore) -> Result<ConnectionPool, IndexerError> {
+        let state_as_any = state.as_any();
+        if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore>() {
+            return Ok(pg_state.blocking_cp());
+        }
+        Err(IndexerError::Uncategorized(anyhow::anyhow!(
+            "failed to downcast state to PgIndexerStore"
+        )))
+    }
+}
+
+struct Transformer<'chk, 'm> {
+    checkpoint: ValidatedCheckpoint<'chk>,
+    metrics: &'m IndexerMetrics,
+    events: Vec<IndexedEvent>,
+    event_indices: Vec<EventIndex>,
+    displays: BTreeMap<String, StoredDisplay>,
+}
+
+impl<'chk, 'm> Transformer<'chk, 'm> {
+    fn new(checkpoint: ValidatedCheckpoint<'chk>, metrics: &'m IndexerMetrics) -> Self {
+        Self {
+            checkpoint,
+            metrics,
+            events: Default::default(),
+            event_indices: Default::default(),
+            displays: Default::default(),
+        }
+    }
+
+    async fn transform(mut self) -> IndexerResult<CheckpointDataToCommit> {
+        info!(
+            checkpoint_seq = self.checkpoint.sequence_number(),
+            "Indexing checkpoint data blob"
+        );
+
+        let transaction_data = TransactionTransformer::new(self.checkpoint)
+            .transform(self.metrics)
+            .await?;
+
+        for (sequence_number, checkpoint_transaction) in self.checkpoint.enumerate_transactions() {
+            self.extend_event_data(checkpoint_transaction, sequence_number);
+        }
+
+        let object_data = ObjectsTransformer::new(self.checkpoint).transform(self.metrics);
+
+        let epoch = self.build_epoch()?;
+
+        let total_successful_transactions: u64 = transaction_data
+            .transactions
+            .iter()
+            .map(|tx| tx.successful_tx_num)
+            .sum();
+        let checkpoint = self.build_checkpoint(total_successful_transactions as usize);
+
+        let time_now_ms = chrono::Utc::now().timestamp_millis();
+        self.metrics
+            .index_lag_ms
+            .set(time_now_ms - checkpoint.timestamp_ms as i64);
+        self.metrics
+            .max_indexed_checkpoint_sequence_number
+            .set(checkpoint.sequence_number as i64);
+        self.metrics
+            .indexed_checkpoint_timestamp_ms
+            .set(checkpoint.timestamp_ms as i64);
+        info!(
+            "Indexer lag: indexed checkpoint {} with time now {} and checkpoint time {}",
+            checkpoint.sequence_number, time_now_ms, checkpoint.timestamp_ms
+        );
+
+        Ok(CheckpointDataToCommit {
+            checkpoint,
+            transactions: transaction_data.transactions,
+            events: self.events,
+            event_indices: self.event_indices,
+            tx_indices: transaction_data.transaction_indices,
+            displays: self.displays,
+            object_changes: object_data.checkpoint_objects,
+            backward_history_changes: object_data.history_objects,
+            object_versions: object_data.object_versions,
+            packages: object_data.packages,
+            epoch,
+        })
+    }
+
+    fn build_checkpoint(&self, total_successful_transactions: usize) -> IndexedCheckpoint {
+        let CheckpointData {
+            checkpoint_summary,
+            checkpoint_contents,
+            ..
+        } = self.checkpoint.data();
+
+        IndexedCheckpoint::from_iota_checkpoint(
+            checkpoint_summary,
+            checkpoint_contents,
+            total_successful_transactions,
+        )
+    }
+
+    fn build_epoch(&self) -> IndexerResult<Option<EpochToCommit>> {
+        let checkpoint_object_store = EpochEndIndexingObjectStore::new(self.checkpoint.data());
 
         let CheckpointData {
             transactions,
             checkpoint_summary,
             checkpoint_contents: _,
-        } = data;
+        } = self.checkpoint.data();
 
         // Genesis epoch
         if checkpoint_summary.sequence_number() == 0 {
@@ -188,285 +271,91 @@ impl PrimaryWorker {
         }))
     }
 
-    /// Builds one `objects_version` row per object touched (modified / deleted
-    /// / wrapped / unwrapped-then-deleted) in this checkpoint
-    fn index_object_versions(data: &CheckpointData) -> Vec<StoredObjectVersion> {
-        let cp_sequence_number = data.checkpoint_summary.sequence_number as i64;
-        let removed = data
-            .transactions
-            .iter()
-            .flat_map(|tx| tx.removed_object_refs_post_version())
-            .map(|obj_ref| StoredObjectVersion {
-                object_id: obj_ref.object_id.as_bytes().to_vec(),
-                object_version: obj_ref.version.as_u64() as i64,
-                cp_sequence_number,
-            });
-        let output = data
-            .transactions
-            .iter()
-            .flat_map(|tx| &tx.output_objects)
-            .map(|o| StoredObjectVersion {
-                object_id: o.id().as_bytes().to_vec(),
-                object_version: o.version().as_u64() as i64,
-                cp_sequence_number,
-            });
-        removed.chain(output).collect()
-    }
-
-    async fn index_checkpoint(
-        data: &CheckpointData,
-        metrics: Arc<IndexerMetrics>,
-        packages: Vec<IndexedPackage>,
-    ) -> Result<CheckpointDataToCommit, IndexerError> {
-        let checkpoint_seq = data.checkpoint_summary.sequence_number;
-        info!(checkpoint_seq, "Indexing checkpoint data blob");
-
-        // Index epoch
-        let epoch = Self::index_epoch(data).await?;
-
-        // Index Objects
-        let object_changes = Self::index_checkpoint_objects(data, &metrics).await?;
-        let object_versions = Self::index_object_versions(data);
-        let backward_history_changes = Self::index_objects_backward_history(data)?;
-
-        let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
-            let CheckpointData {
-                transactions,
-                checkpoint_summary,
-                checkpoint_contents,
-            } = data;
-
-            let (db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) =
-                Self::index_transactions(
-                    transactions,
-                    checkpoint_summary,
-                    checkpoint_contents,
-                    &metrics,
-                )
-                .await?;
-
-            let successful_tx_num: u64 = db_transactions.iter().map(|t| t.successful_tx_num).sum();
-            (
-                IndexedCheckpoint::from_iota_checkpoint(
-                    checkpoint_summary,
-                    checkpoint_contents,
-                    successful_tx_num as usize,
-                ),
-                db_transactions,
-                db_events,
-                db_tx_indices,
-                db_event_indices,
-                db_displays,
-            )
-        };
-        let time_now_ms = chrono::Utc::now().timestamp_millis();
-        metrics
-            .index_lag_ms
-            .set(time_now_ms - checkpoint.timestamp_ms as i64);
-        metrics
-            .max_indexed_checkpoint_sequence_number
-            .set(checkpoint.sequence_number as i64);
-        metrics
-            .indexed_checkpoint_timestamp_ms
-            .set(checkpoint.timestamp_ms as i64);
-        info!(
-            "Indexer lag: indexed checkpoint {} with time now {} and checkpoint time {}",
-            checkpoint.sequence_number, time_now_ms, checkpoint.timestamp_ms
+    fn extend_event_data(&mut self, transaction: &CheckpointTransaction, sequence_number: u64) {
+        let transformer = EventsTransformer::new(
+            transaction,
+            sequence_number,
+            self.checkpoint.sequence_number(),
+            self.checkpoint.timestamp_ms(),
         );
+        let event_data = transformer.transform();
+        self.displays.extend(event_data.displays);
+        self.events.extend(event_data.events);
+        self.event_indices.extend(event_data.event_indices);
+    }
+}
 
-        Ok(CheckpointDataToCommit {
-            checkpoint,
-            transactions: db_transactions,
-            events: db_events,
-            tx_indices: db_tx_indices,
-            event_indices: db_event_indices,
-            displays: db_displays,
-            object_changes,
-            backward_history_changes,
-            object_versions,
-            packages,
-            epoch,
-        })
+/// The builder of all transaction data to commit to the database.
+#[derive(Clone, Copy)]
+struct TransactionTransformer<'chk> {
+    checkpoint: ValidatedCheckpoint<'chk>,
+}
+
+impl<'chk> TransactionTransformer<'chk> {
+    fn new(checkpoint: ValidatedCheckpoint<'chk>) -> Self {
+        Self { checkpoint }
     }
 
-    async fn index_transactions(
-        transactions: &[CheckpointTransaction],
-        checkpoint_summary: &CertifiedCheckpointSummary,
-        checkpoint_contents: &CheckpointContents,
-        metrics: &IndexerMetrics,
-    ) -> IndexerResult<(
-        Vec<IndexedTransaction>,
-        Vec<IndexedEvent>,
-        Vec<TxIndex>,
-        Vec<EventIndex>,
-        BTreeMap<String, StoredDisplay>,
-    )> {
-        let checkpoint_seq = checkpoint_summary.sequence_number();
-
-        let mut tx_seq_num_iter = checkpoint_contents
-            .enumerate_transactions(checkpoint_summary)
-            .map(|(seq, execution_digest)| (execution_digest.transaction, seq));
-
-        if checkpoint_contents.len() != transactions.len() {
-            return Err(IndexerError::FullNodeReading(format!(
-                "checkpointContents has different size {} compared to Transactions {} for checkpoint {checkpoint_seq}",
-                checkpoint_contents.len(),
-                transactions.len()
-            )));
-        }
-
-        let mut db_transactions = Vec::new();
-        let mut db_events = Vec::new();
-        let mut db_displays = BTreeMap::new();
-        let mut db_tx_indices = Vec::new();
-        let mut db_event_indices = Vec::new();
-
-        for tx in transactions {
-            // Unwrap safe - we checked they have equal length above
-            let (tx_digest, tx_sequence_number) = tx_seq_num_iter.next().unwrap();
-            let actual_tx_digest = tx.transaction.digest();
-            if tx_digest != *actual_tx_digest {
-                return Err(IndexerError::FullNodeReading(format!(
-                    "transactions has different ordering from CheckpointContents, for checkpoint {checkpoint_seq}, Mismatch found at {tx_digest} v.s. {actual_tx_digest}",
-                )));
-            }
-
-            let (indexed_tx, tx_indices, indexed_events, events_indices, stored_displays) =
-                Self::index_transaction_components(
-                    tx,
-                    tx_sequence_number,
-                    checkpoint_seq,
-                    checkpoint_summary.timestamp_ms,
-                    metrics,
-                )
+    async fn transform(self, metrics: &IndexerMetrics) -> IndexerResult<TransactionData> {
+        let mut transaction_data = TransactionData::default();
+        for (sequence_number, checkpoint_transaction) in self.checkpoint.enumerate_transactions() {
+            let transaction = self
+                .build_transaction(checkpoint_transaction, sequence_number, metrics)
                 .await?;
-            db_transactions.push(indexed_tx);
-            db_tx_indices.push(tx_indices);
-            db_events.extend(indexed_events);
-            db_event_indices.extend(events_indices);
-            db_displays.extend(stored_displays);
+            transaction_data.transactions.push(transaction);
+            let transaction_index = self.build_tx_index(checkpoint_transaction, sequence_number);
+            transaction_data.transaction_indices.push(transaction_index);
         }
-        Ok((
-            db_transactions,
-            db_events,
-            db_tx_indices,
-            db_event_indices,
-            db_displays,
-        ))
+        Ok(transaction_data)
     }
 
-    pub(crate) async fn index_transaction_components(
+    async fn build_transaction(
+        self,
         tx: &CheckpointTransaction,
         tx_sequence_number: u64,
-        checkpoint_seq: CheckpointSequenceNumber,
-        checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
-    ) -> IndexerResult<IndexedTransactionComponents> {
-        let db_txn = Self::index_transaction(
+    ) -> IndexerResult<IndexedTransaction> {
+        index_transaction(
             tx,
             tx_sequence_number,
-            checkpoint_seq,
-            checkpoint_timestamp_ms,
-            metrics,
+            self.checkpoint.sequence_number(),
+            self.checkpoint.timestamp_ms(),
+            metrics.clone(),
         )
-        .await?;
+        .await
+    }
 
-        let CheckpointTransaction {
-            transaction: sender_signed_data,
-            effects: fx,
-            events,
-            output_objects,
-            ..
-        } = tx;
+    fn build_tx_index(self, tx: &CheckpointTransaction, sequence_number: u64) -> TxIndex {
+        let inner_tx = tx.transaction.transaction();
 
-        let tx_digest = sender_signed_data.digest();
-        let tx = sender_signed_data.transaction();
-        let events = events.clone().unwrap_or_default();
-
-        let transaction_kind = IotaTransactionKind::try_from(tx.kind())?;
-
-        let db_events = events
-            .iter()
-            .enumerate()
-            .map(|(idx, event)| {
-                IndexedEvent::from_event(
-                    tx_sequence_number,
-                    idx as u64,
-                    checkpoint_seq,
-                    *tx_digest,
-                    event,
-                    checkpoint_timestamp_ms,
-                )
-            })
-            .collect();
-
-        let db_event_indices = events
-            .iter()
-            .enumerate()
-            .map(|(idx, event)| EventIndex::from_event(tx_sequence_number, idx as u64, event))
-            .collect();
-
-        let mut db_displays: BTreeMap<String, StoredDisplay> = events
-            .iter()
-            .flat_map(StoredDisplay::try_from_event)
-            .map(|display| (display.object_type.clone(), display))
-            .collect();
-
-        // `display::new` only emits a `DisplayCreated` event with no fields. If an
-        // author creates a `Display<T>` but never calls `update_version`, it wouldn't
-        // get indexed normally. To prevent this, we fall back to the contents of the
-        // created object itself for types with no `VersionUpdated` event in this
-        // transaction.
-        for event in events.iter() {
-            let Some(object_type) = displayed_type_from_created_event(event) else {
-                continue;
-            };
-            if db_displays.contains_key(&object_type) {
-                continue;
-            }
-            if let Some(display) = display_id_from_created_event(event)
-                .and_then(|display_id| {
-                    output_objects
-                        .iter()
-                        .find(|object| object.id() == display_id)
-                })
-                .and_then(StoredDisplay::try_from_object)
-            {
-                db_displays.insert(object_type, display);
-            }
-        }
-
-        // Input Objects
-        let input_objects = tx
+        let input_objects = inner_tx
             .input_objects()
             .expect("committed txns have been validated")
             .into_iter()
             .map(|obj_kind| obj_kind.object_id())
             .collect::<Vec<_>>();
 
-        // Changed Objects
-        let changed_objects = fx
+        let changed_objects = tx
+            .effects
             .all_changed_objects()
             .into_iter()
             .map(|(changed, _write_kind)| changed.reference().object_id)
             .collect::<Vec<_>>();
 
-        // Wrapped or deleted objects
-        let wrapped_or_deleted_objects = fx
+        let wrapped_or_deleted_objects = tx
+            .effects
             .all_tombstones()
             .into_iter()
             .map(|(object_id, _)| object_id)
-            .chain(fx.created_then_wrapped_objects())
+            .chain(tx.effects.created_then_wrapped_objects())
             .collect::<Vec<_>>();
 
-        // Payers
-        let payers = vec![tx.gas_owner()];
+        let payers = vec![inner_tx.gas_owner()];
 
-        // Sender
-        let sender = tx.sender();
+        let sender = inner_tx.sender();
 
-        // Recipients
-        let recipients = fx
+        let recipients = tx
+            .effects
             .all_changed_objects()
             .into_iter()
             .filter_map(|(changed, _write_kind)| match changed.owner() {
@@ -476,90 +365,213 @@ impl PrimaryWorker {
             .unique()
             .collect::<Vec<_>>();
 
-        // Move Calls
-        let move_calls = tx
+        let move_calls = inner_tx
             .move_calls()
             .iter()
             .map(|(p, m, f)| (*<&ObjectId>::clone(p), m.to_string(), f.to_string()))
             .collect();
 
-        let db_tx_indices = TxIndex {
-            tx_sequence_number,
-            transaction_digest: *tx_digest,
-            checkpoint_sequence_number: checkpoint_seq,
+        TxIndex {
+            tx_sequence_number: sequence_number,
+            transaction_digest: *tx.transaction.digest(),
+            checkpoint_sequence_number: self.checkpoint.sequence_number(),
             input_objects,
             changed_objects,
             sender,
             payers,
             recipients,
             move_calls,
-            tx_kind: transaction_kind,
+            tx_kind: IotaTransactionKind::from(inner_tx.kind()),
             wrapped_or_deleted_objects,
+        }
+    }
+}
+
+#[derive(Default)]
+struct TransactionData {
+    transactions: Vec<IndexedTransaction>,
+    transaction_indices: Vec<TxIndex>,
+}
+
+pub(crate) async fn index_transaction(
+    tx: &CheckpointTransaction,
+    tx_sequence_number: u64,
+    checkpoint_sequence_number: CheckpointSequenceNumber,
+    checkpoint_timestamp_ms: CheckpointTimestamp,
+    metrics: IndexerMetrics,
+) -> IndexerResult<IndexedTransaction> {
+    let tx_digest = tx.transaction.digest();
+
+    let txn = tx.transaction.transaction();
+
+    let events = tx
+        .events
+        .as_ref()
+        .map(|TransactionEvents(events)| events.clone())
+        .unwrap_or_default();
+
+    let transaction_kind = IotaTransactionKind::from(txn.kind());
+
+    let objects = tx
+        .input_objects
+        .iter()
+        .chain(tx.output_objects.iter())
+        .collect::<Vec<_>>();
+
+    let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics)
+        .get_changes(txn, &tx.effects, tx_digest)
+        .await?;
+
+    Ok(IndexedTransaction {
+        tx_sequence_number,
+        tx_digest: *tx_digest,
+        checkpoint_sequence_number,
+        timestamp_ms: checkpoint_timestamp_ms,
+        sender_signed_data: tx.transaction.data().clone(),
+        successful_tx_num: if tx.effects.status().is_success() {
+            txn.kind().num_transactions() as u64
+        } else {
+            0
+        },
+        effects: tx.effects.clone(),
+        object_changes,
+        balance_change,
+        events,
+        transaction_kind,
+    })
+}
+
+#[derive(Debug)]
+pub(crate) struct EventsTransformer<'tx> {
+    transaction: &'tx CheckpointTransaction,
+    tx_sequence_number: u64,
+    checkpoint_sequence_number: CheckpointSequenceNumber,
+    checkpoint_timestamp_ms: CheckpointTimestamp,
+}
+
+impl<'tx> EventsTransformer<'tx> {
+    pub(crate) fn new(
+        transaction: &'tx CheckpointTransaction,
+        tx_sequence_number: u64,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_timestamp_ms: CheckpointTimestamp,
+    ) -> Self {
+        Self {
+            transaction,
+            tx_sequence_number,
+            checkpoint_sequence_number,
+            checkpoint_timestamp_ms,
+        }
+    }
+
+    pub(crate) fn transform(self) -> EventData {
+        let mut derived_data = EventData::default();
+        let Some(events) = self.transaction.events.as_ref() else {
+            return derived_data;
+        };
+        for (event_sequence_number, chain_event) in events.iter().enumerate() {
+            if let Some((display_type, display)) = Self::build_display(chain_event) {
+                derived_data.displays.insert(display_type, display);
+            }
+            let event = self.build_event(chain_event, event_sequence_number as u64);
+            derived_data.events.push(event);
+            let event_index = self.build_event_index(chain_event, event_sequence_number as u64);
+            derived_data.event_indices.push(event_index);
+        }
+        // complement any displays created without emitting a DisplayUpdatedEvent
+        let display_created_events = events.iter().filter_map(|event| {
+            displayed_type_from_created_event(event).map(|display_type| (display_type, event))
+        });
+        for (display_type, display_created_event) in display_created_events {
+            if derived_data.displays.contains_key(&display_type) {
+                // display is already indexed through a DisplayUpdatedEvent
+                continue;
+            }
+            let Some(display_id) = display_id_from_created_event(display_created_event) else {
+                continue;
+            };
+            if let Some(display) = self.build_display_from_objects(display_id) {
+                derived_data.displays.insert(display_type, display);
+            }
+        }
+        derived_data
+    }
+
+    fn build_display(event: &Event) -> Option<(String, StoredDisplay)> {
+        StoredDisplay::try_from_event(event).map(|display| (display.object_type.clone(), display))
+    }
+
+    fn build_event(&self, event: &Event, event_sequence_number: u64) -> IndexedEvent {
+        IndexedEvent::from_event(
+            self.tx_sequence_number,
+            event_sequence_number,
+            self.checkpoint_sequence_number,
+            *self.transaction.transaction.digest(),
+            event,
+            self.checkpoint_timestamp_ms,
+        )
+    }
+
+    fn build_event_index(&self, event: &Event, event_sequence_number: u64) -> EventIndex {
+        EventIndex::from_event(self.tx_sequence_number, event_sequence_number, event)
+    }
+
+    fn build_display_from_objects(&self, display_id: ObjectId) -> Option<StoredDisplay> {
+        self.transaction
+            .output_objects
+            .iter()
+            .find(|object| object.id() == display_id)
+            .and_then(StoredDisplay::try_from_object)
+    }
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct EventData {
+    pub(crate) displays: BTreeMap<String, StoredDisplay>,
+    pub(crate) events: Vec<IndexedEvent>,
+    pub(crate) event_indices: Vec<EventIndex>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ObjectsTransformer<'chk> {
+    checkpoint: ValidatedCheckpoint<'chk>,
+}
+
+impl<'chk> ObjectsTransformer<'chk> {
+    fn new(checkpoint: ValidatedCheckpoint<'chk>) -> Self {
+        Self { checkpoint }
+    }
+
+    fn transform(self, metrics: &IndexerMetrics) -> ObjectData {
+        let checkpoint_objects = {
+            let _timer = metrics.indexing_objects_latency.start_timer();
+            self.checkpoint.into()
         };
 
-        Ok((
-            db_txn,
-            db_tx_indices,
-            db_events,
-            db_event_indices,
-            db_displays,
-        ))
+        ObjectData {
+            checkpoint_objects,
+            object_versions: self.build_object_versions(),
+            packages: self.build_packages(metrics),
+            history_objects: self.build_history_objects(),
+        }
     }
 
-    /// Creates a new [`IndexedTransaction`]
-    pub(crate) async fn index_transaction(
-        tx: &CheckpointTransaction,
-        tx_sequence_number: u64,
-        checkpoint_seq: CheckpointSequenceNumber,
-        checkpoint_timestamp_ms: u64,
-        metrics: &IndexerMetrics,
-    ) -> IndexerResult<IndexedTransaction> {
-        let tx_digest = tx.transaction.digest();
-        let txn = tx.transaction.transaction();
-
-        let events = tx
-            .events
-            .as_ref()
-            .map(|TransactionEvents(events)| events.clone())
-            .unwrap_or_default();
-
-        let transaction_kind = IotaTransactionKind::try_from(txn.kind())?;
-
-        let objects = tx
-            .input_objects
-            .iter()
-            .chain(tx.output_objects.iter())
-            .collect::<Vec<_>>();
-
-        let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
-            .get_changes(txn, &tx.effects, tx_digest)
-            .await?;
-
-        Ok(IndexedTransaction {
-            tx_sequence_number,
-            tx_digest: *tx_digest,
-            checkpoint_sequence_number: checkpoint_seq,
-            timestamp_ms: checkpoint_timestamp_ms,
-            sender_signed_data: tx.transaction.data().clone(),
-            successful_tx_num: if tx.effects.status().is_success() {
-                txn.kind().num_transactions() as u64
-            } else {
-                0
-            },
-            effects: tx.effects.clone(),
-            object_changes,
-            balance_change,
-            events,
-            transaction_kind,
-        })
-    }
-
-    pub(crate) async fn index_checkpoint_objects(
-        data: &CheckpointData,
-        metrics: &IndexerMetrics,
-    ) -> Result<CheckpointObjectChanges, IndexerError> {
-        let _timer = metrics.indexing_objects_latency.start_timer();
-        data.try_into()
+    fn build_packages(self, metrics: &IndexerMetrics) -> Vec<IndexedPackage> {
+        let _timer = metrics.indexing_packages_latency.start_timer();
+        let checkpoint_sequence_number = self.checkpoint.sequence_number();
+        self.checkpoint
+            .iter_transactions()
+            .flat_map(|tx| &tx.output_objects)
+            .filter_map(|object| {
+                let iota_sdk_types::ObjectData::Package(package) = object.data() else {
+                    return None;
+                };
+                Some(IndexedPackage::new(
+                    package.clone(),
+                    checkpoint_sequence_number,
+                ))
+            })
+            .collect()
     }
 
     /// Builds backward history entries for a checkpoint.
@@ -580,13 +592,11 @@ impl PrimaryWorker {
     /// 3. **Unwrapped / unwrapped-then-deleted objects**: were previously
     ///    wrapped so no prior data is available → `WRAPPED_OR_DELETED` with a
     ///    lamport version approximation.
-    fn index_objects_backward_history(
-        data: &CheckpointData,
-    ) -> Result<Vec<StoredBackwardHistoryObject>, IndexerError> {
-        let checkpoint_seq = data.checkpoint_summary.sequence_number as i64;
-        let mut result = Vec::new();
+    fn build_history_objects(self) -> Vec<StoredBackwardHistoryObject> {
+        let checkpoint_seq = self.checkpoint.sequence_number() as i64;
+        let mut history_objects = Vec::new();
 
-        for tx in &data.transactions {
+        for tx in self.checkpoint.iter_transactions() {
             let effects = &tx.effects;
 
             // 1. Input objects that were mutated or removed (deleted/wrapped) had an active
@@ -612,7 +622,7 @@ impl PrimaryWorker {
                         input_obj.clone(),
                         df_kind,
                     );
-                    result.push(StoredBackwardHistoryObject::try_from(indexed).expect(
+                    history_objects.push(StoredBackwardHistoryObject::try_from(indexed).expect(
                         "backward history conversion should not fail for active input objects",
                     ));
                 }
@@ -622,7 +632,7 @@ impl PrimaryWorker {
             //    - 1 so the version is monotonic with other backward-history rows for the
             //    same object.
             for created in effects.created() {
-                result.push(StoredBackwardHistoryObject::from_empty(
+                history_objects.push(StoredBackwardHistoryObject::from_empty(
                     created.reference().object_id,
                     created.reference().version.as_u64() as i64 - 1,
                     ObjectStatus::NotYetCreated,
@@ -638,7 +648,7 @@ impl PrimaryWorker {
                 .map(|unwrapped| *unwrapped.reference());
             let unwrapped_then_deleted_refs = effects.unwrapped_then_deleted().into_iter();
             for r in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
-                result.push(StoredBackwardHistoryObject::from_empty(
+                history_objects.push(StoredBackwardHistoryObject::from_empty(
                     r.object_id,
                     r.version.as_u64() as i64 - 1,
                     ObjectStatus::WrappedOrDeleted,
@@ -647,44 +657,39 @@ impl PrimaryWorker {
             }
         }
 
-        Ok(result)
+        history_objects
     }
 
-    fn index_packages(
-        checkpoint_data: &[CheckpointData],
-        metrics: &IndexerMetrics,
-    ) -> Vec<IndexedPackage> {
-        let _timer = metrics.indexing_packages_latency.start_timer();
-        checkpoint_data
-            .iter()
-            .flat_map(|data| {
-                let checkpoint_sequence_number = data.checkpoint_summary.sequence_number;
-                data.transactions
-                    .iter()
-                    .flat_map(|tx| &tx.output_objects)
-                    .filter_map(|object| {
-                        let iota_sdk_types::ObjectData::Package(package) = object.data() else {
-                            return None;
-                        };
-                        Some(IndexedPackage::new(
-                            package.clone(),
-                            checkpoint_sequence_number,
-                        ))
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect()
+    fn build_object_versions(self) -> Vec<StoredObjectVersion> {
+        let cp_sequence_number = self.checkpoint.sequence_number() as i64;
+        let removed = self
+            .checkpoint
+            .iter_transactions()
+            .flat_map(|tx| tx.removed_object_refs_post_version())
+            .map(|obj_ref| StoredObjectVersion {
+                object_id: obj_ref.object_id.as_bytes().to_vec(),
+                object_version: obj_ref.version.as_u64() as i64,
+                cp_sequence_number,
+            });
+        let output = self
+            .checkpoint
+            .iter_transactions()
+            .flat_map(|tx| &tx.output_objects)
+            .map(|o| StoredObjectVersion {
+                object_id: o.id().as_bytes().to_vec(),
+                object_version: o.version().as_u64() as i64,
+                cp_sequence_number,
+            });
+        removed.chain(output).collect()
     }
+}
 
-    pub(crate) fn pg_blocking_cp(state: PgIndexerStore) -> Result<ConnectionPool, IndexerError> {
-        let state_as_any = state.as_any();
-        if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore>() {
-            return Ok(pg_state.blocking_cp());
-        }
-        Err(IndexerError::Uncategorized(anyhow::anyhow!(
-            "failed to downcast state to PgIndexerStore"
-        )))
-    }
+#[derive(Debug)]
+struct ObjectData {
+    checkpoint_objects: CheckpointObjectChanges,
+    object_versions: Vec<StoredObjectVersion>,
+    history_objects: Vec<StoredBackwardHistoryObject>,
+    packages: Vec<IndexedPackage>,
 }
 
 pub struct InMemObjectCache {
