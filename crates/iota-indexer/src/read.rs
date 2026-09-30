@@ -415,7 +415,7 @@ impl IndexerReader {
         key_id: Vec<u8>,
         include_unlinked: bool,
     ) -> Result<Vec<AccountKeyLinkRow>, IndexerError> {
-        run_query!(&self.pool, |conn| {
+        read_only_blocking!(&self.pool, |conn| {
             let mut query = account_key_links::table
                 .left_join(
                     smart_accounts::table
