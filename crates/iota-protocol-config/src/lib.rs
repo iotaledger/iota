@@ -248,6 +248,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             dependencies.
 // Version 38: Bound system Move packages by `max_move_system_package_size`
 //             rather than the limit that applies to user packages.
+//             Abort `iota::account::create_immutable_account_v1`, so no new
+//             immutable account object can be created.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -689,6 +691,11 @@ struct FeatureFlags {
     // account object is immutable.
     #[serde(skip_serializing_if = "is_false")]
     reject_immutable_account_objects: bool,
+
+    // If true, `iota::account::create_immutable_account_v1` aborts, so no new
+    // immutable account object can be created.
+    #[serde(skip_serializing_if = "is_false")]
+    reject_immutable_account_creation: bool,
 
     // If true, `validity_check` rejects a transaction that names an object
     // version at or above `Version::MAX_VALID_EXCL`, the range assigned to the
@@ -2203,6 +2210,16 @@ impl ProtocolConfig {
         reject_immutable_account_objects
     }
 
+    pub fn reject_immutable_account_creation(&self) -> bool {
+        let reject_immutable_account_creation =
+            self.feature_flags.reject_immutable_account_creation;
+        assert!(
+            !reject_immutable_account_creation || self.reject_immutable_account_objects(),
+            "reject_immutable_account_creation requires reject_immutable_account_objects to be set"
+        );
+        reject_immutable_account_creation
+    }
+
     pub fn validate_input_object_versions(&self) -> bool {
         self.feature_flags.validate_input_object_versions
     }
@@ -3623,6 +3640,9 @@ impl ProtocolConfig {
                     // publish (genesis, or a newly added system package) is
                     // checked against it.
                     cfg.max_move_system_package_size = Some(200 * 1024);
+                    // An immutable account object cannot authenticate anything
+                    // since version 36, so stop creating new ones.
+                    cfg.feature_flags.reject_immutable_account_creation = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3919,6 +3939,10 @@ impl ProtocolConfig {
         self.feature_flags.reject_immutable_account_objects = val;
     }
 
+    pub fn set_reject_immutable_account_creation_for_testing(&mut self, val: bool) {
+        self.feature_flags.reject_immutable_account_creation = val;
+    }
+
     pub fn set_validate_input_object_versions_for_testing(&mut self, val: bool) {
         self.feature_flags.validate_input_object_versions = val;
     }
@@ -4128,6 +4152,18 @@ mod test {
 
         prot.set_attr_for_testing("max_arguments".to_string(), "456".to_string());
         assert_eq!(prot.max_arguments(), 456);
+    }
+
+    #[test]
+    fn reject_immutable_account_creation_implies_rejecting_the_objects() {
+        for chain in [Chain::Unknown, Chain::Mainnet, Chain::Testnet] {
+            for version in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
+                // The getter asserts the dependency on
+                // `reject_immutable_account_objects`.
+                ProtocolConfig::get_for_version(ProtocolVersion::new(version), chain)
+                    .reject_immutable_account_creation();
+            }
+        }
     }
 
     #[test]

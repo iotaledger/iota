@@ -1356,6 +1356,7 @@
                 "pre_consensus_sponsor_only_move_authentication": false,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
+                "reject_immutable_account_creation": true,
                 "reject_immutable_account_objects": true,
                 "relocate_event_module": true,
                 "report_move_authentication_error": true,
