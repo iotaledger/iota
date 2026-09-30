@@ -84,6 +84,8 @@ pub(crate) enum Admission {
     Permit(AdmissionPermits),
     /// A cap for this group is reached; the request must be rejected.
     Rejected(AdmissionLimit),
+    /// The peer's index is outside the committee; the request must be refused.
+    UnknownPeer,
 }
 
 /// The cap a rejected request ran into.
@@ -145,13 +147,10 @@ impl CommitFetchSlots {
 
     /// Tries to take one slot for `peer`.
     fn try_take(self: &Arc<Self>, peer: usize) -> Admission {
-        // An authenticated committee peer's index is always in range; stay
-        // defensive rather than panicking on any unexpected index.
         let Some(held_by_peer) = self.held_by_peer.get(peer) else {
-            return Admission::Unlimited;
+            return Admission::UnknownPeer;
         };
-        // The counters guard nothing but themselves, so relaxed ordering is
-        // enough.
+        // The counters guard nothing else, so relaxed ordering is enough.
         let Ok(held_before) =
             held_by_peer.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |held| {
                 (self.per_peer_cap == 0 || held < self.per_peer_cap).then_some(held + 1)
@@ -256,10 +255,11 @@ impl PerPeerAdmission {
                 };
             }
         };
-        // An authenticated committee peer's index is always in range; stay
-        // defensive rather than panicking on any unexpected index.
-        let Some(semaphore) = row.as_ref().and_then(|row| row.get(peer.value())) else {
+        let Some(row) = row else {
             return Admission::Unlimited;
+        };
+        let Some(semaphore) = row.get(peer.value()) else {
+            return Admission::UnknownPeer;
         };
         match semaphore.clone().try_acquire_owned() {
             Ok(permit) => Admission::Permit(AdmissionPermits {
@@ -382,6 +382,9 @@ where
             )
         });
         match self.admission.try_acquire(group, peer) {
+            Admission::UnknownPeer => {
+                AdmissionFuture::rejected(Status::internal("peer index outside the committee"))
+            }
             Admission::Unlimited => {
                 AdmissionFuture::admitted(self.inner.call(request), None, None, send_deadline)
             }
