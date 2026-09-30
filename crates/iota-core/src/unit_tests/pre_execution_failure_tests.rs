@@ -5,7 +5,8 @@
 //! execution fails, instead of halting the validator. They cover a Move
 //! authenticator whose account cannot be resolved, both when a sponsor pays gas
 //! and when the account pays its own, the executor handling
-//! `PreExecutionResult::Fail`, and which account failures convert.
+//! `PreExecutionResult::Fail`, and that every account check failure converts
+//! while a storage error does not.
 
 use std::{collections::HashSet, sync::Arc};
 
@@ -26,7 +27,7 @@ use iota_types::{
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
 };
 
-use super::{MoveAccountFailure, classify_move_account_failure};
+use super::account_failure_as_execution_error;
 use crate::authority::{
     AuthorityState, ExecutionEnv, test_authority_builder::TestAuthorityBuilder,
 };
@@ -38,12 +39,11 @@ use crate::authority::{
 /// The P-COOL consensus handler cannot keep this check because it answers from
 /// its own load of the account, which can differ between validators. Once the
 /// check leaves the handler, the transaction reaches execution, where the
-/// failure to resolve the account produces failure effects charged to the
-/// sponsor instead of halting the validator. Without a sponsor, the account
-/// pays its own gas and the validator still halts, since failure effects would
-/// charge an account that was never authenticated. The setup skips the
-/// consensus handler and hands the transaction straight to execution, so
-/// execution is the first place the account is checked.
+/// failure to resolve the account produces failure effects charged to the gas
+/// payer instead of halting the validator: the sponsor when there is one,
+/// otherwise the account itself. The setup skips the consensus handler and
+/// hands the transaction straight to execution, so execution is the first
+/// place the account is checked.
 struct UnresolvedAccountSetup {
     authority: Arc<AuthorityState>,
     account_id: ObjectId,
@@ -223,12 +223,11 @@ async fn unresolved_authenticator_account_effects_are_the_same_on_every_validato
     );
 }
 
-/// The gas payer's own account that cannot be resolved still halts the
-/// validator: failure effects would charge an account that was never
-/// authenticated.
+/// The gas payer's own account that cannot be resolved fails the transaction
+/// too, with gas charged to that account, as for any account whose
+/// authentication fails at execution.
 #[tokio::test]
-#[should_panic(expected = "move account checks cannot fail during execution")]
-async fn unresolved_gas_payer_account_panics() {
+async fn unresolved_gas_payer_account_fails_with_effects() {
     let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let setup = UnresolvedAccountSetup::new(
         Object::shared_for_testing(),
@@ -239,7 +238,26 @@ async fn unresolved_gas_payer_account_panics() {
     )
     .await;
 
-    let _ = setup.execute();
+    let (effects, _) = setup.execute().unwrap();
+
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionErrorKind::MoveAuthentication {
+                error: Box::new(ExecutionErrorKind::FunctionNotFound),
+            },
+            command: None,
+        },
+    );
+    assert!(
+        effects.gas_cost_summary().gas_used() > 0,
+        "the failed transaction must be charged gas"
+    );
+    assert_eq!(
+        effects.gas_object().owner(),
+        &Owner::Address(setup.sender),
+        "the account must be the one charged"
+    );
 }
 
 /// With `PreExecutionResult::Fail`, a plain transfer transaction skips its
@@ -376,20 +394,16 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
 /// Only the two failures that mean the account cannot be resolved become
 /// `FunctionNotFound`; every other failure is returned unchanged.
 #[test]
-fn only_an_unresolved_account_becomes_a_pre_execution_failure() {
+fn every_account_check_failure_becomes_a_pre_execution_failure() {
     let account_object_id = ObjectId::random();
-    let not_found = || IotaError::UserInput {
+    let not_found = IotaError::UserInput {
         error: UserInputError::MoveAuthenticatorNotFound {
             authenticator_function_ref_id: ObjectId::random(),
             account_object_id,
             account_object_version: OBJECT_START_VERSION,
         },
     };
-    let MoveAccountFailure::Unresolved(execution_error) =
-        classify_move_account_failure(not_found())
-    else {
-        panic!("a missing field must fail the transaction");
-    };
+    let execution_error = account_failure_as_execution_error(not_found).unwrap();
     assert_eq!(
         execution_error.kind(),
         &ExecutionErrorKind::FunctionNotFound
@@ -399,20 +413,8 @@ fn only_an_unresolved_account_becomes_a_pre_execution_failure() {
         "the account must still be named by the source"
     );
 
-    let undecodable = IotaError::UserInput {
-        error: UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id },
-    };
-    assert!(matches!(
-        classify_move_account_failure(undecodable),
-        MoveAccountFailure::Unresolved(_)
-    ));
-
-    // Every other failure stops the validator, each for its own reason.
-    assert!(matches!(
-        classify_move_account_failure(IotaError::Storage("read failed".to_string())),
-        MoveAccountFailure::ReadFailed(_)
-    ));
     for error in [
+        UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id },
         UserInputError::AccountObjectNotSupported {
             object_id: account_object_id,
         },
@@ -424,25 +426,29 @@ fn only_an_unresolved_account_becomes_a_pre_execution_failure() {
             expected_digest: ObjectDigest::ZERO,
             actual_digest: ObjectDigest::ZERO,
         },
-    ] {
-        assert!(matches!(
-            classify_move_account_failure(IotaError::UserInput { error }),
-            MoveAccountFailure::CheckedBeforeExecution(_)
-        ));
-    }
-    for error in [
-        UserInputError::IncorrectUserSignature {
-            error: "signer differs from the account".to_string(),
-        },
         UserInputError::AccountObjectVersionMismatch {
             object_id: account_object_id,
             expected_version: OBJECT_START_VERSION,
             actual_version: OBJECT_START_VERSION,
         },
+        UserInputError::IncorrectUserSignature {
+            error: "signer differs from the account".to_string(),
+        },
     ] {
-        assert!(matches!(
-            classify_move_account_failure(IotaError::UserInput { error }),
-            MoveAccountFailure::Impossible(_)
-        ));
+        let execution_error =
+            account_failure_as_execution_error(IotaError::UserInput { error }).unwrap();
+        assert_eq!(
+            execution_error.kind(),
+            &ExecutionErrorKind::FunctionNotFound
+        );
     }
+
+    // A storage error is this validator's failure, not the transaction's, and
+    // is returned unchanged so that the validator stops instead of writing
+    // effects the others do not.
+    let storage_error = IotaError::Storage("read failed".to_string());
+    assert!(matches!(
+        account_failure_as_execution_error(storage_error),
+        Err(IotaError::Storage(_))
+    ));
 }
