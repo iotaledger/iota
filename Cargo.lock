@@ -6599,6 +6599,7 @@ dependencies = [
  "iota-protocol-config",
  "iota-sdk-grpc-client",
  "iota-sdk-grpc-types",
+ "iota-sdk-move-types",
  "iota-sdk-transaction-builder",
  "iota-sdk-types",
  "iota-test-transaction-builder",
