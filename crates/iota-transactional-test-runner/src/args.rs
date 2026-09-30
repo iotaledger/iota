@@ -93,11 +93,6 @@ pub struct IotaInitArgs {
     pub grpc_api_url: Option<String>,
     #[clap(long = "module-metadata-dynamic")]
     pub package_metadata_with_dynamic_module_metadata: Option<bool>,
-    /// Signing keys usable only by `pubkey(<name>)` and
-    /// `abstract --builtin-signer <name>`, each given as `<name>=<scheme>`
-    /// with `ed25519` or `secp256k1`. They are not senders and own no objects.
-    #[arg(long, num_args(1..))]
-    pub signers: Option<Vec<String>>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -204,11 +199,6 @@ pub struct AbstractTransactionCommand {
         action = clap::ArgAction::Append,
     )]
     pub authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
-    /// Signs the transaction with the named test account or signer, and passes
-    /// the signature as the single authenticator argument, which is what the
-    /// built-in authenticators expect.
-    #[arg(long = "builtin-signer", conflicts_with = "authenticator_inputs")]
-    pub builtin_signer: Option<String>,
 }
 
 #[derive(Debug, Parser)]
@@ -472,7 +462,6 @@ pub enum IotaExtraValueArgs {
     Digest(String),
     Receiving(FakeID, Option<Version>),
     ImmShared(FakeID, Option<Version>),
-    PublicKey(String),
 }
 
 #[derive(Clone)]
@@ -483,8 +472,6 @@ pub enum IotaValue {
     Digest(String),
     Receiving(FakeID, Option<Version>),
     ImmShared(FakeID, Option<Version>),
-    /// The flag-prefixed public key of a named test account or signer.
-    PublicKey(String),
 }
 
 impl IotaExtraValueArgs {
@@ -518,17 +505,6 @@ impl IotaExtraValueArgs {
         let package = parser.advance(ValueToken::Ident)?;
         parser.advance(ValueToken::RParen)?;
         Ok(IotaExtraValueArgs::Digest(package.to_owned()))
-    }
-
-    fn parse_public_key_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
-        parser: &mut MoveCLParser<'a, ValueToken, I>,
-    ) -> anyhow::Result<Self> {
-        let contents = parser.advance(ValueToken::Ident)?;
-        ensure!(contents == "pubkey");
-        parser.advance(ValueToken::LParen)?;
-        let name = parser.advance(ValueToken::Ident)?;
-        parser.advance(ValueToken::RParen)?;
-        Ok(IotaExtraValueArgs::PublicKey(name.to_owned()))
     }
 
     fn parse_receiving_or_object_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
@@ -576,7 +552,6 @@ impl IotaValue {
             IotaValue::Digest(_) => panic!("unexpected nested IOTA package digest in args"),
             IotaValue::Receiving(_, _) => panic!("unexpected nested IOTA receiving object in args"),
             IotaValue::ImmShared(_, _) => panic!("unexpected nested IOTA shared object in args"),
-            IotaValue::PublicKey(_) => panic!("unexpected nested IOTA public key in args"),
         }
     }
 
@@ -588,7 +563,6 @@ impl IotaValue {
             IotaValue::Digest(_) => panic!("unexpected nested IOTA package digest in args"),
             IotaValue::Receiving(_, _) => panic!("unexpected nested IOTA receiving object in args"),
             IotaValue::ImmShared(_, _) => panic!("unexpected nested IOTA shared object in args"),
-            IotaValue::PublicKey(_) => panic!("unexpected nested IOTA public key in args"),
         }
     }
 
@@ -679,7 +653,6 @@ impl IotaValue {
                 };
                 CallArg::pure(&staged.digest)
             }
-            IotaValue::PublicKey(name) => CallArg::pure(&test_adapter.prefixed_public_key(&name)?),
         })
     }
 
@@ -713,7 +686,6 @@ impl ParsableValue for IotaExtraValueArgs {
             (ValueToken::Ident, "digest") => Some(Self::parse_digest_value(parser)),
             (ValueToken::Ident, "receiving") => Some(Self::parse_receiving_value(parser)),
             (ValueToken::Ident, "immshared") => Some(Self::parse_read_shared_value(parser)),
-            (ValueToken::Ident, "pubkey") => Some(Self::parse_public_key_value(parser)),
             _ => None,
         }
     }
@@ -752,7 +724,6 @@ impl ParsableValue for IotaExtraValueArgs {
             IotaExtraValueArgs::Digest(pkg) => Ok(IotaValue::Digest(pkg)),
             IotaExtraValueArgs::Receiving(id, version) => Ok(IotaValue::Receiving(id, version)),
             IotaExtraValueArgs::ImmShared(id, version) => Ok(IotaValue::ImmShared(id, version)),
-            IotaExtraValueArgs::PublicKey(name) => Ok(IotaValue::PublicKey(name)),
         }
     }
 }

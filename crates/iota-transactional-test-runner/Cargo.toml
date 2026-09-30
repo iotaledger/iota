@@ -38,7 +38,6 @@ iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand", "secp256k1"] }
 iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-swarm-config.workspace = true
