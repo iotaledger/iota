@@ -839,6 +839,7 @@ fn is_view_function_from_module_metadata(
     let metadata = metadata_wrapper.try_into_runtime_module_metadata(&ProtocolBuildConfig {
         allow_view_function: true,
         max_move_package_size: None,
+        max_move_system_package_size: None,
     })?;
     Ok(match metadata {
         RuntimeModuleMetadata::V1(_) => false,

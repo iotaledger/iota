@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 37;
+pub const MAX_PROTOCOL_VERSION: u64 = 38;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -246,6 +246,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Traverse the module graph when checking a published module for
 //             cyclic dependencies, instead of stopping at its immediate
 //             dependencies.
+// Version 38: Bound system Move packages by `max_move_system_package_size`
+//             rather than the limit that applies to user packages.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1669,6 +1671,12 @@ pub struct ProtocolConfig {
     /// over (the scoring depth). When unset, defaults to 600. Consulted only
     /// when `consensus_enable_sliding_window_leader_schedule` is set.
     consensus_leader_schedule_window_size: Option<u32>,
+
+    /// Maximum size of a system Move package object, in bytes. System packages
+    /// are published by the network rather than by users, so they are held to a
+    /// larger bound than `max_move_package_size`. When unset, system packages
+    /// are bound by `max_move_package_size` like any other package.
+    max_move_system_package_size: Option<u64>,
 }
 
 // feature flags
@@ -2879,6 +2887,8 @@ impl ProtocolConfig {
             validator_very_low_stake_threshold: None,
             validator_low_stake_grace_period: None,
             consensus_leader_schedule_window_size: None,
+
+            max_move_system_package_size: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3604,6 +3614,15 @@ impl ProtocolConfig {
                     // Traverse the module graph when checking for cyclic
                     // dependencies.
                     cfg.feature_flags.check_cyclic_dependencies = true;
+                }
+                38 => {
+                    // A system package is published by the network, not by a
+                    // user, so the user-package bound was never meant to apply
+                    // to it: an existing system package is already exempt when
+                    // it is upgraded at an epoch change, and only a first
+                    // publish (genesis, or a newly added system package) is
+                    // checked against it.
+                    cfg.max_move_system_package_size = Some(200 * 1024);
                 }
                 // Use this template when making changes:
                 //
