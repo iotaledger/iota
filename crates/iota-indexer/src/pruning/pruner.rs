@@ -12,7 +12,6 @@ use tracing::{error, info};
 use crate::{
     config::RetentionConfig,
     errors::IndexerError,
-    ingestion::primary::prepare::PrimaryWorker,
     metrics::IndexerMetrics,
     models::watermarks::StoredWatermark,
     spawn_monitored_task,
@@ -475,7 +474,7 @@ impl Pruner {
         pruning_batch_size: u64,
         metrics: IndexerMetrics,
     ) -> Result<Self, IndexerError> {
-        let blocking_cp = PrimaryWorker::pg_blocking_cp(store.clone()).unwrap();
+        let blocking_cp = store.blocking_cp();
         let partition_manager = PgPartitionManager::new(blocking_cp);
         let retention_policies = retention_config.retention_policies();
 

@@ -26,7 +26,6 @@ use itertools::Itertools;
 use tracing::{info, warn};
 
 use crate::{
-    db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
         common::prepare::{CheckpointObjectChanges, ValidatedCheckpoint, extract_df_kind},
@@ -41,7 +40,6 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
     },
-    store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedBalanceChange, IndexedCheckpoint, IndexedEvent, IndexedObject,
         IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult, ObjectStatus,
@@ -109,16 +107,6 @@ impl PrimaryWorker {
             metrics,
             indexed_checkpoint_sender,
         }
-    }
-
-    pub(crate) fn pg_blocking_cp(state: PgIndexerStore) -> Result<ConnectionPool, IndexerError> {
-        let state_as_any = state.as_any();
-        if let Some(pg_state) = state_as_any.downcast_ref::<PgIndexerStore>() {
-            return Ok(pg_state.blocking_cp());
-        }
-        Err(IndexerError::Uncategorized(anyhow::anyhow!(
-            "failed to downcast state to PgIndexerStore"
-        )))
     }
 }
 
