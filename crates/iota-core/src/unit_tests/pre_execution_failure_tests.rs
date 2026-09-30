@@ -10,8 +10,9 @@
 use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
-    Address, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1, ObjectId, Owner,
-    SharedObjectReference, Transaction, TransactionEffects, UserSignature, VersionAssignment,
+    Address, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId,
+    Owner, SharedObjectReference, Transaction, TransactionEffects, UserSignature,
+    VersionAssignment,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -25,7 +26,7 @@ use iota_types::{
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
 };
 
-use super::account_failure_as_execution_error;
+use super::{MoveAccountFailure, classify_move_account_failure};
 use crate::authority::{
     AuthorityState, ExecutionEnv, test_authority_builder::TestAuthorityBuilder,
 };
@@ -384,20 +385,33 @@ fn only_an_unresolved_account_becomes_a_pre_execution_failure() {
             account_object_version: OBJECT_START_VERSION,
         },
     };
-    let error = account_failure_as_execution_error(not_found()).unwrap();
-    assert_eq!(error.kind(), &ExecutionErrorKind::FunctionNotFound);
+    let MoveAccountFailure::Unresolved(execution_error) =
+        classify_move_account_failure(not_found())
+    else {
+        panic!("a missing field must fail the transaction");
+    };
+    assert_eq!(
+        execution_error.kind(),
+        &ExecutionErrorKind::FunctionNotFound
+    );
     assert!(
-        format!("{error:?}").contains(&account_object_id.to_string()),
+        format!("{execution_error:?}").contains(&account_object_id.to_string()),
         "the account must still be named by the source"
     );
 
     let undecodable = IotaError::UserInput {
         error: UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id },
     };
-    assert!(account_failure_as_execution_error(undecodable).is_ok());
+    assert!(matches!(
+        classify_move_account_failure(undecodable),
+        MoveAccountFailure::Unresolved(_)
+    ));
 
-    // Every other failure means an earlier check was wrong, and is returned
-    // unchanged.
+    // Every other failure stops the validator, each for its own reason.
+    assert!(matches!(
+        classify_move_account_failure(IotaError::Storage("read failed".to_string())),
+        MoveAccountFailure::ReadFailed(_)
+    ));
     for error in [
         UserInputError::AccountObjectNotSupported {
             object_id: account_object_id,
@@ -405,13 +419,30 @@ fn only_an_unresolved_account_becomes_a_pre_execution_failure() {
         UserInputError::ImmutableAccountObjectNotSupported {
             object_id: account_object_id,
         },
+        UserInputError::InvalidAccountObjectDigest {
+            object_id: account_object_id,
+            expected_digest: ObjectDigest::ZERO,
+            actual_digest: ObjectDigest::ZERO,
+        },
     ] {
-        let expected = format!("{error:?}");
-        let returned =
-            account_failure_as_execution_error(IotaError::UserInput { error }).unwrap_err();
-        assert!(
-            format!("{returned:?}").contains(&expected),
-            "got {returned:?}"
-        );
+        assert!(matches!(
+            classify_move_account_failure(IotaError::UserInput { error }),
+            MoveAccountFailure::CheckedBeforeExecution(_)
+        ));
+    }
+    for error in [
+        UserInputError::IncorrectUserSignature {
+            error: "signer differs from the account".to_string(),
+        },
+        UserInputError::AccountObjectVersionMismatch {
+            object_id: account_object_id,
+            expected_version: OBJECT_START_VERSION,
+            actual_version: OBJECT_START_VERSION,
+        },
+    ] {
+        assert!(matches!(
+            classify_move_account_failure(IotaError::UserInput { error }),
+            MoveAccountFailure::Impossible(_)
+        ));
     }
 }
