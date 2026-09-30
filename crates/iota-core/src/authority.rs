@@ -5670,16 +5670,17 @@ impl AuthorityState {
     ///
     /// If the account's authenticator function cannot be resolved, returns the
     /// error the transaction fails with, unless the account is `gas_owner`'s.
-    /// See [`account_failure_as_execution_error`].
+    /// See [`classify_move_account_failure`].
     ///
     /// # Panics
     ///
-    /// On any other failure and when `gas_owner`'s own account cannot be
-    /// resolved. Both are broken invariants: a check before execution was
-    /// skipped or wrong. The gas owner's account must therefore stay checked
-    /// before execution: at signing, and in post-consensus validation under
-    /// P-COOL. Under attestation, only the attestor checks it, so there this
-    /// failure has to become effects charged to the attestor instead.
+    /// When `gas_owner`'s own account cannot be resolved, which means a check
+    /// before execution was skipped or wrong, and on any other failure, each
+    /// for the reason its [`MoveAccountFailure`] names. The gas owner's account
+    /// must therefore stay checked before execution: at signing, and in
+    /// post-consensus validation under P-COOL. Under attestation, only the
+    /// attestor checks it, so there this failure has to become effects charged
+    /// to the attestor instead.
     fn check_move_account_for_execution(
         &self,
         auth_account_object_id: ObjectId,
@@ -5700,19 +5701,35 @@ impl AuthorityState {
             protocol_config,
         ) {
             Ok(function_ref) => Ok(function_ref),
-            Err(error) => {
+            Err(check_error) => {
                 // Failure effects would charge the gas owner, which is only
                 // right if it was authenticated before execution. That check
                 // found the account's authenticator function, which no later
                 // transaction can remove or break, so failing here means the
-                // check was skipped or wrong.
+                // check was skipped or wrong. Under attestation, only the
+                // attestor ran that check, so there this has to become effects
+                // charged to the attestor instead.
                 if signer == gas_owner {
-                    panic!("move account checks cannot fail during execution: {error:?}");
+                    panic!("move account checks cannot fail during execution: {check_error:?}");
                 }
-                let execution_error = account_failure_as_execution_error(error)
-                    .expect("move account checks cannot fail during execution");
 
-                Err(execution_error)
+                match classify_move_account_failure(check_error) {
+                    MoveAccountFailure::Unresolved(execution_error) => Err(execution_error),
+                    MoveAccountFailure::ReadFailed(storage_error) => {
+                        panic!(
+                            "failed to read the account's authenticator function: {storage_error}"
+                        )
+                    }
+                    MoveAccountFailure::CheckedBeforeExecution(input_error) => {
+                        panic!(
+                            "a check that runs before execution on every validator was skipped \
+                                or wrong: {input_error:?}"
+                        )
+                    }
+                    MoveAccountFailure::Impossible(other_error) => {
+                        panic!("move account checks cannot fail during execution: {other_error:?}")
+                    }
+                }
             }
         }
     }
@@ -6587,30 +6604,57 @@ impl NodeStateDump {
     }
 }
 
-/// Converts a failure of [`AuthorityState::check_move_account`] at execution
-/// into [`ExecutionErrorKind::FunctionNotFound`] when the account's
-/// authenticator function field is missing or does not decode. The original
-/// error is kept as the source.
-///
-/// # Errors
-///
-/// Any other failure is returned unchanged: reaching execution with one is a
-/// broken invariant.
-fn account_failure_as_execution_error(error: IotaError) -> IotaResult<ExecutionError> {
-    if !matches!(
-        error,
-        IotaError::UserInput {
-            error: UserInputError::MoveAuthenticatorNotFound { .. }
-                | UserInputError::InvalidAuthenticatorFunctionRefField { .. }
-        }
-    ) {
-        return Err(error);
-    }
+/// What a failure of [`AuthorityState::check_move_account`] at execution means.
+enum MoveAccountFailure {
+    /// The account's authenticator function field is missing or does not
+    /// decode. The transaction fails with
+    /// [`ExecutionErrorKind::FunctionNotFound`], keeping the original error
+    /// as the source.
+    Unresolved(ExecutionError),
 
-    Ok(ExecutionError::new_with_source(
-        ExecutionErrorKind::FunctionNotFound,
-        error,
-    ))
+    /// This validator failed to read its store. Not a property of the
+    /// transaction, so nobody can be charged for it, and effects written here
+    /// would differ from the other validators'.
+    ReadFailed(IotaError),
+
+    /// A check that runs before execution on EVERY validator — the input checks
+    /// or the account check — was skipped or wrong.
+    ///
+    /// Once no check before execution catches these on every validator, this
+    /// has to become failure effects under the same payer rule as
+    /// `Unresolved`. That needs a status of its own, and the input checks at
+    /// execution must be routed with it, since an address- or object-owned
+    /// account fails there too.
+    CheckedBeforeExecution(IotaError),
+
+    /// Impossible by construction: the signer is the account id, the field id
+    /// is a hash, and the account is loaded at the version its reference
+    /// names.
+    Impossible(IotaError),
+}
+
+/// Decides what a failure of [`AuthorityState::check_move_account`] at
+/// execution means; see [`MoveAccountFailure`].
+fn classify_move_account_failure(error: IotaError) -> MoveAccountFailure {
+    use UserInputError as U;
+
+    match &error {
+        IotaError::UserInput {
+            error:
+                U::MoveAuthenticatorNotFound { .. } | U::InvalidAuthenticatorFunctionRefField { .. },
+        } => MoveAccountFailure::Unresolved(ExecutionError::new_with_source(
+            ExecutionErrorKind::FunctionNotFound,
+            error,
+        )),
+        IotaError::Storage(_) => MoveAccountFailure::ReadFailed(error),
+        IotaError::UserInput {
+            error:
+                U::AccountObjectNotSupported { .. }
+                | U::ImmutableAccountObjectNotSupported { .. }
+                | U::InvalidAccountObjectDigest { .. },
+        } => MoveAccountFailure::CheckedBeforeExecution(error),
+        _ => MoveAccountFailure::Impossible(error),
+    }
 }
 
 /// Returns the [`MoveAuthenticator`]s to execute during the pre-consensus
