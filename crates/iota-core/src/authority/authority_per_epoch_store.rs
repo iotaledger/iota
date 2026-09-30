@@ -125,7 +125,7 @@ use crate::{
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
+    execution_cache::{ObjectCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::should_reject_tx,
@@ -4095,7 +4095,6 @@ impl AuthorityPerEpochStore {
                 &end_of_publish_transactions,
                 checkpoint_service,
                 cache_reader,
-                authority_state.get_transaction_cache_reader().as_ref(),
                 consensus_commit_info,
                 &mut roots,
                 &mut randomness_roots,
@@ -4606,7 +4605,6 @@ impl AuthorityPerEpochStore {
         end_of_publish_transactions: &[VerifiedSequencedConsensusTransaction],
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
-        tx_reader: &dyn TransactionCacheRead,
         consensus_commit_info: &ConsensusCommitInfo,
         non_randomness_roots: &mut BTreeSet<TransactionKey>,
         randomness_roots: &mut BTreeSet<TransactionKey>,
@@ -4680,7 +4678,7 @@ impl AuthorityPerEpochStore {
         let mut randomness_state_updated = false;
         let mut sequenced_non_randomness = Vec::new();
         let mut sequenced_randomness = Vec::new();
-        let mut account_rules_state = account_rules::AccountRulesState::new();
+        let mut cancelled_claims = account_rules::CancelledClaims::new();
         let mut account_rules_dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
 
         for entry in non_randomness_transactions
@@ -4723,8 +4721,6 @@ impl AuthorityPerEpochStore {
                     output,
                     tx,
                     checkpoint_service,
-                    cache_reader,
-                    tx_reader,
                     consensus_commit_info.round,
                     &previously_deferred_tx_digests,
                     randomness_manager.as_deref_mut(),
@@ -4732,7 +4728,7 @@ impl AuthorityPerEpochStore {
                     randomness_round.is_some(),
                     congestion_tracker,
                     sgp_calculator,
-                    &account_rules_state,
+                    &cancelled_claims,
                     authority_metrics,
                 )
                 .await?
@@ -4741,7 +4737,6 @@ impl AuthorityPerEpochStore {
                     transaction,
                     start_time,
                 } => {
-                    account_rules_state.record_scheduled(transaction.data());
                     notifications.push(key.clone());
                     // Transactions using randomness execute in the separate
                     // randomness phase and checkpoint, whichever list they
@@ -4770,7 +4765,7 @@ impl AuthorityPerEpochStore {
                     }
                 }
                 ConsensusTransactionResult::Cancelled((transaction, reason)) => {
-                    account_rules_state.record_cancelled(transaction.data());
+                    cancelled_claims.record(transaction.data());
                     notifications.push(key.clone());
                     assert!(
                         cancelled_txns
@@ -5117,8 +5112,6 @@ impl AuthorityPerEpochStore {
         output: &mut ConsensusCommitOutput,
         transaction: &VerifiedSequencedConsensusTransaction,
         checkpoint_service: &Arc<C>,
-        cache_reader: &dyn ObjectCacheRead,
-        tx_reader: &dyn TransactionCacheRead,
         commit_round: CommitRound,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         mut randomness_manager: Option<&mut RandomnessManager>,
@@ -5126,7 +5119,7 @@ impl AuthorityPerEpochStore {
         generating_randomness: bool,
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         suggested_gas_price_calculator: &mut SuggestedGasPriceCalculator,
-        account_rules_state: &account_rules::AccountRulesState,
+        cancelled_claims: &account_rules::CancelledClaims,
         authority_metrics: &Arc<AuthorityMetrics>,
     ) -> IotaResult<ConsensusTransactionResult> {
         let _scope = monitored_scope("HandleConsensusTransaction");
@@ -5442,35 +5435,18 @@ impl AuthorityPerEpochStore {
                     ),
                 );
 
-                // An already-executed transaction is a committee-agreed winner: it is
-                // retained rather than dropped, exactly as in post-consensus validation
-                // (issue #11649). Dropping it would make this pass disagree with the one
-                // that originally scheduled it - the case that arises when unflushed
-                // commits are replayed after a crash, or when checkpoint execution has run
-                // ahead of consensus processing and the object store already shows the
-                // account. Retaining it also keeps a claim on the path to the
-                // version-assignment walk, so it still contributes its claim entry and
-                // version seed.
-                //
-                // Store-ahead visibility only comes from checkpoint execution, which is
-                // prefix-ordered: every transaction sequenced before the state that would
-                // poison this check is itself executed, and so is exempt too.
-                let already_executed =
-                    tx_reader.try_is_tx_already_executed(executable_tx.digest())?;
-
-                // The account rules run before the scheduling decision, so a
-                // violating transaction never takes scheduling capacity.
-                if !already_executed {
-                    if let Some(error) = account_rules_state.check_transaction(
-                        self,
-                        cache_reader,
-                        executable_tx.data(),
-                    )? {
-                        return Ok(ConsensusTransactionResult::DroppedByAccountRules {
-                            digest: *executable_tx.digest(),
-                            error,
-                        });
-                    }
+                // The duplicate-claim and plain-signature rules were decided in
+                // post-consensus validation, before any lock was taken. The one
+                // rule that depends on this pass's scheduling decisions runs
+                // here, before the transaction's own decision, so a doomed
+                // transaction never takes scheduling capacity.
+                if let Some(error) =
+                    cancelled_claims.check(self.protocol_config(), executable_tx.data())
+                {
+                    return Ok(ConsensusTransactionResult::DroppedByAccountRules {
+                        digest: *executable_tx.digest(),
+                        error,
+                    });
                 }
 
                 let scheduling_result = self.try_schedule(

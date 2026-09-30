@@ -10,8 +10,9 @@ use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
-    Version,
+    Address, ClaimAccountTransaction, Command, Identifier, ObjectId, ObjectReference, Owner,
+    SmartAccountBuildKind, SmartAccountClaim, Transaction, TransactionDigest, TransactionKind,
+    Version, crypto::PublicKey,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
@@ -2482,4 +2483,145 @@ async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_di
     ));
     assert!(transactions.is_empty());
     assert!(locks.is_empty(), "dropped transaction must not take locks");
+}
+
+// ---------------------------------------------------------------------------
+// Account rules
+// ---------------------------------------------------------------------------
+
+/// Enables the P-COOL flow and the claim transaction kind, which the account
+/// rules require.
+fn enable_account_rules() -> OverrideGuard {
+    ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_claim_account_transaction_for_testing(true);
+        config
+    })
+}
+
+/// A `ClaimAccount` for the address `sender_key` derives, paying with `gas`.
+fn make_claim_transaction(
+    sender: Address,
+    sender_key: &AccountPrivateKey,
+    gas: ObjectReference,
+    gas_price: u64,
+) -> TransactionEnvelope {
+    let claim = SmartAccountClaim::new(
+        &PublicKey::Ed25519(sender_key.public_key()),
+        SmartAccountBuildKind::Mutable,
+    );
+    let tx = Transaction::new(
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+        sender,
+        gas,
+        gas_price * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        gas_price,
+    );
+    to_sender_signed_transaction(tx, sender_key)
+}
+
+/// A plain-signed transaction from an explicit account is dropped before it
+/// acquires any owned-object lock. Otherwise the key the account rotated away
+/// could lock every object of the account for the rest of the epoch, at no
+/// cost, by sending doomed transactions.
+#[tokio::test]
+async fn test_plain_signed_transaction_for_explicit_account_drops_without_locks() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_account_rules();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    // An object whose id is the sender's address is what a claim leaves
+    // behind: the account is explicit.
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(sender.into(), Address::ZERO),
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+
+    let tx = make_transfer_object_transaction(
+        authority.get_object(&object_id).unwrap().object_ref(),
+        authority.get_object(&gas_id).unwrap().object_ref(),
+        sender,
+        &sender_key,
+        Address::random(),
+        rgp,
+    );
+    let verified = epoch_store.verify_transaction(tx).unwrap();
+    let digest = *verified.digest();
+    let mut transactions = vec![make_user_tx_v1_verified(verified)];
+
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert!(transactions.is_empty());
+    assert!(matches!(
+        dropped.as_slice(),
+        [(dropped_digest, IotaError::PlainSignatureForExplicitAccount { address })]
+            if *dropped_digest == digest && *address == sender
+    ));
+    assert!(locks.is_empty(), "A dropped transaction acquires no locks");
+}
+
+/// The first claim of an address in a commit wins; a later claim for the same
+/// address is dropped and, like every other drop, leaves no lock behind.
+#[tokio::test]
+async fn test_later_claim_for_same_address_in_commit_drops_without_locks() {
+    telemetry_subscribers::init_for_testing();
+    let _guard = enable_account_rules();
+
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(gas1_id, sender),
+        Object::with_id_owner_for_testing(gas2_id, sender),
+    ])
+    .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let gas1 = authority.get_object(&gas1_id).unwrap().object_ref();
+    let gas2 = authority.get_object(&gas2_id).unwrap().object_ref();
+
+    let first = epoch_store
+        .verify_transaction(make_claim_transaction(sender, &sender_key, gas1, rgp))
+        .unwrap();
+    let later = epoch_store
+        .verify_transaction(make_claim_transaction(sender, &sender_key, gas2, rgp))
+        .unwrap();
+    let first_digest = *first.digest();
+    let later_digest = *later.digest();
+    let mut transactions = vec![
+        make_user_tx_v1_verified(first),
+        make_user_tx_v1_verified(later),
+    ];
+
+    let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+        &authority,
+        &epoch_store,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(transactions.len(), 1);
+    assert!(matches!(
+        dropped.as_slice(),
+        [(dropped_digest, IotaError::AccountAlreadyExplicit { address })]
+            if *dropped_digest == later_digest && *address == sender
+    ));
+    assert_eq!(locks.get(&gas1), Some(&first_digest));
+    assert!(
+        !locks.contains_key(&gas2),
+        "the dropped claim must not lock its gas coin"
+    );
 }

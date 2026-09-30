@@ -19,20 +19,28 @@
 //!   was cancelled earlier in the same commit is removed (the referenced object
 //!   can never exist at the declared version).
 //!
-//! The rules run inside the scheduling pass, per transaction and *before* the
-//! transaction's congestion scheduling decision. Checking before scheduling
-//! matters: a transaction doomed by the account rules must never occupy
-//! scheduling capacity, otherwise flooding the sequencer with doomed
-//! transactions (duplicate claims for an already-explicit address, plain-signed
-//! transactions racing one's own claim) would create artificial congestion and
-//! defer or cancel legitimate transactions. Decisions are never speculative:
-//! the pass order is deterministic, and when a transaction is checked, the
-//! scheduling fate of every earlier transaction — including every earlier
-//! claim — is already settled.
+//! The first two rules run inside post-consensus validation, per transaction
+//! in consensus order and *before* the transaction acquires its owned-object
+//! locks. A dropped transaction never executes, so a lock it took would hold
+//! the object's current reference until the epoch ends; taking none keeps a
+//! key the account rotated away from locking the account's objects with doomed
+//! transactions at no cost. "Earlier in the commit" for these rules means kept
+//! earlier in the validation loop: the scheduling pass may still defer or
+//! cancel a kept claim, in which case a duplicate dropped against it simply
+//! retries in a later commit.
 //!
-//! "Earlier in the commit" therefore means earlier in the scheduling pass. A
-//! dropped transaction never reaches the version-assignment walk, so no
-//! version-chain decision can disagree with the pass order.
+//! The third rule depends on the scheduling pass's own decisions, so it runs
+//! there, before the transaction's congestion scheduling decision. With the
+//! duplicate-claim guard ahead of it, a cancelled claim was the only claim kept
+//! for its address in the commit and the address had neither a claim entry nor
+//! an object, so no other claim covers the address: a `MoveAuthenticator`
+//! naming it is dropped on the cancellation alone.
+//!
+//! Neither placement lets a doomed transaction take scheduling capacity, so
+//! flooding the sequencer with duplicate claims or plain-signed transactions
+//! for an explicit account cannot create artificial congestion. A dropped
+//! transaction never reaches the version-assignment walk, so no version-chain
+//! decision can disagree with the consensus order.
 //!
 //! The whole design is enabled only under the P-COOL flow, where every user
 //! transaction is sequenced before it can execute: dropping a transaction
@@ -54,6 +62,7 @@
 
 use std::collections::HashSet;
 
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, TransactionKind};
 #[cfg(test)]
 use iota_types::executable_transaction::VerifiedExecutableTransaction;
@@ -101,18 +110,14 @@ fn move_authenticated_account_addresses(
         .map(|authenticator| ObjectId::from(authenticator.address()))
 }
 
-/// Account-rules state threaded through one commit's scheduling pass: the
-/// claims the sequencer has scheduled or cancelled at earlier positions of
-/// the pass.
+/// Account-rules state threaded through one commit's post-consensus
+/// validation: the claims kept at earlier positions of the loop.
 #[derive(Default)]
 pub(crate) struct AccountRulesState {
-    /// Addresses claimed by a scheduled claim at an earlier position of this
-    /// commit; the version-assignment walk stages exactly these claims.
-    commit_claims: HashSet<ObjectId>,
-    /// Addresses whose claim was cancelled by congestion in this commit. A
-    /// cancelled claim stages nothing: the address stays implicit and
-    /// claimable.
-    cancelled_claims: HashSet<ObjectId>,
+    /// Addresses claimed by a transaction kept earlier in this commit. The
+    /// scheduling pass may still defer or cancel such a claim; a duplicate
+    /// dropped against it retries in a later commit.
+    kept_claims: HashSet<ObjectId>,
 }
 
 impl AccountRulesState {
@@ -120,10 +125,10 @@ impl AccountRulesState {
         Self::default()
     }
 
-    /// Checks one transaction against the account rules, at its position of
-    /// the scheduling pass. Must be called *before* the transaction's
-    /// congestion scheduling decision, so that a violating transaction never
-    /// takes scheduling capacity. Returns the rejection error if the
+    /// Checks one transaction against the duplicate-claim and plain-signature
+    /// rules, at its position of the validation loop. Must be called *before*
+    /// the transaction acquires its owned-object locks, so that a dropped
+    /// transaction leaves none behind. Returns the rejection error if the
     /// transaction must be dropped.
     pub(crate) fn check_transaction(
         &self,
@@ -166,43 +171,21 @@ impl AccountRulesState {
             }
         }
 
-        for account_id in move_authenticated_account_addresses(data) {
-            if self.cancelled_claims.contains(&account_id)
-                && !self.resolve_explicit(epoch_store, cache_reader, &account_id)?
-            {
-                // The account object the authenticator references can never
-                // come to exist: its claim was cancelled at an earlier
-                // position of this commit and no other claim covers the
-                // address.
-                return Ok(Some(IotaError::DependencyOnCancelledClaim {
-                    address: account_id.into(),
-                }));
-            }
-        }
-
         Ok(None)
     }
 
-    /// Records the claim of a transaction the sequencer scheduled. No-op for
+    /// Records the claim of a transaction that validation kept. No-op for
     /// transactions that are not claims.
-    pub(crate) fn record_scheduled(&mut self, data: &SenderSignedTransaction) {
+    pub(crate) fn record_kept(&mut self, data: &SenderSignedTransaction) {
         if let Some(address) = account_address_being_claimed(data) {
-            self.commit_claims.insert(address);
-        }
-    }
-
-    /// Records the claim of a transaction the sequencer cancelled. No-op for
-    /// transactions that are not claims.
-    pub(crate) fn record_cancelled(&mut self, data: &SenderSignedTransaction) {
-        if let Some(address) = account_address_being_claimed(data) {
-            self.cancelled_claims.insert(address);
+            self.kept_claims.insert(address);
         }
     }
 
     /// Answers "is the account at `address` explicit, as of this position of
-    /// the scheduling pass?" identically on every validator.
+    /// the validation loop?" identically on every validator.
     ///
-    /// Consults, in order: claims scheduled earlier in this commit, claim
+    /// Consults, in order: claims kept earlier in this commit, claim
     /// entries of the current epoch (quarantine, then the epoch table), and
     /// the object store. The store branch is uniform because the resolution is
     /// only consulted for signature-derivable addresses: an object can exist
@@ -216,13 +199,57 @@ impl AccountRulesState {
         cache_reader: &dyn ObjectCacheRead,
         address: &ObjectId,
     ) -> IotaResult<bool> {
-        if self.commit_claims.contains(address) {
+        if self.kept_claims.contains(address) {
             return Ok(true);
         }
         if epoch_store.get_claimed_account(address)?.is_some() {
             return Ok(true);
         }
         Ok(cache_reader.get_object(address).is_some())
+    }
+}
+
+/// Claims the scheduling pass cancelled at earlier positions of one commit.
+/// A cancelled claim stages nothing: the address stays implicit and claimable,
+/// and no account object comes to exist for it in this commit.
+#[derive(Default)]
+pub(crate) struct CancelledClaims {
+    addresses: HashSet<ObjectId>,
+}
+
+impl CancelledClaims {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    /// Records the claim of a transaction the sequencer cancelled. No-op for
+    /// transactions that are not claims.
+    pub(crate) fn record(&mut self, data: &SenderSignedTransaction) {
+        if let Some(address) = account_address_being_claimed(data) {
+            self.addresses.insert(address);
+        }
+    }
+
+    /// Returns the rejection error for a transaction whose `MoveAuthenticator`
+    /// names an account whose claim was cancelled earlier in this commit: the
+    /// referenced object can never come to exist. Must be called *before* the
+    /// transaction's congestion scheduling decision.
+    pub(crate) fn check(
+        &self,
+        config: &ProtocolConfig,
+        data: &SenderSignedTransaction,
+    ) -> Option<IotaError> {
+        if self.addresses.is_empty()
+            || !config.enable_claim_account_transaction()
+            || data.transaction().is_system_tx()
+        {
+            return None;
+        }
+        move_authenticated_account_addresses(data)
+            .find(|account_id| self.addresses.contains(account_id))
+            .map(|account_id| IotaError::DependencyOnCancelledClaim {
+                address: account_id.into(),
+            })
     }
 }
 
@@ -376,7 +403,7 @@ mod tests {
         let plain = generate_plain_signed_tx(account.into());
 
         assert!(check(&state, &authority, &claim).is_none());
-        state.record_scheduled(&claim);
+        state.record_kept(&claim);
 
         assert!(matches!(
             check(&state, &authority, &plain),
@@ -397,7 +424,7 @@ mod tests {
         assert!(check(&state, &authority, &plain).is_none());
 
         assert!(check(&state, &authority, &claim).is_none());
-        state.record_scheduled(&claim);
+        state.record_kept(&claim);
     }
 
     #[tokio::test]
@@ -414,7 +441,7 @@ mod tests {
         };
 
         assert!(check(&state, &authority, &first_claim).is_none());
-        state.record_scheduled(&first_claim);
+        state.record_kept(&first_claim);
 
         assert!(matches!(
             check(&state, &authority, &second_claim),
@@ -423,28 +450,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cancelled_claim_releases_address_and_propagates() {
+    async fn test_cancelled_claim_propagates_to_move_authenticator_uses() {
         let _protocol_guard = enable_claim_account_transaction();
         let authority = TestAuthorityBuilder::new().build().await;
-        let mut state = AccountRulesState::new();
+        let epoch_store = authority.epoch_store_for_testing();
+        let config = epoch_store.protocol_config();
+        let mut cancelled = CancelledClaims::new();
         let (account, claim) = claim_data();
         let plain = generate_plain_signed_tx(account.into());
         let authenticated = generate_move_authenticator_tx(account, Version::from(5));
 
-        // The claim passes the account rules but is cancelled by the
-        // congestion scheduling decision.
-        assert!(check(&state, &authority, &claim).is_none());
-        state.record_cancelled(&claim);
+        assert!(cancelled.check(config, &authenticated).is_none());
+        // The claim passed validation but is cancelled by the congestion
+        // scheduling decision.
+        cancelled.record(&claim);
 
-        // A plain-signed transaction for the same address proceeds as
-        // implicit: the cancelled claim staged nothing.
-        assert!(check(&state, &authority, &plain).is_none());
         // A MoveAuthenticator use of the account is dropped: the referenced
         // object can never come to exist.
         assert!(matches!(
-            check(&state, &authority, &authenticated),
+            cancelled.check(config, &authenticated),
             Some(IotaError::DependencyOnCancelledClaim { address }) if address == account.into()
         ));
+        // A plain-signed transaction for the same address is not this rule's
+        // concern: the cancelled claim staged nothing, so the address stays
+        // implicit.
+        assert!(cancelled.check(config, &plain).is_none());
     }
 
     #[tokio::test]
