@@ -312,11 +312,13 @@ where
         let held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
         match held.as_ref() {
             Some(state) => {
+                let pending = state.pending.len() as u64;
                 let mut hint = state.inner.size_hint();
-                hint.set_lower(hint.lower().saturating_add(state.pending.len() as u64));
+                // Upper first: `set_lower` asserts the new lower bound is within it.
                 if let Some(upper) = hint.upper() {
-                    hint.set_upper(upper.saturating_add(state.pending.len() as u64));
+                    hint.set_upper(upper.saturating_add(pending));
                 }
+                hint.set_lower(hint.lower().saturating_add(pending));
                 hint
             }
             None => http_body::SizeHint::default(),
@@ -529,10 +531,17 @@ mod tests {
         let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::new(inner, None, None);
 
         let mut sizes = Vec::new();
+        let mut remaining = vec![body.size_hint().exact()];
         while let Some(frame) = next_frame(&mut body).await {
             sizes.push(frame.unwrap().into_data().unwrap().len());
+            remaining.push(body.size_hint().exact());
         }
         assert_eq!(sizes, [MAX_FRAME_BYTES, MAX_FRAME_BYTES, 5]);
+        let frame = MAX_FRAME_BYTES as u64;
+        assert_eq!(
+            remaining,
+            [Some(2 * frame + 5), Some(frame + 5), Some(5), Some(0)]
+        );
     }
 
     #[tokio::test]
