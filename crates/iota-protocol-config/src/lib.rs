@@ -1730,14 +1730,17 @@ pub struct ProtocolConfig {
     // raw_bytes: &vector<u8>): address`
     public_key_to_iota_address_impl_cost_base: Option<u64>,
 
-    // Smallest gas budget a `ClaimAccount` transaction may declare.
+    // Upper bound on the computation units a `ClaimAccount` is charged, after rounding.
     //
     // The sequencer stages a claim entry for the address before the claim executes, so a
     // claim it schedules must not be able to run out of gas: the address would be treated as
     // explicit with no account object behind it. The claim runs a fixed pipeline with no user
-    // code, so its cost is bounded, and requiring the budget to clear that bound is a
-    // byte-only check.
-    claim_account_min_gas_budget: Option<u64>,
+    // code, so its cost is bounded by this many units at the transaction's own gas price plus
+    // the storage bound below, and requiring the budget to clear that sum is a byte-only check.
+    claim_account_max_computation_units: Option<u64>,
+    // Upper bound on the bytes a `ClaimAccount` stores beyond its raw public key bytes: the
+    // account object, its authenticator function reference and the field holding the key.
+    claim_account_storage_bytes_bound: Option<u64>,
 }
 
 // feature flags
@@ -2317,11 +2320,29 @@ impl ProtocolConfig {
             // would be staged for an account object that never comes to exist,
             // bricking the address.
             assert!(
-                self.claim_account_min_gas_budget.is_some(),
-                "enable_claim_account_transaction requires claim_account_min_gas_budget to be set"
+                self.claim_account_max_computation_units.is_some()
+                    && self.claim_account_storage_bytes_bound.is_some(),
+                "enable_claim_account_transaction requires claim_account_max_computation_units \
+                 and claim_account_storage_bytes_bound to be set"
             );
         }
         enable_claim_account_transaction
+    }
+
+    /// Smallest gas budget a `ClaimAccount` carrying `public_key_len` raw key
+    /// bytes may declare at `gas_price`: the pipeline's computation bound
+    /// charged at that price plus the storage it creates. Requires
+    /// `enable_claim_account_transaction`.
+    pub fn claim_account_min_gas_budget(&self, gas_price: u64, public_key_len: u64) -> u64 {
+        let computation = self
+            .claim_account_max_computation_units()
+            .saturating_mul(gas_price);
+        let storage = self
+            .claim_account_storage_bytes_bound()
+            .saturating_add(public_key_len)
+            .saturating_mul(self.obj_data_cost_refundable())
+            .saturating_mul(self.storage_gas_price());
+        computation.saturating_add(storage)
     }
 
     pub fn check_declared_initial_shared_versions(&self) -> bool {
@@ -3007,7 +3028,8 @@ impl ProtocolConfig {
             multisig_multisig_validate_pubkey_cost_per_secp256r1_member: None,
             public_key_to_iota_address_impl_cost_base: None,
 
-            claim_account_min_gas_budget: None,
+            claim_account_max_computation_units: None,
+            claim_account_storage_bytes_bound: None,
 
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
@@ -3751,9 +3773,11 @@ impl ProtocolConfig {
                         // devnet only.
                         cfg.feature_flags.enable_claim_account_transaction = true;
 
-                        // Floor for a ClaimAccount gas budget, so a scheduled claim
-                        // cannot run out of gas.
-                        cfg.claim_account_min_gas_budget = Some(5_000_000);
+                        // Bounds on a ClaimAccount's cost, so a scheduled claim
+                        // cannot run out of gas at any admissible gas price or
+                        // key size.
+                        cfg.claim_account_max_computation_units = Some(5_000);
+                        cfg.claim_account_storage_bytes_bound = Some(2_000);
                     }
 
                     // Set the cost for built-in Move authenticators to 0 for now.

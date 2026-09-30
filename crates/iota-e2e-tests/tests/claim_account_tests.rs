@@ -100,6 +100,92 @@ async fn test_claim_account_mutable_succeeds() {
     );
 }
 
+/// A `ClaimAccount` at exactly the budget floor the validity check demands
+/// must not run out of gas: the sequencer stages the claim entry before the
+/// claim executes, so an aborting claim would leave the address explicit with
+/// no account object behind it. The floor scales with the gas price and the
+/// key size, so the largest MultiSig committee at the highest admissible gas
+/// price is the most expensive claim the floor has to cover.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_account_at_the_gas_floor_succeeds() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+        TransactionKind, UserSignature,
+        crypto::{
+            MULTISIG_COMMITTEE_SIZE_MAX, MultisigAggregatedSignature, MultisigCommittee,
+            MultisigMember, SimpleSignature,
+        },
+    };
+    use iota_types::transaction::{TransactionAPI, TransactionEnvelope};
+
+    telemetry_subscribers::init_for_testing();
+
+    let test_cluster = TestClusterBuilder::new().build().await;
+    let rgp = test_cluster.get_reference_gas_price().await;
+    let protocol_config = ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
+    let gas_price = protocol_config.max_gas_price();
+
+    // The largest committee the chain accepts, with a threshold one member
+    // meets.
+    let keys: Vec<Ed25519PrivateKey> = (0..MULTISIG_COMMITTEE_SIZE_MAX)
+        .map(|_| Ed25519PrivateKey::random())
+        .collect();
+    let committee = MultisigCommittee::new(
+        keys.iter()
+            .map(|key| MultisigMember::new(key.public_key(), 1))
+            .collect(),
+        1,
+    )
+    .expect("a valid committee");
+    let sender = Address::from(&committee);
+    let claim = SmartAccountClaim::new_multisig(&committee, SmartAccountBuildKind::Mutable);
+    let budget = protocol_config
+        .claim_account_min_gas_budget(gas_price, claim.public_key_raw_bytes.len() as u64);
+
+    let gas = test_cluster
+        .fund_address_and_return_gas(rgp, Some(2 * budget), sender)
+        .await;
+    let tx_data = Transaction::new(
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
+        sender,
+        gas,
+        budget,
+        gas_price,
+    );
+    let signer: SimpleKeypair = keys[0].clone().into();
+    let signature: SimpleSignature = signer.sign(&tx_data.signing_digest());
+    let multisig = UserSignature::Multisig(MultisigAggregatedSignature::new_unchecked(
+        vec![signature.into()],
+        0b1,
+        committee,
+    ));
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![multisig]);
+
+    let response = test_cluster
+        .wallet
+        .execute_transaction_may_fail(tx)
+        .await
+        .expect("a claim at the floor must execute");
+    let effects = response.effects.expect("response must include effects");
+    assert!(
+        effects.status().is_ok(),
+        "a claim at the floor must not run out of gas; got {:?}",
+        effects.status(),
+    );
+    let object_changes = response
+        .object_changes
+        .expect("response must include object changes");
+    assert_eq!(
+        created_smart_accounts(&object_changes).len(),
+        1,
+        "the claim must create the account object"
+    );
+}
+
 /// Verify that a `TransactionKind::ClaimAccount` with
 /// `SmartAccountBuildKind::Immutable` succeeds and creates an immutable
 /// `SmartAccount` object.

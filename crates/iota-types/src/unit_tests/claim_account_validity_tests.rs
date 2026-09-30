@@ -10,13 +10,20 @@
 //! transaction bytes alone.
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
 use iota_sdk_types::{
     Address, ClaimAccountTransaction, ObjectDigest, ObjectId, ObjectReference,
-    SharedObjectReference, SmartAccountBuildKind, SmartAccountClaim, Transaction, Version,
-    crypto::{PublicKey, Secp256k1PublicKey},
+    SharedObjectReference, SignatureScheme, SmartAccountBuildKind, SmartAccountClaim, Transaction,
+    Version,
+    crypto::{
+        MULTISIG_COMMITTEE_SIZE_MAX, MultisigCommittee, MultisigMember, PublicKey,
+        Secp256k1PublicKey,
+    },
 };
+use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
+    account_abstraction::public_key::MovePublicKey,
     crypto::{AccountPrivateKey, get_key_pair},
     error::UserInputError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -47,17 +54,59 @@ fn valid_claim() -> (SmartAccountClaim, Address) {
 }
 
 fn claim_tx(claim: SmartAccountClaim, sender: Address) -> Transaction {
-    claim_tx_with_budget(claim, sender, 10_000_000)
+    claim_tx_with_budget(claim, sender, 100_000_000)
 }
 
 fn claim_tx_with_budget(claim: SmartAccountClaim, sender: Address, budget: u64) -> Transaction {
+    claim_tx_with_budget_and_price(claim, sender, budget, 1)
+}
+
+fn claim_tx_with_budget_and_price(
+    claim: SmartAccountClaim,
+    sender: Address,
+    budget: u64,
+    gas_price: u64,
+) -> Transaction {
     Transaction::new(
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
         sender,
         gas_ref(),
         budget,
-        1,
+        gas_price,
     )
+}
+
+/// A claim of a MultiSig address with the largest committee the chain
+/// accepts, so its key bytes are the largest a claim can carry.
+fn largest_multisig_claim() -> (SmartAccountClaim, Address) {
+    let mut rng = StdRng::from_seed([7; 32]);
+    let members = (0..MULTISIG_COMMITTEE_SIZE_MAX)
+        .map(|_| MultisigMember::new(Ed25519PrivateKey::random_with(&mut rng).public_key(), 1))
+        .collect();
+    let committee = MultisigCommittee::new(members, 1).expect("a valid committee");
+    let claim = SmartAccountClaim::new_multisig(&committee, SmartAccountBuildKind::Mutable);
+    let sender = MovePublicKey::new(
+        SignatureScheme::Multisig,
+        claim.public_key_raw_bytes.clone(),
+    )
+    .expect("a valid multisig key")
+    .address()
+    .expect("a multisig key derives an address");
+    (claim, sender)
+}
+
+/// The smallest budget the validity check accepts for `claim` at `gas_price`,
+/// read back from the rejection of a zero budget.
+fn floor_for(
+    claim: SmartAccountClaim,
+    sender: Address,
+    gas_price: u64,
+    config: &ProtocolConfig,
+) -> u64 {
+    match claim_tx_with_budget_and_price(claim, sender, 0, gas_price).validity_check(config) {
+        Err(UserInputError::GasBudgetTooLow { min_budget, .. }) => min_budget,
+        other => panic!("a zero budget must be rejected by the gas floor, got {other:?}"),
+    }
 }
 
 #[test]
@@ -101,10 +150,10 @@ fn claim_with_malformed_key_bytes_is_rejected() {
 fn claim_below_the_gas_floor_is_rejected() {
     let (claim, sender) = valid_claim();
     let config = config();
-    let floor = config.claim_account_min_gas_budget();
+    let floor = floor_for(claim.clone(), sender, 1, &config);
 
     // A claim the sequencer schedules must not be able to run out of gas.
-    let err = claim_tx_with_budget(claim, sender, floor - 1)
+    let err = claim_tx_with_budget(claim.clone(), sender, floor - 1)
         .validity_check(&config)
         .expect_err("a budget below the floor must be rejected");
     assert!(matches!(
@@ -112,10 +161,46 @@ fn claim_below_the_gas_floor_is_rejected() {
         UserInputError::GasBudgetTooLow { min_budget, .. } if min_budget == floor
     ));
 
-    let (claim, sender) = valid_claim();
     claim_tx_with_budget(claim, sender, floor)
         .validity_check(&config)
         .expect("exactly the floor must pass");
+}
+
+#[test]
+fn claim_floor_covers_the_computation_bucket_at_the_declared_gas_price() {
+    let (claim, sender) = valid_claim();
+    let config = config();
+    let gas_price = config.max_gas_price();
+
+    // Execution charges at least one rounding bucket of computation units at
+    // the transaction's own gas price, so a floor that ignores the price lets
+    // a claim at the highest admissible price run out of gas.
+    let floor = floor_for(claim, sender, gas_price, &config);
+    assert!(
+        floor > config.gas_rounding_step() * gas_price,
+        "floor {floor} does not cover one computation bucket at gas price {gas_price}"
+    );
+}
+
+#[test]
+fn claim_floor_grows_with_the_key_size() {
+    let config = config();
+    let (ed25519_claim, ed25519_sender) = valid_claim();
+    let (multisig_claim, multisig_sender) = largest_multisig_claim();
+
+    // The key is stored on the account object, so the storage a claim pays for
+    // grows with the key bytes it carries.
+    let ed25519_floor = floor_for(ed25519_claim, ed25519_sender, 1, &config);
+    let multisig_floor = floor_for(multisig_claim.clone(), multisig_sender, 1, &config);
+    assert!(
+        multisig_floor > ed25519_floor,
+        "multisig floor {multisig_floor} must exceed the Ed25519 floor {ed25519_floor}"
+    );
+    assert!(matches!(
+        claim_tx_with_budget(multisig_claim, multisig_sender, ed25519_floor)
+            .validity_check(&config),
+        Err(UserInputError::GasBudgetTooLow { .. })
+    ));
 }
 
 #[test]

@@ -1544,18 +1544,28 @@ impl TransactionAPI for Transaction {
                 value: config.max_gas_payment_objects().to_string()
             }
         );
-        if config.enable_claim_account_transaction()
-            && matches!(self.kind(), TransactionKind::ClaimAccount(_))
-        {
-            // A claim the sequencer schedules must not run out of gas.
-            let min_budget = config.claim_account_min_gas_budget();
-            fp_ensure!(
-                self.gas_budget() >= min_budget,
-                UserInputError::GasBudgetTooLow {
-                    gas_budget: self.gas_budget(),
-                    min_budget,
-                }
-            );
+        if config.enable_claim_account_transaction() {
+            if let TransactionKind::ClaimAccount(claim) = self.kind() {
+                let AccountClaimKind::SmartAccount(smart) = &claim.kind else {
+                    unimplemented!(
+                        "a new AccountClaimKind enum variant was added and needs to be handled"
+                    )
+                };
+                // A claim the sequencer schedules must not run out of gas. Its
+                // cost scales with the declared gas price and the key bytes it
+                // stores, so the floor does too.
+                let min_budget = config.claim_account_min_gas_budget(
+                    self.gas_price(),
+                    smart.public_key_raw_bytes.len() as u64,
+                );
+                fp_ensure!(
+                    self.gas_budget() >= min_budget,
+                    UserInputError::GasBudgetTooLow {
+                        gas_budget: self.gas_budget(),
+                        min_budget,
+                    }
+                );
+            }
         }
         Ok(())
     }
