@@ -292,6 +292,13 @@ where
         let piece = state
             .pending
             .split_to(state.pending.len().min(MAX_FRAME_BYTES));
+        // While a reclaim can still happen, hand over a copy: a slice would keep
+        // the whole buffer it came from alive in the send buffer.
+        let piece = if this.timer.is_some() {
+            Bytes::copy_from_slice(&piece)
+        } else {
+            piece
+        };
         Poll::Ready(Some(Ok(Frame::data(piece))))
     }
 
@@ -591,5 +598,31 @@ mod tests {
         drop(body);
         tokio::time::sleep(DEADLINE * 3).await;
         assert!(!reported.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn the_deadline_frees_the_buffer_behind_a_piece_already_handed_over() {
+        let response = Bytes::from(vec![7u8; MAX_FRAME_BYTES * 2]);
+        let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
+            http_body_util::Full::new(response.clone()),
+            None,
+            None,
+            DEADLINE,
+            || {},
+        );
+        // The transport holds on to the piece while the peer is not reading.
+        let piece = next_frame(&mut body)
+            .await
+            .unwrap()
+            .unwrap()
+            .into_data()
+            .unwrap();
+
+        tokio::time::sleep(DEADLINE * 3).await;
+        assert!(
+            response.is_unique(),
+            "the handed-over piece must not keep the response buffer alive"
+        );
+        drop((piece, body));
     }
 }
