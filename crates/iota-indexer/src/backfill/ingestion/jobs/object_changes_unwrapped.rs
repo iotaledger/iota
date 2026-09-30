@@ -5,16 +5,18 @@ use std::{sync::Arc, time::Duration};
 
 use diesel::{ExpressionMethods, RunQueryDsl};
 use downcast::Any;
-use iota_types::{
-    effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointContentsExt,
-};
+use iota_types::{effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData};
 
 use crate::{
-    IndexerMetrics, Registry, backfill::ingestion::IngestionBackfill, db::ConnectionPool,
-    errors::IndexerError, ingestion::primary::prepare::PrimaryWorker,
-    models::transactions::StoredTransaction, schema::transactions,
-    store::diesel_macro::spawn_blocking_task, transactional_blocking_with_retry,
+    IndexerMetrics, Registry,
+    backfill::ingestion::IngestionBackfill,
+    db::ConnectionPool,
+    errors::IndexerError,
+    ingestion::{common::prepare::ValidatedCheckpoint, primary::prepare::index_transaction},
+    models::transactions::StoredTransaction,
+    schema::transactions,
+    store::diesel_macro::spawn_blocking_task,
+    transactional_blocking_with_retry,
 };
 
 const PG_DB_COMMIT_SLEEP_DURATION: Duration = Duration::from_secs(3600);
@@ -28,49 +30,22 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
     async fn process_checkpoint(
         checkpoint: Arc<CheckpointData>,
     ) -> Result<Vec<Self::ProcessedType>, IndexerError> {
-        let checkpoint_summary = &checkpoint.checkpoint_summary;
-        let checkpoint_contents = &checkpoint.checkpoint_contents;
-        let transactions = &checkpoint.transactions;
-        let checkpoint_seq = checkpoint_summary.sequence_number;
-
-        if checkpoint_contents.len() != transactions.len() {
-            return Err(IndexerError::FullNodeReading(format!(
-                "checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
-                checkpoint_contents.len(),
-                transactions.len()
-            )));
-        }
-
-        let tx_seq_numbers = checkpoint_contents
-            .enumerate_transactions(checkpoint_summary)
-            .map(|(seq, digest)| (digest.transaction, seq));
-
         let mut results = Vec::new();
-        let dummy_metrics = IndexerMetrics::new(&Registry::new());
+        let metrics = IndexerMetrics::new(&Registry::new());
 
-        // Only transactions with unwrapped objects need to be backfilled
-        for (tx, (expected_digest, tx_sequence_number)) in transactions
-            .iter()
-            .zip(tx_seq_numbers)
-            .filter(|(tx, _)| !tx.effects.unwrapped().is_empty())
-        {
-            let actual_digest = tx.transaction.digest();
-
-            if expected_digest != *actual_digest {
-                return Err(IndexerError::FullNodeReading(format!(
-                    "digest mismatch at checkpoint {checkpoint_seq}: expected {expected_digest}, found {actual_digest}",
-                )));
+        let checkpoint = ValidatedCheckpoint::new(&checkpoint)?;
+        for (sequence_number, checkpoint_transaction) in checkpoint.enumerate_transactions() {
+            if checkpoint_transaction.effects.unwrapped().is_empty() {
+                continue;
             }
-
-            let indexed_tx = PrimaryWorker::index_transaction(
-                tx,
-                tx_sequence_number,
-                checkpoint_seq,
-                checkpoint_summary.timestamp_ms,
-                &dummy_metrics,
+            let indexed_tx = index_transaction(
+                checkpoint_transaction,
+                sequence_number,
+                checkpoint.sequence_number(),
+                checkpoint.timestamp_ms(),
+                metrics.clone(),
             )
             .await?;
-
             results.push(StoredTransaction::from(&indexed_tx));
         }
 
