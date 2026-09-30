@@ -4079,8 +4079,14 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
+    /// Keeps the config consistent with the getters that assert on this flag:
+    /// disabling also switches off `enable_claim_account_transaction`, whose
+    /// account rules are only sound under the P-COOL flow.
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+        if !val {
+            self.feature_flags.enable_claim_account_transaction = false;
+        }
     }
 
     pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
