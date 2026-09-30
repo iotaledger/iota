@@ -1,0 +1,189 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 17 tasks
+
+init:
+A: object(0,0), B: object(0,1)
+
+task 1, lines 12-58:
+//# publish --sender A
+created: object(1,0), object(1,1), object(1,2), object(1,3), object(1,4), object(1,5), object(1,6)
+mutated: object(0,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 25133200
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
+
+task 2, line 60:
+//# init-abstract-account --sender A --package-metadata object(1,5) --inputs "yellow_account" "authenticate" --create-function test::yellow_account::create --account-type iota::smart_account::SmartAccount
+events: Event { package_id: ObjectId("test"), module: Identifier("yellow_account"), sender: Address("A"), struct_tag: StructTag { address: Address("iota"), module: Identifier("smart_account"), name: Identifier("SmartAccountCreated"), type_params: [] }, contents: "IfpbyY+2zP1EmgIr3PYw7OHRSVwsfP4xN8ycTwjrcjAAAA==" }, Event { package_id: ObjectId("test"), module: Identifier("yellow_account"), sender: Address("A"), struct_tag: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("iota"), module: Identifier("smart_account"), name: Identifier("SmartAccount"), type_params: [] })] }, contents: "IfpbyY+2zP1EmgIr3PYw7OHRSVwsfP4xN8ycTwjrcjD54rTqiG3mlOiVyb6FaYjF+Y2Vm08tpNfqLic+opS9wA55ZWxsb3dfYWNjb3VudAxhdXRoZW50aWNhdGU=" }
+created: object(2,0), object(2,1), object(2,2)
+mutated: object(0,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 6771600
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
+
+task 3, lines 62-65:
+//# abstract --account immshared(2,2) --ptb-inputs object(1,0)
+mutated: object(1,0), object(2,0)
+unchanged_shared: object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2386400
+├── Storage Rebate: 2386400
+└── Non-Refundable Storage Fee: 0
+
+task 4, lines 67-69:
+//# abstract --account immshared(2,2) --ptb-inputs object(2,2) pubkey(A)
+events: Event { package_id: ObjectId("iota"), module: Identifier("smart_account"), sender: Address("fake(2,2)"), struct_tag: StructTag { address: Address("iota"), module: Identifier("builtin_authenticator_functions"), name: Identifier("PublicKeyAttached"), type_params: [] }, contents: "IfpbyY+2zP1EmgIr3PYw7OHRSVwsfP4xN8ycTwjrcjAAIH9RRjrrdtiNybdeY3JQsiDEnPW3ln2/F8H5+nxZSgko" }
+created: object(4,0)
+mutated: object(2,0), object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5008400
+├── Storage Rebate: 2356000
+└── Non-Refundable Storage Fee: 0
+
+task 5, lines 71-74:
+//# abstract --account immshared(2,2) --ptb-inputs object(1,0)
+mutated: object(1,0), object(2,0)
+unchanged_shared: object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2386400
+├── Storage Rebate: 2386400
+└── Non-Refundable Storage Fee: 0
+
+task 6, lines 76-78:
+//# abstract --account immshared(2,2) --ptb-inputs object(2,2) pubkey(B)
+events: Event { package_id: ObjectId("iota"), module: Identifier("smart_account"), sender: Address("fake(2,2)"), struct_tag: StructTag { address: Address("iota"), module: Identifier("builtin_authenticator_functions"), name: Identifier("PublicKeyRotated"), type_params: [] }, contents: "IfpbyY+2zP1EmgIr3PYw7OHRSVwsfP4xN8ycTwjrcjAAIH9RRjrrdtiNybdeY3JQsiDEnPW3ln2/F8H5+nxZSgkoACBl4RO6W6sbkSlEGh7CkXbqnItC2lSrAfVPouqC6AcEhQ==" }
+mutated: object(2,0), object(2,2), object(4,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5008400
+├── Storage Rebate: 5008400
+└── Non-Refundable Storage Fee: 0
+
+task 7, lines 80-83:
+//# abstract --account immshared(2,2) --ptb-inputs object(1,0)
+mutated: object(1,0), object(2,0)
+unchanged_shared: object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2386400
+├── Storage Rebate: 2386400
+└── Non-Refundable Storage Fee: 0
+
+task 8, lines 85-87:
+//# abstract --account immshared(2,2) --ptb-inputs object(2,2) object(1,5) "yellow_account" "authenticate2"
+events: Event { package_id: ObjectId("iota"), module: Identifier("smart_account"), sender: Address("fake(2,2)"), struct_tag: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("AuthenticatorFunctionRefV1Rotated"), type_params: [Struct(StructTag { address: Address("iota"), module: Identifier("smart_account"), name: Identifier("SmartAccount"), type_params: [] })] }, contents: "IfpbyY+2zP1EmgIr3PYw7OHRSVwsfP4xN8ycTwjrcjD54rTqiG3mlOiVyb6FaYjF+Y2Vm08tpNfqLic+opS9wA55ZWxsb3dfYWNjb3VudAxhdXRoZW50aWNhdGX54rTqiG3mlOiVyb6FaYjF+Y2Vm08tpNfqLic+opS9wA55ZWxsb3dfYWNjb3VudA1hdXRoZW50aWNhdGUy" }
+mutated: object(2,0), object(2,1), object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5798800
+├── Storage Rebate: 5791200
+└── Non-Refundable Storage Fee: 0
+
+task 9, lines 89-92:
+//# abstract --account immshared(2,2) --ptb-inputs object(1,0)
+mutated: object(1,0), object(2,0)
+unchanged_shared: object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2386400
+├── Storage Rebate: 2386400
+└── Non-Refundable Storage Fee: 0
+
+task 10, lines 94-95:
+//# abstract --account immshared(2,2) --ptb-inputs object(2,2)
+events: Event { package_id: ObjectId("iota"), module: Identifier("smart_account"), sender: Address("fake(2,2)"), struct_tag: StructTag { address: Address("iota"), module: Identifier("builtin_authenticator_functions"), name: Identifier("PublicKeyDetached"), type_params: [] }, contents: "IfpbyY+2zP1EmgIr3PYw7OHRSVwsfP4xN8ycTwjrcjAAIGXhE7pbqxuRKUQaHsKRduqci0LaVKsB9U+i6oLoBwSF" }
+mutated: object(2,0), object(2,2)
+deleted: object(4,0)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2356000
+├── Storage Rebate: 5008400
+└── Non-Refundable Storage Fee: 0
+
+task 11, lines 97-100:
+//# abstract --account immshared(2,2) --ptb-inputs object(1,0)
+mutated: object(1,0), object(2,0)
+unchanged_shared: object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2386400
+├── Storage Rebate: 2386400
+└── Non-Refundable Storage Fee: 0
+
+task 12, lines 102-104:
+//# abstract --account immshared(2,2) --ptb-inputs object(2,2) pubkey(A)
+events: Event { package_id: ObjectId("iota"), module: Identifier("smart_account"), sender: Address("fake(2,2)"), struct_tag: StructTag { address: Address("iota"), module: Identifier("builtin_authenticator_functions"), name: Identifier("PublicKeyAttached"), type_params: [] }, contents: "IfpbyY+2zP1EmgIr3PYw7OHRSVwsfP4xN8ycTwjrcjAAIH9RRjrrdtiNybdeY3JQsiDEnPW3ln2/F8H5+nxZSgko" }
+created: object(4,0)
+mutated: object(2,0), object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5008400
+├── Storage Rebate: 2356000
+└── Non-Refundable Storage Fee: 0
+
+task 13, lines 106-110:
+//# abstract --account immshared(2,2) --ptb-inputs object(1,0)
+mutated: object(1,0), object(2,0)
+unchanged_shared: object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2386400
+├── Storage Rebate: 2386400
+└── Non-Refundable Storage Fee: 0
+
+task 14, lines 112-114:
+//# abstract --account immshared(2,2) --ptb-inputs object(2,2)
+events: Event { package_id: ObjectId("iota"), module: Identifier("smart_account"), sender: Address("fake(2,2)"), struct_tag: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("AuthenticatorFunctionRefV1Rotated"), type_params: [Struct(StructTag { address: Address("iota"), module: Identifier("smart_account"), name: Identifier("SmartAccount"), type_params: [] })] }, contents: "IfpbyY+2zP1EmgIr3PYw7OHRSVwsfP4xN8ycTwjrcjD54rTqiG3mlOiVyb6FaYjF+Y2Vm08tpNfqLic+opS9wA55ZWxsb3dfYWNjb3VudA1hdXRoZW50aWNhdGUyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIfYnVpbHRpbl9hdXRoZW50aWNhdG9yX2Z1bmN0aW9ucyVlZDI1NTE5X2F1dGhlbnRpY2F0b3JfZnVuY3Rpb25fcmVmX3Yx" }
+mutated: object(2,0), object(2,1), object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 6110400
+├── Storage Rebate: 5798800
+└── Non-Refundable Storage Fee: 0
+
+task 15, lines 116-119:
+//# abstract --account immshared(2,2) --builtin-signer A --ptb-inputs object(1,0)
+mutated: object(1,0), object(2,0)
+unchanged_shared: object(2,2)
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2386400
+├── Storage Rebate: 2386400
+└── Non-Refundable Storage Fee: 0
+
+task 16, line 121:
+//# view-object 1,0
+Owner: Shared(2)
+Version: 16
+Contents: test::yellow_account::Counter {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,0),
+        },
+    },
+    value: 7u64,
+}
