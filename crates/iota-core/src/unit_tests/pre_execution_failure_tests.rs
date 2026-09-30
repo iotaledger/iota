@@ -4,21 +4,19 @@
 //! Unit tests for failing a transaction with effects when a check before
 //! execution fails, instead of halting the validator. They cover a Move
 //! authenticator whose account cannot be resolved, both when a sponsor pays gas
-//! and when the account pays its own, the executor handling
-//! `PreExecutionResult::Fail`, and that every account check failure converts
-//! while a storage error does not.
+//! and when the account pays its own, and the executor handling
+//! `PreExecutionResult::Fail`.
 
 use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
-    Address, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId,
-    Owner, SharedObjectReference, Transaction, TransactionEffects, UserSignature,
-    VersionAssignment,
+    Address, ExecutionStatus, MoveAuthenticator, MoveAuthenticatorV1, ObjectId, Owner,
+    SharedObjectReference, Transaction, TransactionEffects, UserSignature, VersionAssignment,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
-    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError},
+    error::{ExecutionError, ExecutionErrorKind, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
     execution::PreExecutionResult,
     object::{OBJECT_START_VERSION, Object},
@@ -27,7 +25,6 @@ use iota_types::{
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor},
 };
 
-use super::account_failure_as_execution_error;
 use crate::authority::{
     AuthorityState, ExecutionEnv, test_authority_builder::TestAuthorityBuilder,
 };
@@ -389,66 +386,4 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
         effects,
         "failure effects must decode to what was encoded"
     );
-}
-
-/// Only the two failures that mean the account cannot be resolved become
-/// `FunctionNotFound`; every other failure is returned unchanged.
-#[test]
-fn every_account_check_failure_becomes_a_pre_execution_failure() {
-    let account_object_id = ObjectId::random();
-    let not_found = IotaError::UserInput {
-        error: UserInputError::MoveAuthenticatorNotFound {
-            authenticator_function_ref_id: ObjectId::random(),
-            account_object_id,
-            account_object_version: OBJECT_START_VERSION,
-        },
-    };
-    let execution_error = account_failure_as_execution_error(not_found).unwrap();
-    assert_eq!(
-        execution_error.kind(),
-        &ExecutionErrorKind::FunctionNotFound
-    );
-    assert!(
-        format!("{execution_error:?}").contains(&account_object_id.to_string()),
-        "the account must still be named by the source"
-    );
-
-    for error in [
-        UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id },
-        UserInputError::AccountObjectNotSupported {
-            object_id: account_object_id,
-        },
-        UserInputError::ImmutableAccountObjectNotSupported {
-            object_id: account_object_id,
-        },
-        UserInputError::InvalidAccountObjectDigest {
-            object_id: account_object_id,
-            expected_digest: ObjectDigest::ZERO,
-            actual_digest: ObjectDigest::ZERO,
-        },
-        UserInputError::AccountObjectVersionMismatch {
-            object_id: account_object_id,
-            expected_version: OBJECT_START_VERSION,
-            actual_version: OBJECT_START_VERSION,
-        },
-        UserInputError::IncorrectUserSignature {
-            error: "signer differs from the account".to_string(),
-        },
-    ] {
-        let execution_error =
-            account_failure_as_execution_error(IotaError::UserInput { error }).unwrap();
-        assert_eq!(
-            execution_error.kind(),
-            &ExecutionErrorKind::FunctionNotFound
-        );
-    }
-
-    // A storage error is this validator's failure, not the transaction's, and
-    // is returned unchanged so that the validator stops instead of writing
-    // effects the others do not.
-    let storage_error = IotaError::Storage("read failed".to_string());
-    assert!(matches!(
-        account_failure_as_execution_error(storage_error),
-        Err(IotaError::Storage(_))
-    ));
 }

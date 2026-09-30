@@ -5668,13 +5668,14 @@ impl AuthorityState {
     /// # Errors
     ///
     /// Any failure the check finds with the transaction, as the error the
-    /// transaction fails with; see [`account_failure_as_execution_error`].
+    /// transaction fails with: [`ExecutionErrorKind::FunctionNotFound`], with
+    /// the original error as the source.
     ///
     /// # Panics
     ///
-    /// On a storage error: this validator failed to read its store, which says
-    /// nothing about the transaction, so nobody can be charged for it, and
-    /// effects written here would differ from the other validators'.
+    /// When the store cannot be read: that says nothing about the transaction,
+    /// so nobody can be charged for it, and effects written here would differ
+    /// from the other validators'.
     fn check_move_account_for_execution(
         &self,
         auth_account_object_id: ObjectId,
@@ -5694,12 +5695,13 @@ impl AuthorityState {
             protocol_config,
         ) {
             Ok(function_ref) => Ok(function_ref),
-            Err(check_error) => match account_failure_as_execution_error(check_error) {
-                Ok(execution_error) => Err(execution_error),
-                Err(storage_error) => {
-                    panic!("move account checks cannot fail during execution: {storage_error:?}")
-                }
-            },
+            Err(MoveAccountCheckError::Input(input_error)) => Err(ExecutionError::new_with_source(
+                ExecutionErrorKind::FunctionNotFound,
+                input_error,
+            )),
+            Err(MoveAccountCheckError::Storage(storage_error)) => {
+                panic!("failed to read the store while checking a Move account: {storage_error}")
+            }
         }
     }
 
@@ -5724,6 +5726,7 @@ impl AuthorityState {
             false,
             protocol_config,
         )
+        .map_err(IotaError::from)
     }
 
     /// Checks whether `authenticator` unlocks a valid Move account and returns
@@ -5735,6 +5738,13 @@ impl AuthorityState {
     /// an error, so execution can proceed to the proper effect. Prefer the
     /// `check_move_account_for_execution` / `check_move_account_for_validation`
     /// wrappers over calling this directly.
+    ///
+    /// # Errors
+    ///
+    /// [`MoveAccountCheckError::Input`] when the account fails a check, and
+    /// [`MoveAccountCheckError::Storage`] when the store cannot be read. The
+    /// error type is what lets the execution path distinguish the two, so a
+    /// new kind of failure here has to be added to it.
     fn check_move_account(
         &self,
         auth_account_object_id: ObjectId,
@@ -5744,7 +5754,7 @@ impl AuthorityState {
         signer: &Address,
         is_execution: bool,
         protocol_config: &ProtocolConfig,
-    ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
+    ) -> Result<AuthenticatorFunctionRefForExecution, MoveAccountCheckError> {
         let auth_account_object_seq_number = match (&account_object.object, is_execution) {
             // In any case, if the account object is loaded, we can check its version and digest.
             // Then we return the version of the account object to be used for reading the
@@ -5850,7 +5860,8 @@ impl AuthorityState {
             .try_find_object_lt_or_eq_version(
                 authenticator_function_ref_field_id,
                 auth_account_object_seq_number,
-            )?;
+            )
+            .map_err(MoveAccountCheckError::Storage)?;
 
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field {
             Ok(authenticator_function_ref_v1_from_dynamic_field_object(
@@ -6573,23 +6584,29 @@ impl NodeStateDump {
     }
 }
 
-/// Converts a failure of [`AuthorityState::check_move_account`] at execution
-/// into the error the transaction fails with:
-/// [`ExecutionErrorKind::FunctionNotFound`], keeping the original error as the
-/// source.
-///
-/// # Errors
-///
-/// An error that is not about the transaction, a storage error, is returned
-/// unchanged: this validator failed to read its store, so nobody can be charged
-/// for it, and effects written for it would differ from the other validators'.
-fn account_failure_as_execution_error(error: IotaError) -> IotaResult<ExecutionError> {
-    match error {
-        IotaError::UserInput { .. } => Ok(ExecutionError::new_with_source(
-            ExecutionErrorKind::FunctionNotFound,
-            error,
-        )),
-        error => Err(error),
+/// The reason [`AuthorityState::check_move_account`] failed.
+/// Execution treats the two cases differently, because only
+/// the first one is about the transaction.
+enum MoveAccountCheckError {
+    /// The account fails a check.
+    Input(UserInputError),
+
+    /// This validator failed to read its store.
+    Storage(IotaError),
+}
+
+impl From<UserInputError> for MoveAccountCheckError {
+    fn from(error: UserInputError) -> Self {
+        Self::Input(error)
+    }
+}
+
+impl From<MoveAccountCheckError> for IotaError {
+    fn from(error: MoveAccountCheckError) -> Self {
+        match error {
+            MoveAccountCheckError::Input(error) => IotaError::UserInput { error },
+            MoveAccountCheckError::Storage(error) => error,
+        }
     }
 }
 
