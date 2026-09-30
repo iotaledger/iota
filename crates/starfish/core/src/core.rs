@@ -386,13 +386,9 @@ impl Core {
         let (accepted_blocks_headers, missing_block_refs) =
             self.block_manager.try_accept_blocks(blocks, source);
 
-        if !accepted_blocks_headers.is_empty()
-            && self.context.protocol_config.consensus_starfish_speed()
-        {
-            self.record_strong_vote_complaints(
-                &mut self.dag_state.write(),
-                &accepted_blocks_headers,
-            );
+        if self.context.protocol_config.consensus_starfish_speed() {
+            self.record_strong_blame_metrics(&accepted_blocks_headers);
+            self.record_acknowledgment_stats(&accepted_blocks_headers);
         }
 
         let missing_committed_txns = if !accepted_blocks_headers.is_empty() {
@@ -460,13 +456,9 @@ impl Core {
             .block_manager
             .try_accept_block_headers(block_headers, source);
 
-        if !accepted_block_headers.is_empty()
-            && self.context.protocol_config.consensus_starfish_speed()
-        {
-            self.record_strong_vote_complaints(
-                &mut self.dag_state.write(),
-                &accepted_block_headers,
-            );
+        if self.context.protocol_config.consensus_starfish_speed() {
+            self.record_strong_blame_metrics(&accepted_block_headers);
+            self.record_acknowledgment_stats(&accepted_block_headers);
         }
 
         let missing_committed_txns = if !accepted_block_headers.is_empty() {
@@ -1037,10 +1029,55 @@ impl Core {
                 .observe(clock_round.saturating_sub(ancestor.round()).into());
         }
 
+        // Only leader blocks feed the optimistic-commit path, so only they
+        // choose what to carry by what the voters are expected to hold.
+        let am_leader_at_clock_round = self
+            .leaders(clock_round)
+            .iter()
+            .any(|slot| slot.authority == self.context.own_index);
+        let adaptive_acknowledgments =
+            am_leader_at_clock_round && self.dag_state.read().adaptive_acknowledgments_enabled();
+        let has_transactions =
+            adaptive_acknowledgments && self.transaction_consumer.has_transactions();
+
+        // Consume the acknowledgments about transaction data availability for past
+        // blocks to be included.
+        let max_acknowledgments = self
+            .context
+            .protocol_config
+            .max_acknowledgments_per_block(self.context.committee.size());
+        let (acknowledgments, leave_out_transactions) = {
+            let mut dag_state = self.dag_state.write();
+            let (deferred, leave_out_transactions) = if adaptive_acknowledgments {
+                dag_state.acknowledgments_to_defer(has_transactions)
+            } else {
+                (BTreeSet::new(), false)
+            };
+            (
+                dag_state.take_acknowledgments(max_acknowledgments, &deferred),
+                leave_out_transactions,
+            )
+        };
+
         // Consume the next transactions to be included. Do not drop the guards yet as
         // this would acknowledge the inclusion of transactions. Just let this
-        // be done in the end of the method.
-        let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
+        // be done in the end of the method. A leader block takes only
+        // transactions whose holders it checked; the rest wait for the next block.
+        if leave_out_transactions {
+            self.context
+                .metrics
+                .node_metrics
+                .adaptive_ack_leader_blocks_without_transactions
+                .inc();
+        }
+        let (transactions, ack_transactions): (_, Box<dyn FnOnce(GenericTransactionRef)>) =
+            if !adaptive_acknowledgments || (has_transactions && !leave_out_transactions) {
+                let (transactions, ack_transactions, _limit_reached) =
+                    self.transaction_consumer.next();
+                (transactions, ack_transactions)
+            } else {
+                (Vec::new(), Box::new(|_| {}))
+            };
         // Serialize the transaction
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
@@ -1057,37 +1094,6 @@ impl Core {
             .node_metrics
             .proposed_block_transactions
             .observe(transactions.len() as f64);
-
-        // Adaptive acknowledgment filtering: only applied to leader blocks,
-        // where included refs feed the optimistic-commit path.
-        let am_leader_at_clock_round = self
-            .leaders(clock_round)
-            .iter()
-            .any(|slot| slot.authority == self.context.own_index);
-        let exclude = if am_leader_at_clock_round
-            && self.context.protocol_config.consensus_starfish_speed()
-            && self
-                .context
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
-        {
-            self.dag_state
-                .read()
-                .starfish_speed_excluded_ack_authorities()
-        } else {
-            AuthoritySet::new()
-        };
-
-        // Consume the acknowledgments about transaction data availability for past
-        // blocks to be included.
-        let max_acknowledgments = self
-            .context
-            .protocol_config
-            .max_acknowledgments_per_block(self.context.committee.size());
-        let acknowledgments = self
-            .dag_state
-            .write()
-            .take_acknowledgments(max_acknowledgments, exclude);
 
         self.context
             .metrics
@@ -1210,9 +1216,12 @@ impl Core {
         // Accept the block into BlockManager and DagState. The accepted set may also
         // include blocks unsuspended by the GC sweep, so its size is not necessarily
         // one; for an own block only the absence of missing ancestors is guaranteed.
-        let (_, missing) = self
+        let (accepted_block_headers, missing) = self
             .block_manager
             .try_accept_blocks(vec![verified_block.clone()], DataSource::OwnBlock);
+        if self.context.protocol_config.consensus_starfish_speed() {
+            self.record_acknowledgment_stats(&accepted_block_headers);
+        }
         if !missing.is_empty() {
             error!(
                 ?missing,
@@ -1649,25 +1658,41 @@ impl Core {
         }
     }
 
-    /// Records strong-vote complaints from each freshly-accepted block into
-    /// DagState's per-leader-round hint tables. Caller passes a write-locked
-    /// DagState. Called only when Starfish-Speed flag is on.
-    fn record_strong_vote_complaints(
-        &self,
-        dag_state: &mut DagState,
-        blocks: &[VerifiedBlockHeader],
-    ) {
+    /// Feeds freshly-accepted headers to the acknowledgment statistics,
+    /// marking the leader block of each round.
+    fn record_acknowledgment_stats(&self, block_headers: &[VerifiedBlockHeader]) {
+        if block_headers.is_empty()
+            || !self
+                .context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments
+        {
+            return;
+        }
+        let leader_blocks: Vec<bool> = block_headers
+            .iter()
+            .map(|header| {
+                self.leaders(header.round())
+                    .iter()
+                    .any(|slot| slot.authority == header.author())
+            })
+            .collect();
+        let mut dag_state = self.dag_state.write();
+        for (header, leader_block) in block_headers.iter().zip(leader_blocks) {
+            dag_state.record_acknowledgment_stats(header, leader_block);
+        }
+    }
+
+    /// Counts the strong blames against this node's leader blocks among
+    /// freshly-accepted blocks. Called only when Starfish-Speed flag is on.
+    fn record_strong_blame_metrics(&self, blocks: &[VerifiedBlockHeader]) {
         let own_index = self.context.own_index;
         for block in blocks {
             // Use the producer's pinned leader (in the strong-vote payload),
             // not the local canonical leader. The local view can disagree
             // across schedule rotations — same misattribution surface fixed
             // for the commit path in StarfishSpeed.
-            if !block.is_strong_blame_for(own_index) {
-                continue;
-            }
-            let leader_round = block.round().saturating_sub(1);
-            if leader_round == GENESIS_ROUND {
+            if !block.is_strong_blame_for(own_index) || block.round() == GENESIS_ROUND + 1 {
                 continue;
             }
             let Some(strong_vote) = block.strong_vote() else {
@@ -1689,11 +1714,6 @@ impl Core {
                     .with_label_values(&[hostname])
                     .inc();
             }
-            dag_state.record_strong_vote_complaint(
-                block.author(),
-                leader_round,
-                strong_vote.missing,
-            );
         }
     }
 
@@ -4190,82 +4210,5 @@ mod test {
             add_block(8, author, strong_vote_other);
         }
         assert!(!fixture.core.has_strong_vote_quorum(8, leader));
-    }
-
-    #[tokio::test]
-    async fn test_strong_vote_complaints_recorded_on_both_ingest_paths() {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_starfish_speed_for_testing(true);
-        let mut fixture = CoreTestFixture::new(
-            context,
-            vec![1; 4],
-            AuthorityIndex::new_for_test(0),
-            false,
-            false,
-            None,
-        )
-        .await;
-
-        // Strong blame pinned to the local node (authority 0), naming
-        // authority 3 as missing.
-        let mut missing = AuthoritySet::new();
-        missing.insert(AuthorityIndex::new_for_test(3));
-        let blame = StrongVote {
-            leader_authority: AuthorityIndex::new_for_test(0),
-            missing,
-        };
-
-        // One blame arrives as a full block, the other as a bare header.
-        let full_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new(2, 1)
-                .set_version(TestBlockHeaderVersion::V2)
-                .set_strong_vote(Some(blame))
-                .build(),
-        );
-        let header = VerifiedBlockHeader::new_for_test(
-            TestBlockHeader::new(2, 2)
-                .set_version(TestBlockHeaderVersion::V2)
-                .set_strong_vote(Some(blame))
-                .build(),
-        );
-
-        fixture
-            .core
-            .add_blocks(vec![full_block], DataSource::Test)
-            .unwrap();
-        fixture
-            .core
-            .add_block_headers(vec![header], DataSource::Test)
-            .unwrap();
-
-        let voter_count = |authority: u8| {
-            let hostname = &fixture
-                .core
-                .context
-                .committee
-                .authority(AuthorityIndex::new_for_test(authority))
-                .hostname;
-            fixture
-                .core
-                .context
-                .metrics
-                .node_metrics
-                .strong_blames_received_from_voter
-                .with_label_values(&[hostname])
-                .get()
-        };
-        assert_eq!(voter_count(1), 1);
-        assert_eq!(voter_count(2), 1);
-
-        // Both complaints reached the hint tables: authority 3 has f+1 = 2
-        // complaint stake and is excluded from future acknowledgments.
-        let excluded = fixture
-            .core
-            .dag_state
-            .read()
-            .starfish_speed_excluded_ack_authorities();
-        assert!(excluded.contains(AuthorityIndex::new_for_test(3)));
     }
 }
