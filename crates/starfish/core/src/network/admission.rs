@@ -362,7 +362,7 @@ where
             return AdmissionFuture::rejected(Status::unimplemented(DEPRECATED_METHOD_MESSAGE));
         }
         let Some(group) = RpcGroup::from_path(path) else {
-            return AdmissionFuture::admitted(self.inner.call(request), None, None, None);
+            return AdmissionFuture::passed_through(self.inner.call(request));
         };
         let Some(peer) = request
             .extensions()
@@ -451,6 +451,11 @@ impl<F> AdmissionFuture<F> {
             total,
             send_deadline,
         }
+    }
+
+    /// A request outside every budget, passed on untouched.
+    fn passed_through(inner: F) -> Self {
+        Self::admitted(inner, None, None, None)
     }
 
     fn rejected(status: Status) -> Self {
