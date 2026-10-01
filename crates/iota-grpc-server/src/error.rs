@@ -320,6 +320,20 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     details: Some(Box::new(details)),
                 }
             }
+            RejectedByAttestor(err) => {
+                let details = ErrorDetails::new().with_error_info(ErrorInfo {
+                    reason,
+                    domain: "iota.grpc".to_string(),
+                    ..Default::default()
+                });
+                RpcError {
+                    code: Code::FailedPrecondition,
+                    message: Some(format!(
+                        "Transaction could not be attested by this fullnode: {err}"
+                    )),
+                    details: Some(Box::new(details)),
+                }
+            }
             QuorumDriverInternal(err) => RpcError::new(Code::Internal, err.to_string()),
             ObjectsDoubleUsed { conflicting_txes } => {
                 let new_map = conflicting_txes

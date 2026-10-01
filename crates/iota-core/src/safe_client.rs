@@ -7,6 +7,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
+    attestation::AttestedTransaction,
     base_types::*,
     committee::*,
     crypto::AuthorityPublicKeyBytes,
@@ -98,6 +99,7 @@ pub struct SafeClientMetrics {
     handle_obj_info_latency: Histogram,
     handle_tx_info_latency: Histogram,
     submit_tx_latency: Histogram,
+    submit_externally_attested_tx_latency: Histogram,
     get_tx_status_latency: Histogram,
     notify_capabilities_v2_latency: Histogram,
     health_check_latency: Histogram,
@@ -141,6 +143,9 @@ impl SafeClientMetrics {
             .latency
             .with_label_values(&["handle_transaction_info_request"]);
         let submit_tx_latency = metrics_base.latency.with_label_values(&["submit_tx"]);
+        let submit_externally_attested_tx_latency = metrics_base
+            .latency
+            .with_label_values(&["submit_externally_attested_tx"]);
         let get_tx_status_latency = metrics_base.latency.with_label_values(&["get_tx_status"]);
         let notify_capabilities_v2_latency = metrics_base
             .latency
@@ -160,6 +165,7 @@ impl SafeClientMetrics {
             handle_obj_info_latency,
             handle_tx_info_latency,
             submit_tx_latency,
+            submit_externally_attested_tx_latency,
             get_tx_status_latency,
             notify_capabilities_v2_latency,
             health_check_latency,
@@ -542,6 +548,25 @@ where
                 .submit_tx(transactions, client_addr)
                 .await,
             "Client error in submit_tx"
+        )
+    }
+
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn submit_externally_attested_tx(
+        &self,
+        transactions: Vec<AttestedTransaction>,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        let _timer = self
+            .metrics
+            .submit_externally_attested_tx_latency
+            .start_timer();
+        check_error!(
+            self.address,
+            self.authority_client
+                .submit_externally_attested_tx(transactions, client_addr)
+                .await,
+            "Client error in submit_externally_attested_tx"
         )
     }
 

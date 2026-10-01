@@ -743,6 +743,30 @@ pub enum IotaError {
          an honest dry-run cannot exceed what the tx can pay for"
     )]
     AttestationUnitsAboveBudget { actual: u64, maximum: u64 },
+
+    #[error(
+        "External attestation names attestor {attestor_address}, which is not in the \
+         active attestor set of epoch {epoch}"
+    )]
+    ExternalAttestationUnknownAttestor {
+        attestor_address: Address,
+        epoch: EpochId,
+    },
+
+    #[error(
+        "External attestation from {attestor_address} is signed with a key other than \
+         the one registered for this epoch"
+    )]
+    ExternalAttestationKeyMismatch { attestor_address: Address },
+
+    #[error("External attestation from {attestor_address} has an invalid signature: {error}")]
+    ExternalAttestationSignatureInvalid {
+        attestor_address: Address,
+        error: String,
+    },
+
+    #[error("Attestor key is not in the active attestor set of epoch {epoch}")]
+    AttestorKeyInactive { epoch: EpochId },
 }
 
 #[repr(u64)]

@@ -1,10 +1,12 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, ObjectReference, TransactionDigest, UserSignature};
+use fastcrypto::hash::HashFunction;
+use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
+use iota_sdk_types::{Address, ObjectReference, SimpleSignature, TransactionDigest, UserSignature};
 use serde::{Deserialize, Serialize};
 
-use crate::transaction::TransactionEnvelope;
+use crate::{crypto::DefaultHash, transaction::TransactionEnvelope};
 
 /// Index of a validator in the current epoch's consensus committee. Kept as a
 /// plain `u8` so `iota-types` does not depend on `starfish-config`, whose
@@ -21,16 +23,16 @@ pub(super) type AuthorityIndex = u8;
 /// - [`Attestation::Validator`]: produced by the block-proposing validator.
 ///   Authenticated implicitly by the block signature — no separate attestor
 ///   signature is needed.
-/// - [`Attestation::Explicit`]: produced by a registered third-party attestor.
-///   Requires a signature binding the attestation to the transaction.
+/// - [`Attestation::External`]: produced by an attestor from the on-chain
+///   registry. Requires a signature binding the attestation to the transaction.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Attestation {
     Validator {
         payload: AttestationData,
         /// Index of the attesting validator in the current epoch's committee
-        attestor_index: AuthorityIndex,
+        validator_index: AuthorityIndex,
     },
-    Explicit {
+    External {
         payload: AttestationData,
         attestor_address: Address,
         /// Signs over `hash(transaction.digest() || BCS(payload) ||
@@ -43,7 +45,7 @@ pub enum Attestation {
 /// The attested content carried by all [`Attestation`] variants.
 ///
 /// Versioned to allow new fields to be introduced without breaking existing
-/// match arms. Both `Validator` and `Explicit` share the same `AttestationData`
+/// match arms. Both `Validator` and `External` share the same `AttestationData`
 /// so any extension applies uniformly across attestation types.
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,10 +73,55 @@ pub struct AttestedTransaction {
     pub attestation: Attestation,
 }
 
+// TODO: sign an `IntentMessage` under a dedicated `IntentScope` (an
+// iota-rust-sdk change) and bind the epoch, so the signature is
+// domain-separated like every other one and cannot be carried into a later
+// epoch. Both change the signed bytes and must land before
+// `enable_external_attestation` is enabled on any network.
+/// Digest an external attestor signs:
+/// `hash(tx_digest || BCS(payload) || attestor_address)`.
+pub fn external_attestation_digest(
+    tx_digest: &TransactionDigest,
+    payload: &AttestationData,
+    attestor_address: Address,
+) -> [u8; 32] {
+    let mut hasher = DefaultHash::default();
+    hasher.update(tx_digest.bytes());
+    hasher
+        .update(bcs::to_bytes(payload).expect("BCS serialization of AttestationData cannot fail"));
+    hasher.update(AsRef::<[u8]>::as_ref(&attestor_address));
+    hasher.finalize().digest
+}
+
 impl Attestation {
+    /// An attestation by the block-proposing validator at `validator_index`.
+    pub fn new_validator(payload: AttestationData, validator_index: AuthorityIndex) -> Self {
+        Self::Validator {
+            payload,
+            validator_index,
+        }
+    }
+
+    /// An attestation by the registered attestor `attestor_address`, signed
+    /// with `keypair` for `tx_digest`.
+    pub fn new_external(
+        tx_digest: &TransactionDigest,
+        payload: AttestationData,
+        attestor_address: Address,
+        keypair: &SimpleKeypair,
+    ) -> Self {
+        let digest = external_attestation_digest(tx_digest, &payload, attestor_address);
+        let signature: SimpleSignature = keypair.sign(&digest);
+        Self::External {
+            payload,
+            attestor_address,
+            signature: Box::new(UserSignature::Simple(signature)),
+        }
+    }
+
     pub fn computation_units(&self) -> u64 {
         let payload = match self {
-            Attestation::Validator { payload, .. } | Attestation::Explicit { payload, .. } => {
+            Attestation::Validator { payload, .. } | Attestation::External { payload, .. } => {
                 payload
             }
         };
@@ -100,9 +147,14 @@ impl AttestedTransaction {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
+    use rand::{SeedableRng, rngs::StdRng};
+
     use super::*;
     use crate::{
-        base_types::random_object_ref, crypto::zero_ed25519_signature,
+        base_types::random_object_ref,
+        crypto::{get_key_pair_from_rng, zero_ed25519_signature},
+        iota_system_state::attestor_registry::{attestor_pubkey_bytes, verify_attestor_signature},
         utils::create_fake_transaction,
     };
 
@@ -125,7 +177,7 @@ mod tests {
     fn attestation_validator_bcs_round_trip() {
         let attestation = Attestation::Validator {
             payload: make_attestation_data(),
-            attestor_index: 3,
+            validator_index: 3,
         };
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
@@ -133,8 +185,8 @@ mod tests {
     }
 
     #[test]
-    fn attestation_explicit_bcs_round_trip() {
-        let attestation = Attestation::Explicit {
+    fn attestation_external_bcs_round_trip() {
+        let attestation = Attestation::External {
             payload: make_attestation_data(),
             attestor_address: Address::random(),
             signature: Box::new(UserSignature::Simple(zero_ed25519_signature())),
@@ -145,12 +197,36 @@ mod tests {
     }
 
     #[test]
+    fn new_external_signs_the_documented_digest() {
+        let keypair = SimpleKeypair::from(
+            get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut StdRng::from_seed([3; 32])).1,
+        );
+        let attestor_address = Address::random();
+        let tx = create_fake_transaction();
+        let payload = make_attestation_data();
+        let attestation =
+            Attestation::new_external(tx.digest(), payload.clone(), attestor_address, &keypair);
+        let Attestation::External { signature, .. } = &attestation else {
+            panic!("expected an external attestation");
+        };
+        let UserSignature::Simple(signature) = signature.as_ref() else {
+            panic!("expected a simple signature");
+        };
+        let registered_key = attestor_pubkey_bytes(&keypair);
+        let digest = external_attestation_digest(tx.digest(), &payload, attestor_address);
+        verify_attestor_signature(&registered_key, signature, &digest).unwrap();
+        // The digest binds the attestor address: another address is refuted.
+        let other = external_attestation_digest(tx.digest(), &payload, Address::random());
+        assert!(verify_attestor_signature(&registered_key, signature, &other).is_err());
+    }
+
+    #[test]
     fn attested_transaction_bcs_round_trip() {
         let attested = AttestedTransaction::new(
             create_fake_transaction(),
             Attestation::Validator {
                 payload: make_attestation_data(),
-                attestor_index: 0,
+                validator_index: 0,
             },
         );
         let encoded = bcs::to_bytes(&attested).unwrap();

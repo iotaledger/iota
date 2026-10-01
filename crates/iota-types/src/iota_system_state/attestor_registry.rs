@@ -16,7 +16,10 @@ use fastcrypto::{
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
+use iota_sdk_crypto::{
+    Signer, Verifier,
+    simple::{SimpleKeypair, SimpleVerifier},
+};
 use iota_sdk_types::{
     Address, Identifier, ObjectId, SignatureScheme, SimpleSignature, StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
@@ -179,15 +182,46 @@ pub fn verify_attestor_pop(pubkey: &[u8], pop: &[u8], sender: Address) -> Result
 /// `iota_system::register_attestor` / `rotate_attestor_key` for `keypair`'s
 /// public key bound to `sender`.
 pub fn generate_attestor_proof_of_possession(keypair: &SimpleKeypair, sender: Address) -> Vec<u8> {
-    let pk = PublicKey::from(keypair);
-    let mut pubkey = vec![pk.flag()];
-    pubkey.extend_from_slice(pk.as_ref());
-    let mut msg = pubkey;
+    let mut msg = attestor_pubkey_bytes(keypair);
     msg.extend_from_slice(sender.as_ref());
     let intent_msg = IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg);
     let sig: SimpleSignature = keypair.sign(&intent_msg.signing_digest());
     // Strip the composite `flag || sig || pubkey` down to the raw signature.
     sig.to_bytes()[1..65].to_vec()
+}
+
+/// `flag || raw key`, the on-chain encoding of an attestor signing key.
+pub fn attestor_pubkey_bytes(keypair: &SimpleKeypair) -> Vec<u8> {
+    let pk = PublicKey::from(keypair);
+    let mut bytes = vec![pk.flag()];
+    bytes.extend_from_slice(pk.as_ref());
+    bytes
+}
+
+/// Why an attestor signature does not verify against the registered key.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AttestorSignatureError {
+    /// Signed with a key other than the registered one.
+    KeyMismatch,
+    Invalid(String),
+}
+
+/// Verifies `signature` over `digest` for the registered `flag || raw` key:
+/// the key embedded in the signature must be exactly that key.
+pub fn verify_attestor_signature(
+    attestor_pubkey: &[u8],
+    signature: &SimpleSignature,
+    digest: &[u8; 32],
+) -> Result<(), AttestorSignatureError> {
+    let pk = signature.to_public_key();
+    let mut signing_key = vec![pk.scheme() as u8];
+    signing_key.extend_from_slice(pk.as_ref());
+    if signing_key != attestor_pubkey {
+        return Err(AttestorSignatureError::KeyMismatch);
+    }
+    SimpleVerifier
+        .verify(digest, signature)
+        .map_err(|e| AttestorSignatureError::Invalid(e.to_string()))
 }
 
 /// Per-epoch snapshot entry for an active attestor, carried by
@@ -245,6 +279,14 @@ impl AttestorSet {
     pub fn by_address(&self, address: &Address) -> Option<(u32, &EpochStartAttestorInfoV1)> {
         let idx = *self.index_by_address.get(address)?;
         Some((idx, &self.entries[idx as usize]))
+    }
+
+    /// The attestor registered with the `flag || raw` key `pubkey`.
+    pub fn by_pubkey(&self, pubkey: &[u8]) -> Option<(u32, &EpochStartAttestorInfoV1)> {
+        self.entries
+            .iter()
+            .position(|entry| entry.attestor_pubkey == pubkey)
+            .map(|idx| (idx as u32, &self.entries[idx]))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &EpochStartAttestorInfoV1> {
@@ -521,6 +563,29 @@ mod tests {
             assert_eq!(pop.len(), 64);
             verify_attestor_pubkey(&pubkey).unwrap();
             verify_attestor_pop(&pubkey, &pop, sender).unwrap();
+        }
+    }
+
+    #[test]
+    fn attestor_signature_verifies_only_with_the_registered_key() {
+        let kps = test_keypairs();
+        let digest = [7u8; 32];
+        for i in 0..kps.len() {
+            let signature: SimpleSignature = kps[i].sign(&digest);
+            let pubkey = attestor_pubkey_bytes(&kps[i]);
+            verify_attestor_signature(&pubkey, &signature, &digest).unwrap();
+            assert_eq!(
+                verify_attestor_signature(
+                    &attestor_pubkey_bytes(&kps[(i + 1) % kps.len()]),
+                    &signature,
+                    &digest
+                ),
+                Err(AttestorSignatureError::KeyMismatch)
+            );
+            assert!(matches!(
+                verify_attestor_signature(&pubkey, &signature, &[8u8; 32]),
+                Err(AttestorSignatureError::Invalid(_))
+            ));
         }
     }
 

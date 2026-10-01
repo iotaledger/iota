@@ -17,9 +17,13 @@ use iota_network::randomness;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
-    base_types::AuthorityName, crypto::AuthorityKeyPair, digests::ChainIdentifier,
-    executable_transaction::VerifiedExecutableTransaction, iota_system_state::IotaSystemStateTrait,
-    object::Object, supported_protocol_versions::SupportedProtocolVersions,
+    base_types::AuthorityName,
+    crypto::AuthorityKeyPair,
+    digests::ChainIdentifier,
+    executable_transaction::VerifiedExecutableTransaction,
+    iota_system_state::{IotaSystemStateTrait, attestor_registry::EpochStartAttestorInfoV1},
+    object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::VerifiedTransaction,
 };
 use prometheus_filtered::Registry;
@@ -71,6 +75,7 @@ pub struct TestAuthorityBuilder<'a> {
     cache_config: Option<ExecutionCacheConfig>,
     disable_execute_genesis_transactions: bool,
     chain_override: Option<Chain>,
+    epoch_start_attestors: Vec<EpochStartAttestorInfoV1>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -189,6 +194,12 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
+    /// Seeds the epoch-start attestor set, which is empty at genesis.
+    pub fn with_epoch_start_attestors(mut self, attestors: Vec<EpochStartAttestorInfoV1>) -> Self {
+        self.epoch_start_attestors = attestors;
+        self
+    }
+
     pub async fn build(self) -> Arc<AuthorityState> {
         let protocol_config = self.protocol_config.clone();
 
@@ -279,8 +290,12 @@ impl<'a> TestAuthorityBuilder<'a> {
         let cache_metrics = Arc::new(ResolverMetrics::new(&registry));
         let signature_verifier_metrics = SignatureVerifierMetrics::new(&registry);
         let epoch_flags = EpochFlag::default_flags_for_new_epoch(&config);
+        let mut epoch_start_state = genesis.iota_system_object().into_epoch_start_state();
+        if !self.epoch_start_attestors.is_empty() {
+            epoch_start_state = epoch_start_state.with_attestors(self.epoch_start_attestors);
+        }
         let epoch_start_configuration = EpochStartConfiguration::new(
-            genesis.iota_system_object().into_epoch_start_state(),
+            epoch_start_state,
             *genesis.checkpoint().digest(),
             &genesis.objects(),
             epoch_flags,

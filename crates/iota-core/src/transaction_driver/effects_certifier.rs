@@ -1370,6 +1370,14 @@ mod tests {
             unimplemented!()
         }
 
+        async fn submit_externally_attested_tx(
+            &self,
+            _transactions: Vec<iota_types::attestation::AttestedTransaction>,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+            unimplemented!()
+        }
+
         async fn get_tx_status(
             &self,
             request: GetTxStatusRequest,

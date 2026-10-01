@@ -1470,7 +1470,7 @@ mod tests {
                     computation_units: 0,
                     object_versions: vec![],
                 },
-                attestor_index: 0,
+                validator_index: 0,
             },
         );
         let v2 = external(ConsensusTransactionKind::UserTransactionV2(Box::new(

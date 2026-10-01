@@ -14,6 +14,7 @@ use iota_config::genesis::Genesis;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk_types::TransactionDigest;
 use iota_types::{
+    attestation::AttestedTransaction,
     crypto::AuthorityKeyPair,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
@@ -75,6 +76,13 @@ impl ValidatorV2API for LocalAuthorityClient {
     async fn submit_tx(
         &self,
         _transactions: Vec<TransactionEnvelope>,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn submit_externally_attested_tx(
+        &self,
+        _transactions: Vec<AttestedTransaction>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -372,6 +380,13 @@ impl ValidatorV2API for MockAuthorityApi {
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
     }
+    async fn submit_externally_attested_tx(
+        &self,
+        _transactions: Vec<AttestedTransaction>,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
     async fn get_tx_status(
         &self,
         _request: GetTxStatusRequest,
@@ -509,6 +524,13 @@ impl ValidatorV2API for HandleTransactionTestAuthorityClient {
     async fn submit_tx(
         &self,
         _transactions: Vec<TransactionEnvelope>,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn submit_externally_attested_tx(
+        &self,
+        _transactions: Vec<AttestedTransaction>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()

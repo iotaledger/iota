@@ -9,6 +9,12 @@ service ValidatorV2 {
   // Use GetTxStatus to poll for finality.
   rpc SubmitTx(SubmitTxRequest) returns (stream TxStatus);
 
+  // Submit transaction(s) attested by a registered external attestor and
+  // stream submission status per transaction. The validator verifies the
+  // attestation instead of validating the transaction itself.
+  rpc SubmitExternallyAttestedTx(SubmitExternallyAttestedTxRequest)
+      returns (stream TxStatus);
+
   // Stream status updates for a previously submitted transaction
   rpc GetTxStatus(GetTxStatusRequest) returns (stream TxStatus);
 
@@ -23,6 +29,11 @@ service ValidatorV2 {
 // Wraps one or more transactions (BCS-encoded payloads)
 message SubmitTxRequest {
   repeated bytes tx = 1; // Each entry is a BCS-serialized Transaction
+}
+
+// Wraps one or more externally attested transactions (BCS-encoded payloads)
+message SubmitExternallyAttestedTxRequest {
+  repeated bytes attested_tx = 1; // Each entry is a BCS-serialized AttestedTransaction
 }
 
 // Digest identifying a transaction

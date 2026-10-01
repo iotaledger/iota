@@ -80,6 +80,11 @@ pub enum QuorumDriverError {
     /// transaction may still execute.
     #[error("Invalid transaction: {0}.")]
     RejectedByValidators(IotaError),
+    /// This fullnode is an attestor and could not attest the transaction: its
+    /// key is inactive this epoch, or the dry run failed on its state. Nothing
+    /// was submitted; the client may retry, also through another fullnode.
+    #[error("Transaction could not be attested by this fullnode: {0}.")]
+    RejectedByAttestor(IotaError),
 }
 
 impl QuorumDriverError {
@@ -93,6 +98,7 @@ impl QuorumDriverError {
             QuorumDriverError::InvalidUserSignature(_) => "invalid_user_signature",
             QuorumDriverError::InvalidTransaction(_) => "invalid_transaction",
             QuorumDriverError::RejectedByValidators(_) => "rejected_by_validators",
+            QuorumDriverError::RejectedByAttestor(_) => "rejected_by_attestor",
             QuorumDriverError::ObjectsDoubleUsed { .. } => "objects_double_used",
             QuorumDriverError::TimeoutBeforeFinality => "timeout_before_finality",
             QuorumDriverError::FailedWithTransientErrorAfterMaximumAttempts { .. } => {
@@ -117,6 +123,9 @@ impl QuorumDriverError {
             QuorumDriverError::InvalidTransaction(err)
             | QuorumDriverError::RejectedByValidators(err) => {
                 format!("Invalid transaction: {err}")
+            }
+            QuorumDriverError::RejectedByAttestor(err) => {
+                format!("Transaction could not be attested by this fullnode: {err}")
             }
             QuorumDriverError::TxAlreadyFinalizedWithDifferentUserSignatures => {
                 "The transaction is already finalized but with different user signatures"
