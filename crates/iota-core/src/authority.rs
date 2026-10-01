@@ -323,6 +323,13 @@ pub struct AuthorityMetrics {
     /// post-consensus conflict/lock validation rejected them. Distinct from
     /// `consensus_handler_load_shedding_dropped_transactions`.
     pub consensus_handler_validation_dropped_transactions: IntCounter,
+    /// Verdicts of the commit-indexed reader in post-consensus validation, by
+    /// verdict and the reason that decided it. Only with deterministic
+    /// validation on.
+    pub consensus_handler_validation_reader_verdicts: IntCounterVec,
+    /// The commit being validated minus the highest fully executed commit, set
+    /// once per commit. Only with deterministic validation on.
+    pub consensus_handler_commit_execution_lag: IntGauge,
     /// Number of user transactions dropped during a consensus commit by
     /// post-consensus load shedding, i.e. probabilistically rejected at the
     /// quorum `consensus_handler_load_shedding_percentage` rate.
@@ -778,6 +785,17 @@ impl AuthorityMetrics {
             consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
                 "consensus_handler_validation_dropped_transactions",
                 "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                registry,
+            ).unwrap(),
+            consensus_handler_validation_reader_verdicts: register_int_counter_vec_with_registry!(
+                "consensus_handler_validation_reader_verdicts",
+                "Verdicts of the commit-indexed reader in post-consensus validation, by verdict and deciding reason",
+                &["verdict", "reason"],
+                registry,
+            ).unwrap(),
+            consensus_handler_commit_execution_lag: register_int_gauge_with_registry!(
+                "consensus_handler_commit_execution_lag",
+                "The consensus commit being validated minus the highest fully executed commit",
                 registry,
             ).unwrap(),
             consensus_handler_load_shedding_dropped_transactions: register_int_counter_with_registry!(

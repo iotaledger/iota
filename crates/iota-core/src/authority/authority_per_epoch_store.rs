@@ -4690,6 +4690,10 @@ impl AuthorityPerEpochStore {
                     commit_roots.extend(randomness_roots.iter().copied());
                 }
                 self.assign_commit_to_transactions(consensus_commit_info.index, commit_roots);
+                let frontier = *self.subscribe_highest_fully_executed_commit().borrow();
+                authority_metrics
+                    .consensus_handler_commit_execution_lag
+                    .set(consensus_commit_info.index.saturating_sub(frontier) as i64);
             }
 
             let pending_checkpoint = PendingCheckpoint::V1(PendingCheckpointContentsV1 {
