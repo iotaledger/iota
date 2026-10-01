@@ -424,6 +424,7 @@ fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
         ExecutionErrorKind::CertificateDenied
             | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 { .. }
+            | ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion { .. }
             | ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable
     )
 }
