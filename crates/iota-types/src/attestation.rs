@@ -227,28 +227,65 @@ mod tests {
         assert_eq!(decoded, attestation);
     }
 
+    /// Both sides of the check are `computation_cost / gas_price`, which the
+    /// gas meter rounds up to `gas_rounding_step`, so they are always multiples
+    /// of it and the smallest difference they can show is one step.
     #[test]
     fn verdict_accuracy_band() {
+        const STEP: u64 = 1_000;
         let judge = |attested, executed, tolerance| {
             AttestationVerdict::new(false, attested, Some(executed), tolerance)
         };
-        assert_eq!(judge(90, 100, Some(10)), AttestationVerdict::Valid);
-        assert_eq!(judge(110, 100, Some(10)), AttestationVerdict::Valid);
-        assert_eq!(judge(89, 100, Some(10)), AttestationVerdict::Inaccurate);
-        assert_eq!(judge(111, 100, Some(10)), AttestationVerdict::Inaccurate);
-        // Zero executed units accept only a zero claim.
-        assert_eq!(judge(0, 0, Some(10)), AttestationVerdict::Valid);
-        assert_eq!(judge(1, 0, Some(10)), AttestationVerdict::Inaccurate);
+
+        // Under ten steps a tenth of the executed units is less than one step,
+        // so only the same value is accurate.
+        assert_eq!(
+            judge(3 * STEP, 3 * STEP, Some(10)),
+            AttestationVerdict::Valid
+        );
+        assert_eq!(
+            judge(4 * STEP, 3 * STEP, Some(10)),
+            AttestationVerdict::Inaccurate
+        );
+        assert_eq!(
+            judge(2 * STEP, 3 * STEP, Some(10)),
+            AttestationVerdict::Inaccurate
+        );
+
+        // At ten steps one step of drift is exactly the allowance.
+        assert_eq!(
+            judge(11 * STEP, 10 * STEP, Some(10)),
+            AttestationVerdict::Valid
+        );
+        assert_eq!(
+            judge(9 * STEP, 10 * STEP, Some(10)),
+            AttestationVerdict::Valid
+        );
+        assert_eq!(
+            judge(12 * STEP, 10 * STEP, Some(10)),
+            AttestationVerdict::Inaccurate
+        );
+
+        // Ten steps either way on a hundred-step transaction.
+        assert_eq!(
+            judge(110 * STEP, 100 * STEP, Some(10)),
+            AttestationVerdict::Valid
+        );
+        assert_eq!(
+            judge(111 * STEP, 100 * STEP, Some(10)),
+            AttestationVerdict::Inaccurate
+        );
+
         // No tolerance configured disables the check.
-        assert_eq!(judge(1_000, 1, None), AttestationVerdict::Valid);
+        assert_eq!(judge(50 * STEP, STEP, None), AttestationVerdict::Valid);
         // A body that never ran cannot be assessed.
         assert_eq!(
-            AttestationVerdict::new(false, 1_000, None, Some(10)),
+            AttestationVerdict::new(false, 50 * STEP, None, Some(10)),
             AttestationVerdict::Valid
         );
         // A refutation wins over accuracy.
         assert_eq!(
-            AttestationVerdict::new(true, 100, Some(100), Some(10)),
+            AttestationVerdict::new(true, 3 * STEP, Some(3 * STEP), Some(10)),
             AttestationVerdict::Refuted
         );
     }

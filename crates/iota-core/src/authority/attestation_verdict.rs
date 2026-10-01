@@ -132,9 +132,10 @@ pub(crate) fn executed_versions(
 }
 
 impl AttestationVerdictContext<'_> {
-    /// Whether the authentication failure of kind `kind` refutes the
-    /// attestation. A failure the attestor's dry run could not have foreseen
-    /// never does.
+    /// Whether the failure refutes the attestation: it stands at the versions
+    /// the attestor recorded, so the attestor vouched for a transaction it
+    /// should have rejected. A failure the dry run could not have foreseen
+    /// never refutes; otherwise the recorded versions decide.
     ///
     /// # Panics
     ///
@@ -143,18 +144,23 @@ impl AttestationVerdictContext<'_> {
     /// or unreadable one is a fault of this node and must not become a verdict
     /// the other validators do not share.
     pub(crate) fn is_refuted(&self, kind: &ExecutionErrorKind) -> bool {
-        if !is_authenticator_rejection(authentication_error_kind(kind)) {
+        let kind = authentication_error_kind(kind);
+        if is_cancellation(kind) || is_invariant_violation(kind) {
             return false;
         }
-        let reauthenticate = should_reauthenticate(
+        // Nothing to re-run: the failure already reproduces at the recorded
+        // state, or a recorded version refutes on its own.
+        if !should_reauthenticate(
             self.attestation.object_versions(),
             &self.executed_versions,
             |object_id, version| {
                 self.attested_versions
                     .superseded_in_current_epoch(object_id, version)
             },
-        );
-        !(reauthenticate && self.reauthenticate_at_attested_versions())
+        ) {
+            return true;
+        }
+        !self.reauthenticate_at_attested_versions()
     }
 }
 
@@ -335,7 +341,10 @@ impl AttestationVerdictContext<'_> {
 
         match result {
             Ok(()) => true,
-            Err(error) => !is_authenticator_rejection(authentication_error_kind(error.kind())),
+            Err(error) => {
+                let kind = authentication_error_kind(error.kind());
+                is_cancellation(kind) || is_invariant_violation(kind)
+            }
         }
     }
 
@@ -419,14 +428,12 @@ fn is_cancellation(kind: &ExecutionErrorKind) -> bool {
     )
 }
 
-/// Whether the failure is the authenticator rejecting the transaction, rather
-/// than a cancellation or a bug in the node.
-fn is_authenticator_rejection(kind: &ExecutionErrorKind) -> bool {
-    !(is_cancellation(kind)
-        || matches!(
-            kind,
-            ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
-        ))
+/// A bug in this node, not a fact about the transaction.
+fn is_invariant_violation(kind: &ExecutionErrorKind) -> bool {
+    matches!(
+        kind,
+        ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
+    )
 }
 
 #[cfg(test)]
@@ -473,35 +480,43 @@ mod tests {
     /// input is the attestor's to foresee; the effects wrapper does not change
     /// that.
     #[test]
-    fn authenticator_failures_are_rejections() {
+    fn authenticator_failures_are_judged() {
         for kind in [
             ExecutionErrorKind::InsufficientGas,
             ExecutionErrorKind::FunctionNotFound,
             ExecutionErrorKind::InputObjectDeleted,
         ] {
             let error = wrapped(kind);
-            assert!(
-                is_authenticator_rejection(authentication_error_kind(error.kind())),
-                "{error:?}"
-            );
+            let kind = authentication_error_kind(error.kind());
+            assert!(!is_cancellation(kind), "{error:?}");
+            assert!(!is_invariant_violation(kind), "{error:?}");
         }
     }
 
     /// Deny lists, cancellations and invariant violations are decided after
     /// the dry run and cannot judge the attestor.
     #[test]
-    fn failures_the_attestor_cannot_foresee_are_not_rejections() {
+    fn failures_the_attestor_cannot_foresee_are_not_judged() {
         for kind in [
             ExecutionErrorKind::CertificateDenied,
             ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
                 congested_objects: vec![ObjectId::random()],
             },
             ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
-            ExecutionErrorKind::InvariantViolation,
         ] {
             let error = wrapped(kind);
             assert!(
-                !is_authenticator_rejection(authentication_error_kind(error.kind())),
+                is_cancellation(authentication_error_kind(error.kind())),
+                "{error:?}"
+            );
+        }
+        for kind in [
+            ExecutionErrorKind::InvariantViolation,
+            ExecutionErrorKind::VmInvariantViolation,
+        ] {
+            let error = wrapped(kind);
+            assert!(
+                is_invariant_violation(authentication_error_kind(error.kind())),
                 "{error:?}"
             );
         }
