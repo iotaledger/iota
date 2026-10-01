@@ -7,14 +7,15 @@
 use std::sync::Arc;
 
 use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::Address;
+use iota_sdk_types::{Address, Argument, Command, Input, Transaction, TransactionKind};
 use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
     attestation::{Attestation, AttestedTransaction},
     committee::EpochId,
     deny_rule_governance::DenyRuleConfig,
     error::{IotaError, IotaResult},
     iota_system_state::attestor_registry::attestor_pubkey_bytes,
-    transaction::VerifiedTransaction,
+    transaction::{TransactionAPI, VerifiedTransaction},
 };
 use parking_lot::Mutex;
 use tracing::{error, warn};
@@ -66,6 +67,33 @@ impl FullnodeAttestor {
             );
         }
         Err(error)
+    }
+
+    /// Whether `transaction` is the one call the key cannot attest because it
+    /// activates it: a lone `iota_system::register_attestor` or
+    /// `rotate_attestor_key` naming the configured public key.
+    pub(crate) fn registers_this_key(&self, transaction: &Transaction) -> bool {
+        let TransactionKind::Programmable(ptb) = transaction.kind() else {
+            return false;
+        };
+        let [Command::MoveCall(call)] = ptb.commands.as_slice() else {
+            return false;
+        };
+        if call.package != IOTA_SYSTEM_PACKAGE_ID || call.module.as_str() != "iota_system" {
+            return false;
+        }
+        let key_argument = match call.function.as_str() {
+            "register_attestor" => 2,
+            "rotate_attestor_key" => 1,
+            _ => return false,
+        };
+        let Some(Argument::Input(index)) = call.arguments.get(key_argument) else {
+            return false;
+        };
+        let Some(Input::Pure(bytes)) = ptb.inputs.get(usize::from(*index)) else {
+            return false;
+        };
+        bcs::from_bytes::<Vec<u8>>(bytes).is_ok_and(|key| key == self.pubkey)
     }
 
     /// Dry-runs `transaction` as a validator would and wraps it with an
@@ -123,12 +151,13 @@ mod tests {
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
     use iota_sdk_types::{ObjectId, Transaction};
+    use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::dbg_addr,
+        base_types::{dbg_addr, random_object_ref},
         crypto::{AccountPrivateKey, get_key_pair, get_key_pair_from_rng},
         iota_system_state::attestor_registry::EpochStartAttestorInfoV1,
         object::Object,
-        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
+        transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
         utils::to_sender_signed_transaction,
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -208,5 +237,48 @@ mod tests {
             .await
             .unwrap();
         verify_attestor(&epoch_store, attested.digest(), &attested.attestation).unwrap();
+    }
+
+    /// Only a lone system call registering the configured key, or rotating
+    /// to it, is exempt from attestation.
+    #[test]
+    fn registers_this_key_matches_only_the_configured_key() {
+        let keypair = keypair_from_seed(7);
+        let attestor = FullnodeAttestor::new(keypair.clone());
+        let sender = dbg_addr(1);
+        let gas = random_object_ref();
+        let system_call = |function: &str, key: &SimpleKeypair| {
+            let key_args = [
+                CallArg::pure(&attestor_pubkey_bytes(key)),
+                CallArg::pure(&vec![0u8; 64]),
+            ];
+            let args: Vec<CallArg> = match function {
+                "register_attestor" => [
+                    CallArg::IOTA_SYSTEM_MUTABLE,
+                    CallArg::ImmutableOrOwned(random_object_ref()),
+                ]
+                .into_iter()
+                .chain(key_args)
+                .chain((0..4).map(|_| CallArg::pure(&b"x".to_vec())))
+                .collect(),
+                _ => [CallArg::IOTA_SYSTEM_MUTABLE]
+                    .into_iter()
+                    .chain(key_args)
+                    .collect(),
+            };
+            TestTransactionBuilder::new(sender, gas, 1_000)
+                .move_call(IOTA_SYSTEM_PACKAGE_ID, "iota_system", function, args)
+                .build()
+        };
+        assert!(attestor.registers_this_key(&system_call("register_attestor", &keypair)));
+        assert!(attestor.registers_this_key(&system_call("rotate_attestor_key", &keypair)));
+        assert!(
+            !attestor.registers_this_key(&system_call("register_attestor", &keypair_from_seed(8)))
+        );
+        assert!(!attestor.registers_this_key(&system_call("deregister_attestor", &keypair)));
+        let transfer = TestTransactionBuilder::new(sender, gas, 1_000)
+            .transfer_iota(None, dbg_addr(2))
+            .build();
+        assert!(!attestor.registers_this_key(&transfer));
     }
 }

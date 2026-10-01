@@ -190,11 +190,9 @@ async fn test_attestor_fullnode_attests_submitted_transactions() {
         .with_fullnode_attestor_key_pair(keypair.clone())
         .build()
         .await;
-    let client = first_validator_client(&test_cluster);
-    let client_addr = Some(SocketAddr::new([127, 0, 0, 1].into(), 0));
 
-    // Unregistered key: rejected rather than submitted unattested. The
-    // registration itself therefore goes to a validator directly.
+    // Unregistered key: rejected rather than submitted unattested, except
+    // the registration of the key itself, which goes through unattested.
     let tx = transfer(&test_cluster, 1_000).await;
     let error = test_cluster
         .wallet
@@ -204,20 +202,9 @@ async fn test_attestor_fullnode_attests_submitted_transactions() {
         .to_string();
     assert!(error.contains("not in the active attestor set"), "{error}");
 
-    let registration = test_cluster
-        .register_attestor_tx(test_cluster.get_address_0(), &keypair)
+    test_cluster
+        .register_attestor(test_cluster.get_address_0(), &keypair)
         .await;
-    let digest = *registration.digest();
-    client
-        .submit_tx(vec![registration], client_addr)
-        .await
-        .unwrap();
-    let effects = wait_for_effects(&test_cluster, digest).await;
-    assert!(
-        matches!(effects.status(), ExecutionStatus::Success),
-        "registration failed: {:?}",
-        effects.status()
-    );
     test_cluster.force_new_epoch().await;
 
     let sequenced_before = external_attestations_sequenced(&test_cluster);

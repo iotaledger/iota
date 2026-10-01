@@ -945,7 +945,9 @@ where
     /// signed. With one, the transaction with an external attestation signed
     /// by that key: the transaction-driver flow never submits it unattested,
     /// so an inactive key or a failed dry run rejects it back to the client.
-    /// The certificate-based flow does not call this and ignores the key.
+    /// The one exception is the call that registers the key, or rotates to
+    /// it, which the key cannot attest before it is active. The
+    /// certificate-based flow does not call this and ignores the key.
     async fn attest_if_configured(
         attestor: Option<&FullnodeAttestor>,
         validator_state: &Arc<AuthorityState>,
@@ -957,17 +959,29 @@ where
         };
         let tx_digest = transaction.digest();
         let epoch_store = validator_state.load_epoch_store_one_call_per_task();
-        let attestor_address = attestor.active_address(&epoch_store).map_err(|e| {
-            let reason = match e {
-                IotaError::UnsupportedFeature { .. } => "external_attestation_disabled",
-                _ => "key_inactive",
-            };
-            metrics
-                .attestation_rejections
-                .with_label_values(&[reason])
-                .inc();
-            QuorumDriverError::RejectedByAttestor(e)
-        })?;
+        let attestor_address = match attestor.active_address(&epoch_store) {
+            Ok(attestor_address) => attestor_address,
+            // The one call the key cannot attest is the one that activates it.
+            Err(_) if attestor.registers_this_key(transaction.data().transaction()) => {
+                info!(
+                    ?tx_digest,
+                    "submitting the registration of the attestor key unattested"
+                );
+                metrics.attestor_registration_submissions.inc();
+                return Ok(TransactionToSubmit::Unattested(transaction.clone()));
+            }
+            Err(e) => {
+                let reason = match e {
+                    IotaError::UnsupportedFeature { .. } => "external_attestation_disabled",
+                    _ => "key_inactive",
+                };
+                metrics
+                    .attestation_rejections
+                    .with_label_values(&[reason])
+                    .inc();
+                return Err(QuorumDriverError::RejectedByAttestor(e));
+            }
+        };
         // The caller verified the user signature.
         let verified = VerifiedTransaction::new_from_verified(transaction.clone());
         let attested = attestor
@@ -1729,6 +1743,9 @@ pub struct TransactionOrchestratorMetrics {
     /// Transactions rejected because this fullnode could not attest them, by
     /// reason.
     attestation_rejections: IntCounterVec,
+    /// Registrations of the configured attestor key submitted unattested
+    /// while the key is inactive.
+    attestor_registration_submissions: GenericCounter<AtomicU64>,
 
     request_latency_single_writer: Histogram,
     request_latency_shared_obj: Histogram,
@@ -1883,6 +1900,12 @@ impl TransactionOrchestratorMetrics {
                 "tx_orchestrator_attestation_rejections",
                 "Number of transactions rejected because this fullnode could not attest them, by reason",
                 &["reason"],
+                registry,
+            )
+                .unwrap(),
+            attestor_registration_submissions: register_int_counter_with_registry!(
+                "tx_orchestrator_attestor_registration_submissions",
+                "Number of registrations of the configured attestor key submitted unattested while the key is inactive",
                 registry,
             )
                 .unwrap(),
