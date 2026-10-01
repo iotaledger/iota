@@ -21,13 +21,13 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
     },
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
     error::{ExecutionError, IotaError, IotaResult},
-    execution::{ExecutionResult, ExecutionTiming, PreExecutionResult, TypeLayoutStore},
+    execution::{ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -80,7 +80,6 @@ impl executor::Executor for Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
-        pre_execution_result: PreExecutionResult,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
@@ -112,7 +111,6 @@ impl executor::Executor for Executor {
             metrics,
             enable_expensive_checks,
             certificate_deny_set,
-            pre_execution_result,
             trace_builder_opt,
         )
     }
@@ -155,7 +153,6 @@ impl executor::Executor for Executor {
                 metrics,
                 enable_expensive_checks,
                 certificate_deny_set,
-                PreExecutionResult::Run,
                 &mut None,
             )
         } else {
@@ -174,7 +171,6 @@ impl executor::Executor for Executor {
                 metrics,
                 enable_expensive_checks,
                 certificate_deny_set,
-                PreExecutionResult::Run,
                 &mut None,
             )
         };
@@ -189,7 +185,6 @@ impl executor::Executor for Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
-        pre_execution_result: PreExecutionResult,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -197,11 +192,7 @@ impl executor::Executor for Executor {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -223,7 +214,6 @@ impl executor::Executor for Executor {
             metrics,
             enable_expensive_checks,
             certificate_deny_set,
-            pre_execution_result,
             epoch_id,
             epoch_timestamp_ms,
             gas_data,

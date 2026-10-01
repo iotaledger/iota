@@ -11,13 +11,13 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRef, MoveAuthenticatorsForExecution,
     },
     auth_context::AuthContextData,
     base_types::TxContext,
     committee::EpochId,
     error::ExecutionError,
-    execution::{ExecutionResult, ExecutionTiming, PreExecutionResult, TypeLayoutStore},
+    execution::{ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -37,8 +37,6 @@ pub trait Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
-        // Fails the transaction before its first command when it carries an error.
-        pre_execution_result: PreExecutionResult,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -96,9 +94,6 @@ pub trait Executor {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
-        // Fails the transaction before any authenticator runs when it carries an
-        // error.
-        pre_execution_result: PreExecutionResult,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -106,11 +101,9 @@ pub trait Executor {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        // Fails the transaction before any authenticator runs when resolution
+        // failed.
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
