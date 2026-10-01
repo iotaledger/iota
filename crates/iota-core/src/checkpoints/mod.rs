@@ -582,6 +582,9 @@ impl CheckpointStore {
                 // Two summaries over identical contents can still differ in
                 // their attestation verdicts, which the dump above would not
                 // show.
+                // Two summaries over identical contents can still differ in
+                // their attestation verdicts, which the dump above would not
+                // show.
                 attestation_verdict_differences =
                     ?attestation_verdict_differences(local_checkpoint, verified_checkpoint),
                 "Local checkpoint fork detected!",
