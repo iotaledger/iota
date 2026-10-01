@@ -5398,6 +5398,118 @@ async fn validation_at_commit_keeps_drops_and_reports_missing() {
 }
 
 // ---------------------------------------------------------------------------
+// P-COOL deterministic-validation wiring
+// ---------------------------------------------------------------------------
+
+/// With the flag on, the validation loop reads inputs as of the commit. One
+/// transaction keeps and locks its gas coin, one drops on a wrong shared
+/// declaration, one is missing on a gas coin produced above the horizon. The
+/// dropped ones carry the not-found error of their deciding input.
+#[tokio::test]
+async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_keep = ObjectId::random();
+    let gas_wrong = ObjectId::random();
+    let gas_missing = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(gas_keep, sender),
+            Object::with_id_owner_for_testing(gas_wrong, sender),
+            Object::with_id_owner_for_testing(gas_missing, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_keep, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference().object_id();
+    // Commit 11 mutates `gas_missing`. At commit 12 the horizon is 10.
+    s.handler_known_shared_object_basics_call(
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&1u64).unwrap()),
+        ],
+        &gas_missing,
+        sender,
+        &sender_key,
+        11,
+    );
+    let set_value = |arg: CallArg, gas_id: &ObjectId, value: u64| {
+        s.build_move_call(
+            "object_basics",
+            "set_value",
+            vec![arg, CallArg::Pure(bcs::to_bytes(&value).unwrap())],
+            gas_id,
+            sender,
+            &sender_key,
+        )
+    };
+    let keep = set_value(s.shared_arg(shared_id), &gas_keep, 2);
+    let wrong = set_value(
+        CallArg::Shared(SharedObjectReference::new(
+            *shared_id,
+            Version::from_u64(1),
+            true,
+        )),
+        &gas_wrong,
+        3,
+    );
+    let missing = set_value(s.shared_arg(shared_id), &gas_missing, 4);
+    let keep_digest = *keep.digest();
+    let wrong_digest = *wrong.digest();
+    let missing_digest = *missing.digest();
+    let gas_keep_ref = s.latest_ref(&gas_keep);
+    let gas_missing_ref = s.latest_ref(&gas_missing);
+
+    let mut transactions = vec![
+        make_user_tx_v1_verified(keep),
+        make_user_tx_v1_verified(wrong),
+        make_user_tx_v1_verified(missing),
+    ];
+    let (dropped, locks, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
+        &s.authority,
+        &s.epoch_store,
+        12,
+        &mut transactions,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(all_digests, vec![keep_digest, wrong_digest, missing_digest]);
+    assert_eq!(transactions.len(), 1);
+    assert!(
+        locks.contains_key(&gas_keep_ref),
+        "the kept transaction locks its gas coin"
+    );
+    assert_eq!(dropped.len(), 2);
+    assert_eq!(dropped[0].0, wrong_digest);
+    assert!(
+        matches!(
+            &dropped[0].1,
+            IotaError::UserInput {
+                error: UserInputError::ObjectNotFound { object_id, version: None }
+            } if object_id == shared_id
+        ),
+        "{:?}",
+        dropped[0].1
+    );
+    assert_eq!(dropped[1].0, missing_digest);
+    assert!(
+        matches!(
+            &dropped[1].1,
+            IotaError::UserInput {
+                error: UserInputError::ObjectNotFound { object_id, version: Some(version) }
+            } if *object_id == gas_missing && *version == gas_missing_ref.version
+        ),
+        "{:?}",
+        dropped[1].1
+    );
+}
+
+// ---------------------------------------------------------------------------
 // P-COOL deterministic-validation reader: owned inputs
 // ---------------------------------------------------------------------------
 
