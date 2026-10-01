@@ -10,20 +10,22 @@ use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
     Address, Command, Identifier, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference,
-    Owner, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, Version,
+    Owner, SenderSignedTransaction, SharedObjectReference, Transaction, TransactionDigest,
+    TransactionEffects, Version,
 };
+use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
-    effects::TransactionEffectsAPI,
+    effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::ObjectKey,
+    storage::{BackingPackageStore, ObjectKey},
     transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionKey,
-        VerifiedTransaction,
+        CallArg, InputObjectKind, ObjectReadResultKind, SenderSignedTransactionAPI,
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionKey, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };
@@ -48,8 +50,13 @@ use crate::{
     consensus_handler::{
         ExecutionWatcher, SequencedConsensusTransaction, VerifiedSequencedConsensusTransaction,
     },
+    post_consensus_input_reader::{
+        DropKind, InputResolution, MissingKind, OwnedVerdict, SharedVerdict, ValidationAtCommit,
+        reader::CommitIndexedReader,
+    },
     post_consensus_validation,
     test_utils::make_transfer_object_transaction,
+    transaction_input_loader::TransactionInputLoader,
 };
 
 // ---------------------------------------------------------------------------
@@ -2332,6 +2339,68 @@ impl BookkeepingSetup {
         effects
     }
 
+    /// The commit-indexed reader as of `commit_index`.
+    fn reader_at(&self, commit_index: CommitIndex) -> CommitIndexedReader {
+        CommitIndexedReader::new(
+            self.authority.get_object_cache_reader().clone(),
+            self.epoch_store.clone(),
+            commit_index,
+        )
+    }
+
+    /// The commit-indexed reader's verdict for the owned input `reference`,
+    /// as of `commit_index`.
+    fn read_owned(&self, commit_index: CommitIndex, reference: ObjectReference) -> OwnedVerdict {
+        self.reader_at(commit_index).read_owned(reference).unwrap()
+    }
+
+    /// The commit-indexed reader's verdict for shared input `id` declared at
+    /// `initial_shared_version`, as of `commit_index`.
+    fn read_shared(
+        &self,
+        commit_index: CommitIndex,
+        id: &ObjectId,
+        initial_shared_version: Version,
+    ) -> SharedVerdict {
+        self.reader_at(commit_index)
+            .read_shared(*id, initial_shared_version)
+            .unwrap()
+    }
+
+    /// The loader's resolution of `tx`'s inputs as of `commit_index`.
+    fn read_inputs_at_commit(
+        &self,
+        commit_index: CommitIndex,
+        tx: &VerifiedTransaction,
+    ) -> InputResolution {
+        let kinds = tx.collect_all_input_object_kind_for_reading().unwrap();
+        TransactionInputLoader::new(self.authority.get_object_cache_reader().clone())
+            .read_objects_at_commit(&self.reader_at(commit_index), &kinds)
+            .unwrap()
+    }
+
+    /// Records a sync-ahead publish of the `object_basics` package, which the
+    /// fixture inserts at genesis, so the reader treats it as published by a
+    /// commit the handler has not reached.
+    fn record_package_published_ahead(&self, gas_id: &ObjectId, sender: Address) {
+        let transaction = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, self.latest_ref(gas_id), self.rgp)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let effects = TestEffectsBuilder::new(&transaction)
+            .with_created_objects([(self.package_id, Owner::Immutable)])
+            .build();
+        self.epoch_store
+            .record_executed_transaction(
+                &TransactionKey::Digest(*effects.transaction_digest()),
+                &effects,
+                self.authority.get_object_store().as_ref(),
+            )
+            .unwrap();
+    }
+
     /// The argument naming the shared object `id` as a mutable input.
     fn shared_arg(&self, id: &ObjectId) -> CallArg {
         let initial_shared_version =
@@ -3989,6 +4058,623 @@ async fn immutable_input_read_does_not_extend_record_or_shelter() {
         None,
         update_effects.lamport_version(),
     );
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation reader: shared inputs whose object is gone
+// ---------------------------------------------------------------------------
+
+#[track_caller]
+fn assert_drops_with(verdict: SharedVerdict, kind: DropKind) {
+    match verdict {
+        SharedVerdict::Drop(reason) => assert_eq!(reason.kind(), kind),
+        SharedVerdict::Exists(_) => panic!("expected a drop, got exists"),
+        SharedVerdict::Deleted(version, digest) => {
+            panic!("expected a drop, got deleted at {version} by {digest}")
+        }
+        SharedVerdict::Missing(reason) => panic!("expected a drop, got missing {reason:?}"),
+    }
+}
+
+#[track_caller]
+fn assert_deleted_by(verdict: SharedVerdict, delete_effects: &TransactionEffects) {
+    match verdict {
+        SharedVerdict::Deleted(version, digest) => {
+            assert_eq!(version, delete_effects.lamport_version());
+            assert_eq!(digest, *delete_effects.transaction_digest());
+        }
+        SharedVerdict::Exists(_) => panic!("expected deleted, got exists"),
+        SharedVerdict::Drop(reason) => panic!("expected deleted, got drop {reason:?}"),
+        SharedVerdict::Missing(reason) => panic!("expected deleted, got missing {reason:?}"),
+    }
+}
+
+/// State sync deleted the shared object ahead of the handler. The bytes that
+/// carried the owner are gone, so the record's initial shared version is what
+/// a declared version is checked against. A wrong declaration must drop here
+/// as it does on a validator that still holds the object.
+#[tokio::test]
+async fn reader_checks_the_declared_version_against_the_record_after_a_sync_ahead_delete() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    let initial = initial_shared_version(&shared.owner);
+    let delete_effects = s.shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    // A version the object never had, so no row exists at that key.
+    let wrong = Version::from_u64(1);
+    assert!(wrong < initial);
+
+    // Wrong declared version: no creation row at that key, the record
+    // restores existence, the object is gone, the record's field decides.
+    assert_drops_with(
+        s.read_shared(12, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    // Right declared version: the creation row proves it, the deletion has
+    // no row because sync executed it, so it is kept as a deletion.
+    assert_deleted_by(s.read_shared(12, shared_id, initial), &delete_effects);
+}
+
+/// The handler executed the deletion in the window above the horizon. The
+/// tombstone row is the only place left that knows the initial shared
+/// version, and a wrong declaration must drop at every horizon.
+#[tokio::test]
+async fn reader_checks_the_declared_version_against_the_deletion_row() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    let initial = initial_shared_version(&shared.owner);
+    let delete_effects = s.handler_known_shared_object_basics_call(
+        "delete",
+        vec![s.shared_arg(shared_id)],
+        &gas_id,
+        sender,
+        &sender_key,
+        15,
+    );
+    // A version the object never had, so no row exists at that key. The
+    // tombstone sits at `initial + 1`, and a row above the horizon answers
+    // missing whatever its kind.
+    let wrong = Version::from_u64(1);
+    assert!(wrong < initial);
+
+    // Commit 16, horizon 14: the deletion at 15 is not yet visible.
+    assert_drops_with(
+        s.read_shared(16, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    assert_deleted_by(s.read_shared(16, shared_id, initial), &delete_effects);
+
+    // Commit 18, horizon 16: every validator has executed the deletion.
+    assert_drops_with(
+        s.read_shared(18, shared_id, wrong),
+        DropKind::SharedInitialVersionMismatch,
+    );
+    assert_drops_with(
+        s.read_shared(18, shared_id, initial),
+        DropKind::SharedDeletedAtOrBelowHorizon,
+    );
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation loader
+// ---------------------------------------------------------------------------
+
+/// The deny check's package store answers as the reader does: the package is
+/// there from epoch-start state, and absent once a record marks it as
+/// published ahead of the handler.
+#[tokio::test]
+async fn package_store_view_follows_the_reader() {
+    let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let reader = s.reader_at(12);
+    let package = BackingPackageStore::get_package_object(&reader, &s.package_id)
+        .unwrap()
+        .expect("a genesis package is epoch-start state");
+    assert_eq!(package.object().id(), s.package_id);
+
+    s.record_package_published_ahead(&gas_id, sender);
+    assert!(
+        BackingPackageStore::get_package_object(&reader, &s.package_id)
+            .unwrap()
+            .is_none()
+    );
+}
+
+/// A sync-ahead record marks the package as published ahead of the handler.
+/// The record decides, and the loader stops at it naming the package input.
+#[tokio::test]
+async fn loader_stops_at_a_package_published_ahead_of_the_handler() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    s.record_package_published_ahead(&gas_id, sender);
+    let tx = s.build_move_call(
+        "object_basics",
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&42u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+
+    match s.read_inputs_at_commit(12, &tx) {
+        InputResolution::Missing(InputObjectKind::MovePackage(id), reason) => {
+            assert_eq!(id, s.package_id);
+            assert_eq!(reason.kind(), MissingKind::PackageSyncPublished);
+        }
+        InputResolution::Missing(kind, reason) => panic!("wrong input {kind:?}: {reason:?}"),
+        InputResolution::Drop(kind, reason) => panic!("dropped on {kind:?}: {reason:?}"),
+        InputResolution::Loaded(_) => panic!("the package must not be visible"),
+    }
+}
+
+/// Every input kind resolves to the read result the input checks expect:
+/// the package from epoch-start state, the shared object at this
+/// validator's latest version, the gas coin at the named reference.
+#[tokio::test]
+async fn loader_resolves_every_input_kind_at_a_commit() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    let initial = initial_shared_version(&shared.owner);
+    let gas_ref = s.latest_ref(&gas_id);
+    let tx = s.build_move_call(
+        "object_basics",
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&42u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+
+    let inputs = match s.read_inputs_at_commit(12, &tx) {
+        InputResolution::Loaded(inputs) => inputs,
+        InputResolution::Drop(kind, reason) => panic!("dropped on {kind:?}: {reason:?}"),
+        InputResolution::Missing(kind, reason) => panic!("missing {kind:?}: {reason:?}"),
+    };
+    assert_eq!(inputs.len(), 3);
+    for result in inputs.iter() {
+        match (result.input_object_kind, &result.object) {
+            (InputObjectKind::MovePackage(id), ObjectReadResultKind::Object(object)) => {
+                assert_eq!(id, s.package_id);
+                assert_eq!(object.id(), s.package_id);
+            }
+            (
+                InputObjectKind::SharedMoveObject { id, .. },
+                ObjectReadResultKind::Object(object),
+            ) => {
+                assert_eq!(&id, shared_id);
+                assert_eq!(object.owner, Owner::Shared(initial));
+            }
+            (
+                InputObjectKind::ImmOrOwnedMoveObject(reference),
+                ObjectReadResultKind::Object(object),
+            ) => {
+                assert_eq!(reference, gas_ref);
+                assert_eq!(object.object_ref(), gas_ref);
+            }
+            (kind, object) => panic!("unexpected result {kind:?}: {object:?}"),
+        }
+    }
+
+    // A wrong declared initial version drops, naming the shared input.
+    let wrong = s.build_move_call(
+        "object_basics",
+        "set_value",
+        vec![
+            CallArg::Shared(SharedObjectReference::new(
+                *shared_id,
+                Version::from_u64(1),
+                true,
+            )),
+            CallArg::Pure(bcs::to_bytes(&42u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+    match s.read_inputs_at_commit(12, &wrong) {
+        InputResolution::Drop(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(&id, shared_id);
+            assert_eq!(reason.kind(), DropKind::SharedInitialVersionMismatch);
+        }
+        InputResolution::Drop(kind, reason) => panic!("wrong input {kind:?}: {reason:?}"),
+        InputResolution::Missing(kind, reason) => panic!("missing {kind:?}: {reason:?}"),
+        InputResolution::Loaded(_) => panic!("a wrong declaration must drop"),
+    }
+}
+
+/// An owned input produced by a commit above the horizon is missing, and the
+/// loader names that input.
+#[tokio::test]
+async fn loader_answers_missing_for_an_owned_input_above_the_horizon() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    // Commit 11 mutates the gas coin. At commit 12 the horizon is 10.
+    s.handler_known_shared_object_basics_call(
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&1u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+        11,
+    );
+    let gas_ref = s.latest_ref(&gas_id);
+    let tx = s.build_move_call(
+        "object_basics",
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&2u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+    );
+
+    match s.read_inputs_at_commit(12, &tx) {
+        InputResolution::Missing(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, gas_ref);
+            assert_eq!(reason.kind(), MissingKind::HandlerRowAboveHorizon);
+        }
+        InputResolution::Missing(kind, reason) => panic!("wrong input {kind:?}: {reason:?}"),
+        InputResolution::Drop(kind, reason) => panic!("dropped on {kind:?}: {reason:?}"),
+        InputResolution::Loaded(_) => panic!("the gas coin must not be visible"),
+    }
+    // At commit 13 the horizon reaches the producing commit.
+    assert!(matches!(
+        s.read_inputs_at_commit(13, &tx),
+        InputResolution::Loaded(_)
+    ));
+}
+
+/// The entry point passes the reader's verdicts through and answers `Keep`
+/// with the owned references to lock once every check passed.
+#[tokio::test]
+async fn validation_at_commit_keeps_drops_and_reports_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+    let deny_config = &s.authority.config.transaction_deny_config;
+
+    let share_effects =
+        s.handler_known_object_basics_call("share", vec![], &gas_id, sender, &sender_key, 5);
+    let shared = share_effects.created()[0];
+    let shared_id = shared.reference.object_id();
+    let set_value = |arg: CallArg, value: u64| {
+        s.build_move_call(
+            "object_basics",
+            "set_value",
+            vec![arg, CallArg::Pure(bcs::to_bytes(&value).unwrap())],
+            &gas_id,
+            sender,
+            &sender_key,
+        )
+    };
+
+    // Keep: every input visible at commit 12. Only the gas coin is locked.
+    let gas_ref = s.latest_ref(&gas_id);
+    let tx = set_value(s.shared_arg(shared_id), 1);
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Keep(owned) => assert_eq!(owned, vec![gas_ref]),
+        ValidationAtCommit::Drop(kind, reason) => panic!("dropped on {kind:?}: {reason:?}"),
+        ValidationAtCommit::Missing(kind, reason) => panic!("missing {kind:?}: {reason:?}"),
+    }
+
+    // Drop: a wrong declared initial version, named by the shared input.
+    let wrong = set_value(
+        CallArg::Shared(SharedObjectReference::new(
+            *shared_id,
+            Version::from_u64(1),
+            true,
+        )),
+        2,
+    );
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &wrong,
+            &s.epoch_store,
+            deny_config,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Drop(InputObjectKind::SharedMoveObject { id, .. }, reason) => {
+            assert_eq!(&id, shared_id);
+            assert_eq!(reason.kind(), DropKind::SharedInitialVersionMismatch);
+        }
+        other => panic!("expected a drop on the shared input, got {other:?}"),
+    }
+
+    // Missing: the gas coin was produced at commit 11, above commit 12's
+    // horizon.
+    s.handler_known_shared_object_basics_call(
+        "set_value",
+        vec![
+            s.shared_arg(shared_id),
+            CallArg::Pure(bcs::to_bytes(&3u64).unwrap()),
+        ],
+        &gas_id,
+        sender,
+        &sender_key,
+        11,
+    );
+    let gas_ref = s.latest_ref(&gas_id);
+    let tx = set_value(s.shared_arg(shared_id), 4);
+    match s
+        .authority
+        .handle_transaction_validation_checks_at_commit(
+            &s.reader_at(12),
+            &tx,
+            &s.epoch_store,
+            deny_config,
+        )
+        .unwrap()
+    {
+        ValidationAtCommit::Missing(InputObjectKind::ImmOrOwnedMoveObject(reference), reason) => {
+            assert_eq!(reference, gas_ref);
+            assert_eq!(reason.kind(), MissingKind::HandlerRowAboveHorizon);
+        }
+        other => panic!("expected missing on the gas coin, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// P-COOL deterministic-validation reader: owned inputs
+// ---------------------------------------------------------------------------
+
+#[track_caller]
+fn assert_keeps(verdict: OwnedVerdict, reference: ObjectReference) {
+    match verdict {
+        OwnedVerdict::Keep(kept) => assert_eq!(kept.into_object().object_ref(), reference),
+        OwnedVerdict::Drop(reason) => panic!("expected keep, got drop {reason:?}"),
+        OwnedVerdict::Missing(reason) => panic!("expected keep, got missing {reason:?}"),
+    }
+}
+
+#[track_caller]
+fn assert_owned_missing(verdict: OwnedVerdict, kind: MissingKind) {
+    match verdict {
+        OwnedVerdict::Missing(reason) => assert_eq!(reason.kind(), kind),
+        OwnedVerdict::Keep(_) => panic!("expected missing, got keep"),
+        OwnedVerdict::Drop(reason) => panic!("expected missing, got drop {reason:?}"),
+    }
+}
+
+#[track_caller]
+fn assert_owned_drops(verdict: OwnedVerdict, kind: DropKind) {
+    match verdict {
+        OwnedVerdict::Drop(reason) => assert_eq!(reason.kind(), kind),
+        OwnedVerdict::Keep(_) => panic!("expected drop, got keep"),
+        OwnedVerdict::Missing(reason) => panic!("expected drop, got missing {reason:?}"),
+    }
+}
+
+/// A row at `produced_at = C - K` decides. One commit later it is above the
+/// horizon and answers missing.
+#[tokio::test]
+async fn owned_row_at_the_horizon_keeps_and_above_it_answers_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let tx = s.build_transfer(&obj_id, &gas_id, sender, &sender_key, sender);
+    s.execute_as_handler_known(vec![tx], 10);
+    let produced = s.latest_ref(&obj_id);
+
+    assert_keeps(s.read_owned(12, produced), produced);
+    assert_owned_missing(
+        s.read_owned(11, produced),
+        MissingKind::HandlerRowAboveHorizon,
+    );
+}
+
+/// The record restores a version the store no longer holds, and its bytes
+/// come from the shelter. The consumed object never reaches the store here,
+/// which is what a pruned version looks like to the keyed read.
+#[tokio::test]
+async fn owned_bytes_are_served_from_the_shelter_when_the_store_lacks_the_version() {
+    let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let consumed = Object::with_id_owner_version_for_testing(
+        ObjectId::random(),
+        Version::from_u64(3),
+        Owner::Address(sender),
+    );
+    let consumed_ref = consumed.object_ref();
+    let transaction = SenderSignedTransaction::new(
+        TestTransactionBuilder::new(sender, s.latest_ref(&gas_id), s.rgp)
+            .transfer_iota(None, sender)
+            .build(),
+        vec![],
+    );
+    let effects = TestEffectsBuilder::new(&transaction)
+        .with_mutated_objects([(
+            consumed_ref.object_id,
+            consumed_ref.version,
+            Owner::Address(sender),
+        )])
+        .build();
+    // The hook shelters every consumed input from the loaded inputs it is
+    // given, the gas coin included.
+    let loaded_inputs = std::collections::BTreeMap::from([
+        (consumed_ref.object_id, consumed),
+        (gas_id, s.authority.get_object(&gas_id).unwrap()),
+    ]);
+    s.epoch_store
+        .record_executed_transaction(
+            &TransactionKey::Digest(*effects.transaction_digest()),
+            &effects,
+            &loaded_inputs,
+        )
+        .unwrap();
+    assert!(
+        s.store_object(&consumed_ref.object_id, consumed_ref.version)
+            .is_none()
+    );
+    s.assert_sheltered(consumed_ref);
+
+    assert_keeps(s.read_owned(12, consumed_ref), consumed_ref);
+}
+
+/// An object the sync-ahead chain created answers missing at every commit:
+/// no other validator is required to have it.
+#[tokio::test]
+async fn owned_sync_created_object_answers_missing() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let (created_ref, _) = s.create_object(&gas_id, sender, &sender_key);
+    assert_owned_missing(
+        s.read_owned(12, created_ref),
+        MissingKind::SyncAheadCreatedId,
+    );
+    assert_owned_missing(
+        s.read_owned(100, created_ref),
+        MissingKind::SyncAheadCreatedId,
+    );
+}
+
+/// Rule 3, the store fallback. Untouched epoch-start objects keep, owned or
+/// immutable. A version consumed by a handler-known commit drops as
+/// superseded, while the same consumption ahead of the handler keeps, since
+/// the record restores it.
+#[tokio::test]
+async fn owned_store_fallback_keeps_untouched_and_drops_superseded_versions() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let untouched_id = ObjectId::random();
+    let immutable_id = ObjectId::random();
+    let handler_consumed_id = ObjectId::random();
+    let sync_consumed_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(untouched_id, sender),
+            Object::immutable_with_id_for_testing(immutable_id),
+            Object::with_id_owner_for_testing(handler_consumed_id, sender),
+            Object::with_id_owner_for_testing(sync_consumed_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let untouched = s.latest_ref(&untouched_id);
+    let immutable = s.latest_ref(&immutable_id);
+    let handler_consumed = s.latest_ref(&handler_consumed_id);
+    let sync_consumed = s.latest_ref(&sync_consumed_id);
+
+    let tx = s.build_transfer(&handler_consumed_id, &gas_id, sender, &sender_key, sender);
+    s.execute_as_handler_known(vec![tx], 5);
+    s.transfer(&sync_consumed_id, &gas_id, sender, &sender_key, sender);
+
+    assert_keeps(s.read_owned(12, untouched), untouched);
+    assert_keeps(s.read_owned(12, immutable), immutable);
+    assert_owned_drops(
+        s.read_owned(12, handler_consumed),
+        DropKind::StoreSuperseded,
+    );
+    assert_keeps(s.read_owned(12, sync_consumed), sync_consumed);
 }
 
 // ---------------------------------------------------------------------------

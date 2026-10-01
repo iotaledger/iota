@@ -174,6 +174,9 @@ use crate::{
         AuthorityOverloadInfo, compute_graduated_load_shedding_percentage,
         overload_monitor_accept_tx,
     },
+    post_consensus_input_reader::{
+        InputResolution, ValidationAtCommit, ValidationInputsAtCommit, reader::CommitIndexedReader,
+    },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
@@ -1203,6 +1206,199 @@ impl AuthorityState {
         }
 
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
+    }
+
+    /// [`Self::handle_transaction_validation_checks`] for post-consensus
+    /// validation at the commit `reader` was built for. Inputs come from the
+    /// commit-indexed reader, so a drop or a missing input is a resolution
+    /// the caller matches on. The coin deny list is always read epoch-gated.
+    /// Every check after loading keeps its admission-time behaviour and error.
+    ///
+    /// Visibility is `pub` until the validation loop consumes it;
+    /// `pub(crate)` would be dead code under `-D warnings` until then.
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    pub fn handle_transaction_validation_checks_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        transaction: &VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        deny_config: &dyn DenyRuleConfig,
+    ) -> IotaResult<ValidationAtCommit> {
+        let protocol_config = epoch_store.protocol_config();
+        let reference_gas_price = epoch_store.reference_gas_price();
+
+        let epoch = epoch_store.epoch();
+
+        let tx = transaction.data().transaction();
+
+        // The deny rules load packages through the reader, so they see the
+        // same package view as the input loader below.
+        iota_transaction_checks::deny::check_transaction_for_validation(
+            tx,
+            transaction.signatures(),
+            &transaction.input_objects()?,
+            &tx.receiving_objects(),
+            deny_config,
+            reader,
+        )?;
+
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
+            match self.read_objects_for_validation_at_commit(reader, transaction, epoch)? {
+                ValidationInputsAtCommit::Loaded {
+                    tx_input_objects,
+                    tx_receiving_objects,
+                    per_authenticator_inputs,
+                } => (
+                    tx_input_objects,
+                    tx_receiving_objects,
+                    per_authenticator_inputs,
+                ),
+                ValidationInputsAtCommit::Drop(kind, reason) => {
+                    return Ok(ValidationAtCommit::Drop(kind, reason));
+                }
+                ValidationInputsAtCommit::Missing(kind, reason) => {
+                    return Ok(ValidationAtCommit::Missing(kind, reason));
+                }
+            };
+
+        let move_authenticators = transaction.move_authenticators();
+
+        // A Move authenticator's account object that the reader answered as
+        // deleted is rejected here as at admission. Above the horizon that
+        // verdict differs between validators. Settled with the wiring, see the
+        // handoff's open items.
+        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
+            .check_transaction_inputs_for_validation(
+                protocol_config,
+                reference_gas_price,
+                tx,
+                tx_input_objects,
+                &tx_receiving_objects,
+                &move_authenticators,
+                per_authenticator_inputs,
+            )?;
+
+        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
+
+        debug_assert!(
+            per_authenticator_checked_input_objects
+                .iter()
+                .all(|objects| objects.inner().filter_owned_objects().is_empty()),
+            "Move authenticator input objects must not contain owned objects"
+        );
+
+        // Epoch-gated: the verdict decides whether the transaction stays in
+        // the committed set, so it must not depend on this validator's
+        // execution progress.
+        check_coin_deny_list_v1(
+            tx.sender(),
+            &tx_checked_input_objects,
+            &tx_receiving_objects,
+            &per_authenticator_checked_input_objects,
+            &self.get_object_store(),
+            Some(epoch),
+        )?;
+
+        let (kind, signer, gas_data) = tx.execution_parts();
+
+        let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
+            extract_auth_fun_refs(signer, gas_data.owner, |address| {
+                move_authenticators
+                    .iter()
+                    .zip(per_authenticator_checked_inputs.iter())
+                    .find(|(move_authenticator, _)| move_authenticator.address() == address)
+                    .map(|(_, (_, auth_fun_ref))| auth_fun_ref.clone())
+            });
+
+        let pre_consensus_move_authenticators =
+            pre_consensus_move_authenticators(transaction, protocol_config);
+        debug_assert_eq!(
+            move_authenticators.len(),
+            per_authenticator_checked_inputs.len(),
+            "Move authenticators amount must match the number of checked authenticator inputs"
+        );
+        let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
+            move_authenticators
+                .into_iter()
+                .zip(per_authenticator_checked_inputs)
+                .filter(|(a, _)| pre_consensus_move_authenticators.contains(a))
+                .unzip();
+        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
+
+        if !move_authenticators.is_empty() {
+            let aggregated_authenticator_input_objects =
+                iota_transaction_checks::aggregate_authenticator_input_objects(
+                    &per_authenticator_checked_input_objects,
+                )?;
+
+            let move_authenticators = move_authenticators
+                .into_iter()
+                .zip(per_authenticator_checked_inputs)
+                .map(
+                    |(
+                        move_authenticator,
+                        (authenticator_checked_input_objects, authenticator_function_ref),
+                    )| {
+                        (
+                            move_authenticator.to_owned(),
+                            authenticator_function_ref,
+                            authenticator_checked_input_objects,
+                        )
+                    },
+                )
+                .collect();
+
+            let tx_bytes = bcs::to_bytes(tx).expect("Transaction serialization cannot fail");
+
+            let (sender_auth_digest, sponsor_auth_digest) =
+                transaction.data().compute_auth_digests()?;
+
+            let auth_context_data = AuthContextData {
+                transaction_data_bytes: tx_bytes,
+                sender_auth_digest,
+                sponsor_auth_digest,
+                sender_authenticator_function_ref,
+                sponsor_authenticator_function_ref,
+            };
+
+            // Authenticators execute against the store as it is now, not as
+            // of the commit. Tracked as a follow-up in the handoff.
+            let validation_result = epoch_store.executor().authenticate_transaction(
+                self.get_backing_store().as_ref(),
+                protocol_config,
+                self.metrics.limits_metrics.clone(),
+                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
+                epoch_store
+                    .epoch_start_config()
+                    .epoch_data()
+                    .epoch_start_timestamp(),
+                gas_data,
+                gas_status,
+                move_authenticators,
+                aggregated_authenticator_input_objects,
+                kind,
+                signer,
+                transaction.digest().to_owned(),
+                auth_context_data,
+                &mut None,
+            );
+
+            if let Err(validation_error) = validation_result {
+                return Err(IotaError::MoveAuthenticatorExecutionFailure {
+                    error: validation_error.to_string(),
+                });
+            }
+        }
+
+        Ok(ValidationAtCommit::Keep(
+            tx_checked_input_objects.inner().filter_owned_objects(),
+        ))
     }
 
     /// This is a private method and should be kept that way. It doesn't check
@@ -5834,6 +6030,45 @@ impl AuthorityState {
                     per_authenticator_inputs,
                 )
             })
+    }
+
+    /// [`Self::read_objects_for_validation`] for post-consensus validation at
+    /// the commit `reader` was built for. Owned and shared inputs and packages
+    /// come from the commit-indexed reader. Receiving objects are read as at
+    /// signing, per the design.
+    ///
+    /// Visibility is `pub` until the validation loop consumes it;
+    /// `pub(crate)` would be dead code under `-D warnings` until then.
+    pub fn read_objects_for_validation_at_commit(
+        &self,
+        reader: &CommitIndexedReader,
+        transaction: &VerifiedTransaction,
+        epoch: u64,
+    ) -> IotaResult<ValidationInputsAtCommit> {
+        let input_objects = match self.input_loader.read_objects_at_commit(
+            reader,
+            &transaction.collect_all_input_object_kind_for_reading()?,
+        )? {
+            InputResolution::Loaded(input_objects) => input_objects,
+            InputResolution::Drop(kind, reason) => {
+                return Ok(ValidationInputsAtCommit::Drop(kind, reason));
+            }
+            InputResolution::Missing(kind, reason) => {
+                return Ok(ValidationInputsAtCommit::Missing(kind, reason));
+            }
+        };
+
+        let tx_receiving_objects = self.input_loader.read_receiving_objects_for_signing(
+            &transaction.data().transaction().receiving_objects(),
+            epoch,
+        )?;
+        let (tx_input_objects, per_authenticator_inputs) =
+            transaction.split_input_objects_into_groups_for_reading(input_objects)?;
+        Ok(ValidationInputsAtCommit::Loaded {
+            tx_input_objects,
+            tx_receiving_objects,
+            per_authenticator_inputs,
+        })
     }
 
     #[allow(clippy::type_complexity)]
