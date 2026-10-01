@@ -27,9 +27,9 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{BackingPackageStore, ObjectKey},
     transaction::{
-        CallArg, InputObjectKind, ObjectReadResultKind, SenderSignedTransactionAPI,
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionEnvelope, TransactionKey,
-        VerifiedTransaction,
+        CallArg, InputObjectKind, ObjectReadResult, ObjectReadResultKind,
+        SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
+        TransactionEnvelope, TransactionKey, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };
@@ -5546,6 +5546,54 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         ),
         "{:?}",
         dropped[1].1
+    );
+}
+
+/// A Move authenticator's account object that the reader answered as deleted
+/// is not a rejection at a commit. The check proceeds to the function
+/// reference lookup, which here fails only because the random account has
+/// none.
+#[tokio::test]
+async fn account_check_at_commit_tolerates_a_deleted_account_object() {
+    let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![Object::with_id_owner_for_testing(gas_id, sender)],
+        true,
+    )
+    .await;
+
+    let account_id = ObjectId::random();
+    let version = Version::from_u64(7);
+    let deleted = ObjectReadResult {
+        input_object_kind: InputObjectKind::SharedMoveObject {
+            id: account_id,
+            initial_shared_version: Version::from_u64(3),
+            mutable: false,
+        },
+        object: ObjectReadResultKind::DeletedSharedObject(version, TransactionDigest::random()),
+    };
+
+    let epoch_store = s.authority.epoch_store_for_testing();
+    let error = s
+        .authority
+        .check_move_account_at_commit(
+            account_id,
+            Some(version),
+            None,
+            deleted,
+            &Address::from(account_id),
+            epoch_store.protocol_config(),
+        )
+        .expect_err("a random account has no authenticator function reference");
+    assert!(
+        matches!(
+            error,
+            IotaError::UserInput {
+                error: UserInputError::MoveAuthenticatorNotFound { .. }
+            }
+        ),
+        "{error:?}"
     );
 }
 
