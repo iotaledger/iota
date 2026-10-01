@@ -4289,6 +4289,7 @@ impl AuthorityPerEpochStore {
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
                     self,
+                    consensus_commit_info.index,
                     &mut sequenced_transactions,
                 )
                 .await?;

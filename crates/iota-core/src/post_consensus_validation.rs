@@ -61,7 +61,9 @@ use tracing::{debug, warn};
 use crate::{
     authority::{
         AuthorityState,
-        authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
+        authority_per_epoch_store::{
+            AuthorityPerEpochStore, LockDetails, handler_object_state::CommitIndex,
+        },
     },
     consensus_handler::{
         SequencedConsensusTransactionKey, SequencedConsensusTransactionKind,
@@ -90,6 +92,8 @@ use crate::{
 /// * `authority_state` — Used for cache reads and deny checks.
 /// * `epoch_store` — Current epoch store (protocol config, lock storage,
 ///   governance deny rules).
+/// * `commit_index` — The consensus commit being validated. With
+///   `pcool_deterministic_validation` on, inputs are read as of this commit.
 /// * `transactions` — All sequenced transactions for this consensus commit;
 ///   modified in-place.
 ///
@@ -107,6 +111,7 @@ use crate::{
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
+    commit_index: CommitIndex,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
@@ -213,6 +218,7 @@ pub async fn validate_and_resolve_conflicts(
         if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             warn!(
                 ?digest,
+                commit_index,
                 error = ?e,
                 "UserTransactionV1 failed validity_check post-consensus, dropping"
             );
@@ -227,6 +233,7 @@ pub async fn validate_and_resolve_conflicts(
             Err(e) => {
                 warn!(
                     ?digest,
+                    commit_index,
                     error = ?e,
                     "Failed to extract owned input objects post-consensus, dropping"
                 );
@@ -325,6 +332,7 @@ pub async fn validate_and_resolve_conflicts(
                 }
                 warn!(
                     ?digest,
+                    commit_index,
                     error = ?e,
                     "UserTransactionV1 failed post-consensus deny checks, dropping"
                 );
