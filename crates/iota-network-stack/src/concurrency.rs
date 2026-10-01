@@ -171,9 +171,9 @@ where
     }
 }
 
-/// Largest data frame `ReclaimableBody` hands to the transport. Whatever has
-/// been handed over sits in the stream's send buffer out of reach, so a small
-/// frame keeps what a reclaim cannot free small.
+/// Largest data frame a `ReclaimableBody` with a deadline hands to the
+/// transport. Whatever has been handed over sits in the stream's send buffer
+/// out of reach, so a small frame keeps what a reclaim cannot free small.
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 
 /// What a `ReclaimableBody` gives up at its deadline.
@@ -212,8 +212,9 @@ where
     B: Send + 'static,
     D: Send + 'static,
 {
-    /// A body with no deadline; `until_deadline` and `until_end` are then both
-    /// released when it is dropped.
+    /// A body with no deadline, handing over the inner body's frames as they
+    /// come; `until_deadline` and `until_end` are then both released when it is
+    /// dropped.
     pub fn new(inner: B, until_deadline: Option<D>, until_end: Option<E>) -> Self {
         Self {
             held: Arc::new(Mutex::new(Some(Held {
@@ -279,6 +280,10 @@ where
                 }
                 Some(Err(error)) => return Poll::Ready(Some(Err(error.into()))),
                 Some(Ok(frame)) => match frame.into_data() {
+                    // Without a deadline nothing is reclaimed, so the chunk goes out whole.
+                    Ok(data) if this.timer.is_none() => {
+                        return Poll::Ready(Some(Ok(Frame::data(data))));
+                    }
                     Ok(data) => state.pending = data,
                     Err(frame) => {
                         if let Some(timer) = this.timer.take() {
@@ -292,14 +297,9 @@ where
         let piece = state
             .pending
             .split_to(state.pending.len().min(MAX_FRAME_BYTES));
-        // While a reclaim can still happen, hand over a copy: a slice would keep
-        // the whole buffer it came from alive in the send buffer.
-        let piece = if this.timer.is_some() {
-            Bytes::copy_from_slice(&piece)
-        } else {
-            piece
-        };
-        Poll::Ready(Some(Ok(Frame::data(piece))))
+        // A copy: a slice would keep the whole buffer it came from alive in the
+        // send buffer.
+        Poll::Ready(Some(Ok(Frame::data(Bytes::copy_from_slice(&piece)))))
     }
 
     fn is_end_stream(&self) -> bool {
@@ -528,7 +528,13 @@ mod tests {
     #[tokio::test]
     async fn reclaimable_body_hands_over_frames_of_bounded_size() {
         let inner = http_body_util::Full::new(Bytes::from(vec![7u8; MAX_FRAME_BYTES * 2 + 5]));
-        let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::new(inner, None, None);
+        let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::with_deadline(
+            inner,
+            None,
+            None,
+            Duration::from_secs(3600),
+            || {},
+        );
 
         let mut sizes = Vec::new();
         let mut remaining = vec![body.size_hint().exact()];
@@ -633,5 +639,29 @@ mod tests {
             "the handed-over piece must not keep the response buffer alive"
         );
         drop((piece, body));
+    }
+
+    #[tokio::test]
+    async fn a_body_without_a_deadline_hands_over_frames_whole() {
+        let chunk = Bytes::from(vec![7u8; MAX_FRAME_BYTES * 2 + 5]);
+        let mut body = ReclaimableBody::<_, DropFlag, DropFlag>::new(
+            http_body_util::Full::new(chunk.clone()),
+            None,
+            None,
+        );
+
+        let frame = next_frame(&mut body)
+            .await
+            .unwrap()
+            .unwrap()
+            .into_data()
+            .unwrap();
+        assert_eq!(frame.len(), chunk.len());
+        assert_eq!(
+            frame.as_ptr(),
+            chunk.as_ptr(),
+            "the chunk must not be copied"
+        );
+        assert!(next_frame(&mut body).await.is_none());
     }
 }
