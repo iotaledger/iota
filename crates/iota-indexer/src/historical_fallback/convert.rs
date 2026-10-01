@@ -194,7 +194,7 @@ impl HistoricalFallbackTransaction {
             tx_sequence_number,
             summary.sequence_number,
             summary.timestamp_ms,
-            IndexerMetrics::new(&Registry::new()),
+            &IndexerMetrics::new(&Registry::new()),
         )
         .await?;
 
