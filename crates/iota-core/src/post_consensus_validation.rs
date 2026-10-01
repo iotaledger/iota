@@ -341,27 +341,41 @@ pub async fn validate_and_resolve_conflicts(
                     epoch_store,
                     deny_config,
                 )
-                .and_then(|verdict| match verdict {
-                    ValidationAtCommit::Keep(owned) => Ok(owned),
-                    ValidationAtCommit::Drop(kind, reason) => {
-                        warn!(
-                            ?digest,
-                            commit_index,
-                            ?kind,
-                            ?reason,
-                            "input dropped by the commit-indexed reader"
-                        );
-                        Err(kind.object_not_found_error().into())
-                    }
-                    ValidationAtCommit::Missing(kind, reason) => {
-                        warn!(
-                            ?digest,
-                            commit_index,
-                            ?kind,
-                            ?reason,
-                            "input not visible at this commit"
-                        );
-                        Err(kind.object_not_found_error().into())
+                .and_then(|verdict| {
+                    let verdicts = &authority_state
+                        .metrics
+                        .consensus_handler_validation_reader_verdicts;
+                    match verdict {
+                        ValidationAtCommit::Keep(owned) => {
+                            verdicts.with_label_values(&["keep", "none"]).inc();
+                            Ok(owned)
+                        }
+                        ValidationAtCommit::Drop(kind, reason) => {
+                            verdicts
+                                .with_label_values(&["drop", &format!("{:?}", reason.kind())])
+                                .inc();
+                            warn!(
+                                ?digest,
+                                commit_index,
+                                ?kind,
+                                ?reason,
+                                "input dropped by the commit-indexed reader"
+                            );
+                            Err(kind.object_not_found_error().into())
+                        }
+                        ValidationAtCommit::Missing(kind, reason) => {
+                            verdicts
+                                .with_label_values(&["missing", &format!("{:?}", reason.kind())])
+                                .inc();
+                            warn!(
+                                ?digest,
+                                commit_index,
+                                ?kind,
+                                ?reason,
+                                "input not visible at this commit"
+                            );
+                            Err(kind.object_not_found_error().into())
+                        }
                     }
                 }),
             None => {
