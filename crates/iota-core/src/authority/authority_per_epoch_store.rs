@@ -4219,6 +4219,10 @@ impl AuthorityPerEpochStore {
         authority_metrics: &Arc<AuthorityMetrics>,
         authority_state: &AuthorityState,
     ) -> IotaResult<(Vec<Schedulable>, AssignedTxAndVersions)> {
+        // Read once per commit: validation and the roots registration below
+        // decide on the same value.
+        let deterministic_validation = self.protocol_config.pcool_deterministic_validation();
+
         // Split transactions into different types for processing.
         let mut system_transactions = Vec::with_capacity(verified_transactions.len());
         let mut current_commit_sequenced_consensus_transactions =
@@ -4459,11 +4463,18 @@ impl AuthorityPerEpochStore {
                 );
             }
 
+            // With deterministic validation, rows become visible before the
+            // fully executed commit advances, so after the wait every row
+            // with `produced_at <= C - K` is readable before validation of
+            // `C` starts and does not change during it. Churn is confined to
+            // rows above the horizon, which answer missing. Validating before
+            // that wait would make verdicts depend on execution timing.
             let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
                     self,
                     consensus_commit_info.index,
+                    deterministic_validation,
                     &mut sequenced_transactions,
                 )
                 .await?;
@@ -4673,7 +4684,7 @@ impl AuthorityPerEpochStore {
 
             // The deterministic-validation bookkeeping tracks exactly the
             // roots written to this commit's pending checkpoints.
-            if self.protocol_config.pcool_deterministic_validation() {
+            if deterministic_validation {
                 let mut commit_roots = non_randomness_roots.clone();
                 if should_write_random_checkpoint {
                     commit_roots.extend(randomness_roots.iter().copied());
