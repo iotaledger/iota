@@ -5507,6 +5507,23 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         locks.contains_key(&gas_keep_ref),
         "the kept transaction locks its gas coin"
     );
+    let verdicts = &s
+        .authority
+        .metrics
+        .consensus_handler_validation_reader_verdicts;
+    assert_eq!(verdicts.with_label_values(&["keep", "none"]).get(), 1);
+    assert_eq!(
+        verdicts
+            .with_label_values(&["drop", "SharedInitialVersionMismatch"])
+            .get(),
+        1
+    );
+    assert_eq!(
+        verdicts
+            .with_label_values(&["missing", "HandlerRowAboveHorizon"])
+            .get(),
+        1
+    );
     assert_eq!(dropped.len(), 2);
     assert_eq!(dropped[0].0, wrong_digest);
     assert!(
