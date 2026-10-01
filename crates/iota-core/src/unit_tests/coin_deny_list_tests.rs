@@ -619,6 +619,7 @@ impl RegulatedCoinEnv {
             post_consensus_validation::validate_and_resolve_conflicts(
                 &self.env.authority,
                 &epoch_store,
+                1,
                 &mut transactions,
             )
             .await
