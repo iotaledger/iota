@@ -897,14 +897,18 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             }
             // A peer that voted for the last commit holds these headers, while
             // one with no observed vote may be down and cost the full timeout.
-            inner.order_voters_first(&mut target_authorities, last_commit_index);
-            // A peer that failed an earlier chunk goes last, voter or not, so a
-            // down peer costs the timeout only once.
-            target_authorities.sort_by_key(|authority| failed_authorities.contains(authority));
+            // A voter that failed an earlier chunk loses that preference, and
+            // sorting a copy puts it back where the ranking or shuffle placed it.
+            let mut chunk_authorities = target_authorities.clone();
+            inner.order_voters_first(
+                &mut chunk_authorities,
+                last_commit_index,
+                &failed_authorities,
+            );
 
             // Try fetching from different authorities until successful
             let mut fetched = false;
-            for &authority in &target_authorities {
+            for &authority in &chunk_authorities {
                 let started = Instant::now();
                 match tokio::time::timeout(
                     FETCH_HEADERS_TIMEOUT,
@@ -1756,14 +1760,13 @@ mod tests {
         }
 
         /// A voter that fails one chunk of the reinitialization header fetch
-        /// is asked after every other peer for the remaining chunks.
+        /// goes back to its committee-order place for the remaining chunks.
         #[tokio::test(start_paused = true)]
-        async fn reinitialization_demotes_a_failed_voter() {
+        async fn reinitialization_drops_preference_for_a_failed_voter() {
             let (mut context, _) = Context::new_for_test(4);
             context
                 .protocol_config
                 .set_consensus_fast_commit_sync_for_testing(true);
-            context.parameters.enable_peer_responsiveness_ranking = true;
             context.parameters.max_headers_per_commit_sync_fetch = 1;
             let context = Arc::new(context);
             let headers: Vec<_> = (0..2)
@@ -1808,10 +1811,14 @@ mod tests {
                 .unwrap();
 
             assert_eq!(fetched.len(), 2);
-            let asked = network_client.requested_header_peers.lock().clone();
-            assert_eq!(asked.len(), 3);
-            assert_eq!(asked[0], voter);
-            assert!(!asked[1..].contains(&voter));
+            assert_eq!(
+                *network_client.requested_header_peers.lock(),
+                vec![
+                    voter,
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(1),
+                ]
+            );
         }
     }
 

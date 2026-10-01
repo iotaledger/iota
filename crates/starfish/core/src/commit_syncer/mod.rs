@@ -245,13 +245,15 @@ impl<C: NetworkClient> Inner<C> {
         )
     }
 
-    /// Moves the peers that have voted for `commit_index` or later ahead of
-    /// the rest, keeping the order within each group. Does nothing unless
+    /// Moves the peers that have voted for `commit_index` or later, other than
+    /// those in `excluded`, ahead of the rest, keeping the order within each
+    /// group. Does nothing unless
     /// `enable_commit_sync_peer_selection_by_commit_votes` is set.
     pub(crate) fn order_voters_first(
         &self,
         authorities: &mut [AuthorityIndex],
         commit_index: CommitIndex,
+        excluded: &BTreeSet<AuthorityIndex>,
     ) {
         if !self
             .context
@@ -261,9 +263,10 @@ impl<C: NetworkClient> Inner<C> {
             return;
         }
         authorities.sort_by_cached_key(|authority| {
-            !self
-                .commit_vote_monitor
-                .has_voted_for_commit(*authority, commit_index)
+            excluded.contains(authority)
+                || !self
+                    .commit_vote_monitor
+                    .has_voted_for_commit(*authority, commit_index)
         });
     }
 }
@@ -646,7 +649,11 @@ where
         // that provably solidified the range, and any header from a
         // behind-listed peer carrying a recent commit vote promotes it
         // immediately.
-        inner.order_voters_first(&mut target_authorities, commit_range.end());
+        inner.order_voters_first(
+            &mut target_authorities,
+            commit_range.end(),
+            &BTreeSet::new(),
+        );
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
         timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
