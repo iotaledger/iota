@@ -1971,54 +1971,50 @@ async fn failed_stored_tx_into_transaction_block() {
     test_db.drop_if_exists();
 }
 
-#[test]
-fn get_chain_identifier_with_pruning_enabled() {
-    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+#[tokio::test]
+async fn get_chain_identifier_with_pruning_enabled() {
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_get_chain_identifier_with_pruning_enabled"),
+        None,
+        Some(RetentionConfig::new(1, Default::default())),
+    )
+    .await;
 
-    runtime.block_on(async move {
-        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
-            Some("test_get_chain_identifier_with_pruning_enabled"),
-            None,
-            Some(RetentionConfig::new(1, Default::default())),
-        )
-        .await;
+    indexer_wait_for_checkpoint(store, 1).await;
 
-        indexer_wait_for_checkpoint(store, 1).await;
+    let chain_identifier = ChainIdentifier::from(
+        client
+            .get_checkpoint(CheckpointId::SequenceNumber(0))
+            .await
+            .unwrap()
+            .digest,
+    );
 
-        let chain_identifier = ChainIdentifier::from(
-            client
-                .get_checkpoint(CheckpointId::SequenceNumber(0))
-                .await
-                .unwrap()
-                .digest,
-        );
+    let indexer_chain_identifier = client.get_chain_identifier().await.unwrap();
 
-        let indexer_chain_identifier = client.get_chain_identifier().await.unwrap();
+    assert_eq!(
+        chain_identifier.to_string(),
+        indexer_chain_identifier.to_string()
+    );
 
-        assert_eq!(
-            chain_identifier.to_string(),
-            indexer_chain_identifier.to_string()
-        );
+    cluster.force_new_epoch().await;
 
-        cluster.force_new_epoch().await;
+    // Prune the genesis checkpoint
+    indexer_wait_for_checkpoint_pruned(store, 0).await;
 
-        // Prune the genesis checkpoint
-        indexer_wait_for_checkpoint_pruned(store, 0).await;
+    let indexer_chain_identifier = client.get_chain_identifier().await.unwrap();
 
-        let indexer_chain_identifier = client.get_chain_identifier().await.unwrap();
+    assert_eq!(
+        chain_identifier.to_string(),
+        indexer_chain_identifier.to_string()
+    );
 
-        assert_eq!(
-            chain_identifier.to_string(),
-            indexer_chain_identifier.to_string()
-        );
-
-        assert!(
-            client
-                .get_checkpoint(CheckpointId::SequenceNumber(0))
-                .await
-                .is_err()
-        )
-    });
+    assert!(
+        client
+            .get_checkpoint(CheckpointId::SequenceNumber(0))
+            .await
+            .is_err()
+    )
 }
 
 #[test]
