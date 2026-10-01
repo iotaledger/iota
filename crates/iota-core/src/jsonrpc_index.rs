@@ -2149,6 +2149,10 @@ mod tests {
     /// row itself is never returned again, and when the cursor row no longer
     /// exists (the object was deleted or transferred to a different owner)
     /// the scan resumes at the next live row without skipping it.
+    ///
+    /// If this test fails, do not simply adjust it to the new behavior: every
+    /// reader of this index derives its next cursor from an exclusive resume.
+    /// Revisit all callers of `get_owner_objects_iterator` first.
     #[tokio::test]
     async fn get_owner_objects_iterator_cursor_is_exclusive() {
         let tmp_dir = iota_common::tempdir();
