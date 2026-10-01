@@ -110,6 +110,7 @@ impl PrimaryWorker {
     }
 }
 
+/// The builder of the data to commit to the database.
 struct Transformer<'chk, 'm> {
     checkpoint: ValidatedCheckpoint<'chk>,
     metrics: &'m IndexerMetrics,
@@ -429,6 +430,7 @@ pub(crate) async fn index_transaction(
     })
 }
 
+/// The builder of all event data to commit to the database.
 #[derive(Debug)]
 pub(crate) struct EventsTransformer<'tx> {
     transaction: &'tx CheckpointTransaction,
@@ -520,6 +522,7 @@ pub(crate) struct EventData {
     pub(crate) event_indices: Vec<EventIndex>,
 }
 
+/// The builder of all object data to commit to the database.
 #[derive(Debug, Clone, Copy)]
 struct ObjectsTransformer<'chk> {
     checkpoint: ValidatedCheckpoint<'chk>,

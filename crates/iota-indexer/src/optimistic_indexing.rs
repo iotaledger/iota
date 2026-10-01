@@ -492,7 +492,7 @@ struct TransactionExtractor<'a> {
 }
 
 impl<'a> TransactionExtractor<'a> {
-    /// Placeholder values for the unknown checkpoint data.
+    // Placeholder values for the unknown checkpoint data.
     const CHECKPOINT_SEQUENCE_NUMBER: CheckpointSequenceNumber = 0;
     const CHECKPOINT_TIMESTAMP_MS: CheckpointTimestamp = 0;
 
