@@ -26,7 +26,10 @@ use move_vm_types::{
     values::{GlobalValue, StructRef, Value},
 };
 
-use crate::object_runtime::{fingerprint::ObjectFingerprint, get_all_uids};
+use crate::{
+    object_runtime::{fingerprint::ObjectFingerprint, get_all_uids},
+    resource_profile::abstract_input_size,
+};
 
 pub(super) struct ChildObject {
     pub(super) owner: ObjectId,
@@ -674,7 +677,7 @@ impl<'a> ChildObjectStore<'a> {
         self.inner.child_objects_added_abstract_bytes = self
             .inner
             .child_objects_added_abstract_bytes
-            .saturating_add(u64::from(child_value.legacy_size()));
+            .saturating_add(u64::from(abstract_input_size(&child_value)));
         if let Err((e, _)) = value.move_to(child_value) {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(

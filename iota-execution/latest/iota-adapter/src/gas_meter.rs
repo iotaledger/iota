@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_move_natives::resource_profile::abstract_input_size;
 use iota_types::gas_model::{
     gas_predicates::native_function_threshold_exceeded,
     tables::{GasStatus, REFERENCE_SIZE, STRUCT_SIZE, VEC_SIZE},
@@ -139,15 +140,13 @@ impl GasMeter for IotaGasMeter<'_> {
         // Determine the number of pops that are going to be needed for this function
         // call, and charge for them.
         let pops = args.len() as u64;
-        let (arg_sizes, input_bytes) = args.fold(
-            (AbstractMemorySize::zero(), AbstractMemorySize::zero()),
-            |(charge_size, input_size), elem| {
-                let (memory_size, elem_input_size) = elem.abstract_memory_and_input_size();
-                (charge_size + memory_size, input_size + elem_input_size)
-            },
-        );
+        let mut input_bytes = AbstractMemorySize::zero();
+        // Calculate the size decrease of the stack from the above pops.
+        let stack_reduction_size = args.fold(AbstractMemorySize::new(pops), |acc, elem| {
+            input_bytes += abstract_input_size(&elem);
+            acc + abstract_memory_size(elem)
+        });
         self.0.record_native_input_bytes(input_bytes.into());
-        let stack_reduction_size = AbstractMemorySize::new(pops) + arg_sizes;
         // Track that this is going to be popping from the operand stack. We also
         // increment the instruction count as we need to account for the `Call`
         // bytecode that initiated this native call.
