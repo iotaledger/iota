@@ -27,6 +27,9 @@ pub(crate) type TransactionCheckResult<'chk> = IndexerResult<(u64, &'chk Checkpo
 
 /// Enumerates checkpoint transactions while checking their integrity.
 ///
+/// The returned iterator checks that the transaction order in the checkpoint
+/// transactions agrees with the order provided in the checkpoint contents.
+///
 /// # Errors
 ///
 /// Fails before enumeration if the checkpoint contents and the transactions
@@ -63,6 +66,7 @@ pub(crate) fn enumerate_checked_transactions(
         }))
 }
 
+/// A checkpoint that guarantees the integrity of its transactions.
 #[derive(Clone, Debug, Copy)]
 pub(crate) struct ValidatedCheckpoint<'chk> {
     inner: &'chk CheckpointData,
