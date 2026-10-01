@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use iota_sdk_move_types::iota_framework::{vec_map::VecMap, vec_set::VecSet};
+use iota_sdk_move_types::iota_framework::{
+    system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+};
 use iota_sdk_types::Address;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +28,6 @@ use crate::{
     gas_coin::IotaTreasuryCap,
     iota_system_state::iota_system_state_inner_v1::SystemParametersV1,
     storage::ObjectStore,
-    system_admin_cap::IotaSystemAdminCap,
 };
 
 /// Rust version of the Move iota_system::validator_set::ValidatorSetV2 type

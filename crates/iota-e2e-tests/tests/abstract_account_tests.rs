@@ -1633,6 +1633,12 @@ async fn test_immutable_account_sender_rejected() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
 
+    // Creating the immutable account under test is rejected since version 38.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_reject_immutable_account_creation_for_testing(false);
+        config
+    });
+
     let mut test_env = TestEnvironment::new().await;
     test_env
         .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
@@ -1681,6 +1687,12 @@ async fn test_immutable_account_sender_rejected() -> Result<(), anyhow::Error> {
 async fn test_immutable_account_sponsor_rejected() -> Result<(), anyhow::Error> {
     let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
+
+    // Creating the immutable account under test is rejected since version 38.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_reject_immutable_account_creation_for_testing(false);
+        config
+    });
 
     let mut test_env = TestEnvironment::new().await;
     test_env
@@ -1738,6 +1750,7 @@ async fn test_immutable_account_sender_succeeded_without_reject_flag() -> Result
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_reject_immutable_account_objects_for_testing(false);
+        config.set_reject_immutable_account_creation_for_testing(false);
         config
     });
 

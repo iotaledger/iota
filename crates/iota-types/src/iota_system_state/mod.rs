@@ -233,7 +233,9 @@ impl IotaSystemState {
     /// Intended for test fixtures that need a structurally valid system
     /// state to exercise BCS round-trip paths.
     pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
-        use iota_sdk_move_types::iota_framework::vec_map::VecMap;
+        use iota_sdk_move_types::iota_framework::{
+            system_admin_cap::IotaSystemAdminCap, vec_map::VecMap,
+        };
         use iota_sdk_types::ObjectId;
 
         use crate::{
@@ -245,7 +247,6 @@ impl IotaSystemState {
             iota_system_state::iota_system_state_inner_v1::{
                 IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
             },
-            system_admin_cap::IotaSystemAdminCap,
         };
         IotaSystemState::V1(IotaSystemStateV1 {
             epoch,

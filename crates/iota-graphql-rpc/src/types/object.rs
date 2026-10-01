@@ -670,7 +670,10 @@ impl ObjectImpl<'_> {
                 initial_shared_version: UInt53::try_from(initial_shared_version.as_u64())
                     .extend()?,
             }))),
-            _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
+            _ => Err(Error::Internal(
+                "unknown Owner variant in object owner".to_string(),
+            ))
+            .extend(),
         }
     }
 

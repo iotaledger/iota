@@ -6,7 +6,9 @@ use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
-use iota_sdk_move_types::iota_framework::{vec_map::VecMap, vec_set::VecSet};
+use iota_sdk_move_types::iota_framework::{
+    system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+};
 use iota_sdk_types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -33,7 +35,6 @@ use crate::{
     gas_coin::IotaTreasuryCap,
     id::ID,
     storage::ObjectStore,
-    system_admin_cap::IotaSystemAdminCap,
 };
 
 const E_METADATA_INVALID_POP: u64 = 0;
@@ -718,12 +719,4 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             validator_low_stake_grace_period,
         })
     }
-}
-
-/// Rust version of the Move
-/// iota_system::validator_cap::UnverifiedValidatorOperationCap type
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct UnverifiedValidatorOperationCap {
-    pub id: ObjectId,
-    pub authorizer_validator_address: Address,
 }

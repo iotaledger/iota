@@ -88,7 +88,6 @@ pub mod signature_verification;
 pub mod stardust;
 pub mod storage;
 pub mod supported_protocol_versions;
-pub mod system_admin_cap;
 pub mod test_checkpoint_data_builder;
 pub mod timelock;
 pub mod traffic_control;

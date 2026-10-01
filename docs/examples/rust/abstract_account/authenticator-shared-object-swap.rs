@@ -448,20 +448,12 @@ pub fn swap_blacklist_in_transaction(
             let call_args = vec![signature_call_arg, new_blacklist_ref_call_arg];
 
             // Rebuild the authenticator with the swapped blacklist, preserving
-            // the object being authenticated (immutable or shared).
-            let authenticator = match move_authenticator.object_to_authenticate() {
-                CallArg::ImmutableOrOwned(immutable) => {
-                    MoveAuthenticatorV1::new_with_immutable_account_object(
-                        call_args,
-                        vec![],
-                        *immutable,
-                    )
-                }
-                CallArg::Shared(shared) => {
-                    MoveAuthenticatorV1::new_with_shared_account_object(call_args, vec![], *shared)
-                }
-                _ => panic!("Expected ImmutableOrOwned or Shared object"),
+            // the shared object being authenticated.
+            let CallArg::Shared(shared) = move_authenticator.object_to_authenticate() else {
+                panic!("Expected a shared object");
             };
+            let authenticator =
+                MoveAuthenticatorV1::new_with_shared_account_object(call_args, vec![], *shared);
 
             UserSignature::MoveAuthenticator(authenticator.into())
         }
