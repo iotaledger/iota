@@ -137,6 +137,7 @@ async fn test_valid_user_transaction_passes() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -204,6 +205,7 @@ async fn drop_error_for_gas_version_below_canceled_range(
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -269,6 +271,7 @@ async fn test_non_user_transaction_passes_through() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -325,6 +328,7 @@ async fn test_duplicate_transaction_deduplicated() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -397,6 +401,7 @@ async fn test_mixed_batch_filtering() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -485,6 +490,7 @@ async fn test_simple_conflict() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -589,6 +595,7 @@ async fn test_stale_version_dropped_fresh_kept() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -693,6 +700,7 @@ async fn test_no_conflict() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -794,6 +802,7 @@ async fn test_chain_conflict() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -916,6 +925,7 @@ async fn test_multiple_conflicts_in_batch() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -1006,6 +1016,7 @@ async fn test_gas_object_conflict() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -1120,6 +1131,7 @@ async fn test_winner_blocks_multiple_losers() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -1240,6 +1252,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         post_consensus_validation::validate_and_resolve_conflicts(
             &authority,
             &epoch_store,
+            1,
             &mut transactions,
         )
         .await
@@ -1690,6 +1703,7 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
     let (dropped, _, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -1726,6 +1740,7 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
     let (dropped, _, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -1777,6 +1792,7 @@ async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
     let (dropped, locks, all_digests) = post_consensus_validation::validate_and_resolve_conflicts(
         &setup.authority,
         &setup.epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -1861,6 +1877,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
     let _ = post_consensus_validation::validate_and_resolve_conflicts(
         &s.authority,
         &s.epoch_store,
+        1,
         &mut transactions,
     )
     .await;
@@ -1931,6 +1948,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -1988,6 +2006,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -2041,6 +2060,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -2091,6 +2111,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -2112,6 +2133,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &authority,
         &epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -5679,6 +5701,7 @@ impl ImmutableInputSetup {
         let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
             &self.authority,
             &self.epoch_store,
+            1,
             transactions,
         )
         .await
@@ -5880,6 +5903,7 @@ async fn post_consensus_validation_meters_packages_with_protocol_limits() {
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &setup.authority,
         &epoch_store,
+        1,
         &mut transactions,
     )
     .await
@@ -5913,6 +5937,7 @@ async fn post_consensus_validation_meters_packages_with_node_limits_when_flag_di
     let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
         &setup.authority,
         &epoch_store,
+        1,
         &mut transactions,
     )
     .await
