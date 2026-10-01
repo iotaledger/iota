@@ -625,6 +625,7 @@ impl RegulatedCoinEnv {
                 &self.env.authority,
                 &epoch_store,
                 1,
+                false,
                 &mut transactions,
             )
             .await

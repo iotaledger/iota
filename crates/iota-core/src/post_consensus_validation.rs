@@ -88,8 +88,10 @@ use crate::{
 ///
 /// * `authority_state` — Used for cache reads and deny checks.
 /// * `epoch_store` — Current epoch store (protocol config, lock storage, governance deny rules).
-/// * `commit_index` — The consensus commit being validated. With `pcool_deterministic_validation`
-///   on, inputs are read as of this commit.
+/// * `commit_index` — The consensus commit being validated. With deterministic validation on,
+///   inputs are read as of this commit.
+/// * `deterministic_validation` — The `pcool_deterministic_validation` flag, read once per commit
+///   by the caller so every step of the commit decides on the same value.
 /// * `transactions` — All sequenced transactions for this consensus commit; modified in-place.
 ///
 /// # Returns
@@ -105,6 +107,7 @@ pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
     commit_index: CommitIndex,
+    deterministic_validation: bool,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
@@ -154,16 +157,13 @@ pub async fn validate_and_resolve_conflicts(
 
     // One reader for the whole commit, so every transaction in it is read as
     // of the same commit index.
-    let reader = epoch_store
-        .protocol_config()
-        .pcool_deterministic_validation()
-        .then(|| {
-            CommitIndexedReader::new(
-                authority_state.get_object_cache_reader().clone(),
-                epoch_store.clone(),
-                commit_index,
-            )
-        });
+    let reader = deterministic_validation.then(|| {
+        CommitIndexedReader::new(
+            authority_state.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            commit_index,
+        )
+    });
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
