@@ -45,7 +45,7 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
                 sequence_number,
                 checkpoint.checkpoint_summary.sequence_number(),
                 checkpoint.checkpoint_summary.timestamp_ms(),
-                metrics.clone(),
+                &metrics,
             )
             .await?;
             results.push(StoredTransaction::from(&indexed_tx));

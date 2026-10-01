@@ -543,7 +543,7 @@ impl<'a> TransactionExtractor<'a> {
                 self.optimistic_sequence_number,
                 Self::CHECKPOINT_SEQUENCE_NUMBER,
                 Self::CHECKPOINT_TIMESTAMP_MS,
-                self.metrics.clone(),
+                self.metrics,
             )
             .await
         })

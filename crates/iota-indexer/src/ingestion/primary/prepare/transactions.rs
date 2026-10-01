@@ -66,7 +66,7 @@ impl<'chk> TransactionTransformer<'chk> {
             tx_sequence_number,
             self.checkpoint.sequence_number(),
             self.checkpoint.timestamp_ms(),
-            metrics.clone(),
+            metrics,
         )
         .await
     }
@@ -144,7 +144,7 @@ pub(crate) async fn index_transaction(
     tx_sequence_number: u64,
     checkpoint_sequence_number: CheckpointSequenceNumber,
     checkpoint_timestamp_ms: CheckpointTimestamp,
-    metrics: IndexerMetrics,
+    metrics: &IndexerMetrics,
 ) -> IndexerResult<IndexedTransaction> {
     let tx_digest = tx.transaction.digest();
 
@@ -220,16 +220,16 @@ impl Default for InMemObjectCache {
     }
 }
 
-/// Along with InMemObjectCache, TxChangesProcessor implements ObjectProvider
-/// so it can be used in indexing write path to get object/balance changes.
-/// Its lifetime is per checkpoint.
-pub struct InMemTxChanges {
+/// In memory object provider to use during ingestion of transaction.
+///
+/// Gets object/balance changes from transaction data.
+pub struct InMemTxChanges<'m> {
     object_cache: InMemObjectCache,
-    metrics: IndexerMetrics,
+    metrics: &'m IndexerMetrics,
 }
 
-impl InMemTxChanges {
-    pub fn new(objects: &[&Object], metrics: IndexerMetrics) -> Self {
+impl<'m> InMemTxChanges<'m> {
+    pub fn new(objects: &[&Object], metrics: &'m IndexerMetrics) -> Self {
         let mut object_cache = InMemObjectCache::new();
         for obj in objects {
             object_cache.insert_object(<&Object>::clone(obj).clone());
@@ -278,7 +278,7 @@ impl InMemTxChanges {
 }
 
 #[async_trait]
-impl ObjectProvider for InMemTxChanges {
+impl ObjectProvider for InMemTxChanges<'_> {
     type Error = IndexerError;
 
     async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
