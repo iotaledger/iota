@@ -102,6 +102,7 @@ mod object;
 pub mod object_runtime;
 pub mod protocol_config;
 mod random;
+pub mod resource_profile;
 pub mod test_scenario;
 mod test_utils;
 pub mod transaction_context;

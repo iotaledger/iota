@@ -3107,3 +3107,134 @@ async fn check_latest_object_ref(
         assert_eq!(&response.unwrap().object.object_ref(), object_ref);
     }
 }
+
+/// Collects formatted tracing output in a shared buffer.
+#[derive(Clone, Default)]
+struct SharedTraceBuffer(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for SharedTraceBuffer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for SharedTraceBuffer {
+    type Writer = SharedTraceBuffer;
+    fn make_writer(&'a self) -> Self::Writer {
+        self.clone()
+    }
+}
+
+/// Re-executing the same transactions on a fresh authority must produce
+/// byte-identical resource profiles.
+#[tokio::test]
+#[cfg_attr(msim, ignore)]
+async fn resource_profile_replay_is_deterministic() {
+    async fn run_workload() -> Vec<String> {
+        use rand::SeedableRng;
+
+        // Fixed sender and gas object so both runs produce the same digests.
+        let mut rng = rand::rngs::StdRng::from_seed([7; 32]);
+        let (sender, sender_key): (_, AccountPrivateKey) =
+            iota_types::crypto::get_key_pair_from_rng(&mut rng);
+        let gas_object_id = ObjectId::from_str(
+            "0x7777777777777777777777777777777777777777777777777777777777777777",
+        )
+        .unwrap();
+
+        let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
+
+        // Start after genesis, whose digest depends on the random committee.
+        let buffer = SharedTraceBuffer::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_env_filter("resource_profile=trace")
+            .with_writer(buffer.clone())
+            .with_ansi(false)
+            .without_time()
+            .finish();
+        let guard = tracing::subscriber::set_default(subscriber);
+
+        let package = build_and_publish_test_package(
+            &authority,
+            &sender,
+            &sender_key,
+            &gas_object_id,
+            "object_basics",
+            false,
+        )
+        .await;
+
+        let effects = call_move(
+            &authority,
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &package.object_id,
+            "object_basics",
+            "create",
+            vec![],
+            vec![
+                TestCallArg::Pure(bcs::to_bytes(&(16_u64)).unwrap()),
+                TestCallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+            ],
+        )
+        .await
+        .unwrap();
+        let created = effects.created()[0].reference().object_id;
+
+        call_move(
+            &authority,
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &package.object_id,
+            "object_basics",
+            "set_value",
+            vec![],
+            vec![
+                TestCallArg::Object(created),
+                TestCallArg::Pure(bcs::to_bytes(&(42_u64)).unwrap()),
+            ],
+        )
+        .await
+        .unwrap();
+
+        call_move(
+            &authority,
+            &gas_object_id,
+            &sender,
+            &sender_key,
+            &package.object_id,
+            "object_basics",
+            "delete",
+            vec![],
+            vec![TestCallArg::Object(created)],
+        )
+        .await
+        .unwrap();
+
+        drop(guard);
+
+        let captured = String::from_utf8(buffer.0.lock().unwrap().clone()).unwrap();
+        captured
+            .lines()
+            .filter(|line| line.contains("Per-transaction resource profile"))
+            .map(|line| line.to_string())
+            .collect()
+    }
+
+    let first = run_workload().await;
+    let second = run_workload().await;
+    assert!(
+        !first.is_empty(),
+        "expected resource_profile trace events to be captured"
+    );
+    assert_eq!(
+        first, second,
+        "resource profiles must be byte-identical across re-execution"
+    );
+}

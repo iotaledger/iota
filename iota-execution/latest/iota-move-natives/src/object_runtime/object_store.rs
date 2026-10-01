@@ -10,8 +10,11 @@ use std::{
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 use iota_types::{
-    committee::EpochId, error::VMMemoryLimitExceededSubStatusCode,
-    execution::DynamicallyLoadedObjectMetadata, metrics::LimitsMetrics, object::Object,
+    committee::EpochId,
+    error::VMMemoryLimitExceededSubStatusCode,
+    execution::DynamicallyLoadedObjectMetadata,
+    metrics::LimitsMetrics,
+    object::{MoveStructExt, Object},
     storage::ChildObjectResolver,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -23,7 +26,10 @@ use move_vm_types::{
     values::{GlobalValue, StructRef, Value},
 };
 
-use crate::object_runtime::{fingerprint::ObjectFingerprint, get_all_uids};
+use crate::{
+    object_runtime::{fingerprint::ObjectFingerprint, get_all_uids},
+    resource_profile::abstract_input_size,
+};
 
 pub(super) struct ChildObject {
     pub(super) owner: ObjectId,
@@ -94,6 +100,13 @@ struct Inner<'a> {
     metrics: Arc<LimitsMetrics>,
     // Epoch ID for the current transaction. Used for receiving objects.
     current_epoch_id: EpochId,
+    // Counters feeding the per-transaction resource profile.
+    child_object_reads: u64,
+    child_object_read_bytes: u64,
+    cached_objects_bytes: u64,
+    // Added children were never serialized, so only their abstract size is
+    // available.
+    child_objects_added_abstract_bytes: u64,
 }
 
 // maintains the runtime GlobalValues for child objects and manages the fetching
@@ -272,6 +285,14 @@ impl Inner<'_> {
                 had_parent_root_version
             );
 
+            self.child_object_reads = self.child_object_reads.saturating_add(1);
+            if let Some(obj) = &obj_opt {
+                let object_bytes = obj.object_size_for_gas_metering() as u64;
+                self.child_object_read_bytes =
+                    self.child_object_read_bytes.saturating_add(object_bytes);
+                self.cached_objects_bytes = self.cached_objects_bytes.saturating_add(object_bytes);
+            }
+
             if let LimitThresholdCrossed::Hard(_, lim) = check_limit_by_meter!(
                 self.is_metered,
                 cached_objects_count,
@@ -437,11 +458,26 @@ impl<'a> ChildObjectStore<'a> {
                 protocol_config,
                 metrics,
                 current_epoch_id,
+                child_object_reads: 0,
+                child_object_read_bytes: 0,
+                cached_objects_bytes: 0,
+                child_objects_added_abstract_bytes: 0,
             },
             store: BTreeMap::new(),
             config_setting_cache: BTreeMap::new(),
             is_metered,
         }
+    }
+
+    /// Returns `(reads, read_bytes, cached_bytes)` for the resource profile.
+    pub(super) fn read_counters(&self) -> (u64, u64, u64) {
+        (
+            self.inner.child_object_reads,
+            self.inner.child_object_read_bytes,
+            self.inner
+                .cached_objects_bytes
+                .saturating_add(self.inner.child_objects_added_abstract_bytes),
+        )
     }
 
     pub(super) fn receive_object(
@@ -454,12 +490,17 @@ impl<'a> ChildObjectStore<'a> {
         child_fully_annotated_layout: &A::MoveTypeLayout,
         child_struct_tag: StructTag,
     ) -> PartialVMResult<LoadedWithMetadataResult<ObjectResult<Value>>> {
-        let Some((obj, obj_meta)) =
-            self.inner
-                .receive_object_from_store(parent, child, child_version)?
-        else {
+        let received = self
+            .inner
+            .receive_object_from_store(parent, child, child_version)?;
+        self.inner.child_object_reads = self.inner.child_object_reads.saturating_add(1);
+        let Some((obj, obj_meta)) = received else {
             return Ok(None);
         };
+        self.inner.child_object_read_bytes = self
+            .inner
+            .child_object_read_bytes
+            .saturating_add(obj.object_size_for_gas_metering() as u64);
 
         Ok(Some(
             match deserialize_move_struct(&obj, child_ty, child_layout, child_struct_tag)? {
@@ -633,6 +674,10 @@ impl<'a> ChildObjectStore<'a> {
             let fingerprint = ObjectFingerprint::none(self.inner.protocol_config);
             (GlobalValue::none(), fingerprint)
         };
+        self.inner.child_objects_added_abstract_bytes = self
+            .inner
+            .child_objects_added_abstract_bytes
+            .saturating_add(u64::from(abstract_input_size(&child_value)));
         if let Err((e, _)) = value.move_to(child_value) {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(

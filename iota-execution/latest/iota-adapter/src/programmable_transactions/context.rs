@@ -869,6 +869,22 @@ mod checked {
                 .remove()
                 .map_err(|e| convert_vm_error(e.finish(Location::Undefined), vm, &linkage_view))?;
 
+            // Copy the resource profile counters before the object runtime and
+            // linkage view are consumed.
+            let read_stats = object_runtime.read_stats();
+            let (packages_loaded, package_bytes_loaded) = linkage_view.package_load_counters();
+            let move_gas_status = gas_charger.move_gas_status_mut();
+            move_gas_status.record_object_runtime_usage(
+                read_stats.reads,
+                read_stats.read_bytes,
+                read_stats.cached_bytes,
+            );
+            move_gas_status.record_events(
+                object_runtime.total_events_count(),
+                object_runtime.total_events_size(),
+            );
+            move_gas_status.record_package_loads(packages_loaded, package_bytes_loaded);
+
             let RuntimeResults {
                 writes,
                 user_events: remaining_events,
