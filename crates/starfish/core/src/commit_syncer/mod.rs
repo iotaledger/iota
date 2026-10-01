@@ -531,10 +531,11 @@ pub(crate) const REGULAR_FETCH_ATTEMPT_MULTIPLIER: u32 = 4;
 pub(crate) const FAST_FETCH_ATTEMPT_MULTIPLIER: u32 = 2;
 /// The longest any commit syncer waits for one fetch attempt, 480 s in the
 /// node.
-pub(crate) const MAX_FETCH_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(
-    FETCH_TIMEOUT.as_millis() as u64
-        * (MAX_FETCH_TIMEOUT_MULTIPLIER * REGULAR_FETCH_ATTEMPT_MULTIPLIER) as u64,
-);
+pub(crate) fn max_fetch_attempt_timeout() -> Duration {
+    FETCH_TIMEOUT
+        * MAX_FETCH_TIMEOUT_MULTIPLIER
+        * REGULAR_FETCH_ATTEMPT_MULTIPLIER.max(FAST_FETCH_ATTEMPT_MULTIPLIER)
+}
 
 /// Generic fetch loop that retries fetching data from available authorities
 /// until a request succeeds. This is shared between RegularCommitSyncer and

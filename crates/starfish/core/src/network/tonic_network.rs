@@ -49,7 +49,8 @@ use crate::{
     block_verifier::{MAX_BCS_LENGTH_PREFIX_BYTES, serialized_transactions_size_limit},
     commit::{CommitRange, max_commit_bytes},
     commit_syncer::{
-        CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY, MAX_FETCH_ATTEMPT_TIMEOUT,
+        CommitSyncType, MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY,
+        fast::FETCH_HEADERS_TIMEOUT as FAST_SYNC_HEADER_FETCH_TIMEOUT, max_fetch_attempt_timeout,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -1250,7 +1251,8 @@ const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
 /// waits for one fetch attempt, so a read the peer still waits for is never
 /// cut.
 pub(crate) fn response_send_timeout() -> Duration {
-    MAX_FETCH_ATTEMPT_TIMEOUT
+    max_fetch_attempt_timeout()
+        .max(FAST_SYNC_HEADER_FETCH_TIMEOUT)
         .max(HEADER_SYNC_FETCH_TIMEOUT)
         .max(TRANSACTION_SYNC_FETCH_TIMEOUT)
 }
