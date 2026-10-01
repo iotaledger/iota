@@ -97,6 +97,9 @@ impl Attestation {
     }
 }
 
+/// The computation cost of `gas_cost_summary` in gas units, independent of
+/// the gas price the transaction paid. Rounds down, and is zero when
+/// `gas_price` is zero.
 pub fn computation_units(gas_cost_summary: &GasCostSummary, gas_price: u64) -> u64 {
     gas_cost_summary
         .computation_cost
@@ -112,7 +115,9 @@ pub enum AttestationVerdict {
     /// computation units were within tolerance of the executed ones.
     Valid,
     /// Not refuted, but the claimed computation units were not within
-    /// tolerance.
+    /// tolerance. An honest claim can land here when a shared object or
+    /// dynamic field the dry run read moved before execution, so this is not
+    /// by itself evidence against the attestor.
     Inaccurate,
     /// Authentication failed at the versions the attestor recorded.
     Refuted,
@@ -151,6 +156,7 @@ impl AttestationVerdict {
 /// the checkpoint summary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AttestationRecord {
+    /// Index of the attestor in the committee of the checkpoint's epoch.
     pub attestor: AuthorityIndex,
     pub verdict: AttestationVerdict,
 }

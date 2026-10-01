@@ -464,6 +464,16 @@ mod tests {
             ExecutionErrorKind::CertificateDenied,
             ExecutionErrorKind::InputObjectDeleted,
             ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
+            ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
+                congested_objects: vec![ObjectId::random()],
+            },
+            ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                congested_objects: vec![ObjectId::random()],
+                suggested_gas_price: 1,
+            },
+            ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion {
+                suggested_gas_price: 1,
+            },
             ExecutionErrorKind::AddressDeniedForCoin {
                 address: Address::ZERO,
                 coin_type: String::new(),

@@ -349,7 +349,7 @@ async fn attested_tx_verdict_is_certified_in_checkpoint_summary() -> Result<(), 
 // --- Protocol config env override RAII guard ------
 // --------------------------------------------------
 
-/// Enable white-flag flow and validator attestation for every node, with the
+/// Enable P-COOL flow and validator attestation for every node, with the
 /// checkpoint summary version that carries the attestation records. Must be
 /// called BEFORE `TestClusterBuilder::build()` spawns node threads.
 fn enable_attestation_env() -> ProtocolEnvOverride {
