@@ -28,7 +28,8 @@ mod checked {
     use iota_types::{
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefV1, MoveAuthenticatorForExecution,
+            MoveAuthenticatorsForExecution,
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
@@ -37,8 +38,8 @@ mod checked {
         committee::EpochId,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{
-            ExecutionResults, ExecutionResultsV1, ExecutionTiming, PreExecutionResult,
-            ResultWithTimings, SharedInput, is_certificate_denied,
+            ExecutionResults, ExecutionResultsV1, ExecutionTiming, ResultWithTimings, SharedInput,
+            is_certificate_denied,
         },
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
@@ -100,7 +101,6 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
-        pre_execution_result: PreExecutionResult,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
         InnerTemporaryStore,
@@ -172,10 +172,7 @@ mod checked {
             enable_expensive_checks,
             certificate_deny_set,
             trace_builder_opt,
-            match pre_execution_result {
-                PreExecutionResult::Run => None,
-                PreExecutionResult::Fail(error) => Some(Err(error)),
-            },
+            None,
         )
     }
 
@@ -310,7 +307,6 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         certificate_deny_set: &HashSet<TransactionDigest>,
-        pre_execution_result: PreExecutionResult,
         // Epoch
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -318,11 +314,7 @@ mod checked {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -398,12 +390,12 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // A failure decided before execution skips the authenticators entirely, so
-        // the objects holding their function references are neither recorded as
-        // loaded nor charged for.
-        let authentication_execution_result = match pre_execution_result {
-            PreExecutionResult::Fail(error) => Err(error),
-            PreExecutionResult::Run => {
+        // A resolution failure skips the authenticators entirely, so the objects
+        // holding their function references are neither recorded as loaded nor
+        // charged for.
+        let authentication_execution_result = match authenticators {
+            MoveAuthenticatorsForExecution::ResolutionFailed(error) => Err(error),
+            MoveAuthenticatorsForExecution::Resolved(authenticators) => {
                 // Prepare the authenticators for execution.
                 // Store the loaded object metadata in the `TemporaryStore` before the
                 // authenticators are executed.
@@ -412,16 +404,16 @@ mod checked {
                 let authenticators = authenticators
                     .into_iter()
                     .map(
-                        |(
-                            authenticator,
-                            authenticator_function_ref_for_execution,
-                            authenticator_input_objects,
-                        )| {
+                        |MoveAuthenticatorForExecution {
+                             authenticator,
+                             function_ref,
+                             input_objects: authenticator_input_objects,
+                         }| {
                             let AuthenticatorFunctionRefForExecution {
                                 authenticator_function_ref,
                                 loaded_object_id,
                                 loaded_object_metadata,
-                            } = authenticator_function_ref_for_execution;
+                            } = function_ref;
 
                             // Save the loaded object metadata, i.e., the field object containing
                             // the AuthenticatorFunctionRef, in the temporary store.
@@ -470,8 +462,9 @@ mod checked {
             }
         };
 
-        // A failure decided before execution is reported like one the
-        // authenticators produce, so a client sees the same status for both.
+        // A resolution failure goes through the same reporting as an
+        // authenticator that fails, so a client sees `MoveAuthentication` for
+        // both.
         let authentication_execution_result =
             report_authentication_error(authentication_execution_result, protocol_config);
 

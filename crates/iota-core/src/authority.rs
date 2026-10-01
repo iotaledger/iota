@@ -60,6 +60,7 @@ use iota_types::committee::CommitteeTrait;
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution,
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
@@ -78,7 +79,6 @@ use iota_types::{
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     event::{EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
-    execution::PreExecutionResult,
     execution_config_utils::to_binary_config,
     fp_ensure,
     gas::IotaGasStatus,
@@ -2026,7 +2026,6 @@ impl AuthorityState {
                     .expensive_safety_check_config
                     .enable_deep_per_tx_iota_conservation_check(),
                 self.config.certificate_deny_config.certificate_deny_set(),
-                PreExecutionResult::Run,
                 &epoch_id,
                 epoch_start_timestamp,
                 tx_checked_input_objects,
@@ -2122,7 +2121,8 @@ impl AuthorityState {
             self.check_owned_locks(&owned_object_refs)?;
 
             // With a pre-execution failure, no authenticator runs, the gas owner's
-            // included, so none is handed to the executor. That changes neither
+            // included, so the executor gets the failure in place of the list. That
+            // changes neither
             // who pays nor the outcome: the gas owner is charged either way, as
             // when the first authenticator fails.
             let move_authenticators = if pre_execution_error.is_some() {
@@ -2142,11 +2142,11 @@ impl AuthorityState {
                             (move_authenticator, function_ref),
                             authenticator_checked_input_objects,
                         )| {
-                            (
-                                move_authenticator.to_owned(),
+                            MoveAuthenticatorForExecution {
+                                authenticator: move_authenticator.to_owned(),
                                 function_ref,
-                                authenticator_checked_input_objects,
-                            )
+                                input_objects: authenticator_checked_input_objects,
+                            }
                         },
                     )
                     .collect::<Vec<_>>()
@@ -2156,8 +2156,8 @@ impl AuthorityState {
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .map(|a| a.function_ref.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -2168,9 +2168,9 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
-            let pre_execution_result = match pre_execution_error {
-                Some(error) => PreExecutionResult::Fail(error),
-                None => PreExecutionResult::Run,
+            let authenticators = match pre_execution_error {
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed(error),
+                None => MoveAuthenticatorsForExecution::Resolved(move_authenticators),
             };
 
             epoch_store
@@ -2183,12 +2183,11 @@ impl AuthorityState {
                         .expensive_safety_check_config
                         .enable_deep_per_tx_iota_conservation_check(),
                     self.config.certificate_deny_config.certificate_deny_set(),
-                    pre_execution_result,
                     &epoch_id,
                     epoch_start_timestamp,
                     gas_data,
                     gas_status,
-                    move_authenticators,
+                    authenticators,
                     authenticator_and_tx_checked_input_objects,
                     kind,
                     signer,

@@ -4,8 +4,8 @@
 //! Unit tests for failing a transaction with effects when a check before
 //! execution fails, instead of halting the validator. They cover a Move
 //! authenticator whose account cannot be resolved, both when a sponsor pays gas
-//! and when the account pays its own, and the executor handling
-//! `PreExecutionResult::Fail`.
+//! and when the account pays its own, and the executor handling a
+//! resolution failure.
 
 use std::{collections::HashSet, sync::Arc};
 
@@ -14,11 +14,12 @@ use iota_sdk_types::{
     SharedObjectReference, Transaction, TransactionEffects, UserSignature, VersionAssignment,
 };
 use iota_types::{
+    account_abstraction::authenticator_function::MoveAuthenticatorsForExecution,
+    auth_context::AuthContextData,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{ExecutionError, ExecutionErrorKind, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
-    execution::PreExecutionResult,
     object::{OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
@@ -257,9 +258,10 @@ async fn unresolved_gas_payer_account_fails_with_effects() {
     );
 }
 
-/// With `PreExecutionResult::Fail`, a plain transfer transaction skips its
+/// Given a resolution failure, a plain transfer transaction skips its
 /// commands and is still charged gas. Nothing else is wrong with the transfer
-/// transaction, so the failure effects can only come from `Fail`.
+/// transaction, so the failure effects can only come from that failure, which
+/// the executor reports like any authenticator failure.
 #[tokio::test]
 async fn pre_execution_failure_skips_execution_and_charges_gas() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
@@ -311,26 +313,41 @@ async fn pre_execution_failure_skips_execution_and_charges_gas() {
     .unwrap();
     let (kind, signer, gas_data) = executable.data().transaction().execution_parts();
 
-    let expected = ExecutionErrorKind::CertificateDenied;
-    let (inner_store, _, effects, _, result) =
-        epoch_store.executor().execute_transaction_to_effects(
+    let (sender_auth_digest, sponsor_auth_digest) =
+        executable.data().compute_auth_digests().unwrap();
+    let auth_context_data = AuthContextData {
+        transaction_data_bytes: bcs::to_bytes(executable.data().transaction()).unwrap(),
+        sender_auth_digest,
+        sponsor_auth_digest,
+        sender_authenticator_function_ref: None,
+        sponsor_authenticator_function_ref: None,
+    };
+
+    let failure = ExecutionErrorKind::FunctionNotFound;
+    let expected = ExecutionErrorKind::MoveAuthentication {
+        error: Box::new(failure.clone()),
+    };
+    let (inner_store, _, effects, _, result) = epoch_store
+        .executor()
+        .authenticate_then_execute_transaction_to_effects(
             authority.get_backing_store().as_ref(),
             protocol_config,
             authority.metrics.limits_metrics.clone(),
             false,
             &HashSet::new(),
-            PreExecutionResult::Fail(ExecutionError::new(expected.clone(), None)),
             &epoch_store.epoch(),
             epoch_store
                 .epoch_start_config()
                 .epoch_data()
                 .epoch_start_timestamp(),
-            checked_input_objects,
             gas_data,
             gas_status,
+            MoveAuthenticatorsForExecution::ResolutionFailed(ExecutionError::new(failure, None)),
+            checked_input_objects,
             kind,
             signer,
             *executable.digest(),
+            auth_context_data,
             &mut None,
         );
     tx_guard.release();
