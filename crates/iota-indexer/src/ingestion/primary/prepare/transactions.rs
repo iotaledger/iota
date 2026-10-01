@@ -49,7 +49,7 @@ impl<'chk> TransactionTransformer<'chk> {
                 .build_transaction(checkpoint_transaction, sequence_number, metrics)
                 .await?;
             transaction_data.transactions.push(transaction);
-            let transaction_index = self.build_tx_index(checkpoint_transaction, sequence_number);
+            let transaction_index = self.build_tx_index(checkpoint_transaction, sequence_number)?;
             transaction_data.transaction_indices.push(transaction_index);
         }
         Ok(transaction_data)
@@ -71,7 +71,11 @@ impl<'chk> TransactionTransformer<'chk> {
         .await
     }
 
-    fn build_tx_index(self, tx: &CheckpointTransaction, sequence_number: u64) -> TxIndex {
+    fn build_tx_index(
+        self,
+        tx: &CheckpointTransaction,
+        sequence_number: u64,
+    ) -> IndexerResult<TxIndex> {
         let inner_tx = tx.transaction.transaction();
 
         let input_objects = inner_tx
@@ -117,7 +121,7 @@ impl<'chk> TransactionTransformer<'chk> {
             .map(|(p, m, f)| (*<&ObjectId>::clone(p), m.to_string(), f.to_string()))
             .collect();
 
-        TxIndex {
+        Ok(TxIndex {
             tx_sequence_number: sequence_number,
             transaction_digest: *tx.transaction.digest(),
             checkpoint_sequence_number: self.checkpoint.sequence_number(),
@@ -127,9 +131,9 @@ impl<'chk> TransactionTransformer<'chk> {
             payers,
             recipients,
             move_calls,
-            tx_kind: IotaTransactionKind::from(inner_tx.kind()),
+            tx_kind: IotaTransactionKind::try_from(inner_tx.kind())?,
             wrapped_or_deleted_objects,
-        }
+        })
     }
 }
 
@@ -156,7 +160,7 @@ pub(crate) async fn index_transaction(
         .map(|TransactionEvents(events)| events.clone())
         .unwrap_or_default();
 
-    let transaction_kind = IotaTransactionKind::from(txn.kind());
+    let transaction_kind = IotaTransactionKind::try_from(txn.kind())?;
 
     let objects = tx
         .input_objects
