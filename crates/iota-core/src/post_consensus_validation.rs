@@ -67,6 +67,7 @@ use crate::{
         SequencedConsensusTransactionKey, SequencedConsensusTransactionKind,
         VerifiedSequencedConsensusTransaction,
     },
+    post_consensus_input_reader::{ValidationAtCommit, reader::CommitIndexedReader},
 };
 
 /// Validates `UserTransactionV1` transactions and resolves owned-object
@@ -150,6 +151,19 @@ pub async fn validate_and_resolve_conflicts(
     let skip_immutable_locks = epoch_store
         .protocol_config()
         .pcool_skip_immutable_object_locks();
+
+    // One reader for the whole commit, so every transaction in it is read as
+    // of the same commit index.
+    let reader = epoch_store
+        .protocol_config()
+        .pcool_deterministic_validation()
+        .then(|| {
+            CommitIndexedReader::new(
+                authority_state.get_object_cache_reader().clone(),
+                epoch_store.clone(),
+                commit_index,
+            )
+        });
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
@@ -318,19 +332,59 @@ pub async fn validate_and_resolve_conflicts(
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
         let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
-        let validated_owned_objects = match authority_state
-            .handle_transaction_validation_checks(
-                &verified_tx,
-                epoch_store,
-                deny_config,
-                // Epoch-gated coin deny-list read: the verdict here decides whether
-                // the transaction stays in the committed set, so it must not depend
-                // on this validator's execution progress.
-                true,
-                verifier_limits_source,
-            )
-            .await
-        {
+        let checked = match &reader {
+            // Inputs read as of the commit. A reader drop or a missing input
+            // is reported with the error the admission path gives a missing
+            // input, so clients see a known error. The reason stays in the
+            // log. Missing drops here until the Increment 8 wait and
+            // re-resolve land in front of this arm.
+            Some(reader) => authority_state
+                .handle_transaction_validation_checks_at_commit(
+                    reader,
+                    &verified_tx,
+                    epoch_store,
+                    deny_config,
+                    verifier_limits_source,
+                )
+                .and_then(|verdict| match verdict {
+                    ValidationAtCommit::Keep(owned) => Ok(owned),
+                    ValidationAtCommit::Drop(kind, reason) => {
+                        warn!(
+                            ?digest,
+                            commit_index,
+                            ?kind,
+                            ?reason,
+                            "input dropped by the commit-indexed reader"
+                        );
+                        Err(kind.object_not_found_error().into())
+                    }
+                    ValidationAtCommit::Missing(kind, reason) => {
+                        warn!(
+                            ?digest,
+                            commit_index,
+                            ?kind,
+                            ?reason,
+                            "input not visible at this commit"
+                        );
+                        Err(kind.object_not_found_error().into())
+                    }
+                }),
+            None => {
+                authority_state
+                    .handle_transaction_validation_checks(
+                        &verified_tx,
+                        epoch_store,
+                        deny_config,
+                        // Epoch-gated coin deny-list read: the verdict here decides
+                        // whether the transaction stays in the committed set, so it
+                        // must not depend on this validator's execution progress.
+                        true,
+                        verifier_limits_source,
+                    )
+                    .await
+            }
+        };
+        let validated_owned_objects = match checked {
             Ok(owned) => owned,
             Err(e) => {
                 if e.is_storage_or_epoch_error() {
