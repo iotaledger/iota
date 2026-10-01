@@ -134,6 +134,7 @@ async fn test_valid_user_transaction_passes() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -171,6 +172,7 @@ async fn test_non_user_transaction_passes_through() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -228,6 +230,7 @@ async fn test_duplicate_transaction_deduplicated() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -301,6 +304,7 @@ async fn test_mixed_batch_filtering() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -390,6 +394,7 @@ async fn test_simple_conflict() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -495,6 +500,7 @@ async fn test_stale_version_dropped_fresh_kept() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -600,6 +606,7 @@ async fn test_no_conflict() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -702,6 +709,7 @@ async fn test_chain_conflict() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -825,6 +833,7 @@ async fn test_multiple_conflicts_in_batch() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -916,6 +925,7 @@ async fn test_gas_object_conflict() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -1031,6 +1041,7 @@ async fn test_winner_blocks_multiple_losers() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -1152,6 +1163,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
             &authority,
             &epoch_store,
             1,
+            false,
             &mut transactions,
         )
         .await
@@ -1604,6 +1616,7 @@ async fn run_different_digest_lock_drops_contender(tier: LockTier) {
         &s.authority,
         &s.epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await
@@ -1641,6 +1654,7 @@ async fn run_same_digest_lock_retains_already_executed(tier: LockTier) {
         &s.authority,
         &s.epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await
@@ -1693,6 +1707,7 @@ async fn run_self_lock_retains_deferred_tx(tier: LockTier) {
         &setup.authority,
         &setup.epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await
@@ -1778,6 +1793,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
         &s.authority,
         &s.epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await;
@@ -1849,6 +1865,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
         &authority,
         &epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await
@@ -1907,6 +1924,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         &authority,
         &epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await
@@ -1961,6 +1979,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
         &authority,
         &epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await
@@ -2012,6 +2031,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         &authority,
         &epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await
@@ -2034,6 +2054,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         &authority,
         &epoch_store,
         1,
+        false,
         &mut transactions,
     )
     .await
@@ -4598,6 +4619,7 @@ async fn validation_loop_at_a_commit_keeps_drops_and_reports_missing() {
         &s.authority,
         &s.epoch_store,
         12,
+        true,
         &mut transactions,
     )
     .await
@@ -4939,6 +4961,7 @@ impl ImmutableInputSetup {
             &self.authority,
             &self.epoch_store,
             1,
+            false,
             transactions,
         )
         .await
