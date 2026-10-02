@@ -633,27 +633,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     .misbehavior_store
                     .record_fetch_fault(target_authority, e);
             })?;
-        let mut serialized_transactions = Vec::new();
-        let mut stream_error = None;
-        while let Some(chunk) = transaction_chunks.next().await {
-            match chunk {
-                Ok(chunk) => serialized_transactions.extend(chunk),
-                // A cut connection leaves the delivered chunks usable.
-                Err(
-                    e @ (ConsensusError::NetworkRequest(_)
-                    | ConsensusError::NetworkRequestTimeout(_)),
-                ) => {
-                    stream_error = Some(e);
-                    break;
-                }
-                Err(e) => {
-                    inner
-                        .misbehavior_store
-                        .record_fetch_fault(target_authority, &e);
-                    return Err(e);
-                }
-            }
-        }
 
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
@@ -690,33 +669,105 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let mut committed_tx_refs: BTreeSet<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
-        // 4. Process fetched transactions. Each serialized_transaction is a
-        //    SerializedTransactionsV2 containing both the TransactionRef and the actual
-        //    transaction data.
-        let mut fetched_transactions = process_serialized_transactions(
-            target_authority,
-            serialized_transactions,
-            &mut committed_tx_refs,
-        )
-        .inspect_err(|_| {
-            // Truncation drops whole entries and never corrupts one, so a
-            // malformed or uncommitted entry is the peer's fault.
-            inner.misbehavior_store.record_faulty_transactions(
-                target_authority,
-                false,
-                [target_authority],
-            );
-        })?;
+        // 4. Read the transactions chunk by chunk, keeping only verified payloads. The
+        //    first commit's entries are not charged to the budget, so a commit larger
+        //    than it still makes progress; past the budget, reading stops and the
+        //    covered prefix below is kept.
+        let byte_budget = inner
+            .context
+            .parameters
+            .max_fast_commit_sync_transaction_bytes;
+        let first_commit_tx_refs: BTreeSet<TransactionRef> = commits_tx_refs
+            .first()
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect();
+        let mut transactions_map = BTreeMap::new();
+        let mut budgeted_bytes = 0usize;
+        let mut stream_error = None;
+        while let Some(chunk) = transaction_chunks.next().await {
+            let chunk = match chunk {
+                Ok(chunk) => chunk,
+                // A cut connection leaves the delivered chunks usable.
+                Err(
+                    e @ (ConsensusError::NetworkRequest(_)
+                    | ConsensusError::NetworkRequestTimeout(_)),
+                ) => {
+                    stream_error = Some(e);
+                    break;
+                }
+                Err(e) => {
+                    inner
+                        .misbehavior_store
+                        .record_fetch_fault(target_authority, &e);
+                    return Err(e);
+                }
+            };
+            let fetched_transactions =
+                process_serialized_transactions(target_authority, chunk, &mut committed_tx_refs)
+                    .inspect_err(|_| {
+                        // Truncation drops whole entries and never corrupts one,
+                        // so a malformed or uncommitted entry is the peer's
+                        // fault.
+                        inner.misbehavior_store.record_faulty_transactions(
+                            target_authority,
+                            false,
+                            [target_authority],
+                        );
+                    })?;
+            // Charged as the server charges, less each entry's ref and length
+            // prefixes, so an honest server with the same budget stops first.
+            budgeted_bytes += fetched_transactions
+                .iter()
+                .filter(|(transaction_ref, _)| !first_commit_tx_refs.contains(transaction_ref))
+                .map(|(_, payload)| payload.len() + size_of::<Bytes>())
+                .sum::<usize>();
+            if !fetched_transactions.is_empty() {
+                let verified = Handle::current()
+                    .spawn_blocking({
+                        let context = inner.context.clone();
+                        move || {
+                            verify_transactions_commitments(
+                                &context,
+                                target_authority,
+                                fetched_transactions,
+                            )
+                        }
+                    })
+                    .await
+                    .expect("Spawn blocking should not fail")
+                    .inspect_err(|_| {
+                        // Not provable against the author, whose commitment the
+                        // peer may have forged.
+                        inner.misbehavior_store.record_faulty_transactions(
+                            target_authority,
+                            false,
+                            [target_authority],
+                        );
+                    })?;
+                transactions_map.extend(verified);
+            }
+            if budgeted_bytes > byte_budget {
+                info!(
+                    "[{}] Transactions from {} passed the budget of {} bytes, keeping what arrived",
+                    inner.sync_type.as_str(),
+                    target_authority,
+                    byte_budget,
+                );
+                break;
+            }
+        }
 
         // Empty payloads can be recovered from their commitments.
         fill_missing_empty_transactions(
             &inner.context,
             &mut committed_tx_refs,
-            &mut fetched_transactions,
+            &mut transactions_map,
         );
 
         // The response may be missing transactions for a suffix of the commits,
-        // e.g. when the stream was cut off by the response byte limit or a
+        // e.g. when the stream was cut off by a response byte budget or a
         // mid-stream network error. Keep the prefix of commits whose
         // transactions were all fetched so the fetch makes forward progress;
         // the scheduler requeues the range after the prefix.
@@ -726,7 +777,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 target_authority,
                 &mut commits,
                 &mut commits_tx_refs,
-                &mut fetched_transactions,
+                &mut transactions_map,
             ) {
                 // A cut stream explains the empty covered prefix: report the
                 // connection failure rather than transactions the peer was
@@ -749,36 +800,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .inc();
         }
 
-        // 5. Verify the transactions against their commitments
-        let mut transactions_map = if !fetched_transactions.is_empty() {
-            Handle::current()
-                .spawn_blocking({
-                    let context = inner.context.clone();
-
-                    move || {
-                        verify_transactions_commitments(
-                            &context,
-                            target_authority,
-                            fetched_transactions,
-                        )
-                    }
-                })
-                .await
-                .expect("Spawn blocking should not fail")
-                .inspect_err(|_| {
-                    // Not provable against the author, whose commitment the
-                    // peer may have forged.
-                    inner.misbehavior_store.record_faulty_transactions(
-                        target_authority,
-                        false,
-                        [target_authority],
-                    );
-                })?
-        } else {
-            BTreeMap::new()
-        };
-
-        // 6. Now create the CommittedSubDags with the fetched transactions.
+        // 5. Now create the CommittedSubDags with the fetched transactions.
         // For fast commit sync, we use block headers refs and reputation scores from
         // the commit.
         let mut committed_subdags = Vec::new();
@@ -1068,13 +1090,13 @@ fn process_serialized_transactions(
 fn fill_missing_empty_transactions(
     context: &Context,
     committed_tx_refs: &mut BTreeSet<TransactionRef>,
-    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, CommitmentVerifiedTransactions>,
 ) {
     committed_tx_refs.retain(|transaction_ref| {
         let Some(empty) = context.empty_transactions_for_ref((*transaction_ref).into()) else {
             return true;
         };
-        fetched_transactions.insert(*transaction_ref, empty.serialized().clone());
+        fetched_transactions.insert(*transaction_ref, empty);
         false
     });
 }
@@ -1089,11 +1111,11 @@ fn fill_missing_empty_transactions(
 /// Returns an error naming `peer` when even the first commit is missing
 /// transactions, since the response then allows no forward progress. Not
 /// recorded as misbehavior: an honest response can be cut to any prefix.
-fn truncate_to_fully_fetched_prefix(
+fn truncate_to_fully_fetched_prefix<T>(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,
     commits_tx_refs: &mut Vec<Vec<TransactionRef>>,
-    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, T>,
 ) -> ConsensusResult<()> {
     let prefix_len = commits_tx_refs
         .iter()
@@ -1146,7 +1168,10 @@ mod tests {
 
     mod fetch_once {
         use std::{
-            sync::{Arc, atomic::AtomicBool},
+            sync::{
+                Arc,
+                atomic::{AtomicBool, Ordering},
+            },
             time::Duration,
         };
 
@@ -1161,16 +1186,18 @@ mod tests {
                 VerifiedBlockHeader,
             },
             block_verifier::NoopBlockVerifier,
-            commit::{CommitDigest, TrustedCommit},
+            commit::{CommitDigest, CommitRange, TrustedCommit},
             commit_syncer::{
-                CommitSyncType, Inner, fast::FastCommitSyncer, tests::FakeNetworkClient,
+                CommitSyncType, Inner,
+                fast::{FastCommitSyncer, FastSyncOutput},
+                tests::FakeNetworkClient,
             },
             commit_vote_monitor::CommitVoteMonitor,
             context::Context,
             core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
             dag_state::DagState,
             encoder::create_encoder,
-            error::ConsensusError,
+            error::{ConsensusError, ConsensusResult},
             header_synchronizer::HeaderSynchronizer,
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
@@ -1245,67 +1272,76 @@ mod tests {
         pub(crate) fn two_commit_response(
             context: &Arc<Context>,
         ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
-            two_commit_response_with_payloads(
+            commit_response(
                 context,
-                [
-                    vec![Transaction::new(vec![1u8; 16])],
-                    vec![Transaction::new(vec![2u8; 16])],
+                vec![
+                    vec![vec![Transaction::new(vec![1u8; 16])]],
+                    vec![vec![Transaction::new(vec![2u8; 16])]],
                 ],
             )
         }
 
-        fn two_commit_response_with_payloads(
+        /// A complete response for commit range 1..=N, one chained commit per
+        /// element of `payloads`. Commit `i` commits one block payload per
+        /// element, authored by 0, 1, ... at round `i`, and the entries follow
+        /// commit order.
+        fn commit_response(
             context: &Arc<Context>,
-            transactions: [Vec<Transaction>; 2],
+            payloads: Vec<Vec<Vec<Transaction>>>,
         ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
             let mut encoder = create_encoder(context);
-
-            // Two chained commits, each committing one transaction.
-            let mut transaction_refs = Vec::new();
-            let mut serialized_transactions = Vec::new();
-            for (round, transactions) in (1..=2u32).zip(transactions) {
-                let serialized = Transaction::serialize(&transactions).unwrap();
-                let commitment = TransactionsCommitment::compute_transactions_commitment(
-                    &serialized,
+            let mut commits: Vec<TrustedCommit> = Vec::new();
+            let mut response_transactions = Vec::new();
+            for ((index, leader_author), blocks) in (1..).zip((0..4).cycle()).zip(payloads) {
+                let mut transaction_refs = Vec::new();
+                for (author, transactions) in (0..).zip(blocks) {
+                    let serialized = Transaction::serialize(&transactions).unwrap();
+                    let transaction_ref = TransactionRef {
+                        round: index,
+                        author: AuthorityIndex::new_for_test(author),
+                        transactions_commitment:
+                            TransactionsCommitment::compute_transactions_commitment(
+                                &serialized,
+                                context,
+                                &mut encoder,
+                            )
+                            .unwrap(),
+                    };
+                    response_transactions.push(
+                        bcs::to_bytes(&SerializedTransactionsV2 {
+                            transaction_ref,
+                            serialized_transactions: serialized,
+                        })
+                        .unwrap()
+                        .into(),
+                    );
+                    transaction_refs.push(GenericTransactionRef::TransactionRef(transaction_ref));
+                }
+                let leader = BlockRef::new(
+                    index,
+                    AuthorityIndex::new_for_test(leader_author),
+                    BlockHeaderDigest::MIN,
+                );
+                let previous_digest = commits
+                    .last()
+                    .map_or(CommitDigest::MIN, |commit| commit.digest());
+                commits.push(TrustedCommit::new_for_test(
                     context,
-                    &mut encoder,
-                )
-                .unwrap();
-                transaction_refs.push(TransactionRef {
-                    round,
-                    author: AuthorityIndex::new_for_test(0),
-                    transactions_commitment: commitment,
-                });
-                serialized_transactions.push(serialized);
+                    index,
+                    previous_digest,
+                    0,
+                    leader,
+                    vec![leader],
+                    transaction_refs,
+                ));
             }
-            let leader_1 =
-                BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
-            let commit_1 = TrustedCommit::new_for_test(
-                context,
-                1,
-                CommitDigest::MIN,
-                0,
-                leader_1,
-                vec![leader_1],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
-            );
-            let leader_2 =
-                BlockRef::new(2, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN);
-            let commit_2 = TrustedCommit::new_for_test(
-                context,
-                2,
-                commit_1.digest(),
-                0,
-                leader_2,
-                vec![leader_2],
-                vec![GenericTransactionRef::TransactionRef(transaction_refs[1])],
-            );
 
             // Vote headers from a quorum, certifying the last commit.
+            let last_commit = commits.last().unwrap();
             let vote_headers: Vec<Bytes> = (0..3)
                 .map(|author| {
-                    let header = TestBlockHeader::new(3, author)
-                        .set_commit_votes(vec![commit_2.reference()])
+                    let header = TestBlockHeader::new(last_commit.reference().index + 1, author)
+                        .set_commit_votes(vec![last_commit.reference()])
                         .build();
                     VerifiedBlockHeader::new_for_test(header)
                         .serialized()
@@ -1313,21 +1349,11 @@ mod tests {
                 })
                 .collect();
 
-            let response_transactions: Vec<Bytes> = transaction_refs
-                .iter()
-                .zip(&serialized_transactions)
-                .map(|(transaction_ref, serialized)| {
-                    bcs::to_bytes(&SerializedTransactionsV2 {
-                        transaction_ref: *transaction_ref,
-                        serialized_transactions: serialized.clone(),
-                    })
-                    .unwrap()
-                    .into()
-                })
-                .collect();
-
             (
-                vec![commit_1.serialized().clone(), commit_2.serialized().clone()],
+                commits
+                    .iter()
+                    .map(|commit| commit.serialized().clone())
+                    .collect(),
                 vote_headers,
                 response_transactions,
             )
@@ -1339,6 +1365,115 @@ mod tests {
                 .protocol_config
                 .set_consensus_fast_commit_sync_for_testing(true);
             Arc::new(context)
+        }
+
+        fn fast_sync_context_with_budget(byte_budget: usize) -> Arc<Context> {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context.parameters.max_fast_commit_sync_transaction_bytes = byte_budget;
+            Arc::new(context)
+        }
+
+        /// One block payload holding a single transaction filled with `byte`.
+        fn block_payload(byte: u8) -> Vec<Transaction> {
+            vec![Transaction::new(vec![byte; 16])]
+        }
+
+        /// Runs `fetch_once` for `commit_range` against `network_client`,
+        /// served by authority 1.
+        async fn fetch_range(
+            context: Arc<Context>,
+            network_client: Arc<FakeNetworkClient>,
+            commit_range: CommitRange,
+        ) -> ConsensusResult<FastSyncOutput> {
+            FastCommitSyncer::fetch_once(
+                make_inner(context, network_client),
+                AuthorityIndex::new_for_test(1),
+                commit_range,
+                Duration::from_millis(100),
+            )
+            .await
+        }
+
+        /// Past the budget the fetch stops reading and keeps the commits the
+        /// chunks read so far cover.
+        #[tokio::test]
+        async fn stops_reading_past_the_budget() {
+            let context = fast_sync_context_with_budget(1);
+            let response = commit_response(
+                &context,
+                vec![
+                    vec![block_payload(1)],
+                    vec![block_payload(2)],
+                    vec![block_payload(3)],
+                ],
+            );
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some(response),
+                transactions_per_chunk: Some(1),
+                ..Default::default()
+            });
+
+            let output = fetch_range(context, network_client.clone(), (1..=3).into())
+                .await
+                .unwrap();
+
+            // The first commit is not charged; the second commit's chunk passes
+            // the budget and is the last one read.
+            assert_eq!(output.commits.len(), 2);
+            assert_eq!(network_client.chunks_read.load(Ordering::Relaxed), 2);
+        }
+
+        /// A first commit larger than the budget is read whole, across chunks,
+        /// so a fetch of it makes progress.
+        #[tokio::test]
+        async fn reads_a_first_commit_larger_than_the_budget() {
+            let context = fast_sync_context_with_budget(1);
+            let response = commit_response(
+                &context,
+                vec![
+                    vec![block_payload(1), block_payload(2)],
+                    vec![block_payload(3)],
+                    vec![block_payload(4)],
+                ],
+            );
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some(response),
+                transactions_per_chunk: Some(1),
+                ..Default::default()
+            });
+
+            let output = fetch_range(context, network_client.clone(), (1..=3).into())
+                .await
+                .unwrap();
+
+            assert_eq!(output.committed_subdags[0].transactions.len(), 2);
+            assert_eq!(output.commits.len(), 2);
+            assert_eq!(network_client.chunks_read.load(Ordering::Relaxed), 3);
+        }
+
+        /// Entries are matched to their commits whatever order they arrive in.
+        #[tokio::test]
+        async fn takes_entries_in_any_order() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            response_transactions.reverse();
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, response_transactions)),
+                transactions_per_chunk: Some(1),
+                ..Default::default()
+            });
+
+            let output = fetch_range(context, network_client, (1..=2).into())
+                .await
+                .unwrap();
+
+            assert_eq!(output.commits.len(), 2);
+            for subdag in &output.committed_subdags {
+                assert_eq!(subdag.transactions.len(), 1);
+            }
         }
 
         /// A response whose transaction payload covers only some of the
@@ -1391,11 +1526,10 @@ mod tests {
         #[tokio::test]
         async fn fills_empty_payload_omitted_by_peer() {
             let context = fast_sync_context();
-            let (commits, vote_headers, mut response_transactions) =
-                two_commit_response_with_payloads(
-                    &context,
-                    [vec![], vec![Transaction::new(vec![2u8; 16])]],
-                );
+            let (commits, vote_headers, mut response_transactions) = commit_response(
+                &context,
+                vec![vec![vec![]], vec![vec![Transaction::new(vec![2u8; 16])]]],
+            );
             response_transactions.remove(0);
 
             let network_client = Arc::new(FakeNetworkClient {
