@@ -175,7 +175,8 @@ pub struct Parameters {
     /// round until their votes are observed. The header fetch that
     /// reinitializes the node at the end of fast sync likewise asks peers that
     /// have voted for the last commit first. Enabled by default; disabling it
-    /// restores a plain uniform order.
+    /// leaves peers in the order `enable_peer_responsiveness_ranking` gives
+    /// them.
     #[serde(default = "Parameters::default_enable_commit_sync_peer_selection_by_commit_votes")]
     pub enable_commit_sync_peer_selection_by_commit_votes: bool,
 
