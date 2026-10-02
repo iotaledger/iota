@@ -487,7 +487,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::WrongShardVersion { .. }
         | ConsensusError::WrongCommitVersionForFlags { .. }
         | ConsensusError::WrongBlockHeaderVersionForFlag { .. }
-        | ConsensusError::OversizedCommitAlreadyServed
         | ConsensusError::TransactionsNotAvailable { .. } => FaultType::Untracked,
     }
 }
