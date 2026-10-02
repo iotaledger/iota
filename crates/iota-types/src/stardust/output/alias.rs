@@ -1,11 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_move_types::iota_framework::bag::Bag;
 use iota_sdk_types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::{balance::Balance, collection_types::Bag, error::IotaError, id::UID, object::Object};
+use crate::{balance::Balance, error::IotaError, id::UID, object::Object};
 
 pub const ALIAS_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("alias_output");
 pub const ALIAS_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("AliasOutput");
