@@ -5,7 +5,9 @@
 use std::path::Path;
 
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
-use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
+use iota_types::{
+    attestation::AttestationRecord, global_state_hash::GlobalStateHash, storage::MarkerValue,
+};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 use typed_store::{
@@ -103,6 +105,12 @@ pub struct AuthorityPerpetualTables {
     /// transactions to be executed, we wait for them to appear in this
     /// table. When we revert transactions, we remove them from both tables.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
+
+    /// Verdict on the attestation of an executed attested transaction, written
+    /// with the effects: judged locally when executed from consensus, taken
+    /// from the certified checkpoint summary when executed from a checkpoint.
+    /// Pruned with `executed_effects`.
+    pub(crate) attestation_records: DBMap<TransactionDigest, AttestationRecord>,
 
     // Events keyed by the digest of the transaction that produced them.
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,

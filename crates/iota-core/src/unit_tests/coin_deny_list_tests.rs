@@ -433,6 +433,7 @@ async fn test_execution_fails_spending_denied_coin_under_attestation() {
     let guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_enable_pcool_flow_for_testing(true);
         config.set_enable_validator_attestation_for_testing(true);
+        config.set_checkpoint_summary_version_specific_data_for_testing(2);
         config
     });
 

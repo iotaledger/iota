@@ -17,7 +17,7 @@ use iota_sdk_types::{
     ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, Version,
 };
 use iota_types::{
-    attestation::Attestation,
+    attestation::{Attestation, AttestationRecord},
     committee::EpochId,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -78,17 +78,43 @@ pub struct VerifiedExecutableAttestedTransaction {
     tx: VerifiedExecutableTransaction,
     /// `None` for unattested transactions (e.g., `UserTransactionV1`).
     attestation: Option<Attestation>,
+    /// The verdict the checkpoint summary certifies, when executing from a
+    /// checkpoint. Never set together with `attestation`.
+    certified_record: Option<AttestationRecord>,
 }
 
 impl VerifiedExecutableAttestedTransaction {
     pub fn new(tx: VerifiedExecutableTransaction, attestation: Option<Attestation>) -> Self {
-        Self { tx, attestation }
+        Self {
+            tx,
+            attestation,
+            certified_record: None,
+        }
+    }
+
+    /// For transactions executed from a certified checkpoint, which carry no
+    /// attestation but whose verdict is already certified.
+    pub fn new_certified(
+        tx: VerifiedExecutableTransaction,
+        certified_record: Option<AttestationRecord>,
+    ) -> Self {
+        Self {
+            tx,
+            attestation: None,
+            certified_record,
+        }
     }
 
     /// Returns the attached attestation, or `None` if the transaction was
     /// not attested.
     pub fn attestation(&self) -> Option<&Attestation> {
         self.attestation.as_ref()
+    }
+
+    /// Returns the certified verdict, or `None` unless an attested transaction
+    /// is executed from a checkpoint.
+    pub fn certified_record(&self) -> Option<AttestationRecord> {
+        self.certified_record
     }
 
     /// Returns the attestor's estimated computation units, or `None` if the
@@ -108,6 +134,7 @@ impl From<VerifiedExecutableTransaction> for VerifiedExecutableAttestedTransacti
         Self {
             tx,
             attestation: None,
+            certified_record: None,
         }
     }
 }
