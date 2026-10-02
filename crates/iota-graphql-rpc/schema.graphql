@@ -4072,20 +4072,6 @@ type SharedObjectRead {
 }
 
 """
-Whether a claimed account object can be changed after the claim.
-"""
-enum SmartAccountBuildKind {
-	"""
-	The account is a mutable shared object.
-	"""
-	MUTABLE
-	"""
-	The account is an immutable frozen object.
-	"""
-	IMMUTABLE
-}
-
-"""
 Parameters the claimed SmartAccount was created with.
 """
 type SmartAccountClaimTransaction {
@@ -4099,10 +4085,6 @@ type SmartAccountClaimTransaction {
 	prefix. For MultiSig this is a BCS-encoded multisig public key.
 	"""
 	publicKeyRawBytes: Base64!
-	"""
-	Whether the created account object is mutable or immutable.
-	"""
-	buildKind: SmartAccountBuildKind!
 }
 
 """

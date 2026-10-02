@@ -21,7 +21,7 @@ mod checked {
         ChangeEpochV4, ClaimAccountTransaction, Command, EndOfEpochTransactionKind,
         ExecutionStatus, GasCostSummary, GasPayment, GenesisTransaction, Identifier,
         MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
-        SharedObjectReference, SignatureScheme, SmartAccountBuildKind, StructTag, SystemPackage,
+        SharedObjectReference, SignatureScheme, StructTag, SystemPackage,
         TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionKind,
         TypeTag, Version,
     };
@@ -2075,10 +2075,10 @@ mod checked {
     }
 
     /// Executes a [`ClaimAccountTransaction`] by calling the framework's
-    /// private claim function for the requested account kind.
+    /// private `claim_account_v1` function.
     ///
-    /// This runs in [`execution_mode::System`] because those claim functions
-    /// are private on purpose: a claimed account object has an id equal to a
+    /// This runs in [`execution_mode::System`] because that function is
+    /// private on purpose: a claimed account object has an id equal to a
     /// signature-derivable address, and the `ClaimAccount` transaction kind
     /// must stay the only way such an object can be created.
     #[allow(clippy::too_many_arguments)]
@@ -2094,16 +2094,6 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let AccountClaimKind::SmartAccount(claim) = &claim_tx.kind else {
             unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
-        };
-
-        let claim_function = match claim.build_kind {
-            SmartAccountBuildKind::Mutable => Identifier::from_static("claim_account_v1"),
-            SmartAccountBuildKind::Immutable => {
-                Identifier::from_static("claim_immutable_account_v1")
-            }
-            _ => unimplemented!(
-                "a new SmartAccountBuildKind enum variant was added and needs to be handled"
-            ),
         };
 
         let pt = {
@@ -2127,7 +2117,7 @@ mod checked {
             let res = builder.move_call(
                 ObjectId::FRAMEWORK,
                 Identifier::SMART_ACCOUNT_MODULE,
-                claim_function,
+                Identifier::from_static("claim_account_v1"),
                 vec![],
                 vec![CallArg::pure(&public_key)],
             );
