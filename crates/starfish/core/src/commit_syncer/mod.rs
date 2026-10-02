@@ -942,13 +942,17 @@ pub(crate) fn requeue_partial_range(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use futures::{StreamExt as _, stream};
+
     use super::*;
     use crate::{
         Round,
         block_header::{BlockHeaderDigest, TestBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
-        network::BlockBundleStream,
+        network::{BlockBundleStream, FetchedCommitsAndTransactions},
         transaction_ref::TransactionRef,
     };
 
@@ -961,6 +965,10 @@ pub(crate) mod tests {
         /// When set, the canned response is served as a stream cut by this
         /// error, the way the tonic client reports a mid-stream failure.
         pub(crate) stream_error_message: Option<String>,
+        /// Entries per transaction chunk; all in one chunk when unset.
+        pub(crate) transactions_per_chunk: Option<usize>,
+        /// Transaction chunks the fetches have read, the cut included.
+        pub(crate) chunks_read: Arc<AtomicUsize>,
         /// Waited out before answering, so a test can pin the latency the fetch
         /// loop records.
         pub(crate) response_delay: Duration,
@@ -1028,18 +1036,34 @@ pub(crate) mod tests {
             peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             self.requested_peers.lock().push(peer);
             sleep(self.response_delay).await;
             match &self.commits_and_transactions {
-                Some((commits, headers, transactions)) => Ok((
-                    commits.clone(),
-                    headers.clone(),
-                    transactions.clone(),
-                    self.stream_error_message
+                Some((commits, headers, transactions)) => {
+                    let per_chunk = self
+                        .transactions_per_chunk
+                        .unwrap_or(transactions.len())
+                        .max(1);
+                    let chunks: Vec<_> = transactions
+                        .chunks(per_chunk)
+                        .map(|chunk| Ok(chunk.to_vec()))
+                        .collect();
+                    let cut = self
+                        .stream_error_message
                         .clone()
-                        .map(ConsensusError::NetworkRequest),
-                )),
+                        .map(|message| Err(ConsensusError::NetworkRequest(message)));
+                    let chunks_read = self.chunks_read.clone();
+                    Ok(FetchedCommitsAndTransactions {
+                        commits: commits.clone(),
+                        certifier_block_headers: headers.clone(),
+                        transactions: stream::iter(chunks.into_iter().chain(cut))
+                            .inspect(move |_| {
+                                chunks_read.fetch_add(1, Ordering::Relaxed);
+                            })
+                            .boxed(),
+                    })
+                }
                 None => Err(ConsensusError::NoCommitReceived { peer }),
             }
         }

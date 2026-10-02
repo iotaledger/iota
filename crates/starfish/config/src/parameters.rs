@@ -232,7 +232,8 @@ pub struct Parameters {
     /// A fetch covering more commits than this is answered with the commits
     /// whose payloads fit, and the requester asks for the rest in its next
     /// fetch. When the range's first commit exceeds this on its own it is
-    /// still served whole, one such response at a time.
+    /// still served whole. A requester reads no more than this past the first
+    /// commit of a response.
     #[serde(default = "Parameters::default_max_fast_commit_sync_transaction_bytes")]
     pub max_fast_commit_sync_transaction_bytes: usize,
 }
@@ -790,9 +791,10 @@ pub struct AdmissionParameters {
     pub max_commit_fetches_per_peer: u32,
 
     /// Max concurrent commit fetches across all peers, beyond which a peer is
-    /// still granted its first. A fast commit-sync response is held in memory
-    /// until it has been sent, so this caps what serving them can cost the node
-    /// at once, short of one response per peer.
+    /// still granted its first. A fast commit-sync response holds its commits
+    /// and certifier headers until it has been sent and reads its transactions
+    /// from the store as they go out, so this caps what serving them can cost
+    /// the node at once, short of one response per peer.
     ///
     /// If unspecified, this will default to 16.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
