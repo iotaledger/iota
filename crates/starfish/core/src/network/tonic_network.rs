@@ -1095,9 +1095,6 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
             .handle_fetch_commits_and_transactions(peer_index, (request.start..=request.end).into())
             .await
             .map_err(|e| match e {
-                ConsensusError::OversizedCommitAlreadyServed => {
-                    tonic::Status::resource_exhausted(e.to_string())
-                }
                 ConsensusError::TransactionsNotAvailable { .. } => {
                     tonic::Status::unavailable(e.to_string())
                 }
@@ -1875,7 +1872,7 @@ pub(crate) struct FetchTransactionsResponse {
 // Splits a list of byte sequences into chunks where each chunk's total size
 // does not exceed the specified `chunk_limit`.
 // Returns a vector of chunks, each being a vector of `Bytes`.
-pub(crate) fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
+fn chunk_data(data: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
     let mut chunks = vec![];
     let mut chunk = vec![];
     let mut chunk_size = 0;

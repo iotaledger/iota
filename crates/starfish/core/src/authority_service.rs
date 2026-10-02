@@ -17,7 +17,10 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, broadcast, mpsc::Sender};
+use tokio::{
+    sync::{Mutex, broadcast, mpsc::Sender},
+    task::spawn_blocking,
+};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, error, info, warn};
 
@@ -43,8 +46,8 @@ use crate::{
     network::{
         BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlock,
         SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-        SerializedTransactionsV2, StreamPosition,
-        tonic_network::{MAX_FETCH_RESPONSE_BYTES, chunk_data},
+        SerializedTransactionsV2, StreamPosition, TransactionChunkStream,
+        tonic_network::MAX_FETCH_RESPONSE_BYTES,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -143,9 +146,6 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// useful information such as which headers and shards are needed to a
     /// specific peer
     cordial_knowledge: Arc<CordialKnowledgeHandle>,
-    /// Reserved while a fast commit-sync fetch reads one commit without a byte
-    /// budget, so only one such response is ever held in memory.
-    oversized_commit_slot: Arc<Semaphore>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -183,7 +183,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             misbehavior_store,
             transaction_message_sender,
             cordial_knowledge,
-            oversized_commit_slot: Arc::new(Semaphore::new(1)),
         }
     }
     /// Verifies the header of a bundle's primary block and returns it with the
@@ -863,123 +862,162 @@ fn take_payload(
     })
 }
 
-/// Serializes the payloads of `commits_transaction_refs` into response entries,
-/// keeping the longest prefix of commits whose entries fit
-/// `max_fast_commit_sync_transaction_bytes`. A commit only partly covered is
-/// dropped, since the requester discards it anyway.
-///
-/// The first commit is served whole however large it is, since a response
-/// covering no commit lets the requester make no progress. Going past the
-/// budget for it takes the node-wide slot, so only one response at a time
-/// holds more than the budget. Fails when this node lacks one of its payloads.
-fn fetch_commit_transactions_within_budget(
-    context: &Context,
-    store: &dyn Store,
+/// Fails when this node lacks a payload of the first commit a fast commit-sync
+/// response serves, since a response not covering it lets the requester make
+/// no progress. A commit at or below the last solid commit has all its payloads
+/// here, so it is not looked up.
+fn check_first_commit_payloads(
     dag_state: &RwLock<DagState>,
-    oversized_commit_slot: &Arc<Semaphore>,
-    commits_transaction_refs: &[Vec<TransactionRef>],
-) -> ConsensusResult<(Vec<Bytes>, Option<OwnedSemaphorePermit>)> {
-    let byte_budget = context.parameters.max_fast_commit_sync_transaction_bytes;
-    let all_refs: Vec<TransactionRef> =
-        commits_transaction_refs.iter().flatten().copied().collect();
-    let mut payloads = read_transaction_payloads(dag_state, &all_refs, |below_gc| {
-        store.scan_serialized_transactions(&below_gc, byte_budget)
-    })?;
+    commit_index: CommitIndex,
+    transaction_refs: &[TransactionRef],
+) -> ConsensusResult<()> {
+    let dag_state = dag_state.read();
+    if commit_index <= dag_state.last_solid_commit_index() {
+        return Ok(());
+    }
+    let available =
+        dag_state.contains_transactions(transaction_refs.iter().copied().map(Into::into).collect());
+    match transaction_refs
+        .iter()
+        .zip(available)
+        .find(|(_, available)| !available)
+    {
+        Some((transaction_ref, _)) => Err(ConsensusError::TransactionsNotAvailable {
+            transaction_ref: *transaction_ref,
+        }),
+        None => Ok(()),
+    }
+}
 
-    let mut result = Vec::new();
-    let mut total_bytes = 0;
-    let mut permit = None;
+/// Builds the transaction chunks of a fast commit-sync response one at a time,
+/// in commit order, reading only what the next chunk needs.
+///
+/// The response ends before an entry that would take it past
+/// `max_fast_commit_sync_transaction_bytes`, except within the first commit,
+/// and at a commit this node lacks a payload of. Entries of that commit still
+/// in the chunk are dropped, since the requester discards a partly covered
+/// commit.
+struct TransactionCursor {
+    context: Arc<Context>,
+    store: Arc<dyn Store>,
+    dag_state: Arc<RwLock<DagState>>,
+    /// Entry bytes one chunk holds at most; a larger entry travels alone.
+    chunk_bytes: usize,
+    /// Refs of the commits not finished yet, the current one first, each sent
+    /// in ref order.
+    commits: VecDeque<BTreeSet<TransactionRef>>,
+    /// Payloads of the current commit read but not sent yet.
+    read: BTreeMap<TransactionRef, Bytes>,
+    /// An entry of the current commit that did not fit the previous chunk.
+    carried_entry: Option<Bytes>,
+    first_commit: bool,
+    charged_bytes: usize,
+}
 
-    for (index, transaction_refs) in commits_transaction_refs.iter().enumerate() {
-        let commit_start = result.len();
-        let mut covered = true;
-        for (position, transaction_ref) in transaction_refs.iter().enumerate() {
-            // An absent payload was either not reached by the budgeted scan or
-            // has not arrived at this node yet, when the commit is past the last
-            // solid one.
-            let payload = match take_payload(context, &mut payloads, *transaction_ref) {
-                Some(payload) => payload,
-                None if index == 0 => {
-                    // Read what is left of the first commit without a budget,
-                    // reusing everything already read.
-                    take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
-                    let unread: Vec<TransactionRef> = transaction_refs[position..]
-                        .iter()
-                        .copied()
-                        .filter(|transaction_ref| !payloads.contains_key(transaction_ref))
-                        .collect();
-                    payloads.extend(read_transaction_payloads(dag_state, &unread, |below_gc| {
-                        store.scan_serialized_transactions(&below_gc, usize::MAX)
-                    })?);
-                    // Without the first commit the response lets the requester
-                    // make no progress, so nothing is served.
-                    take_payload(context, &mut payloads, *transaction_ref).ok_or(
-                        ConsensusError::TransactionsNotAvailable {
-                            transaction_ref: *transaction_ref,
-                        },
-                    )?
-                }
-                None => {
-                    covered = false;
-                    break;
-                }
+impl TransactionCursor {
+    fn new(
+        context: Arc<Context>,
+        store: Arc<dyn Store>,
+        dag_state: Arc<RwLock<DagState>>,
+        chunk_bytes: usize,
+        commits_transaction_refs: Vec<Vec<TransactionRef>>,
+    ) -> Self {
+        Self {
+            context,
+            store,
+            dag_state,
+            chunk_bytes,
+            commits: commits_transaction_refs
+                .into_iter()
+                .map(BTreeSet::from_iter)
+                .collect(),
+            read: BTreeMap::new(),
+            carried_entry: None,
+            first_commit: true,
+            charged_bytes: 0,
+        }
+    }
+
+    /// Builds the next chunk, `None` once the response is over.
+    fn next_chunk(&mut self) -> ConsensusResult<Option<Vec<Bytes>>> {
+        let byte_budget = self
+            .context
+            .parameters
+            .max_fast_commit_sync_transaction_bytes;
+        let mut chunk: Vec<Bytes> = self.carried_entry.take().into_iter().collect();
+        let mut chunk_size: usize = chunk.iter().map(Bytes::len).sum();
+        // Entries of `chunk` from here on belong to the current commit.
+        let mut commit_start = 0;
+        while let Some(refs) = self.commits.front_mut() {
+            let Some(&transaction_ref) = refs.first() else {
+                self.commits.pop_front();
+                self.first_commit = false;
+                commit_start = chunk.len();
+                continue;
             };
+            if !self.read.contains_key(&transaction_ref) {
+                // Refs and store keys share their order, so the smallest unread
+                // ref is either read by this scan or absent from the store.
+                let unread: Vec<TransactionRef> = refs
+                    .iter()
+                    .filter(|transaction_ref| !self.read.contains_key(transaction_ref))
+                    .copied()
+                    .collect();
+                let space = self.chunk_bytes.saturating_sub(chunk_size);
+                let store = &self.store;
+                self.read.extend(read_transaction_payloads(
+                    &self.dag_state,
+                    &unread,
+                    |below_gc| store.scan_serialized_transactions(&below_gc, space),
+                )?);
+            }
+            let Some(payload) = take_payload(&self.context, &mut self.read, transaction_ref) else {
+                chunk.truncate(commit_start);
+                self.commits.clear();
+                break;
+            };
+            refs.pop_first();
             // Charged by the entry rather than the payload, since the ref, the
             // length prefixes around it and its `Bytes` descriptor are held too.
-            let entry = serialize_transactions_entry(*transaction_ref, payload)?;
+            let entry = serialize_transactions_entry(transaction_ref, payload)?;
             let charge = entry.len() + size_of::<Bytes>();
-            if total_bytes + charge > byte_budget {
-                if index == 0 {
-                    take_oversized_commit_slot(oversized_commit_slot, &mut permit)?;
-                } else {
-                    covered = false;
-                    break;
-                }
+            if !self.first_commit && self.charged_bytes + charge > byte_budget {
+                chunk.truncate(commit_start);
+                self.commits.clear();
+                break;
             }
-            total_bytes += charge;
-            result.push(entry);
+            self.charged_bytes += charge;
+            if !chunk.is_empty() && chunk_size + entry.len() > self.chunk_bytes {
+                self.carried_entry = Some(entry);
+                break;
+            }
+            chunk_size += entry.len();
+            chunk.push(entry);
         }
-        if !covered {
-            result.truncate(commit_start);
-            break;
+        Ok((!chunk.is_empty()).then_some(chunk))
+    }
+}
+
+/// Serves `cursor` as a stream, building each chunk on the blocking pool when
+/// the transport asks for it.
+fn transaction_chunk_stream(cursor: TransactionCursor) -> TransactionChunkStream {
+    stream::unfold(Some(cursor), |state| async move {
+        let mut cursor = state?;
+        let Ok((cursor, chunk)) = spawn_blocking(move || {
+            let chunk = cursor.next_chunk();
+            (cursor, chunk)
+        })
+        .await
+        else {
+            return Some((Err(ConsensusError::Shutdown), None));
+        };
+        match chunk {
+            Ok(Some(chunk)) => Some((Ok(chunk), Some(cursor))),
+            Ok(None) => None,
+            Err(e) => Some((Err(e), None)),
         }
-    }
-    Ok((result, permit))
-}
-
-/// Reserves the node-wide slot for holding more than the budget, unless this
-/// response already holds it.
-fn take_oversized_commit_slot(
-    oversized_commit_slot: &Arc<Semaphore>,
-    permit: &mut Option<OwnedSemaphorePermit>,
-) -> ConsensusResult<()> {
-    if permit.is_none() {
-        *permit = Some(
-            oversized_commit_slot
-                .clone()
-                .try_acquire_owned()
-                .map_err(|_| ConsensusError::OversizedCommitAlreadyServed)?,
-        );
-    }
-    Ok(())
-}
-
-/// A response stream that keeps `_permit` held until the stream is dropped,
-/// which is once the response has been sent or the peer has gone away.
-struct PermitHoldingStream<St> {
-    inner: St,
-    _permit: Option<OwnedSemaphorePermit>,
-}
-
-impl<St: Stream + Unpin> Stream for PermitHoldingStream<St> {
-    type Item = St::Item;
-
-    fn poll_next(
-        self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-    ) -> task::Poll<Option<Self::Item>> {
-        Pin::new(&mut self.get_mut().inner).poll_next(cx)
-    }
+    })
+    .boxed()
 }
 
 /// Wraps a payload and its ref into the entry a transaction-fetch response
@@ -1777,14 +1815,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             })
             .collect::<ConsensusResult<_>>()?;
 
-        let (serialized_transactions, oversized_commit_permit) =
-            fetch_commit_transactions_within_budget(
-                &self.context,
-                self.store.as_ref(),
-                &self.dag_state,
-                &self.oversized_commit_slot,
-                &commits_transaction_refs,
-            )?;
+        if let (Some(first_commit), Some(first_commit_refs)) =
+            (commits.first(), commits_transaction_refs.first())
+        {
+            check_first_commit_payloads(&self.dag_state, first_commit.index(), first_commit_refs)?;
+        }
+        let transactions = transaction_chunk_stream(TransactionCursor::new(
+            self.context.clone(),
+            self.store.clone(),
+            self.dag_state.clone(),
+            MAX_FETCH_RESPONSE_BYTES,
+            commits_transaction_refs,
+        ));
 
         let serialized_commits: Vec<Bytes> = commits
             .into_iter()
@@ -1796,15 +1838,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map(|h| h.serialized().clone())
             .collect();
 
-        let transaction_chunks = chunk_data(serialized_transactions, MAX_FETCH_RESPONSE_BYTES);
         Ok(FetchedCommitsAndTransactions {
             commits: serialized_commits,
             certifier_block_headers: serialized_headers,
-            transactions: PermitHoldingStream {
-                inner: stream::iter(transaction_chunks.into_iter().map(Ok)),
-                _permit: oversized_commit_permit,
-            }
-            .boxed(),
+            transactions,
         })
     }
 
@@ -2170,13 +2207,13 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::{StreamExt, stream};
+    use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use rstest::rstest;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{
-        sync::{Semaphore, broadcast, mpsc},
+        sync::{broadcast, mpsc},
         time::sleep,
     };
 
@@ -2184,7 +2221,9 @@ mod tests {
         CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
-            PermitHoldingStream, SubscriptionCounter, fast_sync_search_bound, filtered_header_info,
+            SubscriptionCounter, TransactionCursor, check_first_commit_payloads,
+            fast_sync_search_bound, filtered_header_info, serialize_transactions_entry,
+            transaction_chunk_stream,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -2215,6 +2254,7 @@ mod tests {
             BlockBundle, BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient,
             NetworkService, SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
             SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
+            tonic_network::MAX_FETCH_RESPONSE_BYTES,
         },
         shard_reconstructor::TransactionMessage,
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -5891,10 +5931,101 @@ mod tests {
         );
     }
 
+    /// Builds every chunk `cursor` serves.
+    fn served_chunks(mut cursor: TransactionCursor) -> Vec<Vec<Bytes>> {
+        let mut chunks = Vec::new();
+        while let Some(chunk) = cursor.next_chunk().unwrap() {
+            chunks.push(chunk);
+        }
+        chunks
+    }
+
+    fn entry_refs(entries: &[Bytes]) -> Vec<TransactionRef> {
+        entries
+            .iter()
+            .map(|entry| {
+                bcs::from_bytes::<SerializedTransactionsV2>(entry)
+                    .unwrap()
+                    .transaction_ref
+            })
+            .collect()
+    }
+
+    /// Two rounds of four blocks, each carrying a payload of the same size.
+    fn two_rounds_of_payloads() -> Vec<VerifiedBlock> {
+        (1..=2)
+            .flat_map(|round| {
+                (0..4).map(move |author| {
+                    let header = VerifiedBlockHeader::new_for_test(
+                        TestBlockHeader::new(round, author).build(),
+                    );
+                    let transactions = CommitmentVerifiedTransactions::new_for_test(
+                        &header,
+                        vec![Transaction::new(vec![author; 64])],
+                    );
+                    VerifiedBlock::new(header, transactions)
+                })
+            })
+            .collect()
+    }
+
+    fn write_payloads(store: &MemStore, blocks: &[VerifiedBlock]) {
+        store
+            .write(
+                WriteBatch::default().transactions(
+                    blocks
+                        .iter()
+                        .map(|block| block.verified_transactions.clone())
+                        .collect(),
+                ),
+            )
+            .unwrap();
+    }
+
+    /// One commit per round, committing that round's payloads.
+    fn refs_by_round(blocks: &[VerifiedBlock]) -> Vec<Vec<TransactionRef>> {
+        blocks
+            .chunks(4)
+            .map(|round| {
+                round
+                    .iter()
+                    .map(|block| block.verified_block_header.transaction_ref())
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// A DAG state whose GC round is above both rounds of
+    /// `two_rounds_of_payloads`, so their payloads are read from the store.
+    fn dag_state_reading_from_the_store(
+        context: &Arc<Context>,
+        store: Arc<MemStore>,
+    ) -> Arc<RwLock<DagState>> {
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let leader = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(20, 0).build());
+        dag_state.write().update_last_solid_subdag_base(SubDagBase {
+            leader: leader.reference(),
+            headers: vec![],
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(1, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        });
+        assert!(dag_state.read().gc_round_for_last_solid_commit() > 2);
+        dag_state
+    }
+
+    fn context_with_budget(byte_budget: usize) -> Arc<Context> {
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.max_fast_commit_sync_transaction_bytes = byte_budget;
+        context.protocol_config.set_gc_depth_for_testing(5);
+        Arc::new(context)
+    }
+
+    /// A commit this node lacks a payload of ends the response, and none of its
+    /// entries are served: the requester would discard a partly covered commit.
     #[tokio::test]
     async fn fast_sync_transactions_stop_at_an_uncovered_commit() {
-        use crate::authority_service::fetch_commit_transactions_within_budget;
-
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -5920,166 +6051,76 @@ mod tests {
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
         };
-
         let commits_transaction_refs = vec![
             refs_by_round[0].clone(),
             refs_by_round[1].clone(),
             vec![refs_by_round[0][0], unknown_ref],
         ];
-        let oversized_commit_slot = Arc::new(Semaphore::new(1));
-        let (served, _) = fetch_commit_transactions_within_budget(
-            &context,
-            store.as_ref(),
-            &dag_state,
-            &oversized_commit_slot,
-            &commits_transaction_refs,
-        )
-        .unwrap();
 
-        // The last commit is missing a payload, so none of its entries are
-        // served: the requester would discard a partly covered commit anyway.
-        let served_refs: Vec<TransactionRef> = served
-            .iter()
-            .map(|entry| {
-                bcs::from_bytes::<SerializedTransactionsV2>(entry)
-                    .unwrap()
-                    .transaction_ref
-            })
-            .collect();
+        let served = served_chunks(TransactionCursor::new(
+            context,
+            store,
+            dag_state,
+            MAX_FETCH_RESPONSE_BYTES,
+            commits_transaction_refs.clone(),
+        ))
+        .concat();
+
         let expected: Vec<TransactionRef> = commits_transaction_refs[..2]
             .iter()
-            .flatten()
-            .copied()
+            .flat_map(|refs| refs.iter().copied().collect::<BTreeSet<_>>())
             .collect();
-        assert_eq!(served_refs, expected);
+        assert_eq!(entry_refs(&served), expected);
     }
 
+    /// The response ends on the commit boundary the budget falls on.
     #[tokio::test]
     async fn fast_sync_transactions_stop_at_the_budget() {
-        use crate::authority_service::{
-            fetch_commit_transactions_within_budget, serialize_transactions_entry,
-        };
-
-        let (context, _) = Context::new_for_test(4);
-        let store = Arc::new(MemStore::new());
-
-        // Two rounds of blocks, each block carrying a payload, so the payloads
-        // of one round are a known number of bytes.
-        let written_blocks: Vec<VerifiedBlock> = (1..=2)
-            .flat_map(|round| {
-                (0..4).map(move |author| {
-                    let header = VerifiedBlockHeader::new_for_test(
-                        TestBlockHeader::new(round, author).build(),
-                    );
-                    let transactions = CommitmentVerifiedTransactions::new_for_test(
-                        &header,
-                        vec![Transaction::new(vec![author; 64])],
-                    );
-                    VerifiedBlock::new(header, transactions)
-                })
-            })
-            .collect();
-        store
-            .write(
-                WriteBatch::default().transactions(
-                    written_blocks
-                        .iter()
-                        .map(|b| b.verified_transactions.clone())
-                        .collect(),
-                ),
-            )
-            .unwrap();
-        let commits_transaction_refs: Vec<Vec<TransactionRef>> = written_blocks
-            .chunks(4)
-            .map(|round| {
-                round
-                    .iter()
-                    .map(|b| b.verified_block_header.transaction_ref())
-                    .collect()
-            })
-            .collect();
-
-        // A budget that holds the first commit's entries exactly, so the
-        // response stops on the commit boundary between the two.
-        let commit_bytes: usize = written_blocks[..4]
+        let blocks = two_rounds_of_payloads();
+        // A budget that holds the first commit's entries exactly.
+        let commit_bytes: usize = blocks[..4]
             .iter()
-            .map(|b| {
+            .map(|block| {
                 serialize_transactions_entry(
-                    b.verified_block_header.transaction_ref(),
-                    b.verified_transactions.serialized().clone(),
+                    block.verified_block_header.transaction_ref(),
+                    block.verified_transactions.serialized().clone(),
                 )
                 .unwrap()
                 .len()
                     + size_of::<Bytes>()
             })
             .sum();
-        let mut context = Context {
-            parameters: Parameters {
-                max_fast_commit_sync_transaction_bytes: commit_bytes,
-                ..context.parameters
-            },
-            ..context
-        };
-        context.protocol_config.set_gc_depth_for_testing(5);
-        let context = Arc::new(context);
+        let context = context_with_budget(commit_bytes);
+        let store = Arc::new(MemStore::new());
+        write_payloads(&store, &blocks);
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        let commits_transaction_refs = refs_by_round(&blocks);
 
-        // Put the GC round above both rounds, so the payloads are read from the
-        // store rather than the DAG state.
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let leader = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(20, 0).build());
-        dag_state.write().update_last_solid_subdag_base(SubDagBase {
-            leader: leader.reference(),
-            headers: vec![],
-            committed_header_refs: vec![],
-            timestamp_ms: 0,
-            commit_ref: CommitRef::new(1, CommitDigest::MIN),
-            reputation_scores_desc: vec![],
-        });
-        assert!(dag_state.read().gc_round_for_last_solid_commit() > 2);
+        let served = served_chunks(TransactionCursor::new(
+            context,
+            store,
+            dag_state,
+            MAX_FETCH_RESPONSE_BYTES,
+            commits_transaction_refs.clone(),
+        ))
+        .concat();
 
-        let oversized_commit_slot = Arc::new(Semaphore::new(1));
-        let (served, permit) = fetch_commit_transactions_within_budget(
-            &context,
-            store.as_ref(),
-            &dag_state,
-            &oversized_commit_slot,
-            &commits_transaction_refs,
-        )
-        .unwrap();
-
-        // Only the first commit is served, and serving it needed no exemption
-        // from the budget.
-        let served_refs: Vec<TransactionRef> = served
-            .iter()
-            .map(|entry| {
-                bcs::from_bytes::<SerializedTransactionsV2>(entry)
-                    .unwrap()
-                    .transaction_ref
-            })
-            .collect();
-        assert_eq!(served_refs, commits_transaction_refs[0]);
-        assert!(permit.is_none());
+        assert_eq!(entry_refs(&served), commits_transaction_refs[0]);
     }
 
+    /// A first commit past the budget is still served whole, one entry per
+    /// chunk when no two entries fit one, and the response ends after it.
     #[tokio::test]
-    async fn an_oversized_first_commit_takes_the_slot_whatever_it_is_read_from() {
-        use crate::authority_service::fetch_commit_transactions_within_budget;
-
-        let (context, _) = Context::new_for_test(4);
-        let store = Arc::new(MemStore::new());
-
-        // Nothing moves the GC round, so every ref is served from the DAG state
-        // rather than the budgeted store scan.
+    async fn a_first_commit_larger_than_the_budget_is_served_whole() {
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.max_fast_commit_sync_transaction_bytes = 1;
         let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        // Nothing moves the GC round, so every ref is read from the DAG state.
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=2).build();
         dag_builder.persist_all_blocks(dag_state.clone());
-        assert_eq!(
-            dag_state.read().gc_round_for_last_solid_commit(),
-            GENESIS_ROUND
-        );
-
         let commits_transaction_refs: Vec<Vec<TransactionRef>> = (1..=2)
             .map(|round| {
                 dag_builder
@@ -6090,120 +6131,114 @@ mod tests {
             })
             .collect();
 
-        let oversized_commit_slot = Arc::new(Semaphore::new(1));
-        let served_with_budget = |byte_budget| {
-            let context = Arc::new(Context {
-                parameters: Parameters {
-                    max_fast_commit_sync_transaction_bytes: byte_budget,
-                    ..context.parameters.clone()
-                },
-                ..Context::clone(&context)
-            });
-            fetch_commit_transactions_within_budget(
-                &context,
-                store.as_ref(),
-                &dag_state,
-                &oversized_commit_slot,
-                &commits_transaction_refs,
-            )
-        };
-
-        // The first commit's entries alone pass a budget of one entry, so it is
-        // served whole and holding more than the budget takes the slot.
-        let (served, permit) = served_with_budget(1).unwrap();
-        assert_eq!(served.len(), commits_transaction_refs[0].len());
-        assert!(permit.is_some());
-
-        // A second response cannot pass the budget while the first holds it.
-        assert!(matches!(
-            served_with_budget(1),
-            Err(ConsensusError::OversizedCommitAlreadyServed)
+        let chunks = served_chunks(TransactionCursor::new(
+            context,
+            store,
+            dag_state,
+            1,
+            commits_transaction_refs.clone(),
         ));
 
-        // The slot frees up once the response holding it has been sent.
-        drop(permit);
-        assert!(served_with_budget(1).unwrap().1.is_some());
-
-        // Under a budget that fits both commits, no slot is needed.
-        let (served, permit) = served_with_budget(usize::MAX).unwrap();
-        assert_eq!(
-            served.len(),
-            commits_transaction_refs.iter().flatten().count()
-        );
-        assert!(permit.is_none());
+        assert!(chunks.iter().all(|chunk| chunk.len() == 1));
+        assert_eq!(entry_refs(&chunks.concat()), commits_transaction_refs[0]);
     }
 
+    /// Entries fill each chunk up to its size, across commit boundaries.
+    #[tokio::test]
+    async fn fast_sync_transaction_chunks_are_packed_to_their_size() {
+        let blocks = two_rounds_of_payloads();
+        let entry_bytes = serialize_transactions_entry(
+            blocks[0].verified_block_header.transaction_ref(),
+            blocks[0].verified_transactions.serialized().clone(),
+        )
+        .unwrap()
+        .len();
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        write_payloads(&store, &blocks);
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        let commits_transaction_refs = refs_by_round(&blocks);
+
+        // Three entries' worth: the second chunk spans the commit boundary.
+        let chunks = served_chunks(TransactionCursor::new(
+            context,
+            store,
+            dag_state,
+            3 * entry_bytes,
+            commits_transaction_refs.clone(),
+        ));
+
+        assert_eq!(
+            chunks.iter().map(Vec::len).collect::<Vec<_>>(),
+            vec![3, 3, 2]
+        );
+        assert_eq!(
+            entry_refs(&chunks.concat()),
+            commits_transaction_refs.concat()
+        );
+    }
+
+    /// The payloads are read when the transport asks for a chunk, not when the
+    /// response is built.
+    #[tokio::test]
+    async fn fast_sync_transactions_are_read_when_polled() {
+        let blocks = two_rounds_of_payloads();
+        let context = context_with_budget(usize::MAX);
+        let store = Arc::new(MemStore::new());
+        let dag_state = dag_state_reading_from_the_store(&context, store.clone());
+        let commits_transaction_refs = refs_by_round(&blocks);
+        let mut transactions = transaction_chunk_stream(TransactionCursor::new(
+            context,
+            store.clone(),
+            dag_state,
+            MAX_FETCH_RESPONSE_BYTES,
+            commits_transaction_refs.clone(),
+        ));
+
+        // Written after the response was built: an eager reader would have
+        // found none of them.
+        write_payloads(&store, &blocks);
+
+        let chunk = transactions.next().await.unwrap().unwrap();
+        assert_eq!(entry_refs(&chunk), commits_transaction_refs.concat());
+        assert!(transactions.next().await.is_none());
+    }
+
+    /// A first commit is looked up only when it is past the last solid
+    /// commit, and fails when this node lacks one of its payloads.
     #[tokio::test]
     async fn a_first_commit_missing_a_payload_is_not_served() {
-        use crate::authority_service::fetch_commit_transactions_within_budget;
-
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=2).build();
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=1).build();
         dag_builder.persist_all_blocks(dag_state.clone());
+        let known_ref = dag_builder.block_headers(1..=1)[0].transaction_ref();
         let unknown_ref = TransactionRef {
             round: 1,
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
         };
 
-        // The first commit holds a payload this node does not have, while the
-        // commit after it is fully available.
-        let commits_transaction_refs = vec![
-            vec![
-                dag_builder.block_headers(1..=1)[0].transaction_ref(),
-                unknown_ref,
-            ],
-            dag_builder
-                .block_headers(2..=2)
-                .iter()
-                .map(|header| header.transaction_ref())
-                .collect(),
-        ];
-        let oversized_commit_slot = Arc::new(Semaphore::new(1));
-        let fetch = || {
-            fetch_commit_transactions_within_budget(
-                &context,
-                store.as_ref(),
-                &dag_state,
-                &oversized_commit_slot,
-                &commits_transaction_refs,
-            )
-        };
-
+        assert!(check_first_commit_payloads(&dag_state, 1, &[known_ref]).is_ok());
         assert!(matches!(
-            fetch(),
+            check_first_commit_payloads(&dag_state, 1, &[known_ref, unknown_ref]),
             Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
                 if transaction_ref == unknown_ref
         ));
-        // The slot taken for the unbudgeted read is released with the error.
-        assert_eq!(oversized_commit_slot.available_permits(), 1);
-        assert!(matches!(
-            fetch(),
-            Err(ConsensusError::TransactionsNotAvailable { .. })
-        ));
-    }
 
-    /// The permit stays held while the response is streamed, including after
-    /// its last message, and is released once the stream is dropped.
-    #[tokio::test]
-    async fn permit_holding_stream_releases_the_permit_when_dropped() {
-        let slot = Arc::new(Semaphore::new(1));
-        let mut responses = PermitHoldingStream {
-            inner: stream::iter([1, 2]),
-            _permit: Some(slot.clone().try_acquire_owned().unwrap()),
-        };
-        assert_eq!(responses.next().await, Some(1));
-        assert_eq!(slot.available_permits(), 0);
-        assert_eq!(responses.next().await, Some(2));
-        assert_eq!(responses.next().await, None);
-        assert_eq!(slot.available_permits(), 0);
-
-        drop(responses);
-        assert_eq!(slot.available_permits(), 1);
+        // At or below the last solid commit every payload is here.
+        let leader = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build());
+        dag_state.write().update_last_solid_subdag_base(SubDagBase {
+            leader: leader.reference(),
+            headers: vec![],
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(1, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        });
+        assert!(check_first_commit_payloads(&dag_state, 1, &[known_ref, unknown_ref]).is_ok());
     }
 }
