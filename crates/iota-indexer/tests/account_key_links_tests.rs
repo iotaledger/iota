@@ -701,12 +701,15 @@ mod account_key_links_tests {
             effects.status()
         );
 
-        effects
+        *effects
             .all_changed_objects()
             .iter()
             .find_map(|(changed, kind)| {
-                matches!((changed.owner, kind), (Owner::Shared(_), WriteKind::Create))
-                    .then_some(changed.reference)
+                matches!(
+                    (changed.owner(), kind),
+                    (Owner::Shared(_), WriteKind::Create)
+                )
+                .then_some(changed.reference())
             })
             .expect("the account must be created as a shared object")
     }
@@ -1025,7 +1028,7 @@ mod account_key_links_tests {
             .filter(account_key_links::key_id.eq(key_id.to_vec()))
             .select(StoredAccountKeyLink::as_select())
             .load(&mut conn)
-            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            .map_err(|_| IndexerError::PostgresRead)
     }
 
     fn smart_account_for(
@@ -1038,7 +1041,7 @@ mod account_key_links_tests {
             .select(StoredSmartAccount::as_select())
             .load(&mut conn)
             .map(|rows: Vec<StoredSmartAccount>| rows.into_iter().next())
-            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            .map_err(|_| IndexerError::PostgresRead)
     }
 
     /// Waits until the indexer's JSON-RPC reader, which starts in the
@@ -1064,7 +1067,7 @@ mod account_key_links_tests {
             .order((account_key_links::key_id, account_key_links::account_id))
             .select(StoredAccountKeyLink::as_select())
             .load(&mut conn)
-            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            .map_err(|_| IndexerError::PostgresRead)
     }
 
     fn authenticator_for(
@@ -1077,7 +1080,7 @@ mod account_key_links_tests {
             .select(StoredAccountAuthenticator::as_select())
             .load(&mut conn)
             .map(|rows: Vec<StoredAccountAuthenticator>| rows.into_iter().next())
-            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            .map_err(|_| IndexerError::PostgresRead)
     }
 
     fn all_account_authenticators(
@@ -1088,7 +1091,7 @@ mod account_key_links_tests {
             .order(account_authenticators::account_id)
             .select(StoredAccountAuthenticator::as_select())
             .load(&mut conn)
-            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            .map_err(|_| IndexerError::PostgresRead)
     }
 
     fn all_smart_accounts(store: &PgIndexerStore) -> Result<Vec<StoredSmartAccount>, IndexerError> {
@@ -1097,6 +1100,6 @@ mod account_key_links_tests {
             .order(smart_accounts::account_id)
             .select(StoredSmartAccount::as_select())
             .load(&mut conn)
-            .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+            .map_err(|_| IndexerError::PostgresRead)
     }
 }
