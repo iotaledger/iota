@@ -863,6 +863,12 @@ impl ConsensusTransaction {
         matches!(self.kind, ConsensusTransactionKind::CertifiedTransaction(_))
     }
 
+    /// Every kind except user traffic, which is a certified transaction or a
+    /// raw user transaction.
+    pub fn is_system_message(&self) -> bool {
+        !self.is_user_certificate() && !self.kind.is_user_transaction()
+    }
+
     pub fn is_end_of_publish(&self) -> bool {
         matches!(self.kind, ConsensusTransactionKind::EndOfPublish(_))
     }
