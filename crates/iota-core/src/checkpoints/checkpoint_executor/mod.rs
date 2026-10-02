@@ -928,7 +928,9 @@ impl CheckpointExecutor {
             .multi_get_attestation_records(&digests);
         for (digest, certified, local) in itertools::izip!(digests, certified, local) {
             if local != Some(certified) {
-                self.metrics.attestation_verdict_mismatches.inc();
+                self.metrics
+                    .checkpoint_exec_attestation_verdict_mismatches
+                    .inc();
                 warn!(
                     ?digest,
                     ?local,

@@ -15,7 +15,7 @@ pub struct CheckpointExecutorMetrics {
     pub last_executed_checkpoint: IntGauge,
     pub last_executed_checkpoint_timestamp_ms: IntGauge,
     pub checkpoint_exec_errors: IntCounter,
-    pub attestation_verdict_mismatches: IntCounter,
+    pub checkpoint_exec_attestation_verdict_mismatches: IntCounter,
     pub checkpoint_exec_epoch: IntGauge,
     pub checkpoint_exec_inflight: IntGauge,
     pub checkpoint_exec_latency: Histogram,
@@ -60,8 +60,8 @@ impl CheckpointExecutorMetrics {
                 MetricLevel::Warn,
             )
             .unwrap(),
-            attestation_verdict_mismatches: register_int_counter_with_registry!(
-                "attestation_verdict_mismatches",
+            checkpoint_exec_attestation_verdict_mismatches: register_int_counter_with_registry!(
+                "checkpoint_exec_attestation_verdict_mismatches",
                 "Executed transactions whose locally recorded attestation verdict differs from the certified one",
                 registry;
                 MetricLevel::Warn,

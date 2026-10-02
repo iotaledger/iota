@@ -523,10 +523,14 @@ impl CheckpointStore {
         Ok(())
     }
 
+    /// Compares the summary this node built with the certified one for the
+    /// same sequence number.
+    ///
+    /// # Panics
+    ///
+    /// If they differ: the node has forked from the network, so both summaries
+    /// and their contents are logged before the panic.
     #[instrument(level = "trace", skip_all)]
-    /// Two summaries over identical contents can still differ in their
-    /// attestation verdicts; those differences are otherwise invisible in the
-    /// fork dump.
     fn check_for_checkpoint_fork(
         &self,
         local_checkpoint: &CheckpointSummary,
@@ -579,9 +583,6 @@ impl CheckpointStore {
                 ?verified_contents,
                 ?local_checkpoint,
                 ?local_contents,
-                // Two summaries over identical contents can still differ in
-                // their attestation verdicts, which the dump above would not
-                // show.
                 // Two summaries over identical contents can still differ in
                 // their attestation verdicts, which the dump above would not
                 // show.
@@ -2567,11 +2568,6 @@ impl CheckpointSignatureAggregator {
     }
 }
 
-/// Create data dump containing relevant data for diagnosing cause of the
-/// split brain by querying one disagreeing validator for full checkpoint
-/// contents. To minimize peer chatter, we only query one validator at random
-/// from each disagreeing faction, as all honest validators that participated in
-/// this round may inevitably run the same process.
 /// The attestation slots on which two summaries disagree, by position in the
 /// contents. Empty when either summary carries no decodable attestations.
 fn attestation_verdict_differences(
@@ -2595,6 +2591,11 @@ fn attestation_verdict_differences(
         .collect()
 }
 
+/// Create data dump containing relevant data for diagnosing cause of the
+/// split brain by querying one disagreeing validator for full checkpoint
+/// contents. To minimize peer chatter, we only query one validator at random
+/// from each disagreeing faction, as all honest validators that participated in
+/// this round may inevitably run the same process.
 async fn diagnose_split_brain(
     all_unique_values: BTreeMap<CheckpointDigest, (Vec<AuthorityName>, StakeUnit)>,
     local_summary: CheckpointSummary,

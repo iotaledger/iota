@@ -1370,6 +1370,7 @@
                 "address_to_u256_cost_base": {
                   "u64": "52"
                 },
+                "attestor_reward_accuracy_tolerance_percentage": null,
                 "auth_context_authenticator_function_info_v1_cost_base": {
                   "u64": "270"
                 },
