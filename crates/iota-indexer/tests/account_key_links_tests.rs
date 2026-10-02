@@ -36,7 +36,7 @@ mod account_key_links_tests {
         ObjectReference, Owner, ProgrammableTransaction, SenderSignedTransaction,
         SharedObjectReference, SignatureScheme, SmartAccountBuildKind, SmartAccountClaim,
         Transaction, TransactionEffects, TransactionKind, TypeTag, UserSignature, WriteKind,
-        crypto::{Intent, IntentMessage, SimpleSignature},
+        crypto::{Intent, IntentMessage, MultisigCommittee, MultisigMember, SimpleSignature},
     };
     use iota_test_transaction_builder::publish_package;
     use iota_types::{
@@ -591,6 +591,71 @@ mod account_key_links_tests {
         Ok(())
     }
 
+    /// A MultiSig account is found from each member key, reported as a
+    /// member of its MultiSig key, and from the whole MultiSig key.
+    #[tokio::test]
+    async fn a_multisig_account_is_found_from_each_member_key() -> Result<(), IndexerError> {
+        let (cluster, store, client) =
+            start_test_cluster_with_read_write_indexer(DB, None, None).await;
+        let sender = first_address(&cluster.wallet);
+        let members = [
+            keypair_for(&cluster.wallet, sender),
+            fresh_secp256k1_keypair(),
+        ];
+        let committee = MultisigCommittee::new(
+            members
+                .iter()
+                .map(|keypair| MultisigMember::new(keypair.public_key(), 1))
+                .collect(),
+            1,
+        )
+        .expect("the committee must be valid");
+        let committee_bytes = bcs::to_bytes(&committee).unwrap();
+        let multisig_key_id = key_id(SignatureScheme::Multisig.to_u8(), &committee_bytes);
+
+        let account: Address = build_account_with_key(
+            &cluster,
+            sender,
+            SignatureScheme::Multisig,
+            committee_bytes.clone(),
+        )
+        .await
+        .object_id
+        .into();
+        indexer_wait_for_latest_checkpoint(&store, &cluster).await;
+
+        for member in &members {
+            let accounts = client
+                .get_accounts_by_public_key(
+                    Base64::from_bytes(&prefixed_keypair_public_key(member)),
+                    None,
+                )
+                .await
+                .expect("the lookup must succeed");
+            assert_eq!(accounts.len(), 1);
+            assert_eq!(accounts[0].address, account);
+            assert_eq!(accounts[0].status, AccountKeyLinkStatus::Active);
+            assert_eq!(accounts[0].scheme, member.public_key().scheme().to_u8());
+            assert_eq!(
+                accounts[0].authenticator,
+                Some(AccountAuthenticatorKind::Multisig)
+            );
+            assert_eq!(accounts[0].multisig_key_id, Some(multisig_key_id));
+        }
+
+        let prefixed_multisig_key =
+            [vec![SignatureScheme::Multisig.to_u8()], committee_bytes].concat();
+        let accounts = client
+            .get_accounts_by_public_key(Base64::from_bytes(&prefixed_multisig_key), None)
+            .await
+            .expect("the lookup must succeed");
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].address, account);
+        assert_eq!(accounts[0].multisig_key_id, None);
+
+        Ok(())
+    }
+
     // === Helpers ===
 
     /// Runs a real `ClaimAccount` transaction for the cluster's first account
@@ -940,6 +1005,7 @@ mod account_key_links_tests {
             SignatureScheme::Ed25519 => "ed25519",
             SignatureScheme::Secp256k1 => "secp256k1",
             SignatureScheme::Secp256r1 => "secp256r1",
+            SignatureScheme::Multisig => "multisig",
             other => panic!("no built-in account test support for {other:?}"),
         };
         let scheme = framework_call(builder, "signature_scheme", scheme_function, vec![]);

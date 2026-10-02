@@ -116,6 +116,11 @@ It has no protocol role (authentication still checks the derived address) and is
 (`iota-types`), since every event carries the full `PublicKey`. Adding it to Move later would be additive. Fixed
 values are in Appendix D.
 
+**MultiSig members.** The `key_id` of a MultiSig key hashes its committee, which a wallet restoring from a seed does
+not know. So every event about a MultiSig key also links each committee member, under the member's own `key_id`, and
+that row records the `key_id` of the whole MultiSig key. The committee is the only payload the indexer decodes. If it
+does not decode, only the whole key is linked.
+
 ### 2.3 Store them in the indexer
 
 The indexer folds the events in chain order `(checkpoint, transaction, event)` into three PostgreSQL tables of current
@@ -151,6 +156,7 @@ key was detached or rotated away from.
 | `smartAccount` | Whether the address is a framework `SmartAccount`. |
 | `authenticator` | `ed25519`, `secp256k1`, `secp256r1`, `multisig`, `passkey` (built-in) or `custom`; `null` when not a `SmartAccount`. |
 | `scheme` | The key's scheme flag, as a number. |
+| `multisigKeyId` | Base64 `key_id` of the whole MultiSig key when the key is one of its members; `null` otherwise. |
 | `lastChangeEpoch` | Epoch of the last change to the link. |
 
 ```json
@@ -162,7 +168,7 @@ key was detached or rotated away from.
 { "jsonrpc": "2.0", "id": 1, "result": [
   { "address": "0xcef6bafea1d59edb73ff5ec9e8aa58354796e1b572b695d64237ce9c15a34a03",
     "status": "active", "source": "attach", "smartAccount": true,
-    "authenticator": "ed25519", "scheme": 0, "lastChangeEpoch": "3" } ] }
+    "authenticator": "ed25519", "scheme": 0, "multisigKeyId": null, "lastChangeEpoch": "3" } ] }
 ```
 
 ### 2.5 Wallet flow
@@ -196,8 +202,6 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of ย
 * **Anyone can use your key for an account.** `builtin_auth_builder_v1` takes any `PublicKey`, so anyone can create
   accounts with your key for the price of gas. Only you can operate them, but they appear in your results.
 * **No paging.** Because of the point above, one key's result can grow without bound. Accepted for now.
-* **MultiSig accounts cannot be found from a member key.** A MultiSig `key_id` hashes the whole committee. Indexing
-  members would fix it, at the cost of making committee membership queryable. Accepted for now.
 * **An account can lock itself**, by removing the only key it can sign with or rotating to an authenticator nobody can
   satisfy.
 * **A key and an authenticator of different schemes** are reported as they are; keeping them consistent is up to
@@ -264,7 +268,10 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of ย
 | `{Mutable,Immutable}AccountCreated<SmartAccount>(account, auth)` | `account_authenticators` row, kind of `auth` |
 | `AuthenticatorFunctionRefV1Rotated<SmartAccount>(account, _, to)` | `account_authenticators` row, kind of `to` |
 
-* Unlink before link, so rotating a key onto itself leaves it active.
+* A MultiSig key also links or unlinks each committee member: `(key_id(member), account)`, with
+  `multisig_key_id = key_id(pk)` and the same source.
+* Every unlink of `from` comes before every link of `to`, so a key on both sides of a rotation stays active: the
+  same key, or a MultiSig member kept across the rotation.
 * The key in `SmartAccountCreated` is not used for links: the `PublicKeyAttached` of the same transaction gives it.
 * Only `iota::account` events whose type parameter is `0x2::smart_account::SmartAccount` are read.
 * An event whose type matches but whose payload does not decode is skipped: the indexer is older than the framework.
@@ -286,6 +293,7 @@ status = 0`.
 | `key_id` | `BYTEA` | `key_id` of the key (ยง2.2) |
 | `account_id` | `BYTEA` | the object the key is attached to |
 | `scheme` | `SMALLINT` | scheme flag as recorded on chain, stored even if unknown to the build |
+| `multisig_key_id` | `BYTEA NULL` | `key_id` of the whole MultiSig key when `key_id` is one of its members |
 | `source` | `SMALLINT` | 0 attach, 1 rotate, 2 detach |
 | `status` | `SMALLINT` | 0 active, 1 unlinked |
 | `last_change_tx_sequence_number` | `BIGINT` | orders results and guards writes |

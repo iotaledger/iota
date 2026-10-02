@@ -257,6 +257,18 @@ fn to_account_key_link(
         })
         .transpose()?;
 
+    let multisig_key_id = link
+        .multisig_key_id
+        .map(|key_id| {
+            <[u8; 32]>::try_from(key_id).map_err(|key_id| {
+                IndexerError::PersistentStorageDataCorruption(format!(
+                    "invalid multisig key id of {} bytes",
+                    key_id.len()
+                ))
+            })
+        })
+        .transpose()?;
+
     Ok(AccountKeyLink {
         address,
         status: if link.status == LINK_STATUS_ACTIVE {
@@ -268,6 +280,7 @@ fn to_account_key_link(
         smart_account: smart_account.is_some(),
         authenticator,
         scheme: link.scheme as u8,
+        multisig_key_id,
         last_change_epoch: link.last_change_epoch as u64,
     })
 }

@@ -13,10 +13,14 @@
 //! The fold is total. `key_id` hashes bytes without parsing them, no address is
 //! derived anywhere, and an event whose type matches but whose payload will not
 //! decode yields nothing — this build predates a framework change and cannot
-//! interpret it. There is no other failure path.
+//! interpret it. There is no other failure path. A MultiSig committee is the
+//! one thing decoded, to also link each member key; a committee this build
+//! cannot decode still gets the link for the whole key.
 
-use iota_sdk_types::{Address, Event, ObjectId, TypeTag};
-use iota_types::account_abstraction::public_key::MovePublicKey;
+use iota_sdk_types::{
+    Address, Event, ObjectId, SignatureScheme, TypeTag, crypto::MultisigCommittee,
+};
+use iota_types::account_abstraction::public_key::{MovePublicKey, key_id};
 use serde::Deserialize;
 
 use crate::models::{
@@ -201,6 +205,9 @@ pub struct AccountKeyLinkOp {
     pub account_id: [u8; 32],
     /// The signature scheme flag of the key, uninterpreted.
     pub scheme: u8,
+    /// When the key is one member of a MultiSig key, the `key_id` of that
+    /// whole MultiSig key; `None` when the key itself is the account's key.
+    pub multisig_key_id: Option<[u8; 32]>,
     pub source: LinkSource,
     pub kind: LinkOpKind,
     pub tx_sequence_number: i64,
@@ -208,23 +215,43 @@ pub struct AccountKeyLinkOp {
 }
 
 impl AccountKeyLinkOp {
-    fn new(
+    /// The ops `public_key` contributes: one for the key itself and, for a
+    /// MultiSig key whose committee decodes, one per member key.
+    fn for_key(
         public_key: &MovePublicKey,
         account_id: &ObjectId,
         source: LinkSource,
         kind: LinkOpKind,
         tx_sequence_number: u64,
         epoch: u64,
-    ) -> Self {
-        Self {
-            key_id: public_key.key_id(),
+    ) -> Vec<Self> {
+        let op = |key_id, scheme, multisig_key_id| Self {
+            key_id,
             account_id: (*account_id).into(),
-            scheme: public_key.scheme_flag(),
+            scheme,
+            multisig_key_id,
             source,
             kind,
             tx_sequence_number: tx_sequence_number as i64,
             epoch: epoch as i64,
+        };
+
+        let whole_key_id = public_key.key_id();
+        let mut ops = vec![op(whole_key_id, public_key.scheme_flag(), None)];
+        if public_key.scheme_flag() == SignatureScheme::Multisig.to_u8() {
+            if let Ok(committee) = bcs::from_bytes::<MultisigCommittee>(public_key.raw_bytes()) {
+                ops.extend(committee.members().iter().map(|member| {
+                    let member_key = member.public_key();
+                    let member_flag = member_key.scheme().to_u8();
+                    op(
+                        key_id(member_flag, member_key.as_ref()),
+                        member_flag,
+                        Some(whole_key_id),
+                    )
+                }));
+            }
         }
+        ops
     }
 }
 
@@ -267,14 +294,14 @@ pub fn account_key_link_ops(
         let Ok(attached) = bcs::from_bytes::<PublicKeyAttachedEvent>(&event.contents) else {
             return vec![];
         };
-        return vec![AccountKeyLinkOp::new(
+        return AccountKeyLinkOp::for_key(
             &attached.public_key,
             &attached.account_id,
             LinkSource::Attach,
             LinkOpKind::Link,
             tx_sequence_number,
             epoch,
-        )];
+        );
     }
 
     if is_framework_event(
@@ -285,14 +312,14 @@ pub fn account_key_link_ops(
         let Ok(detached) = bcs::from_bytes::<PublicKeyDetachedEvent>(&event.contents) else {
             return vec![];
         };
-        return vec![AccountKeyLinkOp::new(
+        return AccountKeyLinkOp::for_key(
             &detached.public_key,
             &detached.account_id,
             LinkSource::Detach,
             LinkOpKind::Unlink,
             tx_sequence_number,
             epoch,
-        )];
+        );
     }
 
     if is_framework_event(
@@ -303,26 +330,26 @@ pub fn account_key_link_ops(
         let Ok(rotated) = bcs::from_bytes::<PublicKeyRotatedEvent>(&event.contents) else {
             return vec![];
         };
-        // The unlink must come first, so that rotating a key onto itself leaves
-        // the link active.
-        return vec![
-            AccountKeyLinkOp::new(
-                &rotated.from,
-                &rotated.account_id,
-                LinkSource::Rotate,
-                LinkOpKind::Unlink,
-                tx_sequence_number,
-                epoch,
-            ),
-            AccountKeyLinkOp::new(
-                &rotated.to,
-                &rotated.account_id,
-                LinkSource::Rotate,
-                LinkOpKind::Link,
-                tx_sequence_number,
-                epoch,
-            ),
-        ];
+        // Every unlink must come first, so that a key on both sides of the
+        // rotation — the same key, or a MultiSig member kept across it — ends
+        // with the link active.
+        let mut ops = AccountKeyLinkOp::for_key(
+            &rotated.from,
+            &rotated.account_id,
+            LinkSource::Rotate,
+            LinkOpKind::Unlink,
+            tx_sequence_number,
+            epoch,
+        );
+        ops.extend(AccountKeyLinkOp::for_key(
+            &rotated.to,
+            &rotated.account_id,
+            LinkSource::Rotate,
+            LinkOpKind::Link,
+            tx_sequence_number,
+            epoch,
+        ));
+        return ops;
     }
 
     vec![]
@@ -389,6 +416,13 @@ mod tests {
     /// iota-types.
     const ED25519_KEY_ID_HEX: &str =
         "43541042c153e0e498a08a8db868f1614c9366694fa730bd8a07fc5d7c931f0d";
+    /// A 1-of-2 `MultisigCommittee` of the Ed25519 and Secp256k1 keys above,
+    /// each with weight 1.
+    const MULTISIG_RAW_HEX: &str = "0200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100";
+    /// `blake2b256(0x03 || MULTISIG_RAW)`, pinned by `key_id_fixed_vectors` in
+    /// iota-types.
+    const MULTISIG_KEY_ID_HEX: &str =
+        "dd22eb5c98cdc27de98174a69b68ca1603bdda8aeb226c5232273cfdc9655811";
 
     const ACCOUNT: [u8; 32] = [0x11; 32];
 
@@ -426,6 +460,7 @@ mod tests {
         assert_eq!(ops[0].scheme, SignatureScheme::Ed25519.to_u8());
         assert_eq!(ops[0].tx_sequence_number, 7);
         assert_eq!(ops[0].epoch, 3);
+        assert_eq!(ops[0].multisig_key_id, None);
     }
 
     #[test]
@@ -551,6 +586,130 @@ mod tests {
         let ops = account_key_link_ops(&event, 1, 1);
         assert_eq!(ops.len(), 1);
         assert_eq!(ops[0].scheme, unknown_flag);
+    }
+
+    // === MultiSig members ===
+
+    #[test]
+    fn attaching_a_multisig_key_links_the_whole_key_and_each_member() {
+        let event = public_key_event(
+            PUBLIC_KEY_ATTACHED,
+            &[(SignatureScheme::Multisig.to_u8(), multisig_raw())],
+        );
+        let ops = account_key_link_ops(&event, 7, 3);
+
+        assert_eq!(ops.len(), 3);
+        assert_eq!(ops[0].key_id, pinned(MULTISIG_KEY_ID_HEX));
+        assert_eq!(ops[0].scheme, SignatureScheme::Multisig.to_u8());
+        assert_eq!(ops[0].multisig_key_id, None);
+
+        // A member is linked under the key_id a wallet computes from its own
+        // flag-prefixed key.
+        assert_eq!(ops[1].key_id, pinned(ED25519_KEY_ID_HEX));
+        assert_eq!(ops[1].scheme, SignatureScheme::Ed25519.to_u8());
+        assert_eq!(
+            ops[2].key_id,
+            key_id(SignatureScheme::Secp256k1.to_u8(), &secp256k1_raw())
+        );
+        assert_eq!(ops[2].scheme, SignatureScheme::Secp256k1.to_u8());
+
+        for op in &ops {
+            assert_eq!(op.account_id, ACCOUNT);
+            assert_eq!(op.source, LinkSource::Attach);
+            assert_eq!(op.kind, LinkOpKind::Link);
+            assert_eq!(op.tx_sequence_number, 7);
+            assert_eq!(op.epoch, 3);
+        }
+        for member in &ops[1..] {
+            assert_eq!(member.multisig_key_id, Some(pinned(MULTISIG_KEY_ID_HEX)));
+        }
+    }
+
+    #[test]
+    fn detaching_a_multisig_key_unlinks_the_whole_key_and_each_member() {
+        let event = public_key_event(
+            PUBLIC_KEY_DETACHED,
+            &[(SignatureScheme::Multisig.to_u8(), multisig_raw())],
+        );
+        let ops = account_key_link_ops(&event, 7, 3);
+
+        assert_eq!(ops.len(), 3);
+        assert!(
+            ops.iter()
+                .all(|op| op.kind == LinkOpKind::Unlink && op.source == LinkSource::Detach)
+        );
+    }
+
+    #[test]
+    fn rotating_from_a_multisig_key_to_a_member_key_ends_linked_directly() {
+        let event = public_key_event(
+            PUBLIC_KEY_ROTATED,
+            &[
+                (SignatureScheme::Multisig.to_u8(), multisig_raw()),
+                (SignatureScheme::Ed25519.to_u8(), ed25519_raw()),
+            ],
+        );
+        let ops = account_key_link_ops(&event, 7, 3);
+
+        let kinds: Vec<_> = ops.iter().map(|op| op.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                LinkOpKind::Unlink,
+                LinkOpKind::Unlink,
+                LinkOpKind::Unlink,
+                LinkOpKind::Link
+            ]
+        );
+        // The member op and the final op address the same row; the final one
+        // decides it, and it is a direct link.
+        assert_eq!(ops[1].key_id, pinned(ED25519_KEY_ID_HEX));
+        assert_eq!(ops[3].key_id, pinned(ED25519_KEY_ID_HEX));
+        assert_eq!(ops[3].multisig_key_id, None);
+    }
+
+    #[test]
+    fn rotating_from_a_member_key_to_its_multisig_key_ends_linked_as_a_member() {
+        let event = public_key_event(
+            PUBLIC_KEY_ROTATED,
+            &[
+                (SignatureScheme::Ed25519.to_u8(), ed25519_raw()),
+                (SignatureScheme::Multisig.to_u8(), multisig_raw()),
+            ],
+        );
+        let ops = account_key_link_ops(&event, 7, 3);
+
+        assert_eq!(ops.len(), 4);
+        assert_eq!(ops[0].kind, LinkOpKind::Unlink);
+        assert!(ops[1..].iter().all(|op| op.kind == LinkOpKind::Link));
+        let last_ed25519_op = ops
+            .iter()
+            .rev()
+            .find(|op| op.key_id == pinned(ED25519_KEY_ID_HEX))
+            .unwrap();
+        assert_eq!(last_ed25519_op.kind, LinkOpKind::Link);
+        assert_eq!(
+            last_ed25519_op.multisig_key_id,
+            Some(pinned(MULTISIG_KEY_ID_HEX))
+        );
+    }
+
+    #[test]
+    fn a_multisig_committee_this_build_cannot_decode_links_only_the_whole_key() {
+        let mut raw = multisig_raw();
+        raw.truncate(10);
+        let event = public_key_event(
+            PUBLIC_KEY_ATTACHED,
+            &[(SignatureScheme::Multisig.to_u8(), raw.clone())],
+        );
+        let ops = account_key_link_ops(&event, 1, 1);
+
+        assert_eq!(ops.len(), 1);
+        assert_eq!(
+            ops[0].key_id,
+            key_id(SignatureScheme::Multisig.to_u8(), &raw)
+        );
+        assert_eq!(ops[0].multisig_key_id, None);
     }
 
     // === Authenticator kind ===
@@ -700,6 +859,24 @@ mod tests {
 
     fn ed25519_raw() -> Vec<u8> {
         hex::decode(ED25519_RAW_HEX).unwrap()
+    }
+
+    fn multisig_raw() -> Vec<u8> {
+        hex::decode(MULTISIG_RAW_HEX).unwrap()
+    }
+
+    fn pinned(key_id_hex: &str) -> [u8; 32] {
+        hex::decode(key_id_hex).unwrap().try_into().unwrap()
+    }
+
+    /// A `builtin_authenticator_functions` key event `name` about `ACCOUNT`
+    /// carrying `keys`, each as `(flag, raw_bytes)`, in field order.
+    fn public_key_event(name: &str, keys: &[(u8, Vec<u8>)]) -> Event {
+        let mut contents = ACCOUNT.to_vec();
+        for (flag, raw_bytes) in keys {
+            contents.extend(move_public_key_bcs(*flag, raw_bytes));
+        }
+        framework_event(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE, name, contents)
     }
 
     fn secp256k1_raw() -> Vec<u8> {

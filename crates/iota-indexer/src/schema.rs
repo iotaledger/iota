@@ -17,6 +17,7 @@ diesel::table! {
         key_id -> Bytea,
         account_id -> Bytea,
         scheme -> Int2,
+        multisig_key_id -> Nullable<Bytea>,
         source -> Int2,
         status -> Int2,
         last_change_tx_sequence_number -> Int8,
