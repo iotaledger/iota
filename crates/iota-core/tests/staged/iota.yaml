@@ -813,18 +813,10 @@ SignedTransaction:
         TYPENAME: Transaction
     - signatures:
         SEQ: BYTES
-SmartAccountBuildKind:
-  ENUM:
-    0:
-      Mutable: UNIT
-    1:
-      Immutable: UNIT
 SmartAccountClaim:
   STRUCT:
     - public_key_scheme: U8
     - public_key_raw_bytes: BYTES
-    - build_kind:
-        TYPENAME: SmartAccountBuildKind
 SplitCoins:
   STRUCT:
     - coin:

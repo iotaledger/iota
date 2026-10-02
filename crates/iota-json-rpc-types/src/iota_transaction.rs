@@ -15,8 +15,8 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     ExecutionError as ExecutionFailureStatus, ExecutionStatus, GasCostSummary, GenesisObject,
     Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference, Owner,
-    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, SmartAccountBuildKind,
-    Transaction, TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest,
+    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest,
     TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
     WriteKind,
 };
@@ -625,17 +625,6 @@ impl IotaTransactionBlockKind {
                         IotaAccountClaimKind::SmartAccount(IotaSmartAccountClaim {
                             public_key_scheme: smart.public_key_scheme,
                             public_key_raw_bytes: smart.public_key_raw_bytes,
-                            build_kind: match smart.build_kind {
-                                SmartAccountBuildKind::Mutable => {
-                                    IotaSmartAccountBuildKind::Mutable
-                                }
-                                SmartAccountBuildKind::Immutable => {
-                                    IotaSmartAccountBuildKind::Immutable
-                                }
-                                _ => unimplemented!(
-                                    "a new SmartAccountBuildKind enum variant was added and needs to be handled"
-                                ),
-                            },
                         })
                     }
                     _ => {
@@ -2033,15 +2022,6 @@ pub struct IotaSmartAccountClaim {
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
     pub public_key_raw_bytes: Vec<u8>,
-    /// Whether the created account object is mutable or immutable.
-    pub build_kind: IotaSmartAccountBuildKind,
-}
-
-/// Whether a claimed account object can be changed after the claim.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub enum IotaSmartAccountBuildKind {
-    Mutable,
-    Immutable,
 }
 
 #[serde_as]

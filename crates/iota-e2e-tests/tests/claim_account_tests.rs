@@ -10,18 +10,16 @@ use iota_sdk_types::Owner;
 #[cfg(msim)]
 use test_cluster::TestClusterBuilder;
 
-/// Verify that a `TransactionKind::ClaimAccount` with
-/// `SmartAccountBuildKind::Mutable` succeeds when both protocol flags are
-/// enabled, and that the transaction is accepted.
+/// Verify that a `TransactionKind::ClaimAccount` succeeds when both
+/// protocol flags are enabled, and that the transaction is accepted.
 #[cfg(msim)]
 #[sim_test]
-async fn test_claim_account_mutable_succeeds() {
+async fn test_claim_account_succeeds() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
-        TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
     };
     use iota_types::transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
@@ -57,7 +55,6 @@ async fn test_claim_account_mutable_succeeds() {
     let claim = SmartAccountClaim {
         public_key_scheme,
         public_key_raw_bytes,
-        build_kind: SmartAccountBuildKind::Mutable,
     };
     let kind =
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
@@ -79,7 +76,7 @@ async fn test_claim_account_mutable_succeeds() {
     let effects = response.effects.expect("response must include effects");
     assert!(
         effects.status().is_ok(),
-        "ClaimAccount (Mutable) transaction must succeed; got {:?}",
+        "ClaimAccount transaction must succeed; got {:?}",
         effects.status(),
     );
 
@@ -96,92 +93,7 @@ async fn test_claim_account_mutable_succeeds() {
     let (_, sa_owner) = &smart_accounts[0];
     assert!(
         matches!(sa_owner, Owner::Shared(_)),
-        "Mutable SmartAccount must be a shared object; got {sa_owner:?}",
-    );
-}
-
-/// Verify that a `TransactionKind::ClaimAccount` with
-/// `SmartAccountBuildKind::Immutable` succeeds and creates an immutable
-/// `SmartAccount` object.
-#[cfg(msim)]
-#[sim_test]
-async fn test_claim_account_immutable_succeeds() {
-    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
-    use iota_keys::keystore::AccountKeystore;
-    use iota_sdk_crypto::simple::SimpleKeypair;
-    use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
-        TransactionKind,
-    };
-    use iota_types::transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
-    };
-
-    telemetry_subscribers::init_for_testing();
-
-    let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(20000)
-        .build()
-        .await;
-
-    // Use a different wallet account from the mutable test to avoid double-claim.
-    let addresses = test_cluster.wallet.config().keystore().addresses();
-    let owner: Address = addresses.get(1).copied().unwrap_or(addresses[0]);
-
-    let keypair: SimpleKeypair = test_cluster
-        .wallet
-        .config()
-        .keystore()
-        .get_key(&owner)
-        .expect("keypair must exist for owner")
-        .as_keypair()
-        .expect("stored key must be a keypair")
-        .clone();
-
-    let (public_key_scheme, public_key_raw_bytes) = claim_public_key(&keypair);
-    let claim = SmartAccountClaim {
-        public_key_scheme,
-        public_key_raw_bytes,
-        build_kind: SmartAccountBuildKind::Immutable,
-    };
-    let kind =
-        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
-
-    let rgp = test_cluster.get_reference_gas_price().await;
-    let tx_data = Transaction::new(
-        kind,
-        owner,
-        first_gas_coin(&test_cluster.wallet, owner).await,
-        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        rgp,
-    );
-    let response = test_cluster
-        .wallet
-        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
-        .await
-        .expect("ClaimAccount transaction must execute");
-
-    let effects = response.effects.expect("response must include effects");
-    assert!(
-        effects.status().is_ok(),
-        "ClaimAccount (Immutable) transaction must succeed; got {:?}",
-        effects.status(),
-    );
-
-    let object_changes = response
-        .object_changes
-        .expect("response must include object changes");
-    let smart_accounts = created_smart_accounts(&object_changes);
-
-    assert_eq!(
-        smart_accounts.len(),
-        1,
-        "Expected exactly one SmartAccount created; got {smart_accounts:?}",
-    );
-    let (_, sa_owner) = &smart_accounts[0];
-    assert!(
-        matches!(sa_owner, Owner::Immutable),
-        "Immutable SmartAccount must be an immutable object; got {sa_owner:?}",
+        "A claimed SmartAccount must be a shared object; got {sa_owner:?}",
     );
 }
 
@@ -202,8 +114,7 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
-        TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
     };
     use iota_types::transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
@@ -243,7 +154,6 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
         let claim = SmartAccountClaim {
             public_key_scheme,
             public_key_raw_bytes,
-            build_kind: SmartAccountBuildKind::Immutable,
         };
         let tx_data = Transaction::new(
             TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
@@ -290,7 +200,7 @@ async fn test_claim_account_twice_is_not_yet_prevented() {
     );
     assert!(
         second_version > first_version,
-        "the immutable account object was expected to be overwritten today; got \
+        "the account object was expected to be overwritten today; got \
          {second_version:?} after {first_version:?}",
     );
 }
@@ -305,8 +215,7 @@ async fn test_claim_account_rejected_when_disabled() {
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
-        TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
     };
     use iota_types::transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
@@ -344,7 +253,6 @@ async fn test_claim_account_rejected_when_disabled() {
     let claim = SmartAccountClaim {
         public_key_scheme,
         public_key_raw_bytes,
-        build_kind: SmartAccountBuildKind::Mutable,
     };
     let kind =
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
@@ -404,8 +312,7 @@ async fn test_claim_account_rejected_without_builtin_authenticators() {
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_crypto::simple::SimpleKeypair;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
-        TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
     };
     use iota_types::transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
@@ -443,7 +350,6 @@ async fn test_claim_account_rejected_without_builtin_authenticators() {
     let claim = SmartAccountClaim {
         public_key_scheme,
         public_key_raw_bytes,
-        build_kind: SmartAccountBuildKind::Mutable,
     };
     let kind =
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
@@ -498,8 +404,7 @@ async fn test_claim_account_rejected_with_invalid_public_key() {
     use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
     use iota_keys::keystore::AccountKeystore;
     use iota_sdk_types::{
-        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, Transaction,
-        TransactionKind,
+        Address, ClaimAccountTransaction, SmartAccountClaim, Transaction, TransactionKind,
     };
     use iota_types::transaction::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
@@ -523,7 +428,6 @@ async fn test_claim_account_rejected_with_invalid_public_key() {
     let claim = SmartAccountClaim {
         public_key_scheme: 0x01,
         public_key_raw_bytes: vec![0xff; 33],
-        build_kind: SmartAccountBuildKind::Mutable,
     };
     let kind =
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
