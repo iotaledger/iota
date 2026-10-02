@@ -1623,9 +1623,9 @@ mod tests {
         }
     }
 
-    /// Covers the commit-vote ordering in the shared `fetch_loop`, driven
-    /// through the fast syncer because that is the flavour `FakeNetworkClient`
-    /// serves.
+    /// Covers the commit-vote ordering in the shared `fetch_loop` and in the
+    /// reinitialization header fetch. `fetch_loop` is driven through the fast
+    /// syncer because that is the flavour `FakeNetworkClient` serves.
     mod peer_selection_by_commit_votes {
         use std::{sync::Arc, time::Duration};
 
@@ -1714,6 +1714,7 @@ mod tests {
             context
                 .protocol_config
                 .set_consensus_fast_commit_sync_for_testing(true);
+            context.parameters.enable_peer_responsiveness_ranking = true;
             let context = Arc::new(context);
             for peer in [1, 2] {
                 context.peer_responsiveness.record_success(
