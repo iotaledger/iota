@@ -6,12 +6,13 @@
 //! repeated or taken out of order. The comparisons on what a read returned
 //! are pure functions shared by the first pass and the re-check.
 //!
-//! The re-read after the store answer reads the row before the record. That
-//! is safe only because the first pass read the record before the store: the
-//! completion inserts the row and then removes the record, so a record
-//! missed on the first pass means the row was in place before the store read,
-//! and the re-read finds it. Reordering the first pass would reopen the race
-//! the package machine documents.
+//! The re-read after the store answer reads the record before the row and
+//! lets the row decide. The completion inserts the row and then removes the
+//! record, so a record the re-read misses was removed after a row the later
+//! row read finds. The other order can miss both: the hook classifies by the
+//! round map before it writes, so a record can be born for an already
+//! assigned commit during validation and the completion can land between the
+//! two re-reads.
 
 use std::cmp::Ordering;
 
@@ -182,63 +183,51 @@ pub struct StoreAnswered {
 }
 impl OwnedState for StoreAnswered {}
 
-/// Outcome of re-reading the handler-processed row after the store answered.
-/// A row that landed in the window decides as in rule 1.
-#[must_use]
-pub enum HandlerRowRecheck {
-    NeedBytes(OwnedReader<NeedBytes>),
-    Missing(MissingReason),
-    Drop(DropReason),
-    /// Not a verdict. Still no row, so the machine continues with the
-    /// re-read of the sync-ahead record.
-    NoRow(OwnedReader<StoreAnsweredNoHandlerRow>),
-}
-
 impl OwnedReader<StoreAnswered> {
-    pub fn reread_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<HandlerRowRecheck> {
-        let latest = self.state.latest;
-        Ok(match self.row_classification(ctx)? {
-            None => HandlerRowRecheck::NoRow(self.into_state(StoreAnsweredNoHandlerRow { latest })),
-            Some(Classification::Keep) => HandlerRowRecheck::NeedBytes(self.into_state(NeedBytes)),
-            Some(Classification::Missing(reason)) => HandlerRowRecheck::Missing(reason),
-            Some(Classification::Drop(reason)) => HandlerRowRecheck::Drop(reason),
-        })
-    }
-}
-
-/// The store answered and the re-read found no handler-processed row. The
-/// answer is still held.
-pub struct StoreAnsweredNoHandlerRow {
-    latest: Option<ObjectReference>,
-}
-impl OwnedState for StoreAnsweredNoHandlerRow {}
-
-/// Outcome of re-reading the sync-ahead record after the store answered. A
-/// record that landed in the window decides as in rule 2. With nothing in
-/// either table the held answer stands: equal to the named reference keeps,
-/// a newer version, a tombstone or no entry drops.
-#[must_use]
-pub enum SyncAheadRecheck {
-    NeedBytes(OwnedReader<NeedBytes>),
-    Missing(MissingReason),
-    Drop(DropReason),
-}
-
-impl OwnedReader<StoreAnsweredNoHandlerRow> {
+    /// Re-reads the sync-ahead record and holds what it said. Not a verdict:
+    /// the row is read next and has precedence.
     pub fn reread_sync_ahead_record(
         self,
         ctx: &CommitIndexedReader,
-    ) -> IotaResult<SyncAheadRecheck> {
-        let classification = match self.record_classification(ctx)? {
-            Some(classification) => classification,
+    ) -> IotaResult<OwnedReader<StoreAnsweredRecordReread>> {
+        let latest = self.state.latest;
+        let record = self.record_classification(ctx)?;
+        Ok(self.into_state(StoreAnsweredRecordReread { latest, record }))
+    }
+}
+
+/// The store answered and the sync-ahead record was re-read. Both are held
+/// until the row is re-read.
+pub struct StoreAnsweredRecordReread {
+    latest: Option<ObjectReference>,
+    record: Option<Classification>,
+}
+impl OwnedState for StoreAnsweredRecordReread {}
+
+/// Outcome of the re-read of both tables. A row decides as in rule 1, else a
+/// record decides as in rule 2, else the held store answer stands: equal to
+/// the named reference keeps, a newer version, a tombstone or no entry drops.
+#[must_use]
+pub enum TablesRecheck {
+    NeedBytes(OwnedReader<NeedBytes>),
+    Missing(MissingReason),
+    Drop(DropReason),
+}
+
+impl OwnedReader<StoreAnsweredRecordReread> {
+    /// Re-reads the handler-processed row and decides.
+    pub fn reread_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesRecheck> {
+        let classification = match (self.row_classification(ctx)?, self.state.record) {
+            (Some(row), _) => row,
+            (None, Some(record)) => record,
             // Nothing appeared in either table, so the store answer predates
             // every this-epoch write for `id` and stands.
-            None => classify_latest(self.state.latest.as_ref(), &self.input),
+            (None, None) => classify_latest(self.state.latest.as_ref(), &self.input),
         };
         Ok(match classification {
-            Classification::Keep => SyncAheadRecheck::NeedBytes(self.into_state(NeedBytes)),
-            Classification::Missing(reason) => SyncAheadRecheck::Missing(reason),
-            Classification::Drop(reason) => SyncAheadRecheck::Drop(reason),
+            Classification::Keep => TablesRecheck::NeedBytes(self.into_state(NeedBytes)),
+            Classification::Missing(reason) => TablesRecheck::Missing(reason),
+            Classification::Drop(reason) => TablesRecheck::Drop(reason),
         })
     }
 }
@@ -265,7 +254,7 @@ impl OwnedReader<NeedBytes> {
 
 /// What one source decided about `(id, V)`.
 #[must_use]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Classification {
     Keep,
     Missing(MissingReason),
@@ -363,6 +352,128 @@ mod tests {
 
     fn missing(kind: MissingKind) -> Classification {
         Classification::Missing(MissingReason(kind))
+    }
+
+    /// Review finding R1. `P` produces `X@8` in commit 11, above the horizon
+    /// of commit 12. The hook classified `P` before commit 11 was assigned,
+    /// so it writes a record, and the completion of commit 11 lands between
+    /// the two table re-reads: the row is inserted after the row re-read
+    /// and the record removed before the record re-read. The held store
+    /// answer must not decide. A fresh read answers missing.
+    #[tokio::test]
+    async fn recheck_stays_missing_when_completion_lands_between_the_table_reads() {
+        use std::collections::BTreeMap;
+
+        use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            object::Object,
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::{
+                authority_per_epoch_store::handler_object_state::handler_latest_upserts,
+                authority_tests::init_state_with_objects_and_object_basics,
+            },
+            post_consensus_input_reader::OwnedVerdict,
+        };
+
+        const PRODUCING_COMMIT: CommitIndex = HORIZON + 1;
+
+        let sender = Address::ZERO;
+        let gas_id = ObjectId::random();
+        let x_id = ObjectId::random();
+        let gas = Object::with_id_owner_version_for_testing(
+            gas_id,
+            Version::from_u64(7),
+            Owner::Address(sender),
+        );
+        let x_before = Object::with_id_owner_version_for_testing(
+            x_id,
+            Version::from_u64(7),
+            Owner::Address(sender),
+        );
+        let (authority, _) =
+            init_state_with_objects_and_object_basics([gas.clone(), x_before.clone()]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+
+        let x_after = Object::with_id_owner_version_for_testing(
+            x_id,
+            Version::from_u64(8),
+            Owner::Address(sender),
+        );
+        let input = x_after.object_ref();
+        let transaction = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let effects = TestEffectsBuilder::new(&transaction)
+            .with_mutated_objects([(x_id, Version::from_u64(7), Owner::Address(sender))])
+            .build();
+        assert_eq!(effects.lamport_version(), input.version);
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            PRODUCING_COMMIT + 1,
+        );
+
+        // First pass: nothing written yet.
+        let no_row = match OwnedReader::start(input, HORIZON)
+            .read_handler_row(&ctx)
+            .unwrap()
+        {
+            HandlerRowLookup::NoRow(no_row) => no_row,
+            _ => panic!("no row before the hook ran"),
+        };
+        let no_record = match no_row.read_sync_ahead_record(&ctx).unwrap() {
+            SyncAheadLookup::NoRecord(no_record) => no_record,
+            _ => panic!("no record before the hook ran"),
+        };
+
+        // The hook, classified before commit 11 was assigned, writes the
+        // record, then X@8 reaches the store.
+        epoch_store
+            .record_executed_transaction(
+                &key,
+                &effects,
+                &BTreeMap::from([(gas_id, gas), (x_id, x_before)]),
+            )
+            .unwrap();
+        authority.insert_genesis_object(x_after);
+
+        // The store answers X@8. The first table re-read, whichever table it
+        // is, happens before the completion.
+        let store_answered = no_record.read_store(&ctx).unwrap();
+        let record_reread = store_answered.reread_sync_ahead_record(&ctx).unwrap();
+
+        // Completion of commit 11 inserts the row and removes the record.
+        epoch_store.assign_commit_to_transactions(PRODUCING_COMMIT, vec![key]);
+        epoch_store
+            .record_commit_fully_executed(
+                PRODUCING_COMMIT,
+                &handler_latest_upserts(&effects, PRODUCING_COMMIT),
+            )
+            .unwrap();
+
+        match record_reread.reread_handler_row(&ctx).unwrap() {
+            TablesRecheck::Missing(reason) => {
+                assert_eq!(reason.kind(), MissingKind::HandlerRowAboveHorizon)
+            }
+            TablesRecheck::NeedBytes(_) => panic!("kept a version produced above the horizon"),
+            TablesRecheck::Drop(reason) => panic!("dropped: {reason:?}"),
+        }
+
+        // The stable answer the interleaving must match.
+        assert!(matches!(
+            ctx.read_owned(input).unwrap(),
+            OwnedVerdict::Missing(reason) if reason.kind() == MissingKind::HandlerRowAboveHorizon
+        ));
     }
 
     fn drop(kind: DropKind) -> Classification {

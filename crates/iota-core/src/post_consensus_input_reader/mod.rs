@@ -36,18 +36,21 @@
 //! The re-read after the store answer closes the window between the table
 //! reads and the store read. A write whose object the store answer already
 //! reflects put its entry in place first, by point 1, so the re-read finds
-//! the entry and decides from it. A write landing after the store answer
-//! belongs to a commit above the horizon, because the wait before validation
-//! completes every commit at or below it. Its entry answers missing when the
-//! re-read sees it, and when the re-read does not, the held answer is the
-//! state every validator that has not executed that commit shares. A version
-//! such a commit consumed is caught by the lock check before the reader runs.
-//! So one re-read is enough, and a second would face the same window again.
+//! the entry and decides from it. The re-read reads the record before the row
+//! and lets the row decide, because a completion can land between the two
+//! reads: it inserts the row and then removes the record, so a record the
+//! re-read misses was removed after a row the later row read finds. The
+//! other order can miss both. The hook classifies by the round map before it
+//! writes, so a record can be born for an already assigned commit during
+//! validation and be removed by that commit's completion moments later.
 //!
-//! Both arguments take validation of a commit to run on the handler thread,
-//! which is the thread that assigns commits. A record is removed only by the
-//! completion of an assigned commit, so no record born during validation is
-//! removed during it, and the re-read's record lookup sees it.
+//! A write landing after the store answer belongs to a commit above the
+//! horizon, because the wait before validation completes every commit at or
+//! below it. Its entry answers missing when the re-read sees it, and when the
+//! re-read does not, the held answer is the state every validator that has
+//! not executed that commit shares. A version such a commit consumed is
+//! caught by the lock check before the reader runs. So one re-read is enough,
+//! and a second would face the same window again.
 //!
 //! Visibility is `pub` until the validation entry point consumes the module;
 //! `pub(crate)` would be dead code under `-D warnings` until then.
