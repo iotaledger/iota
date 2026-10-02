@@ -107,6 +107,12 @@ impl LocalVm {
         &self.protocol_config
     }
 
+    /// The epoch's reference gas price, from the [`ChainContext`] the VM was
+    /// built with.
+    pub fn reference_gas_price(&self) -> u64 {
+        self.reference_gas_price
+    }
+
     /// A shared reference to the underlying store, for read-only lookups.
     pub fn store(&self) -> &dyn Store {
         self.store.as_ref()

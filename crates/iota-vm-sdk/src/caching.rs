@@ -86,12 +86,13 @@ impl<F: Clone> Clone for CachingStore<F> {
 }
 
 impl<F: ObjectFetcher> CachingStore<F> {
-    /// Wrap `fetcher`, starting with the built-in framework packages loaded so
-    /// Move calls resolve.
+    /// Wrap `fetcher`, starting empty. Framework packages are fetched from the
+    /// node like any other object, so a run sees the chain's versions rather
+    /// than the ones this binary was built with.
     pub(crate) fn new(fetcher: F) -> Self {
         Self {
             inner: Arc::new(Mutex::new(CacheState {
-                objects: InMemoryStore::with_framework(),
+                objects: InMemoryStore::new(),
                 removed: BTreeSet::new(),
             })),
             fetcher,
@@ -103,8 +104,7 @@ impl<F: ObjectFetcher> CachingStore<F> {
         &self.fetcher
     }
 
-    /// A snapshot clone of the objects cached so far (framework packages plus
-    /// anything fetched on demand).
+    /// A snapshot clone of the objects fetched or inserted so far.
     pub(crate) fn store(&self) -> InMemoryStore {
         self.state().objects.clone()
     }
