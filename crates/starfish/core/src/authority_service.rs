@@ -946,7 +946,6 @@ impl TransactionCursor {
             .max_fast_commit_sync_transaction_bytes;
         let mut chunk: Vec<Bytes> = self.carried_entry.take().into_iter().collect();
         let mut chunk_size: usize = chunk.iter().map(Bytes::len).sum();
-        // Entries of `chunk` from here on belong to the current commit.
         let mut commit_start = 0;
         while let Some(refs) = self.commits.front_mut() {
             let Some(&transaction_ref) = refs.first() else {
