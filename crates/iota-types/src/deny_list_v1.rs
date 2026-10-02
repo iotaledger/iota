@@ -13,7 +13,7 @@ use iota_sdk_move_types::iota_framework::{
     dynamic_object_field::Wrapper,
 };
 use iota_sdk_types::{Address, Identifier, ObjectId, Version};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
@@ -22,7 +22,6 @@ use crate::{
     config::Setting,
     dynamic_field::get_dynamic_field_from_store,
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
-    id::{ID, UID},
     object::Object,
     storage::{DenyListResult, ObjectStore},
     transaction::{CheckedInputObjects, ReceivingObjects},
@@ -33,21 +32,6 @@ pub const DENY_LIST_CREATE_FUNC: Identifier = Identifier::from_static("create");
 pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 
 pub const CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS: usize = 1000;
-
-/// Rust representation of the Move type 0x2::coin::RegulatedCoinMetadata.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RegulatedCoinMetadata {
-    pub id: UID,
-    pub coin_metadata_object: ID,
-    pub deny_cap_object: ID,
-}
-
-/// Rust representation of the Move type 0x2::coin::DenyCapV1.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DenyCapV1 {
-    pub id: UID,
-    pub allow_global_pause: bool,
-}
 
 /// Returns `Ok(())` if no input or receiving object's coin type is on a deny
 /// list for the given `address`.

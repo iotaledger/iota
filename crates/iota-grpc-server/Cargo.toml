@@ -37,6 +37,7 @@ iota-metrics.workspace = true
 iota-node-storage.workspace = true
 iota-node-transaction-builder.workspace = true
 iota-protocol-config.workspace = true
+iota-sdk-move-types = { workspace = true, features = ["serde"] }
 iota-sdk-transaction-builder.workspace = true
 iota-sdk-types.workspace = true
 iota-traffic-controller.workspace = true
