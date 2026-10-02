@@ -52,6 +52,7 @@ async-trait.workspace = true
 rcgen.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 iota-grpc-client.workspace = true

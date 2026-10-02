@@ -205,8 +205,8 @@ impl ValidatorConfigBuilder {
             protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
                 &validator.protocol_key_pair,
             )),
-            // A validator serves no JSON-RPC (`build_http_server` returns
-            // early on one), so this address is never bound. It is derived
+            // A validator serves no JSON-RPC (`IotaNode` does not build one
+            // for it), so this address is never bound. It is derived
             // from the network address rather than picked, so that the same
             // genesis config always gives the same node config.
             json_rpc_address: SocketAddr::new(
