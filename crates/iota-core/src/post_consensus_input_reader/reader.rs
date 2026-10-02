@@ -16,15 +16,11 @@ use iota_types::{
 
 use super::{
     KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
-    owned::{
-        HandlerRowLookup, HandlerRowRecheck, NeedBytes, OwnedReader, SyncAheadLookup,
-        SyncAheadRecheck,
-    },
+    owned::{HandlerRowLookup, NeedBytes, OwnedReader, SyncAheadLookup, TablesRecheck},
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
-        CreatedObjectLookup, CreationRowLookup, CreationRowRecheck, DeletionInfoLookup,
-        DeletionRowLookup, ObjectAbsent, PreSyncObjectLookup, SharedReader, SharedRecordLookup,
-        SharedRecordRecheck,
+        CreatedObjectLookup, CreationRowLookup, DeletionInfoLookup, DeletionRowLookup,
+        ObjectAbsent, PreSyncObjectLookup, SharedReader, SharedRecordLookup, SharedTablesRecheck,
     },
 };
 use crate::{
@@ -83,25 +79,16 @@ impl CommitIndexedReader {
             SyncAheadLookup::NoRecord(no_sync_ahead_record) => no_sync_ahead_record,
         };
 
-        // Rule 3: ask the store, hold the answer, read both tables again.
+        // Rule 3: ask the store, hold the answer, read both tables again,
+        // record first, row deciding.
         let store_answered = no_sync_ahead_record.read_store(self)?;
-
-        let store_answered_no_handler_row = match store_answered.reread_handler_row(self)? {
-            HandlerRowRecheck::NeedBytes(need_bytes) => {
-                return Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?));
-            }
-            HandlerRowRecheck::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
-            HandlerRowRecheck::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
-            HandlerRowRecheck::NoRow(store_answered_no_handler_row) => {
-                store_answered_no_handler_row
-            }
-        };
-        match store_answered_no_handler_row.reread_sync_ahead_record(self)? {
-            SyncAheadRecheck::NeedBytes(need_bytes) => {
+        let record_reread = store_answered.reread_sync_ahead_record(self)?;
+        match record_reread.reread_handler_row(self)? {
+            TablesRecheck::NeedBytes(need_bytes) => {
                 Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?))
             }
-            SyncAheadRecheck::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
-            SyncAheadRecheck::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
+            TablesRecheck::Missing(reason) => Ok(OwnedVerdict::Missing(reason)),
+            TablesRecheck::Drop(reason) => Ok(OwnedVerdict::Drop(reason)),
         }
     }
 
@@ -145,30 +132,20 @@ impl CommitIndexedReader {
             SharedRecordLookup::NoRecord(no_record) => no_record,
         };
 
-        // Store: hold the latest object, read both tables again.
+        // Store: hold the latest object, read both tables again, record
+        // first, creation row deciding.
         let object_answered = no_record.read_object(self)?;
-        let object_answered_no_creation_row = match object_answered.reread_creation_row(self)? {
-            CreationRowRecheck::Created(created) => {
-                return match created.read_object(self)? {
-                    CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
-                    CreatedObjectLookup::Absent(object_absent) => {
-                        self.check_deletion(object_absent)
-                    }
-                };
-            }
-            CreationRowRecheck::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
-            CreationRowRecheck::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
-            CreationRowRecheck::NoRow(object_answered_no_creation_row) => {
-                object_answered_no_creation_row
-            }
-        };
-        let object_absent = match object_answered_no_creation_row.reread_sync_ahead_record(self)? {
-            SharedRecordRecheck::Exists(object) => return Ok(SharedVerdict::Exists(object)),
-            SharedRecordRecheck::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
-            SharedRecordRecheck::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
-            SharedRecordRecheck::Absent(object_absent) => object_absent,
-        };
-        self.check_deletion(object_absent)
+        let record_reread = object_answered.reread_sync_ahead_record(self)?;
+        match record_reread.reread_creation_row(self)? {
+            SharedTablesRecheck::Created(created) => match created.read_object(self)? {
+                CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
+                CreatedObjectLookup::Absent(object_absent) => self.check_deletion(object_absent),
+            },
+            SharedTablesRecheck::Exists(object) => Ok(SharedVerdict::Exists(object)),
+            SharedTablesRecheck::Missing(reason) => Ok(SharedVerdict::Missing(reason)),
+            SharedTablesRecheck::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
+            SharedTablesRecheck::Absent(object_absent) => self.check_deletion(object_absent),
+        }
     }
 
     /// Deletion: this epoch's marker, then the row at the deleted version.
