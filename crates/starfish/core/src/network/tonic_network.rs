@@ -1218,6 +1218,8 @@ where
     client: Arc<TonicClient>,
     server: Option<ServerHandle>,
     _marker: std::marker::PhantomData<S>,
+    /// Time the server gives a response to be fully written.
+    send_timeout: Duration,
 }
 
 /// Long-lived server-streaming RPCs exempt from the server-side fallback
@@ -1250,7 +1252,7 @@ const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
 /// block-subscription stream is exempt. It equals the longest any requester
 /// waits for one fetch attempt, so a read the peer still waits for is never
 /// cut.
-pub(crate) fn response_send_timeout() -> Duration {
+fn response_send_timeout() -> Duration {
     max_fetch_attempt_timeout()
         .max(FAST_SYNC_HEADER_FETCH_TIMEOUT)
         .max(HEADER_SYNC_FETCH_TIMEOUT)
@@ -1265,6 +1267,7 @@ impl<S: NetworkService> TonicManager<S> {
             client: Arc::new(TonicClient::new(context, network_keypair)),
             server: None,
             _marker: std::marker::PhantomData,
+            send_timeout: response_send_timeout(),
         }
     }
 
@@ -1336,10 +1339,7 @@ impl<S: NetworkService> TonicManager<S> {
             // Innermost, so a rejected request is still counted and traced by
             // the layers above, and a request stalled in decode has its permit
             // released when the timeout above fires.
-            .layer(AdmissionLayer::new(
-                self.context.clone(),
-                response_send_timeout(),
-            ));
+            .layer(AdmissionLayer::new(self.context.clone(), self.send_timeout));
 
         let consensus_service_server = ConsensusServiceServer::new(service)
             .max_encoding_message_size(config.message_size_limit)
@@ -2732,9 +2732,10 @@ mod tests {
 
         use super::{
             FetchCommitsAndTransactionsRequest, FetchCommitsAndTransactionsResponse, TonicManager,
-            response_send_timeout,
         };
         use crate::network::test_network::TestService;
+
+        const SEND_TIMEOUT: Duration = Duration::from_secs(4);
 
         let (context, keys) = Context::new_for_test(4);
         let server_index = context.committee.to_authority_index(0).unwrap();
@@ -2749,6 +2750,7 @@ mod tests {
         // Larger than the client's window below, so the server stalls on it.
         service.fetch_commits_and_transactions_payload = vec![Bytes::from(vec![0u8; 1 << 20])];
         let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
+        server.send_timeout = SEND_TIMEOUT;
         server.install_service(Arc::new(Mutex::new(service))).await;
 
         let mut client_context = context
@@ -2828,7 +2830,7 @@ mod tests {
         drop((unread, admitted));
         settles("the reset streams keep their slots", &|| in_use.get() == 0).await;
         // The deadline fired once, for the response that was never read.
-        tokio::time::sleep(response_send_timeout()).await;
+        tokio::time::sleep(SEND_TIMEOUT).await;
         assert_eq!(reclaimed.get(), 1);
     }
 

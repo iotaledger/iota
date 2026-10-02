@@ -50,11 +50,7 @@ use crate::{
 };
 
 /// Timeout for fetching block headers during close-to-quorum finalization.
-#[cfg(not(test))]
 pub(crate) const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
-/// Keeps the response send deadline derived from it short under test.
-#[cfg(test)]
-pub(crate) const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// Demotes `authority` for subsequent header chunks after it failed to serve
 /// one, whether it errored, timed out, or returned headers that did not verify.
