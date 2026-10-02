@@ -513,6 +513,13 @@ mod tests {
             ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
                 congested_objects: vec![ObjectId::random()],
             },
+            ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                congested_objects: vec![ObjectId::random()],
+                suggested_gas_price: 1,
+            },
+            ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion {
+                suggested_gas_price: 1,
+            },
             ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
         ] {
             let error = wrapped(kind);
