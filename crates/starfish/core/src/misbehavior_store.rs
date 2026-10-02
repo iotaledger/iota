@@ -376,7 +376,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // be trusted, so charge the sender, not the claimed author. A streamed
         // block that repeats or lowers the peer's own round is charged the
         // same way: the signed header proves authorship, not the send order.
-        // So is a fetch response with more entries than the request allows.
+        // So is a fetch response with more entries than the request allows,
+        // or with an entry larger than any valid one.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -392,6 +393,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
         | ConsensusError::TooManyFetchedHeadersReturned { .. }
         | ConsensusError::TooManyFetchedTransactionsReturned(_)
+        | ConsensusError::TooManyCommitsFromPeer { .. }
+        | ConsensusError::TooManyCommitVoteHeaders { .. }
+        | ConsensusError::SerializedBlockHeaderTooLarge { .. }
         | ConsensusError::StreamedBlockRoundNotIncreasing { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
@@ -457,14 +461,11 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::EmptyMerkleTree
         | ConsensusError::MissingBlockHeader { .. }
         | ConsensusError::CommitRangeExceededAfterScanning { .. }
-        | ConsensusError::TooManyCommitsFromPeer { .. }
         | ConsensusError::NoCommitReceived { .. }
         | ConsensusError::UnexpectedStartCommit { .. }
         | ConsensusError::UnexpectedCommitSequence { .. }
         | ConsensusError::NotEnoughCommitVotes { .. }
-        | ConsensusError::TooManyCommitVoteHeaders { .. }
         | ConsensusError::SerializedCommitTooLarge { .. }
-        | ConsensusError::SerializedBlockHeaderTooLarge { .. }
         | ConsensusError::InvalidCommitRange { .. }
         | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
@@ -1267,10 +1268,34 @@ mod tests {
                 received: 2,
             },
         );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::TooManyCommitsFromPeer {
+                peer,
+                count: 3,
+                limit: 2,
+            },
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::TooManyCommitVoteHeaders {
+                peer,
+                count: 9,
+                limit: 8,
+            },
+        );
+        store.record_fetch_fault(
+            peer,
+            &ConsensusError::SerializedBlockHeaderTooLarge {
+                peer,
+                size: 2,
+                limit: 1,
+            },
+        );
         store.record_fetch_fault(peer, &ConsensusError::NetworkRequest("cut".to_string()));
 
         let counts = store.in_memory.snapshot(peer.value());
-        assert_eq!(counts.faulty_blocks_unprovable, 3);
+        assert_eq!(counts.faulty_blocks_unprovable, 6);
         assert_eq!(counts.faulty_blocks_provable, 0);
         assert_eq!(counts.invalid_bundle_parts, 0);
     }
@@ -1425,6 +1450,11 @@ mod tests {
             // Commit-chain inconsistencies.
             ConsensusError::NoCommitReceived { peer: authority },
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
+            ConsensusError::SerializedCommitTooLarge {
+                peer: authority,
+                size: 2,
+                limit: 1,
+            },
             // Fetch shortfalls (client-side truncation can produce them).
             ConsensusError::NotEnoughHeadersFetched {
                 peer: authority,
