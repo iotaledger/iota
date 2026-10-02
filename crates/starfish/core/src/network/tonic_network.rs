@@ -169,7 +169,6 @@ impl NetworkClient for TonicClient {
             .get_channel_with_retries(self.network_keypair.clone(), peer, timeout)
             .await?;
         let mut client = self.service_client(channel);
-        // TODO: add sampled block acknowledgments for latency measurements.
         let request = Request::new(stream::once(async move {
             SubscribeBlockBundlesRequest {
                 last_received_round: last_received,
