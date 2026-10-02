@@ -849,7 +849,10 @@ fn build_upgraded_type_origin_table(
 /// Derived from the network's [`ProtocolConfig`], it lets those routines depend
 /// on a small, explicit set of protocol-gated flags rather than the full
 /// [`ProtocolConfig`].
-#[derive(Debug, Clone, Copy, Default)]
+///
+/// The [`Default`] value is meant for builds whose target network is unknown:
+/// it allows view functions, which every public network has enabled.
+#[derive(Debug, Clone, Copy)]
 pub struct ProtocolBuildConfig {
     /// Build the module metadata with view function information and enable the
     /// verifier to check the correctness of the view function attribute.
@@ -864,6 +867,16 @@ pub struct ProtocolBuildConfig {
     /// `max_move_package_size`, while `None` next to an unknown user bound
     /// means the real limit is unknown too.
     pub max_move_system_package_size: Option<u64>,
+}
+
+impl Default for ProtocolBuildConfig {
+    fn default() -> Self {
+        Self {
+            allow_view_function: true,
+            max_move_package_size: None,
+            max_move_system_package_size: None,
+        }
+    }
 }
 
 impl ProtocolBuildConfig {
