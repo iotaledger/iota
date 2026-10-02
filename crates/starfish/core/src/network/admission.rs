@@ -6,11 +6,12 @@
 //! Each RPC group has an independent concurrency budget per committee peer,
 //! keyed on the peer's authenticated authority index. A misbehaving peer can
 //! only exhaust its own budget, never another peer's. Commit fetches carry a
-//! second budget shared by all peers, since their responses are held in memory
-//! until they have been sent; a peer holding no commit fetch is granted one
-//! whatever the others hold, so that budget bounds how much a peer can be
-//! crowded out, never whether it is served at all. Caps are local, opt-in
-//! parameters; a cap of `0` disables the group, leaving the mechanism inert.
+//! second budget shared by all peers, since their responses hold memory and
+//! read the store until they have been sent; a peer holding no commit fetch is
+//! granted one whatever the others hold, so that budget bounds how much a peer
+//! can be crowded out, never whether it is served at all. Caps are local,
+//! opt-in parameters; a cap of `0` disables the group, leaving the mechanism
+//! inert.
 
 use std::{
     future::Future,

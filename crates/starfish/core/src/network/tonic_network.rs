@@ -1293,12 +1293,12 @@ const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_MESSAGE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Time a response has to be fully written after its handler returned it. A
-/// peer that stops reading leaves the stream parked with the built response,
-/// the encoder buffer and the admission permits in it; past this the body
-/// gives them up, keeping only the peer's own slot until the stream ends. The
-/// block-subscription stream is exempt. It equals the longest any requester
-/// waits for one fetch attempt, so a read the peer still waits for is never
-/// cut.
+/// peer that stops reading leaves the stream parked with the rest of the
+/// response, the encoder buffer and the admission permits in it; past this the
+/// body gives them up, keeping only the peer's own slot until the stream ends.
+/// The block-subscription stream is exempt. It equals the longest any
+/// requester waits for one fetch attempt, so a read the peer still waits for
+/// is never cut.
 fn response_send_timeout() -> Duration {
     max_fetch_attempt_timeout()
         .max(FAST_SYNC_HEADER_FETCH_TIMEOUT)
