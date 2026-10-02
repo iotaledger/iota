@@ -2548,10 +2548,34 @@ has_public_key
 borrow_public_key
 	public fun
 	0x2::builtin_authenticator_functions
+ed25519_authenticator_v1
+	fun
+	0x2::builtin_authenticator_functions
+secp256k1_authenticator_v1
+	fun
+	0x2::builtin_authenticator_functions
+secp256r1_authenticator_v1
+	fun
+	0x2::builtin_authenticator_functions
+multisig_authenticator_v1
+	fun
+	0x2::builtin_authenticator_functions
+passkey_authenticator_v1
+	fun
+	0x2::builtin_authenticator_functions
 public_key_field_name
 	fun
 	0x2::builtin_authenticator_functions
 check_builtin_authenticators_enabled
+	fun
+	0x2::builtin_authenticator_functions
+borrow_public_key_with_scheme
+	fun
+	0x2::builtin_authenticator_functions
+borrow_account_uid
+	fun
+	0x2::builtin_authenticator_functions
+verify_builtin_signature
 	fun
 	0x2::builtin_authenticator_functions
 claim_address

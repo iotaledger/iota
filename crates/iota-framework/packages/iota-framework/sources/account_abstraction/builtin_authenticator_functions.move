@@ -55,16 +55,22 @@ const EUnsupportedSignatureScheme: vector<u8> = b"Unsupported signature scheme."
 const EPublicKeyMissing: vector<u8> = b"Public key missing.";
 #[error(code = 11)]
 const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
+#[error(code = 12)]
+const EPublicKeySchemeMismatch: vector<u8> =
+    b"Attached public key scheme does not match the authenticator.";
+
+#[error(code = 20)]
+const EInvalidSignature: vector<u8> = b"Invalid signature.";
 
 // === Constants ===
 
 const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME: vector<u8> = b"builtin_authenticator_functions";
 
-const ED25519_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"ed25519_authenticator_function_ref_v1";
-const SECP256K1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256k1_authenticator_function_ref_v1";
-const SECP256R1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256r1_authenticator_function_ref_v1";
-const MULTISIG_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"multisig_authenticator_function_ref_v1";
-const PASSKEY_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"passkey_authenticator_function_ref_v1";
+const ED25519_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"ed25519_authenticator_v1";
+const SECP256K1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256k1_authenticator_v1";
+const SECP256R1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256r1_authenticator_v1";
+const MULTISIG_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"multisig_authenticator_v1";
+const PASSKEY_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"passkey_authenticator_v1";
 
 // === Events ===
 
@@ -340,6 +346,56 @@ public fun borrow_public_key(account_id: &UID): &PublicKey {
 
 // === Private Functions ===
 
+#[allow(unused_function)]
+/// Authenticates a transaction sent by `account` against its attached Ed25519 public key.
+///
+/// Called by the executor for accounts using `ed25519_authenticator_function_ref_v1`.
+/// See that function for the `signature` format.
+fun ed25519_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
+    let public_key = borrow_public_key_with_scheme(account, signature_scheme::ed25519());
+    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
+}
+
+#[allow(unused_function)]
+/// Authenticates a transaction sent by `account` against its attached Secp256k1 public key.
+///
+/// Called by the executor for accounts using `secp256k1_authenticator_function_ref_v1`.
+/// See that function for the `signature` format.
+fun secp256k1_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
+    let public_key = borrow_public_key_with_scheme(account, signature_scheme::secp256k1());
+    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
+}
+
+#[allow(unused_function)]
+/// Authenticates a transaction sent by `account` against its attached Secp256r1 public key.
+///
+/// Called by the executor for accounts using `secp256r1_authenticator_function_ref_v1`.
+/// See that function for the `signature` format.
+fun secp256r1_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
+    let public_key = borrow_public_key_with_scheme(account, signature_scheme::secp256r1());
+    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
+}
+
+#[allow(unused_function)]
+/// Authenticates a transaction sent by `account` against its attached MultiSig public key.
+///
+/// Called by the executor for accounts using `multisig_authenticator_function_ref_v1`.
+/// See that function for the `signature` format.
+fun multisig_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
+    let public_key = borrow_public_key_with_scheme(account, signature_scheme::multisig());
+    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
+}
+
+#[allow(unused_function)]
+/// Authenticates a transaction sent by `account` against its attached Passkey public key.
+///
+/// Called by the executor for accounts using `passkey_authenticator_function_ref_v1`.
+/// See that function for the `signature` format.
+fun passkey_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
+    let public_key = borrow_public_key_with_scheme(account, signature_scheme::passkey());
+    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
+}
+
 /// A utility function to construct the dynamic field name for the public key field.
 fun public_key_field_name(): PublicKeyFieldName {
     PublicKeyFieldName {}
@@ -353,4 +409,70 @@ fun check_builtin_authenticators_enabled() {
     );
 }
 
+/// Borrows the public key attached to `account`.
+///
+/// Aborts if built-in authenticators are disabled, if no public key is attached, or if the
+/// attached key does not use `scheme`.
+fun borrow_public_key_with_scheme<Account: key>(
+    account: &Account,
+    scheme: SignatureScheme,
+): &PublicKey {
+    check_builtin_authenticators_enabled();
+
+    let public_key = borrow_public_key(borrow_account_uid(account));
+    assert!(public_key.scheme() == scheme, EPublicKeySchemeMismatch);
+
+    public_key
+}
+
+// === Native Functions ===
+
+/// Borrows the account `UID`.
+native fun borrow_account_uid<Account: key>(account: &Account): &UID;
+
+/// Returns true if `signature` is a valid signature of the transaction being authenticated
+/// by `public_key`, using the signature scheme of `public_key`.
+native fun verify_builtin_signature(public_key: &PublicKey, signature: &vector<u8>): bool;
+
 // === Test Functions ===
+
+
+#[test_only]
+public fun ed25519_authenticator_v1_for_testing<Account: key>(
+    account: &Account,
+    signature: vector<u8>,
+) {
+    ed25519_authenticator_v1(account, signature)
+}
+
+#[test_only]
+public fun secp256k1_authenticator_v1_for_testing<Account: key>(
+    account: &Account,
+    signature: vector<u8>,
+) {
+    secp256k1_authenticator_v1(account, signature)
+}
+
+#[test_only]
+public fun secp256r1_authenticator_v1_for_testing<Account: key>(
+    account: &Account,
+    signature: vector<u8>,
+) {
+    secp256r1_authenticator_v1(account, signature)
+}
+
+#[test_only]
+public fun multisig_authenticator_v1_for_testing<Account: key>(
+    account: &Account,
+    signature: vector<u8>,
+) {
+    multisig_authenticator_v1(account, signature)
+}
+
+#[test_only]
+public fun passkey_authenticator_v1_for_testing<Account: key>(
+    account: &Account,
+    signature: vector<u8>,
+) {
+    passkey_authenticator_v1(account, signature)
+}

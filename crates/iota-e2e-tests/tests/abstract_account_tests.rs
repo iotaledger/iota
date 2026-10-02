@@ -104,6 +104,11 @@ const AA_BUILTIN_MULTISIG_CREATE_FN: &str = "create_with_multisig";
 const AA_BUILTIN_PASSKEY_CREATE_FN: &str = "create_with_passkey";
 const AA_BUILTIN_ED25519_AUTH_SECP256K1_KEY_CREATE_FN: &str =
     "create_with_ed25519_auth_and_secp256k1_key";
+const BUILTIN_AUTHENTICATOR_MODULE_NAME: &str = "builtin_authenticator_functions";
+/// `builtin_authenticator_functions::EPublicKeySchemeMismatch`.
+const BUILTIN_AUTHENTICATOR_E_PUBLIC_KEY_SCHEME_MISMATCH: u64 = 12;
+/// `builtin_authenticator_functions::EInvalidSignature`.
+const BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE: u64 = 20;
 
 // ------------------------------
 // --- Abstract Account tests ---
@@ -2743,13 +2748,11 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Ed25519 key, got: {err:?}");
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Value was not signed by the correct sender"),
-        "Expected 'Value was not signed by the correct sender' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_MODULE_NAME,
+        "ed25519_authenticator_v1",
+        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
 }
@@ -2799,13 +2802,11 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Secp256k1 key, got: {err:?}");
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Value was not signed by the correct sender"),
-        "Expected 'Value was not signed by the correct sender' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_MODULE_NAME,
+        "secp256k1_authenticator_v1",
+        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
 }
@@ -2855,13 +2856,11 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
     let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
         panic!("Expected MoveAuthenticatorExecutionFailure for wrong Secp256r1 key, got: {err:?}");
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Value was not signed by the correct sender"),
-        "Expected 'Value was not signed by the correct sender' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_MODULE_NAME,
+        "secp256r1_authenticator_v1",
+        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
 }
@@ -2933,13 +2932,11 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
              {err:?}"
         );
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Insufficient weight"),
-        "Expected 'Insufficient weight' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_MODULE_NAME,
+        "multisig_authenticator_v1",
+        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
 }
@@ -3100,13 +3097,11 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
             "Expected MoveAuthenticatorExecutionFailure for wrong Passkey credential, got: {err:?}"
         );
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Invalid author"),
-        "Expected 'Invalid author' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_MODULE_NAME,
+        "passkey_authenticator_v1",
+        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
 }
@@ -3168,13 +3163,11 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
              got: {err:?}"
         );
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Signature scheme mismatch"),
-        "Expected 'Signature scheme mismatch' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_MODULE_NAME,
+        "ed25519_authenticator_v1",
+        BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
 }
@@ -3184,10 +3177,9 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
 ///
 /// The account is deliberately misconfigured:
 /// `ed25519_authenticator_function_ref_v1` is used but a Secp256k1 public key
-/// is attached. The signature is Ed25519 (so the signature scheme check
-/// passes), but `verify_builtin_signature` catches the mismatch between the
-/// authenticator's expected scheme (Ed25519) and the stored key's scheme
-/// (Secp256k1).
+/// is attached. The signature is Ed25519, but the authenticator aborts on the
+/// mismatch between its expected scheme (Ed25519) and the stored key's scheme
+/// (Secp256k1) before verifying the signature.
 #[sim_test]
 async fn test_builtin_ed25519_authenticator_public_key_scheme_mismatch() -> Result<(), anyhow::Error>
 {
@@ -3238,13 +3230,11 @@ async fn test_builtin_ed25519_authenticator_public_key_scheme_mismatch() -> Resu
              got: {err:?}"
         );
     };
-    assert!(
-        error.contains("BuiltinAuthenticatorVerificationError"),
-        "Expected BuiltinAuthenticatorVerificationError in error, got: {error}"
-    );
-    assert!(
-        error.contains("Public key scheme mismatch"),
-        "Expected 'Public key scheme mismatch' in error, got: {error}"
+    assert_move_authentication_abort(
+        error,
+        BUILTIN_AUTHENTICATOR_MODULE_NAME,
+        "borrow_public_key_with_scheme",
+        BUILTIN_AUTHENTICATOR_E_PUBLIC_KEY_SCHEME_MISMATCH,
     );
     Ok(())
 }
@@ -3303,14 +3293,7 @@ async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(
     // The custom authenticator calls `iota::hex::decode` on the raw wire bytes.
     // The wire format is 97 bytes (odd), so `hex::decode` aborts immediately with
     // `EInvalidHexLength` (code 0) before any signature verification is attempted.
-    assert!(
-        error.contains("MoveAbort"),
-        "Expected a MoveAbort (not a builtin verification error), got: {error}"
-    );
-    assert!(
-        error.contains("hex"),
-        "Expected abort to originate in the `hex` module, got: {error}"
-    );
+    assert_move_authentication_abort(error, "hex", "decode", 0);
     Ok(())
 }
 
@@ -4396,6 +4379,33 @@ impl TestEnvironment {
 // ---------------------------------------------------
 // --- Utilities -------------------------------------
 // ---------------------------------------------------
+
+/// Asserts that `error` is a `MoveAuthentication` failure wrapping an abort
+/// with `error_code` raised in `module::function`. For an abort raised with a
+/// `#[error]` constant, `error_code` is the code encoded in the abort code.
+fn assert_move_authentication_abort(error: &str, module: &str, function: &str, error_code: u64) {
+    assert!(
+        error.starts_with("MoveAuthentication: Move authentication failed: Move Runtime Abort."),
+        "Expected a MoveAuthentication error wrapping a Move abort, got: {error}"
+    );
+    assert!(
+        error.contains(&format!("::{module}::{function} ")),
+        "Expected an abort in `{module}::{function}`, got: {error}"
+    );
+    let abort_code = error
+        .split("Abort Code: ")
+        .nth(1)
+        .and_then(|rest| rest.split(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|code| code.parse::<u64>().ok())
+        .unwrap_or_else(|| panic!("Expected an abort code in error, got: {error}"));
+    let actual_error_code = ErrorBitset::from_u64(abort_code)
+        .and_then(|bitset| bitset.error_code())
+        .map_or(abort_code, u64::from);
+    assert_eq!(
+        actual_error_code, error_code,
+        "Unexpected abort code in error: {error}"
+    );
+}
 
 fn abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())

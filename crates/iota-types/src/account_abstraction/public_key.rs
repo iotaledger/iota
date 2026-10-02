@@ -11,6 +11,7 @@ use iota_sdk_types::{
     Address, Identifier, SignatureScheme, StructTag,
     crypto::{MultisigCommittee, PublicKey as SdkPublicKey},
 };
+use move_core_types::runtime_value::{MoveStructLayout, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
 use crate::{account_abstraction::signature_scheme::MoveSignatureScheme, crypto::PublicKey};
@@ -86,6 +87,17 @@ impl MovePublicKey {
             PUBLIC_KEY_STRUCT_NAME,
             Vec::new(),
         )
+    }
+
+    /// Returns the runtime layout of the Move `public_key::PublicKey` struct.
+    pub fn layout() -> MoveTypeLayout {
+        let scheme = MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![
+            MoveTypeLayout::U8,
+        ]))));
+        let raw_bytes = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
+        MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![
+            scheme, raw_bytes,
+        ]))))
     }
 
     /// Returns the `SignatureScheme` for this public key.
