@@ -942,13 +942,15 @@ pub(crate) fn requeue_partial_range(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use futures::{StreamExt as _, stream};
+
     use super::*;
     use crate::{
         Round,
         block_header::{BlockHeaderDigest, TestBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
-        network::BlockBundleStream,
+        network::{BlockBundleStream, FetchedCommitsAndTransactions},
         transaction_ref::TransactionRef,
     };
 
@@ -1028,18 +1030,22 @@ pub(crate) mod tests {
             peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             self.requested_peers.lock().push(peer);
             sleep(self.response_delay).await;
             match &self.commits_and_transactions {
-                Some((commits, headers, transactions)) => Ok((
-                    commits.clone(),
-                    headers.clone(),
-                    transactions.clone(),
-                    self.stream_error_message
+                Some((commits, headers, transactions)) => {
+                    let chunk = (!transactions.is_empty()).then(|| Ok(transactions.clone()));
+                    let cut = self
+                        .stream_error_message
                         .clone()
-                        .map(ConsensusError::NetworkRequest),
-                )),
+                        .map(|message| Err(ConsensusError::NetworkRequest(message)));
+                    Ok(FetchedCommitsAndTransactions {
+                        commits: commits.clone(),
+                        certifier_block_headers: headers.clone(),
+                        transactions: stream::iter(chunk.into_iter().chain(cut)).boxed(),
+                    })
+                }
                 None => Err(ConsensusError::NoCommitReceived { peer }),
             }
         }

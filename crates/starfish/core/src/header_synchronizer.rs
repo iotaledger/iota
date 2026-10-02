@@ -1932,7 +1932,7 @@ mod tests {
             HeaderSynchronizer, InflightBlockHeadersMap, SyncMethod,
         },
         misbehavior_store::MisbehaviorStore,
-        network::{BlockBundleStream, NetworkClient},
+        network::{BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::{GenericTransactionRef, TransactionRef},
         transactions_synchronizer::TransactionsSynchronizer,
@@ -2095,7 +2095,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             unimplemented!("fetch_commits_and_transactions not implemented in mock")
         }
     }

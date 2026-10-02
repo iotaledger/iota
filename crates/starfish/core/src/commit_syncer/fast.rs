@@ -12,6 +12,7 @@ use std::{
 };
 
 use bytes::Bytes;
+use futures::StreamExt as _;
 use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 #[cfg(not(test))]
@@ -44,7 +45,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
-    network::{NetworkClient, SerializedTransactionsV2},
+    network::{FetchedCommitsAndTransactions, NetworkClient, SerializedTransactionsV2},
     sliding_window_schedule::SlidingWindowSchedule,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -619,12 +620,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as
         //    SerializedTransactionsV2 which includes the TransactionRef.
-        let (
-            serialized_commits,
-            serialized_proof_for_last_commit,
-            serialized_transactions,
-            stream_error,
-        ) = inner
+        let FetchedCommitsAndTransactions {
+            commits: serialized_commits,
+            certifier_block_headers: serialized_proof_for_last_commit,
+            transactions: mut transaction_chunks,
+        } = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await
@@ -633,6 +633,27 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     .misbehavior_store
                     .record_fetch_fault(target_authority, e);
             })?;
+        let mut serialized_transactions = Vec::new();
+        let mut stream_error = None;
+        while let Some(chunk) = transaction_chunks.next().await {
+            match chunk {
+                Ok(chunk) => serialized_transactions.extend(chunk),
+                // A cut connection leaves the delivered chunks usable.
+                Err(
+                    e @ (ConsensusError::NetworkRequest(_)
+                    | ConsensusError::NetworkRequestTimeout(_)),
+                ) => {
+                    stream_error = Some(e);
+                    break;
+                }
+                Err(e) => {
+                    inner
+                        .misbehavior_store
+                        .record_fetch_fault(target_authority, &e);
+                    return Err(e);
+                }
+            }
+        }
 
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,

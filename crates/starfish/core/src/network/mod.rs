@@ -32,7 +32,6 @@ use serde::{
     de::{self, SeqAccess, Visitor},
 };
 use starfish_config::{AuthorityIndex, Committee, MAX_HEADERS_OR_SHARDS_PER_BUNDLE};
-use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
     Round, VerifiedBlockHeader,
@@ -64,22 +63,25 @@ use crate::{
     commit_syncer::CommitSyncType, encoder::ShardEncoder, transaction_ref::TransactionRef,
 };
 
-/// Serialized response of a fast commit-sync fetch. Each entry of
-/// `transactions` is a `SerializedTransactionsV2`, which carries its
-/// `TransactionRef`, and covers a prefix of the commits when not all of their
-/// payloads fit one response.
+/// Serialized response of a fast commit-sync fetch: the commits and their
+/// certifier headers in full, then the transaction entries as they are sent.
+/// Each entry is a `SerializedTransactionsV2`, which carries its
+/// `TransactionRef`, and the entries cover a prefix of the commits when not all
+/// of their payloads fit one response.
 pub(crate) struct FetchedCommitsAndTransactions {
     pub(crate) commits: Vec<Bytes>,
     pub(crate) certifier_block_headers: Vec<Bytes>,
-    pub(crate) transactions: Vec<Bytes>,
-    /// Held until the response has been sent, so a second oversized commit is
-    /// not read while this one is still in memory.
-    pub(crate) oversized_commit_permit: Option<OwnedSemaphorePermit>,
+    pub(crate) transactions: TransactionChunkStream,
 }
 
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
+
+/// Transaction entries of a fast commit-sync response, one response message per
+/// item. An error item is the last one.
+pub(crate) type TransactionChunkStream =
+    Pin<Box<dyn Stream<Item = ConsensusResult<Vec<Bytes>>> + Send>>;
 
 /// Network client for communicating with peers.
 ///
@@ -133,20 +135,19 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
 
     /// Fetches serialized commits in the commit range from a peer, headers
     /// voting for the last commit, and all transactions from these commits.
-    /// Returns serialized commits, serialized headers voting for the last
-    /// commit, and serialized transactions (as SerializedTransactionsV2 which
-    /// includes TransactionRef). Used in the fast commit syncer.
+    /// The commits and headers have all arrived when this returns; the
+    /// transactions arrive through the returned stream. Used in the fast commit
+    /// syncer.
     ///
-    /// When the response stream is cut by an error after commits were
-    /// received, the buffers hold what arrived and the error is returned
-    /// alongside them, so the caller can attribute missing transactions to
-    /// the connection rather than to the peer's data.
+    /// When the response is cut by an error after commits were received, the
+    /// transaction stream ends with that error, so the caller can attribute
+    /// missing transactions to the connection rather than to the peer's data.
     async fn fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)>;
+    ) -> ConsensusResult<FetchedCommitsAndTransactions>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of
