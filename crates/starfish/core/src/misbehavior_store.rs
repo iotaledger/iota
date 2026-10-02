@@ -375,7 +375,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // block that repeats or lowers the peer's own round is charged the
         // same way: the signed header proves authorship, not the send order.
         // So is a fetch response with more entries than the request allows,
-        // or with an entry larger than any valid one.
+        // with an entry larger than any valid one, or with commits after its
+        // transactions.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader
         | ConsensusError::UnexpectedAuthority(..)
@@ -394,7 +395,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TooManyCommitsFromPeer { .. }
         | ConsensusError::TooManyCommitVoteHeaders { .. }
         | ConsensusError::SerializedBlockHeaderTooLarge { .. }
-        | ConsensusError::StreamedBlockRoundNotIncreasing { .. } => FaultType::Unprovable,
+        | ConsensusError::StreamedBlockRoundNotIncreasing { .. }
+        | ConsensusError::CommitDataAfterTransactions { .. } => FaultType::Unprovable,
 
         // Relayed bundle parts that are corrupt or invalid (framing,
         // additional-header round, shard structure/proof) or that the peer had

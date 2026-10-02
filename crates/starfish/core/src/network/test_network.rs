@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::stream;
+use futures::{StreamExt as _, stream};
 use parking_lot::Mutex;
 use starfish_config::AuthorityIndex;
 use tokio::sync::Notify;
@@ -153,11 +153,12 @@ impl NetworkService for Mutex<TestService> {
         _peer: AuthorityIndex,
         _commit_range: CommitRange,
     ) -> ConsensusResult<FetchedCommitsAndTransactions> {
+        let payload = self.lock().fetch_commits_and_transactions_payload.clone();
+        let chunks = (!payload.is_empty()).then_some(Ok(payload));
         Ok(FetchedCommitsAndTransactions {
             commits: vec![],
             certifier_block_headers: vec![],
-            transactions: self.lock().fetch_commits_and_transactions_payload.clone(),
-            oversized_commit_permit: None,
+            transactions: stream::iter(chunks).boxed(),
         })
     }
 

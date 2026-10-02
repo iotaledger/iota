@@ -455,6 +455,9 @@ pub(crate) enum ConsensusError {
 
     #[error("Transaction {transaction_ref} of a requested commit is not available on this node")]
     TransactionsNotAvailable { transaction_ref: TransactionRef },
+
+    #[error("Peer {peer} sent commits or certifier headers after transactions")]
+    CommitDataAfterTransactions { peer: AuthorityIndex },
 }
 
 impl ConsensusError {

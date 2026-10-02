@@ -44,6 +44,7 @@ use crate::{
         BlockBundleStream, FetchedCommitsAndTransactions, NetworkService, SerializedBlock,
         SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
         SerializedTransactionsV2, StreamPosition,
+        tonic_network::{MAX_FETCH_RESPONSE_BYTES, chunk_data},
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -963,6 +964,24 @@ fn take_oversized_commit_slot(
     Ok(())
 }
 
+/// A response stream that keeps `_permit` held until the stream is dropped,
+/// which is once the response has been sent or the peer has gone away.
+struct PermitHoldingStream<St> {
+    inner: St,
+    _permit: Option<OwnedSemaphorePermit>,
+}
+
+impl<St: Stream + Unpin> Stream for PermitHoldingStream<St> {
+    type Item = St::Item;
+
+    fn poll_next(
+        self: Pin<&mut Self>,
+        cx: &mut task::Context<'_>,
+    ) -> task::Poll<Option<Self::Item>> {
+        Pin::new(&mut self.get_mut().inner).poll_next(cx)
+    }
+}
+
 /// Wraps a payload and its ref into the entry a transaction-fetch response
 /// carries.
 fn serialize_transactions_entry(
@@ -1775,11 +1794,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map(|h| h.serialized().clone())
             .collect();
 
+        let transaction_chunks = chunk_data(serialized_transactions, MAX_FETCH_RESPONSE_BYTES);
         Ok(FetchedCommitsAndTransactions {
             commits: serialized_commits,
             certifier_block_headers: serialized_headers,
-            transactions: serialized_transactions,
-            oversized_commit_permit,
+            transactions: PermitHoldingStream {
+                inner: stream::iter(transaction_chunks.into_iter().map(Ok)),
+                _permit: oversized_commit_permit,
+            }
+            .boxed(),
         })
     }
 
@@ -2145,7 +2168,7 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::StreamExt;
+    use futures::{StreamExt, stream};
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use rstest::rstest;
@@ -2159,7 +2182,7 @@ mod tests {
         CommitConsumer, CommitIndex, Round, Transaction, TransactionClient,
         authority_service::{
             AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
-            SubscriptionCounter, fast_sync_search_bound, filtered_header_info,
+            PermitHoldingStream, SubscriptionCounter, fast_sync_search_bound, filtered_header_info,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -2187,9 +2210,9 @@ mod tests {
         leader_schedule::LeaderSchedule,
         misbehavior_store::MisbehaviorStore,
         network::{
-            BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
-            SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV2, StreamPosition,
+            BlockBundle, BlockBundleStream, FetchedCommitsAndTransactions, NetworkClient,
+            NetworkService, SerializedBlock, SerializedBlockBundle, SerializedBlockBundleParts,
+            SerializedHeaderAndTransactions, SerializedTransactionsV2, StreamPosition,
         },
         shard_reconstructor::TransactionMessage,
         storage::{Store, WriteBatch, mem_store::MemStore},
@@ -2259,7 +2282,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+        ) -> ConsensusResult<FetchedCommitsAndTransactions> {
             unimplemented!("Unimplemented")
         }
 
@@ -6161,5 +6184,24 @@ mod tests {
             fetch(),
             Err(ConsensusError::TransactionsNotAvailable { .. })
         ));
+    }
+
+    /// The permit stays held while the response is streamed, including after
+    /// its last message, and is released once the stream is dropped.
+    #[tokio::test]
+    async fn permit_holding_stream_releases_the_permit_when_dropped() {
+        let slot = Arc::new(Semaphore::new(1));
+        let mut responses = PermitHoldingStream {
+            inner: stream::iter([1, 2]),
+            _permit: Some(slot.clone().try_acquire_owned().unwrap()),
+        };
+        assert_eq!(responses.next().await, Some(1));
+        assert_eq!(slot.available_permits(), 0);
+        assert_eq!(responses.next().await, Some(2));
+        assert_eq!(responses.next().await, None);
+        assert_eq!(slot.available_permits(), 0);
+
+        drop(responses);
+        assert_eq!(slot.available_permits(), 1);
     }
 }
