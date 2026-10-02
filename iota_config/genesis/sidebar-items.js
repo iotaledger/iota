@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD"],"fn":["csv_reader_with_comments"],"struct":["Genesis","GenesisCeremonyParameters","GenesisChainParameters","TokenAllocation","TokenDistributionSchedule","TokenDistributionScheduleBuilder","UnsignedGenesis"]};

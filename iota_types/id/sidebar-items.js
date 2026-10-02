@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["RESOLVED_IOTA_ID"],"struct":["ID","UID"]};

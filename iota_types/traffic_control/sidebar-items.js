@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ClientIdSource","PolicyType"],"fn":["default_blocklist_ttl_sec","default_client_id_source","default_dry_run","default_spam_sample_rate"],"struct":["FreqThresholdConfig","PolicyConfig","RemoteFirewallConfig","TrafficControlReconfigParams","Weight"]};

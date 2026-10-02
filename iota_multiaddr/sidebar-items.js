@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Error","Protocol"],"fn":["parse_dns","parse_ip4","parse_ip6"],"struct":["Multiaddr"]};

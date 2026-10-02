@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["EpochFlag","EpochStartConfiguration"],"struct":["EpochStartConfigurationV1","EpochStartConfigurationV2","EpochStartConfigurationV3"],"trait":["EpochStartConfigTrait"]};

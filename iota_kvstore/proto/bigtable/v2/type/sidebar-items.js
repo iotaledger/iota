@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Kind"],"mod":["aggregate","bytes","int64","string","struct"],"struct":["Aggregate","Array","Bool","Bytes","Date","Float32","Float64","Int64","Map","String","Struct","Timestamp"]};

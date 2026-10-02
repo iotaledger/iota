@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Mutation"],"struct":["AddToCell","DeleteFromColumn","DeleteFromFamily","DeleteFromRow","MergeToCell","SetCell"]};

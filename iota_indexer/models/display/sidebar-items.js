@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DisplayBcsKind"],"fn":["display_id_from_created_event","displayed_type_from_created_event"],"struct":["StoredDisplay"]};

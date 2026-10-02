@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["authenticate_then_execute_transaction_to_effects","authenticate_transaction","authenticate_transaction_inner","construct_advance_epoch_pt_impl","construct_advance_epoch_pt_v1","construct_advance_epoch_pt_v2","construct_advance_epoch_pt_v3","construct_advance_epoch_pt_v4","execute_genesis_state_update","execute_transaction_to_effects"]};
