@@ -16,11 +16,11 @@ use iota_types::{
 
 use super::{
     KeptObject, OwnedVerdict, PackageVerdict, SharedVerdict,
-    owned::{HandlerRowLookup, NeedBytes, OwnedReader, SyncAheadLookup, TablesRecheck},
+    owned::{NeedBytes, OwnedReader, TablesLookup, TablesRecheck},
     package::{PackageLookup, PackageReader, PackageRowLookup},
     shared::{
-        CreatedObjectLookup, CreationRowLookup, DeletionInfoLookup, DeletionRowLookup,
-        ObjectAbsent, PreSyncObjectLookup, SharedReader, SharedRecordLookup, SharedTablesRecheck,
+        CreatedObjectLookup, DeletionInfoLookup, DeletionRowLookup, ObjectAbsent,
+        PreSyncObjectLookup, SharedReader, SharedTablesLookup, SharedTablesRecheck,
     },
 };
 use crate::{
@@ -59,29 +59,23 @@ impl CommitIndexedReader {
     /// Rules 1 to 3 for one owned input. Storage errors propagate. They are
     /// never a verdict.
     pub fn read_owned(&self, input: ObjectReference) -> IotaResult<OwnedVerdict> {
-        // Rule 1: the handler-processed row at the named version.
-        let no_handler_row = match OwnedReader::start(input, self.horizon).read_handler_row(self)? {
-            HandlerRowLookup::NeedBytes(need_bytes) => {
+        // Rules 1 and 2: the sync-ahead record, held, then the row at the
+        // named version, deciding.
+        let no_tables_entry = match OwnedReader::start(input, self.horizon)
+            .read_sync_ahead_record(self)?
+            .read_handler_row(self)?
+        {
+            TablesLookup::NeedBytes(need_bytes) => {
                 return Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?));
             }
-            HandlerRowLookup::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
-            HandlerRowLookup::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
-            HandlerRowLookup::NoRow(no_handler_row) => no_handler_row,
+            TablesLookup::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
+            TablesLookup::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
+            TablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
         };
 
-        // Rule 2: the sync-ahead record for the id.
-        let no_sync_ahead_record = match no_handler_row.read_sync_ahead_record(self)? {
-            SyncAheadLookup::NeedBytes(need_bytes) => {
-                return Ok(OwnedVerdict::Keep(self.load_bytes(need_bytes)?));
-            }
-            SyncAheadLookup::Missing(reason) => return Ok(OwnedVerdict::Missing(reason)),
-            SyncAheadLookup::Drop(reason) => return Ok(OwnedVerdict::Drop(reason)),
-            SyncAheadLookup::NoRecord(no_sync_ahead_record) => no_sync_ahead_record,
-        };
-
-        // Rule 3: ask the store, hold the answer, read both tables again,
-        // record first, row deciding.
-        let store_answered = no_sync_ahead_record.read_store(self)?;
+        // Rule 3: ask the store, hold the answer, read both tables again in
+        // the same order.
+        let store_answered = no_tables_entry.read_store(self)?;
         let record_reread = store_answered.reread_sync_ahead_record(self)?;
         match record_reread.reread_handler_row(self)? {
             TablesRecheck::NeedBytes(need_bytes) => {
@@ -99,12 +93,15 @@ impl CommitIndexedReader {
         id: ObjectId,
         initial_shared_version: Version,
     ) -> IotaResult<SharedVerdict> {
-        // Creation: the row at the declared initial version. A row at or below
-        // the horizon proved the flag, so only the object's presence is left.
-        let no_creation_row = match SharedReader::start(id, initial_shared_version, self.horizon)
+        // The sync-ahead record, held, then the creation row at the declared
+        // initial version, deciding. A row at or below the horizon proved the
+        // flag, so only the object's presence is left. A record with a base
+        // and no row leaves the owner to the object.
+        let no_tables_entry = match SharedReader::start(id, initial_shared_version, self.horizon)
+            .read_sync_ahead_record(self)?
             .read_creation_row(self)?
         {
-            CreationRowLookup::Created(created) => {
+            SharedTablesLookup::Created(created) => {
                 return match created.read_object(self)? {
                     CreatedObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
                     CreatedObjectLookup::Absent(object_absent) => {
@@ -112,15 +109,9 @@ impl CommitIndexedReader {
                     }
                 };
             }
-            CreationRowLookup::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
-            CreationRowLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
-            CreationRowLookup::NoRow(no_creation_row) => no_creation_row,
-        };
-
-        // Record: the sync-ahead record for the id.
-        let no_record = match no_creation_row.read_sync_ahead_record(self)? {
-            SharedRecordLookup::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
-            SharedRecordLookup::PreSyncExisted(pre_sync_existed) => {
+            SharedTablesLookup::Missing(reason) => return Ok(SharedVerdict::Missing(reason)),
+            SharedTablesLookup::Drop(reason) => return Ok(SharedVerdict::Drop(reason)),
+            SharedTablesLookup::PreSyncExisted(pre_sync_existed) => {
                 return match pre_sync_existed.read_object(self)? {
                     PreSyncObjectLookup::Exists(object) => Ok(SharedVerdict::Exists(object)),
                     PreSyncObjectLookup::Drop(reason) => Ok(SharedVerdict::Drop(reason)),
@@ -129,12 +120,12 @@ impl CommitIndexedReader {
                     }
                 };
             }
-            SharedRecordLookup::NoRecord(no_record) => no_record,
+            SharedTablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
         };
 
-        // Store: hold the latest object, read both tables again, record
-        // first, creation row deciding.
-        let object_answered = no_record.read_object(self)?;
+        // Store: hold the latest object, read both tables again in the same
+        // order.
+        let object_answered = no_tables_entry.read_object(self)?;
         let record_reread = object_answered.reread_sync_ahead_record(self)?;
         match record_reread.reread_creation_row(self)? {
             SharedTablesRecheck::Created(created) => match created.read_object(self)? {
