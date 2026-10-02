@@ -135,17 +135,20 @@ impl TonicClient {
         peer: AuthorityIndex,
         timeout: Duration,
     ) -> ConsensusResult<ConsensusServiceClient<Channel>> {
-        let config = &self.context.parameters.tonic;
         let channel = self
             .channel_pool
             .get_channel(self.network_keypair.clone(), peer, timeout)
             .await?;
-        let client = ConsensusServiceClient::new(channel)
+        Ok(self.service_client(channel))
+    }
+
+    fn service_client(&self, channel: Channel) -> ConsensusServiceClient<Channel> {
+        let config = &self.context.parameters.tonic;
+        ConsensusServiceClient::new(channel)
             .max_encoding_message_size(config.request_message_size_limit())
             .max_decoding_message_size(config.message_size_limit)
             .send_compressed(CompressionEncoding::Zstd)
-            .accept_compressed(CompressionEncoding::Zstd);
-        Ok(client)
+            .accept_compressed(CompressionEncoding::Zstd)
     }
 }
 
@@ -159,8 +162,13 @@ impl NetworkClient for TonicClient {
         last_received: Round,
         timeout: Duration,
     ) -> ConsensusResult<BlockBundleStream> {
-        let mut client = self.get_client(peer, timeout).await?;
-        // TODO: add sampled block acknowledgments for latency measurements.
+        // The subscriber has no other peer to turn to, so it keeps retrying the
+        // connection and picks up a peer within a second of it coming up.
+        let channel = self
+            .channel_pool
+            .get_channel_with_retries(self.network_keypair.clone(), peer, timeout)
+            .await?;
+        let mut client = self.service_client(channel);
         let request = Request::new(stream::once(async move {
             SubscribeBlockBundlesRequest {
                 last_received_round: last_received,
@@ -739,11 +747,53 @@ impl ChannelPool {
         }
     }
 
+    /// Returns the pooled channel to `peer`, connecting to it first if there is
+    /// none. Fails as soon as one connection attempt fails.
     async fn get_channel(
         &self,
         network_keypair: NetworkKeyPair,
         peer: AuthorityIndex,
         timeout: Duration,
+    ) -> ConsensusResult<Channel> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        self.connect_once(network_keypair, peer, timeout, deadline)
+            .await
+    }
+
+    /// Returns the pooled channel to `peer`, retrying a failed connection
+    /// attempt every second until `timeout` elapses.
+    async fn get_channel_with_retries(
+        &self,
+        network_keypair: NetworkKeyPair,
+        peer: AuthorityIndex,
+        timeout: Duration,
+    ) -> ConsensusResult<Channel> {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let error = match self
+                .connect_once(network_keypair.clone(), peer, timeout, deadline)
+                .await
+            {
+                Ok(channel) => return Ok(channel),
+                Err(e) => e,
+            };
+            let retry_at = tokio::time::Instant::now() + Duration::from_secs(1);
+            if retry_at >= deadline {
+                return Err(error);
+            }
+            tokio::time::sleep_until(retry_at).await;
+        }
+    }
+
+    /// Returns the pooled channel to `peer`, or makes one attempt to connect to
+    /// it by `deadline`. The new channel reconnects later within
+    /// `connect_timeout`.
+    async fn connect_once(
+        &self,
+        network_keypair: NetworkKeyPair,
+        peer: AuthorityIndex,
+        connect_timeout: Duration,
+        deadline: tokio::time::Instant,
     ) -> ConsensusResult<Channel> {
         {
             let channels = self.channels.read();
@@ -752,7 +802,6 @@ impl ChannelPool {
             }
         }
 
-        let deadline = tokio::time::Instant::now() + timeout;
         let Ok(_connecting) =
             tokio::time::timeout_at(deadline, self.connecting[peer.value()].lock()).await
         else {
@@ -787,7 +836,7 @@ impl ChannelPool {
         );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
             .map_err(|e| ConsensusError::NetworkConfig(format!("invalid URI '{address}': {e}")))?
-            .connect_timeout(timeout)
+            .connect_timeout(connect_timeout)
             .initial_connection_window_size(Some(buffer_size as u32))
             .initial_stream_window_size(Some(buffer_size as u32 / 2))
             .keep_alive_while_idle(true)
@@ -799,25 +848,19 @@ impl ChannelPool {
             .tls_config(client_tls_config)
             .unwrap();
 
-        let channel = loop {
-            trace!("Connecting to endpoint at {address}");
-            match tokio::time::timeout_at(deadline, endpoint.connect()).await {
-                Ok(Ok(channel)) => break channel,
-                Ok(Err(e)) => {
-                    debug!("Failed to connect to endpoint at {address}: {e:?}");
-                    let now = tokio::time::Instant::now();
-                    if now >= deadline {
-                        return Err(ConsensusError::NetworkClientConnection(format!(
-                            "Timed out connecting to endpoint at {address}: {e:?}"
-                        )));
-                    }
-                    tokio::time::sleep_until((now + Duration::from_secs(1)).min(deadline)).await;
-                }
-                Err(_) => {
-                    return Err(ConsensusError::NetworkClientConnection(format!(
-                        "Timed out connecting to endpoint at {address}"
-                    )));
-                }
+        trace!("Connecting to endpoint at {address}");
+        let channel = match tokio::time::timeout_at(deadline, endpoint.connect()).await {
+            Ok(Ok(channel)) => channel,
+            Ok(Err(e)) => {
+                debug!("Failed to connect to endpoint at {address}: {e:?}");
+                return Err(ConsensusError::NetworkClientConnection(format!(
+                    "Failed to connect to endpoint at {address}: {e:?}"
+                )));
+            }
+            Err(_) => {
+                return Err(ConsensusError::NetworkClientConnection(format!(
+                    "Timed out connecting to endpoint at {address}"
+                )));
             }
         };
         trace!("Connected to {address}");
@@ -2453,18 +2496,23 @@ mod tests {
 
     /// A caller queued behind another caller's connection attempt still gives
     /// up by its own timeout.
+    #[cfg(not(msim))]
     #[tokio::test]
     async fn queued_connect_keeps_its_own_timeout() {
-        use std::time::Duration;
+        use std::{net::TcpListener, time::Duration};
 
         use parking_lot::Mutex;
 
-        use super::TonicManager;
+        use super::{TonicManager, to_socket_addr};
         use crate::network::test_network::TestService;
 
         let (context, keys) = Context::new_for_test(4);
-        // Nothing listens at this peer's address, so every attempt fails.
         let peer = context.committee.to_authority_index(0).unwrap();
+        // Never accepted, so the TLS handshake gets no answer and a connection
+        // attempt hangs until its deadline.
+        let _listener =
+            TcpListener::bind(to_socket_addr(&context.committee.authority(peer).address).unwrap())
+                .unwrap();
         let client_context = Arc::new(
             context
                 .clone()
@@ -2702,5 +2750,151 @@ mod tests {
 
         drop(responses);
         assert_eq!(slot.available_permits(), 1);
+    }
+
+    /// A refused connection fails the call at once, well before the caller's
+    /// timeout.
+    #[tokio::test]
+    async fn refused_connection_fails_before_the_timeout() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::TonicManager;
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        // Nothing listens at this peer's address, so every attempt is refused.
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            client.channel_pool.get_channel(
+                client.network_keypair.clone(),
+                peer,
+                Duration::from_secs(30),
+            ),
+        )
+        .await
+        .expect("a refused connection must fail before the caller's timeout");
+        assert!(matches!(
+            result,
+            Err(ConsensusError::NetworkClientConnection(_))
+        ));
+    }
+
+    /// A caller retrying a refused connection leaves the connect lock free
+    /// between attempts, so other callers to that peer still fail at once.
+    #[tokio::test]
+    async fn retrying_connect_does_not_hold_up_other_callers() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::TonicManager;
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        // Nothing listens at this peer's address, so every attempt is refused.
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let retrying = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .channel_pool
+                    .get_channel_with_retries(
+                        client.network_keypair.clone(),
+                        peer,
+                        Duration::from_secs(30),
+                    )
+                    .await
+            }
+        });
+        // Let the retrying caller make its first attempt.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            client.channel_pool.get_channel(
+                client.network_keypair.clone(),
+                peer,
+                Duration::from_secs(30),
+            ),
+        )
+        .await
+        .expect("the caller must not wait behind the retrying caller");
+        assert!(matches!(
+            result,
+            Err(ConsensusError::NetworkClientConnection(_))
+        ));
+
+        retrying.abort();
+    }
+
+    /// A retrying caller connects to a peer that starts listening after its
+    /// first attempt was refused.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn retrying_connect_reaches_a_peer_that_starts_later() {
+        use std::time::Duration;
+
+        use parking_lot::Mutex;
+
+        use super::TonicManager;
+        use crate::network::test_network::TestService;
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let retrying = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .channel_pool
+                    .get_channel_with_retries(
+                        client.network_keypair.clone(),
+                        server_index,
+                        Duration::from_secs(10),
+                    )
+                    .await
+            }
+        });
+        // Long enough for the first attempt to be refused.
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        let mut server = TonicManager::new(
+            Arc::new(context.clone().with_authority_index(server_index)),
+            keys[0].0.clone(),
+        );
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        tokio::time::timeout(Duration::from_secs(10), retrying)
+            .await
+            .expect("the retrying caller must connect before its timeout")
+            .unwrap()
+            .expect("the retrying caller must connect once the peer listens");
     }
 }

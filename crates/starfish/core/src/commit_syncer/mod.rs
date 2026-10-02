@@ -244,6 +244,31 @@ impl<C: NetworkClient> Inner<C> {
             max_commits,
         )
     }
+
+    /// Moves the peers that have voted for `commit_index` or later, other than
+    /// those in `excluded`, ahead of the rest, keeping the order within each
+    /// group. Does nothing unless
+    /// `enable_commit_sync_peer_selection_by_commit_votes` is set.
+    pub(crate) fn order_voters_first(
+        &self,
+        authorities: &mut [AuthorityIndex],
+        commit_index: CommitIndex,
+        excluded: &BTreeSet<AuthorityIndex>,
+    ) {
+        if !self
+            .context
+            .parameters
+            .enable_commit_sync_peer_selection_by_commit_votes
+        {
+            return;
+        }
+        authorities.sort_by_cached_key(|authority| {
+            excluded.contains(authority)
+                || !self
+                    .commit_vote_monitor
+                    .has_voted_for_commit(*authority, commit_index)
+        });
+    }
 }
 
 /// Rejects a deserialized commit whose variant does not match the local
@@ -624,19 +649,11 @@ where
         // that provably solidified the range, and any header from a
         // behind-listed peer carrying a recent commit vote promotes it
         // immediately.
-        if inner
-            .context
-            .parameters
-            .enable_commit_sync_peer_selection_by_commit_votes
-        {
-            let (caught_up, behind): (Vec<_>, Vec<_>) =
-                target_authorities.into_iter().partition(|authority| {
-                    inner
-                        .commit_vote_monitor
-                        .has_voted_for_commit(*authority, commit_range.end())
-                });
-            target_authorities = caught_up.into_iter().chain(behind).collect();
-        }
+        inner.order_voters_first(
+            &mut target_authorities,
+            commit_range.end(),
+            &BTreeSet::new(),
+        );
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
         timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
@@ -943,7 +960,8 @@ pub(crate) mod tests {
 
     /// Fake `NetworkClient` for commit syncer tests, serving preset responses.
     /// With no preset response, `fetch_commits_and_transactions` fails the
-    /// fetch, while the other fetch endpoints panic as unimplemented.
+    /// fetch, `fetch_block_headers` answers from `stored_block_headers`, while
+    /// the other fetch endpoints panic as unimplemented.
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
@@ -961,6 +979,13 @@ pub(crate) mod tests {
         pub(crate) block_headers: Option<Vec<Bytes>>,
         /// Preset `fetch_transactions` response.
         pub(crate) transactions: Option<Vec<Bytes>>,
+        /// Every peer asked for block headers, in the order it was asked.
+        pub(crate) requested_header_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
+        /// Headers `fetch_block_headers` serves by requested ref when no preset
+        /// response is set; a ref without an entry is left out of the answer.
+        pub(crate) stored_block_headers: BTreeMap<BlockRef, Bytes>,
+        /// Peers whose `fetch_block_headers` fails as a connection error.
+        pub(crate) unreachable_header_peers: Vec<AuthorityIndex>,
     }
 
     #[async_trait::async_trait]
@@ -988,14 +1013,23 @@ pub(crate) mod tests {
 
         async fn fetch_block_headers(
             &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            peer: AuthorityIndex,
+            block_refs: Vec<BlockRef>,
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
+            self.requested_header_peers.lock().push(peer);
+            if self.unreachable_header_peers.contains(&peer) {
+                return Err(ConsensusError::NetworkClientConnection(format!(
+                    "{peer} is unreachable"
+                )));
+            }
             match &self.block_headers {
                 Some(response) => Ok(response.clone()),
-                None => unimplemented!("Unimplemented"),
+                None => Ok(block_refs
+                    .iter()
+                    .filter_map(|block_ref| self.stored_block_headers.get(block_ref).cloned())
+                    .collect()),
             }
         }
 
