@@ -179,20 +179,73 @@ where
     F: Fn(usize) -> f64,
 {
     let amount = amount.min(length);
-    let mut keyed: Vec<(f64, usize)> = (0..length)
-        .map(|i| {
-            let w = weight(i);
-            assert!(
-                w >= 0.0,
-                "weights must be non-negative and not NaN, got {w}"
-            );
-            (f64_unit(rng).powf(1.0 / w), i)
-        })
-        .collect();
-    // Keys are drawn from a CSPRNG, so ties do not arise in practice; comparing
-    // the index as well keeps the order total regardless.
-    keyed.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap().then(a.1.cmp(&b.1)));
-    keyed.into_iter().take(amount).map(|(_, i)| i).collect()
+    // `rand` 0.8 pushes every key onto a `std` `BinaryHeap` and pops the
+    // largest, which decides the order of equal keys. The heap is written out
+    // here, following `std`'s push and pop, so that order stays fixed whatever
+    // `std` does later.
+    let mut heap: Vec<(f64, usize)> = Vec::with_capacity(length);
+    for i in 0..length {
+        let w = weight(i);
+        assert!(
+            w >= 0.0,
+            "weights must be non-negative and not NaN, got {w}"
+        );
+        heap.push((f64_unit(rng).powf(1.0 / w), i));
+        heap_sift_up(&mut heap, i);
+    }
+    let mut result = Vec::with_capacity(amount);
+    while result.len() < amount {
+        let last = heap.pop().expect("heap holds at least `amount` keys");
+        let largest = if heap.is_empty() {
+            last
+        } else {
+            let largest = std::mem::replace(&mut heap[0], last);
+            heap_sift_down_to_bottom(&mut heap);
+            largest
+        };
+        result.push(largest.1);
+    }
+    result
+}
+
+/// Moves the entry at `pos` towards the root of the max-heap until its parent's
+/// key is no smaller, and returns where it ends up.
+fn heap_sift_up(heap: &mut [(f64, usize)], mut pos: usize) -> usize {
+    let entry = heap[pos];
+    while pos > 0 {
+        let parent = (pos - 1) / 2;
+        if entry.0 <= heap[parent].0 {
+            break;
+        }
+        heap[pos] = heap[parent];
+        pos = parent;
+    }
+    heap[pos] = entry;
+    pos
+}
+
+/// Restores the max-heap after the root has been replaced: walks the root's
+/// entry down to a leaf along the larger children, then back up.
+fn heap_sift_down_to_bottom(heap: &mut [(f64, usize)]) {
+    let end = heap.len();
+    let entry = heap[0];
+    let mut pos = 0;
+    let mut child = 1;
+    while child + 1 < end {
+        // On equal keys the right child is taken, as `std` does.
+        if heap[child].0 <= heap[child + 1].0 {
+            child += 1;
+        }
+        heap[pos] = heap[child];
+        pos = child;
+        child = 2 * pos + 1;
+    }
+    if child + 1 == end {
+        heap[pos] = heap[child];
+        pos = child;
+    }
+    heap[pos] = entry;
+    heap_sift_up(heap, pos);
 }
 
 #[cfg(test)]
@@ -252,6 +305,23 @@ mod tests {
         assert_eq!(
             sample_weighted(&mut rng(9), weights.len(), |i| weights[i] as f64, 2),
             [1, 0]
+        );
+
+        // Zero weights all draw the key 0.0; `rand` 0.8 gave them this order,
+        // not index order.
+        let weights = [0u64, 3, 0, 0, 5, 0, 1, 0];
+        assert_eq!(
+            sample_weighted(
+                &mut rng(0),
+                weights.len(),
+                |i| weights[i] as f64,
+                weights.len()
+            ),
+            [4, 1, 6, 5, 2, 7, 0, 3]
+        );
+        assert_eq!(
+            sample_weighted(&mut rng(5), weights.len(), |i| weights[i] as f64, 6),
+            [1, 4, 6, 5, 2, 7]
         );
     }
 
