@@ -796,9 +796,10 @@ pub struct AdmissionParameters {
     pub max_commit_fetches_per_peer: u32,
 
     /// Max concurrent commit fetches across all peers, beyond which a peer is
-    /// still granted its first. A fast commit-sync response is held in memory
-    /// until it has been sent, so this caps what serving them can cost the node
-    /// at once, short of one response per peer.
+    /// still granted its first. A fast commit-sync response holds its commits
+    /// and certifier headers until it has been sent and reads its transactions
+    /// from the store as they go out, so this caps what serving them can cost
+    /// the node at once, short of one response per peer.
     ///
     /// If unspecified, this will default to 16.
     #[serde(default = "AdmissionParameters::default_max_commit_fetches_total")]
