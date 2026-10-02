@@ -15,10 +15,13 @@ use crate::{
         primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
     },
     models::{
+        account_authenticators::StoredAccountAuthenticator,
+        account_key_links::StoredAccountKeyLink,
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
         packages::StoredPackage,
+        smart_accounts::StoredSmartAccount,
         transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
@@ -63,6 +66,28 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     ) -> Result<(), IndexerError>;
 
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
+
+    /// Upserts the key->account links folded from the discoverability event
+    /// stream. Not prunable: see [`crate::pruning::pruner::PrunableTable`].
+    async fn persist_account_key_links(
+        &self,
+        links: Vec<StoredAccountKeyLink>,
+    ) -> Result<(), IndexerError>;
+
+    /// Upserts the framework `SmartAccount`s announced by
+    /// `SmartAccountCreated`. Not prunable: see
+    /// [`crate::pruning::pruner::PrunableTable`].
+    async fn persist_smart_accounts(
+        &self,
+        smart_accounts: Vec<StoredSmartAccount>,
+    ) -> Result<(), IndexerError>;
+
+    /// Upserts the current authenticator kind of each `SmartAccount`. Not
+    /// prunable: see [`crate::pruning::pruner::PrunableTable`].
+    async fn persist_account_authenticators(
+        &self,
+        account_authenticators: Vec<StoredAccountAuthenticator>,
+    ) -> Result<(), IndexerError>;
 
     async fn persist_event_indices(
         &self,

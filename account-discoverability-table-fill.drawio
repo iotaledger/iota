@@ -1,0 +1,97 @@
+<mxfile host="drawio" type="device">
+  <diagram id="account-table-fill" name="Filling the tables">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="820" math="0" shadow="0">
+      <root>
+        <mxCell id="p2_0" />
+        <mxCell id="p2_1" parent="p2_0" />
+        <mxCell id="p2_title" value="Account discoverability: how two transactions with the same key fill the tables" style="text;html=1;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;" vertex="1" parent="p2_1">
+          <mxGeometry x="40" y="15" width="1000" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_legend" value="&lt;b&gt;K&lt;/b&gt; = one Ed25519 public key &amp;nbsp;·&amp;nbsp; &lt;b&gt;h(K)&lt;/b&gt; = key_id = blake2b256(0x00 || K) &amp;nbsp;·&amp;nbsp; &lt;b&gt;A1&lt;/b&gt; = fresh object ID &amp;nbsp;·&amp;nbsp; &lt;b&gt;A2&lt;/b&gt; = the address derived from K &amp;nbsp;·&amp;nbsp; both transactions in epoch 3" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;" vertex="1" parent="p2_1">
+          <mxGeometry x="40" y="45" width="1320" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="tx1" value="&lt;b&gt;tx 101&lt;/b&gt; (blue) · sender: anyone&lt;br&gt;builtin_auth_builder_v1(K), then build_v1" style="swimlane;html=1;whiteSpace=wrap;rounded=1;arcSize=4;strokeColor=#000000;fontSize=12;collapsible=0;align=left;spacingLeft=10;startSize=46;fillColor=#DAE8FC;swimlaneFillColor=#FFFFFF;" vertex="1" parent="p2_1">
+          <mxGeometry x="40" y="80" width="420" height="310" as="geometry" />
+        </mxCell>
+        <mxCell id="tx2" value="&lt;b&gt;tx 102&lt;/b&gt; (orange) · ClaimAccount, sender: A2&lt;br&gt;claim_account_v1(K): claim_builder, then build_v1" style="swimlane;html=1;whiteSpace=wrap;rounded=1;arcSize=4;strokeColor=#000000;fontSize=12;collapsible=0;align=left;spacingLeft=10;startSize=46;fillColor=#FFE6CC;swimlaneFillColor=#FFFFFF;" vertex="1" parent="p2_1">
+          <mxGeometry x="40" y="440" width="420" height="310" as="geometry" />
+        </mxCell>
+        <mxCell id="tx1_ev1" value="&lt;b&gt;1. PublicKeyAttached&lt;/b&gt;&lt;br&gt;account_id: A1&lt;br&gt;public_key: K (scheme 0, Ed25519)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#000000;arcSize=10;fontSize=11;align=left;verticalAlign=middle;spacingLeft=8;fillColor=#DAE8FC;" vertex="1" parent="tx1">
+          <mxGeometry x="15" y="65" width="390" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tx1_ev2" value="&lt;b&gt;2. SmartAccountCreated&lt;/b&gt;&lt;br&gt;account_id: A1, public_key: some(K)&lt;br&gt;immutable: false" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#000000;arcSize=10;fontSize=11;align=left;verticalAlign=middle;spacingLeft=8;fillColor=#DAE8FC;" vertex="1" parent="tx1">
+          <mxGeometry x="15" y="145" width="390" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tx1_ev3" value="&lt;b&gt;3. MutableAccountCreated&amp;lt;SmartAccount&amp;gt;&lt;/b&gt;&lt;br&gt;account_id: A1&lt;br&gt;authenticator: 0x2::builtin_authenticator_functions::&lt;br&gt;ed25519_authenticator_function_ref_v1" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#000000;arcSize=10;fontSize=11;align=left;verticalAlign=middle;spacingLeft=8;fillColor=#DAE8FC;" vertex="1" parent="tx1">
+          <mxGeometry x="15" y="225" width="390" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tx2_ev1" value="&lt;b&gt;1. PublicKeyAttached&lt;/b&gt;&lt;br&gt;account_id: A2&lt;br&gt;public_key: K (scheme 0, Ed25519)" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#000000;arcSize=10;fontSize=11;align=left;verticalAlign=middle;spacingLeft=8;fillColor=#FFE6CC;" vertex="1" parent="tx2">
+          <mxGeometry x="15" y="65" width="390" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tx2_ev2" value="&lt;b&gt;2. SmartAccountCreated&lt;/b&gt;&lt;br&gt;account_id: A2, public_key: some(K)&lt;br&gt;immutable: false" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#000000;arcSize=10;fontSize=11;align=left;verticalAlign=middle;spacingLeft=8;fillColor=#FFE6CC;" vertex="1" parent="tx2">
+          <mxGeometry x="15" y="145" width="390" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="tx2_ev3" value="&lt;b&gt;3. MutableAccountCreated&amp;lt;SmartAccount&amp;gt;&lt;/b&gt;&lt;br&gt;account_id: A2&lt;br&gt;authenticator: 0x2::builtin_authenticator_functions::&lt;br&gt;ed25519_authenticator_function_ref_v1" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#000000;arcSize=10;fontSize=11;align=left;verticalAlign=middle;spacingLeft=8;fillColor=#FFE6CC;" vertex="1" parent="tx2">
+          <mxGeometry x="15" y="225" width="390" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t_links" value="&lt;b&gt;account_key_links&lt;/b&gt;" style="swimlane;html=1;whiteSpace=wrap;rounded=1;arcSize=4;strokeColor=#000000;fontSize=12;collapsible=0;align=left;spacingLeft=10;startSize=30;fillColor=#F5F5F5;swimlaneFillColor=#F5F5F5;" vertex="1" parent="p2_1">
+          <mxGeometry x="620" y="80" width="740" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="t_links_hdr" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:11%;padding:0 4px"&gt;&lt;b&gt;key_id&lt;/b&gt;&lt;/td&gt;&lt;td style="width:11%;padding:0 4px"&gt;&lt;b&gt;account_id&lt;/b&gt;&lt;/td&gt;&lt;td style="width:14%;padding:0 4px"&gt;&lt;b&gt;scheme&lt;/b&gt;&lt;/td&gt;&lt;td style="width:13%;padding:0 4px"&gt;&lt;b&gt;source&lt;/b&gt;&lt;/td&gt;&lt;td style="width:13%;padding:0 4px"&gt;&lt;b&gt;status&lt;/b&gt;&lt;/td&gt;&lt;td style="width:22%;padding:0 4px"&gt;&lt;b&gt;last_change_tx_&lt;br&gt;sequence_number&lt;/b&gt;&lt;/td&gt;&lt;td style="width:16%;padding:0 4px"&gt;&lt;b&gt;last_change_&lt;br&gt;epoch&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#FFFFFF;" vertex="1" parent="t_links">
+          <mxGeometry x="10" y="35" width="720" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="t_links_r1" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:11%;padding:0 4px"&gt;h(K)&lt;/td&gt;&lt;td style="width:11%;padding:0 4px"&gt;A1&lt;/td&gt;&lt;td style="width:14%;padding:0 4px"&gt;0 (Ed25519)&lt;/td&gt;&lt;td style="width:13%;padding:0 4px"&gt;0 (attach)&lt;/td&gt;&lt;td style="width:13%;padding:0 4px"&gt;0 (active)&lt;/td&gt;&lt;td style="width:22%;padding:0 4px"&gt;101&lt;/td&gt;&lt;td style="width:16%;padding:0 4px"&gt;3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#DAE8FC;" vertex="1" parent="t_links">
+          <mxGeometry x="10" y="80" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="t_links_r2" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:11%;padding:0 4px"&gt;h(K)&lt;/td&gt;&lt;td style="width:11%;padding:0 4px"&gt;A2&lt;/td&gt;&lt;td style="width:14%;padding:0 4px"&gt;0 (Ed25519)&lt;/td&gt;&lt;td style="width:13%;padding:0 4px"&gt;0 (attach)&lt;/td&gt;&lt;td style="width:13%;padding:0 4px"&gt;0 (active)&lt;/td&gt;&lt;td style="width:22%;padding:0 4px"&gt;102&lt;/td&gt;&lt;td style="width:16%;padding:0 4px"&gt;3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#FFE6CC;" vertex="1" parent="t_links">
+          <mxGeometry x="10" y="120" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="t_accounts" value="&lt;b&gt;smart_accounts&lt;/b&gt;" style="swimlane;html=1;whiteSpace=wrap;rounded=1;arcSize=4;strokeColor=#000000;fontSize=12;collapsible=0;align=left;spacingLeft=10;startSize=30;fillColor=#F5F5F5;swimlaneFillColor=#F5F5F5;" vertex="1" parent="p2_1">
+          <mxGeometry x="620" y="300" width="740" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="t_accounts_hdr" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:20%;padding:0 4px"&gt;&lt;b&gt;account_id&lt;/b&gt;&lt;/td&gt;&lt;td style="width:20%;padding:0 4px"&gt;&lt;b&gt;immutable&lt;/b&gt;&lt;/td&gt;&lt;td style="width:32%;padding:0 4px"&gt;&lt;b&gt;created_tx_&lt;br&gt;sequence_number&lt;/b&gt;&lt;/td&gt;&lt;td style="width:28%;padding:0 4px"&gt;&lt;b&gt;created_epoch&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#FFFFFF;" vertex="1" parent="t_accounts">
+          <mxGeometry x="10" y="35" width="720" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="t_accounts_r1" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:20%;padding:0 4px"&gt;A1&lt;/td&gt;&lt;td style="width:20%;padding:0 4px"&gt;false&lt;/td&gt;&lt;td style="width:32%;padding:0 4px"&gt;101&lt;/td&gt;&lt;td style="width:28%;padding:0 4px"&gt;3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#DAE8FC;" vertex="1" parent="t_accounts">
+          <mxGeometry x="10" y="80" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="t_accounts_r2" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:20%;padding:0 4px"&gt;A2&lt;/td&gt;&lt;td style="width:20%;padding:0 4px"&gt;false&lt;/td&gt;&lt;td style="width:32%;padding:0 4px"&gt;102&lt;/td&gt;&lt;td style="width:28%;padding:0 4px"&gt;3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#FFE6CC;" vertex="1" parent="t_accounts">
+          <mxGeometry x="10" y="120" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="t_auth" value="&lt;b&gt;account_authenticators&lt;/b&gt;" style="swimlane;html=1;whiteSpace=wrap;rounded=1;arcSize=4;strokeColor=#000000;fontSize=12;collapsible=0;align=left;spacingLeft=10;startSize=30;fillColor=#F5F5F5;swimlaneFillColor=#F5F5F5;" vertex="1" parent="p2_1">
+          <mxGeometry x="620" y="540" width="740" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="t_auth_hdr" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:20%;padding:0 4px"&gt;&lt;b&gt;account_id&lt;/b&gt;&lt;/td&gt;&lt;td style="width:20%;padding:0 4px"&gt;&lt;b&gt;kind&lt;/b&gt;&lt;/td&gt;&lt;td style="width:32%;padding:0 4px"&gt;&lt;b&gt;last_change_tx_&lt;br&gt;sequence_number&lt;/b&gt;&lt;/td&gt;&lt;td style="width:28%;padding:0 4px"&gt;&lt;b&gt;last_change_&lt;br&gt;epoch&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#FFFFFF;" vertex="1" parent="t_auth">
+          <mxGeometry x="10" y="35" width="720" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="t_auth_r1" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:20%;padding:0 4px"&gt;A1&lt;/td&gt;&lt;td style="width:20%;padding:0 4px"&gt;1 (ed25519)&lt;/td&gt;&lt;td style="width:32%;padding:0 4px"&gt;101&lt;/td&gt;&lt;td style="width:28%;padding:0 4px"&gt;3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#DAE8FC;" vertex="1" parent="t_auth">
+          <mxGeometry x="10" y="80" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="t_auth_r2" value='&lt;table style="width:100%;table-layout:fixed;font-size:11px;border-collapse:collapse"&gt;&lt;tr&gt;&lt;td style="width:20%;padding:0 4px"&gt;A2&lt;/td&gt;&lt;td style="width:20%;padding:0 4px"&gt;1 (ed25519)&lt;/td&gt;&lt;td style="width:32%;padding:0 4px"&gt;102&lt;/td&gt;&lt;td style="width:28%;padding:0 4px"&gt;3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;' style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#000000;fontSize=11;align=left;verticalAlign=middle;spacing=0;fillColor=#FFE6CC;" vertex="1" parent="t_auth">
+          <mxGeometry x="10" y="120" width="720" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_note" value="&lt;b&gt;Why no link from SmartAccountCreated:&lt;/b&gt; its public_key is not used for links. The PublicKeyAttached of the same transaction already gives the (h(K), account) link. SmartAccountCreated only records that the account is a framework SmartAccount." style="shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#FFF2CC;strokeColor=#000000;fontSize=11;align=left;spacingLeft=8;" vertex="1" parent="p2_1">
+          <mxGeometry x="620" y="730" width="740" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endSize=10;strokeColor=#6C8EBF;strokeWidth=1.5;jumpStyle=arc;jumpSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#FFFFFF;fontSize=11;" edge="1" parent="p2_1" source="tx1_ev1" target="t_links_r1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="610" y="180" /><mxPoint x="610" y="178" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="p2_e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endSize=10;strokeColor=#6C8EBF;strokeWidth=1.5;jumpStyle=arc;jumpSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#FFFFFF;fontSize=11;" edge="1" parent="p2_1" source="tx1_ev2" target="t_accounts_r1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="590" y="260" /><mxPoint x="590" y="398" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="p2_e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endSize=10;strokeColor=#6C8EBF;strokeWidth=1.5;jumpStyle=arc;jumpSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#FFFFFF;fontSize=11;" edge="1" parent="p2_1" source="tx1_ev3" target="t_auth_r1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="570" y="340" /><mxPoint x="570" y="638" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="p2_e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endSize=10;strokeColor=#D79B00;strokeWidth=1.5;jumpStyle=arc;jumpSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#FFFFFF;fontSize=11;" edge="1" parent="p2_1" source="tx2_ev1" target="t_links_r2">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="480" y="540" /><mxPoint x="480" y="218" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="p2_e5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endSize=10;strokeColor=#D79B00;strokeWidth=1.5;jumpStyle=arc;jumpSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#FFFFFF;fontSize=11;" edge="1" parent="p2_1" source="tx2_ev2" target="t_accounts_r2">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="505" y="620" /><mxPoint x="505" y="438" /></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="p2_e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=open;endSize=10;strokeColor=#D79B00;strokeWidth=1.5;jumpStyle=arc;jumpSize=10;exitX=1;exitY=0.5;entryX=0;entryY=0.5;labelBackgroundColor=#FFFFFF;fontSize=11;" edge="1" parent="p2_1" source="tx2_ev3" target="t_auth_r2">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="530" y="700" /><mxPoint x="530" y="678" /></Array></mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

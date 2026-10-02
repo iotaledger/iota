@@ -1,6 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::hash::{Blake2b256, HashFunction};
 use iota_sdk_crypto::{
     ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
     simple::SimpleKeypair,
@@ -11,7 +12,10 @@ use iota_sdk_types::{
 };
 use rand::{SeedableRng, rngs::StdRng};
 
-use crate::{account_abstraction::public_key::MovePublicKey, crypto::PublicKey};
+use crate::{
+    account_abstraction::public_key::{MovePublicKey, key_id, key_id_from_prefixed_bytes},
+    crypto::PublicKey,
+};
 
 // === scheme() ===
 
@@ -296,6 +300,157 @@ fn address_error_on_wrong_length_bytes() {
         err.contains("Invalid public key bytes"),
         "unexpected error: {err}"
     );
+}
+
+// === key_id() ===
+
+#[test]
+fn key_id_is_blake2b256_of_flag_and_raw_bytes() {
+    let mut rng = seeded_rng();
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
+    let raw = key_pair.public_key().as_ref().to_vec();
+    let move_public_key = MovePublicKey::from(&key_pair);
+
+    let mut hasher = Blake2b256::default();
+    hasher.update([SignatureScheme::Ed25519.to_u8()]);
+    hasher.update(&raw);
+    let expected: [u8; 32] = hasher.finalize().digest;
+
+    assert_eq!(move_public_key.key_id(), expected);
+    assert_eq!(key_id(SignatureScheme::Ed25519.to_u8(), &raw), expected);
+}
+
+#[test]
+fn key_id_from_prefixed_bytes_matches_key_id() {
+    let mut rng = seeded_rng();
+    let key_pair = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut rng));
+    let move_public_key = MovePublicKey::from(&key_pair);
+
+    let mut prefixed = vec![SignatureScheme::Secp256k1.to_u8()];
+    prefixed.extend_from_slice(key_pair.public_key().as_ref());
+
+    assert_eq!(
+        key_id_from_prefixed_bytes(&prefixed).unwrap(),
+        move_public_key.key_id()
+    );
+}
+
+#[test]
+fn key_id_from_prefixed_bytes_rejects_empty() {
+    assert!(key_id_from_prefixed_bytes(&[]).is_none());
+}
+
+#[test]
+fn key_id_is_total_on_bytes_that_are_not_a_valid_key() {
+    // Unlike address(), key_id cannot fail: it never parses the key material.
+    // Bypass new() via BCS to hold bytes that are not a curve point.
+    let mut bcs_bytes = vec![SignatureScheme::Ed25519.to_u8()];
+    bcs_bytes.extend(bcs::to_bytes(&vec![0u8; 1]).unwrap());
+    let invalid: MovePublicKey = bcs::from_bytes(&bcs_bytes).unwrap();
+
+    assert!(invalid.address().is_err());
+    assert_eq!(
+        invalid.key_id(),
+        key_id(SignatureScheme::Ed25519.to_u8(), &[0u8])
+    );
+}
+
+#[test]
+fn key_id_differs_from_address_for_ed25519() {
+    // Ed25519 address derivation omits the scheme flag; key_id includes it for
+    // every scheme. Pin the difference: a later "simplification" toward the
+    // address would otherwise pass a test covering only the schemes below.
+    let mut rng = seeded_rng();
+    let key_pair = SimpleKeypair::from(Ed25519PrivateKey::random_with(&mut rng));
+    let move_public_key = MovePublicKey::from(&key_pair);
+    assert_ne!(
+        move_public_key.key_id(),
+        move_public_key.address().unwrap().into_bytes()
+    );
+}
+
+#[test]
+fn key_id_differs_from_address_for_multisig() {
+    // MultiSig hashes a structured preimage of the committee, not raw_bytes.
+    let mut rng = seeded_rng();
+    let kp1 = Ed25519PrivateKey::random_with(&mut rng);
+    let kp2 = Secp256k1PrivateKey::random_with(&mut rng);
+    let committee = MultisigCommittee::new(
+        vec![
+            MultisigMember::new(kp1.public_key(), 1),
+            MultisigMember::new(kp2.public_key(), 1),
+        ],
+        1,
+    )
+    .unwrap();
+    let move_public_key = MovePublicKey::new(
+        SignatureScheme::Multisig,
+        bcs::to_bytes(&committee).unwrap(),
+    )
+    .unwrap();
+    assert_ne!(
+        move_public_key.key_id(),
+        move_public_key.address().unwrap().into_bytes()
+    );
+}
+
+#[test]
+fn key_id_coincides_with_address_for_flag_prefixed_schemes() {
+    // For these schemes address derivation is exactly blake2b256(flag || pk),
+    // which is the key_id formula. Harmless, but it means key_id == account_id
+    // is never a usable test for anything.
+    let mut rng = seeded_rng();
+
+    let secp256k1 = SimpleKeypair::from(Secp256k1PrivateKey::random_with(&mut rng));
+    let move_public_key = MovePublicKey::from(&secp256k1);
+    assert_eq!(
+        move_public_key.key_id(),
+        move_public_key.address().unwrap().into_bytes()
+    );
+
+    let secp256r1 = SimpleKeypair::from(Secp256r1PrivateKey::random_with(&mut rng));
+    let move_public_key = MovePublicKey::from(&secp256r1);
+    assert_eq!(
+        move_public_key.key_id(),
+        move_public_key.address().unwrap().into_bytes()
+    );
+
+    let passkey = MovePublicKey::new(
+        SignatureScheme::PasskeyAuthenticator,
+        secp256r1.public_key().as_ref().to_vec(),
+    )
+    .unwrap();
+    assert_eq!(passkey.key_id(), passkey.address().unwrap().into_bytes());
+}
+
+#[test]
+fn key_id_fixed_vectors() {
+    // Independent indexers must agree on key_id, and nothing on chain computes
+    // it, so pin the formula to fixed outputs rather than only to itself.
+    for (prefixed_hex, expected_hex) in [
+        // Ed25519.
+        (
+            "00cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88",
+            "43541042c153e0e498a08a8db868f1614c9366694fa730bd8a07fc5d7c931f0d",
+        ),
+        // 1-of-1 MultiSig with the Ed25519 key above as its only member.
+        (
+            "030100cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010100",
+            "37330e88388d526046696b5b5113cd64e81eb1b1bcd403372666cc54970ddbf4",
+        ),
+        // 1-of-2 MultiSig with an Ed25519 and a Secp256k1 member.
+        (
+            "030200cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88010102337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c010100",
+            "dd22eb5c98cdc27de98174a69b68ca1603bdda8aeb226c5232273cfdc9655811",
+        ),
+    ] {
+        let prefixed = hex::decode(prefixed_hex).unwrap();
+        assert_eq!(
+            key_id_from_prefixed_bytes(&prefixed).unwrap().to_vec(),
+            hex::decode(expected_hex).unwrap(),
+            "key_id of {prefixed_hex}"
+        );
+    }
 }
 
 // === Cross-language pin tests (Move ↔ Rust address parity) ===

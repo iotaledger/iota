@@ -38,6 +38,8 @@ use crate::{
     insert_or_ignore_into,
     metrics::IndexerMetrics,
     models::{
+        account_authenticators::StoredAccountAuthenticator,
+        account_key_links::StoredAccountKeyLink,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
         display::StoredDisplay,
         epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
@@ -48,6 +50,7 @@ use crate::{
             StoredObject, StoredObjects,
         },
         packages::StoredPackage,
+        smart_accounts::StoredSmartAccount,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::TxIndexSplit,
         watermarks::StoredWatermark,
@@ -57,13 +60,14 @@ use crate::{
     pruning::pruner::PrunableTable,
     read_only_blocking, run_query_with_retry,
     schema::{
-        chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
-        event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
-        event_struct_name, event_struct_package, events, feature_flags, objects,
-        objects_backward_history, objects_version, optimistic_transactions, packages,
-        protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
-        tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects, tx_kinds,
-        tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
+        account_authenticators, account_key_links, chain_identifier, checkpointed_objects,
+        checkpoints, display, epochs, event_emit_module, event_emit_package, event_senders,
+        event_struct_instantiation, event_struct_module, event_struct_name, event_struct_package,
+        events, feature_flags, objects, objects_backward_history, objects_version,
+        optimistic_transactions, packages, protocol_configs, pruner_cp_watermark, smart_accounts,
+        transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects,
+        tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
+        tx_wrapped_or_deleted_objects, watermarks,
     },
     store::{IndexerStore, diesel_macro},
     transactional_blocking_with_retry,
@@ -820,6 +824,109 @@ impl PgIndexerStore {
                             packages::package_id.eq(excluded(packages::package_id)),
                             packages::move_package.eq(excluded(packages::move_package)),
                         ),
+                        conn
+                    );
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    /// Upserts the latest link state for each `(key_id, account_id)`.
+    ///
+    /// Guarded on the transaction sequence number so that a replayed or
+    /// out-of-order write can never move a row backwards; a replay of the same
+    /// checkpoint rewrites identical values.
+    fn persist_account_key_links(
+        &self,
+        links: &[StoredAccountKeyLink],
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for chunk in links.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    on_conflict_do_update_with_condition!(
+                        account_key_links::table,
+                        chunk,
+                        (account_key_links::key_id, account_key_links::account_id),
+                        (
+                            account_key_links::scheme.eq(excluded(account_key_links::scheme)),
+                            account_key_links::source.eq(excluded(account_key_links::source)),
+                            account_key_links::status.eq(excluded(account_key_links::status)),
+                            account_key_links::last_change_tx_sequence_number
+                                .eq(excluded(account_key_links::last_change_tx_sequence_number)),
+                            account_key_links::last_change_epoch
+                                .eq(excluded(account_key_links::last_change_epoch)),
+                        ),
+                        excluded(account_key_links::last_change_tx_sequence_number)
+                            .ge(account_key_links::last_change_tx_sequence_number),
+                        conn
+                    );
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    /// Upserts one row per `SmartAccount`, under the same monotonic guard as
+    /// [`Self::persist_account_key_links`]. An account created again at the
+    /// same address, as a repeated claim does, keeps the later creation.
+    fn persist_smart_accounts(
+        &self,
+        smart_accounts: &[StoredSmartAccount],
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for chunk in smart_accounts.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    on_conflict_do_update_with_condition!(
+                        smart_accounts::table,
+                        chunk,
+                        smart_accounts::account_id,
+                        (
+                            smart_accounts::immutable.eq(excluded(smart_accounts::immutable)),
+                            smart_accounts::created_tx_sequence_number
+                                .eq(excluded(smart_accounts::created_tx_sequence_number)),
+                            smart_accounts::created_epoch
+                                .eq(excluded(smart_accounts::created_epoch)),
+                        ),
+                        excluded(smart_accounts::created_tx_sequence_number)
+                            .ge(smart_accounts::created_tx_sequence_number),
+                        conn
+                    );
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    /// Upserts the current authenticator kind of each `SmartAccount`, under the
+    /// same monotonic guard as [`Self::persist_account_key_links`].
+    fn persist_account_authenticators(
+        &self,
+        account_authenticators: &[StoredAccountAuthenticator],
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for chunk in account_authenticators.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    on_conflict_do_update_with_condition!(
+                        account_authenticators::table,
+                        chunk,
+                        account_authenticators::account_id,
+                        (
+                            account_authenticators::kind.eq(excluded(account_authenticators::kind)),
+                            account_authenticators::last_change_tx_sequence_number.eq(excluded(
+                                account_authenticators::last_change_tx_sequence_number
+                            )),
+                            account_authenticators::last_change_epoch
+                                .eq(excluded(account_authenticators::last_change_epoch)),
+                        ),
+                        excluded(account_authenticators::last_change_tx_sequence_number)
+                            .ge(account_authenticators::last_change_tx_sequence_number),
                         conn
                     );
                 }
@@ -1917,6 +2024,65 @@ impl IndexerStore for PgIndexerStore {
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} events", len);
+        Ok(())
+    }
+
+    async fn persist_account_key_links(
+        &self,
+        links: Vec<StoredAccountKeyLink>,
+    ) -> Result<(), IndexerError> {
+        if links.is_empty() {
+            return Ok(());
+        }
+        let len = links.len();
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_account_key_links
+            .start_timer();
+        self.execute_in_blocking_worker(move |this| this.persist_account_key_links(&links))
+            .await?;
+        let elapsed = guard.stop_and_record();
+        info!(elapsed, "Persisted {len} account key links");
+        Ok(())
+    }
+
+    async fn persist_smart_accounts(
+        &self,
+        smart_accounts: Vec<StoredSmartAccount>,
+    ) -> Result<(), IndexerError> {
+        if smart_accounts.is_empty() {
+            return Ok(());
+        }
+        let len = smart_accounts.len();
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_smart_accounts
+            .start_timer();
+        self.execute_in_blocking_worker(move |this| this.persist_smart_accounts(&smart_accounts))
+            .await?;
+        let elapsed = guard.stop_and_record();
+        info!(elapsed, "Persisted {len} smart accounts");
+        Ok(())
+    }
+
+    async fn persist_account_authenticators(
+        &self,
+        account_authenticators: Vec<StoredAccountAuthenticator>,
+    ) -> Result<(), IndexerError> {
+        if account_authenticators.is_empty() {
+            return Ok(());
+        }
+        let len = account_authenticators.len();
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_account_authenticators
+            .start_timer();
+        self.execute_in_blocking_worker(move |this| {
+            this.persist_account_authenticators(&account_authenticators)
+        })
+        .await?;
+        let elapsed = guard.stop_and_record();
+        info!(elapsed, "Persisted {len} account authenticators");
         Ok(())
     }
 

@@ -36,6 +36,7 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
 use iota::claim;
 use iota::dynamic_field;
+use iota::event;
 use iota::public_key::PublicKey;
 
 // === Errors ===
@@ -43,6 +44,15 @@ use iota::public_key::PublicKey;
 #[error(code = 0)]
 const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
     b"Transaction must be signed by the smart account.";
+
+// === Events ===
+
+/// Event emitted when a `SmartAccount` is created.
+public struct SmartAccountCreated has copy, drop {
+    account_id: ID,
+    public_key: Option<PublicKey>,
+    immutable: bool,
+}
 
 // === Structs ===
 
@@ -128,6 +138,10 @@ public fun build_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
     let account_address = account.account_address();
 
+    emit_smart_account_event(
+        &account,
+        false,
+    );
     account::create_account_v1(account, authenticator);
 
     account_address
@@ -142,8 +156,11 @@ public fun build_immutable_v1(self: SmartAccountBuilder): address {
     let SmartAccountBuilder { account, authenticator } = self;
     let account_address = account.account_address();
 
+    emit_smart_account_event(
+        &account,
+        true,
+    );
     account::create_immutable_account_v1(account, authenticator);
-
     account_address
 }
 
@@ -371,6 +388,20 @@ fun claim_builder(public_key: PublicKey, ctx: &TxContext): SmartAccountBuilder {
     }
 }
 
+fun emit_smart_account_event(account: &SmartAccount, immutable: bool) {
+    let public_key = if (account.has_builtin_auth_public_key()) {
+        option::some(*account.borrow_builtin_auth_public_key())
+    } else {
+        option::none()
+    };
+    let event = SmartAccountCreated {
+        account_id: *account.id.as_inner(),
+        public_key,
+        immutable,
+    };
+    event::emit(event);
+}
+
 /// Check that the sender of this transaction is the account itself.
 fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
     assert!(self.account_address() == ctx.sender(), ETransactionSenderIsNotTheSmartAccount);
@@ -390,4 +421,13 @@ public fun claim_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) 
 #[test_only]
 public fun claim_immutable_account_v1_for_testing(public_key: PublicKey, ctx: &TxContext) {
     claim_immutable_account_v1(public_key, ctx)
+}
+
+/// The fields of a `SmartAccountCreated` event, which are private to this
+/// module.
+#[test_only]
+public fun smart_account_created_fields_for_testing(
+    event: &SmartAccountCreated,
+): (ID, Option<PublicKey>, bool) {
+    (event.account_id, event.public_key, event.immutable)
 }

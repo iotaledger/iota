@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::ToFromBytes;
+use iota_sdk_types::Address;
 use iota_types::{
     base_types::{AuthorityName, EpochId},
     committee::Committee,
@@ -17,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    MoveFunctionName, Page,
+    MoveFunctionName, Page, iota_primitives::Address as AddressSchema,
     iota_system_state_summary::IotaValidatorSummary as IotaValidatorSummarySchema,
 };
 
@@ -217,4 +218,73 @@ pub struct AddressMetrics {
 pub struct ParticipationMetrics {
     /// The count of distinct addresses with delegated stake.
     pub total_addresses: u64,
+}
+
+/// An account a public key controls, or used to control, as folded from the
+/// on-chain account-discoverability event stream.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountKeyLink {
+    /// The account's address.
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub address: Address,
+    /// Whether the link is current. An unlinked account is one the key was
+    /// rotated away from or detached from; it is only returned when the query
+    /// asks for unlinked results.
+    pub status: AccountKeyLinkStatus,
+    /// How the link came about.
+    pub source: AccountKeyLinkSource,
+    /// Whether the address is a framework `SmartAccount`. When false, the key
+    /// was attached to some other object, which may not be usable as an
+    /// account at all.
+    pub smart_account: bool,
+    /// The kind of the account's current authenticator. A built-in one means
+    /// the IOTA wallet can authenticate the account with this key; `custom`
+    /// means it cannot. `null` when the address is not a framework
+    /// `SmartAccount`.
+    pub authenticator: Option<AccountAuthenticatorKind>,
+    /// The signature scheme flag of the key, as recorded on chain. Not resolved
+    /// to a named scheme: a link stays indexable under a flag this build does
+    /// not recognize.
+    pub scheme: u8,
+    /// The epoch of the last change to this link.
+    #[serde_as(as = "DisplayFromStr")]
+    #[schemars(with = "String")]
+    pub last_change_epoch: EpochId,
+}
+
+/// The authenticator of an account in an [`AccountKeyLink`]: one of the
+/// built-in authenticators, or a custom one.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountAuthenticatorKind {
+    Ed25519,
+    Secp256k1,
+    Secp256r1,
+    Multisig,
+    Passkey,
+    /// Any authenticator other than the built-in ones.
+    Custom,
+}
+
+/// Whether an [`AccountKeyLink`] is current.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountKeyLinkStatus {
+    Active,
+    Unlinked,
+}
+
+/// What established an [`AccountKeyLink`].
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountKeyLinkSource {
+    /// The key was attached to an account that already existed.
+    Attach,
+    /// The account rotated onto, or away from, this key.
+    Rotate,
+    /// The key was detached from the account.
+    Detach,
 }

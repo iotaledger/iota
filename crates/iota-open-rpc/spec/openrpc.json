@@ -3449,6 +3449,42 @@
       }
     },
     {
+      "name": "iotax_getAccountsByPublicKey",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the accounts controlled by the given public key, folded from the on-chain account-discoverability event stream (`PublicKeyAttached`, `PublicKeyRotated`, `PublicKeyDetached`, `SmartAccountCreated`, and the `iota::account` creation and authenticator-rotation events).\n\nEach result says which authenticator the account has: with a built-in one the IOTA wallet can authenticate the account using this key, with a `custom` one it cannot.\n\nResults are not authenticated by this call: anyone can create an account with someone else's public key, or attach a key to an object that is not an account. Use the `smartAccount` flag to drop the latter, or verify a returned account on chain.\n\nExclusively served by the indexer.",
+      "params": [
+        {
+          "name": "public_key",
+          "description": "Base64 of the scheme-flag-prefixed public key bytes.",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Base64"
+          }
+        },
+        {
+          "name": "include_unlinked",
+          "description": "Whether to also return rotated-away or detached links.",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "Vec<AccountKeyLink>",
+        "required": true,
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AccountKeyLink"
+          }
+        }
+      }
+    },
+    {
       "name": "iotax_getAllBalances",
       "tags": [
         {
@@ -6173,6 +6209,125 @@
   ],
   "components": {
     "schemas": {
+      "AccountAuthenticatorKind": {
+        "description": "The authenticator of an account in an [`AccountKeyLink`]: one of the built-in authenticators, or a custom one.",
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "ed25519",
+              "secp256k1",
+              "secp256r1",
+              "multisig",
+              "passkey"
+            ]
+          },
+          {
+            "description": "Any authenticator other than the built-in ones.",
+            "type": "string",
+            "enum": [
+              "custom"
+            ]
+          }
+        ]
+      },
+      "AccountKeyLink": {
+        "description": "An account a public key controls, or used to control, as folded from the on-chain account-discoverability event stream.",
+        "type": "object",
+        "required": [
+          "address",
+          "lastChangeEpoch",
+          "scheme",
+          "smartAccount",
+          "source",
+          "status"
+        ],
+        "properties": {
+          "address": {
+            "description": "The account's address.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Address"
+              }
+            ]
+          },
+          "authenticator": {
+            "description": "The kind of the account's current authenticator. A built-in one means the IOTA wallet can authenticate the account with this key; `custom` means it cannot. `null` when the address is not a framework `SmartAccount`.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccountAuthenticatorKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastChangeEpoch": {
+            "description": "The epoch of the last change to this link.",
+            "type": "string"
+          },
+          "scheme": {
+            "description": "The signature scheme flag of the key, as recorded on chain. Not resolved to a named scheme: a link stays indexable under a flag this build does not recognize.",
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0.0
+          },
+          "smartAccount": {
+            "description": "Whether the address is a framework `SmartAccount`. When false, the key was attached to some other object, which may not be usable as an account at all.",
+            "type": "boolean"
+          },
+          "source": {
+            "description": "How the link came about.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountKeyLinkSource"
+              }
+            ]
+          },
+          "status": {
+            "description": "Whether the link is current. An unlinked account is one the key was rotated away from or detached from; it is only returned when the query asks for unlinked results.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AccountKeyLinkStatus"
+              }
+            ]
+          }
+        }
+      },
+      "AccountKeyLinkSource": {
+        "description": "What established an [`AccountKeyLink`].",
+        "oneOf": [
+          {
+            "description": "The key was attached to an account that already existed.",
+            "type": "string",
+            "enum": [
+              "attach"
+            ]
+          },
+          {
+            "description": "The account rotated onto, or away from, this key.",
+            "type": "string",
+            "enum": [
+              "rotate"
+            ]
+          },
+          {
+            "description": "The key was detached from the account.",
+            "type": "string",
+            "enum": [
+              "detach"
+            ]
+          }
+        ]
+      },
+      "AccountKeyLinkStatus": {
+        "description": "Whether an [`AccountKeyLink`] is current.",
+        "type": "string",
+        "enum": [
+          "active",
+          "unlinked"
+        ]
+      },
       "Address": {
         "description": "IOTA address as a hex string",
         "type": "string",
