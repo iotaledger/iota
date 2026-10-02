@@ -440,7 +440,8 @@ where
     // server returns every transaction the committed range references. The
     // commits already received bound them instead: a commit holds at most one
     // `TransactionRef` per 37 bytes it occupies, and the server serves one
-    // entry per reference.
+    // entry per reference. Their bytes are bounded by the caller, which reads
+    // the chunks one at a time and stops at its byte budget.
     let committee_size = context.committee.size();
     let gc_depth = context.protocol_config.gc_depth() as usize;
     let max_commits = CommitSyncType::Fast.max_commits_per_response(commit_range);
@@ -449,22 +450,10 @@ where
     let max_commit_size = max_commit_bytes(committee_size, gc_depth);
     let max_header_size = max_signed_block_header_bytes(committee_size);
     let max_transaction_size = max_serialized_transactions_entry_bytes(context);
-    // Coarse total backstop for the buffer. The commit and certifier-header
-    // terms reuse the per-category caps above so the total never trips
-    // before them; the transaction term uses the commit-sync fetch cap as a
-    // coarse allowance. An empty entry still costs its `Bytes` descriptor,
-    // so it is charged to the total as well.
-    let max_allowed_bytes = buffer_bytes(max_commits, max_commit_size)
-        .saturating_add(buffer_bytes(max_certifier_headers, max_header_size))
-        .saturating_add(buffer_bytes(
-            context.parameters.max_transactions_per_commit_sync_fetch,
-            max_transaction_size,
-        ));
 
     let mut commits = Vec::new();
     let mut certifier_block_headers = Vec::new();
     let mut max_transactions = 0usize;
-    let mut total_fetched_bytes = 0;
 
     let first_transactions = loop {
         match stream.try_next().await {
@@ -485,7 +474,6 @@ where
                             limit: max_commit_size,
                         });
                     }
-                    total_fetched_bytes += c.len() + size_of::<Bytes>();
                     max_transactions =
                         max_transactions.saturating_add(c.len() / SERIALIZED_TRANSACTION_REF_BYTES);
                 }
@@ -510,7 +498,6 @@ where
                             limit: max_header_size,
                         });
                     }
-                    total_fetched_bytes += h.len() + size_of::<Bytes>();
                 }
                 certifier_block_headers.extend(response.certifier_block_headers);
 
@@ -553,9 +540,7 @@ where
         peer,
         max_transactions,
         max_transaction_size,
-        max_allowed_bytes,
         received_transactions: 0,
-        total_fetched_bytes,
     }
     .into_stream();
     Ok(FetchedCommitsAndTransactions {
@@ -573,10 +558,7 @@ struct TransactionChunks<S> {
     /// One entry per `TransactionRef` the received commits can hold.
     max_transactions: usize,
     max_transaction_size: usize,
-    max_allowed_bytes: usize,
     received_transactions: usize,
-    /// Bytes of the whole response so far, commits and headers included.
-    total_fetched_bytes: usize,
 }
 
 impl<S> TransactionChunks<S>
@@ -587,14 +569,14 @@ where
         + 'static,
 {
     /// Yields the entries of each response message, ending after the first
-    /// error or once the backstop is passed.
+    /// error.
     fn into_stream(self) -> TransactionChunkStream {
         stream::unfold(Some(self), |state| async move {
             let mut chunks = state?;
             let response = chunks.responses.next().await?;
             let chunk = chunks.check(response);
-            let ended = chunk.is_err() || chunks.total_fetched_bytes > chunks.max_allowed_bytes;
-            Some((chunk, (!ended).then_some(chunks)))
+            let next = chunk.is_ok().then_some(chunks);
+            Some((chunk, next))
         })
         .boxed()
     }
@@ -629,15 +611,6 @@ where
                     limit: self.max_transaction_size,
                 });
             }
-            self.total_fetched_bytes += t.len() + size_of::<Bytes>();
-        }
-        // Coarse total backstop bounding the transaction buffer, which has no
-        // precise count cap on the fast path.
-        if self.total_fetched_bytes > self.max_allowed_bytes {
-            info!(
-                "fetch_commits_and_transactions() fetched bytes exceeded limit: {} > {}, terminating stream.",
-                self.total_fetched_bytes, self.max_allowed_bytes,
-            );
         }
         Ok(response.transactions)
     }
