@@ -958,6 +958,8 @@ pub(crate) fn requeue_partial_range(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use futures::{StreamExt as _, stream};
 
     use super::*;
@@ -980,6 +982,10 @@ pub(crate) mod tests {
         /// When set, the canned response is served as a stream cut by this
         /// error, the way the tonic client reports a mid-stream failure.
         pub(crate) stream_error_message: Option<String>,
+        /// Entries per transaction chunk; all in one chunk when unset.
+        pub(crate) transactions_per_chunk: Option<usize>,
+        /// Transaction chunks the fetches have read, the cut included.
+        pub(crate) chunks_read: Arc<AtomicUsize>,
         /// Waited out before answering, so a test can pin the latency the fetch
         /// loop records.
         pub(crate) response_delay: Duration,
@@ -1068,15 +1074,27 @@ pub(crate) mod tests {
             sleep(self.response_delay).await;
             match &self.commits_and_transactions {
                 Some((commits, headers, transactions)) => {
-                    let chunk = (!transactions.is_empty()).then(|| Ok(transactions.clone()));
+                    let per_chunk = self
+                        .transactions_per_chunk
+                        .unwrap_or(transactions.len())
+                        .max(1);
+                    let chunks: Vec<_> = transactions
+                        .chunks(per_chunk)
+                        .map(|chunk| Ok(chunk.to_vec()))
+                        .collect();
                     let cut = self
                         .stream_error_message
                         .clone()
                         .map(|message| Err(ConsensusError::NetworkRequest(message)));
+                    let chunks_read = self.chunks_read.clone();
                     Ok(FetchedCommitsAndTransactions {
                         commits: commits.clone(),
                         certifier_block_headers: headers.clone(),
-                        transactions: stream::iter(chunk.into_iter().chain(cut)).boxed(),
+                        transactions: stream::iter(chunks.into_iter().chain(cut))
+                            .inspect(move |_| {
+                                chunks_read.fetch_add(1, Ordering::Relaxed);
+                            })
+                            .boxed(),
                     })
                 }
                 None => Err(ConsensusError::NoCommitReceived { peer }),
