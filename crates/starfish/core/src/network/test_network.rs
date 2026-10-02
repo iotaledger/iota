@@ -41,6 +41,8 @@ pub(crate) struct TestService {
     pub(crate) block_bundle_handler_gate: Option<BundleHandlerGate>,
     /// Keeps every subscription open, so a test can hold admission slots.
     pub(crate) endless_subscriptions: bool,
+    /// Served as the transactions of every fast commit-sync fetch.
+    pub(crate) fetch_commits_and_transactions_payload: Vec<Bytes>,
 }
 
 impl TestService {
@@ -67,6 +69,7 @@ impl TestService {
             handle_fetch_commits: Vec::new(),
             block_bundle_handler_gate: None,
             endless_subscriptions: false,
+            fetch_commits_and_transactions_payload: Vec::new(),
         }
     }
 
@@ -150,7 +153,12 @@ impl NetworkService for Mutex<TestService> {
         _peer: AuthorityIndex,
         _commit_range: CommitRange,
     ) -> ConsensusResult<FetchedCommitsAndTransactions> {
-        unimplemented!("Unimplemented")
+        Ok(FetchedCommitsAndTransactions {
+            commits: vec![],
+            certifier_block_headers: vec![],
+            transactions: self.lock().fetch_commits_and_transactions_payload.clone(),
+            oversized_commit_permit: None,
+        })
     }
 
     async fn handle_fetch_latest_block_headers(
