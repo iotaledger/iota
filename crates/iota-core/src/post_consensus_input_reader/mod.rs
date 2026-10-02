@@ -11,9 +11,8 @@
 //! protects a reader only if the reader reads in the opposite order. The hook
 //! writes a row or record before the object, so a store answer is followed by
 //! a read of both tables. The watcher's completion inserts the row before it
-//! removes the record, so the record is read before the row wherever no
-//! earlier record read anchors that order. Each machine's module doc says
-//! which of the two it relies on.
+//! removes the record, so every pass over both tables reads the record
+//! before the row and lets the row decide.
 //!
 //! # Why a store answer for an id neither table knows is epoch-start state
 //!
@@ -35,12 +34,13 @@
 //! reads and the store read. A write whose object the store answer already
 //! reflects put its entry in place first, by point 1, so the re-read finds
 //! the entry and decides from it. The re-read reads the record before the row
-//! and lets the row decide, because a completion can land between the two
-//! reads: it inserts the row and then removes the record, so a record the
-//! re-read misses was removed after a row the later row read finds. The
-//! other order can miss both. The hook classifies by the round map before it
-//! writes, so a record can be born for an already assigned commit during
-//! validation and be removed by that commit's completion moments later.
+//! and lets the row decide, as the first pass does, because a completion can
+//! land between the two reads: it inserts the row and then removes the
+//! record, so a record the re-read misses was removed after a row the later
+//! row read finds. The other order can miss both. The hook classifies by the
+//! round map before it writes, so a record can be born for an already
+//! assigned commit during validation and be removed by that commit's
+//! completion moments later.
 //!
 //! A write landing after the store answer belongs to a commit above the
 //! horizon, because the wait before validation completes every commit at or

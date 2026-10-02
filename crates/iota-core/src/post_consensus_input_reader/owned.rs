@@ -6,13 +6,14 @@
 //! repeated or taken out of order. The comparisons on what a read returned
 //! are pure functions shared by the first pass and the re-check.
 //!
-//! The re-read after the store answer reads the record before the row and
-//! lets the row decide. The completion inserts the row and then removes the
-//! record, so a record the re-read misses was removed after a row the later
-//! row read finds. The other order can miss both: the hook classifies by the
-//! round map before it writes, so a record can be born for an already
-//! assigned commit during validation and the completion can land between the
-//! two re-reads.
+//! Both passes over the tables read the record before the row and let the
+//! row decide. The completion inserts the row and then removes the record,
+//! so a record a pass misses was removed after a row the later row read
+//! finds. The hook writes the row before the object, so a record whose base
+//! a sync-ahead execution consumed has its row in place for the row read
+//! that follows. The other order can see a record and no row, or neither,
+//! and decide from the record or the held store answer while a fresh read
+//! finds a row above the horizon.
 
 use std::cmp::Ordering;
 
@@ -78,28 +79,12 @@ impl<S: OwnedState> OwnedReader<S> {
 }
 
 // ---------------------------------------------------------------------------
-// Rule 1: the handler-processed row at (id, V)
+// Rules 1 and 2: the sync-ahead record for id, then the row at (id, V)
 // ---------------------------------------------------------------------------
 
 /// Nothing read yet.
 pub struct Start;
 impl OwnedState for Start {}
-
-/// Outcome of rule 1: the exact-key lookup at `(id, V)` and, on a hit, the
-/// horizon, kind and digest of the row.
-#[must_use]
-pub enum HandlerRowLookup {
-    /// A `Live` row at or below `C - K` with the named digest. Next: the
-    /// bytes.
-    NeedBytes(OwnedReader<NeedBytes>),
-    /// A row above `C - K`. Never skipped.
-    Missing(MissingReason),
-    /// A tombstone row, or a `Live` row with another digest.
-    Drop(DropReason),
-    /// Not a verdict. No row, so the machine continues with the sync-ahead
-    /// record.
-    NoRow(OwnedReader<NoHandlerRow>),
-}
 
 impl OwnedReader<Start> {
     /// Begins the read of `input` at horizon `C - K`. The only constructor of
@@ -112,47 +97,52 @@ impl OwnedReader<Start> {
         }
     }
 
-    /// Overlay first, then the table through the cache.
-    pub fn read_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<HandlerRowLookup> {
-        Ok(match self.row_classification(ctx)? {
-            None => HandlerRowLookup::NoRow(self.into_state(NoHandlerRow)),
-            Some(Classification::Keep) => HandlerRowLookup::NeedBytes(self.into_state(NeedBytes)),
-            Some(Classification::Missing(reason)) => HandlerRowLookup::Missing(reason),
-            Some(Classification::Drop(reason)) => HandlerRowLookup::Drop(reason),
-        })
+    /// Overlay first, then the table. Holds what the record said. Not a
+    /// verdict: the row is read next and has precedence.
+    pub fn read_sync_ahead_record(
+        self,
+        ctx: &CommitIndexedReader,
+    ) -> IotaResult<OwnedReader<RecordRead>> {
+        let record = self.record_classification(ctx)?;
+        Ok(self.into_state(RecordRead { record }))
     }
 }
 
-// ---------------------------------------------------------------------------
-// Rule 2: the sync-ahead record for id
-// ---------------------------------------------------------------------------
+/// The sync-ahead record was read. Held until the row is read.
+pub struct RecordRead {
+    record: Option<Classification>,
+}
+impl OwnedState for RecordRead {}
 
-/// No handler-processed row at `(id, V)`.
-pub struct NoHandlerRow;
-impl OwnedState for NoHandlerRow {}
-
-/// Outcome of rule 2: the lookup by id and, on a hit, the record's
-/// `base_version` against `V`.
+/// Outcome of the first pass over both tables. A row decides as in rule 1,
+/// else a record decides as in rule 2.
 #[must_use]
-pub enum SyncAheadLookup {
-    /// `base_version == Some(V)`. Next: the bytes.
+pub enum TablesLookup {
+    /// A `Live` row at or below `C - K` with the named digest, or no row and
+    /// a record with `base_version == Some(V)`. Next: the bytes.
     NeedBytes(OwnedReader<NeedBytes>),
+    /// A row above `C - K`, never skipped. Or no row and a record whose
     /// `base_version` is `None` or below `V`.
     Missing(MissingReason),
-    /// `base_version` is above `V`.
+    /// A tombstone row or a `Live` row with another digest. Or no row and a
+    /// record whose `base_version` is above `V`.
     Drop(DropReason),
-    /// Not a verdict. No record, so the machine continues with the store.
-    NoRecord(OwnedReader<NoSyncAheadRecord>),
+    /// Not a verdict. Neither table knows `id`, so the machine continues
+    /// with the store.
+    NoEntry(OwnedReader<NoTablesEntry>),
 }
 
-impl OwnedReader<NoHandlerRow> {
-    /// Overlay first, then the table.
-    pub fn read_sync_ahead_record(self, ctx: &CommitIndexedReader) -> IotaResult<SyncAheadLookup> {
-        Ok(match self.record_classification(ctx)? {
-            None => SyncAheadLookup::NoRecord(self.into_state(NoSyncAheadRecord)),
-            Some(Classification::Keep) => SyncAheadLookup::NeedBytes(self.into_state(NeedBytes)),
-            Some(Classification::Missing(reason)) => SyncAheadLookup::Missing(reason),
-            Some(Classification::Drop(reason)) => SyncAheadLookup::Drop(reason),
+impl OwnedReader<RecordRead> {
+    /// Overlay first, then the table through the cache. Decides.
+    pub fn read_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesLookup> {
+        // The row decides over the held record.
+        let Some(classification) = self.row_classification(ctx)?.or(self.state.record) else {
+            return Ok(TablesLookup::NoEntry(self.into_state(NoTablesEntry)));
+        };
+        Ok(match classification {
+            Classification::Keep => TablesLookup::NeedBytes(self.into_state(NeedBytes)),
+            Classification::Missing(reason) => TablesLookup::Missing(reason),
+            Classification::Drop(reason) => TablesLookup::Drop(reason),
         })
     }
 }
@@ -162,10 +152,10 @@ impl OwnedReader<NoHandlerRow> {
 // ---------------------------------------------------------------------------
 
 /// Neither table knows `id`. The store has not been asked.
-pub struct NoSyncAheadRecord;
-impl OwnedState for NoSyncAheadRecord {}
+pub struct NoTablesEntry;
+impl OwnedState for NoTablesEntry {}
 
-impl OwnedReader<NoSyncAheadRecord> {
+impl OwnedReader<NoTablesEntry> {
     /// The latest reference or tombstone of `id`. The answer is held, not
     /// decided: both tables must be read again first.
     pub fn read_store(self, ctx: &CommitIndexedReader) -> IotaResult<OwnedReader<StoreAnswered>> {
@@ -217,13 +207,12 @@ pub enum TablesRecheck {
 impl OwnedReader<StoreAnsweredRecordReread> {
     /// Re-reads the handler-processed row and decides.
     pub fn reread_handler_row(self, ctx: &CommitIndexedReader) -> IotaResult<TablesRecheck> {
-        let classification = match (self.row_classification(ctx)?, self.state.record) {
-            (Some(row), _) => row,
-            (None, Some(record)) => record,
-            // Nothing appeared in either table, so the store answer predates
-            // every this-epoch write for `id` and stands.
-            (None, None) => classify_latest(self.state.latest.as_ref(), &self.input),
-        };
+        // The row decides over the held record. Nothing in either table means
+        // the store answer predates every this-epoch write for `id` and stands.
+        let classification = self
+            .row_classification(ctx)?
+            .or(self.state.record)
+            .unwrap_or_else(|| classify_latest(self.state.latest.as_ref(), &self.input));
         Ok(match classification {
             Classification::Keep => TablesRecheck::NeedBytes(self.into_state(NeedBytes)),
             Classification::Missing(reason) => TablesRecheck::Missing(reason),
@@ -424,16 +413,14 @@ mod tests {
         );
 
         // First pass: nothing written yet.
-        let no_row = match OwnedReader::start(input, HORIZON)
+        let no_tables_entry = match OwnedReader::start(input, HORIZON)
+            .read_sync_ahead_record(&ctx)
+            .unwrap()
             .read_handler_row(&ctx)
             .unwrap()
         {
-            HandlerRowLookup::NoRow(no_row) => no_row,
-            _ => panic!("no row before the hook ran"),
-        };
-        let no_record = match no_row.read_sync_ahead_record(&ctx).unwrap() {
-            SyncAheadLookup::NoRecord(no_record) => no_record,
-            _ => panic!("no record before the hook ran"),
+            TablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
+            _ => panic!("nothing in either table before the hook ran"),
         };
 
         // The hook, classified before commit 11 was assigned, writes the
@@ -449,7 +436,7 @@ mod tests {
 
         // The store answers X@8. The first table re-read, whichever table it
         // is, happens before the completion.
-        let store_answered = no_record.read_store(&ctx).unwrap();
+        let store_answered = no_tables_entry.read_store(&ctx).unwrap();
         let record_reread = store_answered.reread_sync_ahead_record(&ctx).unwrap();
 
         // Completion of commit 11 inserts the row and removes the record.
@@ -470,6 +457,126 @@ mod tests {
         }
 
         // The stable answer the interleaving must match.
+        assert!(matches!(
+            ctx.read_owned(input).unwrap(),
+            OwnedVerdict::Missing(reason) if reason.kind() == MissingKind::HandlerRowAboveHorizon
+        ));
+    }
+
+    /// Review finding U2a. `P` produces `X@8` in commit 11, above the horizon
+    /// of commit 12, and is handler-known, so the hook writes the row. State
+    /// sync then executes `Q`, which consumes `X@8`, and the hook writes a
+    /// record with base 8. Both land between the record read and the row
+    /// read, so the row read must find the row. A fresh read, with both
+    /// entries in place, must let the row decide over the record.
+    #[tokio::test]
+    async fn first_pass_record_hit_defers_to_a_row_that_landed_above_the_horizon() {
+        use std::collections::BTreeMap;
+
+        use iota_sdk_types::{Address, Owner, SenderSignedTransaction};
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            object::Object,
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::authority_tests::init_state_with_objects_and_object_basics,
+            post_consensus_input_reader::OwnedVerdict,
+        };
+
+        const PRODUCING_COMMIT: CommitIndex = HORIZON + 1;
+
+        let sender = Address::ZERO;
+        let gas_id = ObjectId::random();
+        let x_id = ObjectId::random();
+        let owner = Owner::Address(sender);
+        let gas = Object::with_id_owner_version_for_testing(gas_id, Version::from_u64(7), owner);
+        let x_before = Object::with_id_owner_version_for_testing(x_id, Version::from_u64(7), owner);
+        let (authority, _) =
+            init_state_with_objects_and_object_basics([gas.clone(), x_before.clone()]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+
+        let gas_after =
+            Object::with_id_owner_version_for_testing(gas_id, Version::from_u64(8), owner);
+        let x_after = Object::with_id_owner_version_for_testing(x_id, Version::from_u64(8), owner);
+        let input = x_after.object_ref();
+
+        let producer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let producer_effects = TestEffectsBuilder::new(&producer)
+            .with_mutated_objects([(x_id, Version::from_u64(7), owner)])
+            .build();
+        assert_eq!(producer_effects.lamport_version(), input.version);
+        let producer_key = TransactionKey::Digest(*producer_effects.transaction_digest());
+
+        let consumer = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas_after.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let consumer_effects = TestEffectsBuilder::new(&consumer)
+            .with_mutated_objects([(x_id, input.version, owner)])
+            .build();
+        let consumer_key = TransactionKey::Digest(*consumer_effects.transaction_digest());
+
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            PRODUCING_COMMIT + 1,
+        );
+
+        // First pass: the record is read first and finds nothing.
+        let record_read = OwnedReader::start(input, HORIZON)
+            .read_sync_ahead_record(&ctx)
+            .unwrap();
+
+        // Commit 11 is assigned and executes here: the hook writes the row at
+        // (X, 8), then X@8 reaches the store.
+        epoch_store.assign_commit_to_transactions(PRODUCING_COMMIT, vec![producer_key]);
+        epoch_store
+            .record_executed_transaction(
+                &producer_key,
+                &producer_effects,
+                &BTreeMap::from([(gas_id, gas), (x_id, x_before)]),
+            )
+            .unwrap();
+        authority.insert_genesis_object(x_after.clone());
+
+        // State sync executes the consumer of X@8 ahead of the handler: the
+        // hook writes a record with base 8.
+        epoch_store
+            .record_executed_transaction(
+                &consumer_key,
+                &consumer_effects,
+                &BTreeMap::from([(gas_id, gas_after), (x_id, x_after)]),
+            )
+            .unwrap();
+        assert_eq!(
+            epoch_store
+                .sync_ahead_record(&x_id)
+                .unwrap()
+                .unwrap()
+                .base_version,
+            Some(input.version)
+        );
+
+        match record_read.read_handler_row(&ctx).unwrap() {
+            TablesLookup::Missing(reason) => {
+                assert_eq!(reason.kind(), MissingKind::HandlerRowAboveHorizon)
+            }
+            TablesLookup::NeedBytes(_) => panic!("kept a version produced above the horizon"),
+            TablesLookup::Drop(reason) => panic!("dropped: {reason:?}"),
+            TablesLookup::NoEntry(_) => panic!("the row is there"),
+        }
+
+        // Both entries present: the row decides over the record's keep.
         assert!(matches!(
             ctx.read_owned(input).unwrap(),
             OwnedVerdict::Missing(reason) if reason.kind() == MissingKind::HandlerRowAboveHorizon

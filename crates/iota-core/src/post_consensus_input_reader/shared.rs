@@ -6,10 +6,10 @@
 //! the store object, with no content read. One state per read, the store
 //! answer held until both tables are re-read, as in the owned machine.
 //!
-//! The re-read reads the record before the creation row and lets the row
-//! decide, for the reason the owned machine's module doc gives: the
-//! completion inserts the row before it removes the record, so a record the
-//! re-read misses was removed after a row the later row read finds.
+//! Both passes over the tables read the record before the creation row and
+//! let the row decide, for the reasons the owned machine's module doc gives:
+//! the completion inserts the row before it removes the record, and the hook
+//! writes the row before the object a sync-ahead deletion consumes.
 
 use iota_sdk_types::{ObjectId, Owner, TransactionDigest, Version};
 use iota_types::{error::IotaResult, object::Object, storage::ObjectKey};
@@ -74,28 +74,13 @@ impl<S: SharedState> SharedReader<S> {
 }
 
 // ---------------------------------------------------------------------------
-// Creation: the handler-processed row at (id, initial shared version)
+// Record and creation: the sync-ahead record for id, then the row at
+// (id, initial shared version)
 // ---------------------------------------------------------------------------
 
 /// Nothing read yet.
 pub struct Start;
 impl SharedState for Start {}
-
-/// Outcome of the creation row lookup at `(id, declared initial version)`.
-#[must_use]
-pub enum CreationRowLookup {
-    /// A `Live` row with the created-shared flag, at or below `C - K`. Next:
-    /// the store object, for deletion.
-    Created(SharedReader<CreatedShared>),
-    /// A row above `C - K`. Never skipped.
-    Missing(MissingReason),
-    /// A row without the flag, or a tombstone at that key: not created
-    /// shared at the declared version.
-    Drop(DropReason),
-    /// Not a verdict. No row, so the machine continues with the sync-ahead
-    /// record.
-    NoRow(SharedReader<NoCreationRow>),
-}
 
 impl SharedReader<Start> {
     /// Begins the read of shared input `id` declared at
@@ -114,16 +99,64 @@ impl SharedReader<Start> {
         }
     }
 
-    /// Overlay first, then the table through the cache.
-    pub fn read_creation_row(self, ctx: &CommitIndexedReader) -> IotaResult<CreationRowLookup> {
-        Ok(match self.creation_row_classification(ctx)? {
-            None => CreationRowLookup::NoRow(self.into_state(NoCreationRow)),
-            Some(CreationClass::Created) => {
-                CreationRowLookup::Created(self.into_state(CreatedShared))
-            }
-            Some(CreationClass::Missing(reason)) => CreationRowLookup::Missing(reason),
-            Some(CreationClass::Drop(reason)) => CreationRowLookup::Drop(reason),
-        })
+    /// Overlay first, then the table. Holds what the record said. Not a
+    /// verdict: the creation row is read next and has precedence.
+    pub fn read_sync_ahead_record(
+        self,
+        ctx: &CommitIndexedReader,
+    ) -> IotaResult<SharedReader<RecordRead>> {
+        let record = self.record_classification(ctx)?;
+        Ok(self.into_state(RecordRead { record }))
+    }
+}
+
+/// The sync-ahead record was read. Held until the creation row is read.
+pub struct RecordRead {
+    record: Option<RecordClass>,
+}
+impl SharedState for RecordRead {}
+
+/// Outcome of the first pass over both tables. A creation row decides, else
+/// the record does.
+#[must_use]
+pub enum SharedTablesLookup {
+    /// A `Live` row with the created-shared flag, at or below `C - K`. Next:
+    /// the store object, for deletion.
+    Created(SharedReader<CreatedShared>),
+    /// A row above `C - K`, never skipped. Or no row and a record with
+    /// `base_version` `None`: the id was created ahead of the handler.
+    Missing(MissingReason),
+    /// A row without the flag, or a tombstone at that key: not created
+    /// shared at the declared version.
+    Drop(DropReason),
+    /// No row and a record with a base version: the object existed before
+    /// sync ran ahead. Next: the store object, for the owner.
+    PreSyncExisted(SharedReader<PreSyncExisted>),
+    /// Not a verdict. Neither table knows `id`, so the machine continues
+    /// with the store.
+    NoEntry(SharedReader<NoTablesEntry>),
+}
+
+impl SharedReader<RecordRead> {
+    /// Overlay first, then the table through the cache. Decides.
+    pub fn read_creation_row(self, ctx: &CommitIndexedReader) -> IotaResult<SharedTablesLookup> {
+        // The row decides over the held record.
+        Ok(
+            match (self.creation_row_classification(ctx)?, self.state.record) {
+                (Some(CreationClass::Created), _) => {
+                    SharedTablesLookup::Created(self.into_state(CreatedShared))
+                }
+                (Some(CreationClass::Missing(reason)), _) => SharedTablesLookup::Missing(reason),
+                (Some(CreationClass::Drop(reason)), _) => SharedTablesLookup::Drop(reason),
+                (None, Some(RecordClass::Missing(reason))) => SharedTablesLookup::Missing(reason),
+                (None, Some(RecordClass::PreSyncExisted(recorded_initial_shared_version))) => {
+                    SharedTablesLookup::PreSyncExisted(self.into_state(PreSyncExisted {
+                        recorded_initial_shared_version,
+                    }))
+                }
+                (None, None) => SharedTablesLookup::NoEntry(self.into_state(NoTablesEntry)),
+            },
+        )
     }
 }
 
@@ -153,45 +186,11 @@ impl SharedReader<CreatedShared> {
 }
 
 // ---------------------------------------------------------------------------
-// Record: the sync-ahead record for id
+// Pre-sync existence: the store object, for the owner
 // ---------------------------------------------------------------------------
 
-/// No handler-processed row at `(id, declared initial version)`.
-pub struct NoCreationRow;
-impl SharedState for NoCreationRow {}
-
-/// Outcome of the sync-ahead record lookup.
-#[must_use]
-pub enum SharedRecordLookup {
-    /// `base_version` is `None`: the id was created ahead of the handler.
-    Missing(MissingReason),
-    /// `base_version` is `Some`: the object existed before sync ran ahead.
-    /// Next: the store object, for the owner.
-    PreSyncExisted(SharedReader<PreSyncExisted>),
-    /// Not a verdict. No record, so the machine continues with the store.
-    NoRecord(SharedReader<NoRecord>),
-}
-
-impl SharedReader<NoCreationRow> {
-    /// Overlay first, then the table.
-    pub fn read_sync_ahead_record(
-        self,
-        ctx: &CommitIndexedReader,
-    ) -> IotaResult<SharedRecordLookup> {
-        Ok(match self.record_classification(ctx)? {
-            None => SharedRecordLookup::NoRecord(self.into_state(NoRecord)),
-            Some(RecordClass::PreSyncExisted(recorded_initial_shared_version)) => {
-                SharedRecordLookup::PreSyncExisted(self.into_state(PreSyncExisted {
-                    recorded_initial_shared_version,
-                }))
-            }
-            Some(RecordClass::Missing(reason)) => SharedRecordLookup::Missing(reason),
-        })
-    }
-}
-
-/// A sync-ahead record with a base version: the object existed before sync
-/// ran ahead. Owner not checked yet.
+/// A sync-ahead record with a base version and no creation row: the object
+/// existed before sync ran ahead. Owner not checked yet.
 pub struct PreSyncExisted {
     /// The record's `initial_shared_version`, the base version's owner.
     recorded_initial_shared_version: Option<Version>,
@@ -239,10 +238,10 @@ impl SharedReader<PreSyncExisted> {
 // ---------------------------------------------------------------------------
 
 /// Neither table knows `id`. The store has not been asked.
-pub struct NoRecord;
-impl SharedState for NoRecord {}
+pub struct NoTablesEntry;
+impl SharedState for NoTablesEntry {}
 
-impl SharedReader<NoRecord> {
+impl SharedReader<NoTablesEntry> {
     /// The latest object by id, or `None` for a tombstone or an unknown id.
     /// Held, not decided: both tables must be read again first.
     pub fn read_object(
@@ -652,16 +651,14 @@ mod tests {
         );
 
         // First pass: nothing written yet.
-        let no_row = match SharedReader::start(s_id, initial, HORIZON)
+        let no_tables_entry = match SharedReader::start(s_id, initial, HORIZON)
+            .read_sync_ahead_record(&ctx)
+            .unwrap()
             .read_creation_row(&ctx)
             .unwrap()
         {
-            CreationRowLookup::NoRow(no_row) => no_row,
-            _ => panic!("no row before the hook ran"),
-        };
-        let no_record = match no_row.read_sync_ahead_record(&ctx).unwrap() {
-            SharedRecordLookup::NoRecord(no_record) => no_record,
-            _ => panic!("no record before the hook ran"),
+            SharedTablesLookup::NoEntry(no_tables_entry) => no_tables_entry,
+            _ => panic!("nothing in either table before the hook ran"),
         };
 
         // The hook, classified before commit 11 was assigned, writes the
@@ -673,7 +670,7 @@ mod tests {
 
         // The store answers S. The first table re-read, whichever table it
         // is, happens before the completion.
-        let object_answered = no_record.read_object(&ctx).unwrap();
+        let object_answered = no_tables_entry.read_object(&ctx).unwrap();
         let record_reread = object_answered.reread_sync_ahead_record(&ctx).unwrap();
 
         // Completion of commit 11 inserts the row and removes the record.
@@ -696,6 +693,136 @@ mod tests {
         }
 
         // The stable answer the interleaving must match.
+        assert!(matches!(
+            ctx.read_shared(s_id, initial).unwrap(),
+            SharedVerdict::Missing(reason)
+                if reason.kind() == MissingKind::SharedCreationAboveHorizon
+        ));
+    }
+
+    /// Review finding U2a for the shared machine. `P` creates `S` shared at
+    /// version 8 in commit 11, above the horizon of commit 12, and is
+    /// handler-known, so the hook writes the creation row. State sync then
+    /// executes `Q`, which deletes `S`, and the hook writes a record with
+    /// base 8. Both land between the record read and the creation-row read,
+    /// so the row read must find the row. A fresh read, with both entries in
+    /// place, must let the row decide over the record. The object is left in
+    /// the store so that the wrong answer is a keep.
+    #[tokio::test]
+    async fn first_pass_record_hit_defers_to_a_creation_row_that_landed_above_the_horizon() {
+        use std::collections::BTreeMap;
+
+        use iota_sdk_types::SenderSignedTransaction;
+        use iota_test_transaction_builder::TestTransactionBuilder;
+        use iota_types::{
+            effects::{TestEffectsBuilder, TransactionEffectsAPI},
+            transaction::TransactionKey,
+        };
+
+        use crate::{
+            authority::authority_tests::init_state_with_objects_and_object_basics,
+            post_consensus_input_reader::SharedVerdict,
+        };
+
+        const PRODUCING_COMMIT: CommitIndex = HORIZON + 1;
+
+        let sender = Address::ZERO;
+        let gas_id = ObjectId::random();
+        let s_id = ObjectId::random();
+        let initial = Version::from_u64(8);
+        let gas = Object::with_id_owner_version_for_testing(
+            gas_id,
+            Version::from_u64(7),
+            Owner::Address(sender),
+        );
+        let (authority, _) = init_state_with_objects_and_object_basics([gas.clone()]).await;
+        let epoch_store = authority.epoch_store_for_testing().clone();
+
+        let gas_after = Object::with_id_owner_version_for_testing(
+            gas_id,
+            Version::from_u64(8),
+            Owner::Address(sender),
+        );
+        let shared =
+            Object::with_id_owner_version_for_testing(s_id, initial, Owner::Shared(initial));
+
+        let creator = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let creator_effects = TestEffectsBuilder::new(&creator)
+            .with_created_objects([(s_id, Owner::Shared(initial))])
+            .build();
+        assert_eq!(creator_effects.lamport_version(), initial);
+        let creator_key = TransactionKey::Digest(*creator_effects.transaction_digest());
+
+        let deleter = SenderSignedTransaction::new(
+            TestTransactionBuilder::new(sender, gas_after.object_ref(), 0)
+                .transfer_iota(None, sender)
+                .build(),
+            vec![],
+        );
+        let deleter_effects = TestEffectsBuilder::new(&deleter)
+            .with_deleted_objects_owned_by([(s_id, initial, Owner::Shared(initial))])
+            .build();
+        let deleter_key = TransactionKey::Digest(*deleter_effects.transaction_digest());
+
+        let ctx = CommitIndexedReader::new(
+            authority.get_object_cache_reader().clone(),
+            epoch_store.clone(),
+            PRODUCING_COMMIT + 1,
+        );
+
+        // First pass: the record is read first and finds nothing.
+        let record_read = SharedReader::start(s_id, initial, HORIZON)
+            .read_sync_ahead_record(&ctx)
+            .unwrap();
+
+        // Commit 11 is assigned and executes here: the hook writes the
+        // creation row at (S, 8), then S reaches the store.
+        epoch_store.assign_commit_to_transactions(PRODUCING_COMMIT, vec![creator_key]);
+        epoch_store
+            .record_executed_transaction(
+                &creator_key,
+                &creator_effects,
+                &BTreeMap::from([(gas_id, gas)]),
+            )
+            .unwrap();
+        authority.insert_genesis_object(shared.clone());
+
+        // State sync executes the deletion of S ahead of the handler: the
+        // hook writes a record with base 8.
+        epoch_store
+            .record_executed_transaction(
+                &deleter_key,
+                &deleter_effects,
+                &BTreeMap::from([(gas_id, gas_after), (s_id, shared)]),
+            )
+            .unwrap();
+        assert_eq!(
+            epoch_store
+                .sync_ahead_record(&s_id)
+                .unwrap()
+                .unwrap()
+                .base_version,
+            Some(initial)
+        );
+
+        match record_read.read_creation_row(&ctx).unwrap() {
+            SharedTablesLookup::Missing(reason) => {
+                assert_eq!(reason.kind(), MissingKind::SharedCreationAboveHorizon)
+            }
+            SharedTablesLookup::PreSyncExisted(_) => {
+                panic!("the record decided over a creation row above the horizon")
+            }
+            SharedTablesLookup::Created(_) => panic!("the row is above the horizon"),
+            SharedTablesLookup::Drop(reason) => panic!("dropped: {reason:?}"),
+            SharedTablesLookup::NoEntry(_) => panic!("the row is there"),
+        }
+
+        // Both entries present: the row decides over the record.
         assert!(matches!(
             ctx.read_shared(s_id, initial).unwrap(),
             SharedVerdict::Missing(reason)

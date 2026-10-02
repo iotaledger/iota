@@ -14,8 +14,7 @@
 //! Reading the record first closes that: a record seen before its removal
 //! answers missing, and a record missed because it was removed means the row
 //! is already in place for the read that follows. The owned and shared
-//! machines need no such reordering because their first pass reads the record
-//! before the store, which anchors the same ordering for their re-read.
+//! machines read record then row on both of their passes for the same reason.
 
 use iota_sdk_types::ObjectId;
 use iota_types::{
