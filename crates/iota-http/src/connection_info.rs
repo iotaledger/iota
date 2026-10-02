@@ -4,16 +4,25 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        Arc, Mutex, RwLock,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use tokio_rustls::rustls::pki_types::CertificateDer;
 
-use crate::config::{OnPeerConnectionEvent, PeerConnectionEvent};
+use crate::{
+    activity::IdleHandle,
+    config::{OnPeerConnectionEvent, PeerConnectionEvent},
+};
 
 pub(crate) type ActiveConnections<A = std::net::SocketAddr> =
     Arc<RwLock<HashMap<ConnectionId, ConnectionInfo<A>>>>;
 
+/// Identifies one connection for as long as the server runs. Handed out in
+/// order and never reused, so an id kept after its connection has gone refers
+/// to nothing rather than to whichever connection came next.
 pub type ConnectionId = usize;
 
 #[derive(Debug)]
@@ -33,12 +42,17 @@ impl<A> ConnectionInfo<A> {
         address: A,
         peer_certificates: Option<Arc<Vec<CertificateDer<'static>>>>,
         graceful_shutdown_token: tokio_util::sync::CancellationToken,
+        idle: IdleHandle,
     ) -> Self {
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
         Self(Arc::new(Inner {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             address,
             time_established: std::time::Instant::now(),
             peer_certificates: peer_certificates.map(PeerCertificates),
             graceful_shutdown_token,
+            idle,
         }))
     }
 
@@ -58,23 +72,34 @@ impl<A> ConnectionInfo<A> {
 
     /// A stable identifier for this connection
     pub fn id(&self) -> ConnectionId {
-        &*self.0 as *const _ as usize
+        self.0.id
     }
 
     /// Trigger a graceful shutdown of this connection
     pub fn close(&self) {
         self.0.graceful_shutdown_token.cancel()
     }
+
+    /// How long this connection has gone without asking for anything, counted
+    /// from when it was established if it never has.
+    ///
+    /// Only meaningful for a connection that is not serving: while it is, this
+    /// reports the gap before its current request began.
+    pub(crate) fn idle_for(&self) -> Option<std::time::Duration> {
+        self.0.idle.idle_for()
+    }
 }
 
 #[derive(Debug)]
 struct Inner<A = std::net::SocketAddr> {
+    id: ConnectionId,
     address: A,
 
     // Time that the connection was established
     time_established: std::time::Instant,
 
     peer_certificates: Option<PeerCertificates>,
+    idle: IdleHandle,
     graceful_shutdown_token: tokio_util::sync::CancellationToken,
 }
 

@@ -21,6 +21,38 @@ pub trait Listener: Send + 'static {
 
     /// Returns the local address that this listener is bound to.
     fn local_addr(&self) -> std::io::Result<Self::Addr>;
+
+    /// The key connections from this address are counted under when the peer
+    /// presents no certificate identifying it, or `None` when this listener's
+    /// addresses cannot be grouped.
+    fn connection_key(_addr: &Self::Addr) -> Option<Vec<u8>> {
+        None
+    }
+}
+
+/// The key an address is counted under.
+///
+/// An IPv4 address identifies its holder closely enough to count against on its
+/// own, which is what a reverse proxy does and what a coarser key would get
+/// wrong: single addresses are routinely handed out from a shared /24, by cloud
+/// providers and by carrier-grade NAT, so grouping by /24 would count unrelated
+/// holders together. An IPv6 address does not, because one host is routinely
+/// given a whole /64 and could raise its own limit by moving within it, so
+/// those are counted by the allocation rather than the address.
+fn address_prefix(addr: &std::net::SocketAddr) -> Vec<u8> {
+    /// A single site is commonly allocated a whole /64.
+    const IPV6_PREFIX_LEN: usize = 8;
+    /// The whole address.
+    const IPV4_PREFIX_LEN: usize = 4;
+
+    // A dual-stack listener sees IPv4 peers as `::ffff:a.b.c.d`, whose first
+    // eight octets are the same zeros for every one of them. Canonicalising
+    // first groups such a peer by its IPv4 address, as a listener bound to
+    // IPv4 would.
+    match addr.ip().to_canonical() {
+        std::net::IpAddr::V4(ip) => ip.octets()[..IPV4_PREFIX_LEN].to_vec(),
+        std::net::IpAddr::V6(ip) => ip.octets()[..IPV6_PREFIX_LEN].to_vec(),
+    }
 }
 
 /// Extensions to [`Listener`].
@@ -73,6 +105,10 @@ impl Listener for tokio::net::TcpListener {
     #[inline]
     fn local_addr(&self) -> std::io::Result<Self::Addr> {
         Self::local_addr(self)
+    }
+
+    fn connection_key(addr: &Self::Addr) -> Option<Vec<u8>> {
+        Some(address_prefix(addr))
     }
 }
 
@@ -133,6 +169,10 @@ impl Listener for TcpListenerWithOptions {
     fn local_addr(&self) -> std::io::Result<Self::Addr> {
         Listener::local_addr(&self.inner)
     }
+
+    fn connection_key(addr: &Self::Addr) -> Option<Vec<u8>> {
+        Some(address_prefix(addr))
+    }
 }
 
 // Uncomment once we update tokio to >=1.41.0
@@ -191,6 +231,10 @@ where
 
     fn local_addr(&self) -> std::io::Result<Self::Addr> {
         self.listener.local_addr()
+    }
+
+    fn connection_key(addr: &Self::Addr) -> Option<Vec<u8>> {
+        L::connection_key(addr)
     }
 }
 

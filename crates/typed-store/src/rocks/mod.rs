@@ -170,7 +170,8 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
         // Customize database options
         let mut options = db_options.unwrap_or_else(|| default_db_options().options);
 
-        fdlimit::raise_fd_limit();
+        // Raise FD limit
+        iota_common::fd_budget::fd_limit();
         // This is a requirement by RocksDB when opening as secondary
         options.set_max_open_files(-1);
 

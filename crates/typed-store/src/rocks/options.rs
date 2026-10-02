@@ -390,13 +390,12 @@ impl DBOptions {
 pub fn default_db_options() -> DBOptions {
     let mut opt = rocksdb::Options::default();
 
-    // One common issue when running tests on Mac is that the default ulimit is too
-    // low, leading to I/O errors such as "Too many open files". Raising fdlimit
-    // to bypass it.
-    if let Some(limit) = fdlimit::raise_fd_limit() {
-        // on windows raise_fd_limit return None
-        opt.set_max_open_files((limit / 8) as i32);
-    }
+    // One common issue when running tests on Mac is that the default ulimit is
+    // too low, leading to I/O errors such as "Too many open files". Taking a
+    // share of the budget raises the process to its ceiling as a side effect.
+    opt.set_max_open_files(iota_common::fd_budget::budget_for(
+        iota_common::fd_budget::shares::TYPED_STORE,
+    ) as i32);
 
     // The table cache is locked for updates and this determines the number
     // of shards, ie 2^10. Increase in case of lock contentions.
