@@ -29,7 +29,7 @@ use crate::{
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{
         AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
-        verify_proof_of_possession,
+        network_pubkey_from_bytes, verify_proof_of_possession,
     },
     error::IotaError,
     gas_coin::IotaTreasuryCap,
@@ -145,9 +145,9 @@ impl ValidatorMetadataV1 {
         verify_proof_of_possession(&pop, &authority_pubkey, self.iota_address)
             .map_err(|_| E_METADATA_INVALID_POP)?;
 
-        let network_pubkey = NetworkPublicKey::from_bytes(self.network_pubkey_bytes.as_ref())
+        let network_pubkey = network_pubkey_from_bytes(self.network_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?;
-        let protocol_pubkey = NetworkPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
+        let protocol_pubkey = network_pubkey_from_bytes(self.protocol_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?;
         if protocol_pubkey == network_pubkey {
             return Err(E_METADATA_INVALID_PROTOCOL_PUBKEY);
@@ -209,7 +209,7 @@ impl ValidatorMetadataV1 {
         let next_epoch_network_pubkey = match self.next_epoch_network_pubkey_bytes.clone() {
             None => Ok::<Option<NetworkPublicKey>, u64>(None),
             Some(bytes) => Ok(Some(
-                NetworkPublicKey::from_bytes(bytes.as_ref())
+                network_pubkey_from_bytes(bytes.as_ref())
                     .map_err(|_| E_METADATA_INVALID_NET_PUBKEY)?,
             )),
         }?;
@@ -218,7 +218,7 @@ impl ValidatorMetadataV1 {
             match self.next_epoch_protocol_pubkey_bytes.clone() {
                 None => Ok::<Option<NetworkPublicKey>, u64>(None),
                 Some(bytes) => Ok(Some(
-                    NetworkPublicKey::from_bytes(bytes.as_ref())
+                    network_pubkey_from_bytes(bytes.as_ref())
                         .map_err(|_| E_METADATA_INVALID_PROTOCOL_PUBKEY)?,
                 )),
             }?;
@@ -561,7 +561,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                            network_public_key: Some(verified_metadata.network_pubkey),
                         },
                     ),
                 )

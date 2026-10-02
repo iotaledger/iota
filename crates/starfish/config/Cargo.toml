@@ -20,7 +20,8 @@ tracing.workspace = true
 
 # internal dependencies
 iota-network-stack.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "rand"] }
+iota-sdk-types = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 insta.workspace = true

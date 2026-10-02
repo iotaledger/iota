@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::ed25519::{Ed25519PrivateKey, Ed25519PublicKey};
+use iota_sdk_crypto::{ToFromBytes as _, ed25519::Ed25519PrivateKey};
+use iota_sdk_types::Ed25519PublicKey;
 use pkcs8::EncodePrivateKey;
 use rcgen::{CertificateParams, KeyPair};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -41,7 +42,7 @@ fn generate_self_signed_tls_certificate(
     server_name: &str,
 ) -> (rcgen::Certificate, KeyPair) {
     let keypair = ed25519::KeypairBytes {
-        secret_key: private_key.0.to_bytes(),
+        secret_key: private_key.to_bytes(),
         // ring cannot handle the optional public key that would be legal der here
         // that is, ring expects PKCS#8 v.1
         public_key: None,
@@ -66,7 +67,6 @@ fn generate_cert(keypair: &KeyPair, server_name: &str) -> rcgen::Certificate {
 pub(crate) fn public_key_from_certificate(
     certificate: &CertificateDer,
 ) -> Result<Ed25519PublicKey, anyhow::Error> {
-    use fastcrypto::traits::ToFromBytes;
     use x509_parser::{certificate::X509Certificate, prelude::FromDer};
 
     let cert = X509Certificate::from_der(certificate.as_ref())
@@ -76,7 +76,5 @@ pub(crate) fn public_key_from_certificate(
         <ed25519::pkcs8::PublicKeyBytes as pkcs8::DecodePublicKey>::from_public_key_der(spki.raw)
             .map_err(|e| rustls::Error::General(format!("invalid ed25519 public key: {e}")))?;
 
-    let public_key = Ed25519PublicKey::from_bytes(public_key_bytes.as_ref())?;
-
-    Ok(public_key)
+    Ok(Ed25519PublicKey::new(public_key_bytes.to_bytes()))
 }

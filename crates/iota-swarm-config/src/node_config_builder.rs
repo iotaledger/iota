@@ -31,9 +31,7 @@ use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
-    crypto::{
-        AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, network_to_simple_keypair,
-    },
+    crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
@@ -198,13 +196,9 @@ impl ValidatorConfigBuilder {
 
         NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(validator.authority_key_pair),
-            network_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
-                &validator.network_key_pair,
-            )),
+            network_key_pair: KeyPairWithPath::new(validator.network_key_pair.into()),
             account_key_pair: KeyPairWithPath::new(validator.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
-                &validator.protocol_key_pair,
-            )),
+            protocol_key_pair: KeyPairWithPath::new(validator.protocol_key_pair.into()),
             // A validator serves no JSON-RPC (`build_http_server` returns
             // early on one), so this address is never bound. It is derived
             // from the network address rather than picked, so that the same
@@ -406,9 +400,7 @@ impl FullnodeConfigBuilder {
 
     pub fn with_network_key_pair(mut self, network_key_pair: Option<NetworkKeyPair>) -> Self {
         if let Some(network_key_pair) = network_key_pair {
-            self.network_key_pair = Some(KeyPairWithPath::new(network_to_simple_keypair(
-                &network_key_pair,
-            )));
+            self.network_key_pair = Some(KeyPairWithPath::new(network_key_pair.into()));
         }
         self
     }
@@ -536,7 +528,7 @@ impl FullnodeConfigBuilder {
                     })?;
                     Ok(SeedPeer {
                         peer_id: Some(anemo::PeerId(
-                            config.network_key_pair().public().0.to_bytes(),
+                            config.network_key_pair().public_key().into_bytes(),
                         )),
                         address,
                     })
@@ -607,12 +599,10 @@ impl FullnodeConfigBuilder {
         Ok(NodeConfig {
             authority_key_pair: AuthorityKeyPairWithPath::new(genesis_config.authority_key_pair),
             account_key_pair: KeyPairWithPath::new(genesis_config.account_key_pair),
-            protocol_key_pair: KeyPairWithPath::new(network_to_simple_keypair(
-                &genesis_config.protocol_key_pair,
-            )),
-            network_key_pair: self.network_key_pair.unwrap_or(KeyPairWithPath::new(
-                network_to_simple_keypair(&genesis_config.network_key_pair),
-            )),
+            protocol_key_pair: KeyPairWithPath::new(genesis_config.protocol_key_pair.into()),
+            network_key_pair: self
+                .network_key_pair
+                .unwrap_or(KeyPairWithPath::new(genesis_config.network_key_pair.into())),
             db_path: self
                 .db_path
                 .unwrap_or(config_directory.join(FULL_NODE_DB_PATH).join(key_path)),

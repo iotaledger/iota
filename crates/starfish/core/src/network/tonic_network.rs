@@ -13,7 +13,6 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes as _};
 use futures::{Stream, StreamExt as _, TryStreamExt as _, stream};
 use iota_http::{PeerConnectionEvent, ServerHandle};
 use iota_network_stack::{
@@ -21,6 +20,7 @@ use iota_network_stack::{
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
 };
+use iota_sdk_types::{Ed25519PublicKey, crypto::PublicKeyExt as _};
 use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use starfish_config::{
