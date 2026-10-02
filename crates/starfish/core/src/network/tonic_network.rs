@@ -2847,7 +2847,8 @@ mod tests {
         let server_context = Arc::new(server_context);
         let mut service = TestService::new();
         // Larger than the client's window below, so the server stalls on it.
-        service.fetch_commits_and_transactions_payload = vec![Bytes::from(vec![0u8; 1 << 20])];
+        service.fetch_commits_and_transactions_chunks =
+            vec![Ok(vec![Bytes::from(vec![0u8; 1 << 20])])];
         let mut server = TonicManager::new(server_context.clone(), keys[0].0.clone());
         server.send_timeout = SEND_TIMEOUT;
         server.install_service(Arc::new(Mutex::new(service))).await;
@@ -2931,6 +2932,73 @@ mod tests {
         // The deadline fired once, for the response that was never read.
         tokio::time::sleep(SEND_TIMEOUT).await;
         assert_eq!(reclaimed.get(), 1);
+    }
+
+    /// A fast commit-sync response crosses the transport as its commits and
+    /// certifier headers, then each transaction chunk as its own message, and a
+    /// server error after some chunks reaches the requester as the last one.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn a_fast_sync_response_crosses_the_transport_chunk_by_chunk() {
+        use std::time::Duration;
+
+        use bytes::Bytes;
+        use parking_lot::Mutex;
+
+        use super::TonicManager;
+        use crate::network::{NetworkClient as _, test_network::TestService};
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        // Sized for four transaction references each, so the requester accepts
+        // up to eight entries.
+        let commits = vec![Bytes::from(vec![1u8; 4 * SERIALIZED_TRANSACTION_REF_BYTES]); 2];
+        let headers = vec![Bytes::from_static(b"header")];
+        let chunks = vec![
+            vec![Bytes::from_static(b"first"), Bytes::from_static(b"second")],
+            vec![Bytes::from_static(b"third")],
+            vec![Bytes::from_static(b"fourth")],
+        ];
+        let mut service = TestService::new();
+        service.fetch_commits_and_transactions_commits = commits.clone();
+        service.fetch_commits_and_transactions_certifier_block_headers = headers.clone();
+        service.fetch_commits_and_transactions_chunks = chunks
+            .iter()
+            .cloned()
+            .map(Ok)
+            .chain([Err(ConsensusError::Shutdown)])
+            .collect();
+        let mut server = TonicManager::new(
+            Arc::new(context.clone().with_authority_index(server_index)),
+            keys[0].0.clone(),
+        );
+        server.install_service(Arc::new(Mutex::new(service))).await;
+        let client = TonicManager::<Mutex<TestService>>::new(
+            Arc::new(
+                context
+                    .clone()
+                    .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+            ),
+            keys[1].0.clone(),
+        )
+        .client();
+
+        let response = client
+            .fetch_commits_and_transactions(server_index, (1..=2).into(), Duration::from_secs(5))
+            .await
+            .expect("the commits and headers are within the caps");
+        assert_eq!(response.commits, commits);
+        assert_eq!(response.certifier_block_headers, headers);
+
+        let received: Vec<_> = response.transactions.collect().await;
+        assert_eq!(received.len(), chunks.len() + 1);
+        for (received, sent) in received.iter().zip(&chunks) {
+            assert_eq!(received.as_ref().unwrap(), sent);
+        }
+        assert!(matches!(
+            received.last(),
+            Some(Err(ConsensusError::NetworkRequest(_)))
+        ));
     }
 
     /// Opens a server-streaming call and returns its response stream without
