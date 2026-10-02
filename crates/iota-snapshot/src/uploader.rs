@@ -2,6 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Publishing a formal state snapshot of the epoch the node has just left.
+//!
+//! - An epoch is offered once, when this node executes its boundary, including
+//!   a boundary executed while catching up.
+//! - A write or upload that fails is not retried: the database snapshot it read
+//!   from cannot be taken again once the node has moved on.
+//! - A boundary executed while an earlier snapshot is still being written is
+//!   skipped.
+//!
+//! `first_missing_state_snapshot_epoch` shows an epoch that was lost or
+//! skipped, and keeps being updated if the writer task dies.
+
 use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
@@ -9,22 +21,24 @@ use bytes::Bytes;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
+    epoch_end_db_snapshot::EpochEndDbSnapshotRequest,
 };
 use iota_sdk_types::CheckpointCommitment;
 use iota_storage::{
     FileCompression,
     object_store::util::{
-        EPOCH_METADATA_FILENAME, EpochMetadata, SUCCESS_MARKER, find_all_dirs_with_epoch_prefix,
-        find_missing_epochs_dirs, path_to_filesystem, put, run_manifest_update_loop,
+        EPOCH_METADATA_FILENAME, EpochMetadata, SUCCESS_MARKER, find_missing_epochs_dirs, put,
+        run_manifest_update_loop,
     },
 };
 use iota_types::{digests::ChainIdentifier, messages_checkpoint::ECMHLiveObjectSetDigest};
 use object_store::DynObjectStore;
 use prometheus_filtered::{
-    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
+    Histogram, IntCounter, IntGauge, Registry, register_histogram_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
-use tracing::{debug, error, info};
+use tokio::sync::mpsc;
+use tracing::{error, info};
 
 use crate::writer::StateSnapshotWriterV1;
 
@@ -35,6 +49,7 @@ const DEFAULT_UPLOAD_CONCURRENCY: usize = 20;
 pub struct StateSnapshotUploaderMetrics {
     pub first_missing_state_snapshot_epoch: IntGauge,
     pub state_snapshot_upload_err: IntCounter,
+    pub state_snapshot_write_duration: Histogram,
 }
 
 impl StateSnapshotUploaderMetrics {
@@ -52,6 +67,16 @@ impl StateSnapshotUploaderMetrics {
                 registry
             )
             .unwrap(),
+            state_snapshot_write_duration: register_histogram_with_registry!(
+                "state_snapshot_write_duration",
+                "Seconds spent writing and uploading one epoch's state snapshot, which is \
+                 also how long its database snapshot is held",
+                vec![
+                    60.0, 120.0, 300.0, 600.0, 1200.0, 1800.0, 2700.0, 3600.0, 5400.0, 7200.0
+                ],
+                registry
+            )
+            .unwrap(),
         };
         Arc::new(this)
     }
@@ -60,20 +85,17 @@ impl StateSnapshotUploaderMetrics {
 /// StateSnapshotUploader is responsible for uploading state snapshots to remote
 /// store.
 pub struct StateSnapshotUploader {
-    /// Directory path on local disk where db checkpoints are stored
-    db_checkpoint_path: PathBuf,
-    /// Store on local disk where db checkpoints are written to
-    db_checkpoint_store: Arc<DynObjectStore>,
     /// Source of per-epoch `EpochInfoV2` rows and epoch state commitments.
     checkpoint_store: Arc<CheckpointStore>,
+    /// The store every state snapshot is scanned from.
+    perpetual_tables: Arc<AuthorityPerpetualTables>,
     /// Directory path on local disk where state snapshots are staged for upload
     staging_path: PathBuf,
     /// Store on local disk where state snapshots are staged for upload
     staging_store: Arc<DynObjectStore>,
     /// Remote store i.e. S3, GCS, etc where state snapshots are uploaded to
     snapshot_store: Arc<DynObjectStore>,
-    /// Time interval to check for presence of new db checkpoint (default: 60
-    /// secs)
+    /// How often the first-missing-epoch metric is refreshed.
     interval: Duration,
     /// Parallelism for uploading a snapshot's files to the remote store.
     concurrency: NonZeroUsize,
@@ -82,31 +104,46 @@ pub struct StateSnapshotUploader {
 
 impl StateSnapshotUploader {
     pub fn new(
-        db_checkpoint_path: &std::path::Path,
         staging_path: &std::path::Path,
         snapshot_store_config: ObjectStoreConfig,
         concurrency: usize,
         interval_s: u64,
         registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
+        perpetual_tables: Arc<AuthorityPerpetualTables>,
     ) -> Result<Arc<Self>> {
-        let db_checkpoint_store_config = ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::File),
-            directory: Some(db_checkpoint_path.to_path_buf()),
-            ..Default::default()
-        };
+        Self::with_snapshot_store(
+            staging_path,
+            snapshot_store_config.make()?,
+            concurrency,
+            interval_s,
+            registry,
+            checkpoint_store,
+            perpetual_tables,
+        )
+    }
+
+    /// [`Self::new`] with the remote store already built.
+    pub(crate) fn with_snapshot_store(
+        staging_path: &std::path::Path,
+        snapshot_store: Arc<DynObjectStore>,
+        concurrency: usize,
+        interval_s: u64,
+        registry: &Registry,
+        checkpoint_store: Arc<CheckpointStore>,
+        perpetual_tables: Arc<AuthorityPerpetualTables>,
+    ) -> Result<Arc<Self>> {
         let staging_store_config = ObjectStoreConfig {
             object_store: Some(ObjectStoreType::File),
             directory: Some(staging_path.to_path_buf()),
             ..Default::default()
         };
         Ok(Arc::new(StateSnapshotUploader {
-            db_checkpoint_path: db_checkpoint_path.to_path_buf(),
-            db_checkpoint_store: db_checkpoint_store_config.make()?,
             checkpoint_store,
+            perpetual_tables,
             staging_path: staging_path.to_path_buf(),
             staging_store: staging_store_config.make()?,
-            snapshot_store: snapshot_store_config.make()?,
+            snapshot_store,
             interval: Duration::from_secs(interval_s),
             concurrency: NonZeroUsize::new(concurrency)
                 .unwrap_or(NonZeroUsize::new(DEFAULT_UPLOAD_CONCURRENCY).unwrap()),
@@ -115,9 +152,22 @@ impl StateSnapshotUploader {
     }
 
     /// Starts the state snapshot uploader loop and manifest update loop.
-    pub fn start(self: Arc<Self>) -> tokio::sync::broadcast::Sender<()> {
+    pub fn start(
+        self: Arc<Self>,
+        requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
+    ) -> tokio::sync::broadcast::Sender<()> {
         let (kill_sender, _kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
-        tokio::task::spawn(Self::run_upload_loop(self.clone(), kill_sender.subscribe()));
+        tokio::task::spawn(Self::run_write_loop(
+            self.clone(),
+            requests,
+            kill_sender.subscribe(),
+        ));
+        // On its own task, so a hanging remote listing cannot delay the
+        // database snapshot an epoch boundary is waiting for.
+        tokio::task::spawn(Self::run_missing_epochs_metric_loop(
+            self.clone(),
+            kill_sender.subscribe(),
+        ));
         tokio::task::spawn(run_manifest_update_loop(
             self.snapshot_store.clone(),
             kill_sender.subscribe(),
@@ -125,12 +175,22 @@ impl StateSnapshotUploader {
         kill_sender
     }
 
-    /// Uploads state snapshots to remote store if they are missing.
-    pub(crate) async fn upload_state_snapshot_to_object_store(
+    /// Writes and uploads the state snapshot of one epoch, scanning the live
+    /// object set through a database snapshot of the perpetual store.
+    /// `request.db_snapshot_taken` is signalled as soon as that snapshot
+    /// exists.
+    pub(crate) async fn write_state_snapshot(
         &self,
-        missing_epochs: Vec<u64>,
+        request: EpochEndDbSnapshotRequest,
     ) -> Result<()> {
-        let last_missing_epoch = missing_epochs.last().cloned().unwrap_or(0);
+        let _metrics_guard = self.metrics.state_snapshot_write_duration.start_timer();
+        let EpochEndDbSnapshotRequest {
+            epoch,
+            db_snapshot_taken,
+            // Held until this function returns, so the next boundary is
+            // skipped until then.
+            permit: _permit,
+        } = request;
         // Chain identifier = genesis checkpoint digest; tags each manifest.
         let chain_id = ChainIdentifier::from(
             *self
@@ -139,106 +199,115 @@ impl StateSnapshotUploader {
                 .context("genesis checkpoint missing from checkpoint store")?
                 .digest(),
         );
-        // Finds all local checkpoints db by epoch
-        let local_checkpoints_by_epoch =
-            find_all_dirs_with_epoch_prefix(&self.db_checkpoint_store, None).await?;
-        let mut dirs: Vec<_> = local_checkpoints_by_epoch.iter().collect();
-        dirs.sort_by_key(|(epoch_num, _path)| *epoch_num);
-        for (epoch, db_path) in dirs {
-            // Writes state snapshot to remote store if it is missing
-            // or if the local has more advanced epochs than the remote
-            if missing_epochs.contains(epoch) || *epoch >= last_missing_epoch {
-                info!("Starting state snapshot creation for epoch: {}", *epoch);
-                let state_snapshot_writer = StateSnapshotWriterV1::new_from_store(
-                    &self.staging_path,
-                    &self.staging_store,
-                    &self.snapshot_store,
-                    self.checkpoint_store.clone(),
-                    chain_id,
-                    FileCompression::Zstd,
-                    self.concurrency,
-                )
-                .await?;
-                let db = Arc::new(AuthorityPerpetualTables::open(
-                    &path_to_filesystem(self.db_checkpoint_path.clone(), &db_path.child("store"))?,
-                    None,
-                ));
-                let commitments = self
-                    .checkpoint_store
-                    .get_epoch_state_commitments(*epoch)
-                    .expect("Expected last checkpoint of epoch to have end of epoch data")
-                    .expect("Expected end of epoch data to be present");
-                let CheckpointCommitment::EcmhLiveObjectSet { digest } = *commitments
-                    .last()
-                    .expect("Expected at least one commitment")
-                else {
-                    unimplemented!(
-                        "a new CheckpointCommitment variant was added and must be handled"
-                    )
-                };
-                state_snapshot_writer
-                    .write(*epoch, db, ECMHLiveObjectSetDigest { digest })
-                    .await?;
-                info!("State snapshot creation successful for epoch: {}", *epoch);
-                // Records the on-chain end timestamp of this epoch (= timestamp of the
-                // last checkpoint of the epoch) in each epoch bucket,
-                // which will be read when updating the MANIFEST file.
-                let epoch_end_checkpoint =
-                    self.checkpoint_store.get_epoch_last_checkpoint(*epoch)?;
-                if let Some(checkpoint) = epoch_end_checkpoint {
-                    let metadata = EpochMetadata {
-                        epoch_end_timestamp_ms: checkpoint.timestamp_ms,
-                    };
-                    put(
-                        &self.snapshot_store,
-                        &db_path.child(EPOCH_METADATA_FILENAME),
-                        metadata.to_bytes()?,
-                    )
-                    .await?;
-                } else {
-                    error!(
-                        "Could not determine epoch end timestamp for epoch {epoch}; skipping metadata write"
-                    );
-                }
-                // Drops marker in the output directory that upload completed successfully
-                let bytes = Bytes::from_static(b"success");
-                let success_marker = db_path.child(SUCCESS_MARKER);
-                put(&self.snapshot_store, &success_marker, bytes.clone()).await?;
-                self.remove_db_checkpoint(db_path).await;
-                info!("State snapshot completed for epoch: {epoch}");
-            } else {
-                self.remove_db_checkpoint(db_path).await;
-                info!("State snapshot skipped for epoch: {epoch}");
+        info!("Starting state snapshot creation for epoch: {epoch}");
+        let state_snapshot_writer = StateSnapshotWriterV1::new_from_store(
+            &self.staging_path,
+            &self.staging_store,
+            &self.snapshot_store,
+            self.checkpoint_store.clone(),
+            chain_id,
+            FileCompression::Zstd,
+            self.concurrency,
+        )
+        .await?;
+        let commitments = self
+            .checkpoint_store
+            .get_epoch_state_commitments(epoch)?
+            .context("expected the last checkpoint of the epoch to carry end of epoch data")?;
+        let CheckpointCommitment::EcmhLiveObjectSet { digest } = *commitments
+            .last()
+            .context("expected at least one epoch state commitment")?
+        else {
+            anyhow::bail!(
+                "the epoch's last state commitment is not an ECMH live object set digest; a \
+                 snapshot cannot be filed under a commitment it cannot read"
+            )
+        };
+        state_snapshot_writer
+            .write(
+                epoch,
+                self.perpetual_tables.clone(),
+                ECMHLiveObjectSetDigest { digest },
+                db_snapshot_taken,
+            )
+            .await?;
+        info!("State snapshot creation successful for epoch: {epoch}");
+
+        let db_path = object_store::path::Path::from(format!("epoch_{epoch}"));
+        // Records the on-chain end timestamp of this epoch (= timestamp of the
+        // last checkpoint of the epoch) in each epoch bucket,
+        // which will be read when updating the MANIFEST file.
+        if let Some(checkpoint) = self.checkpoint_store.get_epoch_last_checkpoint(epoch)? {
+            let metadata = EpochMetadata {
+                epoch_end_timestamp_ms: checkpoint.timestamp_ms,
+            };
+            put(
+                &self.snapshot_store,
+                &db_path.child(EPOCH_METADATA_FILENAME),
+                metadata.to_bytes()?,
+            )
+            .await?;
+        } else {
+            error!(
+                "Could not determine epoch end timestamp for epoch {epoch}; skipping metadata write"
+            );
+        }
+        // Drops marker in the output directory that upload completed successfully
+        let success_marker = db_path.child(SUCCESS_MARKER);
+        put(
+            &self.snapshot_store,
+            &success_marker,
+            Bytes::from_static(b"success"),
+        )
+        .await?;
+        info!("State snapshot completed for epoch: {epoch}");
+        Ok(())
+    }
+
+    /// Writes the state snapshot of each epoch as the node hands it over.
+    async fn run_write_loop(
+        self: Arc<Self>,
+        mut requests: mpsc::Receiver<EpochEndDbSnapshotRequest>,
+        mut recv: tokio::sync::broadcast::Receiver<()>,
+    ) -> Result<()> {
+        info!("State snapshot writer loop started");
+        loop {
+            tokio::select! {
+                request = requests.recv() => {
+                    let Some(request) = request else { break };
+                    let epoch = request.epoch;
+                    if let Err(err) = self.write_state_snapshot(request).await {
+                        // Not retried: a later scan would not see the state
+                        // this epoch ended with.
+                        self.metrics.state_snapshot_upload_err.inc();
+                        error!("Failed to write the state snapshot for epoch {epoch}, which will not be published: {err:?}");
+                    }
+                },
+                _ = recv.recv() => break,
             }
         }
         Ok(())
     }
 
-    /// Main loop that checks for missing remote state snapshots and uploads
-    /// them from the local store.
-    async fn run_upload_loop(
+    /// Keeps the first-missing-epoch metric current, for alerting on a node
+    /// that has stopped publishing.
+    async fn run_missing_epochs_metric_loop(
         self: Arc<Self>,
         mut recv: tokio::sync::broadcast::Receiver<()>,
     ) -> Result<()> {
         let mut interval = tokio::time::interval(self.interval);
-        info!("State snapshot uploader loop started");
         loop {
             tokio::select! {
                 _now = interval.tick() => {
-                    let missing_epochs = self.get_missing_epochs().await;
-                    match missing_epochs {
+                    match self.get_missing_epochs().await {
                         Ok(epochs) => {
                             let first_missing_epoch = epochs.first().cloned().unwrap_or(0);
-                            self.metrics.first_missing_state_snapshot_epoch.set(first_missing_epoch as i64);
-                            if let Err(err) = self.upload_state_snapshot_to_object_store(epochs).await {
-                                self.metrics.state_snapshot_upload_err.inc();
-                                error!("Failed to upload state snapshot to remote store with err: {:?}", err);
-                            } else {
-                                debug!("Successfully completed snapshot upload loop");
-                            }
+                            self.metrics
+                                .first_missing_state_snapshot_epoch
+                                .set(first_missing_epoch as i64);
                         }
                         Err(err) => {
-                            error!("Failed to find missing state snapshot in remote store: {:?}", err);
+                            error!("Failed to find missing state snapshot in remote store: {err:?}");
                         }
                     }
                 },
@@ -252,20 +321,5 @@ impl StateSnapshotUploader {
     async fn get_missing_epochs(&self) -> Result<Vec<u64>> {
         let missing_epochs = find_missing_epochs_dirs(&self.snapshot_store, SUCCESS_MARKER).await?;
         Ok(missing_epochs.to_vec())
-    }
-
-    /// Deletes a local db checkpoint directory once the state snapshot for its
-    /// epoch is no longer needed. A failure is only logged: a directory that
-    /// cannot be deleted must not block snapshot uploads for later epochs.
-    async fn remove_db_checkpoint(&self, db_path: &object_store::path::Path) {
-        let result = match path_to_filesystem(self.db_checkpoint_path.clone(), db_path) {
-            Ok(local_db_path) => tokio::fs::remove_dir_all(&local_db_path)
-                .await
-                .map_err(anyhow::Error::from),
-            Err(err) => Err(err),
-        };
-        if let Err(err) = result {
-            error!("Failed to remove local db checkpoint dir {db_path}: {err:?}");
-        }
     }
 }
