@@ -28,7 +28,8 @@ mod checked {
     use iota_types::{
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefV1,
+            AuthenticatorFunctionRefV1, MoveAuthenticatorForExecution,
+            MoveAuthenticatorsForExecution,
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
@@ -313,11 +314,7 @@ mod checked {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -393,70 +390,81 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // Prepare the authenticators for execution.
-        // Store the loaded object metadata in the `TemporaryStore` before the
-        // authenticators are executed.
-        // The temporary store must contain all the required information at this
-        // point.
-        let authenticators = authenticators
-            .into_iter()
-            .map(
-                |(
-                    authenticator,
-                    authenticator_function_ref_for_execution,
-                    authenticator_input_objects,
-                )| {
-                    let AuthenticatorFunctionRefForExecution {
-                        authenticator_function_ref,
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    } = authenticator_function_ref_for_execution;
+        // A resolution failure skips the authenticators entirely, so the objects
+        // holding their function references are neither recorded as loaded nor
+        // charged for.
+        let authentication_execution_result = match authenticators {
+            MoveAuthenticatorsForExecution::ResolutionFailed(error) => Err(error),
+            MoveAuthenticatorsForExecution::Resolved(authenticators) => {
+                // Prepare the authenticators for execution.
+                // Store the loaded object metadata in the `TemporaryStore` before the
+                // authenticators are executed.
+                // The temporary store must contain all the required information at this
+                // point.
+                let authenticators = authenticators
+                    .into_iter()
+                    .map(
+                        |MoveAuthenticatorForExecution {
+                             authenticator,
+                             function_ref,
+                             input_objects: authenticator_input_objects,
+                         }| {
+                            let AuthenticatorFunctionRefForExecution {
+                                authenticator_function_ref,
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            } = function_ref;
 
-                    // Save the loaded object metadata, i.e., the field object containing the
-                    // AuthenticatorFunctionRef, in the temporary store.
-                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    )]));
+                            // Save the loaded object metadata, i.e., the field object containing
+                            // the AuthenticatorFunctionRef, in the temporary store.
+                            temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                                loaded_object_id,
+                                loaded_object_metadata,
+                            )]));
 
-                    (
-                        authenticator,
-                        authenticator_function_ref,
-                        authenticator_input_objects,
+                            (
+                                authenticator,
+                                authenticator_function_ref,
+                                authenticator_input_objects,
+                            )
+                        },
                     )
-                },
-            )
-            .collect::<Vec<_>>();
+                    .collect::<Vec<_>>();
 
-        // Authentication execution.
-        // It does not alter the state, if not for command execution gas charging, and
-        // produces no effects other than possible errors.
+                // Authentication execution.
+                // It does not alter the state, if not for command execution gas charging, and
+                // produces no effects other than possible errors.
 
-        // Run each authenticator in sequence; the first failure aborts the chain.
-        let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                match authenticator_function_ref {
-                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                        authenticate_transaction_inner(
-                            &mut temporary_store,
-                            protocol_config,
-                            metrics.clone(),
-                            &mut gas_charger,
-                            authenticator,
-                            authenticator_function_ref_v1,
-                            &authenticator_input_objects.into_inner(),
-                            transaction_kind.clone(),
-                            transaction_digest,
-                            auth_context_data.clone(),
-                            tx_ctx.clone(),
-                            trace_builder_opt,
-                            move_vm,
-                        )
-                    }
-                }
-            },
-        );
+                // Run each authenticator in sequence; the first failure aborts the chain.
+                authenticators.into_iter().try_for_each(
+                    |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
+                        match authenticator_function_ref {
+                            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                                authenticate_transaction_inner(
+                                    &mut temporary_store,
+                                    protocol_config,
+                                    metrics.clone(),
+                                    &mut gas_charger,
+                                    authenticator,
+                                    authenticator_function_ref_v1,
+                                    &authenticator_input_objects.into_inner(),
+                                    transaction_kind.clone(),
+                                    transaction_digest,
+                                    auth_context_data.clone(),
+                                    tx_ctx.clone(),
+                                    trace_builder_opt,
+                                    move_vm,
+                                )
+                            }
+                        }
+                    },
+                )
+            }
+        };
 
+        // A resolution failure goes through the same reporting as an
+        // authenticator that fails, so a client sees `MoveAuthentication` for
+        // both.
         let authentication_execution_result =
             report_authentication_error(authentication_execution_result, protocol_config);
 
