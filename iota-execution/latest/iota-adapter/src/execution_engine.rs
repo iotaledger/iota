@@ -677,11 +677,9 @@ mod checked {
 
         // Execute the authentication.
         let authentication_execution_result =
-            if builtin_authenticator_functions::resolve_builtin_signature_scheme(
+            if builtin_authenticator_functions::is_builtin_authenticator_function_ref(
                 &authenticator_function_ref,
-            )
-            .is_some()
-            {
+            ) {
                 execute_builtin_authenticator_call(
                     temporary_store,
                     authenticator,

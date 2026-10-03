@@ -26,16 +26,11 @@ use crate::{
     account_abstraction::{
         authenticator_function::AuthenticatorFunctionRefV1,
         builtin_authenticator_functions::{
-            BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME, ED25519_AUTHENTICATOR_FUNCTION_V1_NAME,
-            MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME, PASSKEY_AUTHENTICATOR_FUNCTION_V1_NAME,
-            SECP256K1_AUTHENTICATOR_FUNCTION_V1_NAME, SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME,
-            ed25519_authenticator_function_ref_v1, extract_signature_bytes,
-            multisig_authenticator_function_ref_v1, passkey_authenticator_function_ref_v1,
-            resolve_builtin_signature_scheme, secp256k1_authenticator_function_ref_v1,
-            secp256r1_authenticator_function_ref_v1, verify_builtin_signature,
+            BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME, BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME,
+            builtin_authenticator_function_ref_v1, extract_signature_bytes,
+            is_builtin_authenticator_function_ref, verify_builtin_signature,
         },
         public_key::MovePublicKey,
-        signature_scheme::MoveSignatureScheme,
     },
     crypto::PublicKey,
     error::{ExecutionErrorKind, IotaError},
@@ -43,139 +38,56 @@ use crate::{
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 
-// === resolve_builtin_signature_scheme() ===
+// === is_builtin_authenticator_function_ref() ===
 
 #[test]
-fn builtin_scheme_ed25519() {
-    let reference = ed25519_authenticator_function_ref_v1();
-    assert_eq!(
-        resolve_builtin_signature_scheme(&reference),
-        Some(move_scheme(SignatureScheme::Ed25519))
-    );
+fn builtin_ref_is_recognized() {
+    assert!(is_builtin_authenticator_function_ref(
+        &builtin_authenticator_function_ref_v1()
+    ));
 }
 
 #[test]
-fn builtin_scheme_secp256k1() {
-    let reference = secp256k1_authenticator_function_ref_v1();
-    assert_eq!(
-        resolve_builtin_signature_scheme(&reference),
-        Some(move_scheme(SignatureScheme::Secp256k1))
-    );
-}
-
-#[test]
-fn builtin_scheme_secp256r1() {
-    let reference = secp256r1_authenticator_function_ref_v1();
-    assert_eq!(
-        resolve_builtin_signature_scheme(&reference),
-        Some(move_scheme(SignatureScheme::Secp256r1))
-    );
-}
-
-#[test]
-fn builtin_scheme_multisig() {
-    let reference = multisig_authenticator_function_ref_v1();
-    assert_eq!(
-        resolve_builtin_signature_scheme(&reference),
-        Some(move_scheme(SignatureScheme::Multisig))
-    );
-}
-
-#[test]
-fn builtin_scheme_passkey() {
-    let reference = passkey_authenticator_function_ref_v1();
-    assert_eq!(
-        resolve_builtin_signature_scheme(&reference),
-        Some(move_scheme(SignatureScheme::PasskeyAuthenticator))
-    );
-}
-
-#[test]
-fn builtin_scheme_none_for_wrong_package() {
+fn builtin_ref_not_recognized_for_wrong_package() {
     let reference = make_ref(
         IOTA_SYSTEM_PACKAGE_ID,
         BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
-        ED25519_AUTHENTICATOR_FUNCTION_V1_NAME,
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
     );
-    assert_eq!(resolve_builtin_signature_scheme(&reference), None);
+    assert!(!is_builtin_authenticator_function_ref(&reference));
 }
 
 #[test]
-fn builtin_scheme_none_for_wrong_module() {
+fn builtin_ref_not_recognized_for_wrong_module() {
     let reference = make_ref(
         IOTA_FRAMEWORK_PACKAGE_ID,
         "other_module",
-        ED25519_AUTHENTICATOR_FUNCTION_V1_NAME,
+        BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME,
     );
-    assert_eq!(resolve_builtin_signature_scheme(&reference), None);
+    assert!(!is_builtin_authenticator_function_ref(&reference));
 }
 
 #[test]
-fn builtin_scheme_none_for_unknown_function() {
+fn builtin_ref_not_recognized_for_unknown_function() {
     let reference = make_ref(
         IOTA_FRAMEWORK_PACKAGE_ID,
         BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str(),
-        "unknown_authenticator_function_ref_v1",
+        "ed25519_authenticator_v1",
     );
-    assert_eq!(resolve_builtin_signature_scheme(&reference), None);
+    assert!(!is_builtin_authenticator_function_ref(&reference));
 }
 
-// === authenticator function ref constructors ===
+// === builtin_authenticator_function_ref_v1() ===
 
 #[test]
-fn ed25519_ref_has_correct_fields() {
-    let reference = ed25519_authenticator_function_ref_v1();
-
+fn builtin_ref_has_correct_fields() {
+    let reference = builtin_authenticator_function_ref_v1();
     assert_eq!(reference.package, IOTA_FRAMEWORK_PACKAGE_ID);
     assert_eq!(
         reference.module,
         BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
     );
-    assert_eq!(reference.function, ED25519_AUTHENTICATOR_FUNCTION_V1_NAME);
-}
-
-#[test]
-fn secp256k1_ref_has_correct_fields() {
-    let reference = secp256k1_authenticator_function_ref_v1();
-    assert_eq!(reference.package, IOTA_FRAMEWORK_PACKAGE_ID);
-    assert_eq!(
-        reference.module,
-        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
-    );
-    assert_eq!(reference.function, SECP256K1_AUTHENTICATOR_FUNCTION_V1_NAME);
-}
-
-#[test]
-fn secp256r1_ref_has_correct_fields() {
-    let reference = secp256r1_authenticator_function_ref_v1();
-    assert_eq!(reference.package, IOTA_FRAMEWORK_PACKAGE_ID);
-    assert_eq!(
-        reference.module,
-        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
-    );
-    assert_eq!(reference.function, SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME);
-}
-
-#[test]
-fn multisig_ref_has_correct_fields() {
-    let reference = multisig_authenticator_function_ref_v1();
-    assert_eq!(reference.package, IOTA_FRAMEWORK_PACKAGE_ID);
-    assert_eq!(
-        reference.module,
-        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
-    );
-    assert_eq!(reference.function, MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME);
-}
-
-#[test]
-fn passkey_ref_has_correct_fields() {
-    let reference = passkey_authenticator_function_ref_v1();
-    assert_eq!(reference.package, IOTA_FRAMEWORK_PACKAGE_ID);
-    assert_eq!(
-        reference.module,
-        BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
-    );
-    assert_eq!(reference.function, PASSKEY_AUTHENTICATOR_FUNCTION_V1_NAME);
+    assert_eq!(reference.function, BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME);
 }
 
 // === extract_signature_bytes() ===
@@ -521,8 +433,4 @@ fn builtin_signature_verifier(key_pair: &SimpleKeypair) -> BuiltinSignatureVerif
         signature: UserSignature::Simple(sig).to_bytes(),
         tx_data_bytes,
     }
-}
-
-fn move_scheme(scheme: SignatureScheme) -> MoveSignatureScheme {
-    MoveSignatureScheme::try_from(scheme).unwrap()
 }

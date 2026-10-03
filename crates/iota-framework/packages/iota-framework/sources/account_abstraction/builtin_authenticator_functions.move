@@ -1,33 +1,34 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Provides built-in authenticator function references for the standard IOTA signature schemes
-/// (Ed25519, Secp256k1, Secp256r1, MultiSig, Passkey) together with the public-key lifecycle
-/// primitives needed to set up and rotate those authenticators on an account.
+/// Provides the built-in authenticator for the standard IOTA signature schemes (Ed25519,
+/// Secp256k1, Secp256r1, MultiSig, Passkey) together with the public-key lifecycle primitives
+/// needed to set up and rotate it on an account.
+///
+/// The built-in authenticator verifies a signature with the public key attached to the account,
+/// using that key's signature scheme.
 ///
 /// # Account creation
-/// To create a new account backed by a built-in authenticator, attach the public key and obtain
+/// To create a new account backed by the built-in authenticator, attach the public key and obtain
 /// the authenticator function ref, then pass it to `account::create_account_v1`:
 ///
 /// ```move
 /// builtin_authenticator_functions::attach_public_key(&mut account.id, public_key::create(scheme, raw_pk_bytes));
-/// let authenticator_function_ref = builtin_authenticator_functions::<scheme>_authenticator_function_ref_v1<Account>();
+/// let authenticator_function_ref = builtin_authenticator_functions::builtin_authenticator_function_ref_v1<Account>();
 /// account::create_account_v1(account, authenticator_function_ref);
 /// ```
 ///
-/// # Authenticator rotation
-/// To replace the public key or switch to a different built-in scheme, rotate the stored key and
-/// obtain a new authenticator function ref, then pass it to `account::rotate_auth_function_ref_v1`:
+/// # Public key rotation
+/// To replace the public key, including switching to a different signature scheme, rotate the
+/// stored key. The authenticator function ref stays the same:
 ///
 /// ```move
 /// let old_public_key = builtin_authenticator_functions::rotate_public_key(&mut account.id, public_key::create(new_scheme, new_raw_pk_bytes));
-/// let new_authenticator_function_ref = builtin_authenticator_functions::<scheme>_authenticator_function_ref_v1<Account>();
-/// account::rotate_auth_function_ref_v1(account, new_authenticator_function_ref);
 /// ```
 ///
 /// # Switching to a custom authenticator
-/// To migrate away from a built-in authenticator entirely, detach the stored public key and obtain
-/// an authenticator function ref from the target authenticator module:
+/// To migrate away from the built-in authenticator entirely, detach the stored public key and
+/// obtain an authenticator function ref from the target authenticator module:
 ///
 /// ```move
 /// let old_public_key = builtin_authenticator_functions::detach_public_key(&mut account.id);
@@ -41,23 +42,17 @@ use iota::dynamic_field as df;
 use iota::event;
 use iota::protocol_config;
 use iota::public_key::PublicKey;
-use iota::signature_scheme::{Self, SignatureScheme};
 use std::ascii;
 
 // === Errors ===
 
 #[error(code = 0)]
 const EBuiltinAuthenticatorsNotEnabled: vector<u8> = b"Built-in Move authenticators not enabled.";
-#[error(code = 1)]
-const EUnsupportedSignatureScheme: vector<u8> = b"Unsupported signature scheme.";
 
 #[error(code = 10)]
 const EPublicKeyMissing: vector<u8> = b"Public key missing.";
 #[error(code = 11)]
 const EPublicKeyAlreadyAttached: vector<u8> = b"Public key already attached.";
-#[error(code = 12)]
-const EPublicKeySchemeMismatch: vector<u8> =
-    b"Attached public key scheme does not match the authenticator.";
 
 #[error(code = 20)]
 const EInvalidSignature: vector<u8> = b"Invalid signature.";
@@ -66,11 +61,7 @@ const EInvalidSignature: vector<u8> = b"Invalid signature.";
 
 const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME: vector<u8> = b"builtin_authenticator_functions";
 
-const ED25519_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"ed25519_authenticator_v1";
-const SECP256K1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256k1_authenticator_v1";
-const SECP256R1_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"secp256r1_authenticator_v1";
-const MULTISIG_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"multisig_authenticator_v1";
-const PASSKEY_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"passkey_authenticator_v1";
+const BUILTIN_AUTHENTICATOR_FUN_NAME_V1: vector<u8> = b"builtin_authenticator_v1";
 
 // === Events ===
 
@@ -100,23 +91,33 @@ public struct PublicKeyFieldName has copy, drop, store {}
 
 // === Public Functions ===
 
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in Ed25519 authenticator.
+/// Returns an `AuthenticatorFunctionRefV1` that references the built-in authenticator.
+///
+/// The built-in authenticator verifies the signature with the public key attached to the
+/// account (see `attach_public_key`), using that key's signature scheme.
 ///
 /// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
 /// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
-/// `vector<u8>` whose decoded bytes are the flag-prefixed Ed25519 signature wire format:
+/// `vector<u8>` whose decoded bytes are the flag-prefixed signature wire format of the
+/// attached key's scheme, signing `IntentMessage(Intent::iota_transaction(), TransactionData)`:
 ///
 /// ```
-/// 0x00 || sig[64B] || pk[32B]   (97 bytes total)
+/// Ed25519:   0x00 || sig[64B] || pk[32B]                (97 bytes total)
+/// Secp256k1: 0x01 || sig[64B] || pk[33B]                (98 bytes total)
+/// Secp256r1: 0x02 || sig[64B] || pk[33B]                (98 bytes total)
+/// MultiSig:  0x03 || <MultiSig wire bytes>              (variable length)
+/// Passkey:   0x06 || <PasskeyAuthenticator wire bytes>  (variable length)
 /// ```
 ///
-/// `sig` is the 64-byte Ed25519 signature over
-/// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
-/// `pk` is the 32-byte Ed25519 public key. The signature is verified against the address
-/// derived from the public key stored as a dynamic field on the account.
+/// The Secp256k1 and Secp256r1 signatures are compact (r, s) signatures and the public keys are
+/// compressed. The MultiSig wire bytes encode the bitmap of participating signers, their
+/// individual signatures, and the composite public key. The Passkey wire bytes encode the
+/// authenticator data, client data JSON, and the Secp256r1 signature produced by the WebAuthn
+/// credential; the challenge embedded in `clientDataJSON` must equal
+/// `Blake2b256(IntentMessage(Intent::iota_transaction(), TransactionData))`.
 ///
 /// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
-public fun ed25519_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
+public fun builtin_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
     Account,
 > {
     check_builtin_authenticators_enabled();
@@ -124,142 +125,8 @@ public fun ed25519_authenticator_function_ref_v1<Account: key>(): AuthenticatorF
     authenticator_function::create_auth_function_ref_v1_inner(
         @iota,
         ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
-        ascii::string(ED25519_AUTHENTICATOR_FUN_NAME_V1),
+        ascii::string(BUILTIN_AUTHENTICATOR_FUN_NAME_V1),
     )
-}
-
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in Secp256k1 authenticator.
-///
-/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
-/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
-/// `vector<u8>` whose decoded bytes are the flag-prefixed Secp256k1 signature wire format:
-///
-/// ```
-/// 0x01 || sig[64B] || pk[33B]   (98 bytes total)
-/// ```
-///
-/// `sig` is the 64-byte compact (r, s) Secp256k1 signature over
-/// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
-/// `pk` is the 33-byte compressed Secp256k1 public key. The signature is verified against the
-/// address derived from the public key stored as a dynamic field on the account.
-///
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
-public fun secp256k1_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
-    Account,
-> {
-    check_builtin_authenticators_enabled();
-
-    authenticator_function::create_auth_function_ref_v1_inner(
-        @iota,
-        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
-        ascii::string(SECP256K1_AUTHENTICATOR_FUN_NAME_V1),
-    )
-}
-
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in Secp256r1 authenticator.
-///
-/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
-/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
-/// `vector<u8>` whose decoded bytes are the flag-prefixed Secp256r1 signature wire format:
-///
-/// ```
-/// 0x02 || sig[64B] || pk[33B]   (98 bytes total)
-/// ```
-///
-/// `sig` is the 64-byte compact (r, s) Secp256r1 signature over
-/// `IntentMessage(Intent::iota_transaction(), TransactionData)`.
-/// `pk` is the 33-byte compressed Secp256r1 public key. The signature is verified against the
-/// address derived from the public key stored as a dynamic field on the account.
-///
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
-public fun secp256r1_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
-    Account,
-> {
-    check_builtin_authenticators_enabled();
-
-    authenticator_function::create_auth_function_ref_v1_inner(
-        @iota,
-        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
-        ascii::string(SECP256R1_AUTHENTICATOR_FUN_NAME_V1),
-    )
-}
-
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in MultiSig authenticator.
-///
-/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
-/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
-/// `vector<u8>` whose decoded bytes are the flag-prefixed MultiSig signature wire format:
-///
-/// ```
-/// 0x03 || <MultiSig wire bytes>   (variable length)
-/// ```
-///
-/// The MultiSig wire bytes encode the bitmap of participating signers, their individual
-/// signatures, and the composite public key. The composite signature is verified against
-/// the address derived from the `MultiSigPublicKey` stored as a dynamic field on the account.
-///
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
-public fun multisig_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
-    Account,
-> {
-    check_builtin_authenticators_enabled();
-
-    authenticator_function::create_auth_function_ref_v1_inner(
-        @iota,
-        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
-        ascii::string(MULTISIG_AUTHENTICATOR_FUN_NAME_V1),
-    )
-}
-
-/// Returns an `AuthenticatorFunctionRefV1` that references the built-in Passkey authenticator.
-///
-/// `MoveAuthenticator` must carry exactly one call argument — the signature — and no
-/// type arguments. `call_args[0]` must be a `Pure` argument containing a BCS-encoded
-/// `vector<u8>` whose decoded bytes are the flag-prefixed Passkey (WebAuthn) signature wire
-/// format:
-///
-/// ```
-/// 0x06 || <PasskeyAuthenticator wire bytes>   (variable length)
-/// ```
-///
-/// The Passkey wire bytes encode the authenticator data, client data JSON, and the Secp256r1
-/// signature produced by the WebAuthn credential. The challenge embedded in `clientDataJSON`
-/// must equal `Blake2b256(IntentMessage(Intent::iota_transaction(), TransactionData))`.
-/// The signature is verified against the address derived from the Secp256r1 public key stored
-/// as a dynamic field on the account.
-///
-/// Aborts if `enable_builtin_move_authenticators` is not enabled in the protocol config.
-public fun passkey_authenticator_function_ref_v1<Account: key>(): AuthenticatorFunctionRefV1<
-    Account,
-> {
-    check_builtin_authenticators_enabled();
-
-    authenticator_function::create_auth_function_ref_v1_inner(
-        @iota,
-        ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME),
-        ascii::string(PASSKEY_AUTHENTICATOR_FUN_NAME_V1),
-    )
-}
-
-/// Maps a `SignatureScheme` to the corresponding built-in `AuthenticatorFunctionRefV1`.
-///
-/// Aborts with `EUnsupportedSignatureScheme` for any scheme not supported by built-in authenticators.
-public fun from_signature_scheme<Account: key>(
-    signature_scheme: SignatureScheme,
-): AuthenticatorFunctionRefV1<Account> {
-    if (signature_scheme == signature_scheme::ed25519()) {
-        ed25519_authenticator_function_ref_v1<Account>()
-    } else if (signature_scheme == signature_scheme::secp256k1()) {
-        secp256k1_authenticator_function_ref_v1<Account>()
-    } else if (signature_scheme == signature_scheme::secp256r1()) {
-        secp256r1_authenticator_function_ref_v1<Account>()
-    } else if (signature_scheme == signature_scheme::multisig()) {
-        multisig_authenticator_function_ref_v1<Account>()
-    } else if (signature_scheme == signature_scheme::passkey()) {
-        passkey_authenticator_function_ref_v1<Account>()
-    } else {
-        abort EUnsupportedSignatureScheme
-    }
 }
 
 /// Attaches `public_key` to the account. Aborts if a public key is already attached.
@@ -347,52 +214,14 @@ public fun borrow_public_key(account_id: &UID): &PublicKey {
 // === Private Functions ===
 
 #[allow(unused_function)]
-/// Authenticates a transaction sent by `account` against its attached Ed25519 public key.
+/// Authenticates a transaction sent by `account` with the public key attached to it.
 ///
-/// Called by the executor for accounts using `ed25519_authenticator_function_ref_v1`.
+/// Called by the executor for accounts using `builtin_authenticator_function_ref_v1`.
 /// See that function for the `signature` format.
-fun ed25519_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
-    let public_key = borrow_public_key_with_scheme(account, signature_scheme::ed25519());
-    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
-}
+fun builtin_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
+    check_builtin_authenticators_enabled();
 
-#[allow(unused_function)]
-/// Authenticates a transaction sent by `account` against its attached Secp256k1 public key.
-///
-/// Called by the executor for accounts using `secp256k1_authenticator_function_ref_v1`.
-/// See that function for the `signature` format.
-fun secp256k1_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
-    let public_key = borrow_public_key_with_scheme(account, signature_scheme::secp256k1());
-    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
-}
-
-#[allow(unused_function)]
-/// Authenticates a transaction sent by `account` against its attached Secp256r1 public key.
-///
-/// Called by the executor for accounts using `secp256r1_authenticator_function_ref_v1`.
-/// See that function for the `signature` format.
-fun secp256r1_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
-    let public_key = borrow_public_key_with_scheme(account, signature_scheme::secp256r1());
-    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
-}
-
-#[allow(unused_function)]
-/// Authenticates a transaction sent by `account` against its attached MultiSig public key.
-///
-/// Called by the executor for accounts using `multisig_authenticator_function_ref_v1`.
-/// See that function for the `signature` format.
-fun multisig_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
-    let public_key = borrow_public_key_with_scheme(account, signature_scheme::multisig());
-    assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
-}
-
-#[allow(unused_function)]
-/// Authenticates a transaction sent by `account` against its attached Passkey public key.
-///
-/// Called by the executor for accounts using `passkey_authenticator_function_ref_v1`.
-/// See that function for the `signature` format.
-fun passkey_authenticator_v1<Account: key>(account: &Account, signature: vector<u8>) {
-    let public_key = borrow_public_key_with_scheme(account, signature_scheme::passkey());
+    let public_key = borrow_public_key(borrow_account_uid(account));
     assert!(verify_builtin_signature(public_key, &signature), EInvalidSignature);
 }
 
@@ -409,22 +238,6 @@ fun check_builtin_authenticators_enabled() {
     );
 }
 
-/// Borrows the public key attached to `account`.
-///
-/// Aborts if built-in authenticators are disabled, if no public key is attached, or if the
-/// attached key does not use `scheme`.
-fun borrow_public_key_with_scheme<Account: key>(
-    account: &Account,
-    scheme: SignatureScheme,
-): &PublicKey {
-    check_builtin_authenticators_enabled();
-
-    let public_key = borrow_public_key(borrow_account_uid(account));
-    assert!(public_key.scheme() == scheme, EPublicKeySchemeMismatch);
-
-    public_key
-}
-
 // === Native Functions ===
 
 /// Borrows the account `UID`.
@@ -436,43 +249,10 @@ native fun verify_builtin_signature(public_key: &PublicKey, signature: &vector<u
 
 // === Test Functions ===
 
-
 #[test_only]
-public fun ed25519_authenticator_v1_for_testing<Account: key>(
+public fun builtin_authenticator_v1_for_testing<Account: key>(
     account: &Account,
     signature: vector<u8>,
 ) {
-    ed25519_authenticator_v1(account, signature)
-}
-
-#[test_only]
-public fun secp256k1_authenticator_v1_for_testing<Account: key>(
-    account: &Account,
-    signature: vector<u8>,
-) {
-    secp256k1_authenticator_v1(account, signature)
-}
-
-#[test_only]
-public fun secp256r1_authenticator_v1_for_testing<Account: key>(
-    account: &Account,
-    signature: vector<u8>,
-) {
-    secp256r1_authenticator_v1(account, signature)
-}
-
-#[test_only]
-public fun multisig_authenticator_v1_for_testing<Account: key>(
-    account: &Account,
-    signature: vector<u8>,
-) {
-    multisig_authenticator_v1(account, signature)
-}
-
-#[test_only]
-public fun passkey_authenticator_v1_for_testing<Account: key>(
-    account: &Account,
-    signature: vector<u8>,
-) {
-    passkey_authenticator_v1(account, signature)
+    builtin_authenticator_v1(account, signature)
 }

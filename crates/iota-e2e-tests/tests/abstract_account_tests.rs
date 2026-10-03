@@ -97,16 +97,8 @@ const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_
 // Built-in authenticator module / function names (used by the new
 // builtin_keyed_aa Move module).
 const AA_BUILTIN_MODULE_NAME: &str = "builtin_keyed_aa";
-const AA_BUILTIN_ED25519_CREATE_FN: &str = "create_with_ed25519";
-const AA_BUILTIN_SECP256K1_CREATE_FN: &str = "create_with_secp256k1";
-const AA_BUILTIN_SECP256R1_CREATE_FN: &str = "create_with_secp256r1";
-const AA_BUILTIN_MULTISIG_CREATE_FN: &str = "create_with_multisig";
-const AA_BUILTIN_PASSKEY_CREATE_FN: &str = "create_with_passkey";
-const AA_BUILTIN_ED25519_AUTH_SECP256K1_KEY_CREATE_FN: &str =
-    "create_with_ed25519_auth_and_secp256k1_key";
+const AA_BUILTIN_CREATE_FN: &str = "create";
 const BUILTIN_AUTHENTICATOR_MODULE_NAME: &str = "builtin_authenticator_functions";
-/// `builtin_authenticator_functions::EPublicKeySchemeMismatch`.
-const BUILTIN_AUTHENTICATOR_E_PUBLIC_KEY_SCHEME_MISMATCH: u64 = 12;
 /// `builtin_authenticator_functions::EInvalidSignature`.
 const BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE: u64 = 20;
 
@@ -2406,11 +2398,7 @@ async fn test_builtin_ed25519_authenticator() -> Result<(), anyhow::Error> {
     let pk = kp.public_key();
 
     test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_ED25519_CREATE_FN,
-        )
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2445,11 +2433,7 @@ async fn test_builtin_secp256k1_authenticator() -> Result<(), anyhow::Error> {
     let pk = kp.public_key();
 
     test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_SECP256K1_CREATE_FN,
-        )
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2484,11 +2468,7 @@ async fn test_builtin_secp256r1_authenticator() -> Result<(), anyhow::Error> {
     let pk = kp.public_key();
 
     test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_SECP256R1_CREATE_FN,
-        )
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2529,11 +2509,7 @@ async fn test_builtin_multisig_authenticator() -> Result<(), anyhow::Error> {
     )?;
 
     test_env
-        .setup_builtin_account(
-            SignatureScheme::Multisig,
-            bcs::to_bytes(&multisig_pk)?,
-            AA_BUILTIN_MULTISIG_CREATE_FN,
-        )
+        .setup_builtin_account(SignatureScheme::Multisig, bcs::to_bytes(&multisig_pk)?)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2629,11 +2605,7 @@ async fn test_builtin_passkey_authenticator() -> Result<(), anyhow::Error> {
     pk_bytes.extend_from_slice(ep.x().unwrap());
 
     test_env
-        .setup_builtin_account(
-            SignatureScheme::PasskeyAuthenticator,
-            pk_bytes.clone(),
-            AA_BUILTIN_PASSKEY_CREATE_FN,
-        )
+        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes.clone())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2720,7 +2692,6 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
-            AA_BUILTIN_ED25519_CREATE_FN,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2751,7 +2722,7 @@ async fn test_builtin_ed25519_authenticator_wrong_key() -> Result<(), anyhow::Er
     assert_move_authentication_abort(
         error,
         BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "ed25519_authenticator_v1",
+        "builtin_authenticator_v1",
         BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
@@ -2774,7 +2745,6 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
-            AA_BUILTIN_SECP256K1_CREATE_FN,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2805,7 +2775,7 @@ async fn test_builtin_secp256k1_authenticator_wrong_key() -> Result<(), anyhow::
     assert_move_authentication_abort(
         error,
         BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "secp256k1_authenticator_v1",
+        "builtin_authenticator_v1",
         BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
@@ -2828,7 +2798,6 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
         .setup_builtin_account(
             kp1.public_key().scheme(),
             kp1.public_key().as_ref().to_vec(),
-            AA_BUILTIN_SECP256R1_CREATE_FN,
         )
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
@@ -2859,7 +2828,7 @@ async fn test_builtin_secp256r1_authenticator_wrong_key() -> Result<(), anyhow::
     assert_move_authentication_abort(
         error,
         BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "secp256r1_authenticator_v1",
+        "builtin_authenticator_v1",
         BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
@@ -2887,11 +2856,7 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
     )?;
 
     test_env
-        .setup_builtin_account(
-            SignatureScheme::Multisig,
-            bcs::to_bytes(&multisig_pk)?,
-            AA_BUILTIN_MULTISIG_CREATE_FN,
-        )
+        .setup_builtin_account(SignatureScheme::Multisig, bcs::to_bytes(&multisig_pk)?)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -2935,7 +2900,7 @@ async fn test_builtin_multisig_authenticator_threshold_not_met() -> Result<(), a
     assert_move_authentication_abort(
         error,
         BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "multisig_authenticator_v1",
+        "builtin_authenticator_v1",
         BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
@@ -3001,11 +2966,7 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     pk_bytes_a.extend_from_slice(ep_a.x().unwrap());
 
     test_env
-        .setup_builtin_account(
-            SignatureScheme::PasskeyAuthenticator,
-            pk_bytes_a,
-            AA_BUILTIN_PASSKEY_CREATE_FN,
-        )
+        .setup_builtin_account(SignatureScheme::PasskeyAuthenticator, pk_bytes_a)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -3100,15 +3061,15 @@ async fn test_builtin_passkey_authenticator_wrong_key() -> Result<(), anyhow::Er
     assert_move_authentication_abort(
         error,
         BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "passkey_authenticator_v1",
+        "builtin_authenticator_v1",
         BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
     );
     Ok(())
 }
 
-/// Test that the built-in Ed25519 authenticator rejects a transaction signed
-/// with a Secp256k1 key: the submitted signature's scheme does not match the
-/// Ed25519 authenticator function ref.
+/// Test that the built-in authenticator rejects a transaction signed with a
+/// Secp256k1 key for an account whose attached public key is Ed25519: the
+/// submitted signature's scheme does not match the attached key's scheme.
 #[sim_test]
 async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Result<(), anyhow::Error>
 {
@@ -3129,11 +3090,7 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
     let pk = ed25519_kp.public_key();
 
     test_env
-        .setup_builtin_account(
-            pk.scheme(),
-            pk.as_ref().to_vec(),
-            AA_BUILTIN_ED25519_CREATE_FN,
-        )
+        .setup_builtin_account(pk.scheme(), pk.as_ref().to_vec())
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: Address = aa_ref.object_id.into();
@@ -3149,7 +3106,7 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
         .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
         .await?;
 
-    // Sign with a Secp256k1 key — wrong scheme for an Ed25519 authenticator.
+    // Sign with a Secp256k1 key — wrong scheme for the attached Ed25519 key.
     let secp256k1_kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
         [50u8; 32],
     )));
@@ -3166,75 +3123,8 @@ async fn test_builtin_ed25519_authenticator_signature_scheme_mismatch() -> Resul
     assert_move_authentication_abort(
         error,
         BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "ed25519_authenticator_v1",
+        "builtin_authenticator_v1",
         BUILTIN_AUTHENTICATOR_E_INVALID_SIGNATURE,
-    );
-    Ok(())
-}
-
-/// Test that the built-in Ed25519 authenticator rejects a transaction when
-/// the on-chain public key was registered with a Secp256k1 scheme.
-///
-/// The account is deliberately misconfigured:
-/// `ed25519_authenticator_function_ref_v1` is used but a Secp256k1 public key
-/// is attached. The signature is Ed25519, but the authenticator aborts on the
-/// mismatch between its expected scheme (Ed25519) and the stored key's scheme
-/// (Secp256k1) before verifying the signature.
-#[sim_test]
-async fn test_builtin_ed25519_authenticator_public_key_scheme_mismatch() -> Result<(), anyhow::Error>
-{
-    telemetry_subscribers::init_for_testing();
-
-    let mut test_env = TestEnvironment::new().await;
-    test_env.init_abstract_account_state("").await;
-
-    let secp256k1_kp = SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed(
-        [60u8; 32],
-    )));
-    let secp256k1_pk = secp256k1_kp.public_key();
-
-    test_env
-        .setup_builtin_account(
-            secp256k1_pk.scheme(),
-            secp256k1_pk.as_ref().to_vec(),
-            AA_BUILTIN_ED25519_AUTH_SECP256K1_KEY_CREATE_FN,
-        )
-        .await?;
-    let aa_ref = test_env.aa_ref.unwrap();
-    let aa_sender: Address = aa_ref.object_id.into();
-
-    let rgp = test_env.test_cluster.get_reference_gas_price().await;
-    let aa_gas = test_env
-        .test_cluster
-        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
-        .await;
-
-    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
-    let tx_data = test_env
-        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
-        .await?;
-
-    // Sign with an Ed25519 key so the signature scheme check passes. The failure
-    // comes next: the on-chain public key's scheme (Secp256k1) does not match the
-    // Ed25519 authenticator function ref.
-    let ed25519_kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed(
-        [61u8; 32],
-    )));
-    let sig = builtin_sig_for_keypair(&ed25519_kp, &tx_data, aa_ref)?;
-    let aa_tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx_data, vec![sig]));
-
-    let err = test_env.handle_tx(aa_tx).await.unwrap_err();
-    let IotaError::MoveAuthenticatorExecutionFailure { error } = &err else {
-        panic!(
-            "Expected MoveAuthenticatorExecutionFailure for public key scheme mismatch, \
-             got: {err:?}"
-        );
-    };
-    assert_move_authentication_abort(
-        error,
-        BUILTIN_AUTHENTICATOR_MODULE_NAME,
-        "borrow_public_key_with_scheme",
-        BUILTIN_AUTHENTICATOR_E_PUBLIC_KEY_SCHEME_MISMATCH,
     );
     Ok(())
 }
@@ -3301,7 +3191,7 @@ async fn test_builtin_sig_rejected_by_custom_ed25519_authenticator() -> Result<(
 /// `enable_builtin_move_authenticators` is disabled in the protocol config.
 /// Ed25519 is used as a representative scheme.
 ///
-/// Each `*_authenticator_function_ref_v1` function calls
+/// `builtin_authenticator_function_ref_v1` calls
 /// `check_builtin_authenticators_enabled()` and aborts with
 /// `EBuiltinAuthenticatorsNotEnabled` (code 0) before an
 /// `AuthenticatorFunctionRefV1` is ever produced, so the account creation
@@ -3329,10 +3219,10 @@ async fn test_builtin_move_gate_blocks_account_creation() -> Result<(), anyhow::
         .clone();
     let pk = kp.public_key();
 
-    // With the feature disabled, `ed25519_authenticator_function_ref_v1` aborts
+    // With the feature disabled, `builtin_authenticator_function_ref_v1` aborts
     // with EBuiltinAuthenticatorsNotEnabled (code 0) inside account creation.
     let transaction = test_env
-        .craft_create_builtin_account(pk.scheme(), pk.as_ref(), AA_BUILTIN_ED25519_CREATE_FN)
+        .craft_create_builtin_account(pk.scheme(), pk.as_ref())
         .await?;
     let (effects, _) = test_env
         .test_cluster
@@ -4280,16 +4170,14 @@ impl TestEnvironment {
     /// shared object backed by a built-in authenticator.
     ///
     /// `scheme` and `raw_bytes` are passed directly to Move's
-    /// `public_key::create`. `create_fn_name` is one of the functions defined
-    /// in `builtin_keyed_aa`.
+    /// `public_key::create`.
     async fn setup_builtin_account(
         &mut self,
         scheme: SignatureScheme,
         raw_bytes: Vec<u8>,
-        create_fn_name: &str,
     ) -> anyhow::Result<()> {
         let transaction = self
-            .craft_create_builtin_account(scheme, &raw_bytes, create_fn_name)
+            .craft_create_builtin_account(scheme, &raw_bytes)
             .await?;
         let (effects, _) = self
             .test_cluster
@@ -4302,12 +4190,11 @@ impl TestEnvironment {
     }
 
     /// Craft a signed transaction that calls
-    /// `builtin_keyed_aa::<create_fn_name>` with the given public key.
+    /// `builtin_keyed_aa::create` with the given public key.
     async fn craft_create_builtin_account(
         &self,
         scheme: SignatureScheme,
         raw_bytes: &[u8],
-        create_fn_name: &str,
     ) -> anyhow::Result<TransactionEnvelope> {
         let Some(aa_package_id) = self.aa_package_id else {
             anyhow::bail!("AA package id not set — call init_abstract_account_state first");
@@ -4344,7 +4231,7 @@ impl TestEnvironment {
             builder.programmable_move_call(
                 aa_package_id,
                 Identifier::new(AA_BUILTIN_MODULE_NAME)?,
-                Identifier::new(create_fn_name)?,
+                Identifier::new(AA_BUILTIN_CREATE_FN)?,
                 vec![],
                 vec![public_key],
             );

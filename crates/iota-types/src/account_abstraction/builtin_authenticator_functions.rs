@@ -12,7 +12,6 @@ use crate::{
     IOTA_FRAMEWORK_PACKAGE_ID,
     account_abstraction::{
         authenticator_function::AuthenticatorFunctionRefV1, public_key::MovePublicKey,
-        signature_scheme::MoveSignatureScheme,
     },
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     move_authenticator::MoveAuthenticatorExt,
@@ -26,11 +25,7 @@ pub const BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME: Identifier =
 pub const PUBLIC_KEY_FIELD_NAME_STRUCT_NAME: Identifier =
     Identifier::from_static("PublicKeyFieldName");
 
-pub const ED25519_AUTHENTICATOR_FUNCTION_V1_NAME: &str = "ed25519_authenticator_v1";
-pub const SECP256K1_AUTHENTICATOR_FUNCTION_V1_NAME: &str = "secp256k1_authenticator_v1";
-pub const SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME: &str = "secp256r1_authenticator_v1";
-pub const MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME: &str = "multisig_authenticator_v1";
-pub const PASSKEY_AUTHENTICATOR_FUNCTION_V1_NAME: &str = "passkey_authenticator_v1";
+pub const BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME: &str = "builtin_authenticator_v1";
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct PublicKeyFieldName {
@@ -55,80 +50,22 @@ impl PublicKeyFieldName {
     }
 }
 
-/// Returns an authentication function that references the built-in ed25519
+/// Returns an authentication function that references the built-in
 /// authenticator.
-pub fn ed25519_authenticator_function_ref_v1() -> AuthenticatorFunctionRefV1 {
+pub fn builtin_authenticator_function_ref_v1() -> AuthenticatorFunctionRefV1 {
     AuthenticatorFunctionRefV1 {
         package: IOTA_FRAMEWORK_PACKAGE_ID,
         module: BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.to_string(),
-        function: ED25519_AUTHENTICATOR_FUNCTION_V1_NAME.to_string(),
+        function: BUILTIN_AUTHENTICATOR_FUNCTION_V1_NAME.to_string(),
     }
 }
 
-/// Returns an authentication function that references the built-in secp256k1
+/// Returns true if `authenticator_function_ref` references the built-in
 /// authenticator.
-pub fn secp256k1_authenticator_function_ref_v1() -> AuthenticatorFunctionRefV1 {
-    AuthenticatorFunctionRefV1 {
-        package: IOTA_FRAMEWORK_PACKAGE_ID,
-        module: BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.to_string(),
-        function: SECP256K1_AUTHENTICATOR_FUNCTION_V1_NAME.to_string(),
-    }
-}
-
-/// Returns an authentication function that references the built-in secp256r1
-/// authenticator.
-pub fn secp256r1_authenticator_function_ref_v1() -> AuthenticatorFunctionRefV1 {
-    AuthenticatorFunctionRefV1 {
-        package: IOTA_FRAMEWORK_PACKAGE_ID,
-        module: BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.to_string(),
-        function: SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME.to_string(),
-    }
-}
-
-/// Returns an authentication function that references the built-in multisig
-/// authenticator.
-pub fn multisig_authenticator_function_ref_v1() -> AuthenticatorFunctionRefV1 {
-    AuthenticatorFunctionRefV1 {
-        package: IOTA_FRAMEWORK_PACKAGE_ID,
-        module: BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.to_string(),
-        function: MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME.to_string(),
-    }
-}
-
-/// Returns an authentication function that references the built-in passkey
-/// authenticator.
-pub fn passkey_authenticator_function_ref_v1() -> AuthenticatorFunctionRefV1 {
-    AuthenticatorFunctionRefV1 {
-        package: IOTA_FRAMEWORK_PACKAGE_ID,
-        module: BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.to_string(),
-        function: PASSKEY_AUTHENTICATOR_FUNCTION_V1_NAME.to_string(),
-    }
-}
-
-/// If the given authenticator function reference corresponds to a built-in
-/// authenticator, returns the corresponding signature scheme. Otherwise,
-/// returns `None`.
-pub fn resolve_builtin_signature_scheme(
+pub fn is_builtin_authenticator_function_ref(
     authenticator_function_ref: &AuthenticatorFunctionRefV1,
-) -> Option<MoveSignatureScheme> {
-    // Reject non-framework packages and modules cheaply before matching on name.
-    if authenticator_function_ref.module != BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME.as_str()
-        || authenticator_function_ref.package != IOTA_FRAMEWORK_PACKAGE_ID
-    {
-        return None;
-    }
-    match authenticator_function_ref.function.as_str() {
-        ED25519_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Ed25519),
-        SECP256K1_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Secp256k1),
-        SECP256R1_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Secp256r1),
-        MULTISIG_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::Multisig),
-        PASSKEY_AUTHENTICATOR_FUNCTION_V1_NAME => Some(SignatureScheme::PasskeyAuthenticator),
-        _ => None,
-    }
-    .map(|scheme| {
-        MoveSignatureScheme::try_from(scheme)
-            .expect("built-in authenticator schemes are valid account public key schemes")
-    })
+) -> bool {
+    *authenticator_function_ref == builtin_authenticator_function_ref_v1()
 }
 
 /// Verifies a built-in authenticator signature.
