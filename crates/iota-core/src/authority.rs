@@ -58,14 +58,10 @@ use iota_transaction_checks::VerifierLimitsSource;
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
-    account_abstraction::{
-        authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-            AuthenticatorFunctionRefForSigning,
-            authenticator_function_ref_v1_from_dynamic_field_object,
-            derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
-        },
-        builtin_authenticator_functions::{self, PreloadedBuiltinAuthenticatorData},
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefForSigning,
+        authenticator_function_ref_v1_from_dynamic_field_object,
+        derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
     base_types::{AuthorityName, ConciseableName, ObjectInfo, ObjectType, VersionNumber},
@@ -5821,50 +5817,10 @@ impl AuthorityState {
             )?;
 
         if let Some(authenticator_function_ref_field_obj) = authenticator_function_ref_field_obj {
-            let mut auth_ref = authenticator_function_ref_v1_from_dynamic_field_object(
+            Ok(authenticator_function_ref_v1_from_dynamic_field_object(
                 auth_account_object_id,
                 &authenticator_function_ref_field_obj,
-            )?;
-
-            let expected_scheme = match &auth_ref.authenticator_function_ref {
-                AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                    builtin_authenticator_functions::resolve_builtin_signature_scheme(
-                        authenticator_function_ref_v1,
-                    )
-                }
-            };
-
-            // For built-in authenticators, also load the public key dynamic field so
-            // the executor can verify the signature without running Move VM.
-            if let Some(expected_scheme) = expected_scheme {
-                let (public_key_field_id, loaded_data) =
-                    builtin_authenticator_functions::load_builtin_public_key(
-                        auth_account_object_id,
-                        |public_key_field_id| {
-                            self.get_object_cache_reader()
-                                .try_find_object_lt_or_eq_version(
-                                    public_key_field_id,
-                                    auth_account_object_seq_number,
-                                )
-                        },
-                    )?;
-
-                let (public_key, public_key_loaded_metadata) =
-                    loaded_data.ok_or(UserInputError::AccountPublicKeyNotFound {
-                        public_key_id: public_key_field_id,
-                        account_object_id: auth_account_object_id,
-                        account_object_version: auth_account_object_seq_number,
-                    })?;
-
-                auth_ref.builtin_authenticator_data = Some(PreloadedBuiltinAuthenticatorData {
-                    expected_scheme,
-                    public_key,
-                });
-                auth_ref.builtin_public_key_loaded_object =
-                    Some((public_key_field_id, public_key_loaded_metadata));
-            }
-
-            Ok(auth_ref)
+            )?)
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {
                 authenticator_function_ref_id: authenticator_function_ref_field_id,

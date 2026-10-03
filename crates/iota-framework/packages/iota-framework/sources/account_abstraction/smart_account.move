@@ -10,8 +10,8 @@
 ///
 /// - `builder_v1`: allocates a new object ID; the caller supplies any
 ///   `AuthenticatorFunctionRefV1`.
-/// - `builtin_auth_builder_v1`: allocates a new object ID; selects the built-in
-///   authenticator matching the provided `PublicKey`'s signature scheme.
+/// - `builtin_auth_builder_v1`: allocates a new object ID; uses the built-in
+///   authenticator with the provided `PublicKey`.
 ///
 /// Claiming an existing address through the `ClaimAccount` transaction kind does
 /// not go through that API: it drives the private `claim_account_v1` below.
@@ -88,14 +88,12 @@ public fun builder_v1(
 }
 
 /// Creates a `SmartAccountBuilder` for a new account backed by the built-in authenticator
-/// for `public_key`'s signature scheme.
+/// with `public_key`.
 ///
 /// The public key is stored as a dynamic field on the account so the authenticator
 /// can validate future transactions.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
-///
-/// Aborts if `public_key`'s signature scheme is not supported.
 public fun builtin_auth_builder_v1(
     public_key: PublicKey,
     ctx: &mut TxContext,
@@ -105,7 +103,7 @@ public fun builtin_auth_builder_v1(
 
     SmartAccountBuilder {
         account,
-        authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
+        authenticator: builtin_authenticator_functions::builtin_authenticator_function_ref_v1(),
     }
 }
 
@@ -322,7 +320,7 @@ public fun rotate_auth_function_ref_v1(
 // === Private Functions ===
 
 /// Claims the sender's address and creates a mutable `SmartAccount` at it,
-/// backed by the built-in authenticator for `public_key`'s signature scheme.
+/// backed by the built-in authenticator with `public_key`.
 ///
 /// This is the whole `ClaimAccount` pipeline for a mutable account. It is
 /// **private on purpose**: the account object it creates has an ID equal to a
@@ -336,38 +334,35 @@ public fun rotate_auth_function_ref_v1(
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
 /// `account::MutableAccountCreated` event.
 ///
-/// Aborts if `public_key` does not derive the sender's address, or if its
-/// signature scheme has no built-in authenticator.
+/// Aborts if `public_key` does not derive the sender's address.
 #[allow(unused_function)]
 fun claim_account_v1(public_key: PublicKey, ctx: &TxContext) {
     claim_builder(public_key, ctx).build_v1();
 }
 
 /// Claims the sender's address and creates an immutable `SmartAccount` at it,
-/// backed by the built-in authenticator for `public_key`'s signature scheme.
+/// backed by the built-in authenticator with `public_key`.
 ///
 /// Private on purpose, for the same reason as `claim_account_v1`.
 ///
 /// Emits a `builtin_authenticator_functions::PublicKeyAttached` event and an
 /// `account::ImmutableAccountCreated` event.
 ///
-/// Aborts if `public_key` does not derive the sender's address, or if its
-/// signature scheme has no built-in authenticator.
+/// Aborts if `public_key` does not derive the sender's address.
 #[allow(unused_function)]
 fun claim_immutable_account_v1(public_key: PublicKey, ctx: &TxContext) {
     claim_builder(public_key, ctx).build_immutable_v1();
 }
 
 /// Creates a `SmartAccountBuilder` whose account ID is the claimed sender
-/// address, backed by the built-in authenticator for `public_key`'s signature
-/// scheme.
+/// address, backed by the built-in authenticator with `public_key`.
 fun claim_builder(public_key: PublicKey, ctx: &TxContext): SmartAccountBuilder {
     let mut account = SmartAccount { id: claim::claim_address(public_key, ctx) };
     builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
 
     SmartAccountBuilder {
         account,
-        authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
+        authenticator: builtin_authenticator_functions::builtin_authenticator_function_ref_v1(),
     }
 }
 
