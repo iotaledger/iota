@@ -668,11 +668,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let mut committed_tx_refs: BTreeSet<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
-        // 4. Read the transactions chunk by chunk, keeping only verified payloads. Past the budget
-        //    reading stops, but not before the first commit is complete, so a commit larger than
-        //    the budget still makes progress; the covered prefix below is kept. The first commit's
-        //    entries must come before any other, so that it is complete before anything else is
-        //    held.
+        // 4. Read the transactions chunk by chunk, verifying each chunk against its commitments as
+        //    it arrives and keeping only the payloads. Past the budget reading stops, but not
+        //    before the first commit is complete, so a commit larger than the budget still makes
+        //    progress; the covered prefix below is kept. The first commit's entries must come
+        //    before any other, so that it is complete before anything else is held.
         let byte_budget = inner
             .context
             .parameters
