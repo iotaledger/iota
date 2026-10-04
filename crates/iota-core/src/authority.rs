@@ -5659,8 +5659,11 @@ impl AuthorityState {
     /// # Errors
     ///
     /// Any failure the check finds with the transaction, as the error the
-    /// transaction fails with: [`ExecutionErrorKind::FunctionNotFound`], with
-    /// the original error as the source.
+    /// transaction fails with, with the original error as the source:
+    /// [`ExecutionErrorKind::AuthenticatorFunctionNotFound`] when the account
+    /// has no authenticator function field or the field cannot be read, and
+    /// [`ExecutionErrorKind::AccountNotSharedObject`] when the account is not a
+    /// shared object.
     ///
     /// # Panics
     ///
@@ -5686,10 +5689,33 @@ impl AuthorityState {
             protocol_config,
         ) {
             Ok(function_ref) => Ok(function_ref),
-            Err(MoveAccountCheckError::Input(input_error)) => Err(ExecutionError::new_with_source(
-                ExecutionErrorKind::FunctionNotFound,
-                input_error,
-            )),
+            Err(MoveAccountCheckError::Input(input_error)) => {
+                let status = match &input_error {
+                    UserInputError::MoveAuthenticatorNotFound {
+                        account_object_id, ..
+                    }
+                    | UserInputError::InvalidAuthenticatorFunctionRefField { account_object_id } => {
+                        ExecutionErrorKind::AuthenticatorFunctionNotFound {
+                            object_id: *account_object_id,
+                        }
+                    }
+                    // Since protocol version 36, only a shared account named with
+                    // an immutable or owned reference reaches the digest
+                    // comparison. The fix is the same as for the other two: name
+                    // the account as a shared object.
+                    UserInputError::AccountObjectNotSupported { object_id }
+                    | UserInputError::ImmutableAccountObjectNotSupported { object_id }
+                    | UserInputError::InvalidAccountObjectDigest { object_id, .. } => {
+                        ExecutionErrorKind::AccountNotSharedObject {
+                            object_id: *object_id,
+                        }
+                    }
+                    // The check produces nothing else today. A failure added to
+                    // it gets this status until it is given one of its own.
+                    _ => ExecutionErrorKind::FunctionNotFound,
+                };
+                Err(ExecutionError::new_with_source(status, input_error))
+            }
             Err(MoveAccountCheckError::Storage(storage_error)) => {
                 panic!("failed to read the store while checking a Move account: {storage_error}")
             }
