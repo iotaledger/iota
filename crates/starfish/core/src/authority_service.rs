@@ -865,26 +865,41 @@ fn take_payload(
 /// Fails when this node lacks a payload of the first commit a fast commit-sync
 /// response serves, since a response not covering it lets the requester make
 /// no progress. A commit at or below the last solid commit has all its payloads
-/// here, so it is not looked up.
+/// here, so it is not looked up. Payloads not in memory are looked up in the
+/// store after the DAG state lock is released.
 fn check_first_commit_payloads(
+    store: &dyn Store,
     dag_state: &RwLock<DagState>,
     commit_index: CommitIndex,
     transaction_refs: &[TransactionRef],
 ) -> ConsensusResult<()> {
-    let dag_state = dag_state.read();
-    if commit_index <= dag_state.last_solid_commit_index() {
+    let not_in_memory: Vec<TransactionRef> = {
+        let dag_state = dag_state.read();
+        if commit_index <= dag_state.last_solid_commit_index() {
+            return Ok(());
+        }
+        transaction_refs
+            .iter()
+            .copied()
+            .filter(|&transaction_ref| {
+                !dag_state.contains_transactions_in_memory(transaction_ref.into())
+            })
+            .collect()
+    };
+    if not_in_memory.is_empty() {
         return Ok(());
     }
-    let available =
-        dag_state.contains_transactions(transaction_refs.iter().copied().map(Into::into).collect());
-    match transaction_refs
-        .iter()
-        .zip(available)
-        .find(|(_, available)| !available)
+    let generic_refs: Vec<GenericTransactionRef> =
+        not_in_memory.iter().copied().map(Into::into).collect();
+    let stored = store.contains_transactions(&generic_refs)?;
+    match not_in_memory
+        .into_iter()
+        .zip(stored)
+        .find(|(_, stored)| !stored)
     {
-        Some((transaction_ref, _)) => Err(ConsensusError::TransactionsNotAvailable {
-            transaction_ref: *transaction_ref,
-        }),
+        Some((transaction_ref, _)) => {
+            Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
+        }
         None => Ok(()),
     }
 }
@@ -1815,7 +1830,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         if let (Some(first_commit), Some(first_commit_refs)) =
             (commits.first(), commits_transaction_refs.first())
         {
-            check_first_commit_payloads(&self.dag_state, first_commit.index(), first_commit_refs)?;
+            check_first_commit_payloads(
+                self.store.as_ref(),
+                &self.dag_state,
+                first_commit.index(),
+                first_commit_refs,
+            )?;
         }
         let transactions = transaction_chunk_stream(TransactionCursor::new(
             self.context.clone(),
@@ -6202,26 +6222,40 @@ mod tests {
     }
 
     /// A first commit is looked up only when it is past the last solid
-    /// commit, and fails when this node lacks one of its payloads.
+    /// commit, in memory first and then in the store, and fails when this node
+    /// lacks one of its payloads.
     #[tokio::test]
     async fn a_first_commit_missing_a_payload_is_not_served() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let mut dag_builder = DagBuilder::new(context);
         dag_builder.layers(1..=1).build();
         dag_builder.persist_all_blocks(dag_state.clone());
-        let known_ref = dag_builder.block_headers(1..=1)[0].transaction_ref();
+        let in_memory = dag_builder.block_headers(1..=1)[0].transaction_ref();
+        // Written to the store only, so the DAG state does not hold it.
+        let stored_blocks = two_rounds_of_payloads();
+        write_payloads(&store, &stored_blocks);
+        let in_store = stored_blocks[4].verified_block_header.transaction_ref();
+        assert!(
+            !dag_state
+                .read()
+                .contains_transactions_in_memory(in_store.into())
+        );
+        // A round neither the DAG state nor the store has anything at.
         let unknown_ref = TransactionRef {
-            round: 1,
+            round: 3,
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
         };
+        let check = |refs: &[TransactionRef]| {
+            check_first_commit_payloads(store.as_ref(), &dag_state, 1, refs)
+        };
 
-        assert!(check_first_commit_payloads(&dag_state, 1, &[known_ref]).is_ok());
+        assert!(check(&[in_memory, in_store]).is_ok());
         assert!(matches!(
-            check_first_commit_payloads(&dag_state, 1, &[known_ref, unknown_ref]),
+            check(&[in_memory, in_store, unknown_ref]),
             Err(ConsensusError::TransactionsNotAvailable { transaction_ref })
                 if transaction_ref == unknown_ref
         ));
@@ -6236,6 +6270,6 @@ mod tests {
             commit_ref: CommitRef::new(1, CommitDigest::MIN),
             reputation_scores_desc: vec![],
         });
-        assert!(check_first_commit_payloads(&dag_state, 1, &[known_ref, unknown_ref]).is_ok());
+        assert!(check(&[unknown_ref]).is_ok());
     }
 }
