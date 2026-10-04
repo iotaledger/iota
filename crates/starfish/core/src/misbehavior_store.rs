@@ -447,6 +447,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // tracked again here.
         | ConsensusError::UnrequestedTransactionFetched { .. }
         | ConsensusError::UnexpectedTransactionForCommit { .. }
+        | ConsensusError::TransactionsOutOfCommitOrder { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
         | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
         | ConsensusError::InvalidAuthorityIndexRequested { .. }

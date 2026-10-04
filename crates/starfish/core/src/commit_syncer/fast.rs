@@ -668,14 +668,16 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         let mut committed_tx_refs: BTreeSet<TransactionRef> =
             commits_tx_refs.iter().flatten().copied().collect();
 
-        // 4. Read the transactions chunk by chunk, keeping only verified payloads. The first
-        //    commit's entries are not charged to the budget, so a commit larger than it still makes
-        //    progress; past the budget, reading stops and the covered prefix below is kept.
+        // 4. Read the transactions chunk by chunk, keeping only verified payloads. Past the budget
+        //    reading stops, but not before the first commit is complete, so a commit larger than
+        //    the budget still makes progress; the covered prefix below is kept. The first commit's
+        //    entries must come before any other, so that it is complete before anything else is
+        //    held.
         let byte_budget = inner
             .context
             .parameters
             .max_fast_commit_sync_transaction_bytes;
-        let first_commit_tx_refs: BTreeSet<TransactionRef> = commits_tx_refs
+        let mut first_commit_awaited: BTreeSet<TransactionRef> = commits_tx_refs
             .first()
             .into_iter()
             .flatten()
@@ -702,24 +704,27 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     return Err(e);
                 }
             };
-            let fetched_transactions =
-                process_serialized_transactions(target_authority, chunk, &mut committed_tx_refs)
-                    .inspect_err(|_| {
-                        // Truncation drops whole entries and never corrupts one,
-                        // so a malformed or uncommitted entry is the peer's
-                        // fault.
-                        inner.misbehavior_store.record_faulty_transactions(
-                            target_authority,
-                            false,
-                            [target_authority],
-                        );
-                    })?;
+            let fetched_transactions = process_serialized_transactions(
+                target_authority,
+                chunk,
+                &mut committed_tx_refs,
+                &mut first_commit_awaited,
+            )
+            .inspect_err(|_| {
+                // Truncation drops whole entries and never corrupts or
+                // reorders one, so a malformed, uncommitted or out-of-order
+                // entry is the peer's fault.
+                inner.misbehavior_store.record_faulty_transactions(
+                    target_authority,
+                    false,
+                    [target_authority],
+                );
+            })?;
             // Charged as the server charges, less each entry's ref and length
             // prefixes, so an honest server with the same budget stops first.
             budgeted_bytes += fetched_transactions
-                .iter()
-                .filter(|(transaction_ref, _)| !first_commit_tx_refs.contains(transaction_ref))
-                .map(|(_, payload)| payload.len() + size_of::<Bytes>())
+                .values()
+                .map(|payload| payload.len() + size_of::<Bytes>())
                 .sum::<usize>();
             if !fetched_transactions.is_empty() {
                 let verified = spawn_blocking({
@@ -744,7 +749,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 })?;
                 transactions_map.extend(verified);
             }
-            if budgeted_bytes > byte_budget {
+            if budgeted_bytes > byte_budget && first_commit_awaited.is_empty() {
                 info!(
                     "[{}] Transactions from {} passed the budget of {} bytes, keeping what arrived",
                     inner.sync_type.as_str(),
@@ -1079,14 +1084,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 /// Deserializes fetched transaction entries and keys them by their
 /// `TransactionRef`, consuming the matching refs from `committed_tx_refs`.
 ///
-/// Every entry must deserialize and match a committed ref: a malformed entry
-/// is a peer fault, not a benign byte cutoff — skipping it would be
-/// indistinguishable from a truncated response and would let the peer cap
-/// every fetch at one commit of progress via the prefix fallback.
+/// Every entry must deserialize and match a committed ref, and while
+/// `first_commit_awaited` still holds refs of the first commit, every entry
+/// must be one of them: a malformed entry is a peer fault, not a benign byte
+/// cutoff — skipping it would be indistinguishable from a truncated response
+/// and would let the peer cap every fetch at one commit of progress via the
+/// prefix fallback.
 fn process_serialized_transactions(
     peer: AuthorityIndex,
     serialized_transactions: Vec<Bytes>,
     committed_tx_refs: &mut BTreeSet<TransactionRef>,
+    first_commit_awaited: &mut BTreeSet<TransactionRef>,
 ) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
     let mut fetched_transactions = BTreeMap::new();
     for serialized_transaction in serialized_transactions {
@@ -1095,6 +1103,12 @@ fn process_serialized_transactions(
         let transaction_ref = tx_v2.transaction_ref;
         if !committed_tx_refs.contains(&transaction_ref) {
             return Err(ConsensusError::UnexpectedTransactionForCommit {
+                peer,
+                received: transaction_ref,
+            });
+        }
+        if !first_commit_awaited.is_empty() && !first_commit_awaited.remove(&transaction_ref) {
+            return Err(ConsensusError::TransactionsOutOfCommitOrder {
                 peer,
                 received: transaction_ref,
             });
@@ -1419,7 +1433,11 @@ mod tests {
         /// chunks read so far cover.
         #[tokio::test]
         async fn stops_reading_past_the_budget() {
-            let context = fast_sync_context_with_budget(1);
+            // Room for one entry and a half: the first commit's entry is
+            // charged, and the second commit's entry passes the budget.
+            let entry_charge =
+                Transaction::serialize(&block_payload(1)).unwrap().len() + size_of::<Bytes>();
+            let context = fast_sync_context_with_budget(entry_charge * 3 / 2);
             let response = commit_response(
                 &context,
                 vec![
@@ -1438,14 +1456,14 @@ mod tests {
                 .await
                 .unwrap();
 
-            // The first commit is not charged; the second commit's chunk passes
-            // the budget and is the last one read.
+            // The second commit's chunk passes the budget and is the last one
+            // read.
             assert_eq!(output.commits.len(), 2);
             assert_eq!(network_client.chunks_read.load(Ordering::Relaxed), 2);
         }
 
         /// A first commit larger than the budget is read whole, across chunks,
-        /// so a fetch of it makes progress.
+        /// so a fetch of it makes progress, and reading stops right after it.
         #[tokio::test]
         async fn reads_a_first_commit_larger_than_the_budget() {
             let context = fast_sync_context_with_budget(1);
@@ -1467,20 +1485,25 @@ mod tests {
                 .await
                 .unwrap();
 
+            assert_eq!(output.commits.len(), 1);
             assert_eq!(output.committed_subdags[0].transactions.len(), 2);
-            assert_eq!(output.commits.len(), 2);
-            assert_eq!(network_client.chunks_read.load(Ordering::Relaxed), 3);
+            assert_eq!(network_client.chunks_read.load(Ordering::Relaxed), 2);
         }
 
-        /// Entries are matched to their commits whatever order they arrive in.
+        /// Within a commit, entries may arrive in any order.
         #[tokio::test]
-        async fn takes_entries_in_any_order() {
+        async fn takes_the_entries_of_a_commit_in_any_order() {
             let context = fast_sync_context();
-            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
-            response_transactions.reverse();
+            let (commits, vote_headers, mut response_transactions) = commit_response(
+                &context,
+                vec![
+                    vec![block_payload(1), block_payload(2)],
+                    vec![block_payload(3)],
+                ],
+            );
+            response_transactions.swap(0, 1);
             let network_client = Arc::new(FakeNetworkClient {
                 commits_and_transactions: Some((commits, vote_headers, response_transactions)),
-                transactions_per_chunk: Some(1),
                 ..Default::default()
             });
 
@@ -1489,9 +1512,25 @@ mod tests {
                 .unwrap();
 
             assert_eq!(output.commits.len(), 2);
-            for subdag in &output.committed_subdags {
-                assert_eq!(subdag.transactions.len(), 1);
-            }
+            assert_eq!(output.committed_subdags[0].transactions.len(), 2);
+        }
+
+        /// An entry of a later commit arriving while an earlier commit still
+        /// waits for entries is charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_entries_out_of_commit_order() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            response_transactions.reverse();
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::TransactionsOutOfCommitOrder { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
         /// A response whose transaction payload covers only some of the
@@ -1546,9 +1585,9 @@ mod tests {
             let context = fast_sync_context();
             let (commits, vote_headers, mut response_transactions) = commit_response(
                 &context,
-                vec![vec![vec![]], vec![vec![Transaction::new(vec![2u8; 16])]]],
+                vec![vec![vec![Transaction::new(vec![1u8; 16])]], vec![vec![]]],
             );
-            response_transactions.remove(0);
+            response_transactions.remove(1);
 
             let network_client = Arc::new(FakeNetworkClient {
                 commits_and_transactions: Some((commits, vote_headers, response_transactions)),
@@ -1567,9 +1606,9 @@ mod tests {
 
             assert_eq!(output.commits.len(), 2);
             assert_eq!(output.committed_subdags.len(), 2);
-            assert_eq!(output.committed_subdags[0].transactions.len(), 1);
-            assert!(!output.committed_subdags[0].transactions[0].has_transactions());
-            assert!(output.committed_subdags[1].transactions[0].has_transactions());
+            assert!(output.committed_subdags[0].transactions[0].has_transactions());
+            assert_eq!(output.committed_subdags[1].transactions.len(), 1);
+            assert!(!output.committed_subdags[1].transactions[0].has_transactions());
         }
 
         /// Runs `fetch_once` against a preset response served by authority 1
@@ -2357,6 +2396,7 @@ mod tests {
                 AuthorityIndex::new_for_test(1),
                 vec![serialized(tx_a), serialized(tx_b)],
                 &mut committed,
+                &mut BTreeSet::new(),
             )
             .unwrap();
 
@@ -2373,6 +2413,7 @@ mod tests {
                 AuthorityIndex::new_for_test(1),
                 vec![Bytes::from_static(b"garbage"), serialized(tx_a)],
                 &mut committed,
+                &mut BTreeSet::new(),
             );
 
             assert!(matches!(
@@ -2387,8 +2428,12 @@ mod tests {
             let peer = AuthorityIndex::new_for_test(1);
             let mut committed: BTreeSet<TransactionRef> = [tx_a].into_iter().collect();
 
-            let result =
-                process_serialized_transactions(peer, vec![serialized(tx_b)], &mut committed);
+            let result = process_serialized_transactions(
+                peer,
+                vec![serialized(tx_b)],
+                &mut committed,
+                &mut BTreeSet::new(),
+            );
 
             assert!(matches!(
                 result,
@@ -2396,6 +2441,33 @@ mod tests {
                     peer: error_peer,
                     received,
                 }) if error_peer == peer && received == tx_b
+            ));
+        }
+
+        /// Every entry of the first commit must come before any other entry;
+        /// the other commits' entries may come in any order.
+        #[tokio::test]
+        async fn errors_on_another_commit_entry_before_the_first_commit_is_complete() {
+            let (tx_a, tx_b, tx_c, tx_d) = (plain_ref(1), plain_ref(2), plain_ref(3), plain_ref(4));
+            let peer = AuthorityIndex::new_for_test(1);
+            let process = |entries: Vec<TransactionRef>| {
+                let mut committed: BTreeSet<TransactionRef> =
+                    [tx_a, tx_b, tx_c, tx_d].into_iter().collect();
+                process_serialized_transactions(
+                    peer,
+                    entries.into_iter().map(serialized).collect(),
+                    &mut committed,
+                    &mut [tx_a, tx_b].into_iter().collect(),
+                )
+            };
+
+            assert!(process(vec![tx_b, tx_a, tx_d, tx_c]).is_ok());
+            assert!(matches!(
+                process(vec![tx_a, tx_c, tx_b]),
+                Err(ConsensusError::TransactionsOutOfCommitOrder {
+                    peer: error_peer,
+                    received,
+                }) if error_peer == peer && received == tx_c
             ));
         }
     }
