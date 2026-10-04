@@ -2212,15 +2212,7 @@ impl DagState {
             author: block_ref.author,
             transactions_commitment: header.transactions_commitment(),
         };
-        if self
-            .context
-            .empty_transactions_for_ref(transaction_ref.into())
-            .is_some()
-        {
-            return true;
-        }
-        let transaction_ref = GenericTransactionRef::from(transaction_ref);
-        self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
+        self.contains_transactions_in_memory(transaction_ref.into())
     }
 
     /// Clean up old cached data for each authority, all cached blocks
