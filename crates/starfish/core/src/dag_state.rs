@@ -2018,17 +2018,9 @@ impl DagState {
         let mut missing = Vec::new();
 
         for (index, tx_ref) in transaction_refs.into_iter().enumerate() {
-            if tx_ref.round() == GENESIS_ROUND {
-                exist[index] = self.get_genesis_block(tx_ref).is_some();
-                continue;
-            }
-            if self.context.empty_transactions_for_ref(tx_ref).is_some() {
+            if self.contains_transactions_in_memory(tx_ref) {
                 exist[index] = true;
-                continue;
-            }
-            if self.recent_transactions_by_authority[tx_ref.author()].contains_key(&tx_ref) {
-                exist[index] = true;
-            } else {
+            } else if tx_ref.round() != GENESIS_ROUND {
                 missing.push((index, tx_ref));
             }
         }
@@ -2869,6 +2861,22 @@ impl DagState {
         // is already over the threshold.
         self.solid_commit_lag_rounds() > self.context.parameters.solid_commit_lag_threshold
             && !self.fast_sync_ongoing()
+    }
+
+    /// Whether the payload of `transaction_ref` is available without reading
+    /// the store: genesis, empty, or among the recent transactions held here.
+    pub(crate) fn contains_transactions_in_memory(
+        &self,
+        transaction_ref: GenericTransactionRef,
+    ) -> bool {
+        if transaction_ref.round() == GENESIS_ROUND {
+            return self.get_genesis_block(transaction_ref).is_some();
+        }
+        self.context
+            .empty_transactions_for_ref(transaction_ref)
+            .is_some()
+            || self.recent_transactions_by_authority[transaction_ref.author()]
+                .contains_key(&transaction_ref)
     }
 }
 #[cfg(test)]
