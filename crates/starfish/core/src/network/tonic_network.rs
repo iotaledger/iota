@@ -1144,33 +1144,15 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 e => tonic::Status::internal(format!("{e:?}")),
             })?;
 
-        // Build response as a stream of chunks to stay under gRPC message size limit.
-        // Commits are chunked by size and sent ahead of the transaction chunks.
-        // Certifier headers are small enough to fit in a single chunk and are sent
-        // with the first commit chunk.
-        let mut responses = Vec::new();
-
-        let commit_chunks = chunk_data(serialized_commits, MAX_FETCH_RESPONSE_BYTES);
-        for (i, commit_chunk) in commit_chunks.into_iter().enumerate() {
-            responses.push(Ok(FetchCommitsAndTransactionsResponse {
-                commits: commit_chunk,
-                certifier_block_headers: if i == 0 {
-                    serialized_headers.clone()
-                } else {
-                    vec![]
-                },
-                transactions: vec![],
-            }));
-        }
-
-        if responses.is_empty() {
-            responses.push(Ok(FetchCommitsAndTransactionsResponse {
-                commits: vec![],
-                certifier_block_headers: serialized_headers,
-                transactions: vec![],
-            }));
-        }
-
+        // Build response as a stream of chunks to stay under gRPC message size limit,
+        // with the commits and certifier headers ahead of the transaction chunks.
+        let responses = commit_and_header_messages(
+            serialized_commits,
+            serialized_headers,
+            MAX_FETCH_RESPONSE_BYTES,
+        )
+        .into_iter()
+        .map(Ok);
         let transactions = transactions.map(|chunk| {
             chunk
                 .map(|transactions| FetchCommitsAndTransactionsResponse {
@@ -1911,6 +1893,37 @@ pub(crate) struct FetchTransactionsResponse {
     vec_serialized_transactions: Vec<Bytes>,
 }
 
+/// Packs the commits and certifier headers of a fast commit-sync response into
+/// messages of at most `chunk_limit` bytes, unless one commit alone is larger:
+/// the commits in order, then the headers with the last commits when they fit
+/// there, in a message of their own otherwise.
+fn commit_and_header_messages(
+    commits: Vec<Bytes>,
+    certifier_block_headers: Vec<Bytes>,
+    chunk_limit: usize,
+) -> Vec<FetchCommitsAndTransactionsResponse> {
+    let mut messages: Vec<FetchCommitsAndTransactionsResponse> = chunk_data(commits, chunk_limit)
+        .into_iter()
+        .map(|commits| FetchCommitsAndTransactionsResponse {
+            commits,
+            ..Default::default()
+        })
+        .collect();
+    let headers_size: usize = certifier_block_headers.iter().map(Bytes::len).sum();
+    match messages.last_mut() {
+        Some(last)
+            if last.commits.iter().map(Bytes::len).sum::<usize>() + headers_size <= chunk_limit =>
+        {
+            last.certifier_block_headers = certifier_block_headers;
+        }
+        _ => messages.push(FetchCommitsAndTransactionsResponse {
+            certifier_block_headers,
+            ..Default::default()
+        }),
+    }
+    messages
+}
+
 // Splits a list of byte sequences into chunks where each chunk's total size
 // does not exceed the specified `chunk_limit`.
 // Returns a vector of chunks, each being a vector of `Bytes`.
@@ -1946,7 +1959,7 @@ mod tests {
         CONSENSUS_SERVICE_METHODS, CONSENSUS_SERVICE_PATH_PREFIX, FetchBlockHeadersResponse,
         FetchCommitsAndTransactionsResponse, FetchTransactionsResponse, TonicClient,
         TransactionChunkStream, UNKNOWN_ROUTE, collect_block_headers,
-        collect_commits_and_transactions, collect_transactions,
+        collect_commits_and_transactions, collect_transactions, commit_and_header_messages,
         max_fetch_block_headers_response_bytes, max_fetch_transactions_response_bytes,
         max_serialized_transactions_entry_bytes, route_label,
     };
@@ -2046,6 +2059,39 @@ mod tests {
             chunks.as_slice(),
             [Err(ConsensusError::SerializedTransactionsTooLarge { .. })]
         ));
+    }
+
+    /// Certifier headers ride the last commit message when they fit there and
+    /// get a message of their own otherwise, so no message passes the limit.
+    #[test]
+    fn certifier_headers_ride_the_last_commit_message_when_they_fit() {
+        let commits = vec![Bytes::from(vec![0u8; 4]); 5];
+        let headers = vec![Bytes::from(vec![1u8; 3]); 2];
+        let message_sizes = |messages: &[FetchCommitsAndTransactionsResponse]| {
+            messages
+                .iter()
+                .map(|message| {
+                    message
+                        .commits
+                        .iter()
+                        .chain(&message.certifier_block_headers)
+                        .map(Bytes::len)
+                        .sum::<usize>()
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // The last commit message holds 4 bytes, leaving room for the 6 header
+        // bytes under a limit of 10.
+        let messages = commit_and_header_messages(commits.clone(), headers.clone(), 10);
+        assert_eq!(message_sizes(&messages), vec![8, 8, 10]);
+        assert_eq!(messages[2].certifier_block_headers, headers);
+
+        // Under a limit of 9 they no longer fit there.
+        let messages = commit_and_header_messages(commits, headers.clone(), 9);
+        assert_eq!(message_sizes(&messages), vec![8, 8, 4, 6]);
+        assert!(messages[3].commits.is_empty());
+        assert_eq!(messages[3].certifier_block_headers, headers);
     }
 
     /// A commit can reference one transaction per 37 bytes it occupies, so a
