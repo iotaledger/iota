@@ -916,7 +916,8 @@ struct TransactionCursor {
     context: Arc<Context>,
     store: Arc<dyn Store>,
     dag_state: Arc<RwLock<DagState>>,
-    /// Entry bytes one chunk holds at most; a larger entry travels alone.
+    /// Maximum total size of the entries in one chunk. An entry larger than
+    /// this is sent in a chunk of its own.
     chunk_bytes: usize,
     /// Refs of the commits not finished yet, the current one first, each sent
     /// in ref order.

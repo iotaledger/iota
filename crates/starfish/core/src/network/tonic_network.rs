@@ -415,10 +415,10 @@ impl NetworkClient for TonicClient {
 }
 
 /// Reads the commits and certifier headers of a
-/// `fetch_commits_and_transactions` response stream, which come ahead of its
-/// transactions, and hands the rest of the stream on as transaction chunks. A
-/// stream cut by an error after commits arrived ends its transaction chunks
-/// with the error.
+/// `fetch_commits_and_transactions` response stream, which come before its
+/// transactions, and returns the rest of the stream as transaction chunks. If
+/// the stream is cut by an error after commits arrived, the transaction chunks
+/// end with that error.
 async fn collect_commits_and_transactions<S>(
     context: &Context,
     peer: AuthorityIndex,
@@ -1894,9 +1894,10 @@ pub(crate) struct FetchTransactionsResponse {
 }
 
 /// Packs the commits and certifier headers of a fast commit-sync response into
-/// messages of at most `chunk_limit` bytes, unless one commit alone is larger:
-/// the commits in order, then the headers with the last commits when they fit
-/// there, in a message of their own otherwise.
+/// messages of at most `chunk_limit` bytes, unless a single commit is larger.
+/// The commits come first, in order. The headers are added to the last commit
+/// message if they fit there, and are sent in a message of their own
+/// otherwise.
 fn commit_and_header_messages(
     commits: Vec<Bytes>,
     certifier_block_headers: Vec<Bytes>,
@@ -2061,10 +2062,11 @@ mod tests {
         ));
     }
 
-    /// Certifier headers ride the last commit message when they fit there and
-    /// get a message of their own otherwise, so no message passes the limit.
+    /// Certifier headers are added to the last commit message if they fit
+    /// there, and are sent in a message of their own otherwise, so no message
+    /// exceeds the limit.
     #[test]
-    fn certifier_headers_ride_the_last_commit_message_when_they_fit() {
+    fn certifier_headers_are_added_to_the_last_commit_message_if_they_fit() {
         let commits = vec![Bytes::from(vec![0u8; 4]); 5];
         let headers = vec![Bytes::from(vec![1u8; 3]); 2];
         let message_sizes = |messages: &[FetchCommitsAndTransactionsResponse]| {
@@ -3027,12 +3029,13 @@ mod tests {
         assert_eq!(reclaimed.get(), 1);
     }
 
-    /// A fast commit-sync response crosses the transport as its commits and
-    /// certifier headers, then each transaction chunk as its own message, and a
-    /// server error after some chunks reaches the requester as the last one.
+    /// Sent through the tonic server and client, a fast commit-sync response
+    /// arrives as its commits and certifier headers, then each transaction
+    /// chunk as a separate message. A server error after some chunks arrives
+    /// as the last item.
     #[cfg(not(msim))]
     #[tokio::test]
-    async fn a_fast_sync_response_crosses_the_transport_chunk_by_chunk() {
+    async fn a_fast_sync_response_arrives_chunk_by_chunk() {
         use std::time::Duration;
 
         use bytes::Bytes;
