@@ -455,6 +455,12 @@ pub(crate) enum ConsensusError {
 
     #[error("Peer {peer} sent commits or certifier headers after transactions")]
     CommitDataAfterTransactions { peer: AuthorityIndex },
+
+    #[error("Peer {peer} sent transactions {received} before an earlier commit's transactions")]
+    TransactionsOutOfCommitOrder {
+        peer: AuthorityIndex,
+        received: TransactionRef,
+    },
 }
 
 impl ConsensusError {
