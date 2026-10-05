@@ -3,8 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use iota_sdk_move_types::iota_framework::{
-    system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+use iota_sdk_move_types::{
+    iota_framework::{
+        bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap, vec_set::VecSet,
+    },
+    iota_system::iota_system_state_inner::SystemParametersV1,
 };
 use iota_sdk_types::Address;
 use serde::{Deserialize, Serialize};
@@ -22,11 +25,10 @@ use crate::iota_system_state::epoch_start_iota_system_state::{
 };
 use crate::{
     balance::Balance,
-    collection_types::{Bag, Table, TableVec},
+    collection_types::{Table, TableVec},
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     error::IotaError,
     gas_coin::IotaTreasuryCap,
-    iota_system_state::iota_system_state_inner_v1::SystemParametersV1,
     storage::ObjectStore,
 };
 

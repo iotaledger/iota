@@ -4,14 +4,14 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
-use iota_sdk_move_types::iota_framework::system_admin_cap::IotaSystemAdminCap;
+use iota_sdk_move_types::iota_framework::{bag::Bag, system_admin_cap::IotaSystemAdminCap};
 use iota_sdk_types::Address;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Balance,
-    collection_types::{Bag, Table},
+    collection_types::Table,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
     crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
     error::IotaError,

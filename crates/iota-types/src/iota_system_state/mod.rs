@@ -233,19 +233,20 @@ impl IotaSystemState {
     /// Intended for test fixtures that need a structurally valid system
     /// state to exercise BCS round-trip paths.
     pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
-        use iota_sdk_move_types::iota_framework::{
-            system_admin_cap::IotaSystemAdminCap, vec_map::VecMap,
+        use iota_sdk_move_types::{
+            iota_framework::{bag::Bag, system_admin_cap::IotaSystemAdminCap, vec_map::VecMap},
+            iota_system::iota_system_state_inner::SystemParametersV1,
         };
         use iota_sdk_types::ObjectId;
 
         use crate::{
             balance::{Balance, Supply},
             coin::TreasuryCap,
-            collection_types::{Bag, Table, TableVec},
+            collection_types::{Table, TableVec},
             gas_coin::IotaTreasuryCap,
             id::UID,
             iota_system_state::iota_system_state_inner_v1::{
-                IotaSystemStateV1, StorageFundV1, SystemParametersV1, ValidatorSetV1,
+                IotaSystemStateV1, StorageFundV1, ValidatorSetV1,
             },
         };
         IotaSystemState::V1(IotaSystemStateV1 {
@@ -269,7 +270,7 @@ impl IotaSystemState {
                 at_risk_validators: VecMap {
                     contents: Vec::new(),
                 },
-                extra_fields: Bag::default(),
+                extra_fields: Bag::new(ObjectId::ZERO.into(), 0),
             },
             storage_fund: StorageFundV1 {
                 total_object_storage_rebates: Balance::new(0),
@@ -283,7 +284,7 @@ impl IotaSystemState {
                 validator_low_stake_threshold: 0,
                 validator_very_low_stake_threshold: 0,
                 validator_low_stake_grace_period: 0,
-                extra_fields: Bag::default(),
+                extra_fields: Bag::new(ObjectId::ZERO.into(), 0),
             },
             iota_system_admin_cap: IotaSystemAdminCap::default(),
             reference_gas_price: 0,
@@ -296,7 +297,7 @@ impl IotaSystemState {
             safe_mode_storage_rebates: 0,
             safe_mode_non_refundable_storage_fee: 0,
             epoch_start_timestamp_ms: 0,
-            extra_fields: Bag::default(),
+            extra_fields: Bag::new(ObjectId::ZERO.into(), 0),
         })
     }
 }
