@@ -216,8 +216,34 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .await;
     }
 
+    /// Processes one commit, unless this node executes downloaded checkpoints
+    /// for the rest of the epoch. A commit still in progress when that starts
+    /// is abandoned; its transactions are then executed from those
+    /// checkpoints.
     #[instrument("handle_consensus_output", level = "trace", skip_all)]
     async fn handle_consensus_output(
+        &mut self,
+        consensus_output: impl ConsensusOutputAPI,
+        block_transactions: ConsensusOutputTransactions,
+    ) {
+        let epoch_store = self.epoch_store.clone();
+        if epoch_store.is_executing_synced_checkpoints() {
+            debug!("not processing consensus commit: executing synced checkpoints");
+            return;
+        }
+        let _commit_guard = epoch_store.lock_consensus_commit().await;
+        // Every wait while processing the commit races against the switch, so
+        // the commit cannot run against state that executing downloaded
+        // checkpoints writes, and the switch is not held up waiting for it.
+        tokio::select! {
+            _ = epoch_store.wait_for_synced_checkpoint_execution() => {
+                info!("abandoned consensus commit: executing synced checkpoints for the rest of the epoch");
+            }
+            _ = self.process_consensus_output(consensus_output, block_transactions) => {}
+        }
+    }
+
+    async fn process_consensus_output(
         &mut self,
         consensus_output: impl ConsensusOutputAPI,
         block_transactions: ConsensusOutputTransactions,
@@ -1121,6 +1147,76 @@ mod tests {
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats_1, last_consensus_stats_2);
         }
+    }
+
+    /// Once this node executes synced checkpoints for the rest of the epoch, a
+    /// commit still waiting is abandoned so the switch can complete, and later
+    /// commits are not processed.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_consensus_handler_stops_when_executing_synced_checkpoints() {
+        telemetry_subscribers::init_for_testing();
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .build()
+            .await;
+        let epoch_store = state.epoch_store_for_testing().clone();
+        let consensus_committee = get_consensus_committee(epoch_store.epoch_start_state());
+        let backpressure_manager = BackpressureManager::new_for_tests();
+        let mut consensus_handler = ConsensusHandler::new(
+            epoch_store.clone(),
+            state.clone(),
+            Arc::new(CheckpointServiceNoop {}),
+            state.execution_scheduler().clone(),
+            state.get_object_cache_reader().clone(),
+            Arc::new(ArcSwap::default()),
+            consensus_committee,
+            Arc::new(AuthorityMetrics::new(&Registry::new())),
+            backpressure_manager.subscribe(),
+        );
+        let commit = |round: u32, index: u32| {
+            let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
+            CommittedSubDag::new(
+                header.reference(),
+                vec![header.clone()],
+                vec![header.reference()],
+                vec![],
+                header.timestamp_ms(),
+                CommitRef::new(index, CommitDigest::MIN),
+                vec![],
+                vec![],
+            )
+        };
+        let initial_stats = consensus_handler.last_consensus_stats.clone();
+
+        // The first commit waits on backpressure.
+        backpressure_manager.set_backpressure(true);
+        backpressure_manager.update_highest_certified_checkpoint(1);
+        {
+            let waiter = consensus_handler.handle_consensus_output_for_test(commit(100, 10));
+            pin_mut!(waiter);
+            tokio::time::timeout(Duration::from_secs(5), &mut waiter)
+                .await
+                .unwrap_err();
+
+            let start = epoch_store.start_executing_synced_checkpoints();
+            pin_mut!(start);
+            tokio::time::timeout(
+                Duration::from_secs(5),
+                futures::future::join(waiter.as_mut(), start.as_mut()),
+            )
+            .await
+            .expect("the waiting commit should be abandoned and the switch complete");
+        }
+        assert_eq!(consensus_handler.last_consensus_stats, initial_stats);
+
+        // Later commits are not processed.
+        backpressure_manager.set_backpressure(false);
+        consensus_handler
+            .handle_consensus_output_for_test(commit(101, 11))
+            .await;
+        assert_eq!(consensus_handler.last_consensus_stats, initial_stats);
     }
 
     /// A commit mixing a shared-object certificate with an owned-object-only
