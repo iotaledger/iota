@@ -589,6 +589,7 @@ impl CheckpointExecutor {
         {
             return None;
         }
+        let _backpressure_guard = self.backpressure_manager.wait_for_local_build();
         self.forward_randomness_from_checkpoint(checkpoint.clone());
         tokio::select! {
             summary = self.checkpoint_store.notify_read_locally_computed_checkpoint(seq) => Some(summary),
