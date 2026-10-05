@@ -25,7 +25,7 @@ use iota_sdk_types::RandomnessRound;
 use iota_types::{
     base_types::{AuthorityName, CommitRound},
     committee::{Committee, EpochId, StakeUnit},
-    crypto::AuthorityKeyPair,
+    crypto::{AuthorityKeyPair, RandomnessSignature},
     error::{IotaError, IotaResult},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation, VersionedDkgMessage},
@@ -868,6 +868,20 @@ impl RandomnessReporter {
                 .complete_round(epoch_store.committee().epoch(), round);
         }
         Ok(())
+    }
+
+    /// Passes the randomness for `round` found in a certified checkpoint to
+    /// the randomness event loop, so a round this node missed completes
+    /// without peers resending it.
+    pub fn forward_randomness_from_checkpoint(&self, round: RandomnessRound, random_bytes: &[u8]) {
+        match bcs::from_bytes::<RandomnessSignature>(random_bytes) {
+            Ok(sig) => self
+                .network_handle
+                .receive_full_signature_from_checkpoint(self.epoch, round, sig),
+            Err(e) => error!(
+                "random beacon: cannot decode randomness for round {round} from a certified checkpoint: {e:?}"
+            ),
+        }
     }
 }
 
