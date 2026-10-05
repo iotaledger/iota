@@ -590,10 +590,35 @@ impl CheckpointExecutor {
             return None;
         }
         let _backpressure_guard = self.backpressure_manager.wait_for_local_build();
-        self.forward_randomness_from_checkpoint(checkpoint.clone());
-        tokio::select! {
-            summary = self.checkpoint_store.notify_read_locally_computed_checkpoint(seq) => Some(summary),
-            _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => None,
+        // The builder resolves every randomness round of a build before it
+        // writes any chunk of it, so the round this checkpoint waits for may
+        // only appear in a later synced chunk. Forward from all of them.
+        let mut next_to_forward = seq;
+        let mut forwarded_to_epoch_end = false;
+        loop {
+            let highest_synced = self
+                .checkpoint_store
+                .get_highest_synced_checkpoint_seq_number()
+                .expect("db error")
+                .unwrap_or_default();
+            while !forwarded_to_epoch_end && next_to_forward <= highest_synced {
+                let synced = self
+                    .checkpoint_store
+                    .get_checkpoint_by_sequence_number(next_to_forward)
+                    .expect("db error")
+                    .expect("synced checkpoint should be in the store");
+                if synced.epoch() != epoch {
+                    forwarded_to_epoch_end = true;
+                    break;
+                }
+                self.forward_randomness_from_checkpoint(synced);
+                next_to_forward += 1;
+            }
+            tokio::select! {
+                summary = self.checkpoint_store.notify_read_locally_computed_checkpoint(seq) => return Some(summary),
+                _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => return None,
+                _ = self.checkpoint_store.notify_read_synced_checkpoint(next_to_forward), if !forwarded_to_epoch_end => {}
+            }
         }
     }
 
