@@ -1009,6 +1009,9 @@ impl IotaNode {
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
             .checkpoint_archive_config(config.checkpoint_archive_config().cloned())
+            .sync_summaries_to_epoch_end(
+                config.is_validator().then(|| config.authority_public_key()),
+            )
             .with_metrics(prometheus_registry)
             .build();
 

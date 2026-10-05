@@ -1480,3 +1480,42 @@ async fn execute_add_validator_transactions(
         );
     });
 }
+
+/// A validator that is down while its epoch ends, and restarts with the end of
+/// that epoch more than `max_checkpoints_ahead_of_execution` checkpoints
+/// ahead, still reaches the network's epoch. Its own consensus can no longer
+/// build the rest of the epoch, so it needs the summary that ends the epoch
+/// to fall back to executing synced checkpoints.
+#[sim_test]
+async fn validator_far_behind_catches_up_across_epoch_end() {
+    let test_cluster = TestClusterBuilder::new()
+        .with_num_validators(4)
+        .with_epoch_duration_ms(15_000)
+        .build()
+        .await;
+    let lagging = test_cluster.get_validator_pubkeys()[0];
+
+    test_cluster.stop_node(&lagging);
+    let target_epoch = test_cluster.wait_for_epoch(Some(2)).await.epoch();
+
+    test_cluster
+        .swarm
+        .node(&lagging)
+        .unwrap()
+        .config()
+        .p2p_config
+        .state_sync
+        .get_or_insert_with(Default::default)
+        .max_checkpoints_ahead_of_execution = std::num::NonZeroU64::new(2);
+    test_cluster.start_node(&lagging).await;
+
+    let handle = test_cluster
+        .swarm
+        .node(&lagging)
+        .unwrap()
+        .get_node_handle()
+        .unwrap();
+    test_cluster
+        .wait_for_epoch_on_node(&handle, Some(target_epoch), Duration::from_secs(120))
+        .await;
+}
