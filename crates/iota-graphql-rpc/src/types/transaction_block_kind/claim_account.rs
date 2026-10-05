@@ -5,7 +5,6 @@ use async_graphql::*;
 use iota_sdk_types::{
     AccountClaimKind as NativeAccountClaimKind,
     ClaimAccountTransaction as NativeClaimAccountTransaction,
-    SmartAccountBuildKind as NativeSmartAccountBuildKind,
 };
 
 use crate::types::base64::Base64;
@@ -27,13 +26,6 @@ impl ClaimAccountTransaction {
                 ClaimAccountKind::SmartAccount(SmartAccountClaimTransaction {
                     public_key_scheme: smart.public_key_scheme,
                     public_key_raw_bytes: Base64::from(smart.public_key_raw_bytes.as_slice()),
-                    build_kind: match smart.build_kind {
-                        NativeSmartAccountBuildKind::Mutable => SmartAccountBuildKind::Mutable,
-                        NativeSmartAccountBuildKind::Immutable => SmartAccountBuildKind::Immutable,
-                        _ => unimplemented!(
-                            "a new SmartAccountBuildKind enum variant was added and needs to be handled"
-                        ),
-                    },
                 })
             }
             _ => unimplemented!(
@@ -58,15 +50,4 @@ pub(crate) struct SmartAccountClaimTransaction {
     /// Raw public key bytes of the claimed address, without the scheme flag
     /// prefix. For MultiSig this is a BCS-encoded multisig public key.
     pub public_key_raw_bytes: Base64,
-    /// Whether the created account object is mutable or immutable.
-    pub build_kind: SmartAccountBuildKind,
-}
-
-/// Whether a claimed account object can be changed after the claim.
-#[derive(Enum, Clone, Copy, Eq, PartialEq)]
-pub(crate) enum SmartAccountBuildKind {
-    /// The account is a mutable shared object.
-    Mutable,
-    /// The account is an immutable frozen object.
-    Immutable,
 }

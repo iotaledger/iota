@@ -15,7 +15,7 @@ use std::ascii;
 // === builder_v1 ===
 
 #[test]
-fun builder_v1_builds_mutable_account() {
+fun builder_v1_builds_shared_account() {
     let mut scenario = test_scenario::begin(@0x0);
 
     let authenticator = test_authenticator();
@@ -28,23 +28,6 @@ fun builder_v1_builds_mutable_account() {
     assert_ref_eq(account.borrow_auth_function_ref_v1(), &authenticator);
 
     test_scenario::return_shared(account);
-    scenario.end();
-}
-
-#[test]
-fun builder_v1_builds_immutable_account() {
-    let mut scenario = test_scenario::begin(@0x0);
-
-    let authenticator = test_authenticator();
-    let addr = smart_account::builder_v1(authenticator, scenario.ctx()).build_immutable_v1();
-
-    scenario.next_tx(@0x0);
-    let account = scenario.take_immutable<SmartAccount>();
-
-    assert_eq(account.account_address(), addr);
-    assert_ref_eq(account.borrow_auth_function_ref_v1(), &authenticator);
-
-    test_scenario::return_immutable(account);
     scenario.end();
 }
 
@@ -81,40 +64,12 @@ fun claim_account_v1_creates_shared_account_at_sender_address() {
 }
 
 #[test]
-fun claim_immutable_account_v1_creates_immutable_account_at_sender_address() {
-    let public_key = ed25519_public_key();
-    let sender = public_key.to_iota_address();
-    let mut scenario = test_scenario::begin(sender);
-
-    smart_account::claim_immutable_account_v1_for_testing(public_key, scenario.ctx());
-
-    scenario.next_tx(sender);
-    let account = scenario.take_immutable<SmartAccount>();
-    assert_eq(account.account_address(), sender);
-    assert_eq(account.has_builtin_auth_public_key(), true);
-    test_scenario::return_immutable(account);
-
-    scenario.end();
-}
-
-#[test]
 #[expected_failure(abort_code = iota::claim::EAddressMismatch)]
 fun claim_account_v1_aborts_on_address_mismatch() {
     let public_key = ed25519_public_key();
     let mut scenario = test_scenario::begin(@0x1);
 
     smart_account::claim_account_v1_for_testing(public_key, scenario.ctx());
-
-    scenario.end();
-}
-
-#[test]
-#[expected_failure(abort_code = iota::claim::EAddressMismatch)]
-fun claim_immutable_account_v1_aborts_on_address_mismatch() {
-    let public_key = ed25519_public_key();
-    let mut scenario = test_scenario::begin(@0x1);
-
-    smart_account::claim_immutable_account_v1_for_testing(public_key, scenario.ctx());
 
     scenario.end();
 }

@@ -487,11 +487,11 @@ typed-store-derive = { path = "crates/typed-store-derive" }
 typed-store-error = { path = "crates/typed-store-error" }
 
 [patch.crates-io]
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "fe4bb8dccb0d663a59c3f1ebe17fd2f83b55ffc7" }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "fe4bb8dccb0d663a59c3f1ebe17fd2f83b55ffc7" }
-iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "fe4bb8dccb0d663a59c3f1ebe17fd2f83b55ffc7" }
-iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "fe4bb8dccb0d663a59c3f1ebe17fd2f83b55ffc7" }
-iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "fe4bb8dccb0d663a59c3f1ebe17fd2f83b55ffc7" }
-iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "fe4bb8dccb0d663a59c3f1ebe17fd2f83b55ffc7" }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "fe4bb8dccb0d663a59c3f1ebe17fd2f83b55ffc7" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "fe4bb8dccb0d663a59c3f1ebe17fd2f83b55ffc7" }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "4c20c5fb4414c616ce7783d578340cadad21d1b3" }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "4c20c5fb4414c616ce7783d578340cadad21d1b3" }
+iota-sdk-graphql-client-build = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "4c20c5fb4414c616ce7783d578340cadad21d1b3" }
+iota-sdk-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "4c20c5fb4414c616ce7783d578340cadad21d1b3" }
+iota-sdk-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "4c20c5fb4414c616ce7783d578340cadad21d1b3" }
+iota-sdk-move-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "4c20c5fb4414c616ce7783d578340cadad21d1b3" }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "4c20c5fb4414c616ce7783d578340cadad21d1b3" }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk", rev = "4c20c5fb4414c616ce7783d578340cadad21d1b3" }
