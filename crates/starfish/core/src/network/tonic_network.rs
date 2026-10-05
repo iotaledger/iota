@@ -1201,8 +1201,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 /// 2. Take `TonicClient` from `TonicManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `TonicService` for consensus service handler.
-/// 5. Install `TonicService` to `TonicManager` with
-///    `TonicManager::install_service()`.
+/// 5. Install `TonicService` to `TonicManager` with `TonicManager::install_service()`.
 pub(crate) struct TonicManager<S>
 where
     S: NetworkService,

@@ -427,8 +427,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // When close_to_quorum_mode is activated, the schedule_loop() will:
         // 1. Wait for all inflight/pending fetches to complete
         // 2. Fetch block headers for ~cached_rounds worth of commits
-        // 3. Send ReinitializeComponents to core thread to properly initialize DAG
-        //    state
+        // 3. Send ReinitializeComponents to core thread to properly initialize DAG state
         // 4. Reset fast sync state so regular syncer can take over
         if self.has_fetched_data && !self.close_to_quorum_mode {
             let current_fetch_after = self
@@ -610,9 +609,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
 
-        // 1. Fetch commits, voting headers, and transactions in the commit range from
-        //    the target authority. Each transaction is serialized as
-        //    SerializedTransactionsV2 which includes the TransactionRef.
+        // 1. Fetch commits, voting headers, and transactions in the commit range from the target
+        //    authority. Each transaction is serialized as SerializedTransactionsV2 which includes
+        //    the TransactionRef.
         let (
             serialized_commits,
             serialized_proof_for_last_commit,
@@ -628,8 +627,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     .record_fetch_fault(target_authority, e);
             })?;
 
-        // 2. Verify the response contains block headers that can certify the last
-        //    returned commit, and the returned commits are chained by digest,
+        // 2. Verify the response contains block headers that can certify the last returned commit,
+        //    and the returned commits are chained by digest,
         // so earlier commits are certified as well.
         let max_commits = inner.sync_type.max_commits_per_response(&commit_range);
         let (mut commits, voting_block_headers) = spawn_blocking({
@@ -646,9 +645,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         })
         .await??;
 
-        // 3. Collect the committed transaction refs of each commit. Commits passing
-        //    verify_commits are V2/V3, which only carry `TransactionRef`s, so the
-        //    legacy `BlockRef` variant is an error.
+        // 3. Collect the committed transaction refs of each commit. Commits passing verify_commits
+        //    are V2/V3, which only carry `TransactionRef`s, so the legacy `BlockRef` variant is an
+        //    error.
         let mut commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
             .map(|c| {
@@ -662,8 +661,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             commits_tx_refs.iter().flatten().copied().collect();
 
         // 4. Process fetched transactions. Each serialized_transaction is a
-        //    SerializedTransactionsV2 containing both the TransactionRef and the actual
-        //    transaction data.
+        //    SerializedTransactionsV2 containing both the TransactionRef and the actual transaction
+        //    data.
         let mut fetched_transactions = process_serialized_transactions(
             target_authority,
             serialized_transactions,
@@ -799,9 +798,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // We need headers for three purposes:
         // 1. DagState cache: at least cached_rounds commits back
         // 2. Linearizer recovery: at least gc_depth * 2 commits back
-        // 3. Leader schedule recovery: at least leader_schedule_window commits back, or
-        //    all commits since the last stored commit info
-        //    (commits_since_schedule_update)
+        // 3. Leader schedule recovery: at least leader_schedule_window commits back, or all commits
+        //    since the last stored commit info (commits_since_schedule_update)
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
@@ -2179,14 +2177,11 @@ mod tests {
     /// Test flow to ensure B requests commits A has in voting storage:
     /// - Phase 1: All run → commits 1-N1 (all validators have these)
     /// - Phase 2: Stop B first (B stops at N1)
-    /// - Phase 3: A + the other 5 validators continue → commits N1-N2 (B
-    ///   doesn't have these)
+    /// - Phase 3: A + the other 5 validators continue → commits N1-N2 (B doesn't have these)
     /// - Phase 4: Stop A (A stops at N2)
-    /// - Phase 5: The remaining 5 validators continue → commits N2-N3 (neither
-    ///   A nor B have these)
+    /// - Phase 5: The remaining 5 validators continue → commits N2-N3 (neither A nor B have these)
     /// - Phase 6: Restart A, fast syncs N2-N3 → stores voting headers
-    /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting
-    ///   storage
+    /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting storage
     #[tokio::test(flavor = "current_thread")]
     async fn test_fast_sync_voting_blocks_served_to_peer() {
         telemetry_subscribers::init_for_testing();
@@ -2530,15 +2525,13 @@ mod tests {
     ///
     /// Test flow:
     /// - Phase 1: All validators run together, creating initial commits
-    /// - Phase 2: Dynamically unsubscribe test validator from validator 1 +
-    ///   stop txn synchronizer + stop shard reconstructor
-    /// - Phase 3: Wait for commits with missing txs (creates pending subdags)
-    ///   and verify gap
+    /// - Phase 2: Dynamically unsubscribe test validator from validator 1 + stop txn synchronizer +
+    ///   stop shard reconstructor
+    /// - Phase 3: Wait for commits with missing txs (creates pending subdags) and verify gap
     /// - Phase 4: Stop test validator
     /// - Phase 5: Other validators continue (creates fast sync gap > threshold)
-    /// - Phase 6: Restart test validator with full connectivity, but keep txn
-    ///   synchronizer + shard reconstructor stopped to prevent pending subdags
-    ///   from being solidified
+    /// - Phase 6: Restart test validator with full connectivity, but keep txn synchronizer + shard
+    ///   reconstructor stopped to prevent pending subdags from being solidified
     /// - Phase 7: Verify fast sync was used and validator caught up
     #[tokio::test(flavor = "current_thread")]
     #[serial_test::serial]

@@ -21,10 +21,10 @@ use crate::{
 /// Per-authority misbehavior counters.
 ///
 /// Two buckets track different lifecycle stages:
-/// - `in_memory`: from blocks currently in the DAG cache (volatile, recomputed
-///   on each flush from blocks still in cache).
-/// - `persisted`: cumulative counts from blocks evicted from cache (restored
-///   from storage on restart).
+/// - `in_memory`: from blocks currently in the DAG cache (volatile, recomputed on each flush from
+///   blocks still in cache).
+/// - `persisted`: cumulative counts from blocks evicted from cache (restored from storage on
+///   restart).
 pub(crate) struct MisbehaviorStore {
     in_memory: CommitteeMisbehaviorCounts,
     persisted: CommitteeMisbehaviorCounts,
@@ -257,15 +257,13 @@ impl MisbehaviorStore {
     /// header's author field, only trustworthy if the signature is valid).
     ///
     /// Attribution rules:
-    /// - Provable faults (valid signature, protocol violation): charged to
-    ///   `author` — cryptographic proof they produced an invalid block. If
-    ///   `peer != author`, the peer is also charged (unprovable) for
-    ///   distributing a block they could have verified themselves.
-    /// - Unprovable faults (bad/missing signature): charged to `peer` only — we
-    ///   can't verify the author field, but we know who sent it to us.
-    /// - Bundle-part faults (corrupt framing, metadata, or shard, or a shard
-    ///   the peer had no right to relay): charged to `peer` only, under the
-    ///   dedicated bundle-part counter.
+    /// - Provable faults (valid signature, protocol violation): charged to `author` — cryptographic
+    ///   proof they produced an invalid block. If `peer != author`, the peer is also charged
+    ///   (unprovable) for distributing a block they could have verified themselves.
+    /// - Unprovable faults (bad/missing signature): charged to `peer` only — we can't verify the
+    ///   author field, but we know who sent it to us.
+    /// - Bundle-part faults (corrupt framing, metadata, or shard, or a shard the peer had no right
+    ///   to relay): charged to `peer` only, under the dedicated bundle-part counter.
     pub(crate) fn record_faulty_block(
         &self,
         peer: AuthorityIndex,

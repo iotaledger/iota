@@ -287,11 +287,10 @@ mod checked {
     /// the authentication execution and then reuses these for the normal
     /// transaction execution.
     /// Running the Move authentication can have two outcomes:
-    ///   - If it fails, then it charges gas for the failed execution of the
-    ///     authentication and produces transaction effects with the appropriate
-    ///     error status.
-    ///   - Else, if the authentication is successful, it continues with the
-    ///     normal transaction execution.
+    ///   - If it fails, then it charges gas for the failed execution of the authentication and
+    ///     produces transaction effects with the appropriate error status.
+    ///   - Else, if the authentication is successful, it continues with the normal transaction
+    ///     execution.
     /// It combines the input objects from both the authentication and
     /// transaction.
     #[instrument(
@@ -1969,8 +1968,8 @@ mod checked {
     /// Perform metadata updates in preparation for the transactions in the
     /// upcoming checkpoint:
     ///
-    /// - Set the timestamp for the `Clock` shared object from the timestamp in
-    ///   the header from consensus.
+    /// - Set the timestamp for the `Clock` shared object from the timestamp in the header from
+    ///   consensus.
     fn setup_consensus_commit(
         consensus_commit_timestamp_ms: CheckpointTimestamp,
         temporary_store: &mut TemporaryStore<'_>,

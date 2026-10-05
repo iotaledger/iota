@@ -152,8 +152,8 @@ impl ConsensusAuthority {
         let highest_known_commit_at_startup = dag_state.read().last_commit_index();
 
         // Sync last known own block is enabled when:
-        // 1. This is the first boot of the authority node (e.g. disable if the
-        //    validator was active in the previous epoch) and
+        // 1. This is the first boot of the authority node (e.g. disable if the validator was active
+        //    in the previous epoch) and
         // 2. The timeout for syncing last known own block is not set to zero.
         let sync_last_known_own_block = boot_counter == 0
             && !context
@@ -1064,12 +1064,11 @@ pub(crate) mod tests {
         }
 
         // Stop authorities 1, 2 & 3.
-        // * Authority 1 will be used to wipe out their DB and practically "force" the
-        //   amnesia recovery.
-        // * Authorities 2 and 3 are stopped to simulate less than 2f+1 availability,
-        //   which will make authority 1 retry during amnesia recovery until it has
-        //   finally managed to successfully get back 2f+1 responses, once authority 2
-        //   is up and running again.
+        // * Authority 1 will be used to wipe out their DB and practically "force" the amnesia
+        //   recovery.
+        // * Authorities 2 and 3 are stopped to simulate less than 2f+1 availability, which will
+        //   make authority 1 retry during amnesia recovery until it has finally managed to
+        //   successfully get back 2f+1 responses, once authority 2 is up and running again.
         sleep(Duration::from_secs(1)).await;
         authorities.remove(&index_1).unwrap().stop().await;
         // We wait for the rest of the authorities to create some blocks without

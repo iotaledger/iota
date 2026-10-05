@@ -91,10 +91,9 @@ trait Resolver<'a>: Send {
 }
 
 /// A resolver that resolves object IDs to object arguments.
-/// * If `is_receiving` is true, then the object argument will be resolved to a
-///   receiving object argument.
-/// * If `is_mut` is true, then the object argument will be resolved to a
-///   mutable object argument.
+/// * If `is_receiving` is true, then the object argument will be resolved to a receiving object
+///   argument.
+/// * If `is_mut` is true, then the object argument will be resolved to a mutable object argument.
 struct ToObject {
     is_receiving: bool,
     is_mut: bool,
@@ -214,16 +213,14 @@ struct StoredCompileUpgrade {
 /// The PTBBuilder struct is the main workhorse that transforms a sequence of
 /// `ParsedPTBCommand`s into an actual PTB that can be run. The main things to
 /// keep in mind are that this contains:
-/// - A way to handle identifiers -- note that we "lazily" resolve identifiers
-///   to arguments, so that the first usage of the identifier determines what it
-///   is resolved to. If an identifier is used in multiple positions at
-///   different resolutions (e.g., in one place as an object argument, and in
-///   another as a pure value), this will result in an error. This error can be
-///   avoided by creating another identifier for the second usage.
-/// - A way to resolve arguments -- this is done by calling `resolve` on a
-///   `PTBArg` and passing in appropriate context. The context is used to
-///   determine how to resolve the argument -- e.g., if an object ID should be
-///   resolved to a pure value or an object argument.
+/// - A way to handle identifiers -- note that we "lazily" resolve identifiers to arguments, so that
+///   the first usage of the identifier determines what it is resolved to. If an identifier is used
+///   in multiple positions at different resolutions (e.g., in one place as an object argument, and
+///   in another as a pure value), this will result in an error. This error can be avoided by
+///   creating another identifier for the second usage.
+/// - A way to resolve arguments -- this is done by calling `resolve` on a `PTBArg` and passing in
+///   appropriate context. The context is used to determine how to resolve the argument -- e.g., if
+///   an object ID should be resolved to a pure value or an object argument.
 /// - A way to bind the result of a command to an identifier.
 pub struct PTBBuilder<'a> {
     /// A map from identifiers to addresses. This is used to support address

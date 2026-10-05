@@ -50,11 +50,9 @@ impl CommittedSubDagSource {
 
 /// Role of CommitObserver
 /// - Called by core when try_commit() returns newly committed leaders.
-/// - The newly committed leaders are sent to commit observer and then commit
-///   observer gets subdags for each leader via the commit interpreter
-///   (linearizer)
-/// - The committed subdags are sent as consensus output via an unbounded tokio
-///   channel.
+/// - The newly committed leaders are sent to commit observer and then commit observer gets subdags
+///   for each leader via the commit interpreter (linearizer)
+/// - The committed subdags are sent as consensus output via an unbounded tokio channel.
 ///
 /// During normal operation no backpressure mechanism is needed as backpressure
 /// is handled as input into consensus. During recovery, resending the
@@ -62,10 +60,10 @@ impl CommittedSubDagSource {
 /// bounded; the consumer must therefore already be draining the channel when
 /// the observer is created.
 ///
-/// - Commit metadata including index is persisted in store, before the
-///   CommittedSubDag is sent to the consumer.
-/// - When CommitObserver is initialized a last processed commit index can be
-///   used to ensure any missing commits are re-sent.
+/// - Commit metadata including index is persisted in store, before the CommittedSubDag is sent to
+///   the consumer.
+/// - When CommitObserver is initialized a last processed commit index can be used to ensure any
+///   missing commits are re-sent.
 pub(crate) struct CommitObserver {
     context: Arc<Context>,
     /// Component to deterministically collect subdags for committed leaders.
@@ -122,8 +120,7 @@ impl CommitObserver {
 
     /// Reinitialize the CommitObserver at a new commit index.
     /// Uses the existing `recover_and_send_commits` method which handles:
-    /// - Recovering linearizer state (transaction ack tracker, traversed
-    ///   headers)
+    /// - Recovering linearizer state (transaction ack tracker, traversed headers)
     /// - Only re-sends commits that are > last_commit_index (none in this case)
     pub(crate) async fn reinitialize(
         &mut self,
@@ -152,11 +149,9 @@ impl CommitObserver {
     ///
     /// # Returns
     /// A tuple containing:
-    /// - A vector of sub-dags, which include block references to committed
-    ///   transactions (but not the transactions themselves) created by the
-    ///   committed leaders.
-    /// - A vector of block references to transactions that were missing during
-    ///   the commit.
+    /// - A vector of sub-dags, which include block references to committed transactions (but not
+    ///   the transactions themselves) created by the committed leaders.
+    /// - A vector of block references to transactions that were missing during the commit.
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_committed_leaders(
         &mut self,
@@ -1459,8 +1454,8 @@ mod tests {
     /// 1. Create blocks and commit some leaders
     /// 2. Restart node (clears traversed_headers_tracker)
     /// 3. During recovery, verify that traversed headers are recorded
-    /// 4. Verify that new blocks can still successfully acknowledge and commit
-    ///    transactions from blocks that existed before restart
+    /// 4. Verify that new blocks can still successfully acknowledge and commit transactions from
+    ///    blocks that existed before restart
     #[tokio::test]
     async fn test_recovery_restores_persistent_state_across_restart() {
         telemetry_subscribers::init_for_testing();

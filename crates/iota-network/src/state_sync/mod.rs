@@ -13,25 +13,20 @@
 //! # High-level Overview of StateSync
 //!
 //! StateSync discovers new checkpoints via a few different sources:
-//! 1. If this node is a Validator, checkpoints will be produced via consensus
-//!    at which point consensus can notify state-sync of the new checkpoint via
-//!    [Handle::send_checkpoint].
-//! 2. A peer notifies us of the latest checkpoint which they have synchronized.
-//!    State-Sync will also periodically query its peers to discover what their
-//!    latest checkpoint is.
+//! 1. If this node is a Validator, checkpoints will be produced via consensus at which point
+//!    consensus can notify state-sync of the new checkpoint via [Handle::send_checkpoint].
+//! 2. A peer notifies us of the latest checkpoint which they have synchronized. State-Sync will
+//!    also periodically query its peers to discover what their latest checkpoint is.
 //!
 //! We keep track of two different watermarks:
-//! * highest_verified_checkpoint - This is the highest checkpoint header that
-//!   we've locally verified. This indicated that we have in our persistent
-//!   store (and have verified) all checkpoint headers up to and including this
-//!   value.
-//! * highest_synced_checkpoint - This is the highest checkpoint that we've
-//!   fully synchronized, meaning we've downloaded and have in our persistent
-//!   stores all of the transactions, and their effects (but not the objects),
-//!   for all checkpoints up to and including this point. This is the watermark
-//!   that is shared with other peers, either via notification or when they
-//!   query for our latest checkpoint, and is intended to be used as a guarantee
-//!   of data availability.
+//! * highest_verified_checkpoint - This is the highest checkpoint header that we've locally
+//!   verified. This indicated that we have in our persistent store (and have verified) all
+//!   checkpoint headers up to and including this value.
+//! * highest_synced_checkpoint - This is the highest checkpoint that we've fully synchronized,
+//!   meaning we've downloaded and have in our persistent stores all of the transactions, and their
+//!   effects (but not the objects), for all checkpoints up to and including this point. This is the
+//!   watermark that is shared with other peers, either via notification or when they query for our
+//!   latest checkpoint, and is intended to be used as a guarantee of data availability.
 //!
 //! The `PeerHeights` struct is used to track the highest_synced_checkpoint
 //! watermark for all of our peers.

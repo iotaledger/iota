@@ -78,19 +78,16 @@ pub(crate) fn validate_get_transaction_requests(
 ///   - `events.digest` - the events digest
 ///   - `events.events` - includes all event fields
 ///     - `events.events.bcs` - the full BCS-encoded event
-///     - `events.events.package_id` - the ID of the package that emitted the
-///       event
+///     - `events.events.package_id` - the ID of the package that emitted the event
 ///     - `events.events.module` - the module that emitted the event
 ///     - `events.events.sender` - the sender that triggered the event
 ///     - `events.events.event_type` - the type of the event
-///     - `events.events.bcs_contents` - the full BCS-encoded contents of the
-///       event
+///     - `events.events.bcs_contents` - the full BCS-encoded contents of the event
 ///     - `events.events.json_contents` - the JSON-encoded contents of the event
 ///
 /// ## Timing Fields
 /// - `checkpoint` - the checkpoint that included the transaction
-/// - `timestamp` - the timestamp of the checkpoint that included the
-///   transaction
+/// - `timestamp` - the timestamp of the checkpoint that included the transaction
 ///
 /// ## Object Fields
 /// If a required object is unavailable (e.g. pruned from the object store),
@@ -100,20 +97,18 @@ pub(crate) fn validate_get_transaction_requests(
 /// - `input_objects` - includes all input object fields
 ///   - `input_objects.reference` - includes all reference fields
 ///     - `input_objects.reference.object_id` - the ID of the input object
-///     - `input_objects.reference.version` - the version of the input object,
-///       which can be used to fetch a specific historical version or the latest
-///       version if not provided
-///     - `input_objects.reference.digest` - the digest of the input object
-///       contents, which can be used for integrity verification
+///     - `input_objects.reference.version` - the version of the input object, which can be used to
+///       fetch a specific historical version or the latest version if not provided
+///     - `input_objects.reference.digest` - the digest of the input object contents, which can be
+///       used for integrity verification
 ///   - `input_objects.bcs` - the full BCS-encoded object
 /// - `output_objects` - includes all output object fields
 ///   - `output_objects.reference` - includes all reference fields
 ///     - `output_objects.reference.object_id` - the ID of the output object
-///     - `output_objects.reference.version` - the version of the output object,
-///       which can be used to fetch a specific historical version or the latest
-///       version if not provided
-///     - `output_objects.reference.digest` - the digest of the output object
-///       contents, which can be used for integrity verification
+///     - `output_objects.reference.version` - the version of the output object, which can be used
+///       to fetch a specific historical version or the latest version if not provided
+///     - `output_objects.reference.digest` - the digest of the output object contents, which can be
+///       used for integrity verification
 ///   - `output_objects.bcs` - the full BCS-encoded object
 ///
 /// ## Derived Change Fields
@@ -121,10 +116,10 @@ pub(crate) fn validate_get_transaction_requests(
 /// required object is unavailable (e.g. pruned from the object store), the
 /// transaction's result is a `FAILED_PRECONDITION` error rather than a
 /// silently wrong answer; retry without these fields.
-/// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed
-///   transaction this contains only the gas charge.
-/// - `object_changes` - structured object changes (created, mutated, deleted,
-///   wrapped, unwrapped, published)
+/// - `balance_changes` - per-owner, per-coin-type balance deltas. For a failed transaction this
+///   contains only the gas charge.
+/// - `object_changes` - structured object changes (created, mutated, deleted, wrapped, unwrapped,
+///   published)
 #[tracing::instrument(
     skip_all,
     fields(

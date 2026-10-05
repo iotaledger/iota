@@ -1012,13 +1012,10 @@ impl TransactionKindExt for TransactionKind {
 /// API for accessing and constructing [`Transaction`].
 ///
 /// This trait provides node-internal methods for:
-/// - **Accessors**: reading transaction fields (sender, kind, gas, expiration,
-///   etc.)
-/// - **Queries**: inspecting transaction properties (shared objects, Move
-///   calls, sponsorship)
+/// - **Accessors**: reading transaction fields (sender, kind, gas, expiration, etc.)
+/// - **Queries**: inspecting transaction properties (shared objects, Move calls, sponsorship)
 /// - **Validation**: checking transaction validity against protocol config
-/// - **Constructors**: building new transactions (transfers, Move calls,
-///   programmable txs, etc.)
+/// - **Constructors**: building new transactions (transfers, Move calls, programmable txs, etc.)
 ///
 /// Note: The `iota-rust-sdk` crate (`iota-sdk-types`) defines additional
 /// client-facing methods on [`Transaction`] itself.
@@ -2011,10 +2008,10 @@ pub trait SenderSignedTransactionAPI {
     fn collect_all_input_object_kind_for_reading(&self) -> IotaResult<Vec<InputObjectKind>>;
 
     /// Splits the provided input objects into groups:
-    /// 1. Input objects required by the transaction itself; may contain
-    ///    duplicates if an IOTA coin is used both as an input and a gas coin.
-    /// 2. A list of input objects required by each `MoveAuthenticator`(
-    ///    including the object to authenticate) + the object to authenticate.
+    /// 1. Input objects required by the transaction itself; may contain duplicates if an IOTA coin
+    ///    is used both as an input and a gas coin.
+    /// 2. A list of input objects required by each `MoveAuthenticator`( including the object to
+    ///    authenticate) + the object to authenticate.
     fn split_input_objects_into_groups_for_reading(
         &self,
         input_objects: InputObjects,

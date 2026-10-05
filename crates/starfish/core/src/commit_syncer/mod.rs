@@ -527,8 +527,7 @@ pub(crate) fn shortfall_factor(requested: usize, delivered: usize) -> f64 {
 /// # Parameters
 /// - `inner`: Shared context and dependencies
 /// - `commit_range`: The range of commits to fetch
-/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for
-///   regular, 2 for fast)
+/// - `fetch_timeout_multiplier`: Multiplier for timeout calculation (4 for regular, 2 for fast)
 /// - `fetch_once_fn`: Implementation-specific fetch function
 ///
 /// # Returns

@@ -271,17 +271,15 @@ pub mod checked {
         }
 
         /// Entry point for gas charging.
-        /// 1. Compute tx storage gas costs and tx storage rebates, update
-        ///    storage_rebate field of
+        /// 1. Compute tx storage gas costs and tx storage rebates, update storage_rebate field of
         /// mutated objects
-        /// 2. Deduct computation gas costs and storage costs, credit storage
-        ///    rebates.
+        /// 2. Deduct computation gas costs and storage costs, credit storage rebates.
         /// The happy path of this function follows (1) + (2) and is fairly
         /// simple. Most of the complexity is in the unhappy paths:
-        /// - if execution aborted before calling this function, we have to dump
-        ///   all writes + re-smash gas, then charge for storage
-        /// - if we run out of gas while charging for storage, we have to dump
-        ///   all writes + re-smash gas, then charge for storage again
+        /// - if execution aborted before calling this function, we have to dump all writes +
+        ///   re-smash gas, then charge for storage
+        /// - if we run out of gas while charging for storage, we have to dump all writes + re-smash
+        ///   gas, then charge for storage again
         pub fn charge_gas<T>(
             &mut self,
             temporary_store: &mut TemporaryStore<'_>,

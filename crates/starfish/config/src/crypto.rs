@@ -5,8 +5,7 @@
 //! Here we select the cryptographic types that are used by default in the code
 //! base. The whole code base should only:
 //! - refer to those aliases and not use the individual scheme implementations
-//! - not use the schemes in a way that break genericity (e.g. using their
-//!   Struct impl functions)
+//! - not use the schemes in a way that break genericity (e.g. using their Struct impl functions)
 //! - swap one of those aliases to point to another type if necessary
 //!
 //! Beware: if you change those aliases to point to another scheme

@@ -7,11 +7,10 @@
 //! They cover the two subsystems that cooperate after consensus, end-to-end and
 //! through the production RPC path:
 //!
-//! 1. **P-COOL post-consensus conflict resolution** — owned-object transactions
-//!    flow through consensus and the "first writer in consensus order wins"
-//!    rule is applied after ordering (`post_consensus_validation.rs`).
-//! 2. **The execution scheduler** — survivors are enqueued and driven to
-//!    execution / finality.
+//! 1. **P-COOL post-consensus conflict resolution** — owned-object transactions flow through
+//!    consensus and the "first writer in consensus order wins" rule is applied after ordering
+//!    (`post_consensus_validation.rs`).
+//! 2. **The execution scheduler** — survivors are enqueued and driven to execution / finality.
 //!
 //! Assertions are deliberately **black-box** (finality and execution status
 //! only), so the same scenario is valid against either scheduler

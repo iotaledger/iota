@@ -511,15 +511,15 @@ impl AuthorityStorePruner {
         {
             let checkpoint = ckpt.into_inner();
             // Stop pruning at this checkpoint if any of the following holds:
-            // - Its epoch is within the retention window. This is the hard correctness
-            //   bound: parts of the system (e.g. the state accumulator) still require
-            //   access to old object versions of recently retained epochs.
-            // - It reaches the highest eligible checkpoint watermark (including the
-            //   watermark itself).
-            // - Its timestamp is newer than the retention cutoff. This paces pruning
-            //   against the chain's own (consensus-agreed, monotonic) time rather than
-            //   wall-clock, so the retained span is bounded to one retention window whether
-            //   the node is catching up or at tip.
+            // - Its epoch is within the retention window. This is the hard correctness bound: parts
+            //   of the system (e.g. the state accumulator) still require access to old object
+            //   versions of recently retained epochs.
+            // - It reaches the highest eligible checkpoint watermark (including the watermark
+            //   itself).
+            // - Its timestamp is newer than the retention cutoff. This paces pruning against the
+            //   chain's own (consensus-agreed, monotonic) time rather than wall-clock, so the
+            //   retained span is bounded to one retention window whether the node is catching up or
+            //   at tip.
             if (current_epoch < checkpoint.epoch() + num_epochs_to_retain)
                 || (checkpoint.sequence_number() >= max_eligible_checkpoint)
                 || (checkpoint.timestamp_ms > cutoff_timestamp_ms)

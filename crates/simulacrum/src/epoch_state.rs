@@ -189,8 +189,7 @@ impl EpochState {
 
     /// Simulate a transaction without committing changes.
     /// This is similar to execute_transaction but:
-    /// - Takes Transaction instead of VerifiedTransaction (no signature
-    ///   required)
+    /// - Takes Transaction instead of VerifiedTransaction (no signature required)
     /// - Takes VmChecks parameter to control validation strictness
     /// - Returns SimulateTransactionResult with input/output objects
     /// - Creates a mock gas object if none provided
