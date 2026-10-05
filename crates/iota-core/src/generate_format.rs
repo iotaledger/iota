@@ -18,10 +18,10 @@ use iota_sdk_types::{
     GenesisTransaction, IdOperation, Identifier, MoveLocation, MoveObjectType, MovePackage,
     MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectIn, ObjectOut, ObjectReference, Owner,
     PackageUpgradeError, ProgrammableTransaction, RandomnessStateUpdate, SenderSignedTransaction,
-    SharedObjectReference, SimpleSignature, SmartAccountBuildKind, StructTag, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
-    TransactionExpiration, TransactionKind, TypeArgumentError, TypeOrigin, TypeTag,
-    UnchangedSharedKind, UpgradeInfo, UserSignature, ValidatorCommitteeMember,
+    SharedObjectReference, SimpleSignature, StructTag, Transaction, TransactionDigest,
+    TransactionEffects, TransactionEffectsDigest, TransactionEvents, TransactionExpiration,
+    TransactionKind, TypeArgumentError, TypeOrigin, TypeTag, UnchangedSharedKind, UpgradeInfo,
+    UserSignature, ValidatorCommitteeMember,
     crypto::{
         Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
         PersonalMessage,
@@ -538,9 +538,6 @@ fn get_registry() -> Result<Registry> {
         .trace_type::<EndOfEpochTransactionKind>(&samples)
         .unwrap();
     tracer.trace_type::<AccountClaimKind>(&samples).unwrap();
-    tracer
-        .trace_type::<SmartAccountBuildKind>(&samples)
-        .unwrap();
 
     tracer.trace_type::<IdOperation>(&samples).unwrap();
     tracer.trace_type::<ObjectIn>(&samples).unwrap();

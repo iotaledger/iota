@@ -3802,9 +3802,6 @@ with_field
 build_v1
 	public fun
 	0x2::smart_account
-build_immutable_v1
-	public fun
-	0x2::smart_account
 account_address
 	public fun
 	0x2::smart_account
@@ -3848,9 +3845,6 @@ rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
 claim_account_v1
-	fun
-	0x2::smart_account
-claim_immutable_account_v1
 	fun
 	0x2::smart_account
 claim_builder
