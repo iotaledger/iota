@@ -72,6 +72,7 @@ pub async fn start_with_executor(
         None,
         None,
         Some(metrics),
+        None,
         |config| {
             config.max_get_objects_batch_size = 100;
             customize(config);

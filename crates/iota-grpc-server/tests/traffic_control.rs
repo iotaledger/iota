@@ -187,6 +187,7 @@ async fn handler_errors_over_tls_feed_the_error_policy() {
         Some(Arc::new(TrafficController::init_for_test(policy_config))),
         Some(client_id_source),
         None,
+        None,
         |config| config.tls = Some(certificate.tls_config.clone()),
     )
     .await;

@@ -106,6 +106,7 @@ async fn a_call_past_its_grpc_timeout_ends_with_deadline_exceeded() {
         None,
         None,
         None,
+        None,
         |_| {},
     )
     .await;
@@ -129,6 +130,7 @@ async fn shutdown_closes_a_running_call_after_one_second() {
     let (handle, _reader) = start_test_server_with(
         Arc::new(MockGrpcStateReader::default()),
         Some(executor.clone()),
+        None,
         None,
         None,
         None,
