@@ -962,6 +962,22 @@ pub struct ConsensusConfig {
     /// Clamped to be at least `graduated_load_shedding_soft_limit_pct`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graduated_load_shedding_saturation_pct: Option<u32>,
+
+    /// When `false`, an exhausted `submit_semaphore` no longer rejects
+    /// incoming transactions up front. The semaphore still bounds how many
+    /// submissions run concurrently, because the submit path keeps awaiting a
+    /// permit - only the early rejection is skipped. Lets a run isolate the
+    /// effect of graduated and `max_pending_transactions` shedding without the
+    /// semaphore also turning transactions away. Defaults to `true`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub semaphore_shedding_enabled: Option<bool>,
+
+    /// Cap on how many submissions to consensus run concurrently, used as the
+    /// `submit_semaphore` permit count in `ConsensusAdapter`. When unset it is
+    /// derived from `max_pending_transactions` and the committee size, which
+    /// shrinks the cap as the committee grows; setting it pins the cap instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_pending_local_submissions: Option<usize>,
 }
 
 impl ConsensusConfig {
@@ -994,6 +1010,20 @@ impl ConsensusConfig {
         self.graduated_load_shedding_saturation_pct
             .unwrap_or(100)
             .min(100)
+    }
+
+    /// Returns whether an exhausted `submit_semaphore` rejects transactions up
+    /// front. Defaults to `true`. When `false` the semaphore still caps
+    /// concurrent submissions; only the early rejection is skipped.
+    pub fn semaphore_shedding_enabled(&self) -> bool {
+        self.semaphore_shedding_enabled.unwrap_or(true)
+    }
+
+    /// Returns how many submissions to consensus may run concurrently.
+    /// Defaults to `max_pending_transactions * 2 / committee_size`.
+    pub fn max_pending_local_submissions(&self, committee_size: usize) -> usize {
+        self.max_pending_local_submissions
+            .unwrap_or_else(|| self.max_pending_transactions() * 2 / committee_size)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {
@@ -1702,7 +1732,7 @@ mod tests {
     use serde_yaml::Value;
 
     use super::{
-        Genesis, GrpcApiConfig, ObjectStoreConfig, default_grpc_api_config,
+        ConsensusConfig, Genesis, GrpcApiConfig, ObjectStoreConfig, default_grpc_api_config,
         default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
     };
     use crate::{NodeConfig, object_storage_config::ObjectStoreType};
@@ -2005,6 +2035,25 @@ mod tests {
             written_at(&written, COMPACTION_THRESHOLD),
             Some(Value::Null)
         );
+    }
+
+    /// `max_pending_local_submissions` falls back to a committee-derived cap
+    /// and is pinned when set.
+    #[test]
+    fn test_max_pending_local_submissions() {
+        let yaml = "db-path: /tmp/consensus_db\nmax-pending-transactions: 20000\n";
+        let mut config: ConsensusConfig =
+            serde_yaml::from_str(yaml).expect("consensus config should parse");
+
+        // Unset: derived from the committee size, so the cap shrinks as the
+        // committee grows.
+        assert_eq!(config.max_pending_local_submissions(4), 10_000);
+        assert_eq!(config.max_pending_local_submissions(100), 400);
+
+        // Set: the committee size no longer matters.
+        config.max_pending_local_submissions = Some(777);
+        assert_eq!(config.max_pending_local_submissions(4), 777);
+        assert_eq!(config.max_pending_local_submissions(100), 777);
     }
 }
 

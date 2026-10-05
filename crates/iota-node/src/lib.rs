@@ -1495,12 +1495,13 @@ impl IotaNode {
             authority,
             connection_monitor_status,
             consensus_config.max_pending_transactions(),
-            consensus_config.max_pending_transactions() * 2 / committee.num_members(),
+            consensus_config.max_pending_local_submissions(committee.num_members()),
             consensus_config.max_submit_position,
             consensus_config.submit_delay_step_override(),
             ca_metrics,
             consensus_config.graduated_load_shedding_soft_limit_pct(),
             consensus_config.graduated_load_shedding_saturation_pct(),
+            consensus_config.semaphore_shedding_enabled(),
         )
     }
 

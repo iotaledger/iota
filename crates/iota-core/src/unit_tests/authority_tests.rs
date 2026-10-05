@@ -8202,6 +8202,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         ConsensusAdapterMetrics::new_test(),
         soft_limit_pct,
         100,
+        true,
     ));
 
     let recipient = Address::random();
