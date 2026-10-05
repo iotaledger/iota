@@ -1036,7 +1036,7 @@ impl Core {
             .iter()
             .any(|slot| slot.authority == self.context.own_index);
         let adaptive_acknowledgments =
-            am_leader_at_clock_round && self.dag_state.read().adaptive_acknowledgments_enabled();
+            am_leader_at_clock_round && self.context.adaptive_acknowledgments_enabled();
         let has_transactions =
             adaptive_acknowledgments && self.transaction_consumer.has_transactions();
 
@@ -1219,9 +1219,7 @@ impl Core {
         let (accepted_block_headers, missing) = self
             .block_manager
             .try_accept_blocks(vec![verified_block.clone()], DataSource::OwnBlock);
-        if self.context.protocol_config.consensus_starfish_speed() {
-            self.record_acknowledgment_stats(&accepted_block_headers);
-        }
+        self.record_acknowledgment_stats(&accepted_block_headers);
         if !missing.is_empty() {
             error!(
                 ?missing,
@@ -1661,12 +1659,7 @@ impl Core {
     /// Feeds freshly-accepted headers to the acknowledgment statistics,
     /// marking the leader block of each round.
     fn record_acknowledgment_stats(&self, block_headers: &[VerifiedBlockHeader]) {
-        if block_headers.is_empty()
-            || !self
-                .context
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
-        {
+        if block_headers.is_empty() || !self.context.adaptive_acknowledgments_enabled() {
             return;
         }
         let leader_blocks: Vec<bool> = block_headers

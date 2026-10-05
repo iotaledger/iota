@@ -3078,7 +3078,7 @@ impl DagState {
         block_header: &VerifiedBlockHeader,
         leader_block: bool,
     ) {
-        if !self.adaptive_acknowledgments_enabled() {
+        if !self.context.adaptive_acknowledgments_enabled() {
             return;
         }
         self.acknowledgment_stats
@@ -3086,16 +3086,6 @@ impl DagState {
         let our_previous = self.own_block_with_transactions(block_header.round().saturating_sub(1));
         self.acknowledgment_stats
             .record(block_header, leader_block, our_previous);
-    }
-
-    /// Whether leader blocks choose their acknowledgments by how soon voters
-    /// receive the data.
-    pub(crate) fn adaptive_acknowledgments_enabled(&self) -> bool {
-        self.context.protocol_config.consensus_starfish_speed()
-            && self
-                .context
-                .parameters
-                .enable_starfish_speed_adaptive_acknowledgments
     }
 
     /// Returns the pending acknowledgments to leave out of our leader block at
