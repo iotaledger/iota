@@ -204,8 +204,7 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
 /// object is deleted. The test strategy is:
 /// 0. Inject a random delay just before execution of a transaction.
 /// 1. Create a shared object
-/// 2. Create a delete cert and two increment certs, but do not execute any of
-///    them yet.
+/// 2. Create a delete cert and two increment certs, but do not execute any of them yet.
 /// 3. Execute the delete cert.
 /// 4. Execute the two increment certs.
 ///

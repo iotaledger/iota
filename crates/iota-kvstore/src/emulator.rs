@@ -14,12 +14,11 @@
 //! Three tools from the Google Cloud SDK are involved:
 //!
 //! - `gcloud`: must be on `PATH`. Only used to locate the SDK root. Install <https://cloud.google.com/sdk/docs/install>
-//! - `cbtemulator`: the emulator binary itself. It is shipped with the SDK but
-//!   *not* installed on `PATH`, so it is resolved relative to the SDK root
-//!   reported by `gcloud` (see [`cbtemulator_path`]). Install with `gcloud
-//!   components install bigtable`.
-//! - `cbt`: the Bigtable CLI, used to create tables and column families in the
-//!   emulator. Must be on `PATH`. Install with `gcloud components install cbt`.
+//! - `cbtemulator`: the emulator binary itself. It is shipped with the SDK but *not* installed on
+//!   `PATH`, so it is resolved relative to the SDK root reported by `gcloud` (see
+//!   [`cbtemulator_path`]). Install with `gcloud components install bigtable`.
+//! - `cbt`: the Bigtable CLI, used to create tables and column families in the emulator. Must be on
+//!   `PATH`. Install with `gcloud components install cbt`.
 
 use std::{
     net::Ipv4Addr,

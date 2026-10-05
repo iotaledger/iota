@@ -843,8 +843,7 @@ impl AuthorityMetrics {
 }
 
 /// a Trait object for `Signer` that is:
-/// - Pin, i.e. confined to one place in memory (we don't want to copy private
-///   keys).
+/// - Pin, i.e. confined to one place in memory (we don't want to copy private keys).
 /// - Sync, i.e. can be safely shared between threads.
 ///
 /// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
@@ -1003,20 +1002,18 @@ impl AuthorityState {
     /// post-consensus, where the verdict decides whether the transaction
     /// stays in the committed set. The two read modes intentionally disagree
     /// about deny-list changes made in the current epoch, in both directions:
-    /// - An entry added this epoch is enforced at admission right away, while
-    ///   the epoch-gated layers enforce it only from the next epoch. Since
-    ///   execution and post-consensus must read epoch-gated to stay
-    ///   deterministic, admission is the only layer that can react to a new
+    /// - An entry added this epoch is enforced at admission right away, while the epoch-gated
+    ///   layers enforce it only from the next epoch. Since execution and post-consensus must read
+    ///   epoch-gated to stay deterministic, admission is the only layer that can react to a new
     ///   denial or global pause before the epoch boundary.
-    /// - An entry removed this epoch is admitted right away but still denied by
-    ///   the epoch-gated post-consensus read, so such transactions are
-    ///   sequenced by consensus and then deterministically dropped (no
-    ///   execution, no gas charged) until the removal settles at the next epoch
-    ///   boundary. The wasted consensus slot is accepted: post-consensus must
-    ///   handle deterministic drops regardless (owned-object double-spend
-    ///   losers, for example), and validators that skip admission can put such
-    ///   transactions into their blocks anyway, so no admission policy can
-    ///   limit how many deterministically-dropped transactions reach consensus.
+    /// - An entry removed this epoch is admitted right away but still denied by the epoch-gated
+    ///   post-consensus read, so such transactions are sequenced by consensus and then
+    ///   deterministically dropped (no execution, no gas charged) until the removal settles at the
+    ///   next epoch boundary. The wasted consensus slot is accepted: post-consensus must handle
+    ///   deterministic drops regardless (owned-object double-spend losers, for example), and
+    ///   validators that skip admission can put such transactions into their blocks anyway, so no
+    ///   admission policy can limit how many deterministically-dropped transactions reach
+    ///   consensus.
     ///
     /// `verifier_limits_source` says where the metered bytecode verifier takes
     /// its limits for the packages the transaction publishes. Validator-local
@@ -1514,8 +1511,7 @@ impl AuthorityState {
     ///
     /// Guarantees that
     /// - If input objects are available, return no permanent failure.
-    /// - Execution and output commit are atomic. i.e. outputs are only written
-    ///   to storage,
+    /// - Execution and output commit are atomic. i.e. outputs are only written to storage,
     /// on successful execution; crashed execution has no observable effect and
     /// can be retried.
     ///
@@ -4661,12 +4657,10 @@ impl AuthorityState {
                 // - The tx makes it into final checkpoint.
                 // - 2 validators go away and are replaced in the new epoch.
                 // - The new epoch begins.
-                // - The quorum driver cannot complete the partial effects cert from the
-                //   previous epoch, because it may not be able to reach either of the 2 former
-                //   validators.
-                // - But, if the 2 validators that stayed are willing to re-sign the effects in
-                //   the new epoch, the QD can make a new effects cert and return it to the
-                //   client.
+                // - The quorum driver cannot complete the partial effects cert from the previous
+                //   epoch, because it may not be able to reach either of the 2 former validators.
+                // - But, if the 2 validators that stayed are willing to re-sign the effects in the
+                //   new epoch, the QD can make a new effects cert and return it to the client.
                 //
                 // This is a considered a short-term workaround. Eventually, Quorum Driver
                 // should be able to return either an effects certificate, -or-
@@ -4985,12 +4979,11 @@ impl AuthorityState {
     /// `system_packages`.  Loads the module contents from the binary, and
     /// performs the following checks:
     ///
-    /// - Whether its contents matches what is on-chain already, in which case
-    ///   no upgrade is required, and its contents are omitted from the output.
-    /// - Whether the contents in the binary can form a package whose digest
-    ///   matches the input, meaning the framework will be upgraded, and this
-    ///   authority can satisfy that upgrade, in which case the contents are
-    ///   included in the output.
+    /// - Whether its contents matches what is on-chain already, in which case no upgrade is
+    ///   required, and its contents are omitted from the output.
+    /// - Whether the contents in the binary can form a package whose digest matches the input,
+    ///   meaning the framework will be upgraded, and this authority can satisfy that upgrade, in
+    ///   which case the contents are included in the output.
     ///
     /// If a needed version of the framework can't be loaded, the binary does
     /// not contain the bytes for that framework ID, or the resulting
@@ -5349,13 +5342,12 @@ impl AuthorityState {
             );
             // the checkpoint builder will keep retrying forever when it hits this error.
             // Eventually, one of two things will happen:
-            // - The operator will upgrade this binary to one that has the new packages
-            //   locally, and this function will succeed.
-            // - The final checkpoint will be certified by other validators, we will receive
-            //   it via state sync, and execute it. This will upgrade the framework
-            //   packages, reconfigure, and most likely shut down in the new epoch (this
-            //   validator likely doesn't support the new protocol version, or else it
-            //   should have had the packages.)
+            // - The operator will upgrade this binary to one that has the new packages locally, and
+            //   this function will succeed.
+            // - The final checkpoint will be certified by other validators, we will receive it via
+            //   state sync, and execute it. This will upgrade the framework packages, reconfigure,
+            //   and most likely shut down in the new epoch (this validator likely doesn't support
+            //   the new protocol version, or else it should have had the packages.)
             return Err(CheckpointBuilderError::SystemPackagesMissing);
         };
 
@@ -6538,10 +6530,10 @@ impl NodeStateDump {
 /// phase.
 ///
 /// When `pre_consensus_sponsor_only_move_authentication` is enabled:
-/// - For sponsored transactions: only the sponsor's [`MoveAuthenticator`] is
-///   returned (empty if the sponsor does not use one).
-/// - For non-sponsored transactions: all [`MoveAuthenticator`]s are returned
-///   (currently only the sender's).
+/// - For sponsored transactions: only the sponsor's [`MoveAuthenticator`] is returned (empty if the
+///   sponsor does not use one).
+/// - For non-sponsored transactions: all [`MoveAuthenticator`]s are returned (currently only the
+///   sender's).
 ///
 /// When the flag is not set, all [`MoveAuthenticator`]s are returned for
 /// compatibility.

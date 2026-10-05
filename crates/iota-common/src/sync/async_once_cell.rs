@@ -11,11 +11,10 @@ use tokio::sync::{OwnedRwLockWriteGuard, RwLock};
 /// The cell can be written only once, and can be read many times.
 /// Readers are provided with async API, that waits for write to happen.
 /// This is similar to tokio::sync::watch, except one difference:
-/// * tokio::sync::watch requires existing receiver to work. If no subscriber is
-///   registered, and the value is sent to channel, the value is dropped
-/// * Unlike with tokio::sync::watch, it is possible to write to AsyncOnceCell
-///   when no readers are registered, and value will be available later when
-///   AsyncOnceCell::get is called
+/// * tokio::sync::watch requires existing receiver to work. If no subscriber is registered, and the
+///   value is sent to channel, the value is dropped
+/// * Unlike with tokio::sync::watch, it is possible to write to AsyncOnceCell when no readers are
+///   registered, and value will be available later when AsyncOnceCell::get is called
 pub struct AsyncOnceCell<T> {
     value: Arc<RwLock<Option<T>>>,
     writer: Mutex<Option<OwnedRwLockWriteGuard<Option<T>>>>,

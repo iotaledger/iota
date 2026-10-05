@@ -25,13 +25,12 @@ pub enum CacheResult<T> {
 
 /// CachedVersionMap is a map from version to value, with the additional
 /// constraints:
-/// - The key (Version) must be monotonically increasing for each insert. If a
-///   key is inserted that is less than the previous key, it results in an
-///   assertion failure.
+/// - The key (Version) must be monotonically increasing for each insert. If a key is inserted that
+///   is less than the previous key, it results in an assertion failure.
 /// - Similarly, only the item with the least key can be removed.
-/// - The intent of these constraints is to ensure that there are never gaps in
-///   the collection, so that membership in the map can be tested by comparing
-///   to both the highest and lowest (first and last) entries.
+/// - The intent of these constraints is to ensure that there are never gaps in the collection, so
+///   that membership in the map can be tested by comparing to both the highest and lowest (first
+///   and last) entries.
 #[derive(Debug)]
 pub struct CachedVersionMap<V> {
     values: VecDeque<(Version, V)>,

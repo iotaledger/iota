@@ -831,9 +831,8 @@ impl ConsensusNetwork {
 /// - Initialize the field to `None` in prior protocol versions.
 /// - Initialize the field to `Some(val)` for your new protocol version.
 /// - Add a public getter that simply unwraps the field.
-/// - Two public getters of the form `field(&self) -> field_type` and
-///   `field_as_option(&self) -> Option<field_type>` will be automatically
-///   generated for you.
+/// - Two public getters of the form `field(&self) -> field_type` and `field_as_option(&self) ->
+///   Option<field_type>` will be automatically generated for you.
 /// Example for a field: `new_constant: Option<u64>`
 /// ```rust,ignore
 ///      pub fn new_constant(&self) -> u64 {

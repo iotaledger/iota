@@ -118,13 +118,12 @@ pub fn mock_summary(
 ///
 /// # Checkpoint modes
 ///
-/// - **Fixed mode** (set `summary` + `contents` + `checkpoint_transactions`):
-///   every sequence number returns the same summary/contents/transactions. Used
-///   by the boundary-size chunking tests.
+/// - **Fixed mode** (set `summary` + `contents` + `checkpoint_transactions`): every sequence number
+///   returns the same summary/contents/transactions. Used by the boundary-size chunking tests.
 ///
-/// - **Set mode** (set `checkpoints`): only sequence numbers present in the set
-///   are "available". A mock summary is generated on the fly for each. Used by
-///   the checkpoint-streaming integration tests.
+/// - **Set mode** (set `checkpoints`): only sequence numbers present in the set are "available". A
+///   mock summary is generated on the fly for each. Used by the checkpoint-streaming integration
+///   tests.
 #[derive(Default)]
 pub struct MockGrpcStateReader {
     // -- Fixed checkpoint mode --

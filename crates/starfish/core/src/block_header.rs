@@ -65,12 +65,12 @@ pub(crate) const fn uleb128_len(mut value: usize) -> usize {
 ///
 /// `BlockHeaderV2` is the largest header variant; its size is dominated by two
 /// committee-sized vectors. Layout:
-/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms`
-///   (8) + overlap indices (1 + 1) + `transactions_commitment` (32).
-/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each)
-///   plus the sequence-length prefix.
-/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each:
-///   index (4) + digest (32)) plus the sequence-length prefix.
+/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms` (8) + overlap
+///   indices (1 + 1) + `transactions_commitment` (32).
+/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each) plus the
+///   sequence-length prefix.
+/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each: index (4) + digest
+///   (32)) plus the sequence-length prefix.
 /// - 34 bytes for `Option<StrongVote>`: `Some` tag (1) + `leader_authority` (1)
 ///   + `AuthoritySet` bitmask (32).
 ///

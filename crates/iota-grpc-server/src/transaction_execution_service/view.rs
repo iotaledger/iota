@@ -49,9 +49,8 @@ use crate::{error::RpcError, merge::Merge, types::GrpcReader, validation::valida
 ///
 /// - `outputs.return_values` — the call ran and returned;
 /// - `outputs.execution_error` — the call ran but aborted;
-/// - `error` — the server rejected the call before running it (not a `#[view]`
-///   function, unknown package/module/function, or an argument that could not
-///   be resolved).
+/// - `error` — the server rejected the call before running it (not a `#[view]` function, unknown
+///   package/module/function, or an argument that could not be resolved).
 ///
 /// The request's `read_mask` selects which fields of each result to populate,
 /// defaulting to [`VIEW_FUNCTION_CALLS_READ_MASK`].

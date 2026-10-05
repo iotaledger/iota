@@ -724,13 +724,12 @@ where
     /// Submit on the skip-effect-certification path while concurrently
     /// waiting for local checkpoint inclusion. The race is asymmetric:
     ///
-    /// - If the **checkpoint** future resolves first (slow driver, e.g. stuck
-    ///   corroborating a Byzantine validator's rejection), the driver future is
-    ///   dropped and the caller rebuilds the response from the local cache.
-    /// - If the **driver** returns first, its result is taken and the
-    ///   checkpoint future is awaited to completion (up to the shared
-    ///   `WAIT_FOR_FINALITY_TIMEOUT`) before returning, so the caller has a
-    ///   checkpoint sequence to reconcile against.
+    /// - If the **checkpoint** future resolves first (slow driver, e.g. stuck corroborating a
+    ///   Byzantine validator's rejection), the driver future is dropped and the caller rebuilds the
+    ///   response from the local cache.
+    /// - If the **driver** returns first, its result is taken and the checkpoint future is awaited
+    ///   to completion (up to the shared `WAIT_FOR_FINALITY_TIMEOUT`) before returning, so the
+    ///   caller has a checkpoint sequence to reconcile against.
     ///
     /// Returns `(response, seq)` where `response` is `Some` when the driver
     /// returned a result (which may carry `UncertifiedSingleValidator`

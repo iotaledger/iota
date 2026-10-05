@@ -16,12 +16,11 @@
 //!
 //! Two rules for callers:
 //!
-//! - Seed [`rand::rngs::ChaCha12Rng`], not `StdRng`. `StdRng` is documented as
-//!   non-portable — `rand` reserves the right to swap the algorithm under it —
-//!   whereas `ChaCha12Rng` names the generator and is what `StdRng` currently
-//!   happens to be.
-//! - Draw floats through [`f64_unit`] rather than `rand`'s `random::<f64>()`,
-//!   which is another conversion `rand` owns and could change.
+//! - Seed [`rand::rngs::ChaCha12Rng`], not `StdRng`. `StdRng` is documented as non-portable —
+//!   `rand` reserves the right to swap the algorithm under it — whereas `ChaCha12Rng` names the
+//!   generator and is what `StdRng` currently happens to be.
+//! - Draw floats through [`f64_unit`] rather than `rand`'s `random::<f64>()`, which is another
+//!   conversion `rand` owns and could change.
 
 use rand::Rng;
 

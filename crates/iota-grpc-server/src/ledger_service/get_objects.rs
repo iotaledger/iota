@@ -67,11 +67,10 @@ pub(crate) fn validate_get_object_requests(
 /// ## Reference Fields
 /// - `reference` - includes all reference fields
 ///   - `reference.object_id` - the ID of the object to fetch
-///   - `reference.version` - the version of the object, which can be used to
-///     fetch a specific historical version or the latest version if not
-///     provided
-///   - `reference.digest` - the digest of the object contents, which can be
-///     used for integrity verification
+///   - `reference.version` - the version of the object, which can be used to fetch a specific
+///     historical version or the latest version if not provided
+///   - `reference.digest` - the digest of the object contents, which can be used for integrity
+///     verification
 ///
 /// ## Data Fields
 /// - `bcs` - the full BCS-encoded object

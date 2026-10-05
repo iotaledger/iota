@@ -373,18 +373,15 @@ impl TransactionsSynchronizerHandle {
 /// a node when transactions from the committed blocks is absent.
 /// `TransactionsSynchronizer` aims for swift catch-up employing two mechanisms:
 ///
-/// 1. Explicitly requesting missing transactions from authorities that have
-///    acknowledged them in their blocks that were committed. A locking
-///    mechanism allows concurrent requests for missing transactions from a
-///    limited number of authorities simultaneously, enhancing the chances of
+/// 1. Explicitly requesting missing transactions from authorities that have acknowledged them in
+///    their blocks that were committed. A locking mechanism allows concurrent requests for missing
+///    transactions from a limited number of authorities simultaneously, enhancing the chances of
 ///    timely retrieval.
 ///
-/// 2. Periodically requesting missing transactions via a scheduler. This
-///    primarily serves to retrieve missing transactions that were not fetched
-///    via the live synchronization. The scheduler operates on either a fixed
-///    periodic basis or is triggered immediately after explicit fetches
-///    described in (1), ensuring continued transaction retrieval if gaps
-///    persist.
+/// 2. Periodically requesting missing transactions via a scheduler. This primarily serves to
+///    retrieve missing transactions that were not fetched via the live synchronization. The
+///    scheduler operates on either a fixed periodic basis or is triggered immediately after
+///    explicit fetches described in (1), ensuring continued transaction retrieval if gaps persist.
 pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispatcher> {
     context: Arc<Context>,
     commands_receiver: Receiver<Command>,
@@ -744,16 +741,14 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // For each authority, try to lock up the
         // maximum possible amount of acknowledged transactions and fetch
         // those transactions. The logic is as follows:
-        // * Iterate in random order all authorities that have acknowledged missing
-        //   transactions.
-        // * Attempt to lock max_transactions_per_fetch acknowledged transactions using
-        //   the inflight_transactions_map. Some transactions may already be locked by
-        //   other authorities, but continue with the transactions that were
-        //   successfully locked.
-        // * For each authority, if transactions were successfully locked, then send a
-        //   request to the network client to fetch the transactions from the authority.
-        // * If the transactions were successfully fetched, then process them and send
-        //   them to the core for processing.
+        // * Iterate in random order all authorities that have acknowledged missing transactions.
+        // * Attempt to lock max_transactions_per_fetch acknowledged transactions using the
+        //   inflight_transactions_map. Some transactions may already be locked by other
+        //   authorities, but continue with the transactions that were successfully locked.
+        // * For each authority, if transactions were successfully locked, then send a request to
+        //   the network client to fetch the transactions from the authority.
+        // * If the transactions were successfully fetched, then process them and send them to the
+        //   core for processing.
         // Each request is performed individually to avoid blocking the
         // synchronizer for too long, as certain peers may take a while to respond.
         // The number of requests to each peer is limited by the parameters.
@@ -802,10 +797,10 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         let mut assigned_authorities_for_transaction_fetch = 0;
 
         for (authority, authority_transaction_refs) in iter_authorities {
-            // * If transactions are successfully locked, and we didn't make too many to
-            //   this authority, then send a request to the network client to fetch the
-            //   transactions from the authority. If the fetch is successful, then process
-            //   the transactions and send them to the core for processing.
+            // * If transactions are successfully locked, and we didn't make too many to this
+            //   authority, then send a request to the network client to fetch the transactions from
+            //   the authority. If the fetch is successful, then process the transactions and send
+            //   them to the core for processing.
             if let Some((transactions_guard, active_request_guard)) = inflight_transactions_map
                 .lock_transactions_and_active_request(
                     authority_transaction_refs.clone(),

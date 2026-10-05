@@ -684,8 +684,8 @@ impl ConsensusOutputQuarantine {
     ) -> IotaResult {
         // The commit algorithm is simple:
         // 1. First commit all checkpoint builder state which is below the watermark.
-        // 2. Determine the consensus commit height that corresponds to the highest
-        //    committed checkpoint.
+        // 2. Determine the consensus commit height that corresponds to the highest committed
+        //    checkpoint.
         // 3. Commit all consensus output at that height or below.
 
         let tables = epoch_store.tables()?;

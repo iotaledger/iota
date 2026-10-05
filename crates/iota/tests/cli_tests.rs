@@ -934,10 +934,8 @@ async fn test_ptb_upgrade_backward_compat() -> Result<(), anyhow::Error> {
 /// Test that misuses of the `--compile-upgrade` / `--execute-upgrade` pair
 /// are rejected:
 ///   1. `--execute-upgrade` with no preceding `--compile-upgrade`.
-///   2. Two `--compile-upgrade`s in a row without an intervening
-///      `--execute-upgrade`.
-///   3. A trailing `--compile-upgrade` that is never consumed by an
-///      `--execute-upgrade`.
+///   2. Two `--compile-upgrade`s in a row without an intervening `--execute-upgrade`.
+///   3. A trailing `--compile-upgrade` that is never consumed by an `--execute-upgrade`.
 #[sim_test]
 async fn test_ptb_compile_execute_upgrade_errors() -> Result<(), anyhow::Error> {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
@@ -963,8 +961,7 @@ async fn test_ptb_compile_execute_upgrade_errors() -> Result<(), anyhow::Error> 
     .await;
     assert!(result.is_err(), "bare --execute-upgrade should be rejected");
 
-    // 2. Two `--compile-upgrade`s in a row without an intervening
-    //    `--execute-upgrade`.
+    // 2. Two `--compile-upgrade`s in a row without an intervening `--execute-upgrade`.
     let ptb = format!(
         r#"
         --compile-upgrade {package_display} @{upgrade_cap_id}

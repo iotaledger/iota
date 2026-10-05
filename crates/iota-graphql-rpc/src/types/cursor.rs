@@ -143,12 +143,10 @@ impl<C> Page<C> {
     /// `last`.
     ///
     /// - Setting both is in an error.
-    /// - Setting `first` indicates that the entries are taken from the front of
-    ///   the range.
-    /// - Setting `last` indicates that the entries are taken from the end of
-    ///   the range.
-    /// - Setting neither defaults the limit to the default page size in
-    ///   `config`, taken from the front of the range.
+    /// - Setting `first` indicates that the entries are taken from the front of the range.
+    /// - Setting `last` indicates that the entries are taken from the end of the range.
+    /// - Setting neither defaults the limit to the default page size in `config`, taken from the
+    ///   front of the range.
     ///
     /// It is an error to set a limit on page size that is greater than the
     /// `config`'s max page size.

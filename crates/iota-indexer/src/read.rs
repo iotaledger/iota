@@ -800,13 +800,11 @@ impl IndexerReader {
     /// Depending on the sort type (`descending_order`) we identify the
     /// following cases:
     ///
-    /// * Ascending: Should use fallback only when the lowest found checkpoint
-    ///   in a partial or full page does not match the cursor + 1, or genesis.
-    ///   We always expect checkpoint data to be available in the database, so
-    ///   an empty page indicates that the given cursor is too high.
-    /// * Descending: Should use fallback when a partial page does not reach
-    ///   genesis, or when the page is empty and the cursor is not the genesis
-    ///   checkpoint.
+    /// * Ascending: Should use fallback only when the lowest found checkpoint in a partial or full
+    ///   page does not match the cursor + 1, or genesis. We always expect checkpoint data to be
+    ///   available in the database, so an empty page indicates that the given cursor is too high.
+    /// * Descending: Should use fallback when a partial page does not reach genesis, or when the
+    ///   page is empty and the cursor is not the genesis checkpoint.
     ///
     /// Note that `db_checkpoints` is expected to follow the sorting
     /// order implied by `descending_order`. That is, smallest sequence numbers
@@ -1980,11 +1978,10 @@ impl IndexerReader {
     /// displays, etc.) has been persisted by either the checkpoint or
     /// optimistic path.
     ///
-    /// - Optimistic transactions: `optimistic_sequence_number > 0` (objects are
-    ///   committed atomically with the tx)
-    /// - Checkpoint transactions: the latest indexed checkpoint's
-    ///   `max_tx_sequence_number >= tx_sequence_number`, meaning the checkpoint
-    ///   containing this tx has been fully persisted
+    /// - Optimistic transactions: `optimistic_sequence_number > 0` (objects are committed
+    ///   atomically with the tx)
+    /// - Checkpoint transactions: the latest indexed checkpoint's `max_tx_sequence_number >=
+    ///   tx_sequence_number`, meaning the checkpoint containing this tx has been fully persisted
     pub(crate) async fn is_transaction_fully_indexed(
         &self,
         digest: TransactionDigest,
@@ -3627,8 +3624,7 @@ impl<'a> DBReader<'a> {
     /// `is_descending` controls the result order by `tx_sequence_number`:
     /// - `true` or `Some(true)` for DESC.
     /// - `false` or `Some(false)` for ASC.
-    /// - `None` for unspecified order (rows returned in whatever order the DB
-    ///   yields).
+    /// - `None` for unspecified order (rows returned in whatever order the DB yields).
     async fn get_transactions_by_sequence_numbers<I>(
         &self,
         tx_sequence_numbers: I,
@@ -3665,10 +3661,9 @@ impl<'a> DBReader<'a> {
     ///
     /// [`IndexerError::DataPruned`] — signals the caller to fall back to the
     /// historical store. Two triggers:
-    /// * the first transaction of the page is below the pruning
-    ///   min_available_tx.
-    /// * `cursor_tx_seq = None && is_descending = false && min_available_tx >
-    ///   0`: the DB cannot tell whether the address has pre-watermark history.
+    /// * the first transaction of the page is below the pruning min_available_tx.
+    /// * `cursor_tx_seq = None && is_descending = false && min_available_tx > 0`: the DB cannot
+    ///   tell whether the address has pre-watermark history.
     async fn query_transactions_by_affected_addresses(
         &self,
         addr: Address,

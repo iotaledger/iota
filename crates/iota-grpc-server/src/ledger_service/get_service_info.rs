@@ -16,21 +16,19 @@ use crate::{error::RpcError, ledger_service::LedgerGrpcService, validation::vali
 /// control which data is included in the response:
 ///
 /// ## Network Fields
-/// - `chain_id` - the ID of the chain, which can be used to identify the
-///   network
+/// - `chain_id` - the ID of the chain, which can be used to identify the network
 /// - `chain` - the chain identifier, which can be used to identify the network
 ///
 /// ## Current State Fields
 /// - `epoch` - the current epoch
 /// - `executed_checkpoint_height` - the height of the last executed checkpoint
-/// - `executed_checkpoint_timestamp` - the timestamp of the last executed
-///   checkpoint
+/// - `executed_checkpoint_timestamp` - the timestamp of the last executed checkpoint
 ///
 /// ## Availability Fields
-/// - `lowest_available_checkpoint` - lowest available checkpoint for which
-///   transaction and checkpoint data can be requested
-/// - `lowest_available_checkpoint_objects` - lowest available checkpoint for
-///   which object data can be requested
+/// - `lowest_available_checkpoint` - lowest available checkpoint for which transaction and
+///   checkpoint data can be requested
+/// - `lowest_available_checkpoint_objects` - lowest available checkpoint for which object data can
+///   be requested
 ///
 /// ## Server Fields
 /// - `server` - the server version

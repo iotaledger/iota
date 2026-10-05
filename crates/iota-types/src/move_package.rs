@@ -15,17 +15,14 @@
 //! The code contains terminology that may be confusing for the uninitiated,
 //! like `Module ID`, `Package ID`, `Storage ID` and `Runtime ID`. For avoidance
 //! of doubt these concepts are defined like so:
-//! - `Package ID` is the [ObjectId] representing the address by which the given
-//!   package may be found in storage.
-//! - `Runtime ID` will always mean the `Package ID`/`Storage ID` of the
-//!   initially published package. For a non upgradeable package this will
-//!   always be equal to `Storage ID`. For an upgradeable package, it will be
-//!   the `Storage ID` of the package's first deployed version.
-//! - `Storage ID` is the `Package ID`, and it is mostly used in to highlight
-//!   that we are talking about the current `Package ID` and not the `Runtime
-//!   ID`
-//! - `Module ID` is the the type
-//!   [ModuleID](move_core_types::language_storage::ModuleId).
+//! - `Package ID` is the [ObjectId] representing the address by which the given package may be
+//!   found in storage.
+//! - `Runtime ID` will always mean the `Package ID`/`Storage ID` of the initially published
+//!   package. For a non upgradeable package this will always be equal to `Storage ID`. For an
+//!   upgradeable package, it will be the `Storage ID` of the package's first deployed version.
+//! - `Storage ID` is the `Package ID`, and it is mostly used in to highlight that we are talking
+//!   about the current `Package ID` and not the `Runtime ID`
+//! - `Module ID` is the the type [ModuleID](move_core_types::language_storage::ModuleId).
 //!
 //! Some of these are redundant and have overlapping meaning, so whenever
 //! reasonable/necessary the possible naming will be listed. From all of these

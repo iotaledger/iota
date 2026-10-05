@@ -2211,8 +2211,8 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         indexer_wait_for_transaction(unwrap_then_delete_transaction_res.digest, store, client)
             .await;
 
-        // 8) Test transaction filter for unwrapped and deleted object. It should return
-        //    two transactions:
+        // 8) Test transaction filter for unwrapped and deleted object. It should return two
+        //    transactions:
         // one for the performed `wrap` and one for more recent `unwrap then delete`.
         let unwrapped_then_deleted_objects = unwrap_then_delete_transaction_res
             .effects

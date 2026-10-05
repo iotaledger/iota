@@ -28,12 +28,11 @@ use crate::{
 /// Verifies the runtime module metadata of the given module.
 /// If the module does not contain any runtime metadata, just pass.
 /// If the module contains runtime metadata, it must satisfy the following:
-/// 1. The module metadata must contain at most one metadata item, which is
-///    indexed by the IOTA metadata key.
-/// 2. The metadata item must be deserializable into
-///    `RuntimeModuleMetadataWrapper`.
-/// 3. The deserialized metadata must satisfy any additional checks imposed by
-///    the runtime metadata version.
+/// 1. The module metadata must contain at most one metadata item, which is indexed by the IOTA
+///    metadata key.
+/// 2. The metadata item must be deserializable into `RuntimeModuleMetadataWrapper`.
+/// 3. The deserialized metadata must satisfy any additional checks imposed by the runtime metadata
+///    version.
 ///
 /// `protocol_build_config.allow_view_function` reflects the
 /// `package_metadata_with_dynamic_module_metadata` protocol feature. While it

@@ -527,8 +527,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     .record_fetch_fault(target_authority, e);
             })?;
 
-        // 2. Verify the response contains block headers that can certify the last
-        //    returned commit,
+        // 2. Verify the response contains block headers that can certify the last returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
         let max_commits = inner.sync_type.max_commits_per_response(&commit_range);
@@ -614,8 +613,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             })
             .collect();
 
-        // 8. Create transaction fetch requests (will be processed concurrently with
-        //    headers)
+        // 8. Create transaction fetch requests (will be processed concurrently with headers)
         let mut transaction_requests: FuturesOrdered<_> = if !committed_tx_refs.is_empty() {
             let num_tx_chunks = committed_tx_refs.len().div_ceil(
                 inner
@@ -759,8 +757,8 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             BTreeMap::new()
         };
 
-        // 14. Now create the Certified commits by assigning the block headers and
-        //     transactions to each commit and retaining the commit votes history.
+        // 14. Now create the Certified commits by assigning the block headers and transactions to
+        //     each commit and retaining the commit votes history.
         let mut certified_commits = Vec::new();
         for (commit, commit_tx_refs) in commits.iter().zip(&commits_tx_refs) {
             let block_headers = commit

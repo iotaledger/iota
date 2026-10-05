@@ -12,11 +12,11 @@
 //! [`expected_outcome`].
 //!
 //! Two test entry points are exposed:
-//! - [`test_abstract_iota_accounts_examples_across_all_max_auth_gas_budgets`]
-//!   exercises every variant of [`MaxAuthGas`] (full sweep).
-//! - [`test_abstract_iota_accounts_examples_across_network_max_auth_gas_budgets`]
-//!   exercises only the fixed budgets that match the `max_auth_gas` values
-//!   currently configured for live IOTA networks ([`MaxAuthGas::NETWORKS`]).
+//! - [`test_abstract_iota_accounts_examples_across_all_max_auth_gas_budgets`] exercises every
+//!   variant of [`MaxAuthGas`] (full sweep).
+//! - [`test_abstract_iota_accounts_examples_across_network_max_auth_gas_budgets`] exercises only
+//!   the fixed budgets that match the `max_auth_gas` values currently configured for live IOTA
+//!   networks ([`MaxAuthGas::NETWORKS`]).
 //!
 //! The dials a developer typically wants to tweak live near the top of the
 //! file under "Tunable test parameters": the [`MaxAuthGas`] enum, the
@@ -184,8 +184,8 @@ struct Expectation {
 /// To extend or correct this matrix:
 /// 1. Add the new package's arm here (or adjust an existing one).
 /// 2. Run the test in discovery mode (temporarily disable the `assert_eq!` in
-///    `run_across_max_auth_gas_budgets`) and read the actual outcomes from the
-///    printed per-budget table.
+///    `run_across_max_auth_gas_budgets`) and read the actual outcomes from the printed per-budget
+///    table.
 fn expected_outcome(name: &str, budget: MaxAuthGas) -> Expectation {
     use MaxAuthGas::*;
     use Outcome::{Fail, Pass};
@@ -589,9 +589,8 @@ async fn run_time_locked(env: &TestEnvironment) -> PackageResult {
 }
 
 /// `spending_limit::spending_limit_account::create(pk, limit, ref)`
-/// + `ed25519_authenticator(account, signature, ...)`. We exercise a PTB that
-///   does NOT call `withdraw_from_balance_reserve`, so the spending-limit
-///   branch is exercised with a zero total.
+/// + `ed25519_authenticator(account, signature, ...)`. We exercise a PTB that does NOT call
+///   `withdraw_from_balance_reserve`, so the spending-limit branch is exercised with a zero total.
 async fn run_spending_limit(env: &TestEnvironment) -> PackageResult {
     let mut r = PackageResult::new("spending_limit");
     let (pkg_id, metadata_ref, _resp) =
@@ -1318,13 +1317,12 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
 /// sender's authenticator function and grants the sender a gas allowance.
 /// Finally we issue a sponsored transaction:
 ///
-/// - **sender** = the `IOTAccount`, authenticating with `ed25519(sig over
-///   tx_digest)`;
-/// - **sponsor** = the `WhitelistSponsorshipAccount`, authenticating with an
-///   empty-call-args `MoveAuthenticator` (the sponsor's `authenticator` takes
-///   only `&AuthContext` and `&TxContext`);
-/// - the PTB contains a `deduct_user_gas_allowance` move call so the sponsor
-///   authenticator's PTB scan accepts it.
+/// - **sender** = the `IOTAccount`, authenticating with `ed25519(sig over tx_digest)`;
+/// - **sponsor** = the `WhitelistSponsorshipAccount`, authenticating with an empty-call-args
+///   `MoveAuthenticator` (the sponsor's `authenticator` takes only `&AuthContext` and
+///   `&TxContext`);
+/// - the PTB contains a `deduct_user_gas_allowance` move call so the sponsor authenticator's PTB
+///   scan accepts it.
 ///
 /// The scenario expects every step — including the validator-side run of the
 /// sponsor authenticator — to succeed under all `max_auth_gas` budgets.
@@ -1448,8 +1446,8 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
     let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
     let allowance: u64 = gas_budget.saturating_mul(2);
 
-    // 3. Admin (= owner) whitelists the sender's `ed25519_authenticator` and grants
-    //    the sender a gas allowance. Both calls take `&mut sponsor`.
+    // 3. Admin (= owner) whitelists the sender's `ed25519_authenticator` and grants the sender a
+    //    gas allowance. Both calls take `&mut sponsor`.
     let admin_setup_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let sponsor_arg = b
@@ -1516,9 +1514,8 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
     }
 
     // 4. Build the sponsored PTB: a trivial sender action + the required
-    //    `deduct_user_gas_allowance(sponsor)` move call (it reads the sender and
-    //    gas budget from the `TxContext`) so the sponsor authenticator's PTB scan
-    //    finds and accepts it.
+    //    `deduct_user_gas_allowance(sponsor)` move call (it reads the sender and gas budget from
+    //    the `TxContext`) so the sponsor authenticator's PTB scan finds and accepts it.
     let sponsor_gas = env
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
@@ -1612,10 +1609,9 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
 /// `IOTAccount`s on top of it:
 ///
 /// - **sender** — bound to `ed25519_authenticator`. Signs over `ctx.digest()`.
-/// - **sponsor** — bound to `sponsorship_ed25519_authenticator`. Signs over
-///   `ctx.digest() || auth_ctx.sender_auth_digest() ||
-///   bcs(auth_ctx.sender_authenticator_function_info_v1())`, matching the
-///   helper [`public_key_authentication::authenticate_ed25519_for_sponsorship`].
+/// - **sponsor** — bound to `sponsorship_ed25519_authenticator`. Signs over `ctx.digest() ||
+///   auth_ctx.sender_auth_digest() || bcs(auth_ctx.sender_authenticator_function_info_v1())`,
+///   matching the helper [`public_key_authentication::authenticate_ed25519_for_sponsorship`].
 ///
 /// The test reconstructs that exact byte sequence off-chain (the sender
 /// `MoveAuthenticator`'s digest, plus the BCS encoding of the sender's
@@ -1811,8 +1807,8 @@ async fn run_account_for_benchmarks(
         }
     };
 
-    // 2. Create the account: `create(metadata, "abstract_account",
-    //    "authenticate_super_heavy", pk)`.
+    // 2. Create the account: `create(metadata, "abstract_account", "authenticate_super_heavy",
+    //    pk)`.
     let pk_bytes = env.owner_pk_bytes();
     let create_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
@@ -1840,9 +1836,8 @@ async fn run_account_for_benchmarks(
         }
     };
 
-    // 3. Mint the 122 frozen `BenchObject`s that the authenticator takes as inputs.
-    //    Freezing them (rather than sharing) lets the auth call pass each as
-    //    `CallArg::ImmutableOrOwned`.
+    // 3. Mint the 122 frozen `BenchObject`s that the authenticator takes as inputs. Freezing them
+    //    (rather than sharing) lets the auth call pass each as `CallArg::ImmutableOrOwned`.
     let bench_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let amount = b.pure(122u64).unwrap();
@@ -1899,8 +1894,8 @@ async fn run_account_for_benchmarks(
         bench_refs.len()
     );
 
-    // 4. Run `authenticate_super_heavy` for each requested cycle count. The auth
-    //    call args are: `[u64(cycles), signature, 122 × &BenchObject]`.
+    // 4. Run `authenticate_super_heavy` for each requested cycle count. The auth call args are:
+    //    `[u64(cycles), signature, 122 × &BenchObject]`.
     let mut results = Vec::with_capacity(cycle_counts.len());
     for &cycles in cycle_counts {
         let mut r = PackageResult::new(make_label(cycles));

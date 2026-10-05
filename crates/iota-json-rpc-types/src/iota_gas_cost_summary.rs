@@ -10,15 +10,13 @@ use serde_with::{DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 ///
 /// Storage is charged independently of computation.
 /// There are 3 parts to the storage charges:
-/// - `storage_cost`: it is the charge of storage at the time the transaction is
-///   executed. The cost of storage is the number of bytes of the objects being
-///   mutated multiplied by a variable storage cost per byte
-/// - `storage_rebate`: this is the amount a user gets back when manipulating an
-///   object. The `storage_rebate` is the `storage_cost` for an object minus
-///   fees.
-/// - `non_refundable_storage_fee`: not all the value of the object storage cost
-///   is given back to user and there is a small fraction that is kept by the
-///   system. This value tracks that charge.
+/// - `storage_cost`: it is the charge of storage at the time the transaction is executed. The cost
+///   of storage is the number of bytes of the objects being mutated multiplied by a variable
+///   storage cost per byte
+/// - `storage_rebate`: this is the amount a user gets back when manipulating an object. The
+///   `storage_rebate` is the `storage_cost` for an object minus fees.
+/// - `non_refundable_storage_fee`: not all the value of the object storage cost is given back to
+///   user and there is a small fraction that is kept by the system. This value tracks that charge.
 ///
 /// When looking at a gas cost summary the amount charged to the user is
 /// `computation_cost + storage_cost - storage_rebate`

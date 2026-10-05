@@ -610,8 +610,7 @@ impl Core {
     ///
     /// This method follows a similar flow to `try_commit`:
     /// 1. Store commits and transactions in DagState
-    /// 2. For commits with reputation scores, update leader schedule and store
-    ///    CommitInfo
+    /// 2. For commits with reputation scores, update leader schedule and store CommitInfo
     /// 3. Flush to storage
     /// 4. Process subdags via commit_observer
     ///
@@ -2536,11 +2535,11 @@ mod test {
     /// `ancestors_to_propose`'s drop-too-old filter.
     ///
     /// Two properties are checked:
-    ///   1. `saturating_sub` clamps small `clock_round`s to `0`, so the
-    ///      strict-`<` filter in `ancestors_to_propose` self-disables there and
-    ///      genesis/quorum-round ancestors can never be accidentally dropped.
-    ///   2. Well above `gc_depth`, the helper returns `clock_round - gc_depth`
-    ///      (matching `Context::min_ref_round` and the verifier's bound).
+    ///   1. `saturating_sub` clamps small `clock_round`s to `0`, so the strict-`<` filter in
+    ///      `ancestors_to_propose` self-disables there and genesis/quorum-round ancestors can never
+    ///      be accidentally dropped.
+    ///   2. Well above `gc_depth`, the helper returns `clock_round - gc_depth` (matching
+    ///      `Context::min_ref_round` and the verifier's bound).
     #[tokio::test]
     async fn test_min_ancestor_round() {
         telemetry_subscribers::init_for_testing();

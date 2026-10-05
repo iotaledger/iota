@@ -66,15 +66,13 @@ impl<'chk> ObjectsTransformer<'chk> {
     ///
     /// The logic is split into three categories:
     ///
-    /// 1. **Input objects that were mutated or removed** (mutate, delete,
-    ///    wrap): these had an active prior state available in `input_objects` →
-    ///    `ACTIVE` entries with full data.
+    /// 1. **Input objects that were mutated or removed** (mutate, delete, wrap): these had an
+    ///    active prior state available in `input_objects` → `ACTIVE` entries with full data.
     ///
     /// 2. **Created objects**: did not exist before → `NOT_YET_CREATED`.
     ///
-    /// 3. **Unwrapped / unwrapped-then-deleted objects**: were previously
-    ///    wrapped so no prior data is available → `WRAPPED_OR_DELETED` with a
-    ///    lamport version approximation.
+    /// 3. **Unwrapped / unwrapped-then-deleted objects**: were previously wrapped so no prior data
+    ///    is available → `WRAPPED_OR_DELETED` with a lamport version approximation.
     fn build_history_objects(self) -> Vec<StoredBackwardHistoryObject> {
         let checkpoint_seq = self.checkpoint.sequence_number() as i64;
         let mut history_objects = Vec::new();
@@ -82,9 +80,9 @@ impl<'chk> ObjectsTransformer<'chk> {
         for tx in self.checkpoint.iter_transactions() {
             let effects = &tx.effects;
 
-            // 1. Input objects that were mutated or removed (deleted/wrapped) had an active
-            //    prior state — record it from input_objects. Collect the affected IDs so we
-            //    can iterate input_objects once.
+            // 1. Input objects that were mutated or removed (deleted/wrapped) had an active prior
+            //    state — record it from input_objects. Collect the affected IDs so we can iterate
+            //    input_objects once.
             let superseded_ids: HashSet<ObjectId> = effects
                 .mutated()
                 .into_iter()
@@ -123,8 +121,8 @@ impl<'chk> ObjectsTransformer<'chk> {
                 ));
             }
 
-            // 3. Unwrapped and unwrapped-then-deleted objects were previously wrapped — no
-            //    data available. Use lamport version - 1 as approximation.
+            // 3. Unwrapped and unwrapped-then-deleted objects were previously wrapped — no data
+            //    available. Use lamport version - 1 as approximation.
             let unwrapped_refs = effects
                 .unwrapped()
                 .into_iter()

@@ -443,8 +443,8 @@ async fn epoch_info_round_trip(
         ..Default::default()
     };
 
-    // 1. CREATE: write the EPOCH_INFO file for epochs `[0, snapshot_epoch]`. The
-    //    path is object-independent, so an empty perpetual DB suffices.
+    // 1. CREATE: write the EPOCH_INFO file for epochs `[0, snapshot_epoch]`. The path is
+    //    object-independent, so an empty perpetual DB suffices.
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
@@ -462,9 +462,9 @@ async fn epoch_info_round_trip(
         .write_internal(snapshot_epoch, perpetual_db, root_accumulator)
         .await?;
 
-    // 2. LOAD via `read_epoch_info` (the formal-snapshot restore's EPOCH_INFO-first
-    //    step): the reader downloads only the MANIFEST, and `read_epoch_info` then
-    //    the one EPOCH_INFO file, verifying sha3 + magic.
+    // 2. LOAD via `read_epoch_info` (the formal-snapshot restore's EPOCH_INFO-first step): the
+    //    reader downloads only the MANIFEST, and `read_epoch_info` then the one EPOCH_INFO file,
+    //    verifying sha3 + magic.
     let local_store_read_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(tmp_dir.join("local_dir_read")),
@@ -492,11 +492,10 @@ async fn epoch_info_round_trip(
         "EPOCH_INFO must carry one entry per epoch in [0, {snapshot_epoch}]"
     );
 
-    // 3. ASSERT the on-disk entries round-trip well-formed: one per epoch in order,
-    //    each carrying its summary and a populated proof bundle. The chain-verified
-    //    seed into the CheckpointStore's `epoch_info` (which derives each row's
-    //    start state from the previous entry) needs a real boundary and is
-    //    exercised in `iota-e2e-tests`.
+    // 3. ASSERT the on-disk entries round-trip well-formed: one per epoch in order, each carrying
+    //    its summary and a populated proof bundle. The chain-verified seed into the
+    //    CheckpointStore's `epoch_info` (which derives each row's start state from the previous
+    //    entry) needs a real boundary and is exercised in `iota-e2e-tests`.
     for (epoch, entry) in epoch_info.entries().iter().enumerate() {
         let epoch = epoch as EpochId;
         assert_eq!(
