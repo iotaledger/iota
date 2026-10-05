@@ -4190,4 +4190,214 @@ mod test {
         }
         assert!(!fixture.core.has_strong_vote_quorum(8, leader));
     }
+
+    #[rstest]
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn leader_blocks_defer_refs_voters_lack(#[values(false, true)] adaptive_acks: bool) {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        context
+            .parameters
+            .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
+        let min_block_delay = context.parameters.min_block_delay;
+        let mut cores = create_cores(context, vec![1, 1, 1, 1]).await;
+        let mut last_round_blocks = Vec::new();
+        for round in 1..=2 {
+            last_round_blocks = gossip_one_round(
+                &mut cores,
+                round,
+                &last_round_blocks,
+                min_block_delay,
+                &mut BTreeSet::new(),
+            )
+            .await;
+        }
+
+        // Before the leader of round 3 proposes, make the two other voters
+        // receive the author's blocks 4 rounds late, so they would lack its
+        // round-2 block when voting at round 4.
+        let leader = cores[0].core.leaders(3)[0].authority;
+        let author = AuthorityIndex::new_for_test(((leader.value() + 1) % 4) as u8);
+        let lacked_ref = last_round_blocks
+            .iter()
+            .find(|block| block.author() == author)
+            .unwrap()
+            .reference();
+        let leader_core = &mut cores[leader.value()].core;
+        leader_core
+            .dag_state
+            .write()
+            .set_pending_acknowledgments(vec![lacked_ref]);
+        for (voter, _) in leader_core.context.committee.authorities() {
+            if voter != leader && voter != author {
+                leader_core
+                    .acknowledgment_stats
+                    .set_acknowledgment_depth(voter, author, 4);
+            }
+        }
+        last_round_blocks = gossip_one_round(
+            &mut cores,
+            3,
+            &last_round_blocks,
+            min_block_delay,
+            &mut BTreeSet::new(),
+        )
+        .await;
+        let leader_block = last_round_blocks
+            .iter()
+            .find(|block| block.author() == leader)
+            .unwrap();
+        assert_eq!(
+            leader_block.acknowledgments().contains(&lacked_ref),
+            !adaptive_acks
+        );
+
+        // The leader's next block is not a leader block, so it acknowledges
+        // the deferred ref although the voters still lack it.
+        let next_blocks = gossip_one_round(
+            &mut cores,
+            4,
+            &last_round_blocks,
+            min_block_delay,
+            &mut BTreeSet::new(),
+        )
+        .await;
+        let next_block = next_blocks
+            .iter()
+            .find(|block| block.author() == leader)
+            .unwrap();
+        assert_eq!(
+            next_block.acknowledgments().contains(&lacked_ref),
+            adaptive_acks
+        );
+    }
+
+    #[tokio::test]
+    async fn acknowledgment_stats_recorded_only_when_enabled() {
+        for (starfish_speed, adaptive_acks) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_starfish_speed_for_testing(starfish_speed);
+            context
+                .parameters
+                .enable_starfish_speed_adaptive_acknowledgments = adaptive_acks;
+            let mut fixture = CoreTestFixture::new(
+                context,
+                vec![1; 4],
+                AuthorityIndex::new_for_test(0),
+                false,
+                false,
+                None,
+            )
+            .await;
+            let block_ref =
+                |round, author: u8| BlockRef::new(round, author.into(), BlockHeaderDigest::MIN);
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(2, 1)
+                    .set_ancestors(vec![block_ref(1, 1)])
+                    .set_acknowledgments(vec![block_ref(1, 2)])
+                    .build(),
+            );
+            fixture.core.record_acknowledgment_stats(&[header]);
+            assert_eq!(
+                fixture.core.acknowledgment_stats.samples(
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(2)
+                ),
+                u32::from(starfish_speed && adaptive_acks),
+                "starfish_speed={starfish_speed}, adaptive_acks={adaptive_acks}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn strong_blame_metrics_recorded_on_both_ingest_paths() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(true);
+        let mut fixture = CoreTestFixture::new(
+            context,
+            vec![1; 4],
+            AuthorityIndex::new_for_test(0),
+            false,
+            false,
+            None,
+        )
+        .await;
+
+        // Strong blame pinned to the local node (authority 0), naming
+        // authority 3 as missing.
+        let mut missing = AuthoritySet::new();
+        missing.insert(AuthorityIndex::new_for_test(3));
+        let blame = StrongVote {
+            leader_authority: AuthorityIndex::new_for_test(0),
+            missing,
+        };
+
+        // One blame arrives as a full block, the other as a bare header.
+        let full_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(2, 1)
+                .set_version(TestBlockHeaderVersion::V2)
+                .set_strong_vote(Some(blame))
+                .build(),
+        );
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(2, 2)
+                .set_version(TestBlockHeaderVersion::V2)
+                .set_strong_vote(Some(blame))
+                .build(),
+        );
+
+        fixture
+            .core
+            .add_blocks(vec![full_block], DataSource::Test)
+            .unwrap();
+        fixture
+            .core
+            .add_block_headers(vec![header], DataSource::Test)
+            .unwrap();
+
+        let voter_count = |authority: u8| {
+            let hostname = &fixture
+                .core
+                .context
+                .committee
+                .authority(AuthorityIndex::new_for_test(authority))
+                .hostname;
+            fixture
+                .core
+                .context
+                .metrics
+                .node_metrics
+                .strong_blames_received_from_voter
+                .with_label_values(&[hostname])
+                .get()
+        };
+        assert_eq!(voter_count(1), 1);
+        assert_eq!(voter_count(2), 1);
+
+        let missing_hostname = &fixture
+            .core
+            .context
+            .committee
+            .authority(AuthorityIndex::new_for_test(3))
+            .hostname;
+        assert_eq!(
+            fixture
+                .core
+                .context
+                .metrics
+                .node_metrics
+                .strong_blames_received_for_author
+                .with_label_values(&[missing_hostname])
+                .get(),
+            2
+        );
+    }
 }

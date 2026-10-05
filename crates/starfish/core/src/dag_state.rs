@@ -4782,4 +4782,88 @@ mod test {
         unset.evict_pending_commit_votes();
         assert_eq!(unset.pending_commit_votes.len(), 10);
     }
+
+    fn block_ref(round: Round, author: u8) -> BlockRef {
+        BlockRef::new(round, author.into(), BlockHeaderDigest::MIN)
+    }
+
+    /// DagState of a 4-authority committee whose threshold clock is at
+    /// `round`.
+    fn dag_state_at_round(round: Round) -> DagState {
+        let (context, _) = Context::new_for_test(4);
+        let mut dag_state = DagState::new(Arc::new(context), Arc::new(MemStore::new()));
+        for author in 0..4u8 {
+            dag_state
+                .threshold_clock
+                .add_block_header(block_ref(round - 1, author));
+        }
+        assert_eq!(dag_state.threshold_clock_round(), round);
+        dag_state
+    }
+
+    #[tokio::test]
+    async fn take_acknowledgments_skips_deferred_refs() {
+        let mut dag_state = dag_state_at_round(5);
+
+        // Eligible: rounds 1..=4 × 4 authors (16). Above clock: round 6 × 4 authors.
+        let mut seeded = Vec::new();
+        for round in 1..=4u32 {
+            for author in 0..4u8 {
+                seeded.push(block_ref(round, author));
+            }
+        }
+        for author in 0..4u8 {
+            seeded.push(block_ref(6, author));
+        }
+        dag_state.set_pending_acknowledgments(seeded);
+
+        // Defer the refs of authors 1 and 3.
+        let deferred: BTreeSet<BlockRef> = (1..=4u32)
+            .flat_map(|round| [block_ref(round, 1), block_ref(round, 3)])
+            .collect();
+        let taken = dag_state.take_acknowledgments(1024, &deferred);
+        assert_eq!(taken.len(), 8, "2 authors × 4 eligible rounds");
+        assert!(
+            taken
+                .iter()
+                .all(|ack| !deferred.contains(ack) && ack.round < 5)
+        );
+        assert_eq!(
+            dag_state
+                .context
+                .metrics
+                .node_metrics
+                .adaptive_ack_acks_deferred
+                .get(),
+            8
+        );
+
+        // Deferred refs and round-6 refs stay pending.
+        for ack in &deferred {
+            assert!(dag_state.pending_acknowledgments().contains(ack));
+        }
+        for author in 0..4u8 {
+            assert!(
+                dag_state
+                    .pending_acknowledgments()
+                    .contains(&block_ref(6, author))
+            );
+        }
+
+        // Nothing deferred + capped limit: exactly `limit` returned.
+        let taken_limited = dag_state.take_acknowledgments(3, &BTreeSet::new());
+        assert_eq!(taken_limited.len(), 3);
+
+        // Nothing deferred, no cap: drains the remaining 5 deferred refs;
+        // round-6 refs stay pending (above clock_round).
+        let taken_rest = dag_state.take_acknowledgments(1024, &BTreeSet::new());
+        assert_eq!(taken_rest.len(), 5);
+        for author in 0..4u8 {
+            assert!(
+                dag_state
+                    .pending_acknowledgments()
+                    .contains(&block_ref(6, author))
+            );
+        }
+    }
 }
