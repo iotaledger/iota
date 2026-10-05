@@ -6,56 +6,124 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, TypeTag};
+use iota_sdk_types::{
+    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, ObjectReference, TransactionDigest,
+    TypeTag,
+};
 use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
-    full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
+    fp_ensure,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    messages_checkpoint::CheckpointContentsExt,
     object::Object,
 };
 
 use crate::{
-    errors::IndexerError,
+    errors::{IndexerError, IndexerResult},
     types::{IndexedDeletedObject, IndexedObject},
 };
 
-#[derive(Clone, Debug)]
-pub(crate) struct Extractor<'chk> {
-    checkpoint: &'chk CheckpointData,
+pub(crate) type TransactionCheckResult<'chk> = IndexerResult<(u64, &'chk CheckpointTransaction)>;
+
+/// Enumerates checkpoint transactions while checking their integrity.
+///
+/// The returned iterator checks that the transaction order in the checkpoint
+/// transactions agrees with the order provided in the checkpoint contents.
+///
+/// # Errors
+///
+/// Fails before enumeration if the checkpoint contents and the transactions
+/// differ in length.
+pub(crate) fn enumerate_checked_transactions(
+    checkpoint: &CheckpointData,
+) -> IndexerResult<impl Iterator<Item = TransactionCheckResult<'_>>> {
+    fp_ensure!(
+        checkpoint.checkpoint_contents.len() == checkpoint.transactions.len(),
+        IndexerError::FullNodeReading(format!(
+            "checkpointContents has different size {} compared to Transactions {} \
+            for checkpoint {}",
+            checkpoint.checkpoint_contents.len(),
+            checkpoint.transactions.len(),
+            checkpoint.checkpoint_summary.sequence_number()
+        ))
+    );
+    Ok(checkpoint
+        .checkpoint_contents
+        .enumerate_transactions(&checkpoint.checkpoint_summary)
+        .zip(checkpoint.transactions.iter())
+        .map(|((sequence_number, execution_digest), transaction)| {
+            let from_contents = execution_digest.transaction;
+            let from_transactions = *transaction.transaction.digest();
+            fp_ensure!(
+                from_contents == from_transactions,
+                IndexerError::FullNodeReading(format!(
+                    "transactions has different ordering from CheckpointContents, \
+                    for checkpoint {}, Mismatch found at {from_contents} v.s. {from_transactions}",
+                    checkpoint.checkpoint_summary.sequence_number()
+                ))
+            );
+            Ok((sequence_number, transaction))
+        }))
 }
 
-impl<'chk> Extractor<'chk> {
-    pub fn new(checkpoint: &'chk CheckpointData) -> Self {
-        Self { checkpoint }
+/// A checkpoint that guarantees the integrity of its transactions.
+#[derive(Clone, Debug, Copy)]
+pub(crate) struct ValidatedCheckpoint<'chk> {
+    inner: &'chk CheckpointData,
+}
+
+impl<'chk> ValidatedCheckpoint<'chk> {
+    /// Creates a validated checkpoint from the network data.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the checkpoint contents and the transactions differ in length
+    /// or in the order of the transactions.
+    pub(crate) fn new(checkpoint: &'chk CheckpointData) -> IndexerResult<Self> {
+        Self::check_transactions_integrity(checkpoint)?;
+        Ok(Self { inner: checkpoint })
     }
 
-    pub(crate) fn iter_live_objects(&'chk self) -> impl Iterator<Item = &'chk Object> + 'chk {
-        let mut latest_live_objects = BTreeMap::new();
-        for tx in self.checkpoint.transactions.iter() {
-            for obj in tx.output_objects.iter() {
-                latest_live_objects.insert(obj.id(), obj);
-            }
-            for obj_ref in tx.removed_object_refs_post_version() {
-                latest_live_objects.remove(&(obj_ref.object_id));
-            }
-        }
-        latest_live_objects.into_values()
+    /// Verifies that the transactions have the same order as in the checkpoint
+    /// contents.
+    ///
+    /// # Errors
+    ///
+    /// Fails if the checkpoint contents and the transactions differ in length,
+    /// or at the first transaction whose digest does not match the digest
+    /// at the same position in the checkpoint contents.
+    fn check_transactions_integrity(checkpoint: &CheckpointData) -> IndexerResult<()> {
+        enumerate_checked_transactions(checkpoint)?
+            .try_for_each(|check_result| check_result.map(|_| ()))
     }
 
-    pub(crate) fn iter_removed_objects(
-        &'chk self,
-    ) -> impl Iterator<Item = (ObjectReference, TransactionDigest)> + 'chk {
-        let mut eventually_removed_object_refs = BTreeMap::new();
-        for tx in self.checkpoint.transactions.iter() {
-            let digest = tx.transaction.digest();
-            for obj_ref in tx.removed_object_refs_post_version() {
-                eventually_removed_object_refs.insert(obj_ref.object_id, (obj_ref, *digest));
-            }
-            for obj in tx.output_objects.iter() {
-                eventually_removed_object_refs.remove(&(obj.id()));
-            }
-        }
-        eventually_removed_object_refs.into_values()
+    pub(crate) fn data(self) -> &'chk CheckpointData {
+        self.inner
+    }
+
+    pub(crate) fn sequence_number(self) -> CheckpointSequenceNumber {
+        self.inner.checkpoint_summary.sequence_number()
+    }
+
+    pub(crate) fn timestamp_ms(self) -> CheckpointTimestamp {
+        self.inner.checkpoint_summary.timestamp_ms()
+    }
+
+    /// Enumerates the checkpoint transactions with their global sequence
+    /// numbers.
+    pub(crate) fn enumerate_transactions(
+        self,
+    ) -> impl Iterator<Item = (u64, &'chk CheckpointTransaction)> {
+        self.inner
+            .checkpoint_contents
+            .enumerate_transactions(&self.inner.checkpoint_summary)
+            .map(|(seq, _)| seq)
+            .zip(&self.inner.transactions)
+    }
+
+    /// Iterates over the checkpoint transactions.
+    pub(crate) fn iter_transactions(self) -> impl Iterator<Item = &'chk CheckpointTransaction> {
+        self.inner.transactions.iter()
     }
 }
 
@@ -181,25 +249,40 @@ impl CheckpointObjectChanges {
     }
 }
 
-impl TryFrom<&CheckpointData> for CheckpointObjectChanges {
-    type Error = IndexerError;
-    fn try_from(data: &CheckpointData) -> Result<Self, Self::Error> {
-        let checkpoint_seq = data.checkpoint_summary.sequence_number;
-        let extractor = Extractor::new(data);
+impl<'chk> From<ValidatedCheckpoint<'chk>> for CheckpointObjectChanges {
+    fn from(validated_checkpoint: ValidatedCheckpoint<'chk>) -> Self {
+        let checkpoint_seq = validated_checkpoint.sequence_number();
 
-        let deleted_objects = extractor
-            .iter_removed_objects()
+        let mut latest_live_objects = BTreeMap::new();
+        let mut eventually_removed_object_refs = BTreeMap::new();
+        for tx in validated_checkpoint.iter_transactions() {
+            let digest = tx.transaction.digest();
+            let removed_object_refs = tx.removed_object_refs_post_version().collect::<Vec<_>>();
+            for obj_ref in &removed_object_refs {
+                eventually_removed_object_refs.insert(obj_ref.object_id, (*obj_ref, *digest));
+            }
+            for obj in &tx.output_objects {
+                latest_live_objects.insert(obj.id(), obj);
+                eventually_removed_object_refs.remove(&obj.id());
+            }
+            for obj_ref in &removed_object_refs {
+                latest_live_objects.remove(&obj_ref.object_id);
+            }
+        }
+
+        let deleted_objects = eventually_removed_object_refs
+            .into_values()
             .map(|(obj_ref, digest)| RemovedObject::new(checkpoint_seq, digest, obj_ref))
             .collect();
 
-        let changed_objects = extractor
-            .iter_live_objects()
+        let changed_objects = latest_live_objects
+            .into_values()
             .map(|obj| LiveObject::new(checkpoint_seq, obj.clone()))
             .collect();
-        Ok(Self {
+        Self {
             changed_objects,
             deleted_objects,
-        })
+        }
     }
 }
 

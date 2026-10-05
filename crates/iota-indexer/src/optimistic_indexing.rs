@@ -9,7 +9,10 @@ use downcast::Any;
 use fastcrypto::encoding::Base64;
 use iota_grpc_client::{GrpcClient, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_sdk_types::{ObjectId, Transaction, TransactionDigest, UserSignature, Version};
+use iota_sdk_types::{
+    CheckpointSequenceNumber, CheckpointTimestamp, ObjectId, Transaction, TransactionDigest,
+    UserSignature, Version,
+};
 use iota_types::{
     effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
     transaction::TransactionEnvelope,
@@ -24,7 +27,7 @@ use crate::{
         },
         primary::{
             persist::TransactionObjectChangesToCommit,
-            prepare::{IndexedTransactionComponents, PrimaryWorker},
+            prepare::{EventsTransformer, index_transaction},
         },
     },
     metrics::IndexerMetrics,
@@ -35,7 +38,9 @@ use crate::{
     read::{IndexerReader, InputObjectsStatus},
     store::{IndexerStore, PgIndexerStore, diesel_macro::spawn_blocking_task},
     transactional_blocking_with_retry_with_conditional_abort,
-    types::{IndexedDeletedObject, IndexedObject, IndexerResult, grpc_conversion},
+    types::{
+        IndexedDeletedObject, IndexedObject, IndexedTransaction, IndexerResult, grpc_conversion,
+    },
 };
 
 const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
@@ -487,6 +492,10 @@ struct TransactionExtractor<'a> {
 }
 
 impl<'a> TransactionExtractor<'a> {
+    // Placeholder values for the unknown checkpoint data.
+    const UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER: CheckpointSequenceNumber = 0;
+    const UNKNOWN_CHECKPOINT_TIMESTAMP_MS: CheckpointTimestamp = 0;
+
     fn new(
         full_tx_data: &'a CheckpointTransaction,
         optimistic_sequence_number: u64,
@@ -526,26 +535,34 @@ impl<'a> TransactionExtractor<'a> {
         })
     }
 
-    fn get_indexed_transactions_events_and_displays(
-        &self,
-    ) -> IndexerResult<IndexedTransactionComponents> {
+    fn index_transaction(&self) -> IndexerResult<IndexedTransaction> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            PrimaryWorker::index_transaction_components(
+            index_transaction(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
-                0, // checkpoint sequence number - unknown
-                0, // checkpoint timestamp - unknown
+                Self::UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
+                Self::UNKNOWN_CHECKPOINT_TIMESTAMP_MS,
                 self.metrics,
             )
             .await
         })
     }
 
+    fn index_displays(&self) -> BTreeMap<String, StoredDisplay> {
+        let transformer = EventsTransformer::new(
+            self.full_tx_data,
+            self.optimistic_sequence_number,
+            Self::UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
+            Self::UNKNOWN_CHECKPOINT_TIMESTAMP_MS,
+        );
+        transformer.transform().displays
+    }
+
     fn to_transaction_data_to_commit(&self) -> IndexerResult<TransactionDataToCommit> {
         let object_changes = self.get_object_changes()?;
-        let (indexed_tx, _, _, _, indexed_displays) =
-            self.get_indexed_transactions_events_and_displays()?;
+        let indexed_tx = self.index_transaction()?;
+        let indexed_displays = self.index_displays();
 
         let optimistic_tx = OptimisticTransaction::from_stored((&indexed_tx).into());
 
