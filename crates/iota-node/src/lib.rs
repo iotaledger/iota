@@ -1310,6 +1310,20 @@ impl IotaNode {
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
         validator_registry_id: RegistryID,
     ) -> Result<ValidatorComponents> {
+        // A validator restarting once the certified last checkpoint of its
+        // epoch is known executes the rest of the epoch from synced
+        // checkpoints, so its consensus handler must not process the commits
+        // it replays.
+        if epoch_store
+            .protocol_config()
+            .committee_validators_skip_synced_checkpoint_execution()
+            && checkpoint_store
+                .get_epoch_last_checkpoint_seq_number(epoch_store.epoch())?
+                .is_some()
+        {
+            epoch_store.start_executing_synced_checkpoints().await;
+        }
+
         let checkpoint_service = Self::build_checkpoint_service(
             config,
             consensus_adapter.clone(),

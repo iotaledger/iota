@@ -1274,7 +1274,20 @@ impl CheckpointBuilder {
     /// It is optional to pass in consensus_replay_waiter, to make it easier to
     /// attribute if slow recovery of previously built checkpoints is due to
     /// consensus replay or checkpoint building.
-    async fn run(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
+    ///
+    /// Stops once this node executes downloaded checkpoints for the rest of
+    /// the epoch, also in the middle of building, so it signs nothing more.
+    async fn run(self, consensus_replay_waiter: Option<ReplayWaiter>) {
+        let epoch_store = self.epoch_store.clone();
+        tokio::select! {
+            _ = epoch_store.wait_for_synced_checkpoint_execution() => {
+                info!("CheckpointBuilder stopping: executing synced checkpoints for the rest of the epoch");
+            }
+            _ = self.build_until_stopped(consensus_replay_waiter) => {}
+        }
+    }
+
+    async fn build_until_stopped(mut self, consensus_replay_waiter: Option<ReplayWaiter>) {
         if let Some(replay_waiter) = consensus_replay_waiter {
             info!("Waiting for consensus commits to replay ...");
             replay_waiter.wait_for_replay().await;
@@ -3437,6 +3450,44 @@ mod tests {
         );
     }
 
+    /// The checkpoint builder stops once this node executes synced checkpoints
+    /// for the rest of the epoch.
+    #[tokio::test]
+    pub async fn checkpoint_builder_stops_when_executing_synced_checkpoints() {
+        let state = TestAuthorityBuilder::new().build().await;
+        let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let tmp_dir = iota_common::tempdir();
+        let epoch_store = state.epoch_store_for_testing();
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            CheckpointStore::new(tmp_dir.path()),
+            epoch_store.clone(),
+            Arc::new(HashMap::<TransactionDigest, TransactionEffects>::new()),
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let mut tasks = checkpoint_service.spawn(None).await;
+        assert!(
+            tokio::time::timeout(Duration::from_millis(100), tasks.join_next())
+                .await
+                .is_err()
+        );
+
+        epoch_store.start_executing_synced_checkpoints().await;
+        tokio::time::timeout(Duration::from_secs(5), tasks.join_next())
+            .await
+            .expect("the checkpoint builder should stop")
+            .unwrap()
+            .unwrap();
+    }
     #[sim_test]
     pub async fn checkpoint_builder_test() {
         telemetry_subscribers::init_for_testing();

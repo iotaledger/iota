@@ -732,6 +732,14 @@ struct FeatureFlags {
     // If true, deprecate global storage ops during Move module deserialization
     #[serde(skip_serializing_if = "is_false")]
     deprecate_global_storage_ops_during_deserialization: bool,
+
+    // If true, a committee validator does not execute state-synced checkpoints
+    // while its epoch is running: it waits for its own checkpoint builder and
+    // takes only randomness signatures from state sync. Once the certified
+    // last checkpoint of the epoch is known, it executes the rest of the epoch
+    // from state sync and stops processing consensus commits.
+    #[serde(skip_serializing_if = "is_false")]
+    committee_validators_skip_synced_checkpoint_execution: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2068,6 +2076,11 @@ impl ProtocolConfig {
 
     pub fn pcool_skip_immutable_object_locks(&self) -> bool {
         self.feature_flags.pcool_skip_immutable_object_locks
+    }
+
+    pub fn committee_validators_skip_synced_checkpoint_execution(&self) -> bool {
+        self.feature_flags
+            .committee_validators_skip_synced_checkpoint_execution
     }
 
     /// Effective only with its prerequisite `enable_pcool_flow`: a config
@@ -3927,6 +3940,14 @@ impl ProtocolConfig {
 
     pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
         self.feature_flags.pcool_skip_immutable_object_locks = val;
+    }
+
+    pub fn set_committee_validators_skip_synced_checkpoint_execution_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .committee_validators_skip_synced_checkpoint_execution = val;
     }
 
     pub fn set_pcool_verifier_limits_from_protocol_config_for_testing(&mut self, val: bool) {

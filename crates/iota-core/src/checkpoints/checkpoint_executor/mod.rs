@@ -563,10 +563,14 @@ impl CheckpointExecutor {
     }
 
     /// Returns this node's own summary of `checkpoint`, waiting for the
-    /// checkpoint builder if needed. Returns `None` when the checkpoint is not
-    /// going to be built locally: the genesis checkpoint, or any checkpoint
-    /// once the certified last checkpoint of this epoch is known, because
-    /// peers then stop serving this epoch's consensus commits.
+    /// checkpoint builder if needed. Returns `None` when the caller should
+    /// execute the synced checkpoint instead: always without
+    /// `committee_validators_skip_synced_checkpoint_execution`; with it, for the genesis
+    /// checkpoint, and for any checkpoint once the certified last checkpoint of this epoch
+    /// is known, because peers then stop serving this epoch's consensus
+    /// commits. In that last case it first switches this node to executing
+    /// synced checkpoints for the rest of the epoch, which stops the consensus
+    /// handler and the checkpoint builder.
     async fn wait_for_locally_built_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -579,14 +583,22 @@ impl CheckpointExecutor {
         {
             return Some(summary);
         }
-        let epoch = self.epoch_store.epoch();
         if seq == 0
-            || self
-                .checkpoint_store
-                .get_epoch_last_checkpoint_seq_number(epoch)
-                .expect("db error")
-                .is_some()
+            || !self
+                .epoch_store
+                .protocol_config()
+                .committee_validators_skip_synced_checkpoint_execution()
         {
+            return None;
+        }
+        let epoch = self.epoch_store.epoch();
+        if self
+            .checkpoint_store
+            .get_epoch_last_checkpoint_seq_number(epoch)
+            .expect("db error")
+            .is_some()
+        {
+            self.epoch_store.start_executing_synced_checkpoints().await;
             return None;
         }
         let _backpressure_guard = self.backpressure_manager.wait_for_local_build();
@@ -616,7 +628,10 @@ impl CheckpointExecutor {
             }
             tokio::select! {
                 summary = self.checkpoint_store.notify_read_locally_computed_checkpoint(seq) => return Some(summary),
-                _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => return None,
+                _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => {
+                    self.epoch_store.start_executing_synced_checkpoints().await;
+                    return None;
+                }
                 _ = self.checkpoint_store.notify_read_synced_checkpoint(next_to_forward), if !forwarded_to_epoch_end => {}
             }
         }

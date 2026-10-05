@@ -1481,13 +1481,18 @@ async fn execute_add_validator_transactions(
     });
 }
 
-/// A validator that is down while its epoch ends, and restarts with the end of
+/// With `committee_validators_skip_synced_checkpoint_execution`, a validator that is down while its
+/// epoch ends, and restarts with the end of
 /// that epoch more than `max_checkpoints_ahead_of_execution` checkpoints
 /// ahead, still reaches the network's epoch. Its own consensus can no longer
 /// build the rest of the epoch, so it needs the summary that ends the epoch
 /// to fall back to executing synced checkpoints.
 #[sim_test]
 async fn validator_far_behind_catches_up_across_epoch_end() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_committee_validators_skip_synced_checkpoint_execution_for_testing(true);
+        config
+    });
     let test_cluster = TestClusterBuilder::new()
         .with_num_validators(4)
         .with_epoch_duration_ms(15_000)
