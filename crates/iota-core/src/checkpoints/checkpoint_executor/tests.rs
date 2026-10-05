@@ -138,6 +138,71 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     );
 }
 
+#[tokio::test]
+pub async fn test_notify_read_locally_computed_checkpoint() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (_state, _executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone()).await;
+    let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+    let seq = checkpoint.sequence_number();
+
+    let store = checkpoint_store.clone();
+    let waiter =
+        tokio::spawn(async move { store.notify_read_locally_computed_checkpoint(seq).await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!waiter.is_finished());
+
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&seq, checkpoint.data())
+        .unwrap();
+    checkpoint_store.notify_locally_computed_checkpoints(std::iter::once(checkpoint.data()));
+    let summary = timeout(Duration::from_secs(5), waiter)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(&summary, checkpoint.data());
+
+    // Already built: returns without waiting.
+    let summary = timeout(
+        Duration::from_secs(5),
+        checkpoint_store.notify_read_locally_computed_checkpoint(seq),
+    )
+    .await
+    .unwrap();
+    assert_eq!(&summary, checkpoint.data());
+}
+
+#[tokio::test]
+pub async fn test_notify_read_epoch_last_checkpoint() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (_state, _executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone()).await;
+    let previous = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
+        .pop()
+        .unwrap();
+
+    let store = checkpoint_store.clone();
+    let waiter =
+        tokio::spawn(async move { store.notify_read_epoch_last_checkpoint_seq_number(0).await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!waiter.is_finished());
+
+    let end_of_epoch =
+        make_end_of_epoch_checkpoint(previous, &committee, &next_committee(&committee));
+    checkpoint_store
+        .insert_verified_checkpoint(&end_of_epoch)
+        .unwrap();
+    let seq = timeout(Duration::from_secs(5), waiter)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(seq, end_of_epoch.sequence_number());
+}
+
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
 /// picks up where it left off in the event of a mid-epoch node crash.
 #[tokio::test]
@@ -557,25 +622,8 @@ async fn sync_end_of_epoch_checkpoint(
     previous_checkpoint: VerifiedCheckpoint,
     committee: &CommitteeFixture,
 ) -> (VerifiedCheckpoint, CommitteeFixture) {
-    let new_committee = CommitteeFixture::generate(
-        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
-        committee.committee().epoch + 1,
-        4,
-    );
-    let (_sequence_number, _digest, checkpoint) = committee.make_end_of_epoch_checkpoint(
-        previous_checkpoint,
-        Some(EndOfEpochData {
-            next_epoch_committee: new_committee.committee().committee_members(),
-            next_epoch_protocol_version: ProtocolVersion::MIN.as_u64(),
-            epoch_commitments: vec![CheckpointCommitment::EcmhLiveObjectSet {
-                digest: ECMHLiveObjectSetDigest::default().digest,
-            }],
-            // Do not simulate supply changes in tests.
-            // We would need to build this checkpoint after the below execution of advance_epoch to
-            // obtain this number from the SystemEpochInfoEvent.
-            epoch_supply_change: 0,
-        }),
-    );
+    let new_committee = next_committee(committee);
+    let checkpoint = make_end_of_epoch_checkpoint(previous_checkpoint, committee, &new_committee);
     authority_state
         .create_and_execute_advance_epoch_tx(
             &authority_state.epoch_store_for_testing().clone(),
@@ -588,6 +636,36 @@ async fn sync_end_of_epoch_checkpoint(
         .expect("Failed to create and execute advance epoch tx");
     sync_checkpoint(checkpoint_store, &checkpoint, &empty_contents());
     (checkpoint, new_committee)
+}
+
+fn next_committee(committee: &CommitteeFixture) -> CommitteeFixture {
+    CommitteeFixture::generate(
+        rand::rand_core::UnwrapErr(rand::rngs::SysRng),
+        committee.committee().epoch + 1,
+        4,
+    )
+}
+
+fn make_end_of_epoch_checkpoint(
+    previous_checkpoint: VerifiedCheckpoint,
+    committee: &CommitteeFixture,
+    new_committee: &CommitteeFixture,
+) -> VerifiedCheckpoint {
+    let (_sequence_number, _digest, checkpoint) = committee.make_end_of_epoch_checkpoint(
+        previous_checkpoint,
+        Some(EndOfEpochData {
+            next_epoch_committee: new_committee.committee().committee_members(),
+            next_epoch_protocol_version: ProtocolVersion::MIN.as_u64(),
+            epoch_commitments: vec![CheckpointCommitment::EcmhLiveObjectSet {
+                digest: ECMHLiveObjectSetDigest::default().digest,
+            }],
+            // Do not simulate supply changes in tests.
+            // We would need to build this checkpoint after the execution of advance_epoch to
+            // obtain this number from the SystemEpochInfoEvent.
+            epoch_supply_change: 0,
+        }),
+    );
+    checkpoint
 }
 
 fn sync_checkpoint(
