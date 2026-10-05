@@ -28,7 +28,7 @@ use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
-    CheckpointContents, RandomnessRound, TransactionDigest, TransactionEffects,
+    CheckpointContents, CheckpointSummary, RandomnessRound, TransactionDigest, TransactionEffects,
     TransactionEffectsDigest, TransactionKind,
 };
 use iota_types::{
@@ -495,13 +495,9 @@ impl CheckpointExecutor {
         );
 
         let sequence_number = checkpoint.sequence_number;
-        let locally_built_checkpoint = self
-            .checkpoint_store
-            .get_locally_computed_checkpoint(sequence_number)
-            .expect("db error");
-
-        let Some(locally_built_checkpoint) = locally_built_checkpoint else {
-            // fall back to tx-by-tx execution path if we are catching up.
+        let Some(locally_built_checkpoint) =
+            self.wait_for_locally_built_checkpoint(&checkpoint).await
+        else {
             let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
             return self
                 .execute_transactions_from_synced_checkpoint(ckpt_state, tx_data, pipeline_handle)
@@ -564,6 +560,64 @@ impl CheckpointExecutor {
             },
             state_hash,
         )
+    }
+
+    /// Returns this node's own summary of `checkpoint`, waiting for the
+    /// checkpoint builder if needed. Returns `None` when the checkpoint is not
+    /// going to be built locally: the genesis checkpoint, or any checkpoint
+    /// once the certified last checkpoint of this epoch is known, because
+    /// peers then stop serving this epoch's consensus commits.
+    async fn wait_for_locally_built_checkpoint(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Option<CheckpointSummary> {
+        let seq = checkpoint.sequence_number;
+        if let Some(summary) = self
+            .checkpoint_store
+            .get_locally_computed_checkpoint(seq)
+            .expect("db error")
+        {
+            return Some(summary);
+        }
+        let epoch = self.epoch_store.epoch();
+        if seq == 0
+            || self
+                .checkpoint_store
+                .get_epoch_last_checkpoint_seq_number(epoch)
+                .expect("db error")
+                .is_some()
+        {
+            return None;
+        }
+        self.forward_randomness_from_checkpoint(checkpoint.clone());
+        tokio::select! {
+            summary = self.checkpoint_store.notify_read_locally_computed_checkpoint(seq) => Some(summary),
+            _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => None,
+        }
+    }
+
+    fn forward_randomness_from_checkpoint(&self, checkpoint: VerifiedCheckpoint) {
+        let Some(reporter) = self.epoch_store.randomness_reporter() else {
+            return;
+        };
+        let contents = self
+            .checkpoint_store
+            .get_checkpoint_contents(&checkpoint.contents_digest)
+            .expect("db error")
+            .expect("checkpoint contents not found");
+        if self
+            .extract_randomness_rounds(&checkpoint, &contents)
+            .is_empty()
+        {
+            return;
+        }
+        let (_, tx_data) = self.load_checkpoint_transactions(checkpoint);
+        for tx in &tx_data.transactions {
+            if let TransactionKind::RandomnessStateUpdate(rsu) = tx.transaction().kind() {
+                reporter
+                    .forward_randomness_from_checkpoint(rsu.randomness_round, &rsu.random_bytes);
+            }
+        }
     }
 
     #[instrument(level = "info", skip_all)]
