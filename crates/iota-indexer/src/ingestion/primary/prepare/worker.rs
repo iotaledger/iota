@@ -148,8 +148,8 @@ impl<'chk, 'm> Transformer<'chk, 'm> {
             .indexed_checkpoint_timestamp_ms
             .set(checkpoint.timestamp_ms as i64);
         info!(
-            "Indexer lag: indexed checkpoint {} with time now {} and checkpoint time {}",
-            checkpoint.sequence_number, time_now_ms, checkpoint.timestamp_ms
+            "Indexer lag: indexed checkpoint {time_now_ms} with time now {} and checkpoint time {}",
+            checkpoint.sequence_number, checkpoint.timestamp_ms
         );
 
         Ok(CheckpointDataToCommit {
