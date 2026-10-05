@@ -36,7 +36,7 @@ NUM_CLIENT_THREADS="${NUM_CLIENT_THREADS:-4}"
 # 0 = TD spams all validators (default amplification factor).
 # 1 = pin all spam to one validator → 4× per-validator gate pressure.
 # 1..committee_size = subset of validators by sorted display name.
-NUM_VALIDATORS_TO_TARGET="${NUM_VALIDATORS_TO_TARGET:-0}"
+NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-0}"
 TRANSFER_OBJECT_PCT="${TRANSFER_OBJECT_PCT:-100}"
 SHARED_COUNTER_PCT="${SHARED_COUNTER_PCT:-0}"
 FULLNODE_RPC="${FULLNODE_RPC:-http://127.0.0.1:9000}"
@@ -162,7 +162,7 @@ stress_args=(
     --primary-gas-owner-id "$PRIMARY_GAS_OWNER"
     --num-client-threads "$NUM_CLIENT_THREADS"
     --num-transfer-accounts "$NUM_TRANSFER_ACCOUNTS"
-    --num-validators-to-target "$NUM_VALIDATORS_TO_TARGET"
+    --num-target-validators "$NUM_TARGET_VALIDATORS"
     --gas-request-chunk-size "$GAS_CHUNK_SIZE"
     --run-duration "$DURATION"
 )

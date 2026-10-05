@@ -267,7 +267,7 @@ for ((i=0; i<N; i++)); do
   GAS_CHUNK_SIZE="$GAS_CHUNK_SIZE" \
   GAS_POOL_CACHE_PATH="$proc_cache" \
   NUM_TRANSFER_ACCOUNTS="$NUM_TRANSFER_ACCOUNTS" \
-  NUM_VALIDATORS_TO_TARGET="${NUM_VALIDATORS_TO_TARGET:-0}" \
+  NUM_TARGET_VALIDATORS="${NUM_TARGET_VALIDATORS:-0}" \
   FULLNODE_RPC="$fn" \
   FULLNODE_RPC_ALL="$FULLNODES" \
   USE_FULLNODE_FOR_EXECUTION="${USE_FULLNODE_FOR_EXECUTION:-false}" \
@@ -578,7 +578,7 @@ fi
 
 # Throughput, queue distribution, latency, rejection-rate metrics over the
 # spam window. We aggregate across the whole committee rather than hardcode
-# one host because `NUM_VALIDATORS_TO_TARGET=1` picks the target validator
+# one host because `NUM_TARGET_VALIDATORS=1` picks the target validator
 # randomly per stress.rs run — it's not deterministically validator-1. For
 # spam-attack metrics (queue depth, rejection rate), `max()` across hosts
 # picks the targeted validator's value because the other validators see no
