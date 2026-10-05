@@ -493,7 +493,7 @@ struct TransactionExtractor<'a> {
 
 impl<'a> TransactionExtractor<'a> {
     // Placeholder values for the unknown checkpoint data.
-    const UKNOWN_CHECKPOINT_SEQUENCE_NUMBER: CheckpointSequenceNumber = 0;
+    const UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER: CheckpointSequenceNumber = 0;
     const UNKNOWN_CHECKPOINT_TIMESTAMP_MS: CheckpointTimestamp = 0;
 
     fn new(
@@ -541,7 +541,7 @@ impl<'a> TransactionExtractor<'a> {
             index_transaction(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
-                Self::UKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
+                Self::UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
                 Self::UNKNOWN_CHECKPOINT_TIMESTAMP_MS,
                 self.metrics,
             )
@@ -553,7 +553,7 @@ impl<'a> TransactionExtractor<'a> {
         let transformer = EventsTransformer::new(
             self.full_tx_data,
             self.optimistic_sequence_number,
-            Self::UKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
+            Self::UNKNOWN_CHECKPOINT_SEQUENCE_NUMBER,
             Self::UNKNOWN_CHECKPOINT_TIMESTAMP_MS,
         );
         transformer.transform().displays
