@@ -329,6 +329,12 @@ pub struct ConsensusAdapter {
     /// 100 saturates at the hard limit. Used in the certificate-less
     /// (P-COOL) mode.
     graduated_load_shedding_saturation_pct: u32,
+
+    /// When `false`, an exhausted `submit_semaphore` does not reject
+    /// transactions in [`ConsensusAdapter::check_consensus_limits_reason`].
+    /// The submit path still awaits a permit, so the semaphore keeps capping
+    /// concurrent submissions. Set via `ConsensusConfig`.
+    semaphore_shedding_enabled: bool,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -363,6 +369,7 @@ impl ConsensusAdapter {
         metrics: ConsensusAdapterMetrics,
         graduated_load_shedding_soft_limit_pct: u32,
         graduated_load_shedding_saturation_pct: u32,
+        semaphore_shedding_enabled: bool,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -382,6 +389,7 @@ impl ConsensusAdapter {
             latency_observer: LatencyObserver::new(),
             graduated_load_shedding_soft_limit_pct,
             graduated_load_shedding_saturation_pct,
+            semaphore_shedding_enabled,
         }
     }
 
@@ -401,6 +409,7 @@ impl ConsensusAdapter {
             ConsensusAdapterMetrics::new_test(),
             50,
             100,
+            true,
         )
     }
 
@@ -783,8 +792,10 @@ impl ConsensusAdapter {
             return Some(ConsensusOverloadReason::MaxPendingTxsExceeded);
         }
 
-        // Then check if `submit_semaphore` has permits
-        if self.submit_semaphore.available_permits() == 0 {
+        // Then check if `submit_semaphore` has permits, unless the semaphore
+        // is configured not to reject up front. The submit path still awaits a
+        // permit either way, so concurrency stays capped.
+        if self.semaphore_shedding_enabled && self.submit_semaphore.available_permits() == 0 {
             return Some(ConsensusOverloadReason::SemaphoreNoPermits);
         }
 
@@ -1680,6 +1691,8 @@ mod adapter_tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
+            true,
         ));
         assert_eq!(adapter.num_inflight_transactions(), 0);
 
@@ -1752,6 +1765,7 @@ mod adapter_tests {
             ConsensusAdapterMetrics::new_test(),
             50,
             100,
+            true,
         );
 
         // transaction to submit
@@ -1784,6 +1798,7 @@ mod adapter_tests {
             ConsensusAdapterMetrics::new_test(),
             50,
             100,
+            true,
         );
 
         let (delay_step, position, positions_moved, _) =
@@ -1827,8 +1842,7 @@ mod adapter_tests {
     /// [`ConsensusAdapter::check_consensus_hard_limits`].
     #[tokio::test]
     async fn test_check_consensus_limits_reason() {
-        let mut rng = StdRng::from_seed([0; 32]);
-        let committee = test_committee(&mut rng, 4);
+        let committee = test_committee();
         let max_pending = 10;
 
         let adapter = ConsensusAdapter::new(
@@ -1843,6 +1857,7 @@ mod adapter_tests {
             ConsensusAdapterMetrics::new_test(),
             50,
             100,
+            true,
         );
 
         // Idle adapter: both limits allow another transaction.
@@ -1874,6 +1889,47 @@ mod adapter_tests {
         assert!(!adapter.check_consensus_hard_limits());
 
         // The in-flight limit is checked first when both are exceeded.
+        adapter.set_num_inflight_transactions_for_testing(max_pending as u64 + 1);
+        assert_eq!(
+            adapter.check_consensus_limits_reason(),
+            Some(ConsensusOverloadReason::MaxPendingTxsExceeded),
+        );
+    }
+
+    /// With `semaphore_shedding_enabled = false`, an exhausted
+    /// `submit_semaphore` no longer rejects up front, while the
+    /// `max_pending_transactions` limit still does.
+    #[tokio::test]
+    async fn test_check_consensus_limits_reason_semaphore_shedding_disabled() {
+        let committee = test_committee();
+        let max_pending = 10;
+
+        let adapter = ConsensusAdapter::new(
+            Arc::new(LazyStarfishClient::new()),
+            CheckpointStore::new_for_tests(),
+            *committee.authority_by_index(0).unwrap(),
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            max_pending,
+            max_pending,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+            100,
+            false,
+        );
+
+        // Every permit taken, yet no rejection: the semaphore still bounds
+        // concurrency through the submit path, it just no longer sheds.
+        let _permits = adapter
+            .submit_semaphore
+            .try_acquire_many(max_pending as u32)
+            .expect("all permits should be free");
+        assert_eq!(adapter.submit_semaphore.available_permits(), 0);
+        assert_eq!(adapter.check_consensus_limits_reason(), None);
+        assert!(adapter.check_consensus_hard_limits());
+
+        // The in-flight limit is unaffected by the flag.
         adapter.set_num_inflight_transactions_for_testing(max_pending as u64 + 1);
         assert_eq!(
             adapter.check_consensus_limits_reason(),

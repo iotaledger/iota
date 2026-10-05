@@ -9063,6 +9063,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         ConsensusAdapterMetrics::new_test(),
         soft_limit_pct,
         100,
+        true,
     ));
 
     let recipient = Address::random();
@@ -9179,6 +9180,8 @@ async fn consensus_queue_slot_is_counted_before_the_check_and_released_on_reject
         None,
         ConsensusAdapterMetrics::new_test(),
         soft_limit_pct,
+        100,
+        true,
     ));
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();

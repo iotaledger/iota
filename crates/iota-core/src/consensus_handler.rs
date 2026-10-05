@@ -2345,6 +2345,8 @@ mod tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
+            true,
         ));
         let adapter_wait = adapter
             .submit(
@@ -2687,6 +2689,8 @@ mod tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
+            true,
         ));
         let adapter_wait = adapter
             .submit(
@@ -3550,6 +3554,8 @@ mod tests {
             None,
             ConsensusAdapterMetrics::new_test(),
             50,
+            100,
+            true,
         ));
         let retry_waiter = adapter
             .submit(consensus_tx, None, &epoch_store_a)

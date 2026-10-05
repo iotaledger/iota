@@ -81,6 +81,8 @@ async fn test_submit_single_tx_produces_an_attested_user_transaction() {
         None,
         ConsensusAdapterMetrics::new_test(),
         50,
+        100,
+        true,
     ));
 
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
@@ -186,6 +188,8 @@ async fn test_submit_single_tx_attest_failure_rejected_without_reaching_consensu
         None,
         ConsensusAdapterMetrics::new_test(),
         50,
+        100,
+        true,
     ));
 
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
@@ -277,6 +281,8 @@ async fn test_submit_single_tx_rejects_an_attested_transaction_too_large_for_con
         None,
         ConsensusAdapterMetrics::new_test(),
         50,
+        100,
+        true,
     ));
 
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
