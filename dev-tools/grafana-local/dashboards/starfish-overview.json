@@ -21571,7 +21571,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Rate of pending acknowledgments left out of leader blocks because the voters expected to hold their data, weighted by how often this node's blocks reference them, would weigh less than a quorum.",
+          "description": "Rate of pending acknowledgments left out of this node's leader blocks because the voters expected to hold them, together with the acknowledgments already kept, would weigh less than a quorum. They stay pending for the next block.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -21647,13 +21647,13 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_adaptive_ack_acks_dropped[5m])",
+              "expr": "rate(consensus_adaptive_ack_acks_deferred[5m])",
               "legendFormat": "{{host}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "Adaptive-ack acks dropped",
+          "title": "Adaptive-ack acknowledgments deferred",
           "type": "timeseries"
         },
         {

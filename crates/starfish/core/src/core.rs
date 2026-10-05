@@ -1659,7 +1659,7 @@ impl Core {
                 .iter()
                 .any(|slot| slot.authority == header.author());
             self.acknowledgment_stats
-                .record(&self.context, header, leader_block);
+                .record_header(&self.context, header, leader_block);
         }
     }
 

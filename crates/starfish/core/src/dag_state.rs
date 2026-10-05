@@ -2427,23 +2427,23 @@ impl DagState {
                 self.pending_acknowledgments.remove(&last_ack);
             }
         } else {
-            let mut dropped: u64 = 0;
+            let mut deferred_count: u64 = 0;
             for ack in self.pending_acknowledgments.iter() {
                 if taken.len() >= limit || ack.round >= clock_round {
                     break;
                 }
                 if deferred.contains(ack) {
-                    dropped += 1;
+                    deferred_count += 1;
                     continue;
                 }
                 taken.push(*ack);
             }
-            if dropped > 0 {
+            if deferred_count > 0 {
                 self.context
                     .metrics
                     .node_metrics
-                    .adaptive_ack_acks_dropped
-                    .inc_by(dropped);
+                    .adaptive_ack_acks_deferred
+                    .inc_by(deferred_count);
             }
             for ack in &taken {
                 self.pending_acknowledgments.remove(ack);

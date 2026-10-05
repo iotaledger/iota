@@ -1,6 +1,24 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Which pending acknowledgments our leader block carries.
+//!
+//! Our leader block at round `t` commits optimistically only if a quorum of
+//! stake strong-votes for it at round `t + 1` and a quorum of round `t + 2`
+//! blocks references those votes. A voter strong-votes only if it already
+//! holds the transactions of our block and of every block we acknowledge;
+//! otherwise it blames the authors it lacks. Its vote counts only if the next
+//! round's blocks reference it, which they do when its block reaches them
+//! within a round.
+//!
+//! So the leader block keeps an acknowledgment only while the voters expected
+//! to hold everything kept still weigh a quorum. A voter weighs its stake
+//! times how often our own blocks referenced its previous-round block, and is
+//! expected to hold a block if it acknowledged that author's recent blocks
+//! soon enough nearly every time. Both counts come from the headers this node
+//! accepts. What is left out waits for our next block, which is not a leader
+//! block and acknowledges everything.
+
 use std::collections::BTreeSet;
 
 use starfish_config::AuthorityIndex;
@@ -24,12 +42,11 @@ const ACK_STATS_MIN_SAMPLES: u32 = 8;
 const ACK_STATS_ON_TIME_PERCENT: u32 = 95;
 
 /// How soon each voter acknowledges each author's blocks, and how often our
-/// blocks reference each voter's block of the previous round. Chooses the
-/// acknowledgments of our leader blocks.
+/// blocks reference each voter's block of the previous round.
 pub(crate) struct AcknowledgmentStats {
-    /// Acknowledgment depth counts, indexed by voter and author. Bucket `i`
-    /// counts depth `i + 1`.
-    depths: Vec<Vec<[u16; ACK_DEPTH_BUCKETS]>>,
+    /// Per voter and author: how many of the voter's acknowledgments of the
+    /// author's blocks came `i + 1` rounds after the block, in bucket `i`.
+    depth_counts: Vec<Vec<[u16; ACK_DEPTH_BUCKETS]>>,
     /// Per voter: our blocks that referenced its block of the previous round.
     referenced: Vec<u16>,
     /// Our blocks counted in `referenced`.
@@ -40,7 +57,7 @@ pub(crate) struct AcknowledgmentStats {
 impl AcknowledgmentStats {
     pub(crate) fn new(committee_size: usize) -> Self {
         Self {
-            depths: vec![vec![[0; ACK_DEPTH_BUCKETS]; committee_size]; committee_size],
+            depth_counts: vec![vec![[0; ACK_DEPTH_BUCKETS]; committee_size]; committee_size],
             referenced: vec![0; committee_size],
             own_blocks: 0,
             halved_at_round: GENESIS_ROUND,
@@ -52,7 +69,7 @@ impl AcknowledgmentStats {
         if clock_round < self.halved_at_round + ACK_STATS_HALVING_ROUNDS {
             return;
         }
-        self.depths
+        self.depth_counts
             .iter_mut()
             .flatten()
             .flatten()
@@ -62,9 +79,11 @@ impl AcknowledgmentStats {
         self.halved_at_round = clock_round;
     }
 
-    /// Records an accepted `block_header`. Other authors' leader blocks choose
-    /// their acknowledgments, so they add no samples.
-    pub(crate) fn record(
+    /// Counts an accepted `block_header`: our own block for the voters it
+    /// references, another voter's block for how soon it acknowledges each
+    /// author. Other authors' leader blocks choose their acknowledgments, so
+    /// they add no samples.
+    pub(crate) fn record_header(
         &mut self,
         context: &Context,
         block_header: &VerifiedBlockHeader,
@@ -99,24 +118,31 @@ impl AcknowledgmentStats {
             let depth = round
                 .saturating_sub(ack.round)
                 .clamp(1, ACK_DEPTH_BUCKETS as Round);
-            let count = &mut self.depths[voter][ack.author][depth as usize - 1];
+            let count = &mut self.depth_counts[voter][ack.author][depth as usize - 1];
             *count = count.saturating_add(1);
         }
     }
 
-    /// Whether `voter` usually acknowledges `author`'s blocks within `depth`
-    /// rounds. Samples in the last bucket count against it at every depth.
-    fn is_on_time(&self, voter: AuthorityIndex, author: AuthorityIndex, depth: Round) -> bool {
-        let counts = &self.depths[voter][author];
-        let total = counts.iter().map(|&count| u32::from(count)).sum();
+    /// Whether at least `ACK_STATS_ON_TIME_PERCENT` of `voter`'s
+    /// acknowledgments of `author`'s blocks came within `depth` rounds, or
+    /// there are fewer than `ACK_STATS_MIN_SAMPLES` of them. Samples in the
+    /// last bucket count against it at every depth.
+    fn acknowledges_within(
+        &self,
+        voter: AuthorityIndex,
+        author: AuthorityIndex,
+        depth: Round,
+    ) -> bool {
+        let counts = &self.depth_counts[voter][author];
+        let total: u32 = counts.iter().map(|&count| u32::from(count)).sum();
         // The last bucket has no upper depth, so age alone must not make its
         // samples count as on time.
-        let within = counts
+        let within: u32 = counts
             .iter()
             .take((depth as usize).min(ACK_DEPTH_BUCKETS - 1))
             .map(|&count| u32::from(count))
             .sum();
-        usually(within, total)
+        total < ACK_STATS_MIN_SAMPLES || within * 100 >= total * ACK_STATS_ON_TIME_PERCENT
     }
 
     /// Per voter, its stake times the number of our blocks that referenced its
@@ -140,16 +166,15 @@ impl AcknowledgmentStats {
         (weights, context.committee.quorum_threshold() * own_blocks)
     }
 
-    /// Chooses which of the `pending` acknowledgments our leader block at
-    /// `clock_round` leaves out for a later block.
+    /// The `pending` acknowledgments our leader block at `clock_round` leaves
+    /// out: as few as possible, while the voters expected to hold everything
+    /// it keeps still weigh a quorum.
     pub(crate) fn acknowledgments_to_defer(
         &self,
         context: &Context,
         clock_round: Round,
         pending: &BTreeSet<BlockRef>,
     ) -> BTreeSet<BlockRef> {
-        // A vote counts in a strong certificate only when the next round's
-        // blocks reference it.
         let (weights, quorum) = self.voter_weights(context);
         let weight_of =
             |voters: &AuthoritySet| -> u64 { voters.iter().map(|voter| weights[voter]).sum() };
@@ -179,14 +204,13 @@ impl AcknowledgmentStats {
             .map(|ack| {
                 let depth = clock_round + 1 - ack.round;
                 let holders = holders(&|voter| {
-                    voter == ack.author || self.is_on_time(voter, ack.author, depth)
+                    voter == ack.author || self.acknowledges_within(voter, ack.author, depth)
                 });
                 (total - weight_of(&holders), *ack, holders)
             })
             .collect();
-        // Keep refs, those the least weight would lack first, while the voters
-        // expected to hold everything kept weigh a quorum. Ties go by digest,
-        // so no author is always the one left out.
+        // Refs that the least weight would lack are kept first. Ties go by
+        // digest, so no author is always the one left out.
         candidates
             .sort_unstable_by_key(|(lost, ack, _)| (*lost, ack.round, ack.digest, ack.author));
         for (_, ack, holders) in candidates {
@@ -199,10 +223,4 @@ impl AcknowledgmentStats {
         }
         deferred
     }
-}
-
-/// Whether `hits` make up the on-time share of `total`, counting too few
-/// samples as on time.
-fn usually(hits: u32, total: u32) -> bool {
-    total < ACK_STATS_MIN_SAMPLES || hits * 100 >= total * ACK_STATS_ON_TIME_PERCENT
 }
