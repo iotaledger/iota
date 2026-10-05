@@ -10,6 +10,7 @@ use iota_sdk_types::{CheckpointCommitment, EndOfEpochData, GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
+    crypto::{AuthorityKeyPair, get_key_pair},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
         ECMHLiveObjectSetDigest, VerifiedCheckpoint, VerifiedCheckpointContents,
@@ -40,7 +41,8 @@ use crate::{
 pub async fn test_fallback_load_populates_contents_cache() {
     let tmp_dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new(tmp_dir.path());
-    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+    let (_state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
 
     // sync_new_checkpoints persists only the digest-form contents, like a
     // validator's checkpoint builder, so the executor takes the fallback path.
@@ -79,7 +81,8 @@ pub async fn test_fallback_load_skips_contents_cache_when_disabled() {
         tmp_dir.path(),
         FullCheckpointContentsCache::new(0, FullCheckpointContentsCacheMetrics::new_for_tests()),
     );
-    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+    let (_state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
 
     let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
         .pop()
@@ -107,7 +110,8 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
         // as soon as the frontier entry below lands.
         FullCheckpointContentsCache::new(1, FullCheckpointContentsCacheMetrics::new_for_tests()),
     );
-    let (_state, executor, _hasher, committee) = init_executor_test(checkpoint_store.clone()).await;
+    let (_state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
 
     // Simulate the state-sync frontier far ahead of the executor.
     let frontier_seq = 10_000;
@@ -142,7 +146,7 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
 pub async fn test_notify_read_locally_computed_checkpoint() {
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (_state, _executor, _hasher, committee) =
-        init_executor_test(checkpoint_store.clone()).await;
+        init_executor_test(checkpoint_store.clone(), true).await;
     let checkpoint = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
         .pop()
         .unwrap();
@@ -180,7 +184,7 @@ pub async fn test_notify_read_locally_computed_checkpoint() {
 pub async fn test_notify_read_epoch_last_checkpoint() {
     let checkpoint_store = CheckpointStore::new_for_tests();
     let (_state, _executor, _hasher, committee) =
-        init_executor_test(checkpoint_store.clone()).await;
+        init_executor_test(checkpoint_store.clone(), true).await;
     let previous = sync_new_checkpoints(&checkpoint_store, 1, None, &committee)
         .pop()
         .unwrap();
@@ -203,6 +207,52 @@ pub async fn test_notify_read_epoch_last_checkpoint() {
     assert_eq!(seq, end_of_epoch.sequence_number());
 }
 
+/// A committee validator does not execute a synced checkpoint it has not
+/// built while its epoch is running, and executes it from the synced data
+/// once the certified last checkpoint of the epoch is known.
+#[tokio::test]
+pub async fn test_validator_waits_for_local_build_until_epoch_end() {
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (_state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let checkpoints = sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    // Genesis (seq 0) is never built locally and executes from synced data.
+    // Seq 1 waits for the local build.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    assert_eq!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap(),
+        Some(0)
+    );
+
+    // The certified end of the epoch becomes known, but is not marked synced,
+    // so the executor does not try to execute it.
+    let end_of_epoch = make_end_of_epoch_checkpoint(
+        checkpoints[1].clone(),
+        &committee,
+        &next_committee(&committee),
+    );
+    checkpoint_store
+        .insert_verified_checkpoint(&end_of_epoch)
+        .unwrap();
+
+    timeout(Duration::from_secs(30), async {
+        while checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            != Some(1)
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("checkpoint 1 should execute from synced data after the epoch ended");
+    executor_handle.abort();
+}
+
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
 /// picks up where it left off in the event of a mid-epoch node crash.
 #[tokio::test]
@@ -218,7 +268,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
         CheckpointExecutor,
         Arc<GlobalStateHasher>,
         CommitteeFixture,
-    ) = init_executor_test(checkpoint_store.clone()).await;
+    ) = init_executor_test(checkpoint_store.clone(), false).await;
 
     assert!(
         checkpoint_store
@@ -312,7 +362,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         CheckpointExecutor,
         Arc<GlobalStateHasher>,
         CommitteeFixture,
-    ) = init_executor_test(checkpoint_store.clone()).await;
+    ) = init_executor_test(checkpoint_store.clone(), false).await;
 
     let epoch_store = authority_state.epoch_store_for_testing();
     let epoch = epoch_store.epoch();
@@ -492,7 +542,7 @@ pub async fn test_reconfig_crash_recovery() {
         CheckpointExecutor,
         Arc<GlobalStateHasher>,
         CommitteeFixture,
-    ) = init_executor_test(checkpoint_store.clone()).await;
+    ) = init_executor_test(checkpoint_store.clone(), false).await;
 
     assert!(
         checkpoint_store
@@ -565,8 +615,12 @@ pub async fn test_reconfig_crash_recovery() {
     );
 }
 
+/// Builds the executor for a committee validator when `in_committee`, or for a
+/// node outside the committee, which executes synced checkpoints the way a
+/// fullnode does.
 async fn init_executor_test(
     store: Arc<CheckpointStore>,
+    in_committee: bool,
 ) -> (
     Arc<AuthorityState>,
     CheckpointExecutor,
@@ -575,8 +629,14 @@ async fn init_executor_test(
 ) {
     let network_config =
         iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+    let (_, non_committee_key): (_, AuthorityKeyPair) = get_key_pair();
+    let keypair = if in_committee {
+        network_config.validator_configs()[0].authority_key_pair()
+    } else {
+        &non_committee_key
+    };
     let state = TestAuthorityBuilder::new()
-        .with_network_config(&network_config, 0)
+        .with_genesis_and_keypair(&network_config.genesis, keypair)
         .build()
         .await;
 
