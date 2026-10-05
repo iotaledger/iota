@@ -367,8 +367,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) strong_vote_missing_authorities: Histogram,
     pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
     pub(crate) strong_blames_received_from_voter: IntCounterVec,
-    pub(crate) adaptive_ack_excluded_authorities: IntGauge,
-    pub(crate) adaptive_ack_acks_dropped: IntCounter,
+    pub(crate) adaptive_ack_acks_deferred: IntCounter,
     pub(crate) strong_vote_missing_by_author: IntCounterVec,
     pub(crate) strong_blames_received_for_author: IntCounterVec,
     pub(crate) dropped_slot_cap_headers_total: IntCounterVec,
@@ -1509,15 +1508,9 @@ impl NodeMetrics {
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
-            adaptive_ack_excluded_authorities: register_int_gauge_with_registry!(
-                "adaptive_ack_excluded_authorities",
-                "Number of authorities currently in the adaptive-ack exclusion set, as observed at the most recent leader block proposal. Empty when consensus_starfish_speed or enable_starfish_speed_adaptive_acknowledgments is off.",
-                registry;
-                MetricLevel::Warn,
-            ).unwrap(),
-            adaptive_ack_acks_dropped: register_int_counter_with_registry!(
-                "adaptive_ack_acks_dropped",
-                "Total pending acknowledgments skipped because their author was in the adaptive-ack exclusion set at proposal time. Skipped refs remain pending and may be included later if the author leaves the exclusion set.",
+            adaptive_ack_acks_deferred: register_int_counter_with_registry!(
+                "adaptive_ack_acks_deferred",
+                "Pending acknowledgments left out of this node's leader blocks, counted once per leader block, because the voters expected to hold them together with the acknowledgments already kept, weighted by how often this node's blocks reference them, would weigh less than a quorum. They stay pending for the next block.",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
