@@ -84,15 +84,6 @@ impl TransactionConsumer {
         }
     }
 
-    /// Whether transactions wait to be included. Moves the next batch into the
-    /// slot `next` takes first.
-    pub(crate) fn has_transactions(&mut self) -> bool {
-        if self.pending_transactions.is_none() {
-            self.pending_transactions = self.tx_receiver.try_recv().ok();
-        }
-        self.pending_transactions.is_some()
-    }
-
     // Attempts to fetch the next transactions that have been submitted for
     // sequence. Respects the `max_transactions_in_block_bytes`
     // and `max_num_transactions_in_block` parameters specified via protocol config.

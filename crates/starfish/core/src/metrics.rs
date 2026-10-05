@@ -368,7 +368,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
     pub(crate) strong_blames_received_from_voter: IntCounterVec,
     pub(crate) adaptive_ack_acks_dropped: IntCounter,
-    pub(crate) adaptive_ack_leader_blocks_without_transactions: IntCounter,
     pub(crate) strong_vote_missing_by_author: IntCounterVec,
     pub(crate) strong_blames_received_for_author: IntCounterVec,
     pub(crate) dropped_slot_cap_headers_total: IntCounterVec,
@@ -1512,12 +1511,6 @@ impl NodeMetrics {
             adaptive_ack_acks_dropped: register_int_counter_with_registry!(
                 "adaptive_ack_acks_dropped",
                 "Total pending acknowledgments left out of leader blocks because the voters expected to hold their data, weighted by how often this node's blocks reference them, would weigh less than a quorum. They remain pending for the next block.",
-                registry;
-                MetricLevel::Warn,
-            ).unwrap(),
-            adaptive_ack_leader_blocks_without_transactions: register_int_counter_with_registry!(
-                "adaptive_ack_leader_blocks_without_transactions",
-                "Leader blocks proposed without this node's transactions because the voters expected to have them, weighted by how often this node's blocks reference them, would weigh less than a quorum. The transactions go into the next block.",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

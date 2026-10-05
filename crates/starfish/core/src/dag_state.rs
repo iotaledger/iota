@@ -15,7 +15,7 @@ use std::{
 use bytes::Bytes;
 use iota_metrics::monitored_mpsc::Sender;
 use itertools::Itertools as _;
-use starfish_config::{AuthorityIndex, Committee};
+use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{mpsc::error::TrySendError, watch},
     time::Instant,
@@ -25,7 +25,6 @@ use tracing::{debug, error, info, trace, warn};
 #[cfg(feature = "dag-visualizer")]
 use crate::dag_visualizer::grpc_streamer::DagVisualizerEvent;
 use crate::{
-    authority_set::AuthoritySet,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs,
         CommitmentVerifiedTransactions, GENESIS_ROUND, Round, Slot, TransactionsCommitment,
@@ -195,238 +194,6 @@ impl std::fmt::Display for DataSource {
     }
 }
 
-/// Acknowledgment depths counted separately; deeper ones share the last
-/// bucket.
-const ACK_DEPTH_BUCKETS: usize = 12;
-/// Clock rounds between halvings of the acknowledgment statistics.
-const ACK_STATS_HALVING_ROUNDS: Round = 400;
-/// Below this many samples a voter counts as on time.
-const ACK_STATS_MIN_SAMPLES: u32 = 8;
-/// Share of samples, in percent, that must be on time.
-const ACK_STATS_ON_TIME_PERCENT: u32 = 95;
-
-/// How soon each voter acknowledges each author's blocks, how often our blocks
-/// reference each voter's block of the previous round, and how often a voter
-/// that references our block of the previous round also has its transactions.
-struct AcknowledgmentStats {
-    own_index: AuthorityIndex,
-    max_acknowledgments: usize,
-    /// Acknowledgment depth counts, indexed by voter and author. Bucket `i`
-    /// counts depth `i + 1`.
-    depths: Vec<Vec<[u16; ACK_DEPTH_BUCKETS]>>,
-    /// Per voter: our blocks that referenced its block of the previous round.
-    referenced: Vec<u16>,
-    /// Our blocks counted in `referenced`.
-    own_blocks: u16,
-    /// Per voter: its blocks that referenced our previous-round block carrying
-    /// transactions.
-    saw_our_block: Vec<u16>,
-    /// Per voter: those of them that also acknowledged it.
-    had_our_data: Vec<u16>,
-    halved_at_round: Round,
-}
-
-impl AcknowledgmentStats {
-    fn new(context: &Context) -> Self {
-        let committee_size = context.committee.size();
-        Self {
-            own_index: context.own_index,
-            max_acknowledgments: context
-                .protocol_config
-                .max_acknowledgments_per_block(committee_size),
-            depths: vec![vec![[0; ACK_DEPTH_BUCKETS]; committee_size]; committee_size],
-            referenced: vec![0; committee_size],
-            own_blocks: 0,
-            saw_our_block: vec![0; committee_size],
-            had_our_data: vec![0; committee_size],
-            halved_at_round: GENESIS_ROUND,
-        }
-    }
-
-    fn halve_if_due(&mut self, clock_round: Round) {
-        if clock_round < self.halved_at_round + ACK_STATS_HALVING_ROUNDS {
-            return;
-        }
-        self.depths
-            .iter_mut()
-            .flatten()
-            .flatten()
-            .chain(&mut self.referenced)
-            .chain(&mut self.saw_our_block)
-            .chain(&mut self.had_our_data)
-            .for_each(|count| *count /= 2);
-        self.own_blocks /= 2;
-        self.halved_at_round = clock_round;
-    }
-
-    /// Records `block_header`. Other authors' leader blocks choose their
-    /// acknowledgments, so they add no samples. `our_previous` is our block of
-    /// the previous round if it carries transactions.
-    fn record(
-        &mut self,
-        block_header: &VerifiedBlockHeader,
-        leader_block: bool,
-        our_previous: Option<BlockRef>,
-    ) {
-        let voter = block_header.author();
-        let round = block_header.round();
-        if voter == self.own_index {
-            self.own_blocks = self.own_blocks.saturating_add(1);
-            for ancestor in block_header.ancestors() {
-                if ancestor.round + 1 == round {
-                    let count = &mut self.referenced[ancestor.author];
-                    *count = count.saturating_add(1);
-                }
-            }
-            return;
-        }
-        // A block after a skipped round, or at the cap, acknowledges some refs
-        // later than their data arrived.
-        let acknowledgments = block_header.acknowledgments();
-        let follows_previous_round = block_header
-            .ancestors()
-            .first()
-            .is_some_and(|own_previous| own_previous.round + 1 == round);
-        if leader_block
-            || !follows_previous_round
-            || acknowledgments.len() >= self.max_acknowledgments
-        {
-            return;
-        }
-        for ack in acknowledgments.iter().filter(|ack| ack.author != voter) {
-            let depth = round
-                .saturating_sub(ack.round)
-                .clamp(1, ACK_DEPTH_BUCKETS as Round);
-            let count = &mut self.depths[voter][ack.author][depth as usize - 1];
-            *count = count.saturating_add(1);
-        }
-        if let Some(ours) = our_previous.filter(|ours| block_header.ancestors().contains(ours)) {
-            let seen = &mut self.saw_our_block[voter];
-            *seen = seen.saturating_add(1);
-            if acknowledgments.contains(&ours) {
-                let had = &mut self.had_our_data[voter];
-                *had = had.saturating_add(1);
-            }
-        }
-    }
-
-    /// Whether `voter` usually acknowledges `author`'s blocks within `depth`
-    /// rounds. Samples in the last bucket count against it at every depth.
-    fn is_on_time(&self, voter: AuthorityIndex, author: AuthorityIndex, depth: Round) -> bool {
-        let counts = &self.depths[voter][author];
-        let total = counts.iter().map(|&count| u32::from(count)).sum();
-        // The last bucket has no upper depth, so age alone must not make its
-        // samples count as on time.
-        let within = counts
-            .iter()
-            .take((depth as usize).min(ACK_DEPTH_BUCKETS - 1))
-            .map(|&count| u32::from(count))
-            .sum();
-        usually(within, total)
-    }
-
-    /// Whether `voter` usually has our transactions by the time it references
-    /// our block.
-    fn has_our_data(&self, voter: AuthorityIndex) -> bool {
-        usually(
-            self.had_our_data[voter].into(),
-            self.saw_our_block[voter].into(),
-        )
-    }
-
-    /// Per voter, its stake times the number of our blocks that referenced its
-    /// block of the previous round, and the weight of a quorum of stake in the
-    /// same units. With too few samples every voter counts as referenced.
-    fn voter_weights(&self, committee: &Committee) -> (Vec<u64>, u64) {
-        let own_blocks = u64::from(self.own_blocks).max(1);
-        let few_samples = u32::from(self.own_blocks) < ACK_STATS_MIN_SAMPLES;
-        let weights = committee
-            .authorities()
-            .map(|(voter, authority)| {
-                let referenced = if few_samples || voter == self.own_index {
-                    own_blocks
-                } else {
-                    u64::from(self.referenced[voter])
-                };
-                authority.stake * referenced
-            })
-            .collect();
-        (weights, committee.quorum_threshold() * own_blocks)
-    }
-
-    /// Chooses what our leader block at `clock_round` leaves out: refs from
-    /// `pending`, and our transactions if `has_transactions`. Returns the refs
-    /// to defer and whether to leave out our transactions.
-    fn acknowledgments_to_defer<'a>(
-        &self,
-        committee: &Committee,
-        clock_round: Round,
-        pending: impl IntoIterator<Item = &'a BlockRef>,
-        has_transactions: bool,
-    ) -> (BTreeSet<BlockRef>, bool) {
-        // A vote counts in a strong certificate only when the next round's
-        // blocks reference it.
-        let (weights, quorum) = self.voter_weights(committee);
-        let weight_of =
-            |voters: &AuthoritySet| -> u64 { voters.iter().map(|voter| weights[voter]).sum() };
-        let holders = |holds: &dyn Fn(AuthorityIndex) -> bool| {
-            let mut holders = AuthoritySet::new();
-            for (voter, _) in committee.authorities() {
-                if voter == self.own_index || holds(voter) {
-                    holders.insert(voter);
-                }
-            }
-            holders
-        };
-        let mut voters = holders(&|_| true);
-        let total = weight_of(&voters);
-        let mut deferred = BTreeSet::new();
-        // Each of our blocks references a quorum of the previous round, so
-        // this fails only just after the counts are halved.
-        if total < quorum {
-            return (deferred, false);
-        }
-        let mut candidates: Vec<(u64, Option<BlockRef>, AuthoritySet)> = pending
-            .into_iter()
-            .map(|ack| {
-                let depth = clock_round + 1 - ack.round;
-                let holders = holders(&|voter| {
-                    voter == ack.author || self.is_on_time(voter, ack.author, depth)
-                });
-                (total - weight_of(&holders), Some(*ack), holders)
-            })
-            .collect();
-        if has_transactions {
-            let holders = holders(&|voter| self.has_our_data(voter));
-            candidates.push((total - weight_of(&holders), None, holders));
-        }
-        // Keep candidates, those the least weight would lack first, while the
-        // voters expected to hold everything kept weigh a quorum. Ties go by
-        // digest, so no author is always the one left out.
-        candidates.sort_unstable_by_key(|(lost, ack, _)| {
-            (*lost, ack.map(|ack| (ack.round, ack.digest, ack.author)))
-        });
-        let mut leave_out_transactions = false;
-        for (_, ack, holders) in candidates {
-            let kept = voters.intersection(&holders);
-            if weight_of(&kept) >= quorum {
-                voters = kept;
-            } else if let Some(ack) = ack {
-                deferred.insert(ack);
-            } else {
-                leave_out_transactions = true;
-            }
-        }
-        (deferred, leave_out_transactions)
-    }
-}
-
-/// Whether `hits` make up the on-time share of `total`, counting too few
-/// samples as on time.
-fn usually(hits: u32, total: u32) -> bool {
-    total < ACK_STATS_MIN_SAMPLES || hits * 100 >= total * ACK_STATS_ON_TIME_PERCENT
-}
-
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
 /// The rest of blocks are stored on disk.
@@ -557,10 +324,6 @@ pub(crate) struct DagState {
         watch::Sender<EvictionRounds>,
     )>,
 
-    /// Recent acknowledgment timing, used to choose the acknowledgments of our
-    /// leader blocks.
-    acknowledgment_stats: AcknowledgmentStats,
-
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
     dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
@@ -656,7 +419,6 @@ impl DagState {
             unscored_committed_subdags.len()
         );
 
-        let acknowledgment_stats = AcknowledgmentStats::new(&context);
         let mut state = Self {
             context,
             genesis,
@@ -687,7 +449,6 @@ impl DagState {
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
-            acknowledgment_stats,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
         };
@@ -836,7 +597,6 @@ impl DagState {
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
         self.misbehavior_store.reset();
-        self.acknowledgment_stats = AcknowledgmentStats::new(&self.context);
 
         // 2. Reinitialize threshold_clock with current round
         let current_round = self.threshold_clock.get_round();
@@ -3070,56 +2830,8 @@ impl DagState {
         &self.misbehavior_store
     }
 
-    /// Records an accepted header in the statistics that choose our leader
-    /// blocks' acknowledgments. `leader_block` is whether it is the leader
-    /// block of its round.
-    pub(crate) fn record_acknowledgment_stats(
-        &mut self,
-        block_header: &VerifiedBlockHeader,
-        leader_block: bool,
-    ) {
-        if !self.context.adaptive_acknowledgments_enabled() {
-            return;
-        }
-        self.acknowledgment_stats
-            .halve_if_due(self.threshold_clock_round());
-        let our_previous = self.own_block_with_transactions(block_header.round().saturating_sub(1));
-        self.acknowledgment_stats
-            .record(block_header, leader_block, our_previous);
-    }
-
-    /// Returns the pending acknowledgments to leave out of our leader block at
-    /// the clock round, and whether to leave out our transactions, given
-    /// whether we have any. What is left out waits for our next block.
-    pub(crate) fn acknowledgments_to_defer(
-        &self,
-        has_transactions: bool,
-    ) -> (BTreeSet<BlockRef>, bool) {
-        let clock_round = self.threshold_clock_round();
-        let min_round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
-        self.acknowledgment_stats.acknowledgments_to_defer(
-            &self.context.committee,
-            clock_round,
-            self.pending_acknowledgments.range(
-                BlockRef::new(min_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN)
-                    ..BlockRef::new(clock_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN),
-            ),
-            has_transactions,
-        )
-    }
-
-    /// Our block at `round`, if we hold it and it carries transactions.
-    fn own_block_with_transactions(&self, round: Round) -> Option<BlockRef> {
-        let own_index = self.context.own_index;
-        self.recent_block_headers
-            .range(
-                BlockRef::new(round, own_index, BlockHeaderDigest::MIN)
-                    ..=BlockRef::new(round, own_index, BlockHeaderDigest::MAX),
-            )
-            .find(|(_, header)| {
-                header.transactions_commitment() != self.context.empty_transactions_commitment
-            })
-            .map(|(block_ref, _)| *block_ref)
+    pub(crate) fn pending_acknowledgments(&self) -> &BTreeSet<BlockRef> {
+        &self.pending_acknowledgments
     }
 
     /// Loads the committed subdags in `range` from stored commits, for

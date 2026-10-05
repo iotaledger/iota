@@ -178,11 +178,11 @@ pub struct Parameters {
     pub enable_commit_sync_peer_selection_by_commit_votes: bool,
 
     /// Enable adaptive acknowledgment filtering for StarfishSpeed.
-    /// Local heuristic that leaves out of leader blocks the acknowledgments,
-    /// and this node's own transactions, that the voters are not expected to
-    /// hold at the next round, judged from how soon they acknowledged recent
-    /// blocks. Voters count by how often this node's blocks reference them.
-    /// What is left out goes into later blocks. Effective only when the
+    /// Local heuristic that leaves out of leader blocks the acknowledgments
+    /// that the voters are not expected to hold at the next round, judged
+    /// from how soon they acknowledged recent blocks. Voters count by how
+    /// often this node's blocks reference them. Deferred acknowledgments go
+    /// into later blocks. Effective only when the
     /// protocol-level `consensus_starfish_speed` flag is also on.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,

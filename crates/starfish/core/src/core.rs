@@ -33,6 +33,7 @@ use crate::storage::rocksdb_store::RocksDBStore;
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
 use crate::{
     Transaction,
+    acknowledgment_stats::AcknowledgmentStats,
     authority_set::AuthoritySet,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
@@ -63,6 +64,9 @@ pub(crate) struct Core {
     /// The consumer to use in order to pull transactions to be included for the
     /// next proposals
     transaction_consumer: TransactionConsumer,
+    /// How soon voters acknowledge blocks; chooses our leader blocks'
+    /// acknowledgments.
+    acknowledgment_stats: AcknowledgmentStats,
     /// The block manager which is responsible for keeping track of the DAG
     /// dependencies when processing new blocks and accept them or suspend
     /// if we are missing their causal history
@@ -272,6 +276,7 @@ impl Core {
         }
 
         Self {
+            acknowledgment_stats: AcknowledgmentStats::new(context.committee.size()),
             context,
             last_signaled_round,
             last_included_ancestors,
@@ -1037,8 +1042,6 @@ impl Core {
             .any(|slot| slot.authority == self.context.own_index);
         let adaptive_acknowledgments =
             am_leader_at_clock_round && self.context.adaptive_acknowledgments_enabled();
-        let has_transactions =
-            adaptive_acknowledgments && self.transaction_consumer.has_transactions();
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
@@ -1046,38 +1049,24 @@ impl Core {
             .context
             .protocol_config
             .max_acknowledgments_per_block(self.context.committee.size());
-        let (acknowledgments, leave_out_transactions) = {
+        let acknowledgments = {
             let mut dag_state = self.dag_state.write();
-            let (deferred, leave_out_transactions) = if adaptive_acknowledgments {
-                dag_state.acknowledgments_to_defer(has_transactions)
+            let deferred = if adaptive_acknowledgments {
+                self.acknowledgment_stats.acknowledgments_to_defer(
+                    &self.context,
+                    clock_round,
+                    dag_state.pending_acknowledgments(),
+                )
             } else {
-                (BTreeSet::new(), false)
+                BTreeSet::new()
             };
-            (
-                dag_state.take_acknowledgments(max_acknowledgments, &deferred),
-                leave_out_transactions,
-            )
+            dag_state.take_acknowledgments(max_acknowledgments, &deferred)
         };
 
         // Consume the next transactions to be included. Do not drop the guards yet as
         // this would acknowledge the inclusion of transactions. Just let this
-        // be done in the end of the method. A leader block takes only
-        // transactions whose holders it checked; the rest wait for the next block.
-        if leave_out_transactions {
-            self.context
-                .metrics
-                .node_metrics
-                .adaptive_ack_leader_blocks_without_transactions
-                .inc();
-        }
-        let (transactions, ack_transactions): (_, Box<dyn FnOnce(GenericTransactionRef)>) =
-            if !adaptive_acknowledgments || (has_transactions && !leave_out_transactions) {
-                let (transactions, ack_transactions, _limit_reached) =
-                    self.transaction_consumer.next();
-                (transactions, ack_transactions)
-            } else {
-                (Vec::new(), Box::new(|_| {}))
-            };
+        // be done in the end of the method.
+        let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
         // Serialize the transaction
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
@@ -1658,21 +1647,19 @@ impl Core {
 
     /// Feeds freshly-accepted headers to the acknowledgment statistics,
     /// marking the leader block of each round.
-    fn record_acknowledgment_stats(&self, block_headers: &[VerifiedBlockHeader]) {
+    fn record_acknowledgment_stats(&mut self, block_headers: &[VerifiedBlockHeader]) {
         if block_headers.is_empty() || !self.context.adaptive_acknowledgments_enabled() {
             return;
         }
-        let leader_blocks: Vec<bool> = block_headers
-            .iter()
-            .map(|header| {
-                self.leaders(header.round())
-                    .iter()
-                    .any(|slot| slot.authority == header.author())
-            })
-            .collect();
-        let mut dag_state = self.dag_state.write();
-        for (header, leader_block) in block_headers.iter().zip(leader_blocks) {
-            dag_state.record_acknowledgment_stats(header, leader_block);
+        self.acknowledgment_stats
+            .halve_if_due(self.dag_state.read().threshold_clock_round());
+        for header in block_headers {
+            let leader_block = self
+                .leaders(header.round())
+                .iter()
+                .any(|slot| slot.authority == header.author());
+            self.acknowledgment_stats
+                .record(&self.context, header, leader_block);
         }
     }
 
