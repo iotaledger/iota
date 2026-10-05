@@ -104,9 +104,9 @@ authority-store-pruning-config:
 This setup manages secondary indexing in addition to the latest state, but aggressively prunes historic data. A full node with this configuration:
 
 - Answers RPC queries that require indexing, like `iotax_getBalance()`.
-- Answers RPC queries that require historic transactions via a fallback to retrieve the data from a remote key-value store: `iota_getTransactionBlock()`.
-- Cannot answer RPC queries that require historic object versions: `iota_tryGetPastObject()`.
-  - The `showBalanceChanges` filter of `iota_getTransactionBlock()` relies on historic object versions, so it cannot work with this configuration.
+- Answers RPC queries that require historic transactions via a fallback to retrieve the data from a remote key-value store, set with `transaction-kv-store-read-config.base-url`: `iota_getTransactionBlock()` on JSON-RPC and `GetTransactions` on gRPC, including its input and output objects when the store holds those versions.
+  - The `showBalanceChanges` filter of `iota_getTransactionBlock()` relies on historic object versions, so it works only when the store holds those versions.
+- Cannot answer other RPC queries that require historic object versions, like `iota_tryGetPastObject()`. Other gRPC methods, like `GetCheckpoint` and `GetObjects`, use only the data on the node.
 
 ```yaml
 authority-store-pruning-config:
@@ -114,6 +114,10 @@ authority-store-pruning-config:
   num-epochs-to-retain: 0
   # Prune historic transactions of past epochs
   num-epochs-to-retain-for-checkpoints: 2
+
+transaction-kv-store-read-config:
+  # Remote key-value store that serves pruned transactions
+  base-url: "<key-value store URL>"
 ```
 
 ### Full Node with Full Object History but Pruned Transaction History
