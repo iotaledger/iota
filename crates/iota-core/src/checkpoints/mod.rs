@@ -255,6 +255,9 @@ pub struct CheckpointStore {
     full_checkpoint_contents_cache: FullCheckpointContentsCache,
     synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
     executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
+    locally_computed_checkpoint_notify_read:
+        NotifyRead<CheckpointSequenceNumber, CheckpointSummary>,
+    epoch_last_checkpoint_notify_read: NotifyRead<EpochId, CheckpointSequenceNumber>,
 }
 
 impl CheckpointStore {
@@ -282,6 +285,8 @@ impl CheckpointStore {
             full_checkpoint_contents_cache: contents_cache,
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
+            locally_computed_checkpoint_notify_read: NotifyRead::new(),
+            epoch_last_checkpoint_notify_read: NotifyRead::new(),
         })
     }
 
@@ -654,6 +659,14 @@ impl CheckpointStore {
             )?;
         batch.write()?;
 
+        for checkpoint in checkpoints
+            .iter()
+            .filter(|c| c.next_epoch_committee().is_some())
+        {
+            self.epoch_last_checkpoint_notify_read
+                .notify(&checkpoint.epoch(), &checkpoint.sequence_number());
+        }
+
         for checkpoint in checkpoints {
             if let Some(local_checkpoint) = self
                 .tables
@@ -793,6 +806,49 @@ impl CheckpointStore {
                 .expect("db error")
         })
         .await
+    }
+
+    /// Waits until this node's checkpoint builder has built checkpoint `seq`.
+    pub async fn notify_read_locally_computed_checkpoint(
+        &self,
+        seq: CheckpointSequenceNumber,
+    ) -> CheckpointSummary {
+        self.locally_computed_checkpoint_notify_read
+            .read("notify_read_locally_computed_checkpoint", &[seq], |seqs| {
+                Ok::<_, TypedStoreError>(vec![self.get_locally_computed_checkpoint(seqs[0])?])
+            })
+            .await
+            .expect("db error")
+            .pop()
+            .expect("one key requested")
+    }
+
+    pub(crate) fn notify_locally_computed_checkpoints<'a>(
+        &self,
+        summaries: impl IntoIterator<Item = &'a CheckpointSummary>,
+    ) {
+        for summary in summaries {
+            self.locally_computed_checkpoint_notify_read
+                .notify(&summary.sequence_number, summary);
+        }
+    }
+
+    /// Waits until the certified last checkpoint of `epoch` is known and
+    /// returns its sequence number.
+    pub async fn notify_read_epoch_last_checkpoint_seq_number(
+        &self,
+        epoch: EpochId,
+    ) -> CheckpointSequenceNumber {
+        self.epoch_last_checkpoint_notify_read
+            .read("notify_read_epoch_last_checkpoint", &[epoch], |epochs| {
+                Ok::<_, TypedStoreError>(vec![
+                    self.get_epoch_last_checkpoint_seq_number(epochs[0])?,
+                ])
+            })
+            .await
+            .expect("db error")
+            .pop()
+            .expect("one key requested")
     }
 
     pub fn update_highest_executed_checkpoint(
@@ -1017,6 +1073,8 @@ impl CheckpointStore {
         self.tables
             .epoch_last_checkpoint_map
             .insert(&epoch_id, &checkpoint.sequence_number())?;
+        self.epoch_last_checkpoint_notify_read
+            .notify(&epoch_id, &checkpoint.sequence_number());
         Ok(())
     }
 
@@ -1624,6 +1682,8 @@ impl CheckpointBuilder {
         }
 
         batch.write()?;
+        self.store
+            .notify_locally_computed_checkpoints(new_checkpoints.iter().map(|c| &c.summary));
 
         // Cache the full contents only now that the checkpoint_content rows
         // are durable
