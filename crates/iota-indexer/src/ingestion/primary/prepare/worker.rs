@@ -50,8 +50,8 @@ impl Worker for PrimaryWorker {
         let time_now_ms = chrono::Utc::now().timestamp_millis();
         let cp_download_lag = time_now_ms - checkpoint.checkpoint_summary.timestamp_ms as i64;
         info!(
-            "checkpoint download lag for cp {}: {} ms",
-            checkpoint.checkpoint_summary.sequence_number, cp_download_lag
+            "checkpoint download lag for cp {}: {cp_download_lag} ms",
+            checkpoint.checkpoint_summary.sequence_number
         );
         self.metrics.download_lag_ms.set(cp_download_lag);
         self.metrics
@@ -61,9 +61,8 @@ impl Worker for PrimaryWorker {
             .downloaded_checkpoint_timestamp_ms
             .set(checkpoint.checkpoint_summary.timestamp_ms as i64);
         info!(
-            "Indexer lag: downloaded checkpoint {} with time now {} and checkpoint time {}",
+            "Indexer lag: downloaded checkpoint {} with time now {time_now_ms} and checkpoint time {}",
             checkpoint.checkpoint_summary.sequence_number,
-            time_now_ms,
             checkpoint.checkpoint_summary.timestamp_ms
         );
 
