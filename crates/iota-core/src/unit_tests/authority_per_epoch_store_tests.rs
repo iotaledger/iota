@@ -1987,3 +1987,34 @@ async fn verify_consensus_transaction_mirrors_feature_gates(
         );
     }
 }
+
+/// Starting to execute synced checkpoints is visible at once, and returns only
+/// once the consensus handler is between commits.
+#[tokio::test]
+async fn start_executing_synced_checkpoints_waits_for_the_commit_in_progress() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing().clone();
+    assert!(!store.is_executing_synced_checkpoints());
+
+    // The consensus handler is in the middle of a commit.
+    let commit_guard = store.lock_consensus_commit().await;
+    let start = tokio::spawn({
+        let store = store.clone();
+        async move { store.start_executing_synced_checkpoints().await }
+    });
+    timeout(
+        Duration::from_secs(5),
+        store.wait_for_synced_checkpoint_execution(),
+    )
+    .await
+    .unwrap();
+    assert!(store.is_executing_synced_checkpoints());
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!start.is_finished());
+
+    drop(commit_guard);
+    timeout(Duration::from_secs(5), start)
+        .await
+        .unwrap()
+        .unwrap();
+}

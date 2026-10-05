@@ -6,6 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_metrics::spawn_monitored_task;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{CheckpointCommitment, EndOfEpochData, GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
@@ -207,14 +208,20 @@ pub async fn test_notify_read_epoch_last_checkpoint() {
     assert_eq!(seq, end_of_epoch.sequence_number());
 }
 
-/// A committee validator does not execute a synced checkpoint it has not
-/// built while its epoch is running, and executes it from the synced data
-/// once the certified last checkpoint of the epoch is known.
+/// With `committee_validators_skip_synced_checkpoint_execution`, a committee validator does not
+/// execute a synced checkpoint it has not built while its epoch is running.
+/// Once the certified last checkpoint of the epoch is known, it switches to
+/// executing synced checkpoints for the rest of the epoch.
 #[tokio::test]
 pub async fn test_validator_waits_for_local_build_until_epoch_end() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_committee_validators_skip_synced_checkpoint_execution_for_testing(true);
+        config
+    });
     let checkpoint_store = CheckpointStore::new_for_tests();
-    let (_state, executor, _hasher, committee) =
+    let (state, executor, _hasher, committee) =
         init_executor_test(checkpoint_store.clone(), true).await;
+    let epoch_store = state.epoch_store_for_testing().clone();
     let checkpoints = sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
     let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
 
@@ -227,6 +234,7 @@ pub async fn test_validator_waits_for_local_build_until_epoch_end() {
             .unwrap(),
         Some(0)
     );
+    assert!(!epoch_store.is_executing_synced_checkpoints());
 
     // The certified end of the epoch becomes known, but is not marked synced,
     // so the executor does not try to execute it.
@@ -250,6 +258,40 @@ pub async fn test_validator_waits_for_local_build_until_epoch_end() {
     })
     .await
     .expect("checkpoint 1 should execute from synced data after the epoch ended");
+    assert!(epoch_store.is_executing_synced_checkpoints());
+    executor_handle.abort();
+}
+
+/// Without `committee_validators_skip_synced_checkpoint_execution`, a committee validator executes
+/// a synced checkpoint it has not built at once.
+#[tokio::test]
+pub async fn test_validator_executes_synced_checkpoints_without_the_flag() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_committee_validators_skip_synced_checkpoint_execution_for_testing(false);
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    timeout(Duration::from_secs(30), async {
+        while checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            != Some(1)
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("checkpoint 1 should execute from synced data at once");
+    assert!(
+        !state
+            .epoch_store_for_testing()
+            .is_executing_synced_checkpoints()
+    );
     executor_handle.abort();
 }
 
