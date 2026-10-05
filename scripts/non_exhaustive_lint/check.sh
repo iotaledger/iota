@@ -10,10 +10,11 @@
 #   checks `match` wildcards only, and a future variant takes their else side.
 # - Code behind cfg(not(feature = ..)) (the run uses --all-features), cfg(msim),
 #   or a target cfg the runner does not match; external-crates/move; doctests.
-# - rustc names at most three uncovered variants plus "and N more", so adding one
-#   variant and removing another beyond the third leaves the key unchanged, and
-#   replacing one wildcard site by another with the same key in the same file
-#   keeps sites=N.
+# - An allowlisted match: the key has no variants, so the enum gaining one keeps
+#   it green; replacing one wildcard match by another on the same type in the
+#   same file keeps sites=N.
+# - A match in a macro_rules! body whose scrutinee is written in the body (not
+#   passed in): every invocation reports the same site, so a new one keeps sites=N.
 set -uo pipefail
 # comm and sort must agree on collation; comm silently drops lines otherwise.
 export LC_ALL=C
@@ -38,8 +39,7 @@ pkgs_file="$(mktemp "${TMPDIR:-/tmp}/nelint-pkgs.XXXXXX")"
 members_file="$(mktemp "${TMPDIR:-/tmp}/nelint-members.XXXXXX")"
 log_file="$(mktemp "${TMPDIR:-/tmp}/nelint-out.XXXXXX")"
 findings="$(mktemp "${TMPDIR:-/tmp}/nelint-findings.XXXXXX")"
-allowed="$(mktemp "${TMPDIR:-/tmp}/nelint-allowed.XXXXXX")"
-trap 'rm -f "$pkgs_file" "$members_file" "$log_file" "$findings" "$allowed"' EXIT
+trap 'rm -f "$pkgs_file" "$members_file" "$log_file" "$findings"' EXIT
 
 cargo metadata --no-deps --format-version 1 \
   | jq -r '.packages[].name' | sort -u > "$members_file"
@@ -93,43 +93,11 @@ if [[ "$mode" == "--allow-all" ]]; then
     echo "# Allow one finding by adding its exact line from the CI diff (any order, optionally followed by \`# reason\`);"
     echo "# allow all current findings with \`scripts/non_exhaustive_lint/check.sh --allow-all\` (drops the reasons)."
     echo "# Remove lines the check reports as no longer found."
-    echo "# file | matched type | variants or fields not covered, as rustc lists them | sites=<number of match sites>"
+    echo "# file | matched type | sites=<number of match or struct pattern sites with a wildcard on that type in that file>"
     cat "$findings"
   } > "$ALLOWLIST" || { echo "ERROR: could not write $ALLOWLIST." >&2; exit 1; }
   echo "allowlist.txt written with all $n_findings current findings. Review it and commit it."
   exit 0
 fi
 
-if [[ ! -f "$ALLOWLIST" ]]; then
-  echo "ERROR: no allowlist at $ALLOWLIST. Commit one (comment lines only for an empty allowlist, or \`$0 --allow-all\` to allow every current finding)." >&2
-  exit 1
-fi
-
-# Keys never contain "#", so a trailing "# reason" can be stripped.
-grep -v '^#' "$ALLOWLIST" | sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//' \
-  | grep -v '^$' | sort > "$allowed"
-n_allowed=$(wc -l < "$allowed")
-
-if diff_out="$(diff -u --label allowlist.txt --label findings "$allowed" "$findings")"; then
-  echo "findings match the allowlist ($n_findings entries)"
-  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-    printf '\n## Allowlist\n\nAll %s findings are in the allowlist.\n' "$n_findings" >> "$GITHUB_STEP_SUMMARY"
-  fi
-  exit 0
-fi
-
-printf '%s\n' "$diff_out"
-cat >&2 <<EOF
-ERROR: $n_findings findings, $n_allowed allowed; they differ (diff above).
-  "+": a finding not in the allowlist. Handle the listed variants at that match, or allow it by
-  adding the exact line to scripts/non_exhaustive_lint/allowlist.txt (optionally followed by
-  "# reason"). "-": an allowlist entry no longer found; remove it.
-EOF
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-  {
-    printf '\n## Findings not in the allowlist\n\n'
-    printf '`+` is a finding not in `scripts/non_exhaustive_lint/allowlist.txt`: handle it at that match, or allow it by adding the exact line (optionally followed by `# reason`). `-` is an allowlist entry no longer found: remove it.\n\n'
-    printf '```diff\n%s\n```\n' "$diff_out"
-  } >> "$GITHUB_STEP_SUMMARY"
-fi
-exit 1
+"$here/compare.sh" "$ALLOWLIST" "$findings"
