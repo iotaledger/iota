@@ -2476,6 +2476,18 @@ secp256k1_verify
 PublicKey
 	public struct
 	0x2::public_key
+PublicKeyFieldName
+	public struct
+	0x2::public_key
+PublicKeyAttached
+	public struct
+	0x2::public_key
+PublicKeyDetached
+	public struct
+	0x2::public_key
+PublicKeyRotated
+	public struct
+	0x2::public_key
 from_prefixed_bytes
 	public fun
 	0x2::public_key
@@ -2491,6 +2503,33 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
+attach_public_key
+	public fun
+	0x2::public_key
+detach_public_key
+	public fun
+	0x2::public_key
+rotate_public_key
+	public fun
+	0x2::public_key
+has_public_key
+	public fun
+	0x2::public_key
+borrow_public_key
+	public fun
+	0x2::public_key
+public_key_field_name
+	public(package) fun
+	0x2::public_key
+emit_public_key_attached
+	public(package) fun
+	0x2::public_key
+emit_public_key_detached
+	public(package) fun
+	0x2::public_key
+emit_public_key_rotated
+	public(package) fun
+	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
@@ -2503,43 +2542,13 @@ is_feature_enabled
 get_attr
 	public(package) fun
 	0x2::protocol_config
-PublicKeyAttached
-	public struct
-	0x2::builtin_authenticator_functions
-PublicKeyDetached
-	public struct
-	0x2::builtin_authenticator_functions
-PublicKeyRotated
-	public struct
-	0x2::builtin_authenticator_functions
-PublicKeyFieldName
-	public struct
-	0x2::builtin_authenticator_functions
 builtin_authenticator_function_ref_v1
-	public fun
-	0x2::builtin_authenticator_functions
-attach_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-detach_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-rotate_public_key
 	public fun
 	0x2::builtin_authenticator_functions
 is_builtin_authenticator
 	public fun
 	0x2::builtin_authenticator_functions
-has_public_key
-	public fun
-	0x2::builtin_authenticator_functions
-borrow_public_key
-	public fun
-	0x2::builtin_authenticator_functions
 builtin_authenticator_v1
-	fun
-	0x2::builtin_authenticator_functions
-public_key_field_name
 	fun
 	0x2::builtin_authenticator_functions
 check_builtin_authenticators_enabled
@@ -3793,6 +3802,9 @@ builder_v1
 with_field
 	public fun
 	0x2::smart_account
+builder_account_address
+	public fun
+	0x2::smart_account
 build_v1
 	public fun
 	0x2::smart_account
@@ -3827,15 +3839,6 @@ rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
 new_claim_builder
-	public(package) fun
-	0x2::smart_account
-builder_uid_mut
-	public(package) fun
-	0x2::smart_account
-uid
-	public(package) fun
-	0x2::smart_account
-uid_mut
 	public(package) fun
 	0x2::smart_account
 with_public_key
