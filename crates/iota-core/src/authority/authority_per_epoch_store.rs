@@ -2469,9 +2469,16 @@ impl AuthorityPerEpochStore {
             .expect("soft_locks should only be set once");
     }
 
+    /// Wires the effects reader of the quarantine flush and the execution
+    /// watcher. With the P-COOL deterministic-validation flag off nothing reads
+    /// it, and a call after the first leaves the first reader in place.
+    ///
+    /// # Panics
+    /// Panics if called more than once on the same instance with the flag on.
     pub fn set_effects_store(&self, effects_store: Arc<dyn TransactionCacheRead>) {
+        let first_set = self.effects_store.set(effects_store).is_ok();
         assert!(
-            self.effects_store.set(effects_store).is_ok(),
+            first_set || !self.protocol_config.pcool_deterministic_validation(),
             "effects_store should only be set once"
         );
     }
