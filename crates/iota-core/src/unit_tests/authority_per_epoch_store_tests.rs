@@ -2168,6 +2168,15 @@ mod handler_object_state_storage {
             .unwrap();
     }
 
+    fn generate_wrapped_entry(produced_at: CommitIndex) -> HandlerProcessedObject {
+        HandlerProcessedObject {
+            digest: ObjectDigest::random(),
+            kind: HandlerProcessedObjectKind::Wrapped,
+            produced_at,
+            initial_shared_version: None,
+        }
+    }
+
     #[tokio::test]
     async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2482,6 +2491,132 @@ mod handler_object_state_storage {
         assert_eq!(
             reopened.sync_ahead_record(&mutated).unwrap(),
             Some(fresh_record)
+        );
+    }
+
+    /// A sync-ahead chain wraps the object; after the handler caught up past
+    /// the wrap, a new chain unwraps it, canceling the queued deletion of the
+    /// wrap chain's record in memory only. After a restart that dead record
+    /// is back in the table with no deletion queued against it. The re-executed
+    /// unwrap consumes no version, but the dead record's head has the handler
+    /// row written when the handler caught up, so the unwrap must start a new
+    /// chain with no base version rather than inherit the dead record's base.
+    #[tokio::test]
+    async fn reexecuted_sync_unwrap_after_restart_does_not_extend_a_dead_record() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        // A sync-ahead chain wraps the object, and its record is durable.
+        let wrapped = ObjectId::random();
+        let wrap_tx = owned_inputs_tx(1);
+        let wrap_gas = wrap_tx.transaction().gas()[0].object_id;
+        let wrap_effects = TestEffectsBuilder::new(&wrap_tx)
+            .with_wrapped_objects([(wrapped, Version::from_u64(5))])
+            .build();
+        let wrap_inputs = vec![owned_object(wrapped, 5), owned_object(wrap_gas, 1)];
+        execute_sync_ahead(&epoch_store, &wrap_effects, &wrap_inputs);
+        let wrapped_version = wrap_effects.lamport_version();
+        let first_record = SyncAheadRecord {
+            base_version: Some(Version::from_u64(5)),
+            latest_created: wrapped_version,
+            initial_shared_version: None,
+        };
+        assert_eq!(
+            epoch_store.sync_ahead_record(&wrapped).unwrap(),
+            Some(first_record)
+        );
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(wrapped, first_record)], vec![])
+            .unwrap();
+
+        // The handler catches up past the wrap and a second chain unwraps the
+        // object before the queued deletion drains, canceling it.
+        let handler_rows = vec![(
+            ObjectKey(wrapped, wrapped_version),
+            generate_wrapped_entry(8),
+        )];
+        epoch_store.assign_commit_to_transactions(8, vec![]);
+        epoch_store
+            .record_commit_fully_executed(8, &handler_rows)
+            .unwrap();
+        let unwrap_tx = owned_inputs_tx(10);
+        let unwrap_gas = unwrap_tx.transaction().gas()[0].object_id;
+        let unwrap_effects = TestEffectsBuilder::new(&unwrap_tx)
+            .with_unwrapped_objects([(wrapped, Owner::Address(Address::ZERO))])
+            .build();
+        let unwrap_inputs = vec![owned_object(unwrap_gas, 10)];
+        assert!(unwrap_effects.lamport_version() > wrapped_version);
+        execute_sync_ahead(&epoch_store, &unwrap_effects, &unwrap_inputs);
+        let fresh_record = SyncAheadRecord {
+            base_version: None,
+            latest_created: unwrap_effects.lamport_version(),
+            initial_shared_version: None,
+        };
+        assert_eq!(
+            epoch_store.sync_ahead_record(&wrapped).unwrap(),
+            Some(fresh_record)
+        );
+
+        // Commit 8 flushes its row with no deletion left to drain; crash
+        // before the fresh record is durable.
+        epoch_store
+            .flush_commit_rows_for_testing(8, handler_rows)
+            .unwrap();
+        let reopened = reopen(&authority, &epoch_store);
+        assert_eq!(
+            reopened.sync_ahead_record(&wrapped).unwrap(),
+            Some(first_record)
+        );
+        execute_sync_ahead(&reopened, &unwrap_effects, &unwrap_inputs);
+        assert_eq!(
+            reopened.sync_ahead_record(&wrapped).unwrap(),
+            Some(fresh_record)
+        );
+    }
+
+    /// A handler-known transaction of a commit the handler registered
+    /// consumes the head of a sync-ahead chain and writes its row before the
+    /// commit completes, so the head itself has no handler row yet. A
+    /// sync-ahead write consuming that handler-known version must start a new
+    /// chain from it rather than extend the record and keep a base version
+    /// the handler has superseded.
+    #[tokio::test]
+    async fn handler_known_consumer_of_the_head_before_its_commit_completes_starts_a_new_chain() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
+        let chain_head = effects.lamport_version();
+
+        // Commit 8 holds a handler-known transaction consuming the chain's
+        // head; it executes, but the commit is not fully executed yet.
+        let (handler_effects, handler_inputs) =
+            executed_owned_tx_effects(mutated, chain_head.as_u64(), 2);
+        let handler_key = TransactionKey::Digest(*handler_effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(8, vec![handler_key]);
+        epoch_store
+            .record_executed_transaction(&handler_key, &handler_effects, &handler_inputs.as_slice())
+            .unwrap();
+        let handler_version = handler_effects.lamport_version();
+        assert!(
+            epoch_store
+                .handler_processed_object(&ObjectKey(mutated, chain_head))
+                .unwrap()
+                .is_none()
+        );
+
+        let (next_effects, next_inputs) =
+            executed_owned_tx_effects(mutated, handler_version.as_u64(), 3);
+        execute_sync_ahead(&epoch_store, &next_effects, &next_inputs);
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(SyncAheadRecord {
+                base_version: Some(handler_version),
+                latest_created: next_effects.lamport_version(),
+                initial_shared_version: None,
+            })
         );
     }
 
