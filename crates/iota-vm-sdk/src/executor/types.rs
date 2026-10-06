@@ -88,15 +88,15 @@ pub enum ExecutionMode {
     /// Relaxed input and Move VM checks; the store is never modified.
     ///
     /// Mirrors the node's `simulate_transaction` with `VmChecks::Disabled`:
-    /// inputs go through `check_dev_inspect_input`, and the VM allows arbitrary
-    /// function calls and arbitrary values and skips the conservation checks.
-    /// The declared gas budget is ignored in favour of `max_tx_gas`, capped at
-    /// the balance of a real gas payment.
+    /// inputs go through `check_simulation_input` plus a check that the gas
+    /// coins cover the budget, and the VM allows arbitrary function calls and
+    /// arbitrary values and skips the conservation checks. Unset gas price and
+    /// budget are filled in as for [`DryRun`](Self::DryRun).
     ///
     /// The VM-level relaxations do not reach a transaction that authorizes via
     /// a [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator): its engine
     /// entry point always runs under full VM semantics, so only the input
-    /// checks and the gas budget relax there. A run in this mode also captures
+    /// checks relax there. A run in this mode also captures
     /// no execution trace — see [`supports_tracing`](Self::supports_tracing).
     DevInspect,
     /// Full sign-time checks; the store is never modified. The default.

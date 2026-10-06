@@ -75,8 +75,8 @@ while `DevInspect` cannot, since `Normal` would drop its relaxations. See
 A `MoveAuthenticator` transaction runs under `Normal` for the body (and
 `Authentication` for the authenticators) in **every** SDK mode, because
 `authenticate_then_execute_transaction_to_effects` is not generic over the mode.
-In `DevInspect` only the input checks and the gas budget relax there; that path
-is traced in every mode.
+In `DevInspect` only the input checks relax there; that path is traced in every
+mode.
 
 ## SDK entry points and the phase each mirrors
 

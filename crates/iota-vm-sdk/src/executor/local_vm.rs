@@ -154,8 +154,6 @@ impl LocalVm {
             let backend = StoreBackend::new(self.store.as_ref());
             execute_prepared(&env, &backend, prepared, opts.mode, &mut trace_builder)?
         };
-        // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
-        // never captures a trace; pass `None`. See `DebugConfig::with_tracing`.
         let artifacts = env.collect_artifacts(trace_builder.map(ExecutionTrace::from_builder))?;
         self.finish(
             sim,
@@ -179,8 +177,8 @@ impl LocalVm {
     /// ([`ExecutionMode::Execute`]) as for [`execute`](Self::execute). When a
     /// `MoveAuthenticator` is present, the authenticators and the transaction
     /// body always execute under full (non-dev-inspect) VM semantics: in
-    /// [`ExecutionMode::DevInspect`] only the input checks and the gas budget
-    /// relax, and the VM-level relaxations do not apply.
+    /// [`ExecutionMode::DevInspect`] only the input checks relax, and the
+    /// VM-level relaxations do not apply.
     ///
     /// Signatures are verified against the transaction as supplied. Gas and
     /// owned-input references are then resolved against the store's versions,
