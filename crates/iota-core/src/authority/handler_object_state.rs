@@ -49,6 +49,14 @@
 //! - the checkpoint executor's auxiliary batch for a sync-executed checkpoint, durable before the
 //!   watermark bump: inserts sync-ahead records and sheltered bytes
 //!   ([`HandlerObjectState::write_sync_ahead_rows_to_batch`]).
+//!
+//! Both batches go through `DBBatch::write`, which does not fsync. Every
+//! ordering this module relies on between a durable write and what follows
+//! it - write-then-evict, rows before the deletions they answer for, the
+//! effects in the perpetual store before the rows derived from them - holds
+//! across a process crash, where the operating system keeps the written
+//! data, and not across a power loss or kernel crash, where either store may
+//! lose its tail independently of the other.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
