@@ -17,10 +17,7 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{
-    sync::{Mutex, broadcast, mpsc::Sender},
-    task::spawn_blocking,
-};
+use tokio::sync::{Mutex, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, error, info, warn};
 
@@ -52,6 +49,7 @@ use crate::{
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
+    task::spawn_blocking,
     transaction_ref::{GenericTransactionRef, TransactionRef},
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
@@ -1018,13 +1016,14 @@ impl TransactionCursor {
 fn transaction_chunk_stream(cursor: TransactionCursor) -> TransactionChunkStream {
     stream::unfold(Some(cursor), |state| async move {
         let mut cursor = state?;
-        let Ok((cursor, chunk)) = spawn_blocking(move || {
+        let (cursor, chunk) = match spawn_blocking(move || {
             let chunk = cursor.next_chunk();
             (cursor, chunk)
         })
         .await
-        else {
-            return Some((Err(ConsensusError::Shutdown), None));
+        {
+            Ok(built) => built,
+            Err(e) => return Some((Err(e), None)),
         };
         match chunk {
             Ok(Some(chunk)) => Some((Ok(chunk), Some(cursor))),
