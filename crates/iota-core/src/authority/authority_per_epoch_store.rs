@@ -2360,6 +2360,9 @@ impl AuthorityPerEpochStore {
 
         let mut quarantine = self.consensus_quarantine.write();
         let flushed = quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
+        // No fsync: the write-then-evict order below, and the order against the
+        // effects the rows were derived from, hold across a process crash
+        // only; see the `handler_object_state` module docs.
         batch.write()?;
         // Evict only after the corresponding entries are flushed to disk.
         self.evict_flushed_commit_rows(&flushed);

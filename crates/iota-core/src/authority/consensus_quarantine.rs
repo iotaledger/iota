@@ -677,6 +677,8 @@ impl ConsensusOutputQuarantine {
     pub(super) fn commit(&mut self, epoch_store: &AuthorityPerEpochStore) -> IotaResult {
         let mut batch = epoch_store.db_batch()?;
         let flushed = self.commit_with_batch(epoch_store, &mut batch)?;
+        // No fsync: the write-then-evict order holds across a process crash
+        // only; see the `handler_object_state` module docs.
         batch.write()?;
         epoch_store.evict_flushed_commit_rows(&flushed);
         Ok(())
