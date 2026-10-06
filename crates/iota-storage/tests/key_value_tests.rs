@@ -428,6 +428,11 @@ mod simtests {
     }
 
     async fn test_server(data: Arc<Mutex<Storage>>) {
+        serve(get(svc).with_state(data)).await;
+    }
+
+    /// Serves `router` at `10.10.10.10:8080`.
+    async fn serve(router: axum::routing::MethodRouter) {
         let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
@@ -437,10 +442,9 @@ mod simtests {
             .name("server")
             .init(move || {
                 info!("Server started");
-                let data = data.clone();
+                let router = router.clone();
                 let startup_sender = startup_sender.clone();
                 async move {
-                    let router = get(svc).with_state(data);
                     let addr = SocketAddr::from(([10, 10, 10, 10], 8080));
                     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
@@ -557,6 +561,55 @@ mod simtests {
             .await
             .unwrap();
         assert_eq!(result, vec![Some(ev)]);
+    }
+
+    #[sim_test(config = "constant_latency_ms(250)")]
+    async fn a_key_that_does_not_answer_is_a_miss_for_that_key_only() {
+        if CryptoProvider::get_default().is_none() {
+            ring::default_provider().install_default().ok();
+        }
+
+        let (answered, hanging) = (random_tx(), random_tx());
+        let path = |tx: &TransactionEnvelope| {
+            let (item_type, key) = Key::Transaction(*tx.digest()).to_path_elements();
+            format!("{item_type}/{key}")
+        };
+        let data = Arc::new(Mutex::new(HashMap::from([(
+            path(&answered),
+            bcs::to_bytes(&answered).unwrap(),
+        )])));
+        let hanging_path = format!("/{}", path(&hanging));
+        serve(get(move |request: Request<Body>| {
+            let data = data.clone();
+            let hangs = request.uri().path() == hanging_path;
+            async move {
+                if hangs {
+                    std::future::pending::<()>().await;
+                }
+                svc(State(data), request).await
+            }
+        }))
+        .await;
+        let store = HttpKVStore::new(
+            "http://10.10.10.10:8080",
+            1000,
+            KeyValueStoreMetrics::new_for_tests(),
+        )
+        .unwrap();
+
+        let (transactions, _) = tokio::time::timeout(
+            Duration::from_secs(10),
+            store.multi_get(&[*answered.digest(), *hanging.digest()], &[]),
+        )
+        .await
+        .expect("the key that does not answer held up the call")
+        .unwrap();
+
+        let digests = transactions
+            .iter()
+            .map(|tx| tx.as_ref().map(|tx| *tx.digest()))
+            .collect::<Vec<_>>();
+        assert_eq!(digests, vec![Some(*answered.digest()), None]);
     }
 
     #[sim_test(config = "constant_latency_ms(250)")]
