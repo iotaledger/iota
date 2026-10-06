@@ -142,12 +142,9 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
 
     async fn get_transaction_perpetual_checkpoint(
         &self,
-        digest: TransactionDigest,
+        _digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.serve(
-            "get_transaction_perpetual_checkpoint",
-            self.transaction_checkpoints.get(&digest).copied(),
-        )
+        self.serve("get_transaction_perpetual_checkpoint", None)
     }
 
     async fn get_object(
@@ -181,7 +178,10 @@ impl TransactionKeyValueStoreTrait for MockFallbackStore {
     ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         self.serve(
             "multi_get_transactions_perpetual_checkpoints",
-            vec![None; digests.len()],
+            digests
+                .iter()
+                .map(|digest| self.transaction_checkpoints.get(digest).copied())
+                .collect(),
         )
     }
 
@@ -690,7 +690,7 @@ const CASE: Case = Case {
     evicted: Evicted::Nothing,
 };
 
-const LOOKUP: &str = "get_transaction_perpetual_checkpoint";
+const LOOKUP: &str = "multi_get_transactions_perpetual_checkpoints";
 const READ_BOTH: &str = "multi_get(transaction, effects)";
 const READ_EVENTS: &str = "multi_get_events_by_tx_digests";
 const READ_SUMMARY: &str = "multi_get_checkpoints";
