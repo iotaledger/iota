@@ -1022,9 +1022,25 @@ impl HandlerObjectState {
         if writes.is_empty() {
             return Ok(());
         }
+        // A chain write consumes the chain's own output, for which no handler
+        // row exists. A consumed version with a handler row was written by
+        // handler-known execution, so the record found below is of a chain
+        // the handler has caught up past, with its deletion not queued: not
+        // yet, or no longer after a restart. Read before the locks; a row
+        // landing after the read leaves the record extended, as before this
+        // check, and that row takes precedence over the record on every read.
+        let consumed_handler_known = writes
+            .iter()
+            .map(|write| match write.consumed {
+                Some(consumed) => Ok(self
+                    .handler_processed_object(tables, &ObjectKey(write.id, consumed))?
+                    .is_some()),
+                None => Ok(false),
+            })
+            .collect::<IotaResult<Vec<bool>>>()?;
         let mut overlay = self.sync_ahead_overlay.write();
         let mut deletions = self.sync_ahead_record_deletions.lock();
-        for write in writes {
+        for (write, consumed_handler_known) in writes.into_iter().zip(consumed_handler_known) {
             let current = match overlay.get(&write.id) {
                 Some(record) => Some(*record),
                 // A record with a queued deletion is logically gone (the
@@ -1035,9 +1051,12 @@ impl HandlerObjectState {
                 None if deletions.contains_key(&write.id) => None,
                 None => tables.sync_ahead_records.get(&write.id)?,
             };
+            // A dead record is not this write's chain: the write starts a new
+            // one under the same key.
+            let chain = current.filter(|_| !consumed_handler_known);
             // Only an extension of the chain updates the record
             // (re-executions after a restart replay the same writes).
-            if current.is_none_or(|record| write.created > record.latest_created) {
+            if chain.is_none_or(|record| write.created > record.latest_created) {
                 if current.is_none() {
                     // Cancel any queued deletion of the dead record: it
                     // drains into a later flush batch, which must not destroy
@@ -1047,7 +1066,7 @@ impl HandlerObjectState {
                     self.live_sync_ahead_records_count
                         .fetch_add(1, Ordering::Relaxed);
                 }
-                let (base_version, initial_shared_version) = match current {
+                let (base_version, initial_shared_version) = match chain {
                     // First write of the chain: what it consumed is what was
                     // latest before the chain started (`None` when it created
                     // the object).
