@@ -7,7 +7,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use iota_sdk_types::{ObjectId, SharedObjectReference};
 use iota_types::{
     base_types::CommitRound,
-    gas_model::gas_vector::declared_rate_bytes_per_sec,
+    gas_model::gas_vector::declared_memory_rate_bytes_per_sec,
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use serde::{Deserialize, Serialize};
@@ -35,10 +35,8 @@ pub(super) enum SequencingResult {
     /// executed at start time
     Schedule(/* start_time */ ExecutionTime),
 
-    /// Sequencing result indicating that a transaction is deferred, and why:
-    /// congested shared objects (with the congested IDs), the saturated
-    /// execution-worker pool, or the memory-bandwidth ceiling. The tracker
-    /// never emits `DeferralReason::RandomnessNotReady`.
+    /// Sequencing result indicating that a transaction is deferred, and why.
+    /// Never `DeferralReason::RandomnessNotReady`.
     Defer(DeferralKey, DeferralReason),
 }
 
@@ -209,98 +207,85 @@ impl ObjectExecutionSlots {
     }
 }
 
-/// A contiguous interval `[start_time, end_time)` during which `worker_count`
-/// transactions are scheduled to run concurrently, together declaring
-/// `rate_in_use` bytes per second of memory bandwidth.
+/// A contiguous interval `[start_time, end_time)` of [`ResourceSlots`].
 #[derive(PartialEq, Eq, Clone, Debug, Copy)]
-struct WorkerSlot {
+struct ResourceSlot {
     start_time: ExecutionTime,
     end_time: ExecutionTime,
-    worker_count: u16,
-    /// Sum of the declared memory-bandwidth rates (`moved_bytes / cpu_time`)
-    /// of the transactions scheduled over this interval, in bytes per second.
-    /// Zero outside `GasVectorV1` mode.
-    rate_in_use: u64,
+    /// Number of execution workers in use during this interval.
+    workers_in_use: u16,
+    /// Sum of the declared memory rates of the transactions running in this
+    /// interval, in bytes per second.
+    memory_rate_in_use: u64,
 }
 
-/// `WorkerSlots` models the shared execution resources as one profile over
-/// the per-commit timeline: a sparse, sorted list of contiguous busy slots
-/// (gaps between slots have worker count `0` and rate `0`), each carrying how
-/// many transactions overlap it and the sum of their declared
-/// memory-bandwidth rates. It mirrors `ObjectExecutionSlots` but tracks
-/// multiplicities per slot instead of a single free/busy lane, so it can
-/// enforce "at most `N` transactions, and at most the bandwidth ceiling,
-/// overlapping at any instant". The representation is sparse — at
-/// most two breakpoints per scheduled transaction — so it is suitable for
-/// `TotalGasBudget` mode where durations are large.
+/// Execution workers and memory rate in use over the per-commit timeline, as
+/// sorted, non-overlapping busy slots; gaps have nothing in use.
 #[derive(PartialEq, Eq, Clone, Debug)]
-struct WorkerSlots(Vec<WorkerSlot>);
+struct ResourceSlots(Vec<ResourceSlot>);
 
-impl WorkerSlots {
+impl ResourceSlots {
     #[cfg(test)]
     fn new() -> Self {
         Self(Vec::new())
     }
 
-    /// Appends `[start, end)` with `count` and `rate` to a slot list,
-    /// coalescing with the previous slot when they are adjacent and share
-    /// both quantities, and dropping empty or zero-count pieces (a slot's
-    /// rate can only be nonzero where at least one transaction is scheduled,
-    /// so `count == 0` implies `rate == 0`). Inputs must arrive in ascending
-    /// time order.
+    /// Appends `[start, end)` to `slots`, merging it into an adjacent equal
+    /// last slot. Empty intervals and zero `workers_in_use` are dropped.
     fn push_slot(
-        slots: &mut Vec<WorkerSlot>,
+        slots: &mut Vec<ResourceSlot>,
         start: ExecutionTime,
         end: ExecutionTime,
-        count: u16,
-        rate: u64,
+        workers_in_use: u16,
+        memory_rate_in_use: u64,
     ) {
-        if count == 0 || start >= end {
+        if workers_in_use == 0 || start >= end {
             return;
         }
         if let Some(last) = slots.last_mut() {
-            if last.end_time == start && last.worker_count == count && last.rate_in_use == rate {
+            if last.end_time == start
+                && last.workers_in_use == workers_in_use
+                && last.memory_rate_in_use == memory_rate_in_use
+            {
                 last.end_time = end;
                 return;
             }
         }
-        slots.push(WorkerSlot {
+        slots.push(ResourceSlot {
             start_time: start,
             end_time: end,
-            worker_count: count,
-            rate_in_use: rate,
+            workers_in_use,
+            memory_rate_in_use,
         });
     }
 
-    /// Returns the free execution slots in which a new transaction can be
-    /// scheduled without exceeding `n` concurrent workers — and, when the
-    /// transaction declares a memory-bandwidth demand `(rate, ceiling)`,
-    /// without the summed declared rates exceeding the ceiling: the intervals
-    /// of `[0, MAX)` where the worker count is strictly below `n` and
-    /// `rate_in_use + rate <= ceiling`. Empty when the rate alone exceeds the
-    /// ceiling. The result is a valid free-list (sorted, non-overlapping) and
-    /// can be intersected with object free-lists during scheduling.
-    ///
-    /// Single pass over the (sorted, disjoint) slots: the free-list is the
-    /// complement of the saturated slots within `[0, MAX)`.
+    /// Returns the free execution slots where `workers_in_use < n` and, if
+    /// given `(declared_memory_rate, memory_bandwidth)`,
+    /// `memory_rate_in_use + declared_memory_rate <= memory_bandwidth`. Sorted
+    /// and non-overlapping, like a shared object's free execution slots.
     fn slots_with_capacity(
         &self,
         max_concurrent_workers: u16,
-        bandwidth_demand: Option<(u64, u64)>,
+        declared_memory_rate_and_bandwidth: Option<(u64, u64)>,
     ) -> ObjectExecutionSlots {
         let mut free_slots = Vec::new();
-        if bandwidth_demand.is_some_and(|(rate, ceiling)| rate > ceiling) {
+        if declared_memory_rate_and_bandwidth.is_some_and(
+            |(declared_memory_rate, memory_bandwidth)| declared_memory_rate > memory_bandwidth,
+        ) {
             return ObjectExecutionSlots(free_slots);
         }
         let mut cursor = 0;
         for slot in &self.0 {
-            // Slots with room for the transaction (and the implicit gaps
-            // between slots) remain free, so only saturated slots break the
-            // free region.
-            let saturated = slot.worker_count >= max_concurrent_workers
-                || bandwidth_demand
-                    .is_some_and(|(rate, ceiling)| slot.rate_in_use.saturating_add(rate) > ceiling);
-            if saturated {
+            // Gaps between slots have nothing in use, so only blocked slots
+            // split the free range.
+            let blocked = slot.workers_in_use >= max_concurrent_workers
+                || declared_memory_rate_and_bandwidth.is_some_and(
+                    |(declared_memory_rate, memory_bandwidth)| {
+                        slot.memory_rate_in_use.saturating_add(declared_memory_rate)
+                            > memory_bandwidth
+                    },
+                );
+            if blocked {
                 if cursor < slot.start_time {
                     free_slots.push(ExecutionSlot::new(cursor, slot.start_time));
                 }
@@ -313,76 +298,66 @@ impl WorkerSlots {
         ObjectExecutionSlots(free_slots)
     }
 
-    /// Returns the end time of the last slot in which a worker is occupied, or
-    /// `0` if no transaction has been scheduled. The slots are sorted and
-    /// zero-count slots are never stored, so this is the last slot's end time.
+    /// Returns the end time of the last occupied slot, or `0` if there is none.
     fn max_occupied_end_time(&self) -> ExecutionTime {
         self.0.last().map_or(0, |slot| slot.end_time)
     }
 
-    /// Whether the bandwidth demand `rate` removes room before `limit` that
-    /// the worker count alone would have offered: some stored slot starting
-    /// below `limit` has a worker free but not enough bandwidth headroom.
-    /// Used only to attribute a deferral — one linear pass, no slot search
-    /// (gaps between stored slots carry no rate, so they are never clipped
-    /// once `rate <= ceiling`).
-    fn demand_clips_before(
+    /// Whether a slot starting before `limit` has a free worker but no room
+    /// for `declared_memory_rate`. Only used to attribute a deferral.
+    fn memory_bandwidth_blocks_before(
         &self,
         max_concurrent_workers: u16,
-        rate: u64,
-        ceiling: u64,
+        declared_memory_rate: u64,
+        memory_bandwidth: u64,
         limit: ExecutionTime,
     ) -> bool {
-        if rate > ceiling {
+        if declared_memory_rate > memory_bandwidth {
             // Nothing fits anywhere, stored slot or gap.
             return true;
         }
         self.0.iter().any(|slot| {
             slot.start_time < limit
-                && slot.worker_count < max_concurrent_workers
-                && slot.rate_in_use.saturating_add(rate) > ceiling
+                && slot.workers_in_use < max_concurrent_workers
+                && slot.memory_rate_in_use.saturating_add(declared_memory_rate) > memory_bandwidth
         })
     }
 
-    /// Increments the worker count over `[start_time, start_time + duration)`,
-    /// maintaining the invariant (sorted, disjoint, adjacent-equal-count
-    /// slots merged, no zero-count slots).
-    ///
-    /// Single pass over the existing (sorted, disjoint) slots: each is split
-    /// into its before-, within- and after-`[start, end)` portions (the within
-    /// portion getting `+1` worker and `+rate` bandwidth), and gaps inside
-    /// `[start, end)` are emitted with count `1` and `rate`. `filled` tracks
-    /// how far the `[start, end)` region has been covered so the inter-slot
-    /// gaps can be filled in order.
-    fn occupy(&mut self, start_time: ExecutionTime, duration: ExecutionTime, rate: u64) {
+    /// Adds one worker and `declared_memory_rate` over
+    /// `[start_time, start_time + duration)`.
+    fn occupy(
+        &mut self,
+        start_time: ExecutionTime,
+        duration: ExecutionTime,
+        declared_memory_rate: u64,
+    ) {
         let end_time = start_time.saturating_add(duration);
         if start_time >= end_time {
             return;
         }
 
         let old = std::mem::take(&mut self.0);
-        let mut merged: Vec<WorkerSlot> = Vec::with_capacity(old.len() + 2);
-        // Next position within `[start_time, end_time)` not yet covered, so any
-        // gap between slots inside the range can be emitted with count 1.
+        let mut merged: Vec<ResourceSlot> = Vec::with_capacity(old.len() + 2);
+        // Start of the part of `[start_time, end_time)` not yet emitted.
         let mut filled = start_time;
 
         for slot in old {
-            let WorkerSlot {
+            let ResourceSlot {
                 start_time: a,
                 end_time: b,
-                worker_count: c,
-                rate_in_use: r,
+                workers_in_use: c,
+                memory_rate_in_use: r,
             } = slot;
 
             // Gap inside `[start_time, end_time)` preceding this slot.
             if a > filled && filled < end_time {
                 let gap_end = a.min(end_time);
-                Self::push_slot(&mut merged, filled, gap_end, 1, rate);
+                Self::push_slot(&mut merged, filled, gap_end, 1, declared_memory_rate);
                 filled = filled.max(gap_end);
             }
             // Portion before the occupied range: quantities unchanged.
             Self::push_slot(&mut merged, a, b.min(start_time), c, r);
-            // Portion within the occupied range: count + 1, rate added.
+            // Portion within the occupied range.
             let within_start = a.max(start_time);
             let within_end = b.min(end_time);
             if within_start < within_end {
@@ -391,7 +366,7 @@ impl WorkerSlots {
                     within_start,
                     within_end,
                     c.saturating_add(1),
-                    r.saturating_add(rate),
+                    r.saturating_add(declared_memory_rate),
                 );
                 filled = filled.max(within_end);
             }
@@ -399,7 +374,7 @@ impl WorkerSlots {
             Self::push_slot(&mut merged, a.max(end_time), b, c, r);
         }
         // Trailing gap inside `[start_time, end_time)` after the last slot.
-        Self::push_slot(&mut merged, filled, end_time, 1, rate);
+        Self::push_slot(&mut merged, filled, end_time, 1, declared_memory_rate);
 
         self.0 = merged;
     }
@@ -407,28 +382,25 @@ impl WorkerSlots {
     /// Reconstructs a profile from a stored debt (`(start, end, count)`
     /// slots). The input is assumed to already satisfy the invariant
     /// (sorted, disjoint, merged), as produced by [`Self::overshoot`] and
-    /// [`Self::decay`]. Carried-over slots start with rate `0`: the memory
-    /// path carries no bandwidth debt across commits, and the debt's stored
-    /// form (which would need a new version to carry rates) is unchanged.
+    /// [`Self::decay`]. The debt stores only workers, so `memory_rate_in_use`
+    /// starts at `0`.
     fn from_debt(slots: WorkerDebtSlots) -> Self {
         Self(
             slots
                 .into_iter()
-                .map(|(start_time, end_time, worker_count)| WorkerSlot {
+                .map(|(start_time, end_time, workers_in_use)| ResourceSlot {
                     start_time,
                     end_time,
-                    worker_count,
-                    rate_in_use: 0,
+                    workers_in_use,
+                    memory_rate_in_use: 0,
                 })
                 .collect(),
         )
     }
 
-    /// Returns the worker slots that extend past
-    /// `max_execution_duration_per_commit`, shifted left so that
-    /// `max_execution_duration_per_commit` becomes time `0`. This is the
-    /// worker work still "running" at the start of the next commit
-    /// and is carried over as its initial worker slots.
+    /// Returns the `workers_in_use` of the slots past
+    /// `max_execution_duration_per_commit`, shifted so that it becomes time
+    /// `0`: the next commit's initial worker debt.
     fn overshoot(&self, max_execution_duration_per_commit: ExecutionTime) -> WorkerDebtSlots {
         self.0
             .iter()
@@ -438,7 +410,7 @@ impl WorkerSlots {
                     (
                         start - max_execution_duration_per_commit,
                         s.end_time - max_execution_duration_per_commit,
-                        s.worker_count,
+                        s.workers_in_use,
                     )
                 })
             })
@@ -470,12 +442,10 @@ impl WorkerSlots {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SharedObjectCongestionTracker {
     object_execution_slots: HashMap<ObjectId, ObjectExecutionSlots>,
-    /// Concurrency profile of the execution-worker pool. `Some` only when
-    /// execution-worker congestion control is active (see
-    /// `CongestionControlParameters::max_concurrent_execution_workers`), in
-    /// which case every scheduled transaction — including owned-object-only
-    /// ones — occupies a worker over its execution interval.
-    worker_slots: Option<WorkerSlots>,
+    /// `Some` only when execution-worker congestion control is active, in
+    /// which case every scheduled transaction, including owned-object-only
+    /// ones, occupies a worker.
+    resource_slots: Option<ResourceSlots>,
     congestion_control_parameters: CongestionControlParameters,
 }
 
@@ -504,13 +474,13 @@ impl SharedObjectCongestionTracker {
             })
             .collect::<HashMap<_, _>>();
 
-        let worker_slots = congestion_control_parameters
+        let resource_slots = congestion_control_parameters
             .max_concurrent_execution_workers()
-            .map(|_| WorkerSlots::from_debt(initial_worker_debt));
+            .map(|_| ResourceSlots::from_debt(initial_worker_debt));
 
         Self {
             object_execution_slots,
-            worker_slots,
+            resource_slots,
             congestion_control_parameters,
         }
     }
@@ -535,7 +505,7 @@ impl SharedObjectCongestionTracker {
 
     /// Given a list of shared input objects, the estimated execution
     /// duration of a transaction that operates on these objects, and its
-    /// declared memory-bandwidth rate, returns the starting time of the
+    /// declared memory rate, returns the starting time of the
     /// transaction if the transaction can be scheduled. Otherwise, returns
     /// None.
     ///
@@ -549,47 +519,44 @@ impl SharedObjectCongestionTracker {
         &self,
         shared_input_objects: &[SharedObjectReference],
         tx_duration: ExecutionTime,
-        declared_rate: u64,
-        check_shared_resources: bool,
+        declared_memory_rate: u64,
+        check_resource_slots: bool,
     ) -> Option<ExecutionTime> {
-        let worker_free_slots = if check_shared_resources {
-            // The memory-bandwidth ceiling rides the worker profile: it binds
-            // only while execution-worker congestion control is active, which
-            // `GasVectorV1`'s config invariants guarantee.
-            let bandwidth_demand = (declared_rate > 0)
+        let resource_free_slots = if check_resource_slots {
+            // `GasVectorV1` requires the worker cap, so the ceiling always
+            // applies here.
+            let declared_memory_rate_and_bandwidth = (declared_memory_rate > 0)
                 .then(|| {
                     self.congestion_control_parameters
                         .memory_bandwidth_bytes_per_sec()
-                        .map(|ceiling| (declared_rate, ceiling))
+                        .map(|memory_bandwidth| (declared_memory_rate, memory_bandwidth))
                 })
                 .flatten();
-            self.worker_slots
+            self.resource_slots
                 .as_ref()
                 .zip(
                     self.congestion_control_parameters
                         .max_concurrent_execution_workers(),
                 )
-                .map(|(worker_slots, n)| worker_slots.slots_with_capacity(n, bandwidth_demand))
+                .map(|(resource_slots, n)| {
+                    resource_slots.slots_with_capacity(n, declared_memory_rate_and_bandwidth)
+                })
         } else {
             None
         };
-        // Collect the free-list of every resource the transaction must fit in:
-        // one per shared input object, plus — when `check_shared_resources` is
-        // set and worker congestion control is active — the shared
-        // execution-resource profile (worker pool and memory bandwidth).
-        let resources: Vec<&ObjectExecutionSlots> = shared_input_objects
+        let resources_and_shared_objects: Vec<&ObjectExecutionSlots> = shared_input_objects
             .iter()
             .map(|obj| {
                 self.object_execution_slots
                     .get(&obj.object_id)
                     .expect("object should have been inserted at the start of this function.")
             })
-            .chain(&worker_free_slots)
+            .chain(&resource_free_slots)
             .collect();
 
-        if resources.is_empty() {
-            // No constraining resources (e.g. an owned-object-only transaction
-            // when worker congestion control is disabled): schedule at time 0.
+        if resources_and_shared_objects.is_empty() {
+            // E.g. an owned-object-only transaction without worker congestion
+            // control.
             return Some(0);
         }
 
@@ -599,20 +566,26 @@ impl SharedObjectCongestionTracker {
         {
             // If `congestion_control_min_free_execution_slot` is true, we assign the
             // transaction start time based on the lowest free execution slot that
-            // can accommodate the transaction across all resources. We start the
-            // search from the full range with no constraints from previous resources.
+            // can accommodate the transaction across all resources and shared objects.
+            // We start the search from the full range with no constraints from
+            // previously checked ones.
             let _span = tracing::trace_span!("compute_min_free_execution_slot").entered();
             let initial_free_slot = ExecutionSlot::max_duration_slot();
-            Self::compute_min_free_execution_slot(&resources, tx_duration, initial_free_slot)
+            Self::compute_min_free_execution_slot(
+                &resources_and_shared_objects,
+                tx_duration,
+                initial_free_slot,
+            )
         } else {
             // If `congestion_control_min_free_execution_slot` is false, we assign the
             // transaction start time based on the maximum start time of free execution
-            // slots for the transaction over all its resources.
+            // slots for the transaction over all its resources and shared objects.
             let _span = tracing::trace_span!("max_object_free_slot_start_time").entered();
-            resources
+            resources_and_shared_objects
                 .iter()
-                // If any `start_time` is `None` (i.e., the corresponding resource
-                // does not have a free slot), the result is `None`.
+                // If any `start_time` is `None` (i.e., the resources or the
+                // corresponding shared object have no free slot), the result is
+                // `None`.
                 .try_fold(0, |latest_start_time, slots| {
                     slots
                         .max_object_free_slot_start_time(tx_duration)
@@ -622,23 +595,23 @@ impl SharedObjectCongestionTracker {
     }
 
     /// A recursive function that tries to find the lowest free slot for a
-    /// transaction across all `resources`. If a slot is found that fits the
-    /// transaction in every resource simultaneously, returns its start time;
-    /// otherwise returns None.
+    /// transaction across all `resources_and_shared_objects`. If a slot is
+    /// found that fits the transaction in all of them simultaneously, returns
+    /// its start time; otherwise returns None.
     /// lookup_interval is the range of the slot that the transaction can fit in
-    /// given the resources that have been checked so far.
+    /// given the resources and shared objects that have been checked so far.
     fn compute_min_free_execution_slot(
-        resources: &[&ObjectExecutionSlots],
+        resources_and_shared_objects: &[&ObjectExecutionSlots],
         tx_duration: ExecutionTime,
         lookup_interval: ExecutionSlot,
     ) -> Option<ExecutionTime> {
-        // Take the first resource, and set aside the remaining ones for the
-        // next recursive call.
-        let (resource, remaining_resources) = resources
+        // Take the free slots of the first entry (the resources or a shared
+        // object), and set aside the remaining ones for the next recursive call.
+        let (free_slots, remaining_resources_and_shared_objects) = resources_and_shared_objects
             .split_first()
-            .expect("resources must not be empty.");
+            .expect("resources_and_shared_objects must not be empty.");
 
-        for intersection_slot in resource
+        for intersection_slot in free_slots
             .0
             .iter()
             .filter_map(|slot| slot.intersection(&lookup_interval))
@@ -648,18 +621,18 @@ impl SharedObjectCongestionTracker {
             if intersection_slot.duration() < tx_duration {
                 continue;
             }
-            // if this is the last resource to check, return this slot as it is the lowest
+            // if this is the last entry to check, return this slot as it is the lowest
             // slot available.
-            if remaining_resources.is_empty() {
+            if remaining_resources_and_shared_objects.is_empty() {
                 return Some(intersection_slot.start_time);
             }
-            // if there are more resources to check, recursively call the function with the
-            // remaining resources.
+            // if there are more entries to check, recursively call the function with the
+            // remaining ones.
             // If the recursive call returns a start time, that means the transaction fits
-            // in the slot for all remaining resources. Return the start time.
-            // Otherwise, continue to check the next free slot for the current resource.
+            // in the slot for all remaining entries. Return the start time.
+            // Otherwise, continue to check the next free slot for the current entry.
             if let Some(lowest_overlap) = Self::compute_min_free_execution_slot(
-                remaining_resources,
+                remaining_resources_and_shared_objects,
                 tx_duration,
                 intersection_slot,
             ) {
@@ -668,7 +641,7 @@ impl SharedObjectCongestionTracker {
                 continue;
             }
         }
-        // if no slot is found for the current resource given the available range,
+        // if no slot is found for the current entry given the available range,
         // return None.
         None
     }
@@ -693,10 +666,8 @@ impl SharedObjectCongestionTracker {
         }
 
         let shared_input_objects = transaction.shared_input_objects();
-        if shared_input_objects.is_empty() && self.worker_slots.is_none() {
-            // This is an owned-object-only transaction and execution-worker
-            // congestion control is disabled (which the memory-bandwidth
-            // ceiling requires too). No need to defer.
+        if shared_input_objects.is_empty() && self.resource_slots.is_none() {
+            // Owned-object-only transaction without worker congestion control.
             return SequencingResult::Schedule(0);
         }
 
@@ -711,27 +682,24 @@ impl SharedObjectCongestionTracker {
             return SequencingResult::Schedule(0);
         };
 
-        // The transaction's declared memory-bandwidth rate, consulted only
-        // when the bandwidth profile is active. A transaction that reaches
-        // this point without a representable rate (no attested gas vector)
-        // could never be scheduled against the profile; the maximal rate
-        // keeps that deterministic.
-        let declared_rate = if self
+        // Without an attested gas vector the memory rate is maximal, so the
+        // transaction never fits.
+        let declared_memory_rate = if self
             .congestion_control_parameters
             .memory_bandwidth_bytes_per_sec()
             .is_some()
         {
-            Self::declared_rate(transaction).unwrap_or(u64::MAX)
+            Self::attested_memory_rate(transaction).unwrap_or(u64::MAX)
         } else {
             0
         };
 
-        // Try to compute a scheduling start time that fits the shared objects
-        // and (when active) the execution-worker pool and the
-        // memory-bandwidth profile.
-        if let Some(start_time) =
-            self.compute_tx_start_time(&shared_input_objects, tx_duration, declared_rate, true)
-        {
+        if let Some(start_time) = self.compute_tx_start_time(
+            &shared_input_objects,
+            tx_duration,
+            declared_memory_rate,
+            true,
+        ) {
             // `compute_tx_start_time` returns None if the transaction cannot be scheduled,
             // so no need to check for overflow when adding `tx_duration` here.
             if start_time + tx_duration <= congestion_limit {
@@ -740,14 +708,9 @@ impl SharedObjectCongestionTracker {
             }
         }
 
-        // The transaction cannot be scheduled. Attribute the deferral:
-        // congested shared objects (reported by ID), the execution-worker
-        // pool, or the memory-bandwidth ceiling — told apart by re-probing
-        // with the wider constraints removed. Without worker congestion
-        // control the attempt above already checked the objects alone, so
-        // they are known not to fit and the first probe would only repeat
-        // that work.
-        let objects_fit = self.worker_slots.is_some()
+        // Attribute the deferral by checking the shared objects alone, which
+        // the attempt above already did without worker congestion control.
+        let objects_fit = self.resource_slots.is_some()
             && self
                 .compute_tx_start_time(&shared_input_objects, tx_duration, 0, false)
                 .is_some_and(|start_time| start_time + tx_duration <= congestion_limit);
@@ -782,9 +745,9 @@ impl SharedObjectCongestionTracker {
                     .collect()
             };
             DeferralReason::SharedObjectCongestion(congested_objects)
-        } else if declared_rate > 0
+        } else if declared_memory_rate > 0
             && self
-                .worker_slots
+                .resource_slots
                 .as_ref()
                 .zip(
                     self.congestion_control_parameters
@@ -794,17 +757,17 @@ impl SharedObjectCongestionTracker {
                     self.congestion_control_parameters
                         .memory_bandwidth_bytes_per_sec(),
                 )
-                .is_some_and(|((worker_slots, n), ceiling)| {
-                    worker_slots.demand_clips_before(n, declared_rate, ceiling, congestion_limit)
+                .is_some_and(|((resource_slots, n), memory_bandwidth)| {
+                    resource_slots.memory_bandwidth_blocks_before(
+                        n,
+                        declared_memory_rate,
+                        memory_bandwidth,
+                        congestion_limit,
+                    )
                 })
         {
-            // The bandwidth demand removed room the worker count alone would
-            // have offered, so the ceiling is (at least jointly) the binding
-            // constraint. This is a one-pass classification, not a
-            // counterfactual re-search: the worker-vs-bandwidth attribution
-            // only labels the metric and the cancellation variant — both
-            // variants assign identical cancellation versions — so it does
-            // not need to be exact where the two constraints bind together.
+            // Approximate where workers and memory bandwidth bind together:
+            // the reason only labels the metric and the cancellation.
             DeferralReason::MemoryBandwidthCongestion
         } else {
             DeferralReason::ExecutionWorkerCongestion
@@ -815,10 +778,8 @@ impl SharedObjectCongestionTracker {
         SequencingResult::Defer(deferral_key, deferral_reason)
     }
 
-    /// The deferral key for a transaction that cannot be scheduled in this
-    /// commit: deferred to the next round, keeping the original
-    /// `deferred_from_round` when the transaction was already deferred in a
-    /// previous commit.
+    /// Defers to the next round, keeping `deferred_from_round` of an earlier
+    /// deferral.
     fn deferral_key(
         transaction: &VerifiedExecutableAttestedTransaction,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
@@ -838,12 +799,12 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    /// The transaction's declared average rate through the shared memory
-    /// path, from its attested gas vector.
-    fn declared_rate(transaction: &VerifiedExecutableAttestedTransaction) -> Option<u64> {
+    /// The declared memory rate from the attested gas vector, in bytes per
+    /// second.
+    fn attested_memory_rate(transaction: &VerifiedExecutableAttestedTransaction) -> Option<u64> {
         let cpu_time = transaction.attested_cpu_time()?;
         let moved_bytes = transaction.attested_moved_bytes()?;
-        declared_rate_bytes_per_sec(cpu_time, moved_bytes)
+        declared_memory_rate_bytes_per_sec(cpu_time, moved_bytes)
     }
 
     /// Update shared objects' execution slots used in `transaction` using
@@ -885,22 +846,21 @@ impl SharedObjectCongestionTracker {
                 .remove(occupied_slot);
         });
 
-        // Every scheduled transaction — including owned-object-only ones —
-        // occupies an execution worker over its execution interval when
-        // execution-worker congestion control is active; under the
-        // memory-bandwidth ceiling it also adds its declared rate over the
-        // same interval, in the same pass.
-        let rate = if self
+        let declared_memory_rate = if self
             .congestion_control_parameters
             .memory_bandwidth_bytes_per_sec()
             .is_some()
         {
-            Self::declared_rate(transaction).unwrap_or(0)
+            Self::attested_memory_rate(transaction).unwrap_or(0)
         } else {
             0
         };
-        if let Some(worker_slots) = self.worker_slots.as_mut() {
-            worker_slots.occupy(start_time, estimated_execution_duration, rate);
+        if let Some(resource_slots) = self.resource_slots.as_mut() {
+            resource_slots.occupy(
+                start_time,
+                estimated_execution_duration,
+                declared_memory_rate,
+            );
         }
 
         Some(BumpObjectExecutionSlotsResult::new(
@@ -922,9 +882,9 @@ impl SharedObjectCongestionTracker {
             .max()
             .unwrap_or(0)
             .max(
-                self.worker_slots
+                self.resource_slots
                     .as_ref()
-                    .map_or(0, WorkerSlots::max_occupied_end_time),
+                    .map_or(0, ResourceSlots::max_occupied_end_time),
             )
     }
 
@@ -946,9 +906,9 @@ impl SharedObjectCongestionTracker {
             .collect()
     }
 
-    /// Returns the execution-worker slots that extend past
+    /// Returns the `workers_in_use` of the slots that extend past
     /// `max_execution_duration_per_commit`, shifted to start at time `0`, to be
-    /// carried over as the next commit's initial worker slots. Returns
+    /// carried over as the next commit's initial worker debt. Returns
     /// `None` when execution-worker congestion control is inactive. Borrows
     /// (unlike [`Self::accumulated_object_debts`]) so it can be called before
     /// consuming the tracker for the per-object debts.
@@ -956,9 +916,9 @@ impl SharedObjectCongestionTracker {
         &self,
         max_execution_duration_per_commit: u64,
     ) -> Option<WorkerDebtSlots> {
-        self.worker_slots
+        self.resource_slots
             .as_ref()
-            .map(|worker_slots| worker_slots.overshoot(max_execution_duration_per_commit))
+            .map(|resource_slots| resource_slots.overshoot(max_execution_duration_per_commit))
     }
 }
 
@@ -980,14 +940,15 @@ impl CongestionPerObjectDebt {
     }
 }
 
-/// The worker concurrency profile as `(start, end, count)` slots, in the form
-/// it is carried between consensus commits.
+/// The `workers_in_use` of the resource slots as `(start, end, count)` slots,
+/// in the form it is carried between consensus commits.
 pub(super) type WorkerDebtSlots = Vec<(ExecutionTime, ExecutionTime, u16)>;
 
 /// The execution-worker debt carried over from a consensus commit: the
-/// worker concurrency profile that extends past the per-commit limit, stored
-/// as `(start, end, count)` slots together with the round in which it was
-/// recorded (so future commits can age it by their elapsed budget).
+/// `workers_in_use` of the resource slots that extend past the per-commit
+/// limit, stored as `(start, end, count)` slots together with the round in
+/// which it was recorded (so future commits can age it by their elapsed
+/// budget).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum CongestionWorkerDebt {
     V1(CommitRound, WorkerDebtSlots),
@@ -1018,7 +979,7 @@ impl CongestionWorkerDebt {
         // rounds since then are applied.
         let num_rounds = current_round.saturating_sub(stored_round).saturating_sub(1);
         let shift = max_execution_duration_per_commit.saturating_mul(num_rounds);
-        WorkerSlots::decay(slots, shift)
+        ResourceSlots::decay(slots, shift)
     }
 }
 
@@ -2424,31 +2385,31 @@ mod object_cost_tests {
     }
 
     #[test]
-    fn test_worker_slots_occupy_and_free_slots() {
-        let mut worker_slots = WorkerSlots::new();
+    fn test_resource_slots_occupy_and_free_slots() {
+        let mut resource_slots = ResourceSlots::new();
 
-        worker_slots.occupy(0, 10, 0); // [0, 10) -> count 1
-        // With a cap of 2 workers, worker count 1 is below the cap everywhere.
+        resource_slots.occupy(0, 10, 0); // [0, 10) -> workers_in_use 1
+        // With a cap of 2 workers, `workers_in_use` of 1 is below the cap everywhere.
         assert_eq!(
-            worker_slots.slots_with_capacity(2, None).0,
+            resource_slots.slots_with_capacity(2, None).0,
             vec![ExecutionSlot::new(0, MAX_EXECUTION_TIME)]
         );
         // With a cap of 1 worker, [0, 10) is saturated.
         assert_eq!(
-            worker_slots.slots_with_capacity(1, None).0,
+            resource_slots.slots_with_capacity(1, None).0,
             vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
         );
 
-        worker_slots.occupy(0, 10, 0); // [0, 10) -> count 2
+        resource_slots.occupy(0, 10, 0); // [0, 10) -> workers_in_use 2
         assert_eq!(
-            worker_slots.slots_with_capacity(2, None).0,
+            resource_slots.slots_with_capacity(2, None).0,
             vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
         );
 
-        // Overlapping worker counts: [0, 5) -> 2, [5, 10) -> 3, [10, 15) -> 1.
-        worker_slots.occupy(5, 10, 0);
+        // Overlapping `workers_in_use`: [0, 5) -> 2, [5, 10) -> 3, [10, 15) -> 1.
+        resource_slots.occupy(5, 10, 0);
         assert_eq!(
-            worker_slots.slots_with_capacity(3, None).0,
+            resource_slots.slots_with_capacity(3, None).0,
             vec![
                 ExecutionSlot::new(0, 5),
                 ExecutionSlot::new(10, MAX_EXECUTION_TIME),
@@ -2457,96 +2418,89 @@ mod object_cost_tests {
     }
 
     #[test]
-    fn test_worker_slots_gap_fill_and_coalesce() {
-        let mut worker_slots = WorkerSlots::new();
+    fn test_resource_slots_gap_fill_and_coalesce() {
+        let mut resource_slots = ResourceSlots::new();
         // Two busy regions separated by a gap [5, 10).
-        worker_slots.occupy(0, 5, 0); // [0, 5) -> 1
-        worker_slots.occupy(10, 5, 0); // [10, 15) -> 1
+        resource_slots.occupy(0, 5, 0); // [0, 5) -> 1
+        resource_slots.occupy(10, 5, 0); // [10, 15) -> 1
 
-        // Occupy across the gap: the gap is filled at count 1 and the existing
-        // regions rise to 2 -> [0, 5):2, [5, 10):1, [10, 15):2.
-        worker_slots.occupy(0, 15, 0);
+        // Occupy across the gap: the gap is filled at `workers_in_use` 1 and the
+        // existing regions rise to 2 -> [0, 5):2, [5, 10):1, [10, 15):2.
+        resource_slots.occupy(0, 15, 0);
         assert_eq!(
-            worker_slots.slots_with_capacity(2, None).0,
+            resource_slots.slots_with_capacity(2, None).0,
             vec![
                 ExecutionSlot::new(5, 10),
                 ExecutionSlot::new(15, MAX_EXECUTION_TIME),
             ]
         );
 
-        // Raising the middle to 2 makes all of [0, 15) count 2, which must
-        // coalesce into a single slot.
-        worker_slots.occupy(5, 5, 0); // [5, 10) -> 2
+        // Raising the middle to 2 makes `workers_in_use` 2 across all of [0, 15), which
+        // must coalesce into a single slot.
+        resource_slots.occupy(5, 5, 0); // [5, 10) -> 2
         assert_eq!(
-            worker_slots.0,
-            vec![WorkerSlot {
+            resource_slots.0,
+            vec![ResourceSlot {
                 start_time: 0,
                 end_time: 15,
-                worker_count: 2,
-                rate_in_use: 0,
+                workers_in_use: 2,
+                memory_rate_in_use: 0,
             }]
         );
         assert_eq!(
-            worker_slots.slots_with_capacity(2, None).0,
+            resource_slots.slots_with_capacity(2, None).0,
             vec![ExecutionSlot::new(15, MAX_EXECUTION_TIME)]
         );
     }
 
     #[test]
-    fn test_worker_slots_track_bandwidth_alongside_worker_count() {
-        let mut worker_slots = WorkerSlots::new();
-        worker_slots.occupy(0, 10, 600);
-        worker_slots.occupy(5, 10, 300);
-        // One pass maintains both quantities: [0, 5) one worker at 600 B/s,
-        // [5, 10) two workers at 900 B/s, [10, 15) one worker at 300 B/s.
+    fn test_resource_slots_track_memory_rate_alongside_workers_in_use() {
+        let mut resource_slots = ResourceSlots::new();
+        resource_slots.occupy(0, 10, 600);
+        resource_slots.occupy(5, 10, 300);
         assert_eq!(
-            worker_slots.0,
+            resource_slots.0,
             vec![
-                WorkerSlot {
+                ResourceSlot {
                     start_time: 0,
                     end_time: 5,
-                    worker_count: 1,
-                    rate_in_use: 600,
+                    workers_in_use: 1,
+                    memory_rate_in_use: 600,
                 },
-                WorkerSlot {
+                ResourceSlot {
                     start_time: 5,
                     end_time: 10,
-                    worker_count: 2,
-                    rate_in_use: 900,
+                    workers_in_use: 2,
+                    memory_rate_in_use: 900,
                 },
-                WorkerSlot {
+                ResourceSlot {
                     start_time: 10,
                     end_time: 15,
-                    worker_count: 1,
-                    rate_in_use: 300,
+                    workers_in_use: 1,
+                    memory_rate_in_use: 300,
                 },
             ]
         );
-        // Without a bandwidth demand only the worker count constrains.
         assert_eq!(
-            worker_slots.slots_with_capacity(2, None).0,
+            resource_slots.slots_with_capacity(2, None).0,
             vec![
                 ExecutionSlot::new(0, 5),
                 ExecutionSlot::new(10, MAX_EXECUTION_TIME)
             ]
         );
-        // A demand is blocked exactly where the summed rate would exceed the
-        // ceiling: 400 B/s fits alongside 600 but not 900.
         assert_eq!(
-            worker_slots.slots_with_capacity(10, Some((400, 1_000))).0,
+            resource_slots.slots_with_capacity(10, Some((400, 1_000))).0,
             vec![
                 ExecutionSlot::new(0, 5),
                 ExecutionSlot::new(10, MAX_EXECUTION_TIME)
             ]
         );
-        // 650 B/s fits only alongside the trailing 300 B/s.
         assert_eq!(
-            worker_slots.slots_with_capacity(10, Some((650, 1_000))).0,
+            resource_slots.slots_with_capacity(10, Some((650, 1_000))).0,
             vec![ExecutionSlot::new(10, MAX_EXECUTION_TIME)]
         );
-        // A rate above the ceiling has no free slot at all.
         assert!(
-            worker_slots
+            resource_slots
                 .slots_with_capacity(10, Some((1_001, 1_000)))
                 .0
                 .is_empty()
@@ -2554,22 +2508,22 @@ mod object_cost_tests {
     }
 
     #[test]
-    fn test_worker_slots_debt_and_decay() {
-        // Worker counts: [0, 5) -> 1, [5, 15) -> 2.
-        let mut worker_slots = WorkerSlots::new();
-        worker_slots.occupy(0, 5, 0);
-        worker_slots.occupy(5, 10, 0);
-        worker_slots.occupy(5, 10, 0);
+    fn test_resource_slots_debt_and_decay() {
+        // `workers_in_use`: [0, 5) -> 1, [5, 15) -> 2.
+        let mut resource_slots = ResourceSlots::new();
+        resource_slots.occupy(0, 5, 0);
+        resource_slots.occupy(5, 10, 0);
+        resource_slots.occupy(5, 10, 0);
 
         // Only the part beyond the per-commit limit (10) carries over, shifted to start
         // at 0: [10, 15) -> 2 becomes [0, 5) -> 2.
-        let debt = worker_slots.overshoot(10);
+        let debt = resource_slots.overshoot(10);
         assert_eq!(debt, vec![(0, 5, 2)]);
 
         // Aging shifts left and drops anything that reaches time 0.
-        assert_eq!(WorkerSlots::decay(debt.clone(), 2), vec![(0, 3, 2)]);
-        assert_eq!(WorkerSlots::decay(debt.clone(), 5), vec![]);
-        assert_eq!(WorkerSlots::decay(debt, 6), vec![]);
+        assert_eq!(ResourceSlots::decay(debt.clone(), 2), vec![(0, 3, 2)]);
+        assert_eq!(ResourceSlots::decay(debt.clone(), 5), vec![]);
+        assert_eq!(ResourceSlots::decay(debt, 6), vec![]);
 
         // `decayed` ages by the fully-elapsed commits' budget:
         // num_rounds = current - stored - 1, shift = num_rounds * limit.
@@ -2580,7 +2534,7 @@ mod object_cost_tests {
     }
 
     #[test]
-    fn test_worker_slots_rollover_seeds_next_commit() {
+    fn test_resource_slots_rollover_seeds_next_commit() {
         let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
             PerObjectCongestionControlMode::TotalTxCount,
             true,
@@ -2667,7 +2621,7 @@ mod object_cost_tests {
     // occupying any object slot, so the maximum occupied slot end time has to
     // come from the worker pool rather than being reported as zero.
     #[test]
-    fn test_max_occupied_slot_end_time_covers_worker_slots() {
+    fn test_max_occupied_slot_end_time_covers_resource_slots() {
         let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
             PerObjectCongestionControlMode::TotalTxCount,
             true,    // congestion_control_min_free_execution_slot
@@ -2778,12 +2732,12 @@ mod object_cost_tests {
         }
     }
 
-    // The execution-worker profile filling across a commit: with two workers
+    // The resource slots filling across a commit: with two workers
     // each transaction occupies one worker for its duration, start times
     // advance once both workers are busy, and a transaction that no longer
     // fits within the per-commit limit is deferred.
     #[rstest]
-    fn test_worker_slot_filling_across_commit(
+    fn test_resource_slot_filling_across_commit(
         #[values(true, false)] assign_min_free_execution_slot: bool,
     ) {
         let mut congestion_control_parameters = CongestionControlParameters::new_for_test(
@@ -2804,7 +2758,7 @@ mod object_cost_tests {
         let previously_deferred = PreviouslyDeferredTransactions::new();
 
         // Six owned-object-only transactions fill the profile two at a time:
-        //     worker count
+        //     workers in use
         // 0 | 1 2
         // 1 | 1 2
         // 2 | 1 2
@@ -2820,12 +2774,12 @@ mod object_cost_tests {
             tracker.bump_object_execution_slots(&tx, expected_start_time);
         }
         assert_eq!(
-            tracker.worker_slots.as_ref().unwrap().0,
-            vec![WorkerSlot {
+            tracker.resource_slots.as_ref().unwrap().0,
+            vec![ResourceSlot {
                 start_time: 0,
                 end_time: 3,
-                worker_count: 2,
-                rate_in_use: 0,
+                workers_in_use: 2,
+                memory_rate_in_use: 0,
             }]
         );
 

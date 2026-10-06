@@ -1755,10 +1755,7 @@ impl ProtocolConfig {
     pub fn per_object_congestion_control_mode(&self) -> PerObjectCongestionControlMode {
         let mode = self.feature_flags.per_object_congestion_control_mode;
         if matches!(mode, PerObjectCongestionControlMode::GasVectorV1) {
-            // GasVectorV1 admits only gas-vector-attested transactions, so
-            // producing and accepting V2 attestations must be on and every
-            // constant the two admission checks consume must be present —
-            // otherwise nothing could ever be scheduled.
+            // Without these, no transaction could be scheduled.
             assert!(
                 self.attestation_gas_vector(),
                 "GasVectorV1 congestion control requires attestation_gas_vector to be set"

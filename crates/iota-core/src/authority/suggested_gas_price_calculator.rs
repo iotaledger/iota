@@ -2646,7 +2646,7 @@ mod tests {
 
         // Descending gas-price order, as in the consensus handler.
         // Object slots: [0, 1) at 5000, [1, 2) at 4000.
-        // Worker slots (two workers): [0, 1) at 5000+3000, [1, 2) at 4000+2500.
+        // Resource slots (two workers): [0, 1) at 5000+3000, [1, 2) at 4000+2500.
         schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 5_000);
         schedule_transaction(&mut tracker, &mut calculator, &[], 3_000);
         schedule_transaction(&mut tracker, &mut calculator, &[(object, true)], 4_000);

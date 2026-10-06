@@ -113,9 +113,7 @@ impl VerifiedExecutableAttestedTransaction {
     }
 
     /// Returns the attested gas vector's moved bytes, or `None` for
-    /// unattested or V1-attested transactions. Together with
-    /// [`Self::attested_cpu_time`] it gives the declared memory-bandwidth
-    /// rate the `GasVectorV1` admission check sums across workers.
+    /// unattested or V1-attested transactions.
     pub fn attested_moved_bytes(&self) -> Option<u64> {
         self.attestation
             .as_ref()

@@ -268,9 +268,6 @@ async fn test_tx_accepted_with_gas_vector_active() -> Result<(), anyhow::Error> 
             safety_multiplier_bps: 15_000,
             ..Default::default()
         });
-        // GasVectorV1 congestion control: the per-commit budget switches to
-        // nanoseconds, the worker pool and gas-price feedback must be active,
-        // and only gas-vector-attested transactions are admitted.
         config.set_congestion_control_gas_price_feedback_mechanism_for_testing(true);
         config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
         config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(

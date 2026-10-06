@@ -28,9 +28,10 @@
 //! - Check #3: Attestor verification (`UserTransactionV2` only) — verifies that
 //!   the claimed attestor matches the block author and that the attested
 //!   payload is within its bounds (V1: the computation-unit floor and ceiling;
-//!   V2: nonzero cpu_time, and the declared rate against the memory-bandwidth
-//!   ceiling when that constant is configured). Drop with error on mismatch,
-//!   out-of-bounds payload, or unsupported attestation variant.
+//!   V2: nonzero cpu_time, and the declared memory rate against the
+//!   memory-bandwidth ceiling when that constant is configured). Drop with
+//!   error on mismatch, out-of-bounds payload, or unsupported attestation
+//!   variant.
 //! - Check #4: Extract owned input objects (needed for lock conflict
 //!   detection).
 //! - Check #5: Three-tier lock conflict check (local HashMap → quarantine → DB)
@@ -293,9 +294,7 @@ pub async fn validate_and_resolve_conflicts(
                         protocol_config.per_object_congestion_control_mode(),
                         PerObjectCongestionControlMode::GasVectorV1
                     ) {
-                        // The mode schedules by the attested gas vector only;
-                        // a V1 payload carries no cpu_time and would sit in
-                        // deferral until cancelled, so drop it here.
+                        // Without cpu_time it could never be scheduled.
                         return Some(IotaError::AttestationGasVectorRequired);
                     }
                     let min_attested_units = protocol_config
@@ -372,9 +371,7 @@ pub async fn validate_and_resolve_conflicts(
                 .per_object_congestion_control_mode(),
             PerObjectCongestionControlMode::GasVectorV1
         ) {
-            // Under GasVectorV1 an unattested transaction has no declared
-            // cpu_time and could never be scheduled — drop it here instead of
-            // letting it sit in deferral until cancellation.
+            // Without cpu_time it could never be scheduled.
             let e = IotaError::AttestationGasVectorRequired;
             warn!(
                 ?digest,

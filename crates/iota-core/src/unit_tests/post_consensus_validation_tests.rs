@@ -2991,8 +2991,7 @@ async fn test_gas_vector_attestation_rate_within_bandwidth_kept() {
     assert!(dropped.is_empty());
 }
 
-/// Protocol overrides activating `GasVectorV1` congestion control, satisfying
-/// every invariant the mode's getter asserts.
+/// Enables `GasVectorV1` congestion control and everything it requires.
 fn activate_gas_vector_mode(mut config: ProtocolConfig) -> ProtocolConfig {
     config.set_enable_pcool_flow_for_testing(true);
     config.set_enable_validator_attestation_for_testing(true);
@@ -3051,8 +3050,6 @@ async fn run_under_gas_vector_mode(
     )
 }
 
-/// Under GasVectorV1 congestion control a V1 attestation payload is dropped:
-/// it carries no cpu_time and could never be scheduled.
 #[sim_test]
 async fn test_gas_vector_mode_drops_v1_payload() {
     let (kept, dropped) = run_under_gas_vector_mode(|tx| make_user_tx_v2(tx, 0, 1_000)).await;
@@ -3063,8 +3060,6 @@ async fn test_gas_vector_mode_drops_v1_payload() {
     );
 }
 
-/// Under GasVectorV1 congestion control an unattested transaction is dropped
-/// for the same reason.
 #[sim_test]
 async fn test_gas_vector_mode_drops_unattested() {
     let (kept, dropped) = run_under_gas_vector_mode(make_user_tx_v1).await;
@@ -3075,7 +3070,6 @@ async fn test_gas_vector_mode_drops_unattested() {
     );
 }
 
-/// A gas-vector attestation passes validation unchanged under the mode.
 #[sim_test]
 async fn test_gas_vector_mode_keeps_v2_payload() {
     let (kept, dropped) =
