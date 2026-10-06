@@ -2527,6 +2527,9 @@ detach_public_key
 rotate_public_key
 	public fun
 	0x2::builtin_authenticator_functions
+is_builtin_authenticator
+	public fun
+	0x2::builtin_authenticator_functions
 has_public_key
 	public fun
 	0x2::builtin_authenticator_functions
@@ -3787,9 +3790,6 @@ SmartAccountBuilder
 builder_v1
 	public fun
 	0x2::smart_account
-builtin_auth_builder_v1
-	public fun
-	0x2::smart_account
 with_field
 	public fun
 	0x2::smart_account
@@ -3802,28 +3802,19 @@ account_address
 has_field
 	public fun
 	0x2::smart_account
-has_builtin_auth_public_key
-	public fun
-	0x2::smart_account
 borrow_field
-	public fun
-	0x2::smart_account
-borrow_builtin_auth_public_key
 	public fun
 	0x2::smart_account
 borrow_auth_function_ref_v1
 	public fun
 	0x2::smart_account
+ensure_tx_sender_is_smart_account
+	public fun
+	0x2::smart_account
 add_field
 	public fun
 	0x2::smart_account
-attach_builtin_auth_public_key
-	public fun
-	0x2::smart_account
 remove_field
-	public fun
-	0x2::smart_account
-detach_builtin_auth_public_key
 	public fun
 	0x2::smart_account
 borrow_field_mut
@@ -3832,21 +3823,51 @@ borrow_field_mut
 rotate_field
 	public fun
 	0x2::smart_account
-rotate_builtin_auth_public_key
-	public fun
-	0x2::smart_account
 rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
+new_claim_builder
+	public(package) fun
+	0x2::smart_account
+builder_uid_mut
+	public(package) fun
+	0x2::smart_account
+uid
+	public(package) fun
+	0x2::smart_account
+uid_mut
+	public(package) fun
+	0x2::smart_account
+builder_v1
+	public fun
+	0x2::smart_account_builtin_auth
+has_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+borrow_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+has_builtin_auth
+	public fun
+	0x2::smart_account_builtin_auth
+attach_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+detach_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+rotate_public_key
+	public fun
+	0x2::smart_account_builtin_auth
+rotate_to_builtin_auth_v1
+	public fun
+	0x2::smart_account_builtin_auth
+builtin_auth_function_ref_v1
+	public fun
+	0x2::smart_account_builtin_auth
 claim_account_v1
 	fun
-	0x2::smart_account
-claim_builder
-	fun
-	0x2::smart_account
-ensure_tx_sender_is_smart_account
-	fun
-	0x2::smart_account
+	0x2::smart_account_builtin_auth
 IotaSystemAdminCap
 	public struct
 	0x2::system_admin_cap

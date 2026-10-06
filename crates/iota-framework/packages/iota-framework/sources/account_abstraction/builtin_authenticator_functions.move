@@ -194,6 +194,18 @@ public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): Publi
 
 // === View Functions ===
 
+/// Returns true if `authenticator` references the built-in authenticator.
+public fun is_builtin_authenticator<Account: key>(
+    authenticator: &AuthenticatorFunctionRefV1<Account>,
+): bool {
+    let module_name = ascii::string(BUILTIN_AUTHENTICATOR_FUNCTIONS_MODULE_NAME);
+    let function_name = ascii::string(BUILTIN_AUTHENTICATOR_FUN_NAME_V1);
+
+    authenticator.package() == object::id_from_address(@iota)
+        && authenticator.module_name() == &module_name
+        && authenticator.function_name() == &function_name
+}
+
 /// Returns true if the account has a public key attached.
 public fun has_public_key(account_id: &UID): bool {
     df::exists_(account_id, public_key_field_name())

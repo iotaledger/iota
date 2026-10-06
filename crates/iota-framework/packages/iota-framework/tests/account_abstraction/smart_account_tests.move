@@ -4,9 +4,7 @@
 #[test_only]
 module iota::smart_account_tests;
 
-use iota::authenticator_function;
-use iota::public_key;
-use iota::signature_scheme;
+use iota::authenticator_function::{Self, AuthenticatorFunctionRefV1};
 use iota::smart_account::{Self, SmartAccount};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
@@ -31,46 +29,18 @@ fun builder_v1_builds_shared_account() {
     scenario.end();
 }
 
-// === builtin_auth_builder_v1 ===
-
 #[test]
-fun builtin_auth_builder_v1_attaches_public_key_and_authenticator() {
-    account_test!(|account| {
-        assert_eq(account.has_builtin_auth_public_key(), true);
-        assert_ref_eq(
-            account.borrow_builtin_auth_public_key(),
-            &ed25519_public_key(),
-        );
-    });
-}
+fun builder_v1_accepts_any_authenticator() {
+    let mut scenario = test_scenario::begin(@0x0);
 
-// === claim_account_v1 ===
+    let framework_authenticator = framework_test_authenticator();
+    smart_account::builder_v1(framework_authenticator, scenario.ctx()).build_v1();
 
-#[test]
-fun claim_account_v1_creates_shared_account_at_sender_address() {
-    let public_key = ed25519_public_key();
-    let sender = public_key.to_iota_address();
-    let mut scenario = test_scenario::begin(sender);
-
-    smart_account::claim_account_v1_for_testing(public_key, scenario.ctx());
-
-    scenario.next_tx(sender);
+    scenario.next_tx(@0x0);
     let account = scenario.take_shared<SmartAccount>();
-    assert_eq(account.account_address(), sender);
-    assert_eq(account.has_builtin_auth_public_key(), true);
+    assert_ref_eq(account.borrow_auth_function_ref_v1(), &framework_authenticator);
+
     test_scenario::return_shared(account);
-
-    scenario.end();
-}
-
-#[test]
-#[expected_failure(abort_code = iota::claim::EAddressMismatch)]
-fun claim_account_v1_aborts_on_address_mismatch() {
-    let public_key = ed25519_public_key();
-    let mut scenario = test_scenario::begin(@0x1);
-
-    smart_account::claim_account_v1_for_testing(public_key, scenario.ctx());
-
     scenario.end();
 }
 
@@ -115,21 +85,6 @@ fun borrow_field_aborts_if_missing() {
     account_test!(|account| {
         account.borrow_field<_, u64>(b"missing");
     });
-}
-
-#[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
-fun borrow_builtin_auth_public_key_aborts_if_missing() {
-    let mut scenario = test_scenario::begin(@0x0);
-    smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
-
-    scenario.next_tx(@0x0);
-    let account = scenario.take_shared<SmartAccount>();
-
-    account.borrow_builtin_auth_public_key();
-
-    test_scenario::return_shared(account);
-    scenario.end();
 }
 
 // === Admin: dynamic fields ===
@@ -238,104 +193,13 @@ fun rotate_field_aborts_if_missing() {
     });
 }
 
-// === Admin: builtin auth public key ===
-
-#[test]
-fun attach_borrow_detach_builtin_auth_public_key_lifecycle() {
-    account_test_mut!(|account, scenario| {
-        assert_eq(account.has_builtin_auth_public_key(), true);
-
-        let returned = account.detach_builtin_auth_public_key(scenario.ctx());
-        assert_eq(returned, ed25519_public_key());
-        assert_eq(account.has_builtin_auth_public_key(), false);
-
-        let public_key = secp256k1_public_key();
-        account.attach_builtin_auth_public_key(public_key, scenario.ctx());
-        assert_eq(account.has_builtin_auth_public_key(), true);
-        assert_ref_eq(account.borrow_builtin_auth_public_key(), &public_key);
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
-fun attach_builtin_auth_public_key_aborts_if_sender_not_account() {
-    account_test_wrong_sender!(|account, scenario| {
-        account.attach_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyAlreadyAttached)]
-fun attach_builtin_auth_public_key_aborts_if_already_attached() {
-    account_test_mut!(|account, scenario| {
-        account.attach_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
-fun detach_builtin_auth_public_key_aborts_if_sender_not_account() {
-    account_test_wrong_sender!(|account, scenario| {
-        account.detach_builtin_auth_public_key(scenario.ctx());
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
-fun detach_builtin_auth_public_key_aborts_if_missing() {
-    let mut scenario = test_scenario::begin(@0x0);
-    let addr = smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
-
-    scenario.next_tx(addr);
-    let mut account = scenario.take_shared<SmartAccount>();
-
-    account.detach_builtin_auth_public_key(scenario.ctx());
-
-    test_scenario::return_shared(account);
-    scenario.end();
-}
-
-#[test]
-fun rotate_builtin_auth_public_key_returns_old_and_stores_new() {
-    account_test_mut!(|account, scenario| {
-        let new_public_key = secp256k1_public_key();
-        let returned = account.rotate_builtin_auth_public_key(new_public_key, scenario.ctx());
-        assert_eq(returned, ed25519_public_key());
-        assert_ref_eq(account.borrow_builtin_auth_public_key(), &new_public_key);
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = iota::smart_account::ETransactionSenderIsNotTheSmartAccount)]
-fun rotate_builtin_auth_public_key_aborts_if_sender_not_account() {
-    account_test_wrong_sender!(|account, scenario| {
-        account.rotate_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = iota::builtin_authenticator_functions::EPublicKeyMissing)]
-fun rotate_builtin_auth_public_key_aborts_if_missing() {
-    let mut scenario = test_scenario::begin(@0x0);
-    let addr = smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1();
-
-    scenario.next_tx(addr);
-    let mut account = scenario.take_shared<SmartAccount>();
-
-    account.rotate_builtin_auth_public_key(ed25519_public_key(), scenario.ctx());
-
-    test_scenario::return_shared(account);
-    scenario.end();
-}
-
 // === Admin: authenticator ===
 
 #[test]
 fun rotate_auth_function_ref_v1_returns_old_and_stores_new() {
     account_test_mut!(|account, scenario| {
         let old_ref = *account.borrow_auth_function_ref_v1();
-        let new_ref = test_authenticator();
-        assert!(old_ref != new_ref);
+        let new_ref = other_test_authenticator();
 
         let returned = account.rotate_auth_function_ref_v1(new_ref, scenario.ctx());
         assert_eq(returned, old_ref);
@@ -351,33 +215,45 @@ fun rotate_auth_function_ref_v1_aborts_if_sender_not_account() {
     });
 }
 
+#[test]
+fun rotate_auth_function_ref_v1_accepts_any_authenticator() {
+    account_test_mut!(|account, scenario| {
+        let framework_authenticator = framework_test_authenticator();
+
+        account.rotate_auth_function_ref_v1(framework_authenticator, scenario.ctx());
+
+        assert_ref_eq(account.borrow_auth_function_ref_v1(), &framework_authenticator);
+    });
+}
+
 // === Helpers ===
 
-/// Creates a mutable shared `SmartAccount` backed by an ed25519 key and returns its address.
+/// Creates a mutable shared `SmartAccount` with a custom authenticator and returns its address.
 fun make_account(scenario: &mut Scenario): address {
-    smart_account::builtin_auth_builder_v1(ed25519_public_key(), scenario.ctx()).build_v1()
+    smart_account::builder_v1(test_authenticator(), scenario.ctx()).build_v1()
 }
 
-fun ed25519_public_key(): public_key::PublicKey {
-    public_key::create(
-        signature_scheme::ed25519(),
-        x"0000000000000000000000000000000000000000000000000000000000000000",
-    )
-}
-
-fun secp256k1_public_key(): public_key::PublicKey {
-    // Compressed secp256k1 generator point G.
-    public_key::create(
-        signature_scheme::secp256k1(),
-        x"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-    )
-}
-
-fun test_authenticator(): authenticator_function::AuthenticatorFunctionRefV1<SmartAccount> {
+fun test_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
     authenticator_function::create_auth_function_ref_v1_for_testing(
         @0xABC,
         ascii::string(b"module"),
         ascii::string(b"function"),
+    )
+}
+
+fun other_test_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
+    authenticator_function::create_auth_function_ref_v1_for_testing(
+        @0xDEF,
+        ascii::string(b"module"),
+        ascii::string(b"function"),
+    )
+}
+
+fun framework_test_authenticator(): AuthenticatorFunctionRefV1<SmartAccount> {
+    authenticator_function::create_auth_function_ref_v1_for_testing(
+        @0x2,
+        ascii::string(b"builtin_authenticator_functions"),
+        ascii::string(b"builtin_authenticator_v1"),
     )
 }
 
