@@ -137,6 +137,12 @@ impl BackpressureManager {
     /// the checkpoint executor while it waits for this node to build a
     /// checkpoint.
     pub fn wait_for_local_build(self: &Arc<Self>) -> LocalBuildWaitGuard {
+        // The executor waits for at most one checkpoint at a time: the wait
+        // runs inside its pipeline stage that admits one checkpoint at once.
+        debug_assert!(
+            !self.watermarks_sender.borrow().waiting_for_local_build,
+            "only one wait for a local build may be active"
+        );
         self.set_waiting_for_local_build(true);
         LocalBuildWaitGuard { mgr: self.clone() }
     }

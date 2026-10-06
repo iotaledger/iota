@@ -219,7 +219,12 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
     /// Processes one commit, unless this node executes downloaded checkpoints
     /// for the rest of the epoch. A commit still in progress when that starts
     /// is abandoned; its transactions are then executed from those
-    /// checkpoints.
+    /// checkpoints. An abandoned commit can leave behind, for the rest of the
+    /// epoch only: dropped-transaction statuses already reported to
+    /// submitters, P-COOL soft locks that are released only by their timeout,
+    /// and in-memory deferred-transaction, randomness and handler state.
+    /// Nothing reads them again in this epoch, and the next epoch starts from
+    /// a new epoch store.
     #[instrument("handle_consensus_output", level = "trace", skip_all)]
     async fn handle_consensus_output(
         &mut self,
