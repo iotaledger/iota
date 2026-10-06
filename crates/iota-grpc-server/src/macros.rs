@@ -19,6 +19,7 @@
 ///         let size = result.encoded_len();
 ///         (result, size)
 ///     },
+///     |size| metrics.record_response_item(ResponseItemKind::Object, size),
 ///     max_message_size,
 ///     GetObjectsResponse,
 ///     objects,
@@ -31,6 +32,7 @@ macro_rules! create_batching_stream {
         $requests_iter:expr,
         $item_pattern:pat,
         $process_block:block,
+        $on_item:expr,
         $max_message_size:expr,
         $response_type:ty,
         $items_field:ident,
@@ -48,6 +50,7 @@ macro_rules! create_batching_stream {
                     Some($item_pattern) => {
                         // Process the item using the provided block
                         let (result_item, item_size) = $process_block;
+                        ($on_item)(item_size);
 
                         // Account for per-item protobuf repeated field overhead
                         let item_size_with_overhead = item_size

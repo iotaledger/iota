@@ -41,7 +41,11 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
 
-use crate::{error::RpcError, merge::Merge};
+use crate::{
+    error::RpcError,
+    merge::Merge,
+    metrics::{CheckpointSizeTracker, RequestMetrics, ResponseItemKind},
+};
 
 /// Flags indicating which optional transaction fields to fetch from storage.
 /// Derived from a `FieldMaskTree` to skip unnecessary storage reads.
@@ -367,6 +371,7 @@ impl GrpcReader {
         max_message_size_bytes: u32,
         transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
         event_filter: Option<crate::event_filter::EventFilter>,
+        metrics: RequestMetrics,
     ) -> std::pin::Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>> {
         let state_reader = self.state_reader.clone();
         match checkpoint_summary_and_contents(&*state_reader, sequence_number) {
@@ -383,6 +388,7 @@ impl GrpcReader {
                         max_message_size_bytes as usize,
                         transaction_filter,
                         event_filter,
+                        metrics,
                     ));
 
                     while let Some(result) = checkpoint_stream.next().await {
@@ -420,6 +426,7 @@ impl GrpcReader {
         max_message_size_bytes: usize,
         transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
         event_filter: Option<crate::event_filter::EventFilter>,
+        metrics: RequestMetrics,
     ) -> impl futures::Stream<Item = Result<grpc_ledger_service::CheckpointData, Status>> + Send
     where
         S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
@@ -431,6 +438,7 @@ impl GrpcReader {
 
         async_stream::stream! {
             let sequence_number = checkpoint_summary.data().sequence_number;
+            let mut checkpoint_size_tracker = CheckpointSizeTracker::new(&metrics);
 
             // 1. Send Checkpoint message (controlled by checkpoint_mask)
             // Build the Checkpoint proto message using Merge
@@ -447,7 +455,9 @@ impl GrpcReader {
             Merge::merge(&mut checkpoint_proto, checkpoint_summary.auth_sig(), &checkpoint_mask)
                 .map_err(|e| e.with_context("failed to merge signature"))?;
 
-            yield Ok(grpc_ledger_service::CheckpointData::default().with_checkpoint(checkpoint_proto));
+            let checkpoint_message = grpc_ledger_service::CheckpointData::default().with_checkpoint(checkpoint_proto);
+            checkpoint_size_tracker.add_message_size(&checkpoint_message);
+            yield Ok(checkpoint_message);
 
             // 2. Stream transactions and events if requested (interleaved)
             if transactions_mask.is_some() || events_mask.is_some() {
@@ -484,6 +494,7 @@ impl GrpcReader {
                                             .map_err(|e| e.with_context("failed to merge event"))?;
                                         let event_encoded_len = grpc_event.encoded_len();
                                         let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
+                                        metrics.record_response_item(ResponseItemKind::Event, event_encoded_len);
 
                                         // Check if a single event exceeds the message size limit
                                         let event_total = event_size + crate::utils::checkpoint_data_wrapper_overhead(event_size);
@@ -499,6 +510,7 @@ impl GrpcReader {
                                         let candidate_size = events_batch_size + event_size;
                                         if candidate_size + crate::utils::checkpoint_data_wrapper_overhead(candidate_size) > max_message_size_bytes && !events_batch.is_empty() {
                                             // Yield current event batch
+                                            checkpoint_size_tracker.add_batch_size(events_batch_size);
                                             yield Ok(grpc_ledger_service::CheckpointData::default()
                                                 .with_events(grpc_event::Events::default().with_events(events_batch)));
 
@@ -533,6 +545,7 @@ impl GrpcReader {
                                 )
                                 .map_err(|e| e.with_context("failed to merge transaction"))?;
                                 let tx_encoded_len = executed_tx.encoded_len();
+                                metrics.record_response_item(ResponseItemKind::Transaction, tx_encoded_len);
                                 let tx_size = tx_encoded_len + crate::utils::repeated_field_item_overhead(tx_encoded_len);
 
                                 // Check if a single transaction exceeds the message size limit
@@ -549,6 +562,7 @@ impl GrpcReader {
                                 let candidate_size = current_batch_size + tx_size;
                                 if candidate_size + crate::utils::checkpoint_data_wrapper_overhead(candidate_size) > max_message_size_bytes && !current_batch.is_empty() {
                                     // Yield current transaction batch
+                                    checkpoint_size_tracker.add_batch_size(current_batch_size);
                                     yield Ok(grpc_ledger_service::CheckpointData::default()
                                         .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
 
@@ -570,19 +584,24 @@ impl GrpcReader {
 
                 // Send final batch of transactions if any
                 if transactions_mask.is_some() && !current_batch.is_empty() {
+                    checkpoint_size_tracker.add_batch_size(current_batch_size);
                     yield Ok(grpc_ledger_service::CheckpointData::default()
                         .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
                 }
 
                 // Send final batch of events if any
                 if should_collect_events && !events_batch.is_empty() {
+                    checkpoint_size_tracker.add_batch_size(events_batch_size);
                     yield Ok(grpc_ledger_service::CheckpointData::default()
                         .with_events(grpc_event::Events::default().with_events(events_batch)));
                 }
             }
 
             // 3. Always send EndMarker at the end
-            yield Ok(grpc_ledger_service::CheckpointData::default().with_end_marker(EndMarker::default().with_sequence_number(sequence_number)));
+            let end_marker = grpc_ledger_service::CheckpointData::default().with_end_marker(EndMarker::default().with_sequence_number(sequence_number));
+            checkpoint_size_tracker.add_message_size(&end_marker);
+            checkpoint_size_tracker.record();
+            yield Ok(end_marker);
         }
     }
 
@@ -963,6 +982,7 @@ impl GrpcReader {
         event_filter: Option<crate::event_filter::EventFilter>,
         filter_checkpoints: bool,
         progress_interval: std::time::Duration,
+        metrics: RequestMetrics,
     ) -> Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send + Unpin> {
         let reader = self.clone();
         let state_reader_clone = self.state_reader.clone();
@@ -998,7 +1018,9 @@ impl GrpcReader {
             {
                 let state_reader_historical = state_reader_clone.clone();
                 let last_message_time_historical = last_message_time.clone();
+                let metrics = metrics.clone();
                 move |item: Arc<(CertifiedCheckpointSummary, CheckpointContents)>| {
+                    let metrics = metrics.clone();
                     let state_reader_inner = state_reader_historical.clone();
                     let checkpoint_summary = item.0.clone();
                     let checkpoint_contents = item.1.clone();
@@ -1047,6 +1069,7 @@ impl GrpcReader {
                                 max_message_size_bytes as usize,
                                 tx_filter,
                                 ev_filter,
+                                metrics,
                             ));
 
                             while let Some(item) = stream.next().await {
@@ -1060,6 +1083,7 @@ impl GrpcReader {
             {
                 let last_message_time_live = last_message_time;
                 move |item: Arc<IotaTypesCheckpointData>| {
+                    let metrics = metrics.clone();
                     let cp_mask = checkpoint_mask.clone();
                     let tx_mask = transactions_mask.clone();
                     let ev_mask = events_mask.clone();
@@ -1113,6 +1137,7 @@ impl GrpcReader {
                             max_message_size_bytes as usize,
                             tx_filter,
                             ev_filter,
+                            metrics,
                         ));
 
                         while let Some(item) = stream.next().await {
