@@ -86,14 +86,11 @@ pub enum DeferralReason {
     // The list of objects are congested objects.
     SharedObjectCongestion(Vec<ObjectId>),
 
-    /// The execution-worker pool was saturated over every start time the
-    /// transaction could have used within the commit's budget; no specific
-    /// object is congested.
+    /// No execution worker was free within the commit's budget.
     ExecutionWorkerCongestion,
 
-    /// The transaction's declared memory-bandwidth rate did not fit under the
-    /// ceiling anywhere within the commit's budget; no specific object is
-    /// congested.
+    /// The declared memory rate did not fit under the memory bandwidth within
+    /// the commit's budget.
     MemoryBandwidthCongestion,
 }
 

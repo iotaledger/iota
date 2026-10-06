@@ -1500,11 +1500,7 @@ impl AuthorityState {
                 iota_protocol_config::PerObjectCongestionControlMode::GasVectorV1
             ) =>
             {
-                // Under GasVectorV1 congestion control only gas-vector
-                // attestations are schedulable, so an unpriceable dry-run
-                // (a native function the coefficient table does not list)
-                // cannot be attested at all — refuse instead of emitting a
-                // V1 payload the validators would drop.
+                // Validators drop V1 payloads under GasVectorV1.
                 return Err(IotaError::Execution(format!(
                     "refusing to attest transaction {tx_digest:?}: the resource profile cannot \
                      be priced by the gas-vector coefficient table, and the active congestion \

@@ -454,10 +454,7 @@ async fn test_divergence_recomputation_flags_tampered_attestation() {
     );
 }
 
-/// Under `GasVectorV1` congestion control an unpriceable dry-run cannot fall
-/// back to a V1 attestation — the validators would drop it — so the attestor
-/// refuses the transaction outright. An all-zero coefficient table makes
-/// every profile unpriceable (a zero prediction is not attestable).
+/// An all-zero coefficient table makes every profile unpriceable.
 #[tokio::test]
 async fn test_attestation_refused_when_unpriceable_under_gas_vector_mode() {
     telemetry_subscribers::init_for_testing();
