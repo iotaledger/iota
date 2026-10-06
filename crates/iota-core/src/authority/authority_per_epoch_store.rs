@@ -696,9 +696,9 @@ pub struct AuthorityPerEpochStore {
     /// Holds various data from consensus_quarantine in a more easily
     /// accessible form.
     consensus_output_cache: ConsensusOutputCache,
-    /// P-COOL deterministic-validation bookkeeping: the digest -> commit-round
-    /// map and the overlays over the three bookkeeping tables, holding
-    /// entries not yet durable.
+    /// P-COOL deterministic-validation bookkeeping: the transaction-key ->
+    /// commit-index map and the overlays over the three bookkeeping tables,
+    /// holding entries not yet durable.
     handler_object_state: HandlerObjectState,
 
     protocol_config: ProtocolConfig,

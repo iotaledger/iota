@@ -41,7 +41,7 @@ use crate::{
             consensus_quarantine::ConsensusCommitOutput,
             handler_object_state::{
                 CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind, SyncAheadRecord,
-                handler_latest_upserts,
+                handler_processed_upserts,
             },
         },
         authority_tests::init_state_with_objects_and_object_basics,
@@ -2126,8 +2126,8 @@ async fn post_consensus_validation_applies_relaxed_rules() {
 /// (held by `_config_guard` for the test's duration when enabled), plus
 /// helpers to execute transactions and assert the bookkeeping rows they
 /// leave. Execution provenance never matters to the hook - only whether the
-/// digest is registered in the digest -> commit-round map (handler-known)
-/// or not (sync-ahead).
+/// transaction key is registered in the transaction-key -> commit-index map
+/// (handler-known) or not (sync-ahead).
 struct BookkeepingSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
@@ -2247,8 +2247,8 @@ impl BookkeepingSetup {
     }
 
     /// Executes `tx` directly (`new_from_checkpoint` merely avoids needing a
-    /// certificate). Unless the digest was registered in the digest ->
-    /// commit-round map beforehand, the hook classifies it sync-ahead.
+    /// certificate). Unless the key was registered in the transaction-key ->
+    /// commit-index map beforehand, the hook classifies it sync-ahead.
     fn execute(&self, tx: VerifiedTransaction) -> TransactionEffects {
         let effects = self.execute_unchecked(tx);
         assert!(effects.status().is_success(), "{:?}", effects.status());
@@ -2285,7 +2285,9 @@ impl BookkeepingSetup {
             .handler_processed_object(&ObjectKey(*id, version))
             .unwrap()
             .unwrap_or_else(|| {
-                panic!("the handler must have written a handler-latest row for {id} at {version}")
+                panic!(
+                    "the handler must have written a handler-processed row for {id} at {version}"
+                )
             })
     }
 
@@ -2303,7 +2305,7 @@ impl BookkeepingSetup {
 
     /// Assigns `txs` to commit `index` as its roots, then executes them in
     /// order - the handler-known classification, under which the hook writes
-    /// handler-latest rows instead of sync-ahead records. A commit is
+    /// handler-processed rows instead of sync-ahead records. A commit is
     /// assigned once, so every transaction of a commit goes in one call.
     fn execute_as_handler_known(
         &self,
@@ -2607,7 +2609,7 @@ async fn executed_transaction_updates_sync_ahead_bookkeeping() {
 
     // The first sync-executed transfer consumes the genesis versions: every
     // written object gets a sync-ahead record based at the version it
-    // consumed, and no handler-latest row.
+    // consumed, and no handler-processed row.
     let obj_genesis_ref = s.latest_ref(&obj_id);
     let gas1_ref = s.latest_ref(&gas1_id);
     let first = s.transfer(&obj_id, &gas1_id, address_1, &address_1_key, address_2);
@@ -2641,7 +2643,7 @@ async fn executed_transaction_updates_sync_ahead_bookkeeping() {
 }
 
 #[tokio::test]
-async fn handler_known_transaction_writes_handler_latest_only() {
+async fn handler_known_transaction_writes_handler_processed_only() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -2667,7 +2669,7 @@ async fn handler_known_transaction_writes_handler_latest_only() {
     let tx = s.epoch_store.verify_transaction(tx).unwrap();
 
     // The handler registered the digest before execution: the hook writes
-    // handler-latest rows and neither sync records nor shelter bytes.
+    // handler-processed rows and neither sync records nor shelter bytes.
     let gas_genesis_ref = s.latest_ref(&gas_id);
     let effects = s.execute_as_handler_known(vec![tx], 7).remove(0);
 
@@ -2848,7 +2850,7 @@ async fn handler_known_share_records_the_initial_shared_version() {
 }
 
 #[tokio::test]
-async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_latest() {
+async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_processed_rows() {
     let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let obj_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -2882,10 +2884,10 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_l
     s.epoch_store.assign_commit_to_transactions(4, vec![key]);
     assert_eq!(state.commit_index_of(&key), Some(4));
     s.epoch_store
-        .record_commit_fully_executed(4, &handler_latest_upserts(&effects, 4))
+        .record_commit_fully_executed(4, &handler_processed_upserts(&effects, 4))
         .unwrap();
 
-    // Handler-latest rows now answer for every written object, the sync
+    // Handler-processed rows now answer for every written object, the sync
     // records whose whole chain the handler passed are gone, and the
     // commit's map entries are dropped.
     for id in [&obj_id, &gas_id] {
@@ -2935,7 +2937,7 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
         vec![TransactionKey::Digest(*first.transaction_digest())],
     );
     s.epoch_store
-        .record_commit_fully_executed(4, &handler_latest_upserts(&first, 4))
+        .record_commit_fully_executed(4, &handler_processed_upserts(&first, 4))
         .unwrap();
     assert_eq!(
         s.handler_processed_object(&obj_id, first.lamport_version())
@@ -2951,7 +2953,7 @@ async fn handler_catching_up_partway_through_a_chain_keeps_its_sync_record() {
         vec![TransactionKey::Digest(*second.transaction_digest())],
     );
     s.epoch_store
-        .record_commit_fully_executed(5, &handler_latest_upserts(&second, 5))
+        .record_commit_fully_executed(5, &handler_processed_upserts(&second, 5))
         .unwrap();
     let row = s.handler_processed_object(&obj_id, second.lamport_version());
     assert_eq!(row.produced_at, 5);
@@ -3160,7 +3162,7 @@ async fn sync_record_deletions_ride_their_own_commits_flush() {
         s.epoch_store
             .assign_commit_to_transactions(index, vec![key]);
         s.epoch_store
-            .record_commit_fully_executed(index, &handler_latest_upserts(effects, index))
+            .record_commit_fully_executed(index, &handler_processed_upserts(effects, index))
             .unwrap();
     }
 

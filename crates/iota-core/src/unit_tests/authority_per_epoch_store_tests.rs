@@ -2050,7 +2050,7 @@ mod handler_object_state_storage {
     use super::*;
     use crate::authority::authority_per_epoch_store::handler_object_state::{
         CommitIndex, HandlerProcessedObject, HandlerProcessedObjectKind, SyncAheadRecord,
-        handler_latest_upserts,
+        handler_processed_upserts,
     };
 
     /// An [`ObjectStore`] for the map-hit arm: a handler-known transaction
@@ -2270,7 +2270,7 @@ mod handler_object_state_storage {
                 .unwrap();
         }
 
-        let first_rows = handler_latest_upserts(&first, 1);
+        let first_rows = handler_processed_upserts(&first, 1);
         let repeated_rows: Vec<_> = first_rows
             .iter()
             .map(|(key, _)| {
@@ -2280,7 +2280,7 @@ mod handler_object_state_storage {
                 )
             })
             .collect();
-        let other_rows = handler_latest_upserts(&other, 3);
+        let other_rows = handler_processed_upserts(&other, 3);
 
         // The first commit's records remain durable until its flush. Another
         // mutation must not count their queued deletions again.
@@ -2339,7 +2339,7 @@ mod handler_object_state_storage {
             .unwrap();
 
         // The handler catches up past the chain: the durable row lingers
-        // (shadowed by the handler-latest row) until its queued deletion
+        // (shadowed by the handler-processed row) until its queued deletion
         // drains.
         epoch_store.assign_commit_to_transactions(8, vec![]);
         epoch_store
@@ -2483,7 +2483,7 @@ mod handler_object_state_storage {
         let row = epoch_store
             .handler_processed_object(&ObjectKey(mutated, effects.lamport_version()))
             .unwrap()
-            .expect("handler-latest row must exist for a handler-known commit");
+            .expect("handler-processed row must exist for a handler-known commit");
         assert_eq!(row.produced_at, 6);
         assert_eq!(epoch_store.sync_ahead_record(&mutated).unwrap(), None);
         assert_eq!(
