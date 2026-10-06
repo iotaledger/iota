@@ -1849,16 +1849,17 @@ impl AuthorityPerEpochStore {
             .record_commit_fully_executed(&tables, index, upserts)
     }
 
-    /// Derives the rows of a commit flushing out of the quarantine from the
-    /// effects of the transactions it checkpointed, and stages them into
-    /// `batch` together with the commit's queued sync-record deletions.
+    /// Stages the handler rows of a commit flushing out of the quarantine into
+    /// `batch`, together with the commit's queued sync-record deletions.
     /// Returns them for the caller to evict once `batch` is durable, or `None`
     /// when the bookkeeping is off.
     ///
-    /// The rows come from the effects rather than from the overlay because the
-    /// overlay holds nothing for a commit replayed after a restart: its
-    /// transactions executed before the crash, so the execution hook does not
-    /// run for them again.
+    /// A commit the watcher completed stages only its rows still in the
+    /// overlay; see [`HandlerObjectState::take_completed_commit_rows`].
+    /// Otherwise the flush completes the commit, deriving its rows from the
+    /// effects of the transactions it checkpointed: the overlay holds nothing
+    /// for a commit replayed after a restart, since its transactions executed
+    /// before the crash and the execution hook does not run for them again.
     fn stage_flushed_commit_rows(
         &self,
         index: CommitIndex,
@@ -1869,6 +1870,30 @@ impl AuthorityPerEpochStore {
             return Ok(None);
         }
         let tables = self.tables()?;
+        let rows = match self.handler_object_state.take_completed_commit_rows(index) {
+            Some(rows) => rows,
+            None => {
+                let rows = self.handler_rows_from_effects(&tables, index, pending_checkpoints)?;
+                // Before staging: completing the commit queues its sync-record
+                // deletions, which the staging then drains into the same batch.
+                self.handler_object_state
+                    .complete_commit_at_flush(&tables, index, &rows)?;
+                rows
+            }
+        };
+        self.handler_object_state
+            .write_commit_rows_to_batch(index, &tables, batch, &rows)?;
+        Ok(Some(FlushedCommitRows { index, rows }))
+    }
+
+    /// The handler rows of commit `index`, derived from the effects of the
+    /// transactions its pending checkpoints hold.
+    fn handler_rows_from_effects(
+        &self,
+        tables: &AuthorityEpochTables,
+        index: CommitIndex,
+        pending_checkpoints: &[PendingCheckpoint],
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
         let mut digests = Vec::new();
         for key in pending_checkpoints
             .iter()
@@ -1897,15 +1922,7 @@ impl AuthorityPerEpochStore {
                 effects
             })
             .collect();
-        let rows = handler_rows_for_commit(&effects, index);
-
-        // Before staging: completing the commit queues its sync-record
-        // deletions, which the staging then drains into the same batch.
-        self.handler_object_state
-            .complete_commit_at_flush(&tables, index, &rows)?;
-        self.handler_object_state
-            .write_commit_rows_to_batch(index, &tables, batch, &rows)?;
-        Ok(Some(FlushedCommitRows { index, rows }))
+        Ok(handler_rows_for_commit(&effects, index))
     }
 
     /// Evicts the overlay entries of commits whose rows are now durable, and
@@ -2120,15 +2137,19 @@ impl AuthorityPerEpochStore {
     /// Flushes commit `index` out of the consensus quarantine through the
     /// same path a running node takes, with one pending checkpoint of `roots`
     /// at height `index` and checkpoint sequence number `index`. Calls must
-    /// use increasing indices.
+    /// use increasing indices. Returns the handler rows the flush wrote.
     #[cfg(test)]
     pub fn flush_commit_through_quarantine_for_testing(
         &self,
         index: CommitIndex,
         roots: Vec<TransactionDigest>,
-    ) -> IotaResult {
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
         let summary = self.build_checkpoint_of_commit_for_testing(index, &roots)?;
-        self.handle_finalized_checkpoint(&summary, &roots)
+        Ok(self
+            .finalize_checkpoint(&summary, &roots)?
+            .into_iter()
+            .flat_map(|commit| commit.rows)
+            .collect())
     }
 
     /// [`Self::flush_commit_through_quarantine_for_testing`] with `between`
@@ -2479,11 +2500,22 @@ impl AuthorityPerEpochStore {
         checkpoint: &CheckpointSummary,
         digests: &[TransactionDigest],
     ) -> IotaResult<()> {
+        self.finalize_checkpoint(checkpoint, digests)?;
+        Ok(())
+    }
+
+    /// [`Self::handle_finalized_checkpoint`], returning the handler rows of
+    /// the commits it flushed out of the quarantine.
+    fn finalize_checkpoint(
+        &self,
+        checkpoint: &CheckpointSummary,
+        digests: &[TransactionDigest],
+    ) -> IotaResult<Vec<FlushedCommitRows>> {
         let tables = match self.tables() {
             Ok(tables) => tables,
             // After Epoch ends, it is no longer necessary to remove pending transactions
             // because the table will not be used anymore and be deleted eventually.
-            Err(IotaError::EpochEnded(_)) => return Ok(()),
+            Err(IotaError::EpochEnded(_)) => return Ok(Vec::new()),
             Err(e) => return Err(e),
         };
         let mut batch = tables.signed_effects_digests.batch();
@@ -2510,7 +2542,7 @@ impl AuthorityPerEpochStore {
         self.consensus_output_cache
             .remove_executed_in_epoch(digests);
 
-        Ok(())
+        Ok(flushed)
     }
 
     pub fn get_all_pending_consensus_transactions(&self) -> Vec<ConsensusTransaction> {
