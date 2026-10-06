@@ -30,9 +30,9 @@
 //! handler-processed rows when the key is in the index map, sync-ahead records
 //! and sheltered bytes when it is not
 //! ([`HandlerObjectState::record_executed_transaction`]); a fully executed
-//! commit applies its remaining upserts, queues durable deletions for the sync
-//! records it caught up past, and drops its map
-//! entries ([`HandlerObjectState::record_commit_fully_executed`]); and the
+//! commit applies its upserts not yet in the overlay or durable, queues
+//! durable deletions for the sync records it caught up past, and drops its
+//! map entries ([`HandlerObjectState::record_commit_fully_executed`]); and the
 //! two eviction methods below clear overlay entries once their rows are
 //! durable.
 //!
@@ -681,6 +681,14 @@ impl HandlerObjectState {
     /// ([`Self::take_completed_commit_rows`]), and drops the transaction key
     /// -> commit index map entries.
     ///
+    /// Only `inserts` go into the overlay: pass the rows of `upserts` that
+    /// [`Self::rows_not_yet_present`] returned. A row already present is in
+    /// the overlay or durable with the same value, since one (object,
+    /// version) has one row; inserting it again would only bring back rows
+    /// the checkpoint executor's batch already wrote and evicted, to be
+    /// written a second time by the commit's flush. The sync-record removal
+    /// and the keys kept for the flush use all of `upserts`.
+    ///
     /// Does nothing once the quarantine flush has completed the commit: its
     /// rows are durable already, and an overlay upsert now would leave entries
     /// no flush is left to evict. The caller holds the quarantine lock, so the
@@ -695,6 +703,7 @@ impl HandlerObjectState {
         tables: &AuthorityEpochTables,
         index: CommitIndex,
         upserts: &[(ObjectKey, HandlerProcessedObject)],
+        inserts: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult {
         if !self.is_commit_assigned(index) {
             return Ok(());
@@ -702,7 +711,7 @@ impl HandlerObjectState {
         // The upserts must be visible to readers before the sync records are
         // removed: a validation read that finds neither concludes the object
         // is untouched this epoch and consults epoch-start state.
-        self.upsert_handler_processed_rows(upserts);
+        self.upsert_handler_processed_rows(inserts);
         self.remove_handled_sync_ahead_records(tables, index, upserts)?;
         self.row_keys_by_completed_commit
             .lock()
@@ -712,6 +721,32 @@ impl HandlerObjectState {
         // must find this commit's rows already readable.
         self.advance_highest_fully_executed_commit(index);
         Ok(())
+    }
+
+    /// The rows of `upserts` whose key has no handler-processed row yet, in
+    /// the overlay or the durable table. Unlike
+    /// [`Self::handler_processed_object`], a table hit is not added to the
+    /// read-through cache; see [`Self::has_durable_handler_processed_object`].
+    pub fn rows_not_yet_present(
+        &self,
+        tables: &AuthorityEpochTables,
+        upserts: &[(ObjectKey, HandlerProcessedObject)],
+    ) -> IotaResult<Vec<(ObjectKey, HandlerProcessedObject)>> {
+        let not_in_overlay: Vec<_> = {
+            let overlay = self.handler_processed_overlay.read();
+            upserts
+                .iter()
+                .filter(|(key, _)| !overlay.contains_key(key))
+                .copied()
+                .collect()
+        };
+        let mut absent = Vec::new();
+        for row in not_in_overlay {
+            if !self.has_durable_handler_processed_object(tables, &row.0)? {
+                absent.push(row);
+            }
+        }
+        Ok(absent)
     }
 
     /// Completes commit `index` from the quarantine flush, when the flush
@@ -747,12 +782,13 @@ impl HandlerObjectState {
     /// [`Self::complete_commit_at_flush`]. Forgets the commit's row keys, and
     /// those of any earlier commit, so call only from the commit's flush.
     ///
-    /// A row missing from the overlay is already durable: the watcher
-    /// inserted every one of these rows, and only a durable write evicts a
-    /// row - here, the checkpoint batch that wrote it before the commit's
-    /// flush. The commit's queued sync-record deletions still ride the flush
-    /// batch, so the rows answering a deleted record's reads are durable
-    /// before or together with the deletion, whichever batch wrote them.
+    /// A row missing from the overlay is already durable: when the watcher
+    /// completed the commit every one of these rows was in the overlay or
+    /// durable, and only a durable write evicts a row - here, the checkpoint
+    /// batch that wrote it before the commit's flush. The commit's queued
+    /// sync-record deletions still ride the flush batch, so the rows
+    /// answering a deleted record's reads are durable before or together
+    /// with the deletion, whichever batch wrote them.
     pub fn take_completed_commit_rows(
         &self,
         index: CommitIndex,
@@ -795,6 +831,22 @@ impl HandlerObjectState {
             self.handler_processed_cache.insert(*key, row);
         }
         Ok(row)
+    }
+
+    /// Whether a handler-processed row at `key` is durable, from the
+    /// read-through cache or the table; the overlay is not consulted. Unlike
+    /// [`Self::handler_processed_object`], a table hit is not added to the
+    /// cache: use this for bookkeeping checks on rows no validation is about
+    /// to read, and [`Self::handler_processed_object`] for validation reads.
+    fn has_durable_handler_processed_object(
+        &self,
+        tables: &AuthorityEpochTables,
+        key: &ObjectKey,
+    ) -> IotaResult<bool> {
+        if self.handler_processed_cache.contains_key(key) {
+            return Ok(true);
+        }
+        Ok(tables.handler_processed_objects.contains_key(key)?)
     }
 
     /// The sync-ahead record for `id`, from the overlay or the durable table.
@@ -999,10 +1051,12 @@ impl HandlerObjectState {
     /// kept; handler rows and sheltered bytes are immutable per key, so no
     /// such check is needed for them.
     ///
-    /// A handler row evicted here may be inserted again by its commit's
-    /// completion, with the same value; the commit's flush evicts it then. A
-    /// replay after a crash re-inserts entries whose rows are already durable,
-    /// and re-running this for the re-executed checkpoint clears them.
+    /// The completion of a handler row's commit skips the row once this
+    /// eviction made it durable; only a row that appears after completion's
+    /// check is inserted again, with the same value, and the commit's flush
+    /// evicts it then. A replay after a crash re-inserts entries whose rows
+    /// are already durable, and re-running this for the re-executed
+    /// checkpoint clears them.
     pub fn evict_flushed_checkpoint_rows(&self, rows: &CheckpointRows) {
         self.remove_handler_overlay_rows(&rows.handler_rows);
         if !rows.sync_rows.is_empty() {

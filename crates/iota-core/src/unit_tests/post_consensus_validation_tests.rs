@@ -2946,13 +2946,16 @@ async fn handler_catching_up_past_sync_execution_replaces_records_with_handler_p
     let key = TransactionKey::Digest(digest);
     s.epoch_store.assign_commit_to_transactions(4, vec![key]);
     assert_eq!(state.commit_index_of(&key), Some(4));
+    assert_eq!(state.overlay_sizes_for_testing().0, 0);
     s.epoch_store
         .record_commit_fully_executed(4, &handler_processed_upserts(&effects, 4))
         .unwrap();
 
-    // Handler-processed rows now answer for every written object, the sync
-    // records whose whole chain the handler passed are gone, and the
-    // commit's map entries are dropped.
+    // Handler-processed rows, which only the completion wrote, now answer from
+    // the overlay for every written object, the sync records whose whole
+    // chain the handler passed are gone, and the commit's map entries are
+    // dropped.
+    assert_eq!(state.overlay_sizes_for_testing().0, 2);
     for id in [&obj_id, &gas_id] {
         let row = s.handler_processed_object(id, effects.lamport_version());
         assert_eq!(row.produced_at, 4);
@@ -3334,6 +3337,54 @@ async fn flush_writes_completed_commit_rows_still_in_the_overlay() {
                 .unwrap(),
             Some(row)
         );
+    }
+}
+
+/// The checkpoint batch makes a commit's rows durable before the watcher
+/// completes the commit, so the watcher leaves them out of the overlay and
+/// the commit's flush has none of them left to write.
+#[tokio::test]
+async fn watcher_skips_rows_the_checkpoint_batch_made_durable() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
+    assert_eq!(state.overlay_sizes_for_testing().0, 0);
+
+    let _watcher = s.start_execution_watcher();
+    s.wait_for_fully_executed_commit(1).await;
+    assert_eq!(state.overlay_sizes_for_testing().0, 0);
+
+    let written = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, vec![]);
+    for id in [obj_id, gas_id] {
+        let row = s
+            .epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(id, effects.lamport_version()))
+            .unwrap()
+            .expect("the checkpoint batch must have written the commit's rows");
+        assert_eq!(row.produced_at, 1);
     }
 }
 
