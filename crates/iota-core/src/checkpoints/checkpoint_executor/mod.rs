@@ -138,6 +138,10 @@ pub struct CheckpointExecutor {
     tps_estimator: Mutex<TPSEstimator>,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     data_sender: Option<CheckpointDataSender>,
+    /// The next synced checkpoint whose randomness has not been forwarded
+    /// yet; `CheckpointSequenceNumber::MAX` once every synced checkpoint of
+    /// this epoch has been.
+    next_randomness_to_forward: Mutex<CheckpointSequenceNumber>,
 }
 
 impl CheckpointExecutor {
@@ -166,6 +170,7 @@ impl CheckpointExecutor {
             tps_estimator: Mutex::new(TPSEstimator::default()),
             checkpoint_progress_tracker,
             data_sender,
+            next_randomness_to_forward: Mutex::new(0),
         }
     }
 
@@ -342,6 +347,24 @@ impl CheckpointExecutor {
             self.checkpoint_store
                 .notify_read_executed_checkpoint(sequence_number - 1)
                 .await;
+        }
+
+        // A committee validator that has not built the last checkpoint itself
+        // executes it from synced data like the checkpoints before, so it
+        // switches first.
+        if is_last_checkpoint_of_epoch
+            && !self.state.is_fullnode(&self.epoch_store)
+            && self
+                .epoch_store
+                .protocol_config()
+                .committee_validators_skip_synced_checkpoint_execution()
+            && self
+                .checkpoint_store
+                .get_locally_computed_checkpoint(sequence_number)
+                .expect("db error")
+                .is_none()
+        {
+            self.epoch_store.start_executing_synced_checkpoints().await;
         }
 
         let _parallel_step_guard =
@@ -570,12 +593,23 @@ impl CheckpointExecutor {
     /// is known, because peers then stop serving this epoch's consensus
     /// commits. In that last case it first switches this node to executing
     /// synced checkpoints for the rest of the epoch, which stops the consensus
-    /// handler and the checkpoint builder.
+    /// handler and the checkpoint builder. Once switched, it returns `None`
+    /// for every checkpoint, built locally or not.
     async fn wait_for_locally_built_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Option<CheckpointSummary> {
         let seq = checkpoint.sequence_number;
+        let skip_synced_execution = self
+            .epoch_store
+            .protocol_config()
+            .committee_validators_skip_synced_checkpoint_execution();
+        // Once switched, the builder no longer runs, so the state hash of a
+        // checkpoint it built may never be computed; the synced path computes
+        // it.
+        if skip_synced_execution && self.epoch_store.is_executing_synced_checkpoints() {
+            return None;
+        }
         if let Some(summary) = self
             .checkpoint_store
             .get_locally_computed_checkpoint(seq)
@@ -583,12 +617,7 @@ impl CheckpointExecutor {
         {
             return Some(summary);
         }
-        if seq == 0
-            || !self
-                .epoch_store
-                .protocol_config()
-                .committee_validators_skip_synced_checkpoint_execution()
-        {
+        if seq == 0 || !skip_synced_execution {
             return None;
         }
         let epoch = self.epoch_store.epoch();
@@ -604,35 +633,37 @@ impl CheckpointExecutor {
         let _backpressure_guard = self.backpressure_manager.wait_for_local_build();
         // The builder resolves every randomness round of a build before it
         // writes any chunk of it, so the round this checkpoint waits for may
-        // only appear in a later synced chunk. Forward from all of them.
-        let mut next_to_forward = seq;
-        let mut forwarded_to_epoch_end = false;
+        // only appear in a later synced chunk. Forward from all of them, each
+        // once per epoch.
+        let mut next_to_forward = (*self.next_randomness_to_forward.lock()).max(seq);
         loop {
             let highest_synced = self
                 .checkpoint_store
                 .get_highest_synced_checkpoint_seq_number()
                 .expect("db error")
                 .unwrap_or_default();
-            while !forwarded_to_epoch_end && next_to_forward <= highest_synced {
+            while next_to_forward <= highest_synced {
                 let synced = self
                     .checkpoint_store
                     .get_checkpoint_by_sequence_number(next_to_forward)
                     .expect("db error")
                     .expect("synced checkpoint should be in the store");
                 if synced.epoch() != epoch {
-                    forwarded_to_epoch_end = true;
+                    next_to_forward = CheckpointSequenceNumber::MAX;
                     break;
                 }
                 self.forward_randomness_from_checkpoint(synced);
                 next_to_forward += 1;
+                tokio::task::yield_now().await;
             }
+            *self.next_randomness_to_forward.lock() = next_to_forward;
             tokio::select! {
                 summary = self.checkpoint_store.notify_read_locally_computed_checkpoint(seq) => return Some(summary),
                 _ = self.checkpoint_store.notify_read_epoch_last_checkpoint_seq_number(epoch) => {
                     self.epoch_store.start_executing_synced_checkpoints().await;
                     return None;
                 }
-                _ = self.checkpoint_store.notify_read_synced_checkpoint(next_to_forward), if !forwarded_to_epoch_end => {}
+                _ = self.checkpoint_store.notify_read_synced_checkpoint(next_to_forward), if next_to_forward != CheckpointSequenceNumber::MAX => {}
             }
         }
     }
