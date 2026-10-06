@@ -1927,7 +1927,7 @@ impl AuthorityPerEpochStore {
     /// row. Does nothing when the bookkeeping is off or the epoch has ended.
     pub fn persist_checkpoint_bookkeeping<'a>(
         &self,
-        effects: impl IntoIterator<Item = &'a TransactionEffects>,
+        effects: impl IntoIterator<Item = &'a TransactionEffects> + Clone,
     ) -> IotaResult {
         if !self.protocol_config.pcool_deterministic_validation() {
             return Ok(());
@@ -1937,39 +1937,59 @@ impl AuthorityPerEpochStore {
             Err(IotaError::EpochEnded(_)) => return Ok(()),
             Err(e) => return Err(e),
         };
-        self.write_and_evict_checkpoint_rows(&tables, |state| state.checkpoint_rows(effects))
+        self.write_and_evict_checkpoint_rows(&tables, |state| {
+            state.checkpoint_rows(effects.clone())
+        })
     }
 
     /// Snapshots the rows with `rows`, writes them durably, then evicts them
     /// from the overlays - the order that keeps a reader from finding an
-    /// entry in neither.
+    /// entry in neither. `rows` may be called twice.
     ///
-    /// All three steps run under the quarantine read lock. A quarantine
-    /// flush stages the sync-record deletions its commit queued and writes
-    /// the batch under the write lock; a record recreated after the staging
-    /// cancels its queued deletion too late for that batch. This write
-    /// therefore lands either before the staging, when the cancellation
-    /// reaches the batch, or after the flush, when the delete precedes it.
-    /// In between, the batch would delete the record just written.
+    /// When the snapshot holds a sync-ahead record, the snapshot is taken
+    /// again and all three steps run under the quarantine read lock. A
+    /// quarantine flush stages the sync-record deletions its commit queued
+    /// and writes the batch under the write lock; a record recreated after
+    /// the staging cancels its queued deletion too late for that batch. The
+    /// write of such a record therefore lands either before the staging, when
+    /// the cancellation reaches the batch, or after the flush, when the
+    /// delete precedes it. In between, the batch would delete the record just
+    /// written.
+    ///
+    /// A snapshot without records is written without the lock: handler rows
+    /// and sheltered bytes never change once written for a key, and no flush
+    /// deletes them.
     fn write_and_evict_checkpoint_rows(
         &self,
         tables: &AuthorityEpochTables,
-        rows: impl FnOnce(&HandlerObjectState) -> handler_object_state::CheckpointRows,
+        rows: impl Fn(&HandlerObjectState) -> handler_object_state::CheckpointRows,
     ) -> IotaResult {
+        let snapshot = rows(&self.handler_object_state);
+        if snapshot.sync_rows.is_empty() {
+            return self.write_then_evict_checkpoint_rows(tables, &snapshot);
+        }
         let _quarantine = self.consensus_quarantine.read();
-        let rows = rows(&self.handler_object_state);
+        let snapshot = rows(&self.handler_object_state);
+        self.write_then_evict_checkpoint_rows(tables, &snapshot)
+    }
+
+    fn write_then_evict_checkpoint_rows(
+        &self,
+        tables: &AuthorityEpochTables,
+        rows: &handler_object_state::CheckpointRows,
+    ) -> IotaResult {
         if rows.is_empty() {
             return Ok(());
         }
         let mut batch = tables.handler_processed_objects.batch();
         self.handler_object_state
-            .write_checkpoint_rows_to_batch(tables, &mut batch, &rows)?;
+            .write_checkpoint_rows_to_batch(tables, &mut batch, rows)?;
         batch.write()?;
         // Lets a test crash the node with the bookkeeping durable and the
         // checkpoint's outputs not.
         fail_point!("crash-after-checkpoint-bookkeeping-write");
         self.handler_object_state
-            .evict_flushed_checkpoint_rows(&rows);
+            .evict_flushed_checkpoint_rows(rows);
         Ok(())
     }
 
@@ -2071,13 +2091,20 @@ impl AuthorityPerEpochStore {
         sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
         shelter_rows: Vec<(ObjectKey, Object)>,
     ) -> IotaResult {
-        let rows = handler_object_state::CheckpointRows {
-            handler_rows: Vec::new(),
-            sync_rows,
-            shelter_rows,
-        };
         let tables = self.tables()?;
-        self.write_and_evict_checkpoint_rows(&tables, |_| rows)
+        self.write_and_evict_checkpoint_rows(&tables, |_| handler_object_state::CheckpointRows {
+            handler_rows: Vec::new(),
+            sync_rows: sync_rows.clone(),
+            shelter_rows: shelter_rows.clone(),
+        })
+    }
+
+    /// Runs `during` while holding the consensus quarantine write lock, as a
+    /// commit push or a quarantine flush does.
+    #[cfg(test)]
+    pub fn hold_consensus_quarantine_for_testing(&self, during: impl FnOnce()) {
+        let _quarantine = self.consensus_quarantine.write();
+        during();
     }
 
     /// Flushes commit `index` out of the consensus quarantine through the
