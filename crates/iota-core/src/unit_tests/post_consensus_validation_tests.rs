@@ -3502,6 +3502,119 @@ async fn healthy_checkpoint_persists_only_handler_rows() {
     }
 }
 
+/// A checkpoint whose bookkeeping holds no sync-ahead record is written
+/// without the consensus quarantine lock, so a commit push or a quarantine
+/// flush does not hold up checkpoint execution.
+#[tokio::test]
+async fn checkpoint_bookkeeping_without_a_record_does_not_wait_for_the_quarantine() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+
+    let (written, wait_written) = std::sync::mpsc::channel();
+    let mut bookkeeping_write = None;
+    s.epoch_store.hold_consensus_quarantine_for_testing(|| {
+        let epoch_store = s.epoch_store.clone();
+        let effects = effects.clone();
+        bookkeeping_write = Some(std::thread::spawn(move || {
+            epoch_store
+                .persist_checkpoint_bookkeeping([&effects])
+                .unwrap();
+            written.send(()).unwrap();
+        }));
+        wait_written.recv_timeout(Duration::from_secs(5)).expect(
+            "checkpoint bookkeeping without a record must not wait for the quarantine lock",
+        );
+    });
+    bookkeeping_write.unwrap().join().unwrap();
+
+    for id in [obj_id, gas_id] {
+        assert!(
+            s.epoch_store
+                .durable_handler_processed_object_for_testing(&ObjectKey(
+                    id,
+                    effects.lamport_version()
+                ))
+                .unwrap()
+                .is_some()
+        );
+    }
+    assert_eq!(
+        s.epoch_store
+            .handler_object_state_for_testing()
+            .overlay_sizes_for_testing()
+            .0,
+        0
+    );
+}
+
+/// A checkpoint whose bookkeeping holds a sync-ahead record waits for the
+/// consensus quarantine lock, so its write cannot land between a flush
+/// staging that record's deletion and writing its batch.
+#[tokio::test]
+async fn checkpoint_bookkeeping_with_a_record_waits_for_the_quarantine() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let effects = s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    let records =
+        [obj_id, gas_id].map(|id| (id, s.epoch_store.sync_ahead_record(&id).unwrap().unwrap()));
+
+    let (written, wait_written) = std::sync::mpsc::channel();
+    let mut bookkeeping_write = None;
+    s.epoch_store.hold_consensus_quarantine_for_testing(|| {
+        let epoch_store = s.epoch_store.clone();
+        let effects = effects.clone();
+        bookkeeping_write = Some(std::thread::spawn(move || {
+            epoch_store
+                .persist_checkpoint_bookkeeping([&effects])
+                .unwrap();
+            written.send(()).unwrap();
+        }));
+        assert!(
+            wait_written
+                .recv_timeout(Duration::from_millis(500))
+                .is_err(),
+            "a checkpoint batch with a record must wait for the quarantine lock"
+        );
+    });
+    wait_written
+        .recv_timeout(Duration::from_secs(30))
+        .expect("the checkpoint batch proceeds once the quarantine lock is released");
+    bookkeeping_write.unwrap().join().unwrap();
+
+    for (id, record) in records {
+        assert_eq!(
+            s.epoch_store
+                .durable_sync_ahead_record_for_testing(&id)
+                .unwrap(),
+            Some(record)
+        );
+    }
+}
+
 /// The checkpoint executor runs a checkpoint's executions before the previous
 /// checkpoints' outputs are durable. A record that such an execution started
 /// on an object the earlier checkpoints wrote handler-known goes with its own

@@ -772,7 +772,7 @@ impl HandlerObjectState {
     /// queued until eviction, so a sync-ahead write landing before the batch
     /// is durable still sees the record as dead. Such a write cancels the
     /// queued deletion but not the copy already staged here, which is why the
-    /// auxiliary batch writes under the quarantine lock; see
+    /// auxiliary batch writes records under the quarantine lock; see
     /// `AuthorityPerEpochStore::persist_checkpoint_bookkeeping`.
     pub fn write_commit_rows_to_batch(
         &self,
