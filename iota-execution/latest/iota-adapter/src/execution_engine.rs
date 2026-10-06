@@ -28,7 +28,8 @@ mod checked {
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
         account_abstraction::authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefV1, MoveAuthenticatorsForExecution,
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+            AuthenticatorFunctionRefV1, MoveAuthenticatorsForExecution,
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
@@ -395,24 +396,37 @@ mod checked {
             MoveAuthenticatorsForExecution::Resolved(authenticators) => {
                 // Store each loaded function-ref field object's metadata
                 // in the `TemporaryStore` before any authenticator runs.
-                for authenticator in &authenticators {
-                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                        authenticator.function_ref.loaded_object_id,
-                        authenticator.function_ref.loaded_object_metadata.clone(),
-                    )]));
-                }
-                let result =
-                    authenticators.iter().try_for_each(|authenticator| {
-                        match &authenticator.function_ref.authenticator_function_ref {
+                let authenticators: Vec<_> = authenticators
+                    .into_iter()
+                    .map(|authenticator| {
+                        let AuthenticatorFunctionRefForExecution {
+                            authenticator_function_ref,
+                            loaded_object_id,
+                            loaded_object_metadata,
+                        } = authenticator.function_ref;
+                        temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                            loaded_object_id,
+                            loaded_object_metadata,
+                        )]));
+                        (
+                            authenticator.authenticator,
+                            authenticator_function_ref,
+                            authenticator.input_objects.into_inner(),
+                        )
+                    })
+                    .collect();
+                let result = authenticators.into_iter().try_for_each(
+                    |(authenticator, authenticator_function_ref, input_objects)| {
+                        match authenticator_function_ref {
                             AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
                                 authenticate_transaction_inner(
                                     &mut temporary_store,
                                     protocol_config,
                                     metrics.clone(),
                                     &mut gas_charger,
-                                    authenticator.authenticator.clone(),
-                                    authenticator_function_ref_v1.clone(),
-                                    authenticator.input_objects.inner(),
+                                    authenticator,
+                                    authenticator_function_ref_v1,
+                                    &input_objects,
                                     transaction_kind.clone(),
                                     transaction_digest,
                                     auth_context_data.clone(),
@@ -422,7 +436,8 @@ mod checked {
                                 )
                             }
                         }
-                    });
+                    },
+                );
                 report_authentication_error(result, protocol_config)
             }
             MoveAuthenticatorsForExecution::ResolutionFailed(error) => {
