@@ -36,6 +36,10 @@ use crate::{
     key_value_store_metrics::KeyValueStoreMetrics,
 };
 
+/// How long one GET may take. A GET that times out fails the read, so a key that never answers
+/// does not hold up the call.
+const FETCH_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Reads a trusted HTTP key-value store. Its checks catch data stored under the
 /// wrong key, not forged data: signatures are not verified.
 pub struct HttpKVStore {
@@ -324,7 +328,11 @@ impl HttpKVStore {
         info!("creating HttpKVStore with base_url: {}", base_url);
 
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let client = Client::builder().http2_prior_knowledge().build().unwrap();
+        let client = Client::builder()
+            .http2_prior_knowledge()
+            .timeout(FETCH_TIMEOUT)
+            .build()
+            .unwrap();
 
         let base_url = if base_url.ends_with('/') {
             base_url.to_string()
