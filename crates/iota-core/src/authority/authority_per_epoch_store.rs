@@ -1842,11 +1842,18 @@ impl AuthorityPerEpochStore {
         upserts: &[(ObjectKey, HandlerProcessedObject)],
     ) -> IotaResult {
         let tables = self.tables()?;
+        // Outside the lock: a row found stays found, since rows are never
+        // deleted and are evicted only once durable. A row that appears after
+        // this check is inserted again with the same value, and the commit's
+        // flush writes and evicts it like any other row still in the overlay.
+        let inserts = self
+            .handler_object_state
+            .rows_not_yet_present(&tables, upserts)?;
         // Held so a flush cannot complete this commit between the guard inside
         // and the upserts: the flush runs under the write lock throughout.
         let _quarantine = self.consensus_quarantine.read();
         self.handler_object_state
-            .record_commit_fully_executed(&tables, index, upserts)
+            .record_commit_fully_executed(&tables, index, upserts, &inserts)
     }
 
     /// Stages the handler rows of a commit flushing out of the quarantine into
