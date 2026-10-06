@@ -2632,7 +2632,6 @@ impl BookkeepingSetup {
     /// task.
     fn start_execution_watcher(&self) -> ExecutionWatcher {
         ExecutionWatcher::start(self.epoch_store.clone())
-            .expect("no other watcher has taken the assigned-commit receiver")
     }
 
     /// Makes the current sync-ahead records of `ids` durable, standing in for
@@ -3720,8 +3719,7 @@ async fn watcher_restores_rows_of_a_replayed_commit_after_restart() {
     }
 
     // The handler replays commit 2. Its transaction is not executed again.
-    let _watcher = ExecutionWatcher::start(reopened.clone())
-        .expect("the reopened store's receiver is untaken");
+    let _watcher = ExecutionWatcher::start(reopened.clone());
     reopened.assign_commit_to_transactions(
         2,
         vec![TransactionKey::Digest(*second.transaction_digest())],
