@@ -399,8 +399,12 @@ ensure_network() {
   banner "== bootstrap (-b, $N validators) =="
   sudo "$TOOLS_DIR/bootstrap.sh" -b -n "$N"
   banner "== start network (attestation ON) =="
+  # The probe reads only the validators' metrics, so only Prometheus is
+  # started: no Grafana, and no cadvisor or node-exporter, which would also
+  # clash with a machine's own copies.
   ATTEST=true MODE=TotalComputationUnits \
     MAX_ACCUMULATED_TXN_COST="$MAX_ACCUMULATED_TXN_COST" \
+    MON_SERVICES=prometheus \
     "$TOOLS_DIR/start.sh" -n "$N" faucet
   wait_for_fullnode
 }

@@ -223,28 +223,61 @@ fi
 # kept leaking an orphaned docker-proxy that `docker compose down` cannot reap,
 # leaving a port permanently bound -> "address already in use". Not starting tempo
 # removes that failure mode (and the contended ports) entirely.
+#
+# MON_SERVICES (space-separated) picks a subset. The probe needs only
+# prometheus, and on a machine that runs its own cadvisor or node-exporter,
+# starting ours clashes with them on the container name or the port.
 GRAFANA_DIR="${GRAFANA_DIR:-$REPO_ROOT/dev-tools/grafana-local}"
-MON_SERVICES=(prometheus grafana cadvisor node-exporter)
-MON_PORTS=(9090 3000 8080 9100) # host ports the above bind (no tempo ports)
+read -r -a MON_SERVICES <<<"${MON_SERVICES:-prometheus grafana cadvisor node-exporter}"
+declare -A MON_PORT_OF=([prometheus]=9090 [grafana]=3000 [cadvisor]=8080 [node - exporter]=9100)
+MON_PORTS=() # host ports the chosen services bind (no tempo ports)
+for _svc in "${MON_SERVICES[@]}"; do
+  if [[ -z "${MON_PORT_OF[$_svc]:-}" ]]; then
+    echo "${RED}ERROR: unknown monitoring service '$_svc' in MON_SERVICES (known: ${!MON_PORT_OF[*]}).${RESET}" >&2
+    exit 1
+  fi
+  MON_PORTS+=("${MON_PORT_OF[$_svc]}")
+done
 # Need root to kill a root-owned orphaned docker-proxy; use sudo when not root.
 # `sudo -n` so this can NEVER block on a password prompt (during matrix runs the
 # credential is already cached; standalone non-root just falls back to the retry).
 if [[ ${EUID:-$(id -u)} -eq 0 ]]; then SUDO=(); else SUDO=(sudo -n); fi
 
-# Guarantee every monitoring host port is FREE before `docker compose up`, so
-# "address already in use" cannot recur. `docker compose down` removes containers
-# it tracks, but a stray/cross-project container — or an orphaned `docker-proxy`
-# left behind when a container is force-killed under load — can keep a host port
-# bound. For each port we: (1) force-remove any container publishing it, then
-# (2) kill whatever still holds it (the orphan proxy). After this the port is free.
-# (Requires `fuser`, from psmisc — present on Ubuntu/Arch; failures are tolerated.)
-free_mon_ports() {
-  local p c
-  for p in "${MON_PORTS[@]}"; do
-    c="$(docker ps -aq --filter "publish=$p" 2>/dev/null)"
-    [[ -n "$c" ]] && docker rm -f $c >/dev/null 2>&1 || true
-    "${SUDO[@]}" fuser -k "$p/tcp" >/dev/null 2>&1 || true
+# Free the monitoring host ports without touching anything this script did not
+# start. `docker compose down` removes our own containers; what can still hold
+# a port afterwards is an orphaned `docker-proxy`, left behind when a container
+# was force-killed under load. A proxy is orphaned when no running container
+# has the IP it forwards to, so only those are killed. Anything else holding a
+# port belongs to someone else, and the caller reports it instead.
+orphan_proxy_pids() { # $1 = host port
+  local pid args ip live
+  live=" $(docker ps -q 2>/dev/null | xargs -r docker inspect \
+    -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{.GlobalIPv6Address}} {{end}}' \
+    2>/dev/null | tr '\n' ' ' || true) "
+  for pid in $(pgrep -x docker-proxy || true); do
+    args=" $(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true) "
+    [[ "$args" == *" -host-port $1 "* ]] || continue
+    ip="$(sed -nE 's/.* -container-ip ([^ ]+) .*/\1/p' <<<"$args")"
+    if [[ -n "$ip" && "$live" != *" $ip "* ]]; then echo "$pid"; fi
   done
+  return 0
+}
+
+free_mon_ports() {
+  local p pids
+  for p in "${MON_PORTS[@]}"; do
+    pids="$(orphan_proxy_pids "$p")"
+    if [[ -n "$pids" ]]; then "${SUDO[@]}" kill $pids >/dev/null 2>&1 || true; fi
+  done
+}
+
+# Monitoring ports still listened on, space-separated.
+held_mon_ports() {
+  local p held=()
+  for p in "${MON_PORTS[@]}"; do
+    if ss -Hltn "( sport = :$p )" 2>/dev/null | grep -q .; then held+=("$p"); fi
+  done
+  echo "${held[*]}"
 }
 
 if [[ -d "$GRAFANA_DIR" ]]; then
@@ -253,8 +286,18 @@ if [[ -d "$GRAFANA_DIR" ]]; then
   _mon_up=""
   for _attempt in 1 2 3 4 5; do
     (cd "$GRAFANA_DIR" && docker compose down --remove-orphans) >/dev/null 2>&1 || true
-    free_mon_ports # provably free the ports (kills stray containers + orphan proxies)
-    sleep 1
+    free_mon_ports # kills only orphaned docker-proxies, never another container
+    for _ in 1 2 3 4 5; do
+      _held="$(held_mon_ports)"
+      [[ -z "$_held" ]] && break
+      sleep 1
+    done
+    if [[ -n "$_held" ]]; then
+      echo "${RED}ERROR: monitoring port(s) $_held held by something this script did not start:${RESET}" >&2
+      "${SUDO[@]}" ss -ltnp 2>/dev/null | grep -E ":(${_held// /|})\b" >&2 || true
+      echo "${RED}  Stop it, or leave that service out with MON_SERVICES (e.g. MON_SERVICES=prometheus).${RESET}" >&2
+      exit 1
+    fi
     if (cd "$GRAFANA_DIR" && docker compose up -d "${MON_SERVICES[@]}"); then
       _mon_up=1
       break
@@ -269,9 +312,11 @@ if [[ -d "$GRAFANA_DIR" ]]; then
       echo "${MON_PORTS[*]}"
     ))\b" >&2 || true
     echo "${RED}  Last resort to reap orphaned proxies: sudo systemctl restart docker.${RESET}" >&2
+    echo "${RED}  If a container of the same name already runs (e.g. a machine's own cadvisor),${RESET}" >&2
+    echo "${RED}  leave that service out with MON_SERVICES.${RESET}" >&2
     exit 1
   fi
-  echo "${GREEN}Monitoring up - [Grafana](http://localhost:3000), [Prometheus](http://localhost:9090)${RESET}"
+  echo "${GREEN}Monitoring up (${MON_SERVICES[*]}) - [Grafana](http://localhost:3000), [Prometheus](http://localhost:9090)${RESET}"
 else
   echo "${YELLOW}WARN: monitoring dir not found, skipping: $GRAFANA_DIR${RESET}" >&2
 fi
