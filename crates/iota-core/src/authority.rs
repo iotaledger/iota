@@ -2106,7 +2106,15 @@ impl AuthorityState {
             epoch_store.insert_tx_key(key, *tx_digest)?;
         }
 
-        if epoch_store.pcool_bookkeeping_enabled() {
+        // Genesis and the change-epoch transaction are roots of no consensus
+        // commit, so no commit would ever clear entries recorded for them.
+        // Without entries, the reader takes what they wrote as epoch-start
+        // state: genesis writes the first epoch's, the change-epoch transaction
+        // the next epoch's.
+        if epoch_store.pcool_bookkeeping_enabled()
+            && !transaction.transaction().is_genesis_tx()
+            && !transaction.transaction().is_end_of_epoch_tx()
+        {
             // A consumed input version comes from the declared inputs; the
             // store fallback covers the versions execution loaded at runtime
             // (dynamic-field children and received objects).

@@ -11,13 +11,14 @@ use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{
-    Address, Command, Identifier, ObjectDigest, ObjectId, ObjectReference, OwnedObjectReference,
-    Owner, SenderSignedTransaction, SharedObjectReference, Transaction, TransactionDigest,
-    TransactionEffects, Version,
+    Address, Command, GasCostSummary, Identifier, ObjectDigest, ObjectId, ObjectReference,
+    OwnedObjectReference, Owner, SenderSignedTransaction, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_transaction_checks::VerifierLimitsSource;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     crypto::{AccountPrivateKey, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -4378,6 +4379,70 @@ async fn sync_ahead_created_object_has_no_base_version() {
     // version of it may answer keep at validation.
     s.assert_record(created_ref.object_id(), None, effects.lamport_version());
     s.assert_not_sheltered(created_ref);
+}
+
+/// Genesis is the root of no consensus commit, so no commit would ever clear
+/// bookkeeping its execution wrote; the objects it creates are epoch-start
+/// state.
+#[tokio::test]
+async fn genesis_execution_leaves_no_bookkeeping() {
+    let s = setup_bookkeeping(vec![], true).await;
+
+    for id in [IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_STATE_OBJECT_ID] {
+        assert_eq!(s.epoch_store.sync_ahead_record(&id).unwrap(), None);
+    }
+    assert_eq!(
+        s.epoch_store
+            .handler_object_state_for_testing()
+            .live_sync_ahead_records_count_for_testing(),
+        0
+    );
+}
+
+/// The change-epoch transaction is the root of no consensus commit, so no
+/// commit would ever clear bookkeeping its execution wrote; what it writes is
+/// the next epoch's epoch-start state.
+#[tokio::test]
+async fn change_epoch_execution_leaves_no_bookkeeping() {
+    let s = setup_bookkeeping(vec![], true).await;
+
+    // The checkpoint builder executes the transaction without committing it
+    // and stores it for state sync; the checkpoint executor commits it.
+    let (_, _, built_effects) = s
+        .authority
+        .create_and_execute_advance_epoch_tx(
+            &s.epoch_store,
+            &GasCostSummary::new(0, 0, 0, 0, 0),
+            1, // checkpoint
+            0, // epoch_start_timestamp_ms
+            // One full score for the single-validator test committee.
+            vec![u16::MAX as u64 + 1],
+        )
+        .await
+        .expect("advance epoch tx must succeed");
+    let tx = s
+        .authority
+        .get_transaction_cache_reader()
+        .get_transaction_block(built_effects.transaction_digest())
+        .expect("the checkpoint builder stores the change-epoch transaction");
+    assert!(tx.data().transaction().is_end_of_epoch_tx());
+    let effects = s.execute_with_assigned_shared_versions((*tx).clone());
+
+    let written = handler_processed_upserts(&effects, 0);
+    assert!(!written.is_empty());
+    for (key, _) in written {
+        assert_eq!(s.epoch_store.sync_ahead_record(&key.0).unwrap(), None);
+        s.assert_no_handler_row(&key.0, key.1);
+    }
+    for consumed in effects.old_object_metadata() {
+        s.assert_not_sheltered(*consumed.reference());
+    }
+    assert_eq!(
+        s.epoch_store
+            .handler_object_state_for_testing()
+            .live_sync_ahead_records_count_for_testing(),
+        0
+    );
 }
 
 #[tokio::test]
