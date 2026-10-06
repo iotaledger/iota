@@ -75,6 +75,7 @@ use iota_data_ingestion_core::{
     ShimProgressStore, Worker, WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
+use iota_macros::fail_point;
 use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_types::{
     committee::Committee,
@@ -749,6 +750,9 @@ where
             self.store
                 .try_update_highest_synced_checkpoint(&checkpoint)
                 .expect("store operation should not fail");
+            if checkpoint.next_epoch_committee().is_some() {
+                fail_point!("synced-end-of-epoch-checkpoint-from-consensus");
+            }
         }
 
         // We don't care if no one is listening as this is a broadcast channel
