@@ -1920,11 +1920,18 @@ impl AuthorityPerEpochStore {
 
     /// Makes the bookkeeping entries left by the executions behind `effects` -
     /// one checkpoint's transactions - durable, then evicts them from the
-    /// overlays. The checkpoint executor calls this before committing the
-    /// checkpoint's outputs, so an object is never durable without its
-    /// handler row or sync-ahead record, and a consumed version's bytes are
-    /// durable before the watermark bump lets the pruner delete its perpetual
-    /// row. Does nothing when the bookkeeping is off or the epoch has ended.
+    /// overlays. The checkpoint executor calls this after the outputs of
+    /// every earlier checkpoint are committed and before this checkpoint's
+    /// outputs and its commits' quarantine flushes, so an object is never
+    /// durable without its handler row or sync-ahead record, and a consumed
+    /// version's bytes are durable before the watermark bump lets the pruner
+    /// delete its perpetual row. Does nothing when the bookkeeping is off or
+    /// the epoch has ended.
+    ///
+    /// A sync-ahead record is persisted only with the checkpoint whose
+    /// sync-ahead executions wrote it, so its base version is then durable
+    /// already, or written by this checkpoint with its handler row in the
+    /// same batch.
     pub fn persist_checkpoint_bookkeeping<'a>(
         &self,
         effects: impl IntoIterator<Item = &'a TransactionEffects> + Clone,
@@ -1958,7 +1965,10 @@ impl AuthorityPerEpochStore {
     ///
     /// A snapshot without records is written without the lock: handler rows
     /// and sheltered bytes never change once written for a key, and no flush
-    /// deletes them.
+    /// deletes them. Deciding this on a snapshot taken without the lock is
+    /// safe: the race above needs a record in this write, and only records
+    /// in the snapshot are written here; a snapshot holding any record takes
+    /// the locked path above.
     fn write_and_evict_checkpoint_rows(
         &self,
         tables: &AuthorityEpochTables,
