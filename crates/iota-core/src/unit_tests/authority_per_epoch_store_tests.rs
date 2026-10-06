@@ -2406,6 +2406,63 @@ mod handler_object_state_storage {
         );
     }
 
+    /// A queued deletion canceled by a new chain lives only in memory. After
+    /// a restart the dead record is back in the table with no deletion queued
+    /// against it, beside the handler row of the version it ends at. The
+    /// re-executed write of the new chain consumes that handler-written
+    /// version, so it must start a fresh chain from it rather than inherit
+    /// the dead record's base.
+    #[tokio::test]
+    async fn reexecuted_sync_write_after_restart_does_not_extend_a_dead_record() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
+        let first_chain_head = effects.lamport_version();
+        let first_record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(mutated, first_record)], vec![])
+            .unwrap();
+
+        // The handler catches up past the chain and a second chain starts
+        // before the queued deletion drains, canceling it.
+        let handler_rows = vec![(ObjectKey(mutated, first_chain_head), generate_live_entry(8))];
+        epoch_store.assign_commit_to_transactions(8, vec![]);
+        epoch_store
+            .record_commit_fully_executed(8, &handler_rows)
+            .unwrap();
+        let (next_effects, next_inputs) =
+            executed_owned_tx_effects(mutated, first_chain_head.as_u64(), 2);
+        execute_sync_ahead(&epoch_store, &next_effects, &next_inputs);
+        let fresh_record = SyncAheadRecord {
+            base_version: Some(first_chain_head),
+            latest_created: next_effects.lamport_version(),
+            initial_shared_version: None,
+        };
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+
+        // Commit 8 flushes its row with no deletion left to drain; crash
+        // before the fresh record is durable.
+        epoch_store
+            .flush_commit_rows_for_testing(8, handler_rows)
+            .unwrap();
+        let reopened = reopen(&authority, &epoch_store);
+        assert_eq!(
+            reopened.sync_ahead_record(&mutated).unwrap(),
+            Some(first_record)
+        );
+        execute_sync_ahead(&reopened, &next_effects, &next_inputs);
+        assert_eq!(
+            reopened.sync_ahead_record(&mutated).unwrap(),
+            Some(fresh_record)
+        );
+    }
+
     /// The flush's deletion of a record stays queued until the batch holding
     /// it is durable. A new sync-ahead chain starting in that window must
     /// still see the old record as dead: it starts from the version it
