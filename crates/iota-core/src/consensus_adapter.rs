@@ -80,6 +80,19 @@ pub struct ConsensusAdapterMetrics {
     pub sequencing_certificate_processed: IntCounterVec,
     pub sequencing_in_flight_semaphore_wait: IntGauge,
     pub sequencing_in_flight_submissions: IntGauge,
+    /// Wall-clock time a `submit_semaphore` permit is held, from
+    /// acquire-success until drop. Approximates the per-transaction cost of
+    /// the pre-consensus admission path.
+    pub sequencing_submit_permit_hold_duration: Histogram,
+    /// Wall-clock time blocked on `submit_semaphore.acquire()`. Non-zero only
+    /// when the semaphore is the binding limit.
+    pub sequencing_submit_permit_wait_duration: Histogram,
+    /// Wall-clock time from `InflightDropGuard::acquire` until the submit
+    /// select resolves, so before the semaphore is acquired. Covers the
+    /// leader-rotation wait, the epoch-close wait and the race against the
+    /// transaction already being processed. Observed for every transaction,
+    /// whichever arm of the select fires.
+    pub sequencing_submit_pre_acquire_duration: Histogram,
     pub sequencing_estimated_latency: IntGauge,
     pub sequencing_resubmission_interval_ms: IntGauge,
 }
@@ -180,6 +193,34 @@ impl ConsensusAdapterMetrics {
             sequencing_in_flight_submissions: register_int_gauge_with_registry!(
                 "sequencing_in_flight_submissions",
                 "Number of transactions submitted to local consensus instance and not yet sequenced",
+                registry,
+            )
+            .unwrap(),
+            sequencing_submit_permit_hold_duration: register_histogram_with_registry!(
+                "sequencing_submit_permit_hold_duration",
+                "Wall-clock time a submit_semaphore permit is held: from \
+                 acquire-success until drop. Approximates the per-transaction \
+                 cost of the pre-consensus admission path.",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            sequencing_submit_permit_wait_duration: register_histogram_with_registry!(
+                "sequencing_submit_permit_wait_duration",
+                "Wall-clock time a transaction blocks on \
+                 submit_semaphore.acquire(). Non-zero only when the semaphore \
+                 is the binding limit.",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            sequencing_submit_pre_acquire_duration: register_histogram_with_registry!(
+                "sequencing_submit_pre_acquire_duration",
+                "Wall-clock time from InflightDropGuard::acquire until the \
+                 submit select resolves, i.e. before submit_semaphore.acquire(). \
+                 Covers the leader-rotation wait, the epoch-close wait and the \
+                 race against the transaction already being processed.",
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -842,6 +883,7 @@ impl ConsensusAdapter {
         };
 
         let mut guard = InflightDropGuard::acquire(&self, tx_type);
+        let pre_acquire_start = Instant::now();
 
         // Create the waiter until the node's turn comes to submit to consensus
         let (await_submit, position, positions_moved, preceding_disconnected) =
@@ -874,6 +916,9 @@ impl ConsensusAdapter {
                 None
             }
         };
+        self.metrics
+            .sequencing_submit_pre_acquire_duration
+            .observe(pre_acquire_start.elapsed().as_secs_f64());
 
         // Log warnings for administrative transactions that fail to get sequenced
         let _monitor = if !is_soft_bundle
@@ -913,12 +958,23 @@ impl ConsensusAdapter {
             guard.positions_moved = Some(positions_moved);
             guard.preceding_disconnected = Some(preceding_disconnected);
 
+            let permit_wait_start = Instant::now();
             let _permit: SemaphorePermit = self
                 .submit_semaphore
                 .acquire()
                 .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
                 .await
                 .expect("Consensus adapter does not close semaphore");
+            self.metrics
+                .sequencing_submit_permit_wait_duration
+                .observe(permit_wait_start.elapsed().as_secs_f64());
+            // Timed from acquire-success so the hold excludes the wait above,
+            // which `sequencing_submit_permit_wait_duration` already covers.
+            let permit_held_start = Instant::now();
+            let permit_hold_metric = self.metrics.sequencing_submit_permit_hold_duration.clone();
+            let _permit_hold_observer = scopeguard::guard((), move |_| {
+                permit_hold_metric.observe(permit_held_start.elapsed().as_secs_f64());
+            });
             let _in_flight_submission_guard =
                 GaugeGuard::acquire(&self.metrics.sequencing_in_flight_submissions);
 
