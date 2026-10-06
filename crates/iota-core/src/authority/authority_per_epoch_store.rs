@@ -2090,6 +2090,41 @@ impl AuthorityPerEpochStore {
         index: CommitIndex,
         roots: Vec<TransactionDigest>,
     ) -> IotaResult {
+        let summary = self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        self.handle_finalized_checkpoint(&summary, &roots)
+    }
+
+    /// [`Self::flush_commit_through_quarantine_for_testing`] with `between`
+    /// run once the flush has completed the commit and staged its rows, and
+    /// before the batch is written, still under the quarantine write lock.
+    /// Runs only the flush part of the finalized checkpoint's handling.
+    #[cfg(test)]
+    pub fn flush_commit_through_quarantine_interleaved_for_testing(
+        &self,
+        index: CommitIndex,
+        roots: Vec<TransactionDigest>,
+        between: impl FnOnce(),
+    ) -> IotaResult {
+        self.build_checkpoint_of_commit_for_testing(index, &roots)?;
+        let tables = self.tables()?;
+        let mut batch = tables.signed_effects_digests.batch();
+        let mut quarantine = self.consensus_quarantine.write();
+        let flushed = quarantine.update_highest_executed_checkpoint(index, self, &mut batch)?;
+        between();
+        batch.write()?;
+        self.evict_flushed_commit_rows(&flushed);
+        Ok(())
+    }
+
+    /// Pushes commit `index` into the consensus quarantine with one pending
+    /// checkpoint of `roots`, and builds that checkpoint, so that its
+    /// execution flushes the commit.
+    #[cfg(test)]
+    fn build_checkpoint_of_commit_for_testing(
+        &self,
+        index: CommitIndex,
+        roots: &[TransactionDigest],
+    ) -> IotaResult<CheckpointSummary> {
         use iota_sdk_types::GasCostSummary;
         use iota_types::{base_types::ExecutionDigests, messages_checkpoint::CheckpointSummaryExt};
 
@@ -2133,7 +2168,7 @@ impl AuthorityPerEpochStore {
             Vec::new(),
         );
         self.process_constructed_checkpoint(index, NonEmpty::new((summary.clone(), contents)));
-        self.handle_finalized_checkpoint(&summary, &roots)
+        Ok(summary)
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
