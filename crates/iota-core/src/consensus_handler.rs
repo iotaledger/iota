@@ -237,10 +237,16 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             return;
         }
         let _commit_guard = epoch_store.lock_consensus_commit().await;
+        // The switch may have happened while waiting for the guard.
+        if epoch_store.is_executing_synced_checkpoints() {
+            debug!("not processing consensus commit: executing synced checkpoints");
+            return;
+        }
         // Every wait while processing the commit races against the switch, so
         // the commit cannot run against state that executing downloaded
         // checkpoints writes, and the switch is not held up waiting for it.
         tokio::select! {
+            biased;
             _ = epoch_store.wait_for_synced_checkpoint_execution() => {
                 info!("abandoned consensus commit: executing synced checkpoints for the rest of the epoch");
             }
