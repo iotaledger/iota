@@ -67,6 +67,8 @@ typed-store.workspace = true
 [dev-dependencies]
 rustls.workspace = true
 serde_yaml.workspace = true
+tokio = { workspace = true, features = ["io-util"] }
+tonic-health.workspace = true
 
 [build-dependencies]
 rustc_version_runtime = "0.3"

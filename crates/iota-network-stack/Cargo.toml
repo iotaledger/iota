@@ -43,7 +43,9 @@ hyper = { workspace = true, features = ["client", "http2"] }
 rand08.workspace = true
 
 # internal dependencies
+iota-metrics.workspace = true
 iota-tls.workspace = true
+prometheus-filtered.workspace = true
 
 [lints]
 workspace = true

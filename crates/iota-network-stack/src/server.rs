@@ -10,6 +10,7 @@ use std::{
 };
 
 use eyre::{Result, eyre};
+use iota_http::metrics::ListenerMetrics;
 use tokio_rustls::rustls::ServerConfig;
 use tonic::{
     body::Body,
@@ -44,6 +45,7 @@ pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProv
     metrics_provider: M,
     router: tonic::service::Routes,
     health_reporter: tonic_health::server::HealthReporter,
+    listener_metrics: Option<ListenerMetrics>,
 }
 
 impl<M: MetricsCallbackProvider> ServerBuilder<M> {
@@ -56,7 +58,15 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
             metrics_provider,
             router,
             health_reporter,
+            listener_metrics: None,
         }
+    }
+
+    /// Measures the connections of the listener. See
+    /// [`iota_http::Config::metrics`].
+    pub fn listener_metrics(mut self, metrics: ListenerMetrics) -> Self {
+        self.listener_metrics = Some(metrics);
+        self
     }
 
     pub fn health_reporter(&self) -> tonic_health::server::HealthReporter {
@@ -114,7 +124,10 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
     }
 
     pub async fn bind(self, addr: &Multiaddr, tls_config: Option<ServerConfig>) -> Result<Server> {
-        let http_config = self.config.http_config();
+        let http_config = self
+            .config
+            .http_config()
+            .metrics(self.listener_metrics.clone());
 
         let request_timeout = self.request_timeout();
         let metrics_provider = self.metrics_provider;
@@ -242,6 +255,7 @@ mod test {
     };
 
     use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
+    use iota_metrics::testing::Reader;
     use tonic::Code;
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
@@ -320,6 +334,98 @@ mod test {
         server.server_handle.shutdown().await;
 
         assert!(metrics.metrics_called.lock().unwrap().deref());
+    }
+
+    #[tokio::test]
+    async fn listener_metrics_count_the_connections_of_the_server() {
+        let registry = prometheus_filtered::Registry::new();
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let config = Config::new();
+        let server = config
+            .server_builder()
+            .listener_metrics(iota_http::metrics::ListenerMetrics::new(
+                "test",
+                &registry,
+                prometheus_filtered::MetricLevel::Info,
+            ))
+            .bind(&address, None)
+            .await
+            .unwrap();
+
+        let channel = tonic::transport::Endpoint::from_shared(format!(
+            "http://{}",
+            server.local_addr().to_socket_addr().unwrap()
+        ))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+        HealthClient::new(channel)
+            .check(HealthCheckRequest {
+                service: "".to_owned(),
+            })
+            .await
+            .unwrap();
+
+        let reader = Reader::new(&registry).with_prefix("test");
+        assert_eq!(reader.value("inbound_connections_accepted", &[]), 1.0);
+        assert!(
+            !reader.has_family("pending_handshakes_peak"),
+            "a plain listener has no TLS metrics"
+        );
+        server.trigger_shutdown();
+    }
+
+    #[tokio::test]
+    async fn listener_metrics_time_the_tls_handshakes_of_the_server() {
+        let registry = prometheus_filtered::Registry::new();
+        let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
+        let config = Config::new();
+        let keypair = Ed25519KeyPair::generate(&mut rand08::thread_rng());
+        let server = config
+            .server_builder()
+            .listener_metrics(iota_http::metrics::ListenerMetrics::new(
+                "test",
+                &registry,
+                prometheus_filtered::MetricLevel::Info,
+            ))
+            .bind(
+                &address,
+                Some(iota_tls::create_rustls_server_config(
+                    keypair.copy().private(),
+                    "test".to_string(),
+                )),
+            )
+            .await
+            .unwrap();
+
+        let channel = config
+            .connect(
+                server.local_addr(),
+                iota_tls::create_rustls_client_config(
+                    keypair.public().to_owned(),
+                    "test".to_string(),
+                    None,
+                ),
+            )
+            .await
+            .unwrap();
+        HealthClient::new(channel)
+            .check(HealthCheckRequest {
+                service: "".to_owned(),
+            })
+            .await
+            .unwrap();
+
+        let reader = Reader::new(&registry).with_prefix("test");
+        assert_eq!(
+            reader
+                .histogram_totals("handshake_latency", &[("result", "completed")])
+                .count,
+            1
+        );
+        assert_eq!(reader.value("pending_handshakes_peak", &[]), 1.0);
+        server.trigger_shutdown();
     }
 
     #[tokio::test]
