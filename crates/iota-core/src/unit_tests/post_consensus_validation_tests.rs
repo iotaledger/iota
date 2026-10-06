@@ -3143,10 +3143,12 @@ async fn flush_first_completion_leaves_the_watcher_a_no_op() {
     // watcher runs.
     let key = TransactionKey::Digest(*effects.transaction_digest());
     s.epoch_store.assign_commit_to_transactions(1, vec![key]);
-    s.epoch_store
+    let written = s
+        .epoch_store
         .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
         .unwrap();
 
+    assert_eq!(written, handler_processed_upserts(&effects, 1));
     assert_eq!(state.overlay_sizes_for_testing().0, 0);
     for id in [obj_id, gas_id] {
         let row = s
@@ -3244,6 +3246,200 @@ async fn sync_record_deletions_ride_their_own_commits_flush() {
         .unwrap();
     assert_eq!(durable_record(&obj2_id), None);
     assert_eq!(durable_record(&gas2_id), None);
+}
+
+/// The checkpoint batch makes a completed commit's rows durable before the
+/// commit flushes, so the flush has none of them left to write.
+#[tokio::test]
+async fn flush_skips_rows_the_checkpoint_batch_made_durable() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let _watcher = s.start_execution_watcher();
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(1).await;
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
+    assert_eq!(state.overlay_sizes_for_testing().0, 0);
+
+    let written = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, vec![]);
+    assert_eq!(state.overlay_sizes_for_testing().0, 0);
+    for id in [obj_id, gas_id] {
+        let row = s
+            .epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(id, effects.lamport_version()))
+            .unwrap()
+            .expect("the checkpoint batch must have written the commit's rows");
+        assert_eq!(row.produced_at, 1);
+    }
+}
+
+/// Without a checkpoint batch in between, the flush of a commit the watcher
+/// completed writes all of the commit's rows and evicts them.
+#[tokio::test]
+async fn flush_writes_completed_commit_rows_still_in_the_overlay() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let state = s.epoch_store.handler_object_state_for_testing();
+
+    let _watcher = s.start_execution_watcher();
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(1).await;
+    assert_eq!(state.overlay_sizes_for_testing().0, 2);
+
+    let written = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, handler_processed_upserts(&effects, 1));
+    assert_eq!(state.overlay_sizes_for_testing().0, 0);
+    for (key, row) in written {
+        assert_eq!(
+            s.epoch_store
+                .durable_handler_processed_object_for_testing(&key)
+                .unwrap(),
+            Some(row)
+        );
+    }
+}
+
+/// The watcher completed a commit, then the node crashed before the commit
+/// flushed. After the restart the overlay is empty and the watcher has not
+/// completed the replayed commit, so its flush derives every row from
+/// effects and writes them.
+#[tokio::test]
+async fn replayed_flush_after_restart_writes_rows_from_effects() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+
+    let watcher = s.start_execution_watcher();
+    let effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(&obj_id, &gas_id, sender, &sender_key, Address::random())],
+            1,
+        )
+        .remove(0);
+    s.wait_for_fully_executed_commit(1).await;
+    drop(watcher);
+
+    let reopened = reopen(&s.authority, &s.epoch_store);
+    reopened.set_effects_store(s.authority.get_transaction_cache_reader().clone());
+    assert_eq!(
+        reopened
+            .handler_object_state_for_testing()
+            .overlay_sizes_for_testing(),
+        (0, 0, 0)
+    );
+
+    reopened.assign_commit_to_transactions(
+        1,
+        vec![TransactionKey::Digest(*effects.transaction_digest())],
+    );
+    let written = reopened
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, handler_processed_upserts(&effects, 1));
+    for (key, row) in written {
+        assert_eq!(
+            reopened
+                .durable_handler_processed_object_for_testing(&key)
+                .unwrap(),
+            Some(row)
+        );
+    }
+}
+
+/// A commit's queued sync-record deletions ride its flush batch even when
+/// the checkpoint batch already made every one of the commit's rows durable
+/// and the flush writes none of them.
+#[tokio::test]
+async fn sync_record_deletions_ride_a_flush_that_writes_no_rows() {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let obj_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+    let s = setup_bookkeeping(
+        vec![
+            Object::with_id_owner_for_testing(obj_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ],
+        true,
+    )
+    .await;
+    let durable_record = |id: &ObjectId| {
+        s.epoch_store
+            .durable_sync_ahead_record_for_testing(id)
+            .unwrap()
+    };
+
+    // A sync-ahead transfer with its records durable; the watcher then
+    // completes its commit, queuing the records' deletions under commit 1.
+    let effects = s.transfer(&obj_id, &gas_id, sender, &sender_key, Address::random());
+    s.flush_sync_ahead_records(&[obj_id, gas_id]);
+    let _watcher = s.start_execution_watcher();
+    s.epoch_store.assign_commit_to_transactions(
+        1,
+        vec![TransactionKey::Digest(*effects.transaction_digest())],
+    );
+    s.wait_for_fully_executed_commit(1).await;
+
+    // The checkpoint batch makes the commit's rows durable but leaves the
+    // records for the flush to delete.
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&effects])
+        .unwrap();
+    assert!(durable_record(&obj_id).is_some());
+    assert!(durable_record(&gas_id).is_some());
+
+    let written = s
+        .epoch_store
+        .flush_commit_through_quarantine_for_testing(1, vec![*effects.transaction_digest()])
+        .unwrap();
+    assert_eq!(written, vec![]);
+    assert_eq!(durable_record(&obj_id), None);
+    assert_eq!(durable_record(&gas_id), None);
 }
 
 /// A commit executed before a crash but not yet flushed loses its rows with
