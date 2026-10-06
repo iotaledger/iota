@@ -2518,18 +2518,6 @@ has_public_key
 borrow_public_key
 	public fun
 	0x2::public_key
-public_key_field_name
-	public(package) fun
-	0x2::public_key
-emit_public_key_attached
-	public(package) fun
-	0x2::public_key
-emit_public_key_detached
-	public(package) fun
-	0x2::public_key
-emit_public_key_rotated
-	public(package) fun
-	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
@@ -3802,9 +3790,6 @@ builder_v1
 with_field
 	public fun
 	0x2::smart_account
-builder_account_address
-	public fun
-	0x2::smart_account
 build_v1
 	public fun
 	0x2::smart_account
@@ -3839,6 +3824,15 @@ rotate_auth_function_ref_v1
 	public fun
 	0x2::smart_account
 new_claim_builder
+	public(package) fun
+	0x2::smart_account
+borrow_uid_mut
+	public(package) fun
+	0x2::smart_account
+uid
+	public(package) fun
+	0x2::smart_account
+uid_mut
 	public(package) fun
 	0x2::smart_account
 with_public_key

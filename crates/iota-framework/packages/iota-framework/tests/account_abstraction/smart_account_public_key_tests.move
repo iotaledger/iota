@@ -37,7 +37,7 @@ fun with_public_key_builds_custom_account_with_key() {
 // === View functions ===
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account_public_key::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::public_key::EPublicKeyMissing)]
 fun borrow_public_key_aborts_if_missing() {
     custom_account_view_test!(|account| {
         smart_account_public_key::borrow_public_key(account);
@@ -86,7 +86,7 @@ fun attach_public_key_again_after_detach() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account_public_key::EPublicKeyAlreadyAttached)]
+#[expected_failure(abort_code = iota::public_key::EPublicKeyAlreadyAttached)]
 fun attach_public_key_aborts_if_already_attached() {
     builtin_account_test!(|account, scenario| {
         smart_account_public_key::attach_public_key(
@@ -134,7 +134,7 @@ fun detach_public_key_succeeds_after_rotating_to_custom_authenticator() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account_public_key::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::public_key::EPublicKeyMissing)]
 fun detach_public_key_aborts_if_missing() {
     custom_account_test!(|account, scenario| {
         smart_account_public_key::detach_public_key(account, scenario.ctx());
@@ -170,7 +170,7 @@ fun rotate_public_key_to_other_scheme_keeps_builtin_auth() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota::smart_account_public_key::EPublicKeyMissing)]
+#[expected_failure(abort_code = iota::public_key::EPublicKeyMissing)]
 fun rotate_public_key_aborts_if_missing() {
     custom_account_test!(|account, scenario| {
         smart_account_public_key::rotate_public_key(
