@@ -4,6 +4,7 @@
 
 use std::{sync::Arc, time::Instant};
 
+use iota_metrics::quantile_gauge::{PeakGauge, QuantileGauge, QuantileGaugeVec};
 use prometheus_filtered::{
     Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramVec, IntCounter, IntCounterVec,
     IntGauge, IntGaugeVec, MetricLevel, Registry, register_counter_vec_with_registry,
@@ -13,10 +14,7 @@ use prometheus_filtered::{
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 
-use crate::{
-    network::metrics::NetworkMetrics,
-    quantile_gauge::{PeakGauge, QuantileGauge, QuantileGaugeVec},
-};
+use crate::network::metrics::NetworkMetrics;
 
 // starts from 1μs, 50μs, 100μs...
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[

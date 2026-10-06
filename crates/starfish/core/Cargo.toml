@@ -22,7 +22,6 @@ enum_dispatch.workspace = true
 eyre.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
-hdrhistogram.workspace = true
 http.workspace = true
 http-body.workspace = true
 itertools.workspace = true

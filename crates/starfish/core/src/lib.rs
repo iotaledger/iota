@@ -32,7 +32,6 @@ mod network;
 #[cfg(msim)]
 pub mod network;
 mod peer_responsiveness;
-mod quantile_gauge;
 mod sliding_window_schedule;
 
 mod header_synchronizer;
