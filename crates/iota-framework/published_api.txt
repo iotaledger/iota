@@ -3838,25 +3838,28 @@ uid
 uid_mut
 	public(package) fun
 	0x2::smart_account
+with_public_key
+	public fun
+	0x2::smart_account_public_key
+has_public_key
+	public fun
+	0x2::smart_account_public_key
+borrow_public_key
+	public fun
+	0x2::smart_account_public_key
+attach_public_key
+	public fun
+	0x2::smart_account_public_key
+detach_public_key
+	public fun
+	0x2::smart_account_public_key
+rotate_public_key
+	public fun
+	0x2::smart_account_public_key
 builder_v1
 	public fun
 	0x2::smart_account_builtin_auth
-has_public_key
-	public fun
-	0x2::smart_account_builtin_auth
-borrow_public_key
-	public fun
-	0x2::smart_account_builtin_auth
 has_builtin_auth
-	public fun
-	0x2::smart_account_builtin_auth
-attach_public_key
-	public fun
-	0x2::smart_account_builtin_auth
-detach_public_key
-	public fun
-	0x2::smart_account_builtin_auth
-rotate_public_key
 	public fun
 	0x2::smart_account_builtin_auth
 rotate_to_builtin_auth_v1
