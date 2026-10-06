@@ -75,6 +75,7 @@ use iota_data_ingestion_core::{
     ShimProgressStore, Worker, WorkerPool,
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
+use iota_macros::fail_point;
 use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_types::{
     committee::Committee,
@@ -769,6 +770,9 @@ where
                     checkpoint.sequence_number(),
                 );
                 return;
+            }
+            if checkpoint.next_epoch_committee().is_some() {
+                fail_point!("synced-end-of-epoch-checkpoint-from-consensus");
             }
         }
 
