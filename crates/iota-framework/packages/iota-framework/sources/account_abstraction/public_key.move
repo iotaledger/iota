@@ -155,7 +155,7 @@ public fun attach_public_key(account_id: &mut UID, public_key: PublicKey) {
     assert!(!has_public_key(account_id), EPublicKeyAlreadyAttached);
 
     dynamic_field::add(account_id, PublicKeyFieldName {}, public_key);
-    emit_public_key_attached(account_id.to_inner(), public_key);
+    event::emit(PublicKeyAttached { account_id: account_id.to_inner(), public_key });
 }
 
 /// Detaches and returns the public key attached to the account.
@@ -167,7 +167,7 @@ public fun detach_public_key(account_id: &mut UID): PublicKey {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
     let public_key = dynamic_field::remove(account_id, PublicKeyFieldName {});
-    emit_public_key_detached(account_id.to_inner(), public_key);
+    event::emit(PublicKeyDetached { account_id: account_id.to_inner(), public_key });
     public_key
 }
 
@@ -182,7 +182,11 @@ public fun rotate_public_key(account_id: &mut UID, public_key: PublicKey): Publi
 
     let previous_public_key = dynamic_field::remove(account_id, PublicKeyFieldName {});
     dynamic_field::add(account_id, PublicKeyFieldName {}, public_key);
-    emit_public_key_rotated(account_id.to_inner(), previous_public_key, public_key);
+    event::emit(PublicKeyRotated {
+        account_id: account_id.to_inner(),
+        from: previous_public_key,
+        to: public_key,
+    });
     previous_public_key
 }
 
@@ -203,27 +207,6 @@ public fun borrow_public_key(account_id: &UID): &PublicKey {
 // === Admin Functions ===
 
 // === Package Functions ===
-
-/// Returns the dynamic field key of the public key attached to an account, for framework modules
-/// that store the key through their account's own field functions.
-public(package) fun public_key_field_name(): PublicKeyFieldName {
-    PublicKeyFieldName {}
-}
-
-/// Emits a `PublicKeyAttached` event, for framework modules that attach the key themselves.
-public(package) fun emit_public_key_attached(account_id: ID, public_key: PublicKey) {
-    event::emit(PublicKeyAttached { account_id, public_key });
-}
-
-/// Emits a `PublicKeyDetached` event, for framework modules that detach the key themselves.
-public(package) fun emit_public_key_detached(account_id: ID, public_key: PublicKey) {
-    event::emit(PublicKeyDetached { account_id, public_key });
-}
-
-/// Emits a `PublicKeyRotated` event, for framework modules that rotate the key themselves.
-public(package) fun emit_public_key_rotated(account_id: ID, from: PublicKey, to: PublicKey) {
-    event::emit(PublicKeyRotated { account_id, from, to });
-}
 
 // === Private Functions ===
 

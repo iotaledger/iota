@@ -83,11 +83,6 @@ public fun with_field<Name: copy + drop + store, Value: store>(
     self
 }
 
-/// Returns the address of the account being built.
-public fun builder_account_address(self: &SmartAccountBuilder): address {
-    self.account.account_address()
-}
-
 /// Finish building the account as a mutable shared object.
 ///
 /// Emits an `account::MutableAccountCreated` event on success.
@@ -234,4 +229,19 @@ public(package) fun new_claim_builder(
         account: SmartAccount { id: claim::claim_address(public_key, ctx) },
         authenticator,
     }
+}
+
+/// Borrows the `UID` of the account being built.
+public(package) fun borrow_uid_mut(self: &mut SmartAccountBuilder): &mut UID {
+    &mut self.account.id
+}
+
+/// Borrows the account's `UID`.
+public(package) fun uid(self: &SmartAccount): &UID {
+    &self.id
+}
+
+/// Borrows the account's `UID` mutably.
+public(package) fun uid_mut(self: &mut SmartAccount): &mut UID {
+    &mut self.id
 }
