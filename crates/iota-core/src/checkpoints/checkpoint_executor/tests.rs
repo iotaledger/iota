@@ -262,6 +262,45 @@ pub async fn test_validator_waits_for_local_build_until_epoch_end() {
     executor_handle.abort();
 }
 
+/// Once a committee validator executes synced checkpoints for the rest of the
+/// epoch, it also executes the synced data of a checkpoint it built itself:
+/// after a restart its builder no longer runs, so the state hash of that
+/// checkpoint may never be computed.
+#[tokio::test]
+pub async fn test_switched_validator_executes_synced_data_of_locally_built_checkpoint() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_committee_validators_skip_synced_checkpoint_execution_for_testing(true);
+        config
+    });
+    let checkpoint_store = CheckpointStore::new_for_tests();
+    let (state, executor, _hasher, committee) =
+        init_executor_test(checkpoint_store.clone(), true).await;
+    let checkpoints = sync_new_checkpoints(&checkpoint_store, 2, None, &committee);
+    checkpoint_store
+        .tables
+        .locally_computed_checkpoints
+        .insert(&1, checkpoints[1].data())
+        .unwrap();
+    state
+        .epoch_store_for_testing()
+        .start_executing_synced_checkpoints()
+        .await;
+    let executor_handle = spawn_monitored_task!(async move { executor.run_epoch(None).await });
+
+    timeout(Duration::from_secs(30), async {
+        while checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            != Some(1)
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("checkpoint 1 should execute from synced data");
+    executor_handle.abort();
+}
+
 /// Without `committee_validators_skip_synced_checkpoint_execution`, a committee validator executes
 /// a synced checkpoint it has not built at once.
 #[tokio::test]
