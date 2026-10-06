@@ -11,6 +11,7 @@ pub mod config;
 pub mod grpc_timeout;
 pub mod metrics;
 pub use iota_multiaddr as multiaddr;
+pub mod request_message_timeout;
 pub mod server;
 
 pub use iota_multiaddr::Multiaddr;

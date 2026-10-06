@@ -64,7 +64,7 @@ const FETCH_BLOCK_HEADERS_CONCURRENCY: usize = 5;
 const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
 
 /// The timeout for periodic synchronizer to fetch blocks from the peers.
-const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
+pub(crate) const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 
 /// The maximum number of authorities from which we will try to periodically
 /// fetch block header at the same moment. The guard will protect that we will

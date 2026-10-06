@@ -538,6 +538,26 @@ pub(crate) fn shortfall_factor(requested: usize, delivered: usize) -> f64 {
     (requested as f64 / delivered.max(1) as f64).max(1.0)
 }
 
+/// Base timeout of one commit-sync request; every failed round adds one more
+/// of these, up to `MAX_FETCH_TIMEOUT_MULTIPLIER` times.
+#[cfg(not(test))]
+pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
+#[cfg(test)]
+pub(crate) const FETCH_TIMEOUT: Duration = Duration::from_millis(500);
+/// Cap on the escalation: at the extreme a request waits 120 s.
+pub(crate) const MAX_FETCH_TIMEOUT_MULTIPLIER: u32 = 12;
+/// A whole fetch attempt may take this many request timeouts: the regular
+/// syncer pipelines several requests per attempt, the fast syncer sends one.
+pub(crate) const REGULAR_FETCH_ATTEMPT_MULTIPLIER: u32 = 4;
+pub(crate) const FAST_FETCH_ATTEMPT_MULTIPLIER: u32 = 2;
+/// The longest any commit syncer waits for one fetch attempt, 480 s in the
+/// node.
+pub(crate) fn max_fetch_attempt_timeout() -> Duration {
+    FETCH_TIMEOUT
+        * MAX_FETCH_TIMEOUT_MULTIPLIER
+        * REGULAR_FETCH_ATTEMPT_MULTIPLIER.max(FAST_FETCH_ATTEMPT_MULTIPLIER)
+}
+
 /// Generic fetch loop that retries fetching data from available authorities
 /// until a request succeeds. This is shared between RegularCommitSyncer and
 /// FastCommitSyncer.
@@ -570,15 +590,6 @@ where
     F: Fn(Arc<Inner<C>>, AuthorityIndex, CommitRange, Duration) -> Fut,
     Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
 {
-    // Individual request base timeout.
-    #[cfg(not(test))]
-    const TIMEOUT: Duration = Duration::from_secs(10);
-    #[cfg(test)]
-    const TIMEOUT: Duration = Duration::from_millis(500);
-    // Max per-request timeout will be base timeout times a multiplier.
-    // At the extreme, this means there will be 120s timeout to fetch
-    // max_headers_per_commit_sync_fetch headers.
-    const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
     // timeout * max number of targets should be reasonably small, so the
     // system can adjust to slow network or large data sizes quickly.
     const MAX_NUM_TARGETS: usize = 24;
@@ -589,7 +600,7 @@ where
     // has seen for a peer and only decays it on success, so feeding the
     // escalated value would leave a peer looking slow for many rounds after it
     // recovered.
-    let failure_penalty = TIMEOUT * fetch_timeout_multiplier;
+    let failure_penalty = FETCH_TIMEOUT * fetch_timeout_multiplier;
     let data_source = inner.sync_type.data_source();
     let mut rng = StdRng::from_rng(&mut rng());
 
@@ -655,8 +666,8 @@ where
         );
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
-        timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
-        let request_timeout = TIMEOUT * timeout_multiplier;
+        timeout_multiplier = (timeout_multiplier + 1).min(MAX_FETCH_TIMEOUT_MULTIPLIER);
+        let request_timeout = FETCH_TIMEOUT * timeout_multiplier;
 
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
@@ -751,7 +762,7 @@ where
             }
         }
         // Avoid busy looping, by waiting for a while before retrying.
-        sleep(TIMEOUT).await;
+        sleep(FETCH_TIMEOUT).await;
     }
 }
 
