@@ -7,8 +7,9 @@
 /// This module holds only what every `SmartAccount` needs: creating the account, managing its
 /// dynamic fields, and rotating its authenticator. It knows nothing about any particular
 /// authenticator. Other modules extend an account by adding dynamic fields under their own key
-/// types. `iota::smart_account_builtin_auth` is such a module: it adds a public key and the
-/// built-in authenticator for IOTA's standard signature schemes.
+/// types. `iota::smart_account_public_key` is such a module: it adds a public key that any
+/// authenticator can read. `iota::smart_account_builtin_auth` adds the built-in authenticator for
+/// IOTA's standard signature schemes, which checks signatures against that key.
 ///
 /// `SmartAccount`s are created through the `SmartAccountBuilder` API: `builder_v1` allocates a new
 /// object ID for the supplied authenticator. After optionally adding fields with `with_field`,
