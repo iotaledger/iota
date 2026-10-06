@@ -1,61 +1,63 @@
 # Account discoverability index — design v4
 
+> **Immutable `SmartAccount`s are deprecated.** Everything about them — `build_immutable_v1`, `create_immutable_account_v1`, `ImmutableAccountCreated`, the `immutable` field of `SmartAccountCreated` and the `immutable` column of `smart_accounts` — is kept here for reference only and is struck through where it appears. The design does not depend on them.
+
 **Goal.** A wallet holding only a seed can find the `SmartAccount`s its public keys can unlock with one indexer query per public key, and anyone can rebuild the same index by replaying public events.
 
-**Written against** branch [`vm-lang/12815-wallet-discoverability`](https://github.com/iotaledger/iota/tree/vm-lang/12815-wallet-discoverability), PR [#13071](https://github.com/iotaledger/iota/pull/13071) (fixes [#12815](https://github.com/iotaledger/iota/issues/12815)).
+**Written against** branch [`vm-lang/12815-wallet-discoverability`](https://github.com/iotaledger/iota/tree/vm-lang/12815-wallet-discoverability), PR [#13071](https://github.com/iotaledger/iota/pull/13071).
 
-**Scope.** The framework functions and events described here (§2) are those on the branch above. They are not final and may change. The implementation in the PR is given for reference only. What this document asks the reader to discuss is how the indexer should store the information a wallet needs to find its accounts, and how to make it available over RPC (§3).
+The framework functions and events described here are those on the branch above. They are not final and may change. The implementation in the PR is given for reference only. What this document asks the reader to discuss is how the indexer should store the information a wallet needs to find its accounts, and how to make it available over RPC.
 
 **Headline.**
 
-1. The framework emits a Move event at every change to a `SmartAccount` (§2.2): when the account is created, and when its public key or its authenticator changes.
+1. The framework emits a Move event at every change to a `SmartAccount`: when the account is created, and when its public key or its authenticator changes.
 2. The indexer reads those events from checkpoints and stores, in PostgreSQL, which accounts each public key is attached to, keyed by `key_id`, a hash of the public key.
 3. The new `iotax_getAccountsByPublicKey` indexer RPC answers the following question: given a public key, which accounts is it attached to, and can the IOTA wallet authenticate each one?
 
 ---
 
-## 1. Problem statement
+## Problem statement
 
-A `SmartAccount` is not tied to a single public key. Its address does not have to be derived from a public key, and after creation the account can change both the public key used to authenticate it and its authenticator function (§2.3). A wallet restored from a seed knows only its public keys, so it cannot tell from them alone which accounts they unlock.
+A `SmartAccount` address is not derived from a public key, and after creation the account can change both the public key used to authenticate it and its authenticator function. A wallet restored from a seed knows only its public keys, so it cannot tell from them alone which accounts they unlock.
 
-The IOTA wallet therefore needs to know, for each of its public keys, which accounts use that public key to authenticate, and whether each account's authenticator function is one the wallet can sign for. On chain, each account stores its own public key (§2.4), but nothing maps a public key to the accounts that use it.
+The IOTA wallet therefore needs to know, for each of its public keys, which accounts use that public key to authenticate, and whether each account's authenticator function is one the wallet can sign for. On chain, each account stores its own public key, but nothing maps a public key to the accounts that use it.
 
-For this reason the indexer maintains a mapping from public keys to accounts. It builds the mapping from the events the Move modules emit whenever an account is created or changes its public key or its authenticator function (§2.2).
+For this reason the indexer maintains a mapping from public keys to accounts. It builds the mapping from the events the Move modules emit whenever an account is created or changes its public key or its authenticator function.
 
 ---
 
-## 2. Background
+## 1. Background
 
-### 2.1 Framework modules
+### Framework modules
 
-- **`iota::smart_account`** — the framework `SmartAccount` and its builders: `builder_v1` (any authenticator), `builtin_auth_builder_v1` (a `PublicKey` plus the built-in authenticator of its scheme), finished by `build_v1` (shared) or `build_immutable_v1` (frozen). After creation, the public key and the authenticator change only in transactions sent by the account itself, and only on mutable accounts.
-- **`iota::builtin_authenticator_functions`** — the five built-in authenticators (Ed25519, Secp256k1, Secp256r1, MultiSig, Passkey), and the functions that attach, detach and rotate the public key they check.
-- **`iota::account`** — creates accounts and rotates their authenticator, for any account type.
+- `iota::smart_account` — the framework `SmartAccount` and its builders: `builder_v1` (any authenticator), `builtin_auth_builder_v1` (a `PublicKey` plus the built-in authenticator of its scheme), finished by `build_v1` (shared) or ~~`build_immutable_v1` (frozen)~~. After creation, the public key and the authenticator change only in transactions sent by the account itself.
+- `iota::builtin_authenticator_functions` — the five built-in authenticators (Ed25519, Secp256k1, Secp256r1, MultiSig, Passkey) and `attach_public_key` / `detach_public_key` / `rotate_public_key`, which emit `PublicKeyAttached` / `PublicKeyDetached` / `PublicKeyRotated`.
+- `iota::account` — creates accounts and rotates their authenticator, emitting `MutableAccountCreated` / ~~`ImmutableAccountCreated`~~ / `AuthenticatorFunctionRefV1Rotated`.
 - **Claiming** — a `ClaimAccount` transaction creates a `SmartAccount` at the address the sender's public key derives.
 
-### 2.2 Framework events
+### Framework events
 
-The index is built from these events. Fields are in Appendix A.
+The index is built from these events.
 
-- **`PublicKeyAttached { account_id, public_key }`** (`builtin_authenticator_functions`) — a public key was attached to an account that had none. Emitted by `attach_public_key`, which is called by `builtin_auth_builder_v1`, by the claim path, and by `attach_builtin_auth_public_key` on an existing account.
-- **`PublicKeyDetached { account_id, public_key }`** (`builtin_authenticator_functions`) — the public key was removed. Emitted by `detach_public_key`, called by `detach_builtin_auth_public_key`.
-- **`PublicKeyRotated { account_id, from, to }`** (`builtin_authenticator_functions`) — the public key was replaced by another. Emitted by `rotate_public_key`, called by `rotate_builtin_auth_public_key`.
-- **`SmartAccountCreated { account_id, public_key, immutable }`** (`smart_account`, new) — a framework `SmartAccount` was created. Emitted by `build_v1` and `build_immutable_v1`, so once for every `SmartAccount`, with `public_key = none` when it has no public key.
-- **`MutableAccountCreated<SmartAccount>`, `ImmutableAccountCreated<SmartAccount>`** (`account`) — the account was created with this authenticator. Emitted by `account::create_account_v1` / `create_immutable_account_v1`, which `build_v1` / `build_immutable_v1` call right after emitting `SmartAccountCreated`.
-- **`AuthenticatorFunctionRefV1Rotated<SmartAccount>`** (`account`) — the authenticator was replaced. Emitted by `account::rotate_auth_function_ref_v1`, called by `smart_account::rotate_auth_function_ref_v1`.
+- `PublicKeyAttached { account_id, public_key }` (emitted by `builtin_authenticator_functions` module) — a public key was attached to an account that had none. Emitted by `attach_public_key`, which is called by `builtin_auth_builder_v1`, by the claim path, and by `attach_builtin_auth_public_key` on an existing account.
+- `PublicKeyDetached { account_id, public_key }` (emitted by `builtin_authenticator_functions` module) — the public key was removed. Emitted by `detach_public_key`, called by `detach_builtin_auth_public_key`.
+- `PublicKeyRotated { account_id, from, to }` (emitted by `builtin_authenticator_functions` module) — the public key was replaced by another. Emitted by `rotate_public_key`, called by `rotate_builtin_auth_public_key`.
+- `SmartAccountCreated { account_id, public_key }`, plus ~~`immutable`~~ (emitted by `smart_account` module) — a framework `SmartAccount` was created. Emitted by `build_v1` and ~~`build_immutable_v1`~~, so once for every `SmartAccount`, with `public_key = none` when it has no public key.
+- `MutableAccountCreated<SmartAccount>`, ~~`ImmutableAccountCreated<SmartAccount>`~~ (emitted by `account` module) — the account was created with this authenticator. Emitted by `account::create_account_v1` / ~~`create_immutable_account_v1`~~, which `build_v1` / ~~`build_immutable_v1`~~ call right after emitting `SmartAccountCreated`.
+- `AuthenticatorFunctionRefV1Rotated<SmartAccount>` (emitted by `account` module) — the authenticator was replaced. Emitted by `account::rotate_auth_function_ref_v1`, called by `smart_account::rotate_auth_function_ref_v1`.
 
 The three `iota::account` events are generic over the account type. The bytecode verifier lets only the module that defines the type call the functions that emit them, so an event with type parameter `0x2::smart_account::SmartAccount` always comes from `iota::smart_account`.
 
-### 2.3 Account states
+### Account states
 
 A `SmartAccount` has a public key attached or not, and a built-in or a custom authenticator. That gives four states:
 
-1. **Public key + built-in authenticator.** Found by its public key; the IOTA wallet can authenticate it.
-2. **Built-in authenticator, no public key.** Not found by any public key, and cannot authenticate any transaction.
-3. **Custom authenticator, no public key.** Not found by any public key.
-4. **Public key + custom authenticator.** Found by its public key, but the IOTA wallet cannot authenticate it.
+1. **Public key + built-in authenticator** (green). Found by its public key; the IOTA wallet can authenticate it.
+2. **Built-in authenticator, no public key** (red). Not found by any public key, and cannot authenticate any transaction.
+3. **Custom authenticator, no public key** (gray). Not found by any public key.
+4. **Public key + custom authenticator** (yellow). Found by its public key, but the IOTA wallet cannot authenticate it.
 
-> **Diagram:** insert `account-discoverability-states.drawio` here with the draw.io macro.
+> **Diagram:** `account-discoverability-states.drawio` (on Confluence as an image).
 
 Every state change is a call to a Move function, and each of these functions emits the events the indexer reads. Each arrow in the diagram is one function:
 
@@ -64,42 +66,42 @@ Every state change is a call to a Move function, and each of these functions emi
 | `builtin_auth_builder_v1` | `smart_account::builtin_auth_builder_v1` | `PublicKeyAttached` |
 | `claim` | `ClaimAccount` transaction (`smart_account::claim_account_v1`) | `PublicKeyAttached` |
 | `builder_v1(builtin)`, `builder_v1(custom)` | `smart_account::builder_v1` | none |
-| `build_v1` | `smart_account::build_v1` / `build_immutable_v1` | `SmartAccountCreated`, then `MutableAccountCreated` / `ImmutableAccountCreated` |
+| `build_v1` | `smart_account::build_v1` / ~~`build_immutable_v1`~~ | `SmartAccountCreated`, then `MutableAccountCreated` / ~~`ImmutableAccountCreated`~~ |
 | `attach_pk` | `smart_account::attach_builtin_auth_public_key` | `PublicKeyAttached` |
 | `detach_pk` | `smart_account::detach_builtin_auth_public_key` | `PublicKeyDetached` |
 | `rotate_pk` | `smart_account::rotate_builtin_auth_public_key` | `PublicKeyRotated` |
 | `rotate_auth(builtin)`, `rotate_auth(custom)` | `smart_account::rotate_auth_function_ref_v1` | `AuthenticatorFunctionRefV1Rotated` |
 
-The builder and `build_v1` steps run in the same transaction, so creating an account with a public key emits `PublicKeyAttached`, `SmartAccountCreated` and the `iota::account` creation event, in that order. Every function after creation aborts unless the transaction sender is the account, and an immutable account has none of them.
+The builder and `build_v1` steps run in the same transaction, so creating an account with a public key emits `PublicKeyAttached`, `SmartAccountCreated` and the `MutableAccountCreated` creation event, in that order.
 
-An account in state 2 cannot authenticate a transaction, so it can never attach a public key (that needs the account as sender). It can only reach state 1 inside the same transaction that detached its public key.
+An account that reaches state 2 (red) cannot authenticate a transaction, so it is basically frozen.
 
-### 2.4 Where the state lives on chain
+### Where the state lives on chain
 
-All of an account's state is on its object. The object has type `0x2::smart_account::SmartAccount` and is shared (mutable) or immutable. It has two dynamic fields:
+All of an account's state is on its object. The object has type `0x2::smart_account::SmartAccount` and is shared (mutable) or ~~immutable~~. It has two dynamic fields:
 
 - `Field<builtin_authenticator_functions::PublicKeyFieldName, PublicKey>` — the public key. Present only when a public key is attached.
 - `Field<account::AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1<SmartAccount>>` — the authenticator. Always present. It is built-in when its package is `0x2` and its module is `builtin_authenticator_functions`.
 
-A dynamic field's object ID is derived from the account ID and the field name (`derive_dynamic_field_id` in `iota-types`), so for a known account both can be read directly, for example with `iotax_getDynamicFieldObject`. The events of §2.2 are the ordered changes to these two fields.
+A dynamic field's object ID is derived from the account ID and the field name (`derive_dynamic_field_id` in `iota-types`), so for a known account both can be read directly, for example with `iotax_getDynamicFieldObject`.
 
 ---
 
-## 3. Design
+## 2. Design
 
-> **Diagram:** insert `account-discoverability-data-flow.drawio` here with the draw.io macro.
+> **Diagram:** `account-discoverability-data-flow.drawio` (on Confluence as an image).
 
-### 3.1 Build the index from events
+### 2.1 Build the index from events
 
-The link from an account to its public key is already on chain, as the dynamic field of §2.4. What is missing is the opposite direction, from a public key to its accounts. The index builds it from the events of §2.2, without storing anything new on chain:
+The link from an account to its public key is already on chain, as the dynamic fields previously mentioned. What is missing is the opposite direction, from a public key to its accounts. The index builds it from the events without storing anything new on chain:
 
-- **`PublicKeyAttached`, `PublicKeyDetached`, `PublicKeyRotated`** give the links. Every change to a `SmartAccount`'s public key goes through one of them. A `SmartAccount` can never be deleted, so no link goes stale through deletion.
-- **`SmartAccountCreated`** marks the object as a framework `SmartAccount`, with or without a public key, and says whether it is immutable. A `PublicKeyAttached` alone does not: `attach_public_key` is `public` over any `UID`, so it can come from any object.
-- **`MutableAccountCreated`, `ImmutableAccountCreated`, `AuthenticatorFunctionRefV1Rotated`**, for `SmartAccount` only, give the current authenticator.
+- `PublicKeyAttached`, `PublicKeyDetached`, `PublicKeyRotated` give the links. Every change to a `SmartAccount`'s public key goes through one of them. A `SmartAccount` can never be deleted, so no link goes stale through deletion.
+- `SmartAccountCreated` marks the object as a framework `SmartAccount`, with or without a public key. A `PublicKeyAttached` alone does not: `attach_public_key` is `public` over any `UID`, so it can come from any object.
+- `MutableAccountCreated`, `AuthenticatorFunctionRefV1Rotated`, for `SmartAccount` only, give the current authenticator.
 
 Framework changes: add `SmartAccountCreated`; remove `SmartAccountClaimed` and `public_key::key_id`, which nothing on chain used. The new event is the only change that affects consensus.
 
-### 3.2 Public key identity: `key_id`
+### 2.2 Public key identity: `key_id`
 
 ```
 key_id = blake2b256( scheme_flag || raw_key_bytes )    // 32 bytes
@@ -110,21 +112,21 @@ The index is keyed by `key_id`, not by the address the public key derives:
 - **It cannot fail.** It hashes bytes without parsing them. Address derivation returns an error for a malformed MultiSig committee, and the indexer reads chain bytes it does not re-validate.
 - **It is the same for every scheme.** Address derivation omits the flag for Ed25519 and hashes a structured preimage for MultiSig.
 
-It has no protocol role (authentication still checks the derived address) and is defined only in Rust (`iota-types`), since every event carries the full `PublicKey`. Adding it to Move later would be additive. Fixed values are in Appendix D.
+It has no protocol role (authentication still checks the derived address) and is defined only in Rust (`iota-types`), since every event carries the full `PublicKey`. Adding it to Move later would be additive.
 
 **MultiSig members.** The `key_id` of a MultiSig public key hashes its committee, which a wallet restoring from a seed does not know. So every event about a MultiSig public key also links each committee member, under the member's own `key_id`, and that row records the `key_id` of the whole MultiSig public key. The committee is the only payload the indexer decodes. If it does not decode, only the whole public key is linked.
 
-### 3.3 Store them in the indexer
+### 2.3 Store them in the indexer
 
 The index models two relations:
 
 1. **Public key ↔ account.** A public key can be attached to many accounts, and an account has had different public keys over time. Each pair has a status, active or unlinked, and the change that last touched it. Pairs can be about any object, since `attach_public_key` takes any `UID`.
-2. **Account → its properties.** For each framework `SmartAccount`: that it is one, whether it is immutable, and its current authenticator.
+2. **Account → its properties.** For each framework `SmartAccount`: that it is one, ~~whether it is immutable,~~ and its current authenticator.
 
 The indexer folds the events in chain order `(checkpoint, transaction, event)` into three PostgreSQL tables of current state (columns and rules in Appendices B and C):
 
 - `account_key_links` — relation 1: one row per public key and account.
-- `smart_accounts` — relation 2: one row per framework `SmartAccount`, with `immutable`.
+- `smart_accounts` — relation 2: one row per framework `SmartAccount`.
 - `account_authenticators` — relation 2: each `SmartAccount`'s current authenticator, one of the five built-in ones or `custom`.
 
 Relation 2 is held in two tables, both keyed by `account_id` and joined one to one at query time, because they are written from different events under different rules: a `smart_accounts` row is written when the account is created, from `SmartAccountCreated`; an `account_authenticators` row is written at creation and overwritten at every authenticator rotation, from the `iota::account` events.
@@ -135,7 +137,7 @@ Guarantees:
 - **Idempotent and monotonic.** Every write applies only if its transaction is not older than the stored one.
 - **Not prunable.** The tables are state, not history; a pruned row could only be rebuilt from events the node may itself have pruned.
 
-### 3.4 Query: `iotax_getAccountsByPublicKey`
+### 2.4 Query: `iotax_getAccountsByPublicKey`
 
 Served only by the indexer (`iota-node` does not register the `iotax` namespace).
 
@@ -166,18 +168,18 @@ Served only by the indexer (`iota-node` does not register the `iotax` namespace)
     "authenticator": "ed25519", "scheme": 0, "multisigKeyId": null, "lastChangeEpoch": "3" } ] }
 ```
 
-### 3.5 Wallet flow
+### 2.5 Wallet flow
 
 1. Derive the wallet's public keys from the seed, for every supported scheme and derivation path.
 2. Call `iotax_getAccountsByPublicKey` once per public key.
 3. Keep the results with `status = active`, `smartAccount = true` and a built-in `authenticator`: these are the accounts the wallet can unlock. `custom` ones can be shown as found but not usable.
-4. Optionally, check each kept account on chain (§2.4): it exists, its public key is the queried one, its authenticator matches.
+4. Optionally, check each kept account on chain: it exists, its public key is the queried one, its authenticator matches.
 
-For live updates, subscribe with `iota_subscribeEvent` to the three modules of §2.2.
+For live updates, subscribe with `iota_subscribeEvent` to the three modules of §2.1.
 
 **Example: which accounts can public key `K` unlock?**
 
-> **Diagram:** insert `account-discoverability-query.drawio` here with the draw.io macro.
+> **Diagram:** `account-discoverability-query.drawio` (on Confluence as an image).
 
 | Tx | What happens | Returned | Wallet keeps it |
 | --- | --- | --- | --- |
@@ -189,9 +191,9 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of �
 
 `K` can unlock `A1` and `A2`.
 
-### 3.6 Trust model and limitations
+### 2.6 Trust model and limitations
 
-- **Results are not authenticated.** A link is a true on-chain fact, not an endorsement. A wallet that needs certainty checks the account on chain (§3.5 step 4).
+- **Results are not authenticated.** A link is a true on-chain fact, not an endorsement. A wallet that needs certainty checks the account on chain.
 - **Anyone can use your public key for an account.** `builtin_auth_builder_v1` takes any `PublicKey`, so anyone can create accounts with your public key for the price of gas. Only you can operate them, but they appear in your results.
 - **No paging.** Because of the point above, one public key's result can grow without bound. Accepted for now.
 - **An account can lock itself**, by removing the only public key it can sign with or rotating to an authenticator nobody can satisfy.
@@ -199,14 +201,14 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of �
 
 ---
 
-## 4. Alternatives considered
+## 3. Alternatives considered
 
 - **On-chain registry:** a `ClaimRegistry` shared object at `0x10` with dynamic-field markers. It adds chain state for data that is only read off chain, and puts a shared object, so consensus, on every claim.
 - **Fullnode database:** index the same events in the fullnode's own store and serve the query from the fullnode's RPC. A wallet would not depend on an indexer deployment, but every fullnode that enables it carries the tables. _Why the indexer was chosen: to be completed._
 
 ---
 
-## 5. Rollout
+## 4. Rollout
 
 - The features the index depends on, `enable_builtin_move_authenticators` and `enable_claim_account_transaction`, are enabled at protocol version 38, on every chain except testnet and mainnet.
 - The indexer builds the tables from genesis; no migration or backfill.
@@ -214,23 +216,23 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of �
 
 ---
 
-## 6. Decisions needed
+## 5. Decisions needed
 
 1. **What the query returns.** (a) Every link, with `smartAccount` and `authenticator`, and the wallet decides what it can unlock (as implemented). (b) By default only active `SmartAccount`s with a built-in authenticator, the rest behind a flag.
-2. **Restoring the indexer from a formal snapshot.** `iota-indexer restore` loads objects, not events, so the tables miss everything before the snapshot, with no error. (a) Accept and document it. (b) Rebuild the current state from the restored `objects` table: the `SmartAccount` objects and their two dynamic fields (§2.4), found by exact object type and decoded one by one. This gives the active links, `smart_accounts` and authenticators; unlinked rows and the transaction and epoch of each change would still be lost.
+2. **Restoring the indexer from a formal snapshot.** `iota-indexer restore` loads objects, not events, so the tables miss everything before the snapshot, with no error. (a) Accept and document it. (b) Rebuild the current state from the restored `objects` table: the `SmartAccount` objects and their two dynamic fields, found by exact object type and decoded one by one. This gives the active links, `smart_accounts` and authenticators; unlinked rows and the transaction and epoch of each change would still be lost.
 3. **Links to objects that are not a `SmartAccount`.** (a) Keep them, with `smartAccount = false` (as implemented). (b) Leave them out of the RPC result. (c) Restrict `attach_public_key` in Move, a framework change.
 
 ---
 
-## Appendix A. Event fields
+## Appendix A. Events
 
 | Event | Module | Fields |
 | --- | --- | --- |
 | `PublicKeyAttached` | `builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` |
 | `PublicKeyDetached` | `builtin_authenticator_functions` | `account_id: ID, public_key: PublicKey` |
 | `PublicKeyRotated` | `builtin_authenticator_functions` | `account_id: ID, from: PublicKey, to: PublicKey` |
-| `SmartAccountCreated` (new) | `smart_account` | `account_id: ID, public_key: Option<PublicKey>, immutable: bool` |
-| `MutableAccountCreated<SmartAccount>` / `ImmutableAccountCreated<SmartAccount>` | `account` | `account_id: ID, authenticator: AuthenticatorFunctionRefV1` |
+| `SmartAccountCreated` (new) | `smart_account` | `account_id: ID, public_key: Option<PublicKey>`, ~~`immutable: bool`~~ |
+| `MutableAccountCreated<SmartAccount>` / ~~`ImmutableAccountCreated<SmartAccount>`~~ | `account` | `account_id: ID, authenticator: AuthenticatorFunctionRefV1` |
 | `AuthenticatorFunctionRefV1Rotated<SmartAccount>` | `account` | `account_id: ID, from: AuthenticatorFunctionRefV1, to: AuthenticatorFunctionRefV1` |
 
 `PublicKey` is `{ scheme: SignatureScheme { flag: u8 }, raw_bytes: vector<u8> }`; `AuthenticatorFunctionRefV1` is `{ package: ID, module_name: ascii::String, function_name: ascii::String }`.
@@ -242,8 +244,8 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of �
 | `PublicKeyAttached(account, pk)` | link `(key_id(pk), account)` active, source `attach` |
 | `PublicKeyRotated(account, from, to)` | `(key_id(from), account)` unlinked, **then** `(key_id(to), account)` active; source `rotate` |
 | `PublicKeyDetached(account, pk)` | `(key_id(pk), account)` unlinked, source `detach` |
-| `SmartAccountCreated(account, _, immutable)` | `smart_accounts` row |
-| `{Mutable,Immutable}AccountCreated<SmartAccount>(account, auth)` | `account_authenticators` row, kind of `auth` |
+| `SmartAccountCreated(account, …)` | `smart_accounts` row |
+| `MutableAccountCreated<SmartAccount>(account, auth)` / ~~`ImmutableAccountCreated<SmartAccount>`~~ | `account_authenticators` row, kind of `auth` |
 | `AuthenticatorFunctionRefV1Rotated<SmartAccount>(account, _, to)` | `account_authenticators` row, kind of `to` |
 
 - A MultiSig public key also links or unlinks each committee member: `(key_id(member), account)`, with `multisig_key_id = key_id(pk)` and the same source.
@@ -258,11 +260,11 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of �
 
 All three: primary key as shown, no foreign keys (joined on `account_id` at query time), not prunable. Stored numbers for `source` and `kind` must never be renumbered.
 
-**`account_key_links`** — primary key `(key_id, account_id)`; indexes on `(account_id)` and on `(key_id) WHERE status = 0`.
+`account_key_links` — primary key `(key_id, account_id)`; indexes on `(account_id)` and on `(key_id) WHERE status = 0`.
 
 | Column | Type | Meaning |
 | --- | --- | --- |
-| `key_id` | `BYTEA` | `key_id` of the public key (§3.2) |
+| `key_id` | `BYTEA` | `key_id` of the public key (§2.2) |
 | `account_id` | `BYTEA` | the object the public key is attached to |
 | `scheme` | `SMALLINT` | scheme flag as recorded on chain, stored even if unknown to the build |
 | `multisig_key_id` | `BYTEA NULL` | `key_id` of the whole MultiSig public key when `key_id` is one of its members |
@@ -271,9 +273,9 @@ All three: primary key as shown, no foreign keys (joined on `account_id` at quer
 | `last_change_tx_sequence_number` | `BIGINT` | orders results and guards writes |
 | `last_change_epoch` | `BIGINT` | returned as `lastChangeEpoch` |
 
-**`smart_accounts`** — primary key `account_id`; columns `immutable BOOLEAN`, `created_tx_sequence_number`, `created_epoch`. A second claim of the same address keeps the later transaction.
+`smart_accounts` — primary key `account_id`; columns ~~`immutable BOOLEAN`~~, `created_tx_sequence_number`, `created_epoch`. A second claim of the same address keeps the later transaction.
 
-**`account_authenticators`** — primary key `account_id`; columns `kind SMALLINT` (Appendix B), `last_change_tx_sequence_number`, `last_change_epoch`.
+`account_authenticators` — primary key `account_id`; columns `kind SMALLINT` (Appendix B), `last_change_tx_sequence_number`, `last_change_epoch`.
 
 **Example.** In epoch 3, tx 101 runs `builtin_auth_builder_v1(K)` + `build_v1` (creates `A1`), and tx 102 is a `ClaimAccount` with `K` (creates `A2`). Each emits `PublicKeyAttached`, `SmartAccountCreated` and `MutableAccountCreated<SmartAccount>`, and writes one row per table:
 
@@ -282,7 +284,7 @@ All three: primary key as shown, no foreign keys (joined on `account_id` at quer
 | Table | tx 101 | tx 102 |
 | --- | --- | --- |
 | `account_key_links` | `key_id(K)`, `A1`, scheme 0, attach, active, tx 101, epoch 3 | `key_id(K)`, `A2`, scheme 0, attach, active, tx 102, epoch 3 |
-| `smart_accounts` | `A1`, immutable false, tx 101, epoch 3 | `A2`, immutable false, tx 102, epoch 3 |
+| `smart_accounts` | `A1`, ~~immutable false~~, tx 101, epoch 3 | `A2`, ~~immutable false~~, tx 102, epoch 3 |
 | `account_authenticators` | `A1`, kind 1 (ed25519), tx 101, epoch 3 | `A2`, kind 1 (ed25519), tx 102, epoch 3 |
 
 ## Appendix D. `key_id` fixed values
