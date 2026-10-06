@@ -1117,7 +1117,7 @@ impl ConsensusOutputQuarantine {
     }
 
     /// Loads the execution-worker debt carried over into `current_round`
-    /// (aged for the elapsed commits), to seed the worker concurrency profile.
+    /// (aged for the elapsed commits), to seed the resource slots.
     /// Reads the most recent debt from the in-memory quarantine, falling
     /// back to the last checkpointed value in the epoch store. Returns an
     /// empty debt when none is recorded.
