@@ -1435,9 +1435,11 @@ impl AuthorityPerEpochStore {
     /// Marks that this node executes downloaded checkpoints for the rest of
     /// the epoch. Returns once the consensus handler is between commits, so no
     /// commit is processed against state that executing those checkpoints
-    /// writes.
+    /// writes. Returns at once if this was already done.
     pub async fn start_executing_synced_checkpoints(&self) {
-        self.synced_checkpoint_execution.send_replace(true);
+        if self.synced_checkpoint_execution.send_replace(true) {
+            return;
+        }
         drop(self.consensus_commit_guard.lock().await);
     }
 
