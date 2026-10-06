@@ -28,9 +28,9 @@ mod checked {
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
         account_abstraction::authenticator_function::{
-            AuthenticatorFunctionRef, AuthenticatorFunctionRefV1, MoveAuthenticatorsForExecution,
+            AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+            AuthenticatorFunctionRefV1, MoveAuthenticatorsForExecution,
         },
-        attestation::AttestationJudge,
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
         base_types::TxContext,
@@ -315,9 +315,6 @@ mod checked {
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
-        // Asked, when the authentication of an attested transaction fails,
-        // whether the failure is charged to the attestor.
-        attestation_judge: Option<&dyn AttestationJudge>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -327,8 +324,8 @@ mod checked {
         IotaGasStatus,
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
-        // Whether the Move authentication phase failed (abort or out-of-gas).
-        bool,
+        // The Move authentication error, when that phase failed.
+        Option<ExecutionErrorKind>,
     ) {
         // Preparation
         // It involves setting up the TemporaryStore, GasCharger, and TxContext, that
@@ -399,24 +396,37 @@ mod checked {
             MoveAuthenticatorsForExecution::Resolved(authenticators) => {
                 // Store each loaded function-ref field object's metadata
                 // in the `TemporaryStore` before any authenticator runs.
-                for authenticator in &authenticators {
-                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                        authenticator.function_ref.loaded_object_id,
-                        authenticator.function_ref.loaded_object_metadata.clone(),
-                    )]));
-                }
-                let result =
-                    authenticators.iter().try_for_each(|authenticator| {
-                        match &authenticator.function_ref.authenticator_function_ref {
+                let authenticators: Vec<_> = authenticators
+                    .into_iter()
+                    .map(|authenticator| {
+                        let AuthenticatorFunctionRefForExecution {
+                            authenticator_function_ref,
+                            loaded_object_id,
+                            loaded_object_metadata,
+                        } = authenticator.function_ref;
+                        temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                            loaded_object_id,
+                            loaded_object_metadata,
+                        )]));
+                        (
+                            authenticator.authenticator,
+                            authenticator_function_ref,
+                            authenticator.input_objects.into_inner(),
+                        )
+                    })
+                    .collect();
+                let result = authenticators.into_iter().try_for_each(
+                    |(authenticator, authenticator_function_ref, input_objects)| {
+                        match authenticator_function_ref {
                             AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
                                 authenticate_transaction_inner(
                                     &mut temporary_store,
                                     protocol_config,
                                     metrics.clone(),
                                     &mut gas_charger,
-                                    authenticator.authenticator.clone(),
-                                    authenticator_function_ref_v1.clone(),
-                                    authenticator.input_objects.inner(),
+                                    authenticator,
+                                    authenticator_function_ref_v1,
+                                    &input_objects,
                                     transaction_kind.clone(),
                                     transaction_digest,
                                     auth_context_data.clone(),
@@ -426,7 +436,8 @@ mod checked {
                                 )
                             }
                         }
-                    });
+                    },
+                );
                 report_authentication_error(result, protocol_config)
             }
             MoveAuthenticatorsForExecution::ResolutionFailed(error) => {
@@ -434,20 +445,12 @@ mod checked {
             }
         };
 
-        // A failure that refutes the attestation is charged to the attestor;
-        // the issuer's error is kept as the cause.
-        let authentication_execution_result =
-            match (authentication_execution_result, attestation_judge) {
-                (Err(error), Some(judge)) if judge.is_refuted() => Err(
-                    ExecutionError::new_with_source(ExecutionErrorKind::InvalidAttestation, error),
-                ),
-                (result, _) => result,
-            };
-
-        // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986
-        // Capture whether authentication failed before the result is moved into the
-        // body execution.
-        let authentication_failed = authentication_execution_result.is_err();
+        // The body's own checks may replace this error in the effects, so its
+        // kind is reported alongside.
+        let authentication_error = authentication_execution_result
+            .as_ref()
+            .err()
+            .map(|error| error.kind().clone());
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -483,7 +486,7 @@ mod checked {
             gas_status,
             effects,
             execution_result,
-            authentication_failed,
+            authentication_error,
         )
     }
 

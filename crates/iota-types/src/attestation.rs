@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, ObjectReference, TransactionDigest, UserSignature};
+use iota_sdk_types::{Address, GasCostSummary, ObjectReference, TransactionDigest, UserSignature};
 use serde::{Deserialize, Serialize};
 
 use crate::transaction::TransactionEnvelope;
@@ -97,12 +97,81 @@ impl Attestation {
     }
 }
 
-/// Judges an attestation whose transaction failed Move authentication at
-/// execution.
-pub trait AttestationJudge {
-    /// Whether the failure refutes the attestation, so it is charged to the
-    /// attestor instead of the issuer.
-    fn is_refuted(&self) -> bool;
+/// The computation cost of `gas_cost_summary` in gas units, independent of
+/// the gas price the transaction paid. Rounds down, and is zero when
+/// `gas_price` is zero.
+pub fn computation_units(gas_cost_summary: &GasCostSummary, gas_price: u64) -> u64 {
+    gas_cost_summary
+        .computation_cost
+        .checked_div(gas_price)
+        .unwrap_or(0)
+}
+
+/// The verdict on an attested, executed transaction. The variant order is
+/// protocol-significant: append, never reorder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AttestationVerdict {
+    /// Not refuted and, whenever the transaction body ran, the claimed
+    /// computation units were within tolerance of the executed ones.
+    Valid,
+    /// Not refuted, but the claimed computation units were not within
+    /// tolerance. An honest claim can land here when a shared object or
+    /// dynamic field the dry run read moved before execution, so this is not
+    /// by itself evidence against the attestor.
+    Inaccurate,
+    /// Authentication failed at the versions the attestor recorded.
+    Refuted,
+}
+
+impl AttestationVerdict {
+    /// `executed_units` is `None` when the transaction body never ran, so the
+    /// claim cannot be assessed. `tolerance_percentage` bounds
+    /// `|attested - executed|` as a percentage of the executed units; `None`
+    /// disables the accuracy check.
+    pub fn new(
+        refuted: bool,
+        attested_units: u64,
+        executed_units: Option<u64>,
+        tolerance_percentage: Option<u64>,
+    ) -> Self {
+        if refuted {
+            return Self::Refuted;
+        }
+        let accurate = match (executed_units, tolerance_percentage) {
+            (Some(executed), Some(tolerance)) => {
+                attested_units.abs_diff(executed).saturating_mul(100)
+                    <= tolerance.saturating_mul(executed)
+            }
+            _ => true,
+        };
+        if accurate {
+            Self::Valid
+        } else {
+            Self::Inaccurate
+        }
+    }
+}
+
+/// The validator's verdict on an attested, executed transaction, certified in
+/// the checkpoint summary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct AttestationRecord {
+    /// Index of the attestor in the committee of the checkpoint's epoch.
+    pub attestor: AuthorityIndex,
+    pub verdict: AttestationVerdict,
+}
+
+impl AttestationRecord {
+    /// `None` for explicit attestations, which never reach execution.
+    pub fn new(attestation: &Attestation, verdict: AttestationVerdict) -> Option<Self> {
+        match attestation {
+            Attestation::Validator { attestor_index, .. } => Some(Self {
+                attestor: *attestor_index,
+                verdict,
+            }),
+            Attestation::Explicit { .. } => None,
+        }
+    }
 }
 
 impl AttestedTransaction {
@@ -162,6 +231,69 @@ mod tests {
         let encoded = bcs::to_bytes(&attestation).unwrap();
         let decoded: Attestation = bcs::from_bytes(&encoded).unwrap();
         assert_eq!(decoded, attestation);
+    }
+
+    /// Both sides of the check are `computation_cost / gas_price`, which the
+    /// gas meter rounds up to `gas_rounding_step`, so they are always multiples
+    /// of it and the smallest difference they can show is one step.
+    #[test]
+    fn verdict_accuracy_band() {
+        const STEP: u64 = 1_000;
+        let judge = |attested, executed, tolerance| {
+            AttestationVerdict::new(false, attested, Some(executed), tolerance)
+        };
+
+        // Under ten steps a tenth of the executed units is less than one step,
+        // so only the same value is accurate.
+        assert_eq!(
+            judge(3 * STEP, 3 * STEP, Some(10)),
+            AttestationVerdict::Valid
+        );
+        assert_eq!(
+            judge(4 * STEP, 3 * STEP, Some(10)),
+            AttestationVerdict::Inaccurate
+        );
+        assert_eq!(
+            judge(2 * STEP, 3 * STEP, Some(10)),
+            AttestationVerdict::Inaccurate
+        );
+
+        // At ten steps one step of drift is exactly the allowance.
+        assert_eq!(
+            judge(11 * STEP, 10 * STEP, Some(10)),
+            AttestationVerdict::Valid
+        );
+        assert_eq!(
+            judge(9 * STEP, 10 * STEP, Some(10)),
+            AttestationVerdict::Valid
+        );
+        assert_eq!(
+            judge(12 * STEP, 10 * STEP, Some(10)),
+            AttestationVerdict::Inaccurate
+        );
+
+        // Ten steps either way on a hundred-step transaction.
+        assert_eq!(
+            judge(110 * STEP, 100 * STEP, Some(10)),
+            AttestationVerdict::Valid
+        );
+        assert_eq!(
+            judge(111 * STEP, 100 * STEP, Some(10)),
+            AttestationVerdict::Inaccurate
+        );
+
+        // No tolerance configured disables the check.
+        assert_eq!(judge(50 * STEP, STEP, None), AttestationVerdict::Valid);
+        // A body that never ran cannot be assessed.
+        assert_eq!(
+            AttestationVerdict::new(false, 50 * STEP, None, Some(10)),
+            AttestationVerdict::Valid
+        );
+        // A refutation wins over accuracy.
+        assert_eq!(
+            AttestationVerdict::new(true, 3 * STEP, Some(3 * STEP), Some(10)),
+            AttestationVerdict::Refuted
+        );
     }
 
     #[test]
