@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Creates a lazy batching stream that fetches and batches items on-demand
-/// based on message size limits.
+/// based on message size limits, from an iterator or, after `stream:`, from a
+/// [`futures::Stream`].
 ///
 /// The `has_next` field is a batching signal: `true` means more stream
 /// messages follow (current batch hit `max_message_size`), `false` means
@@ -28,7 +29,7 @@
 #[macro_export]
 macro_rules! create_batching_stream {
     (
-        $requests_iter:expr,
+        stream: $requests:expr,
         $item_pattern:pat,
         $process_block:block,
         $max_message_size:expr,
@@ -37,14 +38,14 @@ macro_rules! create_batching_stream {
         $has_next_field:ident
     ) => {
         async_stream::try_stream! {
-            let mut requests_iter = $requests_iter;
+            let mut requests = std::pin::pin!($requests);
             let mut current_batch = Vec::new();
             let mut current_size = 0;
             let mut has_yielded = false;
 
             loop {
                 // Try to get the next item
-                match requests_iter.next() {
+                match futures::StreamExt::next(&mut requests).await {
                     Some($item_pattern) => {
                         // Process the item using the provided block
                         let (result_item, item_size) = $process_block;
@@ -104,6 +105,9 @@ macro_rules! create_batching_stream {
                 }
             }
         }
+    };
+    ($requests_iter:expr, $($rest:tt)*) => {
+        $crate::create_batching_stream!(stream: futures::stream::iter($requests_iter), $($rest)*)
     };
 }
 

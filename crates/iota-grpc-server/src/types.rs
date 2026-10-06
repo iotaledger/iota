@@ -18,7 +18,7 @@ use iota_grpc_types::{
 use iota_node_storage::{GrpcStateReader, TransactionKeyValueStoreTrait};
 use iota_sdk_types::{
     Address, CheckpointContents, CheckpointDigest, ObjectId, ObjectReference, StructTag,
-    TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest, TypeTag,
+    TransactionDigest, TransactionEffects, TransactionEvents, TypeTag,
 };
 use iota_types::{
     base_types::VersionNumber,
@@ -322,6 +322,11 @@ impl GrpcReader {
     ) -> Self {
         self.transaction_fallback = store;
         self
+    }
+
+    /// Whether data the node has pruned is read from a key-value store.
+    pub(crate) fn has_transaction_fallback(&self) -> bool {
+        self.transaction_fallback.is_some()
     }
 
     pub fn server_version(&self) -> Option<String> {
@@ -1136,7 +1141,7 @@ impl GrpcReader {
         )))
     }
 
-    /// Get transaction data for a single transaction digest.
+    /// Reads the transactions of `digests` and returns one result per digest, in order.
     ///
     /// Only fetches data from storage when indicated by `fields`, enabling
     /// callers to skip unnecessary reads. Effects are fetched when any of
@@ -1155,350 +1160,331 @@ impl GrpcReader {
     /// node lacks, are read from the key-value store set with
     /// [`Self::with_transaction_fallback`], if any.
     ///
-    /// Store reads draw on `store_budget`, which callers share across the
-    /// transactions of one request.
-    #[tracing::instrument(skip(self, store_budget))]
-    pub async fn get_transaction_read(
+    /// The store is read with one call for each kind of data, for all the digests that need it, so
+    /// a call that fails fails every digest that needed it; a failed checkpoint lookup counts as a
+    /// miss while `store_budget` lasts. The calls draw on `store_budget`, which callers share
+    /// across the calls of one request.
+    #[tracing::instrument(skip_all, fields(transactions = digests.len()))]
+    pub async fn get_transaction_reads(
         &self,
-        digest: &TransactionDigest,
+        digests: &[TransactionDigest],
         fields: &TransactionReadFields,
         store_budget: &StoreReadBudget,
-    ) -> Result<TransactionReadData, crate::error::RpcError> {
-        // Derived change fields need effects plus the input/output objects
-        let include_derived_changes =
-            fields.include_balance_changes || fields.include_object_changes;
-        let include_input_objects = fields.include_input_objects || include_derived_changes;
-        let include_output_objects = fields.include_output_objects || include_derived_changes;
-        let needs_transaction = fields.include_transaction
-            || fields.include_signatures
-            || fields.include_object_changes;
-        let needs_checkpoint = fields.include_checkpoint || fields.include_timestamp;
-        let needs_effects = fields.include_effects
-            || fields.include_events
-            || include_input_objects
-            || include_output_objects;
+    ) -> Vec<Result<TransactionReadData, RpcError>> {
+        let needs = ReadNeeds::new(fields);
+        let mut reads = digests
+            .iter()
+            .map(|digest| self.local_read(digest, &needs))
+            .collect::<Vec<_>>();
 
-        let local_transaction = if needs_transaction {
-            self.state_reader.try_get_transaction(digest)?
-        } else {
-            None
-        };
-        let local_effects =
-            if needs_effects || (needs_checkpoint && self.transaction_fallback.is_some()) {
-                self.state_reader.try_get_transaction_effects(digest)?
-            } else {
-                None
-            };
-
-        // A transaction the node has effects for is not pruned, even when it is
-        // not in a checkpoint yet.
-        let pruned = match &self.transaction_fallback {
-            Some(store)
-                if local_effects.is_none()
-                    && (needs_effects
-                        || needs_checkpoint
-                        || (needs_transaction && local_transaction.is_none())) =>
-            {
-                self.pruned_checkpoint(store, digest, store_budget)
-                    .await?
-                    .map(|checkpoint| (store, checkpoint))
-            }
-            _ => None,
-        };
-
-        let requested_fields = |transaction: &iota_sdk_types::SenderSignedTransaction| {
-            (
-                (fields.include_transaction || fields.include_object_changes)
-                    .then(|| transaction.transaction().clone()),
-                fields
-                    .include_signatures
-                    .then(|| transaction.signatures().to_owned()),
-            )
-        };
-        // A pruned transaction reads both from the store, any other both from the node.
-        let (transaction, effects) = match pruned {
-            Some((store, _)) => {
-                let transaction_keys = needs_transaction.then_some(*digest);
-                let effects_keys = needs_effects.then_some(*digest);
-                if transaction_keys.is_none() && effects_keys.is_none() {
-                    (None, None)
-                } else {
-                    let (transactions, effects) = store_read(
-                        store.multi_get(transaction_keys.as_slice(), effects_keys.as_slice()),
-                        store_budget,
-                    )
-                    .await?;
-                    (
-                        first(transactions).map(|transaction| requested_fields(&transaction)),
-                        first(effects),
-                    )
+        if let Some(store) = &self.transaction_fallback {
+            self.read_pruned_checkpoints(store, &mut reads, &needs, store_budget)
+                .await;
+            read_pruned_transactions(store, &mut reads, &needs, store_budget).await;
+        }
+        for read in &mut reads {
+            if let Ok(pending) = read {
+                if let Err(error) = pending.check_found(&needs) {
+                    *read = Err(error);
                 }
             }
-            None => (
-                local_transaction.map(|transaction| requested_fields(&transaction)),
-                local_effects,
-            ),
-        };
-
-        // The store has placed a pruned transaction in a checkpoint, so its
-        // transaction or effects missing from the store is a store failure.
-        let not_found = || -> crate::error::RpcError {
-            if pruned.is_some() {
-                store_unavailable(format!(
-                    "transaction {digest} or its effects missing after its checkpoint lookup"
-                ))
-            } else {
-                crate::error::TransactionNotFoundError(*digest).into()
-            }
-        };
-
-        let (transaction, signatures) = if needs_transaction {
-            transaction.ok_or_else(not_found)?
-        } else {
-            (None, None)
-        };
-
-        let (checkpoint, timestamp_ms) = if needs_checkpoint {
-            let checkpoint = match pruned {
-                Some((_, checkpoint)) => Some(checkpoint),
-                None => self
-                    .require_indexes()
-                    .map_err(|e| crate::error::RpcError::internal().with_context(e))?
-                    .get_transaction_info(digest)?
-                    .map(|info| info.checkpoint),
-            };
-
-            let timestamp_ms = if fields.include_timestamp {
-                match checkpoint {
-                    Some(checkpoint_seq) => Some(
-                        self.checkpoint_timestamp_ms(digest, checkpoint_seq, store_budget)
-                            .await?,
-                    ),
-                    // Transaction not yet included in a checkpoint
-                    None => None,
+        }
+        if needs.checkpoint {
+            for read in &mut reads {
+                if let Ok(pending) = read {
+                    if let Err(error) = self.read_checkpoint(pending) {
+                        *read = Err(error);
+                    }
                 }
-            } else {
-                None
-            };
-            (checkpoint, timestamp_ms)
-        } else {
-            (None, None)
-        };
-
-        let (effects, events, input_objects, output_objects) = if needs_effects {
-            let effects = effects.ok_or_else(not_found)?;
-
-            let events = match effects.events_digest().filter(|_| fields.include_events) {
-                Some(events_digest) => Some(
-                    self.require_events(digest, events_digest, pruned.is_some(), store_budget)
-                        .await?,
-                ),
-                None => None,
-            };
-
-            let mut keys = Vec::new();
-            if include_input_objects {
-                keys.extend(
-                    effects
-                        .old_object_metadata()
-                        .into_iter()
-                        .map(|modified| *modified.reference()),
-                );
             }
-            let input_count = keys.len();
-            if include_output_objects {
-                keys.extend(
-                    effects
-                        .created()
-                        .into_iter()
-                        .chain(effects.mutated())
-                        .chain(effects.unwrapped())
-                        .map(|written| *written.reference()),
-                );
-            }
-            let mut objects = self.require_objects(&keys, store_budget).await?;
-            let output_objects = objects.split_off(input_count);
+        }
+        if fields.include_timestamp {
+            self.read_timestamps(&mut reads, store_budget).await;
+        }
+        if fields.include_events {
+            self.read_events(&mut reads, store_budget).await;
+        }
+        if needs.input_objects || needs.output_objects {
+            self.read_objects(&mut reads, &needs, store_budget).await;
+        }
 
-            (
-                Some(effects),
-                events,
-                include_input_objects.then_some(objects),
-                include_output_objects.then_some(output_objects),
-            )
-        } else {
-            // If none of the above are requested, we can skip fetching effects entirely
-            (None, None, None, None)
-        };
-
-        Ok(TransactionReadData {
-            digest: *digest,
-            transaction,
-            signatures,
-            effects,
-            events,
-            checkpoint,
-            timestamp_ms,
-            input_objects,
-            output_objects,
-        })
+        reads
+            .into_iter()
+            .map(|read| read.map(|pending| pending.finish(&needs)))
+            .collect()
     }
 
-    /// Returns the checkpoint of `digest` if the node has pruned the
-    /// transaction, and `None` if it has not or the checkpoint is unknown.
+    fn local_read(
+        &self,
+        digest: &TransactionDigest,
+        needs: &ReadNeeds,
+    ) -> Result<PendingRead, RpcError> {
+        let mut pending = PendingRead::new(*digest);
+        if needs.transaction {
+            if let Some(transaction) = self.state_reader.try_get_transaction(digest)? {
+                pending.set_transaction(&transaction, &needs.fields);
+            }
+        }
+        if needs.effects || (needs.checkpoint && self.transaction_fallback.is_some()) {
+            pending.data.effects = self.state_reader.try_get_transaction_effects(digest)?;
+        }
+        Ok(pending)
+    }
+
+    /// Sets the checkpoint of each read whose transaction the node has pruned.
     ///
     /// Asks the store: pruning deletes the node's own transaction-to-checkpoint
     /// entries no later than the effects, so the node cannot answer for a
     /// transaction it lacks the effects of.
-    async fn pruned_checkpoint(
+    async fn read_pruned_checkpoints(
         &self,
         store: &Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
-        digest: &TransactionDigest,
+        reads: &mut [Result<PendingRead, RpcError>],
+        needs: &ReadNeeds,
         store_budget: &StoreReadBudget,
-    ) -> Result<Option<u64>, crate::error::RpcError> {
-        let lowest_available = self.state_reader.try_get_lowest_available_checkpoint()?;
-        if lowest_available == 0 {
-            return Ok(None);
+    ) {
+        // A transaction the node has effects for is not pruned, even when it is
+        // not in a checkpoint yet.
+        let indexes = pending_indexes(reads, |pending| {
+            pending.data.effects.is_none()
+                && (needs.effects
+                    || needs.checkpoint
+                    || (needs.transaction && !pending.has_transaction))
+        });
+        if indexes.is_empty() {
+            return;
         }
-        if store_budget.is_spent() {
-            return Err(store_budget_spent());
-        }
+        let lowest_available = match self.state_reader.try_get_lowest_available_checkpoint() {
+            Ok(0) => return,
+            Ok(lowest_available) => lowest_available,
+            Err(error) => return fail_reads(reads, &indexes, &error.into()),
+        };
+        let digests = digests_at(reads, &indexes);
         // A failed lookup counts as a miss: clients polling for a new
         // transaction give up on any per-item error other than `NOT_FOUND`.
-        let checkpoint = store_read(
-            store.get_transaction_perpetual_checkpoint(*digest),
+        match store_read(
+            store.multi_get_transactions_perpetual_checkpoints(&digests),
             store_budget,
         )
         .await
-        .ok()
-        .flatten();
-        Ok(checkpoint.filter(|&checkpoint| checkpoint < lowest_available))
+        {
+            Ok(checkpoints) => {
+                for (&index, checkpoint) in indexes.iter().zip(checkpoints) {
+                    if let Ok(pending) = &mut reads[index] {
+                        pending.pruned =
+                            checkpoint.filter(|&checkpoint| checkpoint < lowest_available);
+                    }
+                }
+            }
+            Err(error) if store_budget.is_spent() => fail_reads(reads, &indexes, &error),
+            Err(_) => {}
+        }
     }
 
-    async fn checkpoint_timestamp_ms(
-        &self,
-        digest: &TransactionDigest,
-        checkpoint_seq: u64,
-        store_budget: &StoreReadBudget,
-    ) -> Result<u64, crate::error::RpcError> {
-        if let Some(summary) = self
-            .state_reader
-            .try_get_checkpoint_by_sequence_number(checkpoint_seq)?
-        {
-            return Ok(summary.data().timestamp_ms);
-        }
-        // A node keeps the summary of every transaction it holds, so without a
-        // store a miss is a broken invariant.
-        let Some(store) = &self.transaction_fallback else {
-            return Err(crate::error::RpcError::new(
-                tonic::Code::Internal,
-                format!("Checkpoint summary {checkpoint_seq} not found for transaction {digest}"),
-            ));
+    fn read_checkpoint(&self, pending: &mut PendingRead) -> Result<(), RpcError> {
+        pending.data.checkpoint = match pending.pruned {
+            Some(checkpoint) => Some(checkpoint),
+            None => self
+                .require_indexes()
+                .map_err(|e| RpcError::internal().with_context(e))?
+                .get_transaction_info(&pending.data.digest)?
+                .map(|info| info.checkpoint),
         };
-        let (summaries, _, _) = store_read(
-            store.multi_get_checkpoints(&[checkpoint_seq], &[], &[]),
+        Ok(())
+    }
+
+    async fn read_timestamps(
+        &self,
+        reads: &mut [Result<PendingRead, RpcError>],
+        store_budget: &StoreReadBudget,
+    ) {
+        let mut missing = Vec::new();
+        for (index, read) in reads.iter_mut().enumerate() {
+            let Ok(pending) = read else { continue };
+            // Transaction not yet included in a checkpoint
+            let Some(checkpoint_seq) = pending.data.checkpoint else {
+                continue;
+            };
+            match self
+                .state_reader
+                .try_get_checkpoint_by_sequence_number(checkpoint_seq)
+            {
+                Ok(Some(summary)) => pending.data.timestamp_ms = Some(summary.data().timestamp_ms),
+                Ok(None) if self.transaction_fallback.is_some() => {
+                    missing.push((index, checkpoint_seq))
+                }
+                // A node keeps the summary of every transaction it holds, so without a
+                // store a miss is a broken invariant.
+                Ok(None) => {
+                    *read = Err(RpcError::new(
+                        tonic::Code::Internal,
+                        format!(
+                            "Checkpoint summary {checkpoint_seq} not found for transaction {}",
+                            pending.data.digest
+                        ),
+                    ))
+                }
+                Err(error) => *read = Err(error.into()),
+            }
+        }
+        let Some(store) = self
+            .transaction_fallback
+            .as_ref()
+            .filter(|_| !missing.is_empty())
+        else {
+            return;
+        };
+
+        let mut checkpoints = missing
+            .iter()
+            .map(|&(_, checkpoint)| checkpoint)
+            .collect::<Vec<_>>();
+        checkpoints.sort_unstable();
+        checkpoints.dedup();
+        let summaries = match store_read(
+            store.multi_get_checkpoints(&checkpoints, &[], &[]),
             store_budget,
         )
-        .await?;
-        first(summaries)
-            .map(|summary| summary.data().timestamp_ms)
-            .ok_or_else(|| {
-                crate::error::RpcError::new(
-                    tonic::Code::FailedPrecondition,
-                    format!(
-                        "checkpoint summary {checkpoint_seq} of transaction {digest} required \
-                         by the requested fields is unavailable (possibly pruned); narrow the \
-                         read_mask"
-                    ),
-                )
-            })
-    }
-
-    /// Errors with `FAILED_PRECONDITION` if the events are unavailable,
-    /// `UNAVAILABLE` if a key-value store read fails or the store lacks the
-    /// events of a `pruned` transaction, and `INTERNAL` if the store returns
-    /// other events.
-    async fn require_events(
-        &self,
-        digest: &TransactionDigest,
-        events_digest: &TransactionEventsDigest,
-        pruned: bool,
-        store_budget: &StoreReadBudget,
-    ) -> Result<TransactionEvents, crate::error::RpcError> {
-        if let Some(events) = self.state_reader.try_get_events(digest)? {
-            return Ok(events);
-        }
-        let store = self.transaction_fallback.as_ref();
-        let events = match store {
-            Some(store) => first(
-                store_read(
-                    store.multi_get_events_by_tx_digests(std::slice::from_ref(digest)),
-                    store_budget,
-                )
-                .await?,
-            ),
-            None => None,
-        };
-        match events {
-            Some(events) if events.digest() == *events_digest => Ok(events),
-            Some(_) => {
-                if let Some(store) = store {
-                    store
-                        .evict_events_by_tx_digests(std::slice::from_ref(digest))
-                        .await;
-                }
-                Err(mismatched_store_data(format!(
-                    "events of transaction {digest} do not match the digest in its effects"
-                )))
+        .await
+        {
+            Ok((summaries, _, _)) => summaries,
+            Err(error) => {
+                let indexes = missing.iter().map(|&(index, _)| index).collect::<Vec<_>>();
+                return fail_reads(reads, &indexes, &error);
             }
-            // The store holds the events of a transaction with the transaction
-            // itself, so it lacks those of a pruned one only when it fails.
-            None if pruned => Err(store_unavailable(format!(
-                "events of transaction {digest} missing after its checkpoint lookup"
-            ))),
-            None => Err(crate::error::RpcError::new(
-                tonic::Code::FailedPrecondition,
-                format!(
-                    "events of transaction {digest} required by the requested fields are \
-                     unavailable (possibly pruned); narrow the read_mask"
-                ),
-            )),
+        };
+        let timestamps = checkpoints
+            .iter()
+            .zip(summaries)
+            .filter_map(|(&checkpoint, summary)| Some((checkpoint, summary?.data().timestamp_ms)))
+            .collect::<std::collections::HashMap<_, _>>();
+        for (index, checkpoint_seq) in missing {
+            let Ok(pending) = &mut reads[index] else {
+                continue;
+            };
+            match timestamps.get(&checkpoint_seq) {
+                Some(&timestamp_ms) => pending.data.timestamp_ms = Some(timestamp_ms),
+                None => {
+                    let digest = pending.data.digest;
+                    reads[index] = Err(RpcError::new(
+                        tonic::Code::FailedPrecondition,
+                        format!(
+                            "checkpoint summary {checkpoint_seq} of transaction {digest} required \
+                             by the requested fields is unavailable {}narrow the read_mask",
+                            unavailable_reason(true)
+                        ),
+                    ))
+                }
+            }
         }
     }
 
-    /// Errors with `FAILED_PRECONDITION` if an object is unavailable,
-    /// `UNAVAILABLE` if a key-value store read fails, and `INTERNAL` if the
-    /// store returns another object.
-    async fn require_objects(
+    /// Fails a read with `FAILED_PRECONDITION` if its events are unavailable,
+    /// `UNAVAILABLE` if the store read fails or the store lacks the events of a
+    /// pruned transaction, and `INTERNAL` if the store returns other events.
+    async fn read_events(
         &self,
-        keys: &[ObjectReference],
+        reads: &mut [Result<PendingRead, RpcError>],
         store_budget: &StoreReadBudget,
-    ) -> Result<Vec<Object>, crate::error::RpcError> {
-        let unavailable = |key: &ObjectReference| {
-            let (object_id, version) = (key.object_id, key.version);
-            // An incomplete set would corrupt the derived change fields.
-            crate::error::RpcError::new(
-                tonic::Code::FailedPrecondition,
-                format!(
-                    "object {object_id} at version {version} required by the \
-                     requested fields is unavailable (possibly pruned); narrow the \
-                     read_mask or fetch objects individually via `get_objects` for best-effort retrieval"
-                ),
-            )
-        };
-
-        let mut objects = Vec::with_capacity(keys.len());
+    ) {
         let mut missing = Vec::new();
-        for (index, key) in keys.iter().enumerate() {
-            let object = self
-                .state_reader
-                .try_get_object_by_key(&key.object_id, key.version)?;
-            if object.is_none() {
-                if self.transaction_fallback.is_none() {
-                    return Err(unavailable(key));
-                }
-                missing.push(index);
+        for (index, read) in reads.iter_mut().enumerate() {
+            let Ok(pending) = read else { continue };
+            let Some(effects) = &pending.data.effects else {
+                continue;
+            };
+            if effects.events_digest().is_none() {
+                continue;
             }
-            objects.push(object);
+            match self.state_reader.try_get_events(&pending.data.digest) {
+                Ok(Some(events)) => pending.data.events = Some(events),
+                Ok(None) if self.transaction_fallback.is_some() => missing.push(index),
+                Ok(None) => *read = Err(events_unavailable(&pending.data.digest, false)),
+                Err(error) => *read = Err(error.into()),
+            }
+        }
+        let Some(store) = self
+            .transaction_fallback
+            .as_ref()
+            .filter(|_| !missing.is_empty())
+        else {
+            return;
+        };
+
+        let digests = digests_at(reads, &missing);
+        let fetched =
+            match store_read(store.multi_get_events_by_tx_digests(&digests), store_budget).await {
+                Ok(fetched) => fetched,
+                Err(error) => return fail_reads(reads, &missing, &error),
+            };
+        let mut mismatched = Vec::new();
+        // A reply shorter than the request leaves the rest missing.
+        let mut fetched = fetched.into_iter();
+        for &index in &missing {
+            let events = fetched.next().flatten();
+            let Ok(pending) = &mut reads[index] else {
+                continue;
+            };
+            let digest = pending.data.digest;
+            let expected = pending
+                .data
+                .effects
+                .as_ref()
+                .and_then(|effects| effects.events_digest().copied());
+            match events {
+                Some(events) if Some(events.digest()) == expected => {
+                    pending.data.events = Some(events)
+                }
+                Some(_) => {
+                    mismatched.push(digest);
+                    reads[index] = Err(mismatched_store_data(format!(
+                        "events of transaction {digest} do not match the digest in its effects"
+                    )));
+                }
+                // The store holds the events of a transaction with the transaction
+                // itself, so it lacks those of a pruned one only when it fails.
+                None if pending.pruned.is_some() => {
+                    reads[index] = Err(store_unavailable(format!(
+                        "events of transaction {digest} missing after its checkpoint lookup"
+                    )))
+                }
+                None => reads[index] = Err(events_unavailable(&digest, true)),
+            }
+        }
+        if !mismatched.is_empty() {
+            store.evict_events_by_tx_digests(&mismatched).await;
+        }
+    }
+
+    /// Fails a read with `FAILED_PRECONDITION` if an object is unavailable,
+    /// `UNAVAILABLE` if the store read fails, and `INTERNAL` if the store
+    /// returns another object.
+    async fn read_objects(
+        &self,
+        reads: &mut [Result<PendingRead, RpcError>],
+        needs: &ReadNeeds,
+        store_budget: &StoreReadBudget,
+    ) {
+        let mut objects: Vec<Option<ReadObjects>> = Vec::with_capacity(reads.len());
+        let mut missing = Vec::new();
+        for (index, read) in reads.iter_mut().enumerate() {
+            let found = match read {
+                Ok(pending) => self.local_objects(pending, needs),
+                Err(_) => Ok(None),
+            };
+            match found {
+                Ok(Some((keys, found))) => {
+                    if found.iter().any(Option::is_none) {
+                        missing.push(index);
+                    }
+                    objects.push(Some((keys, found)));
+                }
+                Ok(None) => objects.push(None),
+                Err(error) => {
+                    *read = Err(error);
+                    objects.push(None);
+                }
+            }
         }
 
         if let Some(store) = self
@@ -1506,37 +1492,346 @@ impl GrpcReader {
             .as_ref()
             .filter(|_| !missing.is_empty())
         {
-            let missing_keys = missing
+            let mut missing_keys = missing
                 .iter()
-                .map(|&index| ObjectKey::from(&keys[index]))
+                .filter_map(|&index| objects[index].as_ref())
+                .flat_map(|(keys, found)| {
+                    keys.iter()
+                        .zip(found)
+                        .filter(|(_, object)| object.is_none())
+                        .map(|(key, _)| ObjectKey::from(key))
+                })
                 .collect::<Vec<_>>();
-            let fetched = store_read(store.multi_get_objects(&missing_keys), store_budget).await?;
+            missing_keys.sort_unstable();
+            missing_keys.dedup();
+            let fetched =
+                match store_read(store.multi_get_objects(&missing_keys), store_budget).await {
+                    Ok(fetched) => missing_keys
+                        .into_iter()
+                        .zip(fetched)
+                        .filter_map(|(key, object)| Some((key, object?)))
+                        .collect::<std::collections::HashMap<_, _>>(),
+                    Err(error) => return fail_reads(reads, &missing, &error),
+                };
 
-            let mut mismatched = Vec::new();
-            let mut error = None;
-            for ((&index, key), object) in missing.iter().zip(&missing_keys).zip(fetched) {
-                if let Some(Err(mismatch)) = object
-                    .as_ref()
-                    .map(|object| verify_object(&keys[index], object))
-                {
-                    mismatched.push(*key);
-                    error.get_or_insert(mismatch);
+            let mut mismatched = std::collections::BTreeSet::new();
+            for &index in &missing {
+                let Some((keys, found)) = &mut objects[index] else {
+                    continue;
+                };
+                for (key, object) in keys.iter().zip(found.iter_mut()) {
+                    if object.is_some() {
+                        continue;
+                    }
+                    let Some(fetched) = fetched.get(&ObjectKey::from(key)) else {
+                        continue;
+                    };
+                    if let Err(error) = verify_object(key, fetched) {
+                        mismatched.insert(ObjectKey::from(key));
+                        if reads[index].is_ok() {
+                            reads[index] = Err(error);
+                        }
+                    }
+                    *object = Some(fetched.clone());
                 }
-                objects[index] = object;
             }
-            if let Some(error) = error {
+            if !mismatched.is_empty() {
                 // Every rejected object is read again, so one request clears
                 // them all from the store's cache.
-                store.evict_objects(&mismatched).await;
-                return Err(error);
+                store
+                    .evict_objects(&mismatched.into_iter().collect::<Vec<_>>())
+                    .await;
             }
         }
 
-        keys.iter()
-            .zip(objects)
-            .map(|(key, object)| object.ok_or_else(|| unavailable(key)))
-            .collect()
+        for (read, objects) in reads.iter_mut().zip(objects) {
+            let (Ok(pending), Some((keys, found))) = (&mut *read, objects) else {
+                continue;
+            };
+            let input_count = pending.input_count;
+            match keys
+                .iter()
+                .zip(found)
+                .map(|(key, object)| {
+                    object
+                        .ok_or_else(|| object_unavailable(key, self.transaction_fallback.is_some()))
+                })
+                .collect::<Result<Vec<_>, _>>()
+            {
+                Ok(mut found) => {
+                    let output_objects = found.split_off(input_count);
+                    pending.data.input_objects = needs.input_objects.then_some(found);
+                    pending.data.output_objects = needs.output_objects.then_some(output_objects);
+                }
+                Err(error) => *read = Err(error),
+            }
+        }
     }
+
+    /// The object keys a read needs and the objects the node holds of them; `None` without
+    /// effects. Without a store, a missing object fails the read.
+    fn local_objects(
+        &self,
+        pending: &mut PendingRead,
+        needs: &ReadNeeds,
+    ) -> Result<Option<ReadObjects>, RpcError> {
+        let Some(effects) = &pending.data.effects else {
+            return Ok(None);
+        };
+        let mut keys = Vec::new();
+        if needs.input_objects {
+            keys.extend(
+                effects
+                    .old_object_metadata()
+                    .into_iter()
+                    .map(|modified| *modified.reference()),
+            );
+        }
+        pending.input_count = keys.len();
+        if needs.output_objects {
+            keys.extend(
+                effects
+                    .created()
+                    .into_iter()
+                    .chain(effects.mutated())
+                    .chain(effects.unwrapped())
+                    .map(|written| *written.reference()),
+            );
+        }
+        let mut found = Vec::with_capacity(keys.len());
+        for key in &keys {
+            let object = self
+                .state_reader
+                .try_get_object_by_key(&key.object_id, key.version)?;
+            if object.is_none() && self.transaction_fallback.is_none() {
+                return Err(object_unavailable(key, false));
+            }
+            found.push(object);
+        }
+        Ok(Some((keys, found)))
+    }
+}
+
+/// Reads the transactions and effects of the pruned reads from `store`.
+async fn read_pruned_transactions(
+    store: &Arc<dyn TransactionKeyValueStoreTrait + Send + Sync>,
+    reads: &mut [Result<PendingRead, RpcError>],
+    needs: &ReadNeeds,
+    store_budget: &StoreReadBudget,
+) {
+    // A pruned transaction reads both its transaction and its effects from the store.
+    let transaction_indexes = pending_indexes(reads, |pending| {
+        pending.pruned.is_some() && needs.transaction
+    });
+    let effects_indexes =
+        pending_indexes(reads, |pending| pending.pruned.is_some() && needs.effects);
+    if transaction_indexes.is_empty() && effects_indexes.is_empty() {
+        return;
+    }
+    let (transactions, effects) = match store_read(
+        store.multi_get(
+            &digests_at(reads, &transaction_indexes),
+            &digests_at(reads, &effects_indexes),
+        ),
+        store_budget,
+    )
+    .await
+    {
+        Ok(read) => read,
+        Err(error) => {
+            fail_reads(reads, &transaction_indexes, &error);
+            return fail_reads(reads, &effects_indexes, &error);
+        }
+    };
+    let mut transactions = transactions.into_iter();
+    for &index in &transaction_indexes {
+        let transaction = transactions.next().flatten();
+        if let Ok(pending) = &mut reads[index] {
+            match transaction {
+                Some(transaction) => pending.set_transaction(&transaction, &needs.fields),
+                None => pending.has_transaction = false,
+            }
+        }
+    }
+    for (&index, effects) in effects_indexes.iter().zip(effects) {
+        if let Ok(pending) = &mut reads[index] {
+            pending.data.effects = effects;
+        }
+    }
+}
+
+/// The object keys of a read, inputs first, and the objects found of them so far.
+type ReadObjects = (Vec<ObjectReference>, Vec<Option<Object>>);
+
+/// Which data the read fields need.
+struct ReadNeeds {
+    fields: TransactionReadFields,
+    transaction: bool,
+    effects: bool,
+    checkpoint: bool,
+    input_objects: bool,
+    output_objects: bool,
+}
+
+impl ReadNeeds {
+    fn new(fields: &TransactionReadFields) -> Self {
+        // Derived change fields need effects plus the input/output objects
+        let derived_changes = fields.include_balance_changes || fields.include_object_changes;
+        let input_objects = fields.include_input_objects || derived_changes;
+        let output_objects = fields.include_output_objects || derived_changes;
+        Self {
+            fields: *fields,
+            transaction: fields.include_transaction
+                || fields.include_signatures
+                || fields.include_object_changes,
+            effects: fields.include_effects
+                || fields.include_events
+                || input_objects
+                || output_objects,
+            checkpoint: fields.include_checkpoint || fields.include_timestamp,
+            input_objects,
+            output_objects,
+        }
+    }
+}
+
+/// A transaction read in progress.
+struct PendingRead {
+    data: TransactionReadData,
+    has_transaction: bool,
+    /// The checkpoint of a transaction the node has pruned.
+    pruned: Option<u64>,
+    input_count: usize,
+}
+
+impl PendingRead {
+    fn new(digest: TransactionDigest) -> Self {
+        Self {
+            data: TransactionReadData {
+                digest,
+                transaction: None,
+                signatures: None,
+                effects: None,
+                events: None,
+                checkpoint: None,
+                timestamp_ms: None,
+                input_objects: None,
+                output_objects: None,
+            },
+            has_transaction: false,
+            pruned: None,
+            input_count: 0,
+        }
+    }
+
+    fn set_transaction(
+        &mut self,
+        transaction: &iota_sdk_types::SenderSignedTransaction,
+        fields: &TransactionReadFields,
+    ) {
+        self.has_transaction = true;
+        self.data.transaction = (fields.include_transaction || fields.include_object_changes)
+            .then(|| transaction.transaction().clone());
+        self.data.signatures = fields
+            .include_signatures
+            .then(|| transaction.signatures().to_owned());
+    }
+
+    fn check_found(&self, needs: &ReadNeeds) -> Result<(), RpcError> {
+        if (!needs.transaction || self.has_transaction)
+            && (!needs.effects || self.data.effects.is_some())
+        {
+            return Ok(());
+        }
+        // The store has placed a pruned transaction in a checkpoint, so its
+        // transaction or effects missing from the store is a store failure.
+        Err(match self.pruned {
+            Some(_) => store_unavailable(format!(
+                "transaction {} or its effects missing after its checkpoint lookup",
+                self.data.digest
+            )),
+            None => crate::error::TransactionNotFoundError(self.data.digest).into(),
+        })
+    }
+
+    fn finish(mut self, needs: &ReadNeeds) -> TransactionReadData {
+        if !needs.effects {
+            self.data.effects = None;
+        }
+        self.data
+    }
+}
+
+/// The indexes of the reads that have not failed and match `filter`.
+fn pending_indexes(
+    reads: &[Result<PendingRead, RpcError>],
+    filter: impl Fn(&PendingRead) -> bool,
+) -> Vec<usize> {
+    reads
+        .iter()
+        .enumerate()
+        .filter_map(|(index, read)| {
+            read.as_ref()
+                .ok()
+                .filter(|pending| filter(pending))
+                .map(|_| index)
+        })
+        .collect()
+}
+
+fn digests_at(
+    reads: &[Result<PendingRead, RpcError>],
+    indexes: &[usize],
+) -> Vec<TransactionDigest> {
+    indexes
+        .iter()
+        .filter_map(|&index| Some(reads[index].as_ref().ok()?.data.digest))
+        .collect()
+}
+
+/// Fails each read at `indexes` that has not failed yet with `error`.
+fn fail_reads(reads: &mut [Result<PendingRead, RpcError>], indexes: &[usize], error: &RpcError) {
+    for &index in indexes {
+        if reads[index].is_ok() {
+            reads[index] = Err(error.clone());
+        }
+    }
+}
+
+/// Why data is unavailable, and what to try first. The key-value store reports a failed read as a
+/// missing key, so with a store the data may also be missing because the read failed.
+fn unavailable_reason(store_read: bool) -> &'static str {
+    if store_read {
+        "(possibly pruned, or the key-value store failed to return it); retry, and if it stays \
+         unavailable, "
+    } else {
+        "(possibly pruned); "
+    }
+}
+
+fn events_unavailable(digest: &TransactionDigest, store_read: bool) -> RpcError {
+    RpcError::new(
+        tonic::Code::FailedPrecondition,
+        format!(
+            "events of transaction {digest} required by the requested fields are unavailable \
+             {}narrow the read_mask",
+            unavailable_reason(store_read)
+        ),
+    )
+}
+
+fn object_unavailable(key: &ObjectReference, store_read: bool) -> RpcError {
+    let (object_id, version) = (key.object_id, key.version);
+    // An incomplete set would corrupt the derived change fields.
+    RpcError::new(
+        tonic::Code::FailedPrecondition,
+        format!(
+            "object {object_id} at version {version} required by the requested fields is \
+             unavailable {}narrow the read_mask or fetch objects individually via \
+             `get_objects` for best-effort retrieval",
+            unavailable_reason(store_read)
+        ),
+    )
 }
 
 fn verify_object(
@@ -1555,10 +1850,6 @@ fn verify_object(
         reference.object_id,
         reference.version
     )))
-}
-
-fn first<T>(values: Vec<Option<T>>) -> Option<T> {
-    values.into_iter().next().flatten()
 }
 
 const STORE_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
