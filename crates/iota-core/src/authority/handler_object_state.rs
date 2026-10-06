@@ -1031,25 +1031,38 @@ impl HandlerObjectState {
         if writes.is_empty() {
             return Ok(());
         }
-        // A chain write consumes the chain's own output, for which no handler
-        // row exists. A consumed version with a handler row was written by
-        // handler-known execution, so the record found below is of a chain
-        // the handler has caught up past, with its deletion not queued: not
-        // yet, or no longer after a restart. Read before the locks; a row
-        // landing after the read leaves the record extended, as before this
-        // check, and that row takes precedence over the record on every read.
-        let consumed_handler_known = writes
+        // The record found below may be dead: the handler has already caught
+        // up past its chain, but the record is still here because its
+        // deletion is not queued (the handler has not completed the commit
+        // yet, or a restart dropped the queue). A dead record must not be
+        // extended; the write starts a new chain instead.
+        //
+        // A live chain's outputs never have handler rows, so a handler row at
+        // either of two versions proves the record is dead. First, at the
+        // version the write consumed: only handler-known execution writes
+        // rows, so the write builds on a handler-known version, not on the
+        // chain. This also covers a handler-known transaction that consumed
+        // the chain's head before its commit completed, when the head itself
+        // has no row yet. Second, at the record's head: the handler completed
+        // the commit that produced the head. This covers writes that consume
+        // nothing, such as an unwrap, where the first check has nothing to
+        // look up.
+        //
+        // Missing both rows only means the record is extended, as it was
+        // before these checks. Both rows are read before the locks. The head
+        // row is looked up on the record read here, so under the lock it
+        // counts only if the record found there still ends at that head. A
+        // row that lands after these reads leaves the record extended; that
+        // row takes precedence over the record on every read.
+        let handler_known = writes
             .iter()
-            .map(|write| match write.consumed {
-                Some(consumed) => Ok(self
-                    .handler_processed_object(tables, &ObjectKey(write.id, consumed))?
-                    .is_some()),
-                None => Ok(false),
-            })
-            .collect::<IotaResult<Vec<bool>>>()?;
+            .map(|write| self.handler_known_versions(tables, write))
+            .collect::<IotaResult<Vec<_>>>()?;
         let mut overlay = self.sync_ahead_overlay.write();
         let mut deletions = self.sync_ahead_record_deletions.lock();
-        for (write, consumed_handler_known) in writes.into_iter().zip(consumed_handler_known) {
+        for (write, (consumed_handler_known, handler_known_head)) in
+            writes.into_iter().zip(handler_known)
+        {
             let current = match overlay.get(&write.id) {
                 Some(record) => Some(*record),
                 // A record with a queued deletion is logically gone (the
@@ -1062,7 +1075,9 @@ impl HandlerObjectState {
             };
             // A dead record is not this write's chain: the write starts a new
             // one under the same key.
-            let chain = current.filter(|_| !consumed_handler_known);
+            let chain = current.filter(|record| {
+                !consumed_handler_known && handler_known_head != Some(record.latest_created)
+            });
             // Only an extension of the chain updates the record
             // (re-executions after a restart replay the same writes).
             if chain.is_none_or(|record| write.created > record.latest_created) {
@@ -1103,6 +1118,32 @@ impl HandlerObjectState {
             .handler_object_state_sync_ahead_overlay_entries
             .set(overlay.len() as i64);
         Ok(())
+    }
+
+    /// Whether `write`'s consumed version has a handler row, and the head of
+    /// the object's current sync-ahead record when that head has one. The
+    /// head is not looked up when the consumed version has a row, so the
+    /// second value is then `None`.
+    fn handler_known_versions(
+        &self,
+        tables: &AuthorityEpochTables,
+        write: &SyncAheadWrite,
+    ) -> IotaResult<(bool, Option<Version>)> {
+        if let Some(consumed) = write.consumed {
+            if self
+                .handler_processed_object(tables, &ObjectKey(write.id, consumed))?
+                .is_some()
+            {
+                return Ok((true, None));
+            }
+        }
+        let Some(record) = self.sync_ahead_record(tables, &write.id)? else {
+            return Ok((false, None));
+        };
+        let head_known = self
+            .handler_processed_object(tables, &ObjectKey(write.id, record.latest_created))?
+            .is_some();
+        Ok((false, head_known.then_some(record.latest_created)))
     }
 
     fn shelter_consumed_inputs(
