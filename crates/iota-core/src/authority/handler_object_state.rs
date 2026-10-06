@@ -365,17 +365,10 @@ fn present_entries<K: Ord, V: Clone>(
         .collect()
 }
 
-/// The records in `sync_rows` that a checkpoint's own sync-ahead executions
-/// wrote: those of objects with a key in `handler_keys` that has no row in
-/// `handler_rows`. The execution hook writes either a row or a record for
-/// each write, so a key without a row is a sync-ahead write that started or
-/// extended the record.
-///
-/// A record of an object the checkpoint wrote only handler-known was started
-/// by an execution of a later checkpoint, whose base version may not be
-/// durable yet. It goes with the batch of the checkpoint whose execution
-/// wrote it, which the checkpoint executor writes after the outputs of every
-/// earlier checkpoint.
+/// The records in `sync_rows` of objects with a key in `handler_keys` that
+/// has no row in `handler_rows`: those a checkpoint's own sync-ahead
+/// executions wrote. See [`HandlerObjectState::checkpoint_rows`] for why
+/// only these are kept.
 fn records_written_by_sync_ahead(
     sync_rows: Vec<(ObjectId, SyncAheadRecord)>,
     handler_keys: &[ObjectKey],
@@ -773,7 +766,7 @@ impl HandlerObjectState {
     /// is durable still sees the record as dead. Such a write cancels the
     /// queued deletion but not the copy already staged here, which is why the
     /// auxiliary batch writes records under the quarantine lock; see
-    /// `AuthorityPerEpochStore::persist_checkpoint_bookkeeping`.
+    /// `AuthorityPerEpochStore::write_and_evict_checkpoint_rows`.
     pub fn write_commit_rows_to_batch(
         &self,
         commit_index: CommitIndex,
@@ -829,12 +822,23 @@ impl HandlerObjectState {
     /// overlays: the handler row at every key the execution hook could have
     /// written, the sync-ahead record of every object their sync-ahead
     /// executions wrote, and the sheltered bytes of every owned input they
-    /// consumed.
+    /// consumed. `effects` are the transactions of one checkpoint whose
+    /// outputs are not yet durable.
     ///
-    /// A handler-known write's row must still be in the overlay: only this
-    /// checkpoint's batch or its commit's flush evicts it, and the flush
-    /// follows this checkpoint's outputs. Otherwise the write looks
-    /// sync-ahead, and a record of a later checkpoint is persisted early.
+    /// A record is included only when some key of `effects` has no handler
+    /// row in the snapshot. The execution hook writes either a handler row or
+    /// a record for each write, so such a key is a sync-ahead write of this
+    /// checkpoint that started or extended the record. A record of an object
+    /// this checkpoint wrote only handler-known was started later, by a later
+    /// checkpoint's sync-ahead execution, and is left in the overlay for the
+    /// batch of that checkpoint.
+    ///
+    /// This relies on a handler-known write's row still being in the overlay.
+    /// Only this checkpoint's batch, after taking this snapshot, or its
+    /// commits' flushes, after this checkpoint's outputs are committed, evict
+    /// it. A change that flushed a commit before its checkpoint's outputs
+    /// would make such a write look sync-ahead, and a record would be
+    /// persisted before its base version is.
     pub fn checkpoint_rows<'a>(
         &self,
         effects: impl IntoIterator<Item = &'a TransactionEffects>,
@@ -896,6 +900,11 @@ impl HandlerObjectState {
     /// checkpoints in order, one at a time (the checkpoint executor does), or
     /// an older record could overwrite a newer durable one. Handler rows and
     /// sheltered bytes never change once written for a key.
+    ///
+    /// A record that [`Self::checkpoint_rows`] returns was written by the
+    /// checkpoint's own sync-ahead executions, so its base version is already
+    /// durable, from an earlier checkpoint's outputs, or written by this
+    /// checkpoint, whose handler row for it is in this same batch.
     pub fn write_checkpoint_rows_to_batch(
         &self,
         tables: &AuthorityEpochTables,
