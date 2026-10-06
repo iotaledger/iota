@@ -59,7 +59,10 @@
 use std::{
     collections::{HashMap, VecDeque},
     num::NonZeroUsize,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -74,7 +77,6 @@ use iota_data_ingestion_core::{
 };
 use iota_sdk_types::{CheckpointDigest, EndOfEpochData};
 use iota_types::{
-    base_types::AuthorityName,
     committee::Committee,
     messages_checkpoint::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, CheckpointSummaryExt,
@@ -487,7 +489,7 @@ struct StateSyncEventLoop<S> {
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     genesis_checkpoint: Arc<VerifiedCheckpoint>,
-    sync_summaries_to_epoch_end: Option<AuthorityName>,
+    sync_summaries_to_epoch_end: Arc<AtomicBool>,
 }
 
 impl<S> StateSyncEventLoop<S>
@@ -909,31 +911,30 @@ where
             .store
             .try_get_highest_executed_checkpoint_seq_number()
             .expect("store operation should not fail");
+        if !self.sync_summaries_to_epoch_end.load(Ordering::Relaxed) {
+            return Some(checkpoint_sync_target(
+                highest_known_checkpoint,
+                highest_executed_checkpoint,
+                self.config.max_checkpoints_ahead_of_execution(),
+            ));
+        }
         let highest_verified_checkpoint = self
             .store
             .try_get_highest_verified_checkpoint()
             .expect("store operation should not fail");
-        let epoch_end_pending = self.sync_summaries_to_epoch_end.is_some_and(|authority| {
-            self.epoch_end_pending(
-                authority,
-                highest_executed_checkpoint,
-                &highest_verified_checkpoint,
-            )
-        });
         Some(summary_sync_target(
             highest_known_checkpoint,
             highest_executed_checkpoint,
             highest_verified_checkpoint.sequence_number(),
             self.config.max_checkpoints_ahead_of_execution(),
-            epoch_end_pending,
+            self.epoch_end_pending(highest_executed_checkpoint, &highest_verified_checkpoint),
         ))
     }
 
-    /// Whether `authority` is in the committee of the epoch being executed and
-    /// the summary that ends that epoch is not verified yet.
+    /// Whether the summary that ends the epoch being executed is not verified
+    /// yet.
     fn epoch_end_pending(
         &self,
-        authority: AuthorityName,
         highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
         highest_verified_checkpoint: &VerifiedCheckpoint,
     ) -> bool {
@@ -948,14 +949,6 @@ where
             }
             None => 0,
         };
-        let in_committee = self
-            .store
-            .try_get_committee(executing_epoch)
-            .expect("store operation should not fail")
-            .is_some_and(|committee| committee.authority_exists(&authority));
-        if !in_committee {
-            return false;
-        }
         highest_verified_checkpoint.epoch() < executing_epoch
             || (highest_verified_checkpoint.epoch() == executing_epoch
                 && highest_verified_checkpoint.next_epoch_committee().is_none())

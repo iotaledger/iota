@@ -5,6 +5,7 @@
 use std::{
     collections::HashMap,
     num::{NonZeroU64, NonZeroUsize},
+    sync::{Arc, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -25,7 +26,6 @@ use iota_swarm_config::test_utils::{
     CommitteeFixture, MakeCheckpointResults, empty_contents, random_contents,
 };
 use iota_types::{
-    base_types::AuthorityName,
     committee::{Committee, EpochId},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
@@ -1376,12 +1376,12 @@ async fn wait_for_watermarks(
 
 /// Runs node 2 with a bound of 2 above execution, its execution held at
 /// genesis, against a peer holding an epoch that ends past the bound.
-/// `in_committee` decides whether node 2 is a member of that epoch's
-/// committee. Returns node 2's store once node 1 has offered every checkpoint,
-/// the sequence number of the checkpoint that ends the epoch, and the
+/// `sync_to_epoch_end` is what the node sets for its current epoch: whether
+/// it is in the committee with the flag on. Returns node 2's store once node 1 has offered every
+/// checkpoint, the sequence number of the checkpoint that ends the epoch, and the
 /// networks and handles that keep both nodes running.
 async fn sync_with_epoch_end_past_the_bound(
-    in_committee: bool,
+    sync_to_epoch_end: bool,
 ) -> (SharedInMemoryStore, CheckpointSequenceNumber, impl Sized) {
     telemetry_subscribers::init_for_testing();
     let (committee, (mut ordered_checkpoints, mut contents, _, _)) =
@@ -1427,11 +1427,7 @@ async fn sync_with_epoch_end_past_the_bound(
             interval_period_ms: Some(50),
             ..Default::default()
         })
-        .sync_summaries_to_epoch_end(if in_committee {
-            Some(*committee.committee().names().next().unwrap())
-        } else {
-            Some(AuthorityName::ZERO)
-        })
+        .sync_summaries_to_epoch_end(Arc::new(AtomicBool::new(sync_to_epoch_end)))
         .build();
     let network_2 = build_network(|router| router.add_rpc_service(server));
     let (event_loop_2, handle_2) = builder.build(network_2.clone());
@@ -1462,7 +1458,7 @@ async fn sync_with_epoch_end_past_the_bound(
 }
 
 #[tokio::test]
-async fn committee_member_summary_sync_reaches_epoch_end_past_the_bound() {
+async fn summary_sync_reaches_epoch_end_past_the_bound_when_enabled() {
     let (store_2, end_of_epoch_seq, _nodes) = sync_with_epoch_end_past_the_bound(true).await;
     // Summaries reach the end of the epoch past the bound; contents stay
     // within it.
@@ -1470,7 +1466,7 @@ async fn committee_member_summary_sync_reaches_epoch_end_past_the_bound() {
 }
 
 #[tokio::test]
-async fn non_member_summary_sync_stops_at_the_bound() {
+async fn summary_sync_stops_at_the_bound_when_not_enabled() {
     let (store_2, _, _nodes) = sync_with_epoch_end_past_the_bound(false).await;
     wait_for_watermarks(&store_2, 2, 2).await;
     tokio::time::sleep(Duration::from_secs(1)).await;
