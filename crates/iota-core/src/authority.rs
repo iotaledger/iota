@@ -2106,10 +2106,7 @@ impl AuthorityState {
             epoch_store.insert_tx_key(key, *tx_digest)?;
         }
 
-        if epoch_store
-            .protocol_config()
-            .pcool_deterministic_validation()
-        {
+        if epoch_store.pcool_bookkeeping_enabled() {
             // A consumed input version comes from the declared inputs; the
             // store fallback covers the versions execution loaded at runtime
             // (dynamic-field children and received objects).

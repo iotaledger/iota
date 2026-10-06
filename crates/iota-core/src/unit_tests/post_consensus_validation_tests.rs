@@ -46,7 +46,7 @@ use crate::{
                 handler_processed_upserts,
             },
         },
-        authority_tests::init_state_with_objects_and_object_basics,
+        authority_tests::{init_state_with_objects_and_object_basics, publish_object_basics},
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -2191,6 +2191,25 @@ async fn setup_bookkeeping(
     genesis_objects: Vec<Object>,
     validation_enabled: bool,
 ) -> BookkeepingSetup {
+    setup_bookkeeping_with_keypair(genesis_objects, validation_enabled, None).await
+}
+
+/// Like [`setup_bookkeeping`] with the flags on, but for a node whose authority
+/// key is not in the committee, as on a full node.
+async fn setup_bookkeeping_outside_committee(genesis_objects: Vec<Object>) -> BookkeepingSetup {
+    // The builder's genesis committee holds its own generated validator keys,
+    // so a node signing with a fresh key is outside it.
+    let (_, keypair): (_, iota_types::crypto::AuthorityKeyPair) = get_key_pair();
+    setup_bookkeeping_with_keypair(genesis_objects, true, Some(&keypair)).await
+}
+
+/// [`setup_bookkeeping`] for the node holding `keypair`; `None` takes the
+/// committee member's key.
+async fn setup_bookkeeping_with_keypair(
+    genesis_objects: Vec<Object>,
+    validation_enabled: bool,
+    keypair: Option<&iota_types::crypto::AuthorityKeyPair>,
+) -> BookkeepingSetup {
     let config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
         if validation_enabled {
             config.enable_pcool_deterministic_validation_for_testing();
@@ -2199,16 +2218,32 @@ async fn setup_bookkeeping(
         }
         config
     });
-    setup_bookkeeping_with_config_guard(genesis_objects, Some(config_guard)).await
+    build_bookkeeping_setup(genesis_objects, Some(config_guard), keypair).await
 }
 
 /// Like [`setup_bookkeeping`], under the protocol config override the caller
 /// installed. The guard lives as long as the setup.
 async fn setup_bookkeeping_with_config_guard(
     genesis_objects: Vec<Object>,
-    _config_guard: Option<OverrideGuard>,
+    config_guard: Option<OverrideGuard>,
 ) -> BookkeepingSetup {
-    let (authority, package) = init_state_with_objects_and_object_basics(genesis_objects).await;
+    build_bookkeeping_setup(genesis_objects, config_guard, None).await
+}
+
+async fn build_bookkeeping_setup(
+    genesis_objects: Vec<Object>,
+    _config_guard: Option<OverrideGuard>,
+    keypair: Option<&iota_types::crypto::AuthorityKeyPair>,
+) -> BookkeepingSetup {
+    let builder = match keypair {
+        Some(keypair) => TestAuthorityBuilder::new().with_keypair(keypair),
+        None => TestAuthorityBuilder::new(),
+    };
+    let authority = builder.build().await;
+    for object in genesis_objects {
+        authority.insert_genesis_object(object);
+    }
+    let (authority, package) = publish_object_basics(authority).await;
     let epoch_store = (*authority.epoch_store_for_testing()).clone();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     BookkeepingSetup {
@@ -4256,6 +4291,74 @@ async fn bookkeeping_disabled_writes_nothing() {
     s.assert_no_handler_row(&obj_id, effects.lamport_version());
     assert_eq!(s.epoch_store.sync_ahead_record(&obj_id).unwrap(), None);
     s.assert_not_sheltered(obj_genesis_ref);
+}
+
+/// Only a committee member keeps the bookkeeping. A node outside the
+/// committee runs no consensus handler, so every execution there would be
+/// sync-ahead and nothing would ever clear its records and sheltered bytes.
+#[rstest::rstest]
+#[tokio::test]
+async fn bookkeeping_is_kept_only_by_committee_members(#[values(true, false)] in_committee: bool) {
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let [sync_obj_id, sync_gas_id, handler_obj_id, handler_gas_id] =
+        std::array::from_fn(|_| ObjectId::random());
+    let genesis_objects = [sync_obj_id, sync_gas_id, handler_obj_id, handler_gas_id]
+        .map(|id| Object::with_id_owner_for_testing(id, sender))
+        .to_vec();
+    let s = if in_committee {
+        setup_bookkeeping(genesis_objects, true).await
+    } else {
+        setup_bookkeeping_outside_committee(genesis_objects).await
+    };
+
+    let consumed_ref = s.latest_ref(&sync_obj_id);
+    let sync_effects = s.transfer(
+        &sync_obj_id,
+        &sync_gas_id,
+        sender,
+        &sender_key,
+        Address::random(),
+    );
+    let handler_effects = s
+        .execute_as_handler_known(
+            vec![s.build_transfer(
+                &handler_obj_id,
+                &handler_gas_id,
+                sender,
+                &sender_key,
+                Address::random(),
+            )],
+            1,
+        )
+        .remove(0);
+    s.epoch_store
+        .persist_checkpoint_bookkeeping([&sync_effects, &handler_effects])
+        .unwrap();
+
+    assert_eq!(
+        s.epoch_store
+            .durable_sync_ahead_record_for_testing(&sync_obj_id)
+            .unwrap()
+            .is_some(),
+        in_committee
+    );
+    assert_eq!(
+        s.epoch_store
+            .sheltered_object(&ObjectKey::from(consumed_ref))
+            .unwrap()
+            .is_some(),
+        in_committee
+    );
+    assert_eq!(
+        s.epoch_store
+            .durable_handler_processed_object_for_testing(&ObjectKey(
+                handler_obj_id,
+                handler_effects.lamport_version()
+            ))
+            .unwrap()
+            .is_some(),
+        in_committee
+    );
 }
 
 #[tokio::test]
