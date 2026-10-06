@@ -22,9 +22,6 @@ pub struct StoredAccountKeyLink {
     pub key_id: Vec<u8>,
     pub account_id: Vec<u8>,
     pub scheme: i16,
-    /// The `key_id` of the whole MultiSig key when `key_id` is one of its
-    /// members; `None` when `key_id` is the account's key itself.
-    pub multisig_key_id: Option<Vec<u8>>,
     pub source: i16,
     pub status: i16,
     pub last_change_tx_sequence_number: i64,
@@ -37,7 +34,6 @@ impl From<&AccountKeyLinkOp> for StoredAccountKeyLink {
             key_id: op.key_id.to_vec(),
             account_id: op.account_id.to_vec(),
             scheme: op.scheme as i16,
-            multisig_key_id: op.multisig_key_id.map(|key_id| key_id.to_vec()),
             source: op.source as i16,
             status: match op.kind {
                 LinkOpKind::Link => LINK_STATUS_ACTIVE,

@@ -852,8 +852,6 @@ impl PgIndexerStore {
                         (account_key_links::key_id, account_key_links::account_id),
                         (
                             account_key_links::scheme.eq(excluded(account_key_links::scheme)),
-                            account_key_links::multisig_key_id
-                                .eq(excluded(account_key_links::multisig_key_id)),
                             account_key_links::source.eq(excluded(account_key_links::source)),
                             account_key_links::status.eq(excluded(account_key_links::status)),
                             account_key_links::last_change_tx_sequence_number

@@ -293,7 +293,7 @@ The index is a left-fold of those events in total order `(checkpoint, transactio
 | `{Mutable,Immutable}AccountCreated<SmartAccount>(account, authenticator)` | the `account_authenticators` row of `account`, with the kind of `authenticator` |
 | `AuthenticatorFunctionRefV1Rotated<SmartAccount>(account, _, to)` | the `account_authenticators` row of `account`, with the kind of `to` |
 
-A MultiSig key also links or tombstones each of its committee members, as described in [MultiSig members](#multisig-members). Within a rotation every tombstone of `from` precedes every link of `to`, so a key on both sides — the same key, or a MultiSig member kept across the rotation — stays active. A batch collapses last-write-wins per `(key_id, account_id)` for links, and per account for the two per-account tables.
+Within a rotation the tombstone precedes the link, so rotating a key onto itself leaves the link active. A batch collapses last-write-wins per `(key_id, account_id)` for links, and per account for the two per-account tables.
 
 `SmartAccountCreated` never creates a link, even when it carries a key: the key of a new account is announced by the `PublicKeyAttached` of the same transaction, and the link comes from that.
 
@@ -330,15 +330,9 @@ An indexer pointed at a network whose framework predates `SmartAccountCreated` s
 
 Anyone replaying the public event stream can build the full reverse map: key material is in the event payloads and `key_id` is derived from it. The index exposes nothing that replaying checkpoints would not.
 
-### MultiSig members
+### Known gap: MultiSig
 
-A MultiSig `PublicKey` holds its BCS-encoded committee as `raw_bytes`, so the `key_id` of the whole key hashes the committee, which a wallet restoring from a seed does not know. Each event about a MultiSig key therefore also links or tombstones every committee member, under the member's own `key_id(member_flag || member_raw_bytes)` — the same value a wallet computes from its own key. A MultiSig account is found from any member key as well as from the whole key.
-
-A member row stores the `key_id` of the whole MultiSig key in `multisig_key_id`, which the RPC reports as `multisigKeyId` (Base64): the key alone cannot authenticate the account. `multisigKeyId` is `null` when the queried key is the account's key itself, including a query by the whole MultiSig key. The member row's `scheme` is the member's own scheme flag.
-
-The committee is the one payload the fold decodes. A committee this build cannot decode — for example, one with a member scheme added after it — gets only the row for the whole key.
-
-Member rows make committee membership queryable. This exposes nothing new: the committee is in the public event payload.
+A MultiSig `PublicKey` holds its BCS-encoded committee as `raw_bytes`, so its `key_id` hashes the committee. A wallet restoring from a seed knows its own member key but not the committee, and so cannot compute the lookup key. MultiSig accounts are therefore not discoverable from a seed alone. Indexing individual committee members would close the gap at the cost of making committee membership queryable, and is not done today.
 
 ## Restoring from a formal snapshot
 

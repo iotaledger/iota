@@ -426,24 +426,6 @@ mod tests {
         assert_eq!(rows[1].key_id, OTHER_KEY.to_vec());
     }
 
-    #[test]
-    fn a_key_that_stops_being_a_multisig_member_is_stored_as_direct() {
-        // A rotation from a MultiSig key onto one of its members: the member
-        // unlink and the direct link address the same row.
-        let member_unlink = AccountKeyLinkOp {
-            multisig_key_id: Some(OTHER_KEY),
-            ..op(KEY, LinkSource::Rotate, LinkOpKind::Unlink, 8)
-        };
-        let rows = collapse(vec![
-            member_unlink,
-            op(KEY, LinkSource::Rotate, LinkOpKind::Link, 8),
-        ]);
-
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].status, LINK_STATUS_ACTIVE);
-        assert_eq!(rows[0].multisig_key_id, None);
-    }
-
     fn collapse(ops: Vec<AccountKeyLinkOp>) -> Vec<StoredAccountKeyLink> {
         collapse_last_write_wins(ops.iter().map(StoredAccountKeyLink::from), |link| {
             (link.key_id.clone(), link.account_id.clone())
@@ -460,7 +442,6 @@ mod tests {
             key_id,
             account_id: ACCOUNT,
             scheme: 0,
-            multisig_key_id: None,
             source,
             kind,
             tx_sequence_number,

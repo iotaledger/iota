@@ -6266,18 +6266,6 @@
             "description": "The epoch of the last change to this link.",
             "type": "string"
           },
-          "multisigKeyId": {
-            "description": "Set when the key is one member of the account's MultiSig key, and then the `key_id` of that whole MultiSig key: the key alone cannot authenticate the account. `null` when the key is the account's key itself.",
-            "default": null,
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Base64"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "scheme": {
             "description": "The signature scheme flag of the key, as recorded on chain. Not resolved to a named scheme: a link stays indexable under a flag this build does not recognize.",
             "type": "integer",

@@ -105,12 +105,6 @@ impl MovePublicKey {
         self.scheme.flag()
     }
 
-    /// Returns the raw key material, without the scheme flag prefix. For a
-    /// `MultiSig` key this is the BCS-encoded `MultisigCommittee`.
-    pub fn raw_bytes(&self) -> &[u8] {
-        &self.raw_bytes
-    }
-
     /// Derives the `Address` for this public key.
     pub fn address(&self) -> Result<Address, eyre::Report> {
         let scheme = self.scheme();

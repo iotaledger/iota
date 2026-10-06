@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use fastcrypto::{encoding::Base64, traits::ToFromBytes};
+use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::Address;
 use iota_types::{
     base_types::{AuthorityName, EpochId},
@@ -18,8 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    MoveFunctionName, Page,
-    iota_primitives::{Address as AddressSchema, Base64 as Base64Schema},
+    MoveFunctionName, Page, iota_primitives::Address as AddressSchema,
     iota_system_state_summary::IotaValidatorSummary as IotaValidatorSummarySchema,
 };
 
@@ -250,13 +249,6 @@ pub struct AccountKeyLink {
     /// to a named scheme: a link stays indexable under a flag this build does
     /// not recognize.
     pub scheme: u8,
-    /// Set when the key is one member of the account's MultiSig key, and then
-    /// the `key_id` of that whole MultiSig key: the key alone cannot
-    /// authenticate the account. `null` when the key is the account's key
-    /// itself.
-    #[serde_as(as = "Option<Base64>")]
-    #[schemars(with = "Option<Base64Schema>")]
-    pub multisig_key_id: Option<[u8; 32]>,
     /// The epoch of the last change to this link.
     #[serde_as(as = "DisplayFromStr")]
     #[schemars(with = "String")]
