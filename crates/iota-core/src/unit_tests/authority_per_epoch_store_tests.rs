@@ -2146,6 +2146,28 @@ mod handler_object_state_storage {
         }
     }
 
+    /// Turns on P-COOL deterministic validation, without which the quarantine
+    /// flush derives no handler rows. Build the authority while the guard
+    /// lives.
+    fn enable_deterministic_validation() -> iota_protocol_config::OverrideGuard {
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config.set_pcool_deterministic_validation_for_testing(true);
+            config
+        })
+    }
+
+    /// Stores `effects` as executed, so the quarantine flush finds them when
+    /// it derives the rows of a commit rooting their transaction.
+    fn store_executed_effects(authority: &AuthorityState, effects: &TransactionEffects) {
+        let tables = &authority.database_for_testing().perpetual_tables;
+        tables.effects.insert(&effects.digest(), effects).unwrap();
+        tables
+            .executed_effects
+            .insert(effects.transaction_digest(), &effects.digest())
+            .unwrap();
+    }
+
     #[tokio::test]
     async fn handler_processed_rows_are_read_by_exact_key_across_overlay_and_table() {
         let authority = TestAuthorityBuilder::new().build().await;
@@ -2616,6 +2638,155 @@ mod handler_object_state_storage {
         );
     }
 
+    /// The quarantine flush reaches a commit before the watcher does. Until
+    /// its batch is durable, the commit's rows exist only in that batch, so
+    /// the durable sync-ahead record must keep answering reads and the
+    /// highest fully executed commit must not cover the commit yet.
+    #[tokio::test]
+    async fn commit_completed_by_the_flush_keeps_its_record_readable_until_the_batch_is_durable() {
+        let _guard = enable_deterministic_validation();
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let state = epoch_store.handler_object_state_for_testing();
+
+        // A sync-ahead execution with its records made durable.
+        let mutated = ObjectId::random();
+        let (effects, inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &effects, &inputs);
+        store_executed_effects(&authority, &effects);
+        let version = effects.lamport_version();
+        let record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        let gas = effects.gas_object().reference().object_id;
+        let gas_record = epoch_store.sync_ahead_record(&gas).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(vec![(mutated, record), (gas, gas_record)], vec![])
+            .unwrap();
+
+        // The handler reaches the commit, and its checkpoint executes before
+        // the watcher completes it.
+        let key = TransactionKey::Digest(*effects.transaction_digest());
+        epoch_store.assign_commit_to_transactions(1, vec![key]);
+        epoch_store
+            .flush_commit_through_quarantine_interleaved_for_testing(
+                1,
+                vec![*effects.transaction_digest()],
+                || {
+                    assert_eq!(state.commit_index_of(&key), None);
+                    assert_eq!(
+                        epoch_store.sync_ahead_record(&mutated).unwrap(),
+                        Some(record)
+                    );
+                    assert_eq!(
+                        epoch_store
+                            .handler_processed_object(&ObjectKey(mutated, version))
+                            .unwrap(),
+                        None
+                    );
+                    assert_eq!(
+                        *epoch_store
+                            .subscribe_highest_fully_executed_commit()
+                            .borrow(),
+                        0
+                    );
+                    assert!(
+                        epoch_store
+                            .wait_for_fully_executed_commit(1)
+                            .now_or_never()
+                            .is_none()
+                    );
+                },
+            )
+            .unwrap();
+
+        let row = epoch_store
+            .handler_processed_object(&ObjectKey(mutated, version))
+            .unwrap()
+            .expect("the flush must make the commit's rows readable");
+        assert_eq!(row.produced_at, 1);
+        assert_eq!(
+            epoch_store
+                .durable_handler_processed_object_for_testing(&ObjectKey(mutated, version))
+                .unwrap(),
+            Some(row)
+        );
+        assert_eq!(
+            epoch_store
+                .durable_sync_ahead_record_for_testing(&mutated)
+                .unwrap(),
+            None
+        );
+        assert_eq!(epoch_store.sync_ahead_record(&mutated).unwrap(), None);
+        assert_eq!(state.overlay_sizes_for_testing().0, 0);
+        assert_eq!(
+            *epoch_store
+                .subscribe_highest_fully_executed_commit()
+                .borrow(),
+            1
+        );
+    }
+
+    /// When the quarantine flush completes a commit that covers only the
+    /// start of a sync-ahead chain, the chain's record stays: its later
+    /// versions still have no handler row, and the record is what answers
+    /// them.
+    #[tokio::test]
+    async fn commit_completed_by_the_flush_keeps_the_record_of_a_partly_covered_chain() {
+        let _guard = enable_deterministic_validation();
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+
+        // A sync-ahead chain of two transactions on one object, with its
+        // record made durable.
+        let mutated = ObjectId::random();
+        let (first, first_inputs) = executed_owned_tx_effects(mutated, 5, 1);
+        execute_sync_ahead(&epoch_store, &first, &first_inputs);
+        let (second, second_inputs) =
+            executed_owned_tx_effects(mutated, first.lamport_version().as_u64(), 2);
+        execute_sync_ahead(&epoch_store, &second, &second_inputs);
+        store_executed_effects(&authority, &first);
+        let record = epoch_store.sync_ahead_record(&mutated).unwrap().unwrap();
+        assert_eq!(record.latest_created, second.lamport_version());
+        let first_gas = first.gas_object().reference().object_id;
+        let first_gas_record = epoch_store.sync_ahead_record(&first_gas).unwrap().unwrap();
+        epoch_store
+            .flush_sync_ahead_rows_for_testing(
+                vec![(mutated, record), (first_gas, first_gas_record)],
+                vec![],
+            )
+            .unwrap();
+
+        // The flush reaches the commit of the chain's first transaction only.
+        let key = TransactionKey::Digest(*first.transaction_digest());
+        epoch_store.assign_commit_to_transactions(1, vec![key]);
+        epoch_store
+            .flush_commit_through_quarantine_for_testing(1, vec![*first.transaction_digest()])
+            .unwrap();
+
+        assert!(
+            epoch_store
+                .handler_processed_object(&ObjectKey(mutated, first.lamport_version()))
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(
+            epoch_store
+                .durable_sync_ahead_record_for_testing(&mutated)
+                .unwrap(),
+            Some(record)
+        );
+        assert_eq!(
+            epoch_store.sync_ahead_record(&mutated).unwrap(),
+            Some(record)
+        );
+        // The gas coin's chain ends at the flushed version.
+        assert_eq!(
+            epoch_store
+                .durable_sync_ahead_record_for_testing(&first_gas)
+                .unwrap(),
+            None
+        );
+    }
+
     /// The execution-hook tests cover the rows a handler-known execution
     /// writes through real execution; this pins what real execution cannot:
     /// a map hit does no shelter fetch at all.
@@ -2652,12 +2823,7 @@ mod handler_object_state_storage {
     /// never moves down.
     #[tokio::test]
     async fn highest_fully_executed_commit_resumes_from_the_flushed_commit() {
-        let _guard =
-            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-                config.set_enable_pcool_flow_for_testing(true);
-                config.set_pcool_deterministic_validation_for_testing(true);
-                config
-            });
+        let _guard = enable_deterministic_validation();
         let authority = TestAuthorityBuilder::new().build().await;
         let store = authority.epoch_store_for_testing().clone();
         let assert_highest = |store: &AuthorityPerEpochStore, index: CommitIndex| {
