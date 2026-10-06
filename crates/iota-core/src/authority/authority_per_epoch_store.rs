@@ -700,6 +700,8 @@ pub struct AuthorityPerEpochStore {
     /// commit-index map and the overlays over the three bookkeeping tables,
     /// holding entries not yet durable.
     handler_object_state: HandlerObjectState,
+    /// See [`Self::pcool_bookkeeping_enabled`].
+    pcool_bookkeeping_enabled: bool,
 
     protocol_config: ProtocolConfig,
 
@@ -1325,6 +1327,8 @@ impl AuthorityPerEpochStore {
             .unwrap_or_default()
             .sub_dag_index;
         let handler_object_state = HandlerObjectState::new(&tables, resume_point, metrics.clone());
+        let pcool_bookkeeping_enabled =
+            committee.authority_exists(&name) && protocol_config.pcool_deterministic_validation();
 
         // Seed the quarantine's in-memory overload-notification cache from the
         // persisted table. This is the only point we iterate the table; all
@@ -1379,6 +1383,7 @@ impl AuthorityPerEpochStore {
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
             handler_object_state,
+            pcool_bookkeeping_enabled,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
                 highest_executed_checkpoint,
                 cached_overload_notifications,
@@ -1782,6 +1787,16 @@ impl AuthorityPerEpochStore {
         }
     }
 
+    /// Whether this node keeps the P-COOL deterministic-validation
+    /// bookkeeping: the flag is on and this node is in the epoch's committee.
+    /// Every bookkeeping write, the execution watcher and the commit
+    /// assignment gate on this rather than on the flag alone. A node outside
+    /// the committee runs no consensus handler, so every execution there
+    /// would count as sync-ahead and nothing would ever clear its entries.
+    pub fn pcool_bookkeeping_enabled(&self) -> bool {
+        self.pcool_bookkeeping_enabled
+    }
+
     /// Registers the roots of commit `index` in the transaction-key ->
     /// commit-index map and hands the commit to the execution watcher. Must
     /// be called once per commit while the handler processes it, before any
@@ -1873,7 +1888,7 @@ impl AuthorityPerEpochStore {
         pending_checkpoints: &[PendingCheckpoint],
         batch: &mut DBBatch,
     ) -> IotaResult<Option<FlushedCommitRows>> {
-        if !self.protocol_config.pcool_deterministic_validation() {
+        if !self.pcool_bookkeeping_enabled {
             return Ok(None);
         }
         let tables = self.tables()?;
@@ -1961,7 +1976,7 @@ impl AuthorityPerEpochStore {
         &self,
         effects: impl IntoIterator<Item = &'a TransactionEffects> + Clone,
     ) -> IotaResult {
-        if !self.protocol_config.pcool_deterministic_validation() {
+        if !self.pcool_bookkeeping_enabled {
             return Ok(());
         }
         let tables = match self.tables() {
@@ -4689,7 +4704,7 @@ impl AuthorityPerEpochStore {
 
             // The deterministic-validation bookkeeping tracks exactly the
             // roots written to this commit's pending checkpoints.
-            if deterministic_validation {
+            if self.pcool_bookkeeping_enabled {
                 let mut commit_roots = non_randomness_roots.clone();
                 if should_write_random_checkpoint {
                     commit_roots.extend(randomness_roots.iter().copied());
