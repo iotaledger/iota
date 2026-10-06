@@ -16,6 +16,26 @@ The framework functions and events described here are those on the branch above.
 
 ---
 
+## Basic concepts
+
+**Address.** An IOTA address is normally derived from a public key: it is the hash of the public key, with a scheme flag in front for every scheme except Ed25519. A transaction sent from that address is valid when it carries a signature made with the matching private key. Whoever holds the private key controls the address, and the address cannot switch to another public key.
+
+**Account.** With account abstraction, an object can also send transactions. Such an object is an account: its address is its object ID, and what proves that a transaction may act for it is a Move function, its authenticator function, instead of a fixed public key. The account stores a reference to this function (package, module and function name) in a dynamic field. When a transaction names the account as sender, the node calls the authenticator function with the account, the arguments the sender supplied (for example a signature) and the contents of the transaction. If the function returns, the transaction is accepted; if it aborts, the transaction is rejected. The account can replace its authenticator function later. The `iota::account` module creates accounts of any Move type and replaces their authenticator function. See the IOTA documentation on account abstraction (`docs/content/developer/account-abstraction.mdx`).
+
+**`SmartAccount`.** `SmartAccount` (module `iota::smart_account`) is the account type the framework provides, so that users do not have to write their own. It keeps all its data in dynamic fields and can use any authenticator function. After creation, only transactions sent by the account itself can change it: attach, detach or replace its public key, or replace its authenticator function.
+
+**Built-in authenticators.** The framework provides one authenticator function per standard signature scheme: Ed25519, Secp256k1, Secp256r1, MultiSig and Passkey (module `iota::builtin_authenticator_functions`). Each one checks the transaction's signature against the public key stored on the account. These are the authenticators a wallet that signs with private keys, such as the IOTA wallet, can sign for. Any other authenticator function is called a custom authenticator in this document.
+
+**Claiming an address.** A `ClaimAccount` transaction turns an address derived from a public key into a `SmartAccount`. The owner of the address signs it with their private key. The framework then creates a `SmartAccount` whose ID is that same address, with the built-in authenticator for the public key's scheme and the public key attached. The owner keeps signing with the same private key.
+
+**Dynamic field.** A value attached to an object under a name, stored as a separate object. Given the parent object's ID and the field name, the field can be read directly.
+
+**Event.** Move code can emit events while a transaction runs. They are recorded in the transaction's effects and in checkpoints, and anyone can read them, but they are not chain state: Move code cannot read them back.
+
+**Indexer.** `iota-indexer` is a separate service. It reads checkpoints from a fullnode, stores data in PostgreSQL, and serves extra RPC methods in the `iotax_` namespace.
+
+---
+
 ## Problem statement
 
 A `SmartAccount` address is not derived from a public key, and after creation the account can change both the public key used to authenticate it and its authenticator function. A wallet restored from a seed knows only its public keys, so it cannot tell from them alone which accounts they unlock.
@@ -33,7 +53,7 @@ For this reason the indexer maintains a mapping from public keys to accounts. It
 - `iota::smart_account` — the framework `SmartAccount` and its builders: `builder_v1` (any authenticator), `builtin_auth_builder_v1` (a `PublicKey` plus the built-in authenticator of its scheme), finished by `build_v1` (shared) or ~~`build_immutable_v1` (frozen)~~. After creation, the public key and the authenticator change only in transactions sent by the account itself.
 - `iota::builtin_authenticator_functions` — the five built-in authenticators (Ed25519, Secp256k1, Secp256r1, MultiSig, Passkey) and `attach_public_key` / `detach_public_key` / `rotate_public_key`, which emit `PublicKeyAttached` / `PublicKeyDetached` / `PublicKeyRotated`.
 - `iota::account` — creates accounts and rotates their authenticator, emitting `MutableAccountCreated` / ~~`ImmutableAccountCreated`~~ / `AuthenticatorFunctionRefV1Rotated`.
-- **Claiming** — a `ClaimAccount` transaction creates a `SmartAccount` at the address the sender's public key derives.
+- **Claiming** — the `ClaimAccount` transaction (see Basic concepts).
 
 ### Framework events
 
@@ -114,8 +134,6 @@ The index is keyed by `key_id`, not by the address the public key derives:
 
 It has no protocol role (authentication still checks the derived address) and is defined only in Rust (`iota-types`), since every event carries the full `PublicKey`. Adding it to Move later would be additive.
 
-**MultiSig members.** The `key_id` of a MultiSig public key hashes its committee, which a wallet restoring from a seed does not know. So every event about a MultiSig public key also links each committee member, under the member's own `key_id`, and that row records the `key_id` of the whole MultiSig public key. The committee is the only payload the indexer decodes. If it does not decode, only the whole public key is linked.
-
 ### 2.3 Store them in the indexer
 
 The index models two relations:
@@ -153,7 +171,6 @@ Served only by the indexer (`iota-node` does not register the `iotax` namespace)
 | `smartAccount` | Whether the address is a framework `SmartAccount`. |
 | `authenticator` | `ed25519`, `secp256k1`, `secp256r1`, `multisig`, `passkey` (built-in) or `custom`; `null` when not a `SmartAccount`. |
 | `scheme` | The public key's scheme flag, as a number. |
-| `multisigKeyId` | Base64 `key_id` of the whole MultiSig public key when the public key is one of its members; `null` otherwise. |
 | `lastChangeEpoch` | Epoch of the last change to the link. |
 
 ```json
@@ -165,7 +182,7 @@ Served only by the indexer (`iota-node` does not register the `iotax` namespace)
 { "jsonrpc": "2.0", "id": 1, "result": [
   { "address": "0xcef6bafea1d59edb73ff5ec9e8aa58354796e1b572b695d64237ce9c15a34a03",
     "status": "active", "source": "attach", "smartAccount": true,
-    "authenticator": "ed25519", "scheme": 0, "multisigKeyId": null, "lastChangeEpoch": "3" } ] }
+    "authenticator": "ed25519", "scheme": 0, "lastChangeEpoch": "3" } ] }
 ```
 
 ### 2.5 Wallet flow
@@ -196,6 +213,7 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of �
 - **Results are not authenticated.** A link is a true on-chain fact, not an endorsement. A wallet that needs certainty checks the account on chain.
 - **Anyone can use your public key for an account.** `builtin_auth_builder_v1` takes any `PublicKey`, so anyone can create accounts with your public key for the price of gas. Only you can operate them, but they appear in your results.
 - **No paging.** Because of the point above, one public key's result can grow without bound. Accepted for now.
+- **A MultiSig account is found only by its whole MultiSig public key.** Its `key_id` hashes the whole committee, and the member public keys are not indexed, so a wallet that holds one member public key cannot find the account.
 - **An account can lock itself**, by removing the only public key it can sign with or rotating to an authenticator nobody can satisfy.
 - **A public key and an authenticator of different schemes** are reported as they are; keeping them consistent is up to whoever rotates them.
 
@@ -248,8 +266,7 @@ For live updates, subscribe with `iota_subscribeEvent` to the three modules of �
 | `MutableAccountCreated<SmartAccount>(account, auth)` / ~~`ImmutableAccountCreated<SmartAccount>`~~ | `account_authenticators` row, kind of `auth` |
 | `AuthenticatorFunctionRefV1Rotated<SmartAccount>(account, _, to)` | `account_authenticators` row, kind of `to` |
 
-- A MultiSig public key also links or unlinks each committee member: `(key_id(member), account)`, with `multisig_key_id = key_id(pk)` and the same source.
-- Every unlink of `from` comes before every link of `to`, so a public key on both sides of a rotation stays active: the same public key, or a MultiSig member kept across the rotation.
+- The unlink of `from` comes before the link of `to`, so rotating a public key onto itself leaves it active.
 - The public key in `SmartAccountCreated` is not used for links: the `PublicKeyAttached` of the same transaction gives it.
 - Only `iota::account` events whose type parameter is `0x2::smart_account::SmartAccount` are read.
 - An event whose type matches but whose payload does not decode is skipped: the indexer is older than the framework.
@@ -267,7 +284,6 @@ All three: primary key as shown, no foreign keys (joined on `account_id` at quer
 | `key_id` | `BYTEA` | `key_id` of the public key (§2.2) |
 | `account_id` | `BYTEA` | the object the public key is attached to |
 | `scheme` | `SMALLINT` | scheme flag as recorded on chain, stored even if unknown to the build |
-| `multisig_key_id` | `BYTEA NULL` | `key_id` of the whole MultiSig public key when `key_id` is one of its members |
 | `source` | `SMALLINT` | 0 attach, 1 rotate, 2 detach |
 | `status` | `SMALLINT` | 0 active, 1 unlinked |
 | `last_change_tx_sequence_number` | `BIGINT` | orders results and guards writes |
