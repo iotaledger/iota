@@ -123,7 +123,8 @@ pub struct MetricGroups {
     pub epoch: MetricLevel,
     /// Async-runtime and process health: monitored tokio tasks, channels, and
     /// scopes, per-runtime tokio scheduler metrics (`tokio_runtime_*`), thread
-    /// stalls, invariant violations, and tracing span latencies.
+    /// stalls, invariant violations, and tracing span latencies. Also the
+    /// standard `process_*` metrics and `process_open_fds_by_kind`.
     ///
     /// Modules: `iota_metrics` (except the `hardware` and `p2p` group
     /// submodules), `telemetry_subscribers`.

@@ -48,6 +48,8 @@ use std::{
 /// directly on the `prometheus` crate.
 #[doc(hidden)]
 pub use prometheus;
+#[cfg(target_os = "linux")]
+pub use prometheus::process_collector;
 // ---------------------------------------------------------------------------
 // prometheus re-exports
 // ---------------------------------------------------------------------------
