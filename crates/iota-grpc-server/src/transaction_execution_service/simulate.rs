@@ -33,10 +33,12 @@ use crate::{
     types::GrpcReader, validation::validate_read_mask,
 };
 
-/// Simulate a batch of transactions sequentially.
+/// Simulate a batch of transactions.
 ///
-/// Each transaction is simulated independently — failure of one does not abort
-/// the rest. Results are returned in the same order as the input.
+/// Each transaction is simulated independently against the current state, so
+/// it does not see the effects of other transactions in the batch. Failure of
+/// one does not abort the rest. Results are returned in the same order as the
+/// input.
 ///
 /// ## Available Read Mask Fields
 ///

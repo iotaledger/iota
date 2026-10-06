@@ -229,10 +229,11 @@ fn parse_transaction_proto(
     Ok(sdk_transaction)
 }
 
-/// Execute a batch of transactions sequentially.
+/// Execute a batch of transactions concurrently.
 ///
 /// Each transaction is executed independently — failure of one does not abort
-/// the rest. Results are returned in the same order as the input.
+/// the rest. Results are returned in the same order as the input, but the
+/// relative execution order of the transactions is not guaranteed.
 ///
 /// ## Checkpoint Inclusion
 ///
