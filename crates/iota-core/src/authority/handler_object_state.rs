@@ -1100,6 +1100,13 @@ impl HandlerObjectState {
         )
     }
 
+    /// The number of sync-ahead records created and not yet queued for
+    /// deletion.
+    #[cfg(test)]
+    pub fn live_sync_ahead_records_count_for_testing(&self) -> u64 {
+        self.live_sync_ahead_records_count.load(Ordering::Relaxed)
+    }
+
     /// Raises the highest fully executed commit to `index`; a repeated or late
     /// completion of an earlier commit never lowers it.
     fn advance_highest_fully_executed_commit(&self, index: CommitIndex) {
