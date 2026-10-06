@@ -8,6 +8,7 @@ use iota_sdk_types::{CheckpointSequenceNumber, CheckpointTimestamp, Event, Objec
 use iota_types::full_checkpoint_content::CheckpointTransaction;
 
 use crate::{
+    ingestion::common::{orchestration::OperationalLevel, prepare::ValidatedCheckpoint},
     models::display::{
         StoredDisplay, display_id_from_created_event, displayed_type_from_created_event,
     },
@@ -16,14 +17,41 @@ use crate::{
 
 /// The builder of all event data to commit to the database.
 #[derive(Debug)]
-pub(crate) struct EventsTransformer<'tx> {
+pub(crate) struct EventsTransformer<'chk> {
+    checkpoint: ValidatedCheckpoint<'chk>,
+}
+
+impl<'chk> EventsTransformer<'chk> {
+    pub(super) fn new(checkpoint: ValidatedCheckpoint<'chk>) -> Self {
+        Self { checkpoint }
+    }
+
+    pub(super) fn transform(self, operational_level: OperationalLevel) -> EventData {
+        let mut chk_event_data = EventData::new(operational_level);
+
+        for (sequence_number, checkpoint_transaction) in self.checkpoint.enumerate_transactions() {
+            let transformer = TransactionEventsTransformer::new(
+                checkpoint_transaction,
+                sequence_number,
+                self.checkpoint.sequence_number(),
+                self.checkpoint.timestamp_ms(),
+            );
+            transformer.extend_event_data(&mut chk_event_data);
+        }
+        chk_event_data
+    }
+}
+
+/// The builder of transaction event data to commit to the database.
+#[derive(Debug)]
+pub(crate) struct TransactionEventsTransformer<'tx> {
     transaction: &'tx CheckpointTransaction,
     tx_sequence_number: u64,
     checkpoint_sequence_number: CheckpointSequenceNumber,
     checkpoint_timestamp_ms: CheckpointTimestamp,
 }
 
-impl<'tx> EventsTransformer<'tx> {
+impl<'tx> TransactionEventsTransformer<'tx> {
     pub(crate) fn new(
         transaction: &'tx CheckpointTransaction,
         tx_sequence_number: u64,
@@ -38,26 +66,37 @@ impl<'tx> EventsTransformer<'tx> {
         }
     }
 
-    pub(crate) fn transform(self) -> EventData {
-        let mut derived_data = EventData::default();
+    pub(crate) fn transform(self, operational_level: OperationalLevel) -> EventData {
+        let mut tx_event_data = EventData::new(operational_level);
+
+        self.extend_event_data(&mut tx_event_data);
+        tx_event_data
+    }
+
+    /// Adds the event data of the transaction to `data`.
+    fn extend_event_data(self, data: &mut EventData) {
         let Some(events) = self.transaction.events.as_ref() else {
-            return derived_data;
+            return;
         };
+
+        let mut transaction_displays = BTreeMap::default();
         for (event_sequence_number, chain_event) in events.iter().enumerate() {
             if let Some((display_type, display)) = Self::build_display(chain_event) {
-                derived_data.displays.insert(display_type, display);
+                transaction_displays.insert(display_type, display);
             }
-            let event = self.build_event(chain_event, event_sequence_number as u64);
-            derived_data.events.push(event);
-            let event_index = self.build_event_index(chain_event, event_sequence_number as u64);
-            derived_data.event_indices.push(event_index);
+            if let Some(events) = &mut data.events {
+                events.push(self.build_event(chain_event, event_sequence_number as u64));
+            }
+            if let Some(indices) = &mut data.event_indices {
+                indices.push(self.build_event_index(chain_event, event_sequence_number as u64));
+            }
         }
         // complement any displays created without emitting a DisplayUpdatedEvent
         let display_created_events = events.iter().filter_map(|event| {
             displayed_type_from_created_event(event).map(|display_type| (display_type, event))
         });
         for (display_type, display_created_event) in display_created_events {
-            if derived_data.displays.contains_key(&display_type) {
+            if transaction_displays.contains_key(&display_type) {
                 // display is already indexed through a DisplayUpdatedEvent
                 continue;
             }
@@ -65,10 +104,10 @@ impl<'tx> EventsTransformer<'tx> {
                 continue;
             };
             if let Some(display) = self.build_display_from_objects(display_id) {
-                derived_data.displays.insert(display_type, display);
+                transaction_displays.insert(display_type, display);
             }
         }
-        derived_data
+        data.displays.extend(transaction_displays);
     }
 
     fn build_display(event: &Event) -> Option<(String, StoredDisplay)> {
@@ -99,9 +138,25 @@ impl<'tx> EventsTransformer<'tx> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct EventData {
     pub(crate) displays: BTreeMap<String, StoredDisplay>,
-    pub(crate) events: Vec<IndexedEvent>,
-    pub(crate) event_indices: Vec<EventIndex>,
+    pub(crate) events: Option<Vec<IndexedEvent>>,
+    pub(crate) event_indices: Option<Vec<EventIndex>>,
+}
+
+impl EventData {
+    /// Creates empty event data with the collections that the
+    /// `operational_level` includes.
+    fn new(operational_level: OperationalLevel) -> Self {
+        Self {
+            displays: Default::default(),
+            events: operational_level
+                .includes(OperationalLevel::FilteredQueries)
+                .then(Default::default),
+            event_indices: operational_level
+                .includes(OperationalLevel::CombinedEventFilters)
+                .then(Default::default),
+        }
+    }
 }

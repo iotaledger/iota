@@ -118,11 +118,10 @@ impl CommitterTables {
             Self::Checkpoints,
             Self::PrunerCpWatermark,
         ]
-        .into_iter()
     }
 
     pub(crate) fn objects_history() -> impl IntoIterator<Item = Self> {
-        [Self::ObjectsBackwardHistory].into_iter()
+        [Self::ObjectsBackwardHistory]
     }
 
     pub(crate) fn filtered_queries() -> impl IntoIterator<Item = Self> {
@@ -138,7 +137,6 @@ impl CommitterTables {
             Self::TxWrappedOrDeletedObjects,
             Self::Events,
         ]
-        .into_iter()
     }
 
     pub(crate) fn combined_event_filters() -> impl IntoIterator<Item = Self> {
@@ -151,7 +149,6 @@ impl CommitterTables {
             Self::EventStructName,
             Self::EventStructPackage,
         ]
-        .into_iter()
     }
 }
 

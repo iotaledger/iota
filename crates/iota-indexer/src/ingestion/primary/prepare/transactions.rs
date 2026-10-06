@@ -21,7 +21,7 @@ use itertools::Itertools;
 
 use crate::{
     errors::IndexerError,
-    ingestion::common::prepare::ValidatedCheckpoint,
+    ingestion::common::{orchestration::OperationalLevel, prepare::ValidatedCheckpoint},
     metrics::IndexerMetrics,
     types::{
         IndexedBalanceChange, IndexedObjectChange, IndexedTransaction, IndexerResult, TxIndex,
@@ -42,15 +42,24 @@ impl<'chk> TransactionTransformer<'chk> {
     pub(super) async fn transform(
         self,
         metrics: &IndexerMetrics,
+        operational_level: OperationalLevel,
     ) -> IndexerResult<TransactionData> {
-        let mut transaction_data = TransactionData::default();
+        let mut transaction_data = TransactionData {
+            transaction_indices: operational_level
+                .includes(OperationalLevel::FilteredQueries)
+                .then(Default::default),
+            ..Default::default()
+        };
+
         for (sequence_number, checkpoint_transaction) in self.checkpoint.enumerate_transactions() {
             let transaction = self
                 .build_transaction(checkpoint_transaction, sequence_number, metrics)
                 .await?;
             transaction_data.transactions.push(transaction);
-            let transaction_index = self.build_tx_index(checkpoint_transaction, sequence_number)?;
-            transaction_data.transaction_indices.push(transaction_index);
+
+            if let Some(indices) = &mut transaction_data.transaction_indices {
+                indices.push(self.build_tx_index(checkpoint_transaction, sequence_number)?);
+            }
         }
         Ok(transaction_data)
     }
@@ -140,7 +149,7 @@ impl<'chk> TransactionTransformer<'chk> {
 #[derive(Default)]
 pub(super) struct TransactionData {
     pub(super) transactions: Vec<IndexedTransaction>,
-    pub(super) transaction_indices: Vec<TxIndex>,
+    pub(super) transaction_indices: Option<Vec<TxIndex>>,
 }
 
 pub(crate) async fn index_transaction(
