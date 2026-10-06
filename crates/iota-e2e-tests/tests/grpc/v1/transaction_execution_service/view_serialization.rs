@@ -68,7 +68,6 @@ async fn publish_view_demo(
 ) -> ObjectId {
     let sender = first_sender(test_cluster);
     let compiled_package = BuildConfig::new_for_testing()
-        .with_allow_view_function()
         .build(&view_demo_package_path())
         .expect("view_demo package should build");
 

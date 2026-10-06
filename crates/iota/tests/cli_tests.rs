@@ -7333,11 +7333,9 @@ fn protocol_build_config_args_resolve_to_protocol_build_config() {
     use iota_move::build::ProtocolBuildConfigArgs;
     use iota_move_build::ProtocolBuildConfig;
 
-    // An unset override resolves to `ProtocolBuildConfig::default()`.
-    assert_eq!(
-        ProtocolBuildConfig::from(ProtocolBuildConfigArgs::default()).allow_view_function,
-        ProtocolBuildConfig::default().allow_view_function,
-    );
+    // An unset override resolves to `ProtocolBuildConfig::default()`, which
+    // allows view functions.
+    assert!(ProtocolBuildConfig::from(ProtocolBuildConfigArgs::default()).allow_view_function);
     // An explicit override wins over the default.
     assert!(
         ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
